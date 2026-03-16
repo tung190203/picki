@@ -13,10 +13,12 @@ class MiniTournamentCreatorInvitationNotification extends Notification implement
     use Queueable;
 
     protected $participant;
+    protected ?int $invitedBy;
 
-    public function __construct(MiniParticipant $participant)
+    public function __construct(MiniParticipant $participant, ?int $invitedBy = null)
     {
         $this->participant = $participant;
+        $this->invitedBy = $invitedBy ?? auth()->id();
     }
 
     public function via($notifiable)
@@ -26,32 +28,39 @@ class MiniTournamentCreatorInvitationNotification extends Notification implement
 
     public function toDatabase($notifiable)
     {
+        $tournamentName = $this->participant->miniTournament?->name ?? 'kèo đấu';
+
         return [
             'participant_id' => $this->participant->id,
             'mini_tournament_id' => $this->participant->mini_tournament_id,
             'title' => 'Bạn được mời tham gia kèo đấu',
-            'message' => "Bạn được mời tham gia kèo đấu '{$this->participant->miniTournament->name}'",
-            'invited_by' => auth()->id(),
+            'message' => "Bạn được mời tham gia kèo đấu \"{$tournamentName}\".",
+            'invited_by' => $this->invitedBy,
         ];
     }
 
     public function toBroadcast($notifiable)
     {
+        $tournamentName = $this->participant->miniTournament?->name ?? 'kèo đấu';
+
         return new BroadcastMessage([
             'participant_id' => $this->participant->id,
             'mini_tournament_id' => $this->participant->mini_tournament_id,
             'title' => 'Bạn được mời tham gia kèo đấu',
-            'message' => "Bạn được mời tham gia kèo đấu '{$this->participant->miniTournament->name}'",
-            'invited_by' => auth()->id(),
+            'message' => "Bạn được mời tham gia kèo đấu \"{$tournamentName}\".",
+            'invited_by' => $this->invitedBy,
         ]);
     }
 
     public function toArray($notifiable)
     {
+        $tournamentName = $this->participant->miniTournament?->name ?? 'kèo đấu';
+
         return [
             'participant_id' => $this->participant->id,
-            'message' => "Bạn được mời tham gia kèo đấu: {$this->participant->miniTournament->name}",
-            'invited_by' => auth()->id(),
+            'title' => 'Bạn được mời tham gia kèo đấu',
+            'message' => "Bạn được mời tham gia kèo đấu \"{$tournamentName}\".",
+            'invited_by' => $this->invitedBy,
         ];
     }
 }
