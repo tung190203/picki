@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Models\MiniTournament;
 use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
+use App\Models\MiniTournamentStaff;
 use App\Enums\PaymentStatusEnum;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class MiniTournamentService
@@ -21,7 +23,7 @@ class MiniTournamentService
             $data['fee_amount'] = 0;
         }
 
-        \Log::info('MiniTournamentService::createTournament', [
+        Log::info('MiniTournamentService::createTournament', [
             'has_recurring' => !empty($recurringSchedule),
             'series_id' => $seriesId,
         ]);
@@ -163,14 +165,31 @@ class MiniTournamentService
                 continue;
             }
 
-            $existing = MiniTournament::where('recurrence_series_id', $seriesId)
-                ->whereBetween('start_time', [$nextStart->copy(), $nextStart->copy()->endOfMinute()])
-                ->exists();
-
-            if (!$existing) {
-                $this->createNextOccurrence($firstTournament, $nextStartTime, $userId, $seriesId);
-            }
+            $this->createNextOccurrenceIfMissing($firstTournament, $nextStartTime, $userId, $seriesId);
         }
+    }
+
+    public function createNextOccurrenceIfMissing(
+        MiniTournament $tournament,
+        Carbon $nextStartTime,
+        int $userId,
+        ?string $recurrenceSeriesId = null
+    ): ?MiniTournament {
+        $seriesId = $recurrenceSeriesId ?? $tournament->recurrence_series_id;
+        if (!$seriesId) {
+            return null;
+        }
+
+        $nextStart = $nextStartTime->copy()->startOfMinute();
+        $exists = MiniTournament::where('recurrence_series_id', $seriesId)
+            ->whereBetween('start_time', [$nextStart->copy(), $nextStart->copy()->endOfMinute()])
+            ->exists();
+
+        if ($exists) {
+            return null;
+        }
+
+        return $this->createNextOccurrence($tournament, $nextStartTime, $userId, $seriesId);
     }
 
     private function createNextOccurrence(MiniTournament $tournament, Carbon $nextStartTime, int $userId, ?string $recurrenceSeriesId = null): MiniTournament
@@ -193,6 +212,65 @@ class MiniTournamentService
         $newTournament->recurrence_series_cancelled_at = null;
         $newTournament->save();
 
+        $this->syncStaffAndCreatorForOccurrence($tournament, $newTournament, $userId);
+
         return $newTournament;
+    }
+
+    private function syncStaffAndCreatorForOccurrence(MiniTournament $source, MiniTournament $target, int $userId): void
+    {
+        $source->loadMissing(['miniTournamentStaffs', 'participants']);
+
+        // Copy staff roles from source occurrence.
+        foreach ($source->miniTournamentStaffs as $staff) {
+            MiniTournamentStaff::firstOrCreate([
+                'mini_tournament_id' => $target->id,
+                'user_id' => $staff->user_id,
+                'role' => $staff->role,
+            ]);
+        }
+
+        // If source has no organizer staff, fallback attach creator as organizer.
+        $hasOrganizer = $target->miniTournamentStaffs()
+            ->where('role', MiniTournamentStaff::ROLE_ORGANIZER)
+            ->exists();
+
+        if (!$hasOrganizer && $userId > 0) {
+            MiniTournamentStaff::firstOrCreate([
+                'mini_tournament_id' => $target->id,
+                'user_id' => $userId,
+                'role' => MiniTournamentStaff::ROLE_ORGANIZER,
+            ]);
+        }
+
+        // Creator should always be a confirmed participant in each occurrence.
+        $creatorParticipant = MiniParticipant::firstOrCreate(
+            [
+                'mini_tournament_id' => $target->id,
+                'user_id' => $userId,
+            ],
+            [
+                'is_confirmed' => true,
+                'is_invited' => false,
+                'payment_status' => PaymentStatusEnum::CONFIRMED,
+            ]
+        );
+
+        if ($target->has_fee && !$target->auto_split_fee) {
+            MiniParticipantPayment::firstOrCreate(
+                [
+                    'mini_tournament_id' => $target->id,
+                    'participant_id' => $creatorParticipant->id,
+                ],
+                [
+                    'user_id' => $userId,
+                    'amount' => $target->fee_amount ?? 0,
+                    'status' => MiniParticipantPayment::STATUS_CONFIRMED,
+                    'paid_at' => now(),
+                    'confirmed_at' => now(),
+                    'confirmed_by' => $userId,
+                ]
+            );
+        }
     }
 }
