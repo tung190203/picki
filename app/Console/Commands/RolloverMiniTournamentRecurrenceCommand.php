@@ -3,9 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Models\MiniTournament;
+use App\Models\MiniTournamentStaff;
 use App\Services\MiniTournamentService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Carbon;
 
 class RolloverMiniTournamentRecurrenceCommand extends Command
 {
@@ -20,27 +20,45 @@ class RolloverMiniTournamentRecurrenceCommand extends Command
             $this->info('Dry run – no changes will be made.');
         }
 
-        // Get all recurring tournaments that need new occurrences
-        $recurringTournaments = MiniTournament::whereNotNull('recurring_schedule')
+        // Process latest occurrence of each active recurring series only.
+        $seriesSeeds = MiniTournament::whereNotNull('recurring_schedule')
             ->whereNotNull('recurrence_series_id')
             ->whereNull('recurrence_series_cancelled_at')
+            ->with(['miniTournamentStaffs', 'participants'])
+            ->orderBy('recurrence_series_id')
+            ->orderByDesc('start_time')
             ->get();
+
+        $recurringTournaments = $seriesSeeds
+            ->groupBy('recurrence_series_id')
+            ->map(fn ($items) => $items->first())
+            ->values();
 
         $created = 0;
 
         foreach ($recurringTournaments as $tournament) {
             // Check if we need to create new occurrences
             $nextOccurrence = $tournament->calculateNextOccurrence();
-            
+
             if ($nextOccurrence) {
-                if (!$this->option('dry-run')) {
-                    // Use reflection to call private method
-                    $reflection = new \ReflectionClass($tournamentService);
-                    $method = $reflection->getMethod('createNextOccurrence');
-                    $method->setAccessible(true);
-                    $method->invoke($tournamentService, $tournament, $nextOccurrence, 1, $tournament->recurrence_series_id);
+                $organizerId = $this->resolveOrganizerId($tournament);
+                if (!$organizerId) {
+                    $this->warn("Skip series {$tournament->recurrence_series_id}: cannot resolve organizer.");
+                    continue;
                 }
-                
+
+                if (!$this->option('dry-run')) {
+                    $createdOccurrence = $tournamentService->createNextOccurrenceIfMissing(
+                        $tournament,
+                        $nextOccurrence,
+                        $organizerId,
+                        $tournament->recurrence_series_id
+                    );
+                    if (!$createdOccurrence) {
+                        continue;
+                    }
+                }
+
                 $created++;
                 $this->line("Created occurrence for tournament {$tournament->id} at {$nextOccurrence->toDateTimeString()}");
             }
@@ -49,5 +67,22 @@ class RolloverMiniTournamentRecurrenceCommand extends Command
         $this->info("Rollover complete. Created {$created} new occurrence(s).");
 
         return self::SUCCESS;
+    }
+
+    private function resolveOrganizerId(MiniTournament $tournament): ?int
+    {
+        $organizerStaff = $tournament->miniTournamentStaffs
+            ->firstWhere('role', MiniTournamentStaff::ROLE_ORGANIZER);
+
+        if ($organizerStaff?->user_id) {
+            return (int) $organizerStaff->user_id;
+        }
+
+        $firstParticipant = $tournament->participants->first();
+        if ($firstParticipant?->user_id) {
+            return (int) $firstParticipant->user_id;
+        }
+
+        return null;
     }
 }

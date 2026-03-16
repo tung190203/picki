@@ -123,6 +123,18 @@ class UpdateMiniTournamentRequest extends FormRequest
             $this->merge(['format' => $formatMap[$format]]);
         }
 
+        // Normalize fee fields to satisfy DB constraints.
+        // DB hiện tại không cho fee_amount = null, nên khi tắt thu phí phải ép về 0.
+        $hasFee = $this->input('has_fee');
+        if ($hasFee === false || $hasFee === '0' || $hasFee === 0) {
+            $this->merge([
+                'fee_amount' => 0,
+                'auto_split_fee' => false,
+                'fee_description' => null,
+                'payment_account_id' => null,
+            ]);
+        }
+
         // Handle conditional game rule fields based on apply_rule
         $applyRule = $this->input('apply_rule');
         if ($applyRule === false || $applyRule === '0' || $applyRule === 0) {

@@ -16,10 +16,12 @@ class MiniTournamentJoinConfirmedNotification extends Notification implements Sh
      * Create a new notification instance.
      */
     protected $participant;
+    protected ?int $confirmedBy;
 
-    public function __construct(MiniParticipant $participant)
+    public function __construct(MiniParticipant $participant, ?int $confirmedBy = null)
     {
         $this->participant = $participant;
+        $this->confirmedBy = $confirmedBy ?? auth()->id();
     }
 
     public function via($notifiable)
@@ -29,33 +31,40 @@ class MiniTournamentJoinConfirmedNotification extends Notification implements Sh
 
     public function toDatabase($notifiable)
     {
+        $tournamentName = $this->participant->miniTournament?->name ?? 'kèo đấu';
+
         return [
             'participant_id' => $this->participant->id,
             'mini_tournament_id' => $this->participant->mini_tournament_id,
-            'title' => 'Yêu cầu tham gia được duyệt',
-            'message' => "Yêu cầu tham gia kèo đấu '{$this->participant->miniTournament->name}' của bạn đã được duyệt.",
-            'confirmed_by' => auth()->id(),
+            'title' => 'Yêu cầu tham gia đã được duyệt',
+            'message' => "Bạn đã được duyệt tham gia kèo đấu \"{$tournamentName}\".",
+            'confirmed_by' => $this->confirmedBy,
         ];
     }
 
     public function toBroadcast($notifiable)
     {
+        $tournamentName = $this->participant->miniTournament?->name ?? 'kèo đấu';
+
         return new BroadcastMessage([
             'participant_id' => $this->participant->id,
             'mini_tournament_id' => $this->participant->mini_tournament_id,
-            'title' => 'Yêu cầu tham gia được duyệt',
-            'message' => "Yêu cầu tham gia kèo đấu '{$this->participant->miniTournament->name}' của bạn đã được duyệt.",
-            'confirmed_by' => auth()->id(),
+            'title' => 'Yêu cầu tham gia đã được duyệt',
+            'message' => "Bạn đã được duyệt tham gia kèo đấu \"{$tournamentName}\".",
+            'confirmed_by' => $this->confirmedBy,
             'created_at' => now()->toDateTimeString(),
         ]);
     }
 
     public function toArray($notifiable)
     {
+        $tournamentName = $this->participant->miniTournament?->name ?? 'kèo đấu';
+
         return [
             'participant_id' => $this->participant->id,
-            'message' => "Yêu cầu tham gia giải đấu '{$this->participant->miniTournament->name}' của bạn đã được duyệt.",
-            'confirmed_by' => auth()->id(),
+            'title' => 'Yêu cầu tham gia đã được duyệt',
+            'message' => "Bạn đã được duyệt tham gia kèo đấu \"{$tournamentName}\".",
+            'confirmed_by' => $this->confirmedBy,
         ];
     }
 }

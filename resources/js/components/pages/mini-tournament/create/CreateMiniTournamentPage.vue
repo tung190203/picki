@@ -1706,20 +1706,20 @@ const buildFormDataWithFile = (data) => {
 const updateMiniTournament = async (id, data) => {
     try {
         await MiniTournamentService.updateMiniTournament(id, data)
-        toast.success('Chỉnh sửa kèo đấu thành công!')
+        toast.success('Cập nhật kèo đấu thành công.')
         setTimeout(() => {
             router.push({ name: 'mini-tournament-detail', params: { id: miniTournamentId } })
         }, 1000)
     } catch (error) {
         console.error('Error updating mini tournament:', error)
-        toast.error('Cập nhật kèo đấu thất bại. Vui lòng kiểm tra lại thông tin.')
+        toast.error(getApiErrorMessage(error, 'Cập nhật kèo đấu thất bại.'))
     }
 }
 
 const createMiniTournament = async (data) => {
     try {
         const res = await MiniTournamentService.storeMiniTournament(data)
-        toast.success('Tạo kèo đấu thành công!')
+        toast.success('Tạo kèo đấu thành công.')
         resetFormState()
         if (res && res.id) {
             setTimeout(() => {
@@ -1728,7 +1728,7 @@ const createMiniTournament = async (data) => {
         }
     } catch (error) {
         console.error('Error creating mini tournament:', error)
-        toast.error('Tạo kèo đấu thất bại. Vui lòng kiểm tra lại thông tin.')
+        toast.error(getApiErrorMessage(error, 'Tạo kèo đấu thất bại.'))
     }
 }
 
@@ -1754,19 +1754,32 @@ const fetchCompetitionLocations = async (keyword) => {
 
     try {
         const res = await CompetitionLocationService.getAllCompetitionLocations(keyword)
-
-        if (Array.isArray(res.data.competition_locations)) {
-            competitionLocations.value = res.data.competition_locations
-            isLocationDropdownOpen.value = competitionLocations.value.length > 0
-        } else {
-            competitionLocations.value = []
-            isLocationDropdownOpen.value = false
+        const rawLocations = res?.data?.competition_locations
+        let normalizedLocations = []
+        if (Array.isArray(rawLocations)) {
+            normalizedLocations = rawLocations
+        } else if (Array.isArray(rawLocations?.data)) {
+            normalizedLocations = rawLocations.data
         }
+
+        competitionLocations.value = normalizedLocations
+        isLocationDropdownOpen.value = competitionLocations.value.length > 0
     } catch (error) {
         console.error('Error fetching competition locations:', error)
         competitionLocations.value = []
         isLocationDropdownOpen.value = false
     }
+}
+
+const getApiErrorMessage = (error, fallback = 'Có lỗi xảy ra.') => {
+    const validationErrors = error?.response?.data?.errors
+    if (validationErrors && typeof validationErrors === 'object') {
+        const firstFieldErrors = Object.values(validationErrors)[0]
+        if (Array.isArray(firstFieldErrors) && firstFieldErrors.length) {
+            return firstFieldErrors[0]
+        }
+    }
+    return error?.response?.data?.message || fallback
 }
 
 const applyRecurringScheduleFromData = (recurringSchedule) => {
