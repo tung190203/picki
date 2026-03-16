@@ -171,7 +171,7 @@
                             <p class="font-semibold">Quản lý điểm DUPR</p>
                         </div>
                         <div v-if="isCreator" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
-                            <button type="button" @click="handlePaymentButtonClick" class="flex items-center justify-start border border-[#BBBFCC] rounded px-3 py-2 hover:bg-gray-50 transition">
+                            <button v-if="canShowPaymentButton" type="button" @click="handlePaymentButtonClick" class="flex items-center justify-start border border-[#BBBFCC] rounded px-3 py-2 hover:bg-gray-50 transition">
                                 <CreditCardIcon class="w-5 h-5 mr-2" />
                                 <p class="font-semibold">Thanh toán</p>
                             </button>
@@ -187,7 +187,7 @@
                                 </button>
                             </div>
                         </div>
-                        <div v-else-if="mini?.has_fee" class="mb-4">
+                        <div v-else-if="canShowPaymentButton" class="mb-4">
                             <button type="button" @click="handlePaymentButtonClick" class="flex items-center justify-start border border-[#BBBFCC] rounded px-3 py-2 hover:bg-gray-50 transition w-full">
                                 <CreditCardIcon class="w-5 h-5 mr-2" />
                                 <p class="font-semibold">Thanh toán</p>
@@ -341,6 +341,7 @@
        <MiniTournamentSubmitReceiptModal
            v-model:isOpen="showSubmitPaymentModal"
            :miniId="mini.id"
+           :hasFee="mini?.has_fee"
            @success="handlePaymentSubmitSuccess"
        />
 </div>

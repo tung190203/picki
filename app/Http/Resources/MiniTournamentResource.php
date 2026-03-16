@@ -54,6 +54,8 @@ class MiniTournamentResource extends JsonResource
             // Computed fee properties
             'fee_per_person' => $this->fee_per_person,
             'total_fee_expected' => $this->total_fee_expected,
+            'final_fee_per_person' => $this->final_fee_per_person,
+            'auto_payment_created' => (bool) $this->auto_payment_created,
 
             'max_players' => $this->max_players,
 
