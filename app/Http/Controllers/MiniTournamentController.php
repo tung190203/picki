@@ -158,6 +158,14 @@ class MiniTournamentController extends Controller
         // Remove 'poster', 'qr_code_url' from data before updating tournament
         $data = collect($data)->except(['poster', 'qr_code_url'])->toArray();
 
+        // Safety fallback: đảm bảo fee_amount không null khi tắt thu phí.
+        if (array_key_exists('has_fee', $data) && !$data['has_fee']) {
+            $data['fee_amount'] = 0;
+            $data['auto_split_fee'] = false;
+            $data['fee_description'] = null;
+            $data['payment_account_id'] = null;
+        }
+
         $isOrganizer = $miniTournament->hasOrganizer(Auth::id());
 
         if (!$isOrganizer) {
