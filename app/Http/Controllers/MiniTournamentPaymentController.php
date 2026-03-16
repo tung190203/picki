@@ -524,7 +524,7 @@ class MiniTournamentPaymentController extends Controller
         // Lấy payment (nếu có participant)
         $payment = null;
         if ($participant) {
-            $payment = MiniParticipantPayment::with(['confirmer'])
+            $payment = MiniParticipantPayment::with(['user', 'confirmer'])
                 ->where('mini_tournament_id', $miniTournamentId)
                 ->where('participant_id', $participant->id)
                 ->first();
@@ -551,7 +551,23 @@ class MiniTournamentPaymentController extends Controller
             $qrUrl = asset('storage/' . ltrim($qrUrl, '/'));
         }
 
-        $data = $payment ? new MiniParticipantPaymentResource($payment) : null;
+        $paymentData = $payment
+            ? (new MiniParticipantPaymentResource($payment))->toArray($request)
+            : [];
+
+        // Trả đầy đủ thông tin theo mini_tournament_id để FE luôn có dữ liệu hiển thị QR/phí,
+        // kể cả khi user chưa có bản ghi payment.
+        $data = array_merge([
+            'mini_tournament_id' => $miniTournament->id,
+            'participant_id' => $participant?->id,
+            'has_fee' => (bool) $miniTournament->has_fee,
+            'auto_split_fee' => (bool) $miniTournament->auto_split_fee,
+            'auto_payment_created' => (bool) $miniTournament->auto_payment_created,
+            'fee_amount' => (int) ($miniTournament->fee_amount ?? 0),
+            'fee_per_person' => (int) ($feePerPerson ?? 0),
+            'fee_description' => $miniTournament->fee_description,
+            'qr_code_url' => $qrUrl,
+        ], $paymentData);
 
         return ResponseHelper::success($data, 'Lấy thông tin thanh toán thành công');
     }
