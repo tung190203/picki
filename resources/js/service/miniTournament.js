@@ -60,7 +60,7 @@ export const getMyMiniTournamentPayment = async (tournamentId) => {
 export const payMiniTournament = async (tournamentId, data) => {
   // data nên là FormData chứa: participant_id, receipt_image (file), note?
   return axiosInstance.post(`${miniTournamentEndpoint}/${tournamentId}/pay`, data)
-    .then((response) => response.data.data);
+    .then((response) => response.data);
 }
 
 // Templates

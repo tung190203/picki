@@ -95,7 +95,7 @@
                             <span class="text-[16px] font-bold tracking-[-0.25px]">Luyện tập</span>
                         </button>
                     </div>
-                    <p class="text-[14px] text-[#9EA2B3] italic mt-3">*Kết quả sẽ cập nhật vào hệ thống Picki Rating</p>
+                    <p v-if="selectedPlayMode === 2" class="text-[14px] text-[#9EA2B3] italic mt-3">*Kết quả sẽ cập nhật vào hệ thống Picki Rating</p>
                 </div>
                 <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
                     <div class="flex items-center justify-between mb-4">
@@ -659,34 +659,52 @@
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md" @click.stop>
             <h4 class="text-lg font-semibold mb-4">Chọn trình độ</h4>
 
-            <div class="space-y-4">
-                <!-- Trình độ tối thiểu -->
-                <div>
-                    <label class="text-sm font-medium text-gray-700 block mb-2">Trình độ tối thiểu</label>
-                    <div class="grid grid-cols-4 gap-2">
-                        <button v-for="level in levels" :key="'min-' + level" @click="selectMinLevel(level)"
-                            class="py-2 text-sm font-medium rounded-[4px] transition-all border"
-                            :class="minLevel === level ? 'bg-[#D72D36] border-[#D72D36] text-white' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'">
-                            {{ level }}
-                        </button>
-                    </div>
+            <div class="space-y-5">
+                <div class="flex items-center justify-between bg-[#F7F8FA] rounded-[8px] px-3 py-2">
+                    <span class="text-sm text-[#6B6F80]">Khoảng trình độ</span>
+                    <span class="text-sm font-semibold text-[#3E414C]">
+                        {{ isLevelUnlimited ? 'Không giới hạn' : `${levelRangeMin} - ${levelRangeMax}` }}
+                    </span>
                 </div>
 
-                <!-- Trình độ tối đa -->
-                <div>
-                    <label class="text-sm font-medium text-gray-700 block mb-2">Trình độ tối đa</label>
-                    <div class="grid grid-cols-4 gap-2">
-                        <button v-for="level in levels" :key="'max-' + level" @click="selectMaxLevel(level)"
-                            class="py-2 text-sm font-medium rounded-[4px] transition-all border"
-                            :class="maxLevel === level ? 'bg-[#D72D36] border-[#D72D36] text-white' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'">
-                            {{ level }}
-                        </button>
-                    </div>
+                <div :class="isLevelUnlimited ? 'opacity-60' : ''">
+                    <label class="text-sm font-medium text-gray-700 block mb-2">
+                        Trình độ tối thiểu: {{ levelRangeMin }}
+                    </label>
+                    <input
+                        v-model.number="levelRangeMin"
+                        @input="isLevelUnlimited = false"
+                        type="range"
+                        :min="LEVEL_MIN"
+                        :max="LEVEL_MAX"
+                        :step="1"
+                        class="w-full accent-[#D72D36]"
+                    />
+                </div>
+
+                <div :class="isLevelUnlimited ? 'opacity-60' : ''">
+                    <label class="text-sm font-medium text-gray-700 block mb-2">
+                        Trình độ tối đa: {{ levelRangeMax }}
+                    </label>
+                    <input
+                        v-model.number="levelRangeMax"
+                        @input="isLevelUnlimited = false"
+                        type="range"
+                        :min="LEVEL_MIN"
+                        :max="LEVEL_MAX"
+                        :step="1"
+                        class="w-full accent-[#D72D36]"
+                    />
                 </div>
             </div>
 
             <div class="flex justify-end gap-3 mt-6">
-                <button @click="closeLevelModal" class="px-4 py-2 bg-[#D72D36] text-white rounded-lg hover:bg-red-700">
+                <button
+                    @click="setLevelNoLimit"
+                    class="px-4 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200">
+                    Không giới hạn
+                </button>
+                <button @click="applyLevelModal" class="px-4 py-2 bg-[#D72D36] text-white rounded-lg hover:bg-red-700">
                     Xác nhận
                 </button>
             </div>
@@ -787,7 +805,6 @@ import 'swiper/css'
 import 'swiper/css/free-mode'
 import { genderOptions } from '@/constants/genderOption';
 import { playModes, formats } from '@/constants/playModeAndFormat';
-import { levels } from '@/constants/levels';
 import { setOptions } from '@/constants/setOption';
 import { winRuleOptions } from '@/constants/winRuleOption';
 import { lockCancellationOptions } from '@/constants/lockCancellationOption';
@@ -850,7 +867,7 @@ const tournamentNote = ref('')
 const minLevel = ref('Không giới hạn')
 const maxLevel = ref('Không giới hạn')
 const selectedPlayMode = ref(1)
-const selectedFormat = ref(null)
+const selectedFormat = ref(2)
 const autoApprove = ref(true)
 const allowParticipantAddFriends = ref(true)
 const { formattedDate } = useFormattedDate(date)
@@ -891,6 +908,11 @@ const pointInputError = ref('')
 const isTemplateModalOpen = ref(false)
 const templates = ref([])
 const isLoadingTemplates = ref(false)
+const LEVEL_MIN = 1
+const LEVEL_MAX = 8
+const levelRangeMin = ref(LEVEL_MIN)
+const levelRangeMax = ref(LEVEL_MAX)
+const isLevelUnlimited = ref(true)
 
 const minPointValue = computed(() => {
     if (pointInputType.value === 'max_points') {
@@ -956,7 +978,7 @@ const initialStates = {
     isLocationDropdownOpen: false, isPointModalOpen: false,
     date: null, durationMinutes: null, selectedDuration: '', playerCount: 4, privacy: 'Công khai',
     fee: 'none', feeAmount: 0, formattedFeeAmount: '',
-    tournamentName: '', tournamentNote: '', selectedPlayMode: 1, selectedFormat: null, selectedSportId: 1,
+    tournamentName: '', tournamentNote: '', selectedPlayMode: 1, selectedFormat: 2, selectedSportId: 1,
     minLevel: 'Không giới hạn', maxLevel: 'Không giới hạn',
     locationKeyword: '', selectedLocation: null, competitionLocations: [],
     setNumber: 1, gamesPerSet: 11, pointsDifference: 2, maxPoints: 11,
@@ -1284,8 +1306,8 @@ const canEditDuprSettings = computed(() => selectedPlayMode.value === 2)
 const handlePlayModeChange = (mode) => {
     selectedPlayMode.value = mode
 
-    // Khi play_mode thay đổi, reset format về null
-    selectedFormat.value = null
+    // Giữ mặc định thể thức đánh đôi khi thay đổi play_mode
+    selectedFormat.value = 2
 }
 
 const toggleOpenSet = () => {
@@ -1335,16 +1357,6 @@ const selectPrivacy = (value) => {
 const selectFee = (value) => {
     fee.value = value
     openFee.value = false
-}
-
-const selectMinLevel = (level) => {
-    minLevel.value = level
-    openMinLevel.value = false
-}
-
-const selectMaxLevel = (level) => {
-    maxLevel.value = level
-    openMaxLevel.value = false
 }
 
 const selectDuration = (option) => {
@@ -1421,11 +1433,55 @@ const closePointModal = () => {
 }
 
 const openLevelModal = () => {
+    const parseLevel = (value, fallback) => {
+        if (value === 'Không giới hạn' || value === null || value === undefined || value === '') return fallback
+        const parsed = Number.parseInt(String(value), 10)
+        if (Number.isNaN(parsed)) return fallback
+        return Math.min(LEVEL_MAX, Math.max(LEVEL_MIN, parsed))
+    }
+
+    const hasLimit = minLevel.value !== 'Không giới hạn' && maxLevel.value !== 'Không giới hạn'
+    isLevelUnlimited.value = !hasLimit
+    levelRangeMin.value = parseLevel(minLevel.value, LEVEL_MIN)
+    levelRangeMax.value = parseLevel(maxLevel.value, LEVEL_MAX)
+    if (levelRangeMin.value > levelRangeMax.value) {
+        levelRangeMin.value = levelRangeMax.value
+    }
     isLevelModalOpen.value = true
 }
 
 const closeLevelModal = () => {
     isLevelModalOpen.value = false
+}
+
+watch(levelRangeMin, (val) => {
+    if (val > levelRangeMax.value) {
+        levelRangeMax.value = val
+    }
+})
+
+watch(levelRangeMax, (val) => {
+    if (val < levelRangeMin.value) {
+        levelRangeMin.value = val
+    }
+})
+
+const setLevelNoLimit = () => {
+    minLevel.value = 'Không giới hạn'
+    maxLevel.value = 'Không giới hạn'
+    isLevelUnlimited.value = true
+    closeLevelModal()
+}
+
+const applyLevelModal = () => {
+    if (isLevelUnlimited.value) {
+        minLevel.value = 'Không giới hạn'
+        maxLevel.value = 'Không giới hạn'
+    } else {
+        minLevel.value = String(levelRangeMin.value)
+        maxLevel.value = String(levelRangeMax.value)
+    }
+    closeLevelModal()
 }
 
 const openRulesModal = () => {
@@ -1791,7 +1847,7 @@ const prefillForm = (data) => {
     // Cài đặt nâng cao
     genderPolicy.value = data?.gender || 3
     applyRecurringScheduleFromData(data?.recurring_schedule)
-    
+
     // Allow cancellation và cancellation duration
     allowCancellation.value = data?.allow_cancellation !== undefined ? !!data.allow_cancellation : true
     if (data?.cancellation_duration) {
@@ -1808,7 +1864,7 @@ const prefillForm = (data) => {
         }
         lockCancellation.value = minutesToValueMap[data.cancellation_duration] || 1
     }
-    
+
     autoApprove.value = !!data?.auto_approve
     allowParticipantAddFriends.value = !!data?.allow_participant_add_friends
 }

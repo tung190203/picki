@@ -269,9 +269,9 @@ const handleSubmit = async () => {
       formData.append('note', note.value)
     }
 
-    await payMiniTournament(props.miniId, formData)
-    toast.success('Gửi biên lai thành công, chờ chủ kèo xác nhận')
-    emit('success')
+    const response = await payMiniTournament(props.miniId, formData)
+    toast.success(response?.message || 'Gửi biên lai thành công')
+    emit('success', response?.data || null)
     close()
   } catch (error) {
     toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi gửi biên lai')

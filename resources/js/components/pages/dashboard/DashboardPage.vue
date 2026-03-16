@@ -87,16 +87,21 @@
               <!-- 🔥 GIỮ NGUYÊN CARD -->
               <div
                 class="bg-white rounded-[8px] shadow hover:shadow-lg p-4 transition-all relative cursor-pointer h-full">
-                <div class="absolute top-4 right-4 text-red-500 cursor-pointer hover:text-red-600">
+                <div
+                  v-if="isMiniOrganizer(mini)"
+                  class="absolute top-4 right-4 text-red-500 cursor-pointer hover:text-red-600"
+                  @click.stop="openPromotionModal(mini.id)"
+                  
+                >
                   <BellAlertIcon class="w-5 h-5" />
                 </div>
 
                 <div @click="goToMiniTournamentDetail(mini.id)">
                   <div class="text-base text-gray-700 font-semibold">
-                    {{ formatTime(mini.starts_at) }}
+                    {{ formatTime(mini.start_time || mini.starts_at) }}
                   </div>
                   <div class="text-sm text-gray-500 mt-0.5">
-                    {{ formatDate(mini.starts_at) }}
+                    {{ formatDate(mini.start_time || mini.starts_at) }}
                   </div>
                   <div class="text-base text-gray-900 font-bold mt-2 line-clamp-1">
                     {{ mini.name }}
@@ -257,7 +262,7 @@
                       <span class="text-sm font-semibold text-gray-800">{{ f.full_name }}</span>
                     </div>
                   </div>
-                  
+
                   <div class="flex items-center space-x-6 text-right">
                     <div class="flex flex-col items-center justify-between min-w-[64px] min-h-[52px]">
                       <p class="text-[10px] font-semibold text-[#4392E0] tracking-tight">Xếp hạng</p>
@@ -287,23 +292,23 @@
 
           <!-- Pagination Controls -->
           <div v-if="homeData.leaderboard?.length > itemsPerPage" class="mt-6 flex items-center justify-center space-x-2">
-            <button 
-              @click="currentPage--" 
+            <button
+              @click="currentPage--"
               :disabled="currentPage === 1"
               class="p-2 rounded-full hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronLeftIcon class="w-5 h-5 text-gray-600" />
             </button>
-            
+
             <div class="flex items-center space-x-1">
-              <button 
-                v-for="page in totalPages" 
+              <button
+                v-for="page in totalPages"
                 :key="page"
                 @click="currentPage = page"
                 :class="[
                   'w-8 h-8 rounded-full text-sm font-medium transition-all',
-                  currentPage === page 
-                    ? 'bg-red-600 text-white shadow-md' 
+                  currentPage === page
+                    ? 'bg-red-600 text-white shadow-md'
                     : 'text-gray-600 hover:bg-gray-100'
                 ]"
               >
@@ -311,8 +316,8 @@
               </button>
             </div>
 
-            <button 
-              @click="currentPage++" 
+            <button
+              @click="currentPage++"
               :disabled="currentPage === totalPages"
               class="p-2 rounded-full hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
@@ -444,6 +449,14 @@
   <Transition name="modal">
     <QRcodeModal v-if="isShowingMyQr" :value="profileLink" @close="closeMyQrCode" />
   </Transition>
+
+  <PromotionModal
+    v-if="selectedPromotionMiniId !== null"
+    v-model="isPromotionModalOpen"
+    promotableType="mini_tournament"
+    :promotableId="selectedPromotionMiniId"
+    @success="toast.success('Đã gửi quảng bá thành công')"
+  />
 </template>
 <script setup>
 import { onMounted, ref, computed, nextTick } from "vue";
@@ -480,6 +493,7 @@ import AnchorIcon from "@/assets/images/anchor.svg";
 import Rank1Icon from "@/assets/ranking/1st.png";
 import Rank2Icon from "@/assets/ranking/2nd.png";
 import Rank3Icon from "@/assets/ranking/3rd.png";
+import PromotionModal from "@/components/organisms/PromotionModal.vue";
 
 const userStore = useUserStore();
 const { getUser } = storeToRefs(userStore);
@@ -495,6 +509,8 @@ const defaultAvatar = "/images/default-avatar.png";
 // KHAI BÁO BIẾN TRẠNG THÁI MỚI CHO LOGIC QR
 const isShowingConfirmation = ref(false);
 const decodedQrCode = ref('');
+const isPromotionModalOpen = ref(false);
+const selectedPromotionMiniId = ref(null);
 // KẾT THÚC KHAI BÁO MỚI
 let html5QrCode = null;
 const profileLink = computed(() => {
@@ -628,7 +644,7 @@ const parseCheckInUrl = (url) => {
     const urlObj = new URL(url);
     const pathRegex = /\/api\/clubs\/(\d+)\/activities\/(\d+)\/check-in/;
     const match = urlObj.pathname.match(pathRegex);
-    
+
     if (match) {
       return {
         clubId: match[1],
@@ -664,7 +680,7 @@ const useScannedCode = async () => {
   // 3. Kiểm tra nếu là check-in URL
   if (url && isCheckInUrl(url)) {
     const checkInData = parseCheckInUrl(url);
-    
+
     if (checkInData && checkInData.token) {
       try {
         // Gọi API check-in
@@ -749,6 +765,20 @@ const openMyQrCode = () => {
 // Đóng modal hiển thị QR của tôi
 const closeMyQrCode = () => {
   isShowingMyQr.value = false;
+};
+
+const openPromotionModal = (miniId) => {
+  selectedPromotionMiniId.value = miniId;
+  isPromotionModalOpen.value = true;
+};
+
+const isMiniOrganizer = (mini) => {
+  const currentUserId = getUser.value?.id;
+  const organizers = mini?.staff?.organizer || [];
+
+  if (!currentUserId || !Array.isArray(organizers)) return false;
+
+  return organizers.some((organizer) => organizer?.user?.id === currentUserId);
 };
 
 
