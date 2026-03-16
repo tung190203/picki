@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -209,7 +210,7 @@ class MiniTournament extends Model
      * - Nếu không cho hủy kèo: luôn coi như đã hết hạn (để API chặn huỷ).
      * - Nếu có deadline: hết hạn khi now > deadline.
      */
-    public function isCancellationClosed(?Carbon $now = null): bool
+    public function isCancellationClosed(?CarbonInterface $now = null): bool
     {
         $now = $now ?? Carbon::now();
 
