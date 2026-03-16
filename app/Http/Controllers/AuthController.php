@@ -270,7 +270,7 @@ class AuthController extends Controller
             $user = User::where('email', $googleUser->getEmail())
                 ->orWhere('google_id', $googleUser->getId())
                 ->first();
-    
+
             if ($user) {
                 if (!$user->google_id) {
                     $user->google_id = $googleUser->getId();
@@ -281,11 +281,11 @@ class AuthController extends Controller
                     Storage::disk('public')->put($avatarName, $avatarContent);
                     $user->avatar_url = asset('storage/' . $avatarName);
                 }
-                
+
                 if (!$user->email_verified_at) {
                     $user->email_verified_at = now();
                 }
-                
+
                 $user->save();
             } else {
                 $avatarContent = file_get_contents($googleUser->getAvatar());
@@ -300,7 +300,7 @@ class AuthController extends Controller
                     'password' => Hash::make(Str::random(16)),
                     'email_verified_at' => now(),
                 ]);
-            } 
+            }
             Auth::login($user);
             $accessToken = JWTAuth::claims(['type' => 'access'])->fromUser($user);
             $refreshToken = JWTAuth::claims(['type' => 'refresh', 'exp' => now()->addDays(30)->timestamp])->fromUser($user);
@@ -353,20 +353,20 @@ class AuthController extends Controller
         $user = User::where('email', $payload['email'])
             ->orWhere('google_id', $payload['sub'])
             ->first();
-    
+
         if ($user) {
             if (!$user->google_id) {
                 $user->google_id = $payload['sub'];
             }
-            
+
             if (!$user->avatar_url || $user->avatar_url === asset('images/default-avatar.png')) {
                 $user->avatar_url = $payload['picture'] ?? null;
             }
-            
+
             if (!$user->email_verified_at) {
                 $user->email_verified_at = now();
             }
-            
+
             $user->save();
         } else {
             $user = User::create([
@@ -424,12 +424,12 @@ class AuthController extends Controller
             $user = User::where('email', $fbResponse['email'])
                 ->orWhere('facebook_id', $fbResponse['id'])
                 ->first();
-    
+
             if ($user) {
                 if (!$user->facebook_id) {
                     $user->facebook_id = $fbResponse['id'];
                 }
-                
+
                 $avatarUrl = $fbResponse['picture']['data']['url'] ?? null;
                 if ($avatarUrl && (!$user->avatar_url || $user->avatar_url === asset('images/default-avatar.png'))) {
                     $avatarContent = file_get_contents($avatarUrl);
@@ -437,11 +437,11 @@ class AuthController extends Controller
                     Storage::disk('public')->put($avatarName, $avatarContent);
                     $user->avatar_url = asset('storage/' . $avatarName);
                 }
-                
+
                 if (!$user->email_verified_at) {
                     $user->email_verified_at = now();
                 }
-                
+
                 $user->save();
             } else {
                 $avatarUrl = $fbResponse['picture']['data']['url'] ?? null;
@@ -490,29 +490,29 @@ class AuthController extends Controller
             $user = User::where('email', $fbUser->getEmail())
                 ->orWhere('facebook_id', $fbUser->getId())
                 ->first();
-    
+
             if ($user) {
                 if (!$user->facebook_id) {
                     $user->facebook_id = $fbUser->getId();
                 }
-                
+
                 if (!$user->avatar_url || $user->avatar_url === asset('images/default-avatar.png')) {
                     $avatarContent = file_get_contents($fbUser->getAvatar());
                     $avatarName = 'avatars/' . uniqid() . '.jpg';
                     Storage::disk('public')->put($avatarName, $avatarContent);
                     $user->avatar_url = asset('storage/' . $avatarName);
                 }
-                
+
                 if (!$user->email_verified_at) {
                     $user->email_verified_at = now();
                 }
-                
+
                 $user->save();
             } else {
                 $avatarContent = file_get_contents($fbUser->getAvatar());
                 $avatarName = 'avatars/' . uniqid() . '.jpg';
                 Storage::disk('public')->put($avatarName, $avatarContent);
-    
+
                 $user = User::create([
                     'email' => $fbUser->getEmail(),
                     'full_name' => $fbUser->getName(),
@@ -558,16 +558,16 @@ class AuthController extends Controller
             $user = User::where('email', $email)
                 ->orWhere('apple_id', $appleUser->getId())
                 ->first();
-    
+
             if ($user) {
                 if (!$user->apple_id) {
                     $user->apple_id = $appleUser->getId();
                 }
-                
+
                 if (!$user->email_verified_at) {
                     $user->email_verified_at = now();
                 }
-                
+
                 $user->save();
             } else {
                 $user = User::create([
@@ -629,21 +629,21 @@ class AuthController extends Controller
                 $email = $appleId . '@privaterelay.appleid.com';
             }
             if (!$name) {
-                $name = 'PickiUser' . $appleId;
+                $name = 'PickiUser' . substr($appleId, -6);
             }
             $user = User::where('apple_id', $appleId)
                 ->orWhere('email', $email)
                 ->first();
-    
+
             if ($user) {
                 if (!$user->apple_id) {
                     $user->apple_id = $appleId;
                 }
-                
+
                 if (!$user->email_verified_at) {
                     $user->email_verified_at = now();
                 }
-                
+
                 $user->save();
             } else {
                 $user = User::create([
@@ -698,7 +698,7 @@ class AuthController extends Controller
             ->where('token', '!=', $currentToken)
             ->where('is_enabled', true)
             ->exists();
-    
+
         if ($oldDevices) {
             SendPushJob::dispatch(
                 $user->id,

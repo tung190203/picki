@@ -259,15 +259,11 @@ const handleSubmit = async () => {
     toast.error('Vui lòng chọn ảnh biên lai')
     return
   }
-  if (!participantId.value) {
-    toast.error('Không tìm thấy thông tin tham gia của bạn trong kèo này')
-    return
-  }
 
   try {
     isSubmitting.value = true
     const formData = new FormData()
-    formData.append('participant_id', participantId.value)
+    // Không cần truyền participant_id, BE sẽ tự xử lý
     formData.append('receipt_image', selectedFile.value)
     if (note.value) {
       formData.append('note', note.value)

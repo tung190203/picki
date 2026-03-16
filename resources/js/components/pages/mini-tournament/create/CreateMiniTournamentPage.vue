@@ -1,103 +1,105 @@
 <template>
     <div class="figma-create-page bg-[#F7F8FA] min-h-screen py-6 px-3 lg:px-6">
         <div class="max-w-[1320px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
-            <div class="space-y-4 lg:col-span-4 lg:order-2">
-                <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5 lg:sticky lg:top-6">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-bold text-[#838799] text-[14px] uppercase tracking-wide">Môn thể thao</h3>
-                    </div>
-                    <p class="text-[#838799] text-[12px] mb-2">Môn thể thao của tôi • {{ sports.length }}</p>
-                    <Swiper :slides-per-view="'auto'" :space-between="8" :freeMode="true" @swiper="onSwiperInit"
-                        :mousewheel="{ forceToAxis: true }" :modules="modules" class="mt-2 !pb-2">
-                        <SwiperSlide v-for="sport in sports" :key="sport.id" class="!w-32">
-                            <div @click="selectedSportId = sport.id" :class="[
-                                'flex flex-col items-center justify-center px-6 py-4 rounded-lg cursor-pointer transition select-none',
-                                selectedSportId === sport.id
-                                    ? 'bg-[#D72D36] text-white'
-                                    : 'border border-[#BBBFCC] text-gray-700 hover:border-gray-400'
-                            ]">
-                                <div class="text-3xl my-4">
-                                    <img :src="sport.icon || '/images/basketball.png'"
-                                        :class="{ 'filter brightness-0 invert': selectedSportId === sport.id }" alt=""
-                                        draggable="false" class="w-10 h-10" />
-                                </div>
-                                <div class="font-semibold text-sm text-center">
-                                    {{ sport.name }}
-                                </div>
-                            </div>
-                        </SwiperSlide>
-                    </Swiper>
-                    <div>
+            <!-- LEFT COLUMN: Main Form (8 cols on desktop) -->
+            <div class="space-y-4 lg:col-span-8 lg:order-1">
+                <!-- Thông tin cơ bản -->
+                <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
+                    <div class="flex items-center gap-4">
+                        <!-- Upload poster (60x60) -->
+                        <div
+                            class="relative w-[60px] h-[60px] bg-[#EDEEF2] border border-dashed border-[#838799] rounded-[8px] flex items-center justify-center flex-shrink-0 cursor-pointer hover:bg-[#e1e2e8] transition-colors"
+                            @click="posterInputRef && posterInputRef.click()">
+                            <img v-if="posterPreview" :src="posterPreview" alt="Poster"
+                                class="w-full h-full object-cover rounded-[8px]">
+                            <span v-else class="text-gray-400 text-[11px] text-center leading-tight px-1">Thêm ảnh
+                                bìa</span>
+                            <input ref="posterInputRef" type="file" accept="image/*" class="hidden"
+                                @change="handlePosterUpload">
 
-                    </div>
-                    <hr class="my-4 border-[#DCDEE6]">
-                    <!-- Play Mode Selection -->
-                    <p class="text-[#838799] font-bold text-[14px] uppercase tracking-wide">Chế độ chơi</p>
-                    <div class="grid grid-cols-3 gap-2 mt-2">
-                        <button v-for="mode in playModes" :key="mode.id" @click="handlePlayModeChange(mode.id)" :class="[
-                            'flex flex-col items-center justify-center rounded-[8px] border px-2 py-3 min-h-[108px] transition-colors',
-                            selectedPlayMode === mode.id
-                                ? 'bg-[#D72D36] text-white border-[#D72D36]'
-                                : 'border border-[#BBBFCC] text-gray-700 hover:border-gray-400'
-                        ]">
-                            <span class="text-[28px] leading-none">{{ getPlayModeIcon(mode.id) }}</span>
-                            <span class="mt-2 text-[16px] font-semibold tracking-[-0.25px]">{{ mode.name }}</span>
-                        </button>
-                    </div>
-
-                    <!-- Format Selection (only show when play_mode = 2 - Thi đấu) -->
-                    <div v-if="selectedPlayMode === 2" class="mt-4">
-                        <p class="text-[#838799] font-bold text-[14px] uppercase tracking-wide">Thể thức</p>
-                        <div class="grid grid-cols-3 gap-2 mt-2">
-                            <button v-for="fmt in formats" :key="fmt.id" @click="selectedFormat = fmt.id" :class="[
-                                'text-[13px] px-2 text-center py-2 rounded-[8px] transition-colors border',
-                                selectedFormat === fmt.id
-                                    ? 'bg-[#D72D36] text-white border-[#D72D36]'
-                                    : 'border border-[#BBBFCC] text-gray-700 hover:border-gray-400'
-                            ]">
-                                {{ fmt.name }}
+                            <button v-if="posterPreview" @click.stop="clearPoster"
+                                class="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg z-10">
+                                <XCircleIcon class="w-2 h-2" />
                             </button>
                         </div>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
-                    <p class="text-[#838799] font-bold text-[14px] uppercase tracking-wide mb-3">Hoàn tất tạo kèo</p>
-                    <div class="rounded-[8px] border border-[#F7D5D7] bg-[#FBEAEB] p-3 mb-4">
-                        <p class="text-[14px] text-[#3E414C] font-semibold">Quyền riêng tư: {{ privacy }}</p>
-                        <p class="text-[12px] text-[#6B6F80] mt-1">
-                            {{ hasFee ? 'Kèo có phí tham gia' : 'Kèo miễn phí tham gia' }}
-                        </p>
-                    </div>
-                    <button type="button" @click="handleSubmit"
-                        class="w-full py-3 bg-[#D72D36] text-white rounded-[8px] font-semibold hover:bg-red-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500">
-                        {{ btnTitle }}
-                    </button>
-                    <button type="button" @click="router.back()" v-if="isEditMode"
-                        class="w-full mt-2 py-3 bg-gray-200 text-gray-700 rounded-[8px] font-semibold hover:bg-gray-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gray-400">
-                        Quay lại
-                    </button>
-                </div>
-            </div>
-
-            <div class="space-y-4 lg:col-span-8 lg:order-1">
-                <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-semibold text-gray-900 text-[20px]">Thông tin kèo đấu</h3>
-                    </div>
-                    <div class="space-y-4">
-                        <div>
-                            <input v-model="tournamentName" type="text" placeholder="Tên kèo đấu"
-                                class="w-full px-2 py-2 my-1 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]" />
-                            <textarea v-model="tournamentNote" rows="4" placeholder="Thêm ghi chú cho kèo đấu"
-                                class="w-full px-2 py-2 my-1 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2] resize-none"></textarea>
+                        <div class="flex-1 space-y-2">
+                            <input v-model="tournamentName" type="text" placeholder="Tên kèo đấu (bắt buộc)"
+                                class="w-full px-3 py-2 border-b border-[#DCDEE6] focus:outline-none focus:border-[#D72D36] placeholder:text-sm placeholder:text-[#9EA2B3] bg-transparent font-bold text-[16px]" />
+                            <input v-model="tournamentNote" type="text" placeholder="Ghi chú: trình độ, lưu ý sân...."
+                                class="w-full px-3 py-1 focus:outline-none placeholder:text-[12px] placeholder:text-[#9EA2B3] bg-transparent text-[12px]" />
                         </div>
                     </div>
                 </div>
 
+                <!-- Chế độ chơi -->
+                <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
+                    <h3 class="font-bold text-[#838799] text-[14px] uppercase tracking-wide mb-3">Chế độ chơi</h3>
+                    <div class="grid grid-cols-3 gap-3">
+                        <!-- Giải trí -->
+                        <button @click="handlePlayModeChange(1)" :class="[
+                            'flex flex-col items-center justify-center rounded-[8px] border px-3 py-5 min-h-[120px] transition-all',
+                            selectedPlayMode === 1
+                                ? 'bg-[#D72D36] text-white border-[#D72D36] shadow-md'
+                                : 'border-[#DCDEE6] text-gray-700 hover:border-[#D72D36] hover:bg-[#FFF5F5]'
+                        ]">
+                            <div :class="[
+                                'w-12 h-12 rounded-full flex items-center justify-center mb-3 transition-colors',
+                                selectedPlayMode === 1 ? 'bg-white' : 'bg-[#FBEAEB]'
+                            ]">
+                                <!-- sentiment_satisfied icon -->
+                                <svg class="w-6 h-6 text-[#D72D36]" viewBox="0 0 24 24" fill="currentColor">
+                                    <path
+                                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-9c.83 0 1.5-.67 1.5-1.5S7.83 8 7 8s-1.5.67-1.5 1.5S6.17 11 7 11zm10 0c.83 0 1.5-.67 1.5-1.5S17.83 8 17 8s-1.5.67-1.5 1.5.67 1.5 1.5 1.5zm-5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
+                                </svg>
+                            </div>
+                            <span class="text-[16px] font-bold tracking-[-0.25px]">Giải trí</span>
+                        </button>
+
+                        <!-- Thi đấu -->
+                        <button @click="handlePlayModeChange(2)" :class="[
+                            'flex flex-col items-center justify-center rounded-[8px] border px-3 py-5 min-h-[120px] transition-all',
+                            selectedPlayMode === 2
+                                ? 'bg-[#D72D36] text-white border-[#D72D36] shadow-md'
+                                : 'border-[#DCDEE6] text-gray-700 hover:border-[#D72D36] hover:bg-[#FFF5F5]'
+                        ]">
+                            <div :class="[
+                                'w-12 h-12 rounded-full flex items-center justify-center mb-3 transition-colors',
+                                selectedPlayMode === 2 ? 'bg-white' : 'bg-[#FBEAEB]'
+                            ]">
+                                <!-- scoreboard icon -->
+                                <svg class="w-6 h-6 text-[#D72D36]" viewBox="0 0 24 24" fill="currentColor">
+                                    <path
+                                        d="M17.5 13.5H16v-3h1.5v3zM22 4h-5V2h-2v2H9V2H7v2H2v16h20V4zm-2 14H4V8h16v10zm-5.5-9h-5v7h5v-7zm-1.5 5.5H10v-4h3v4z" />
+                                </svg>
+                            </div>
+                            <span class="text-[16px] font-bold tracking-[-0.25px]">Thi đấu</span>
+                        </button>
+
+                        <!-- Luyện tập -->
+                        <button @click="handlePlayModeChange(3)" :class="[
+                            'flex flex-col items-center justify-center rounded-[8px] border px-3 py-5 min-h-[120px] transition-all',
+                            selectedPlayMode === 3
+                                ? 'bg-[#D72D36] text-white border-[#D72D36] shadow-md'
+                                : 'border-[#DCDEE6] text-gray-700 hover:border-[#D72D36] hover:bg-[#FFF5F5]'
+                        ]">
+                            <div :class="[
+                                'w-12 h-12 rounded-full flex items-center justify-center mb-3 transition-colors',
+                                selectedPlayMode === 3 ? 'bg-white' : 'bg-[#FBEAEB]'
+                            ]">
+                                <!-- sports_tennis/padel icon -->
+                                <svg class="w-6 h-6 text-[#D72D36]" viewBox="0 0 24 24" fill="currentColor">
+                                    <path
+                                        d="M19.52 2.49c-2.34-2.34-6.62-1.87-9.55 1.06-1.6 1.6-2.52 3.87-2.54 5.46-.02 1.58.26 3.89-1.35 5.5l-4.24 4.24 1.42 1.42 4.24-4.24c1.61-1.61 3.92-1.33 5.5-1.35 1.59-.02 3.86-.94 5.46-2.54 2.93-2.93 3.4-7.21 1.06-9.55zm-9.2 9.19c-1.53-1.53-1.05-4.61 1.06-6.72s5.18-2.59 6.72-1.06c1.53 1.54 1.05 4.61-1.06 6.72s-5.18 2.59-6.72 1.06zM18 17c.53 0 1.04.21 1.41.59.78.78.78 2.05 0 2.83-.37.37-.88.58-1.41.58s-1.04-.21-1.41-.59c-.78-.78-.78-2.05 0-2.83.37-.37.88-.58 1.41-.58m0-2c-1.02 0-2.05.39-2.83 1.17-1.56 1.56-1.56 4.09 0 5.66.78.78 1.81 1.17 2.83 1.17s2.05-.39 2.83-1.17c1.56-1.56 1.56-4.09 0-5.66-.78-.78-1.81-1.17-2.83-1.17z" />
+                                </svg>
+                            </div>
+                            <span class="text-[16px] font-bold tracking-[-0.25px]">Luyện tập</span>
+                        </button>
+                    </div>
+                    <p class="text-[14px] text-[#9EA2B3] italic mt-3">*Kết quả sẽ cập nhật vào hệ thống Picki Rating</p>
+                </div>
                 <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-semibold text-gray-900 text-[20px]">Thời gian</h3>
+                        <h3 class="font-bold text-[#838799] text-[14px] uppercase tracking-wide">Thời gian</h3>
                     </div>
                     <div class="space-y-4">
                         <div class="bg-[#EDEEF2] rounded-[4px] overflow-visible relative" @click.stop>
@@ -185,7 +187,8 @@
                                 <Toggle v-model="isRepeated" />
                             </div>
 
-                            <div v-if="isRepeated" class="space-y-4 mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <div v-if="isRepeated"
+                                class="space-y-4 mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
                                 <div class="grid grid-cols-4 gap-2">
                                     <button v-for="unit in repeatUnits" :key="unit" @click="repeatUnit = unit"
                                         class="py-2.5 text-sm font-bold rounded-[4px] transition-all border"
@@ -195,7 +198,8 @@
                                 </div>
 
                                 <div v-if="repeatUnit === 'Tuần'" class="flex justify-between gap-2 p-1 bg-white">
-                                    <button v-for="day in daysOfWeek" :key="day.value" @click="toggleRecurringDay(day.value)"
+                                    <button v-for="day in daysOfWeek" :key="day.value"
+                                        @click="toggleRecurringDay(day.value)"
                                         class="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold transition-all border"
                                         :class="recurringWeekDays.includes(day.value) ? 'bg-[#D72D36] text-white border-[#D72D36] shadow-red-100 shadow-md' : 'bg-white text-[#838799] border-gray-200 hover:bg-gray-50'">
                                         {{ day.label }}
@@ -206,7 +210,8 @@
                                     class="bg-[#FFF5F5] border border-[#FBEAEB] px-4 py-2 rounded-[4px] flex items-center justify-center gap-3">
                                     <ArrowPathRoundedSquareIcon class="w-5 h-5 text-[#D72D36]" />
                                     <p class="text-sm font-normal text-[#D72D36]">
-                                        Kèo này sẽ tự động tạo vào <span class="font-bold">{{ formattedRepeatTime }}</span>
+                                        Kèo này sẽ tự động tạo vào <span class="font-bold">{{ formattedRepeatTime
+                                            }}</span>
                                     </p>
                                 </div>
                             </div>
@@ -217,6 +222,9 @@
                                 <div class="flex items-center gap-3">
                                     <UsersIcon class="w-5 h-5 text-gray-700" />
                                     <span class="text-gray-700">Số người chơi</span>
+                                    <div class="block text-[11px] leading-tight text-gray-500">
+                                        Bao gồm cả bạn
+                                    </div>
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <button type="button" @click="decreasePlayer" aria-label="Giảm số người chơi"
@@ -224,7 +232,7 @@
                                         −
                                     </button>
                                     <span class="text-xl font-semibold w-12 text-center select-none">{{ playerCount
-                                        }}</span>
+                                    }}</span>
                                     <button type="button" @click="increasePlayer" aria-label="Tăng số người chơi"
                                         class="w-6 h-6 bg-gray-800 text-white rounded hover:bg-gray-700 flex items-center justify-center text-sm select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gray-800">
                                         +
@@ -272,7 +280,8 @@
                                 <button type="button" @click="toggleHasFee" :aria-checked="hasFee"
                                     class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
                                     :class="hasFee ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                    <span
+                                        class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
                                         :class="hasFee ? 'translate-x-6' : 'translate-x-1'" />
                                 </button>
                             </div>
@@ -302,7 +311,8 @@
                                     <button @click="toggleAutoSplit"
                                         class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
                                         :class="autoSplitCourtFee ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                        <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                        <span
+                                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
                                             :class="autoSplitCourtFee ? 'translate-x-6' : 'translate-x-1'" />
                                     </button>
                                 </div>
@@ -312,8 +322,8 @@
                                     <label class="text-sm text-gray-600 block mb-1" for="fee-amount-input">
                                         {{ autoSplitCourtFee ? 'Tổng tiền sân (VNĐ)' : 'Tiền cố định/người (VNĐ)' }}
                                     </label>
-                                    <input id="fee-amount-input" v-model="formattedFeeAmount" @input="handleFeeInput" type="text" inputmode="numeric"
-                                        placeholder="Nhập số tiền…"
+                                    <input id="fee-amount-input" v-model="formattedFeeAmount" @input="handleFeeInput"
+                                        type="text" inputmode="numeric" placeholder="Nhập số tiền…"
                                         class="w-full px-3 py-2 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]" />
                                 </div>
 
@@ -327,11 +337,13 @@
 
                                 <!-- QR Code Upload -->
                                 <div>
-                                    <label class="text-sm text-gray-600 block mb-1" for="qr-file-input">Mã QR thanh toán</label>
+                                    <label class="text-sm text-gray-600 block mb-1" for="qr-file-input">Mã QR thanh
+                                        toán</label>
                                     <button v-if="!qrCodePreview" type="button"
                                         class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-[#D72D36] transition-colors w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
                                         @click="$refs.qrFileInput.click()">
-                                        <input id="qr-file-input" type="file" ref="qrFileInput" class="hidden" accept="image/*" @change="handleQrCodeUpload" />
+                                        <input id="qr-file-input" type="file" ref="qrFileInput" class="hidden"
+                                            accept="image/*" @change="handleQrCodeUpload" />
                                         <div class="flex flex-col items-center">
                                             <ArrowUpTrayIcon class="w-8 h-8 text-gray-400 mb-2" aria-hidden="true" />
                                             <p class="text-sm text-gray-500">Tải ảnh lên</p>
@@ -339,7 +351,8 @@
                                         </div>
                                     </button>
                                     <div v-else class="relative">
-                                        <img :src="qrCodePreview" alt="QR Code thanh toán" class="w-32 h-32 object-contain mx-auto rounded-lg border" />
+                                        <img :src="qrCodePreview" alt="QR Code thanh toán"
+                                            class="w-32 h-32 object-contain mx-auto rounded-lg border" />
                                         <button type="button" @click="clearQrCode" aria-label="Xóa mã QR"
                                             class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500">
                                             <XMarkIcon class="w-4 h-4" />
@@ -350,7 +363,8 @@
                                 <!-- Cảnh báo khi chọn chia tự động -->
                                 <div v-if="autoSplitCourtFee" class="bg-yellow-50 border border-yellow-200 rounded p-3">
                                     <p class="text-sm text-yellow-700">
-                                        <span class="font-medium">Lưu ý:</span> Phí sẽ được chia đều theo số người tham gia thực tế.
+                                        <span class="font-medium">Lưu ý:</span> Phí sẽ được chia đều theo số người tham
+                                        gia thực tế.
                                         Vui lòng chuẩn bị danh sách người tham gia trước khi tạo kèo đấu.
                                     </p>
                                 </div>
@@ -358,147 +372,44 @@
                         </div>
                     </div>
                 </div>
+                <!-- Trình độ & Luật thi đấu buttons -->
                 <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-semibold text-gray-900 text-[20px]">DUPR</h3>
-                        <span v-if="!canEditDuprSettings" class="text-xs text-gray-500">(Chỉ áp dụng cho chế độ Thi đấu)</span>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="flex justify-between items-center" :class="{ 'opacity-50': !canEditDuprSettings }">
-                            <span class="text-gray-700">Tích điểm DUPR</span>
-                            <button @click="toggleDUPR" :disabled="!canEditDuprSettings"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:cursor-not-allowed"
-                                :class="duprEnabled ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="duprEnabled ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
-                        </div>
-                        <div class="flex justify-between items-center" :class="{ 'opacity-50': !canEditDuprSettings }">
-                            <span class="text-gray-700">Tích điểm PICKI</span>
-                            <button @click="toggleVNDUPR" :disabled="!canEditDuprSettings"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:cursor-not-allowed"
-                                :class="vnduprEnabled ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="vnduprEnabled ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
-                        </div>
-                        <hr class="my-4 border-1">
-                        <div class="flex items-center justify-between relative">
-                            <div class="flex items-center gap-3">
-                                <span class="text-gray-700">Trình độ tối thiểu</span>
+                    <div class="grid grid-cols-2 gap-3">
+                        <!-- Button Trình độ -->
+                        <button @click="openLevelModal" type="button"
+                            class="flex flex-col items-center justify-center rounded-[8px] border border-[#DCDEE6] px-4 py-5 hover:border-[#D72D36] hover:bg-[#FFF5F5] transition-all group">
+                            <div
+                                class="w-12 h-12 rounded-full bg-[#FBEAEB] flex items-center justify-center mb-3 group-hover:bg-[#D72D36] transition-colors">
+                                <svg class="w-6 h-6 text-[#D72D36] group-hover:text-white transition-colors" fill="none"
+                                    stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
                             </div>
-                            <button @click="toggleOpenMinLevel" @click.stop
-                                class="flex items-center gap-2 text-gray-700 hover:text-gray-900">
-                                <span class="font-medium">{{ minLevel }}</span>
-                                <ChevronRightIcon class="w-5 h-5 transition-transform"
-                                    :class="{ 'rotate-90': openMinLevel }" />
-                            </button>
+                            <span class="text-[16px] font-bold text-[#3E414C] mb-1">Trình độ</span>
+                            <span class="text-[12px] text-[#6B6F80]">{{ minLevel }} - {{ maxLevel }}</span>
+                        </button>
 
-                            <div v-if="openMinLevel" @click.stop
-                                class="absolute right-0 top-full mt-2 bg-white border rounded-lg shadow-lg z-50">
-                                <button v-for="level in levels" :key="level" @click="selectMinLevel(level)"
-                                    class="px-4 py-2 w-full text-sm text-left hover:bg-gray-100 first:rounded-t-lg last:rounded-b-lg block whitespace-nowrap"
-                                    :class="{ 'bg-gray-50 font-medium': minLevel === level }">
-                                    {{ level }}
-                                </button>
+                        <!-- Button Luật thi đấu -->
+                        <button @click="openRulesModal" type="button"
+                            class="flex flex-col items-center justify-center rounded-[8px] border border-[#DCDEE6] px-4 py-5 hover:border-[#D72D36] hover:bg-[#FFF5F5] transition-all group">
+                            <div
+                                class="w-12 h-12 rounded-full bg-[#FBEAEB] flex items-center justify-center mb-3 group-hover:bg-[#D72D36] transition-colors">
+                                <svg class="w-6 h-6 text-[#D72D36] group-hover:text-white transition-colors" fill="none"
+                                    stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
                             </div>
-                        </div>
-                        <div class="flex items-center justify-between relative">
-                            <div class="flex items-center gap-3">
-                                <span class="text-gray-700">Trình độ tối đa</span>
-                            </div>
-                            <button @click="toggleOpenMaxLevel" @click.stop
-                                class="flex items-center gap-2 text-gray-700 hover:text-gray-900">
-                                <span class="font-medium">{{ maxLevel }}</span>
-                                <ChevronRightIcon class="w-5 h-5 transition-transform"
-                                    :class="{ 'rotate-90': openMaxLevel }" />
-                            </button>
-
-                            <div v-if="openMaxLevel" @click.stop
-                                class="absolute right-0 top-full mt-2 bg-white border rounded-lg shadow-lg z-50">
-                                <button v-for="level in levels" :key="level" @click="selectMaxLevel(level)"
-                                    class="px-4 py-2 w-full text-sm text-left hover:bg-gray-100 first:rounded-t-lg last:rounded-b-lg block whitespace-nowrap"
-                                    :class="{ 'bg-gray-50 font-medium': maxLevel === level }">
-                                    {{ level }}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-semibold text-gray-900 text-[20px]">Luật thi đấu</h3>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="flex items-center justify-between relative">
-                            <span class="text-gray-700">Số set đấu</span>
-                            <button @click="toggleOpenSet" @click.stop
-                                class="flex items-center gap-2 text-gray-700 hover:text-gray-900">
-                                <span class="font-medium">{{ setNumber }} Set</span>
-                                <ChevronRightIcon class="w-5 h-5 transition-transform"
-                                    :class="{ 'rotate-90': openSet }" />
-                            </button>
-                            <div v-if="openSet" @click.stop
-                                class="absolute right-0 top-full mt-2 bg-white border rounded-lg shadow-lg z-50">
-                                <button v-for="set in setOptions" :key="set.value" @click="selectSet(set.value)"
-                                    class="px-4 py-2 w-full text-sm text-left hover:bg-gray-100 first:rounded-t-lg last:rounded-b-lg block whitespace-nowrap"
-                                    :class="{ 'bg-gray-50 font-medium': setNumber === set.value }">
-                                    {{ set.label }}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-700">Điểm kết thúc mỗi trận</span>
-                            <button @click="openPointModal('games_per_set')"
-                                class="flex items-center gap-2 text-gray-700 hover:text-gray-900">
-                                <span class="font-medium">{{ gamesPerSet }} Điểm</span>
-                                <ChevronRightIcon class="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        <div class="flex items-center justify-between relative">
-                            <span class="text-gray-700">Quy tắc thắng</span>
-                            <button @click="toggleOpenWinRule" @click.stop
-                                class="flex items-center gap-2 text-gray-700 hover:text-gray-900">
-                                <span class="font-medium">{{ winRuleLabel }}</span>
-                                <ChevronRightIcon class="w-5 h-5 transition-transform"
-                                    :class="{ 'rotate-90': openWinRule }" />
-                            </button>
-                            <div v-if="openWinRule" @click.stop
-                                class="absolute right-0 top-full mt-2 bg-white border rounded-lg shadow-lg z-50">
-                                <button v-for="rule in winRuleOptions" :key="rule.value"
-                                    @click="selectWinRule(rule.value)"
-                                    class="px-4 py-2 w-full text-sm text-left hover:bg-gray-100 first:rounded-t-lg last:rounded-b-lg block whitespace-nowrap"
-                                    :class="{ 'bg-gray-50 font-medium': pointsDifference === rule.value }">
-                                    {{ rule.label }}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-700">Điểm tối đa</span>
-                            <button @click="openPointModal('max_points')"
-                                class="flex items-center gap-2 text-gray-700 hover:text-gray-900">
-                                <span class="font-medium">{{ maxPoints }} Điểm</span>
-                                <ChevronRightIcon class="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-700">Điểm đổi sân</span>
-                            <button @click="openPointModal('court_switch_points')"
-                                class="flex items-center gap-2 text-gray-700 hover:text-gray-900">
-                                <span class="font-medium">{{ courtSwitchPoints }} Điểm</span>
-                                <ChevronRightIcon class="w-5 h-5" />
-                            </button>
-                        </div>
+                            <span class="text-[16px] font-bold text-[#3E414C] mb-1">Luật thi đấu</span>
+                            <span class="text-[12px] text-[#6B6F80]">{{ setNumber }} set, {{ gamesPerSet }} điểm</span>
+                        </button>
                     </div>
                 </div>
 
                 <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-semibold text-gray-900 text-[20px]">Cài đặt nâng cao</h3>
+                        <h3 class="font-bold text-[#838799] text-[14px] uppercase tracking-wide">Cài đặt nâng cao</h3>
                     </div>
                     <div class="space-y-4">
                         <div class="flex items-center justify-between relative">
@@ -520,44 +431,40 @@
                             </div>
                         </div>
 
-                        <div class="flex items-center justify-between relative">
-                            <span class="text-gray-700">Độ tuổi</span>
-                            <button @click="toggleOpenAge" @click.stop
-                                class="flex items-center gap-2 text-gray-700 hover:text-gray-900">
-                                <span class="font-medium">{{ ageGroupLabel }}</span>
-                                <ChevronRightIcon class="w-5 h-5 transition-transform"
-                                    :class="{ 'rotate-90': openAge }" />
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-700">Duyệt tự động</span>
+                            <button type="button" @click="autoApprove = !autoApprove" :aria-checked="autoApprove"
+                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
+                                :class="autoApprove ? 'bg-[#D72D36]' : 'bg-gray-300'">
+                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                    :class="autoApprove ? 'translate-x-6' : 'translate-x-1'" />
                             </button>
-                            <div v-if="openAge" @click.stop
-                                class="absolute right-0 top-full mt-2 bg-white border rounded-lg shadow-lg z-50">
-                                <button v-for="age in ageGroupOptions" :key="age.value" @click="selectAge(age.value)"
-                                    class="px-4 py-2 w-full text-sm text-left hover:bg-gray-100 first:rounded-t-lg last:rounded-b-lg block whitespace-nowrap"
-                                    :class="{ 'bg-gray-50 font-medium': ageGroup === age.value }">
-                                    {{ age.label }}
-                                </button>
-                            </div>
                         </div>
 
-                        <div class="flex items-center justify-between relative">
-                            <span class="text-gray-700">Vai trò</span>
-                            <button @click="toggleOpenRole" @click.stop
-                                class="flex items-center gap-2 text-gray-700 hover:text-gray-900">
-                                <span class="font-medium">{{ roleLabel }}</span>
-                                <ChevronRightIcon class="w-5 h-5 transition-transform"
-                                    :class="{ 'rotate-90': openRole }" />
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-700">Cho phép người tham gia thêm bạn</span>
+                            <button type="button" @click="allowParticipantAddFriends = !allowParticipantAddFriends"
+                                :aria-checked="allowParticipantAddFriends"
+                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
+                                :class="allowParticipantAddFriends ? 'bg-[#D72D36]' : 'bg-gray-300'">
+                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                    :class="allowParticipantAddFriends ? 'translate-x-6' : 'translate-x-1'" />
                             </button>
-                            <div v-if="openRole" @click.stop
-                                class="absolute right-0 top-full mt-2 bg-white border rounded-lg shadow-lg z-50">
-                                <button v-for="role in roleOptions" :key="role.value" @click="selectRole(role.value)"
-                                    class="px-4 py-2 w-full text-sm text-left hover:bg-gray-100 first:rounded-t-lg last:rounded-b-lg block whitespace-nowrap"
-                                    :class="{ 'bg-gray-50 font-medium': roleType === role.value }">
-                                    {{ role.label }}
-                                </button>
-                            </div>
                         </div>
 
-                        <div class="flex items-center justify-between relative">
-                            <span class="text-gray-700">Chặn bỏ kèo đấu</span>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-700">Cho phép hủy kèo</span>
+                            <button type="button" @click="allowCancellation = !allowCancellation"
+                                :aria-checked="allowCancellation"
+                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
+                                :class="allowCancellation ? 'bg-[#D72D36]' : 'bg-gray-300'">
+                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                    :class="allowCancellation ? 'translate-x-6' : 'translate-x-1'" />
+                            </button>
+                        </div>
+
+                        <div v-if="allowCancellation" class="flex items-center justify-between relative">
+                            <span class="text-gray-700">Hạn chót hủy kèo</span>
                             <button @click="toggleOpenLock" @click.stop
                                 class="flex items-center gap-2 text-gray-700 hover:text-gray-900">
                                 <span class="font-medium">{{ lockCancellationLabel }}</span>
@@ -574,39 +481,99 @@
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
 
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-700">Duyệt tự động</span>
-                            <button type="button" @click="autoApprove = !autoApprove" :aria-checked="autoApprove"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
-                                :class="autoApprove ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="autoApprove ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
+            </div>
+
+            <!-- RIGHT COLUMN: Sidebar (4 cols on desktop) -->
+            <div class="space-y-4 lg:col-span-4 lg:order-2">
+                <!-- Môn thể thao -->
+                <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
+                    <h3 class="font-bold text-[#838799] text-[14px] uppercase tracking-wide mb-3">Môn thể thao</h3>
+                    <div class="space-y-2">
+                        <button v-for="sport in sports" :key="sport.id" @click="selectSport(sport.id)" :class="[
+                            'w-full flex items-center gap-3 px-4 py-3 rounded-[8px] border transition-colors',
+                            selectedSport === sport.id
+                                ? 'bg-[#D72D36] text-white border-[#D72D36]'
+                                : 'border-[#BBBFCC] text-gray-700 hover:border-gray-400'
+                        ]">
+                            <span class="text-[24px]">{{ getSportIcon(sport.id) }}</span>
+                            <span class="text-[14px] font-semibold">{{ sport.name }}</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Thể thức -->
+                <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
+                    <h3 class="font-bold text-[#838799] text-[14px] uppercase tracking-wide mb-3">Thể thức</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button v-for="format in formats" :key="format.id" @click="selectFormat(format.id)" :class="[
+                            'flex flex-col items-center justify-center rounded-[8px] border px-2 py-3 min-h-[80px] transition-colors',
+                            selectedFormat === format.id
+                                ? 'bg-[#D72D36] text-white border-[#D72D36]'
+                                : 'border-[#BBBFCC] text-gray-700 hover:border-gray-400'
+                        ]">
+                            <span class="text-[20px] leading-none mb-1">{{ getFormatIcon(format.id) }}</span>
+                            <span class="text-[12px] font-semibold text-center">{{ format.name }}</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tóm tắt kèo đấu -->
+                <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
+                    <h3 class="font-bold text-[#838799] text-[14px] uppercase tracking-wide mb-3">Tóm tắt</h3>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-[#6B6F80]">Môn thể thao:</span>
+                            <span class="font-semibold text-[#3E414C]">Pickleball</span>
                         </div>
-
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-700">Cho phép người tham gia thêm bạn</span>
-                            <button type="button" @click="allowParticipantAddFriends = !allowParticipantAddFriends" :aria-checked="allowParticipantAddFriends"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
-                                :class="allowParticipantAddFriends ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="allowParticipantAddFriends ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
+                        <div class="flex justify-between">
+                            <span class="text-[#6B6F80]">Chế độ:</span>
+                            <span class="font-semibold text-[#3E414C]">{{ getPlayModeName(selectedPlayMode) }}</span>
                         </div>
-
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-700">Gửi thông báo</span>
-                            <button type="button" @click="sendNotification = !sendNotification" :aria-checked="sendNotification"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
-                                :class="sendNotification ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="sendNotification ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
+                        <div class="flex justify-between">
+                            <span class="text-[#6B6F80]">Thể thức:</span>
+                            <span class="font-semibold text-[#3E414C]">{{ getFormatName(selectedFormat) }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-[#6B6F80]">Số người:</span>
+                            <span class="font-semibold text-[#3E414C]">{{ playerCount }} người</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-[#6B6F80]">Chi phí:</span>
+                            <span class="font-semibold text-[#3E414C]">{{ feeAmount > 0 ? formatCurrency(feeAmount) :
+                                'Miễn phí' }}</span>
                         </div>
                     </div>
                 </div>
 
+                <!-- Nút chọn kèo mẫu -->
+                <button type="button" @click="openTemplateModal"
+                    class="w-full mb-3 border border-[#D72D36] text-[#D72D36] font-bold py-3.5 rounded-[12px] flex items-center justify-center gap-2 hover:bg-[#FFF5F5] transition-colors">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M19 3H5a2 2 0 0 0-2 2v14l4-3 4 3 4-3 4 3V5a2 2 0 0 0-2-2z" />
+                    </svg>
+                    <span>Chọn kèo mẫu</span>
+                </button>
+
+                <!-- Nút lưu mẫu cài đặt -->
+                <button type="button" @click="handleSaveTemplate"
+                    class="w-full border border-[#D72D36] text-[#D72D36] font-bold py-3.5 rounded-[12px] flex items-center justify-center gap-2 hover:bg-[#FFF5F5] transition-colors">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M17 3H7a2 2 0 0 0-2 2v14l4-3 4 3 4-3 4 3V5a2 2 0 0 0-2-2h-2z" />
+                        <path d="M15 9H9V7h6v2z" fill="#fff" />
+                    </svg>
+                    <span>Lưu cài đặt này làm mẫu</span>
+                </button>
+
+                <!-- Nút hoàn thành -->
+                <button @click="handleSubmit" :disabled="isSubmitting"
+                    class="w-full mt-3 bg-[#D72D36] text-white font-bold py-4 rounded-[12px] hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    {{ isSubmitting ? 'Đang tạo...' : 'Hoàn thành' }}
+                </button>
             </div>
         </div>
 
@@ -647,6 +614,160 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal chọn kèo mẫu -->
+    <div v-if="isTemplateModalOpen"
+        class="fixed inset-0 z-[99] flex items-center justify-center bg-gray-600 bg-opacity-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md" @click.stop>
+            <div class="flex items-center justify-between mb-4">
+                <h4 class="text-lg font-semibold">Chọn kèo mẫu</h4>
+                <button @click="closeTemplateModal" class="text-gray-400 hover:text-gray-600">
+                    <XMarkIcon class="w-5 h-5" />
+                </button>
+            </div>
+
+            <div v-if="isLoadingTemplates" class="py-6 text-center text-sm text-gray-500">
+                Đang tải danh sách kèo mẫu...
+            </div>
+            <div v-else>
+                <div v-if="!templates.length" class="py-6 text-center text-sm text-gray-500">
+                    Bạn chưa có kèo mẫu nào.
+                </div>
+                <div v-else class="space-y-3 max-h-80 overflow-y-auto">
+                    <button v-for="template in templates" :key="template.id" type="button"
+                        @click="applyTemplate(template)"
+                        class="w-full flex items-center justify-between px-4 py-3 rounded-[10px] border border-[#DCDEE6] hover:border-[#D72D36] hover:bg-[#FFF5F5] transition-colors">
+                        <div class="text-left">
+                            <p class="text-[14px] font-semibold text-[#3E414C]">
+                                {{ template.name }}
+                            </p>
+                            <p class="text-[12px] text-[#6B6F80] mt-0.5">
+                                Người chơi: {{ template.settings?.max_players ?? '-' }} •
+                                Phí: {{ template.settings?.has_fee ? (template.settings?.fee_amount || 0).toLocaleString('vi-VN') + 'đ' : 'Miễn phí' }}
+                            </p>
+                        </div>
+                        <ChevronRightIcon class="w-4 h-4 text-[#D72D36]" />
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Trình độ -->
+    <div v-if="isLevelModalOpen"
+        class="fixed inset-0 z-[99] flex items-center justify-center bg-gray-600 bg-opacity-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md" @click.stop>
+            <h4 class="text-lg font-semibold mb-4">Chọn trình độ</h4>
+
+            <div class="space-y-4">
+                <!-- Trình độ tối thiểu -->
+                <div>
+                    <label class="text-sm font-medium text-gray-700 block mb-2">Trình độ tối thiểu</label>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button v-for="level in levels" :key="'min-' + level" @click="selectMinLevel(level)"
+                            class="py-2 text-sm font-medium rounded-[4px] transition-all border"
+                            :class="minLevel === level ? 'bg-[#D72D36] border-[#D72D36] text-white' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'">
+                            {{ level }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Trình độ tối đa -->
+                <div>
+                    <label class="text-sm font-medium text-gray-700 block mb-2">Trình độ tối đa</label>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button v-for="level in levels" :key="'max-' + level" @click="selectMaxLevel(level)"
+                            class="py-2 text-sm font-medium rounded-[4px] transition-all border"
+                            :class="maxLevel === level ? 'bg-[#D72D36] border-[#D72D36] text-white' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'">
+                            {{ level }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 mt-6">
+                <button @click="closeLevelModal" class="px-4 py-2 bg-[#D72D36] text-white rounded-lg hover:bg-red-700">
+                    Xác nhận
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Luật thi đấu -->
+    <div v-if="isRulesModalOpen"
+        class="fixed inset-0 z-[99] flex items-center justify-center bg-gray-600 bg-opacity-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md" @click.stop>
+            <h4 class="text-lg font-semibold mb-4">Luật thi đấu</h4>
+
+            <div class="space-y-4">
+                <!-- Số set đấu -->
+                <div>
+                    <label class="text-sm font-medium text-gray-700 block mb-2">Số set đấu</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button v-for="set in setOptions" :key="set.value" @click="selectSet(set.value)"
+                            class="py-2 text-sm font-medium rounded-[4px] transition-all border"
+                            :class="setNumber === set.value ? 'bg-[#D72D36] border-[#D72D36] text-white' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'">
+                            {{ set.label }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Điểm kết thúc mỗi trận -->
+                <div>
+                    <label class="text-sm font-medium text-gray-700 block mb-2">Điểm kết thúc mỗi trận</label>
+                    <div class="flex items-center gap-2">
+                        <button @click="gamesPerSet = Math.max(1, gamesPerSet - 1)"
+                            class="w-10 h-10 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 flex items-center justify-center text-xl font-bold">
+                            −
+                        </button>
+                        <input type="number" v-model.number="gamesPerSet"
+                            class="flex-1 text-2xl text-center border-b-2 border-gray-300 focus:border-[#D72D36] outline-none py-2"
+                            min="1" />
+                        <button @click="gamesPerSet++"
+                            class="w-10 h-10 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 flex items-center justify-center text-xl font-bold">
+                            +
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quy tắc thắng -->
+                <div>
+                    <label class="text-sm font-medium text-gray-700 block mb-2">Quy tắc thắng</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button v-for="rule in winRuleOptions" :key="rule.value" @click="selectWinRule(rule.value)"
+                            class="py-2 text-sm font-medium rounded-[4px] transition-all border"
+                            :class="pointsDifference === rule.value ? 'bg-[#D72D36] border-[#D72D36] text-white' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'">
+                            {{ rule.label }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Điểm tối đa -->
+                <div>
+                    <label class="text-sm font-medium text-gray-700 block mb-2">Điểm tối đa</label>
+                    <div class="flex items-center gap-2">
+                        <button @click="maxPoints = Math.max(1, maxPoints - 1)"
+                            class="w-10 h-10 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 flex items-center justify-center text-xl font-bold">
+                            −
+                        </button>
+                        <input type="number" v-model.number="maxPoints"
+                            class="flex-1 text-2xl text-center border-b-2 border-gray-300 focus:border-[#D72D36] outline-none py-2"
+                            min="1" />
+                        <button @click="maxPoints++"
+                            class="w-10 h-10 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 flex items-center justify-center text-xl font-bold">
+                            +
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 mt-6">
+                <button @click="closeRulesModal" class="px-4 py-2 bg-[#D72D36] text-white rounded-lg hover:bg-red-700">
+                    Xác nhận
+                </button>
+            </div>
+        </div>
+    </div>
 </template>
 
 <script setup>
@@ -654,14 +775,13 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import VueDatePicker from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
 import { vi } from 'date-fns/locale'
-import { ChevronDownIcon, ChevronRightIcon, XMarkIcon } from "@heroicons/vue/24/solid";
+import { ChevronDownIcon, ChevronRightIcon, XCircleIcon, XMarkIcon } from "@heroicons/vue/24/solid";
 import { CalendarDaysIcon, ClockIcon, MapPinIcon, UsersIcon, LockClosedIcon, CurrencyDollarIcon, ArrowUpTrayIcon, ArrowPathRoundedSquareIcon } from "@heroicons/vue/24/outline";
 import Toggle from '@/components/atoms/Toggle.vue'
 import * as MiniTournamentService from '@/service/miniTournament'
 import * as SportService from '@/service/sport'
 import * as CompetitionLocationService from '@/service/competitionLocation'
 import { toast } from 'vue3-toastify'
-import { Swiper, SwiperSlide } from 'swiper/vue'
 import { FreeMode, Mousewheel } from 'swiper/modules'
 import 'swiper/css'
 import 'swiper/css/free-mode'
@@ -670,8 +790,6 @@ import { playModes, formats } from '@/constants/playModeAndFormat';
 import { levels } from '@/constants/levels';
 import { setOptions } from '@/constants/setOption';
 import { winRuleOptions } from '@/constants/winRuleOption';
-import { ageGroupOptions } from '@/constants/ageGroupOption';
-import { roleOptions } from '@/constants/roleOption';
 import { lockCancellationOptions } from '@/constants/lockCancellationOption';
 import { durationOptions } from '@/constants/durationOption';
 import { useFormattedDate } from '@/composables/formatedDate'
@@ -683,9 +801,10 @@ const miniTournamentId = route.params.id || null
 const isEditMode = computed(() => !!miniTournamentId)
 const btnTitle = computed(() => isEditMode.value ? 'Chỉnh sửa kèo đấu' : 'Tạo kèo đấu');
 const getPlayModeIcon = (modeId) => {
-    if (modeId === 1) return '☺'
-    if (modeId === 2) return '▦'
-    if (modeId === 3) return '🎾'
+    // Return SVG or icon class based on mode
+    if (modeId === 1) return 'image.png' // Giải trí
+    if (modeId === 2) return 'image.png' // Thi đấu
+    if (modeId === 3) return '⚡' // Luyện tập
     return '•'
 }
 
@@ -698,10 +817,14 @@ const openPrivacy = ref(false)
 const openFee = ref(false)
 const openMinLevel = ref(false)
 const openMaxLevel = ref(false)
+const openRepeat = ref(false)
+const isLevelModalOpen = ref(false)
+const isRulesModalOpen = ref(false)
 const date = ref(null)
 const durationMinutes = ref(null)
 const selectedDuration = ref('')
-const playerCount = ref(1)
+// Số người chơi tối đa (bao gồm cả bạn), mặc định 4
+const playerCount = ref(4)
 const privacy = ref('Công khai')
 
 // Fee fields - new structure
@@ -719,22 +842,22 @@ const feeAmount = ref(0)
 const formattedFeeAmount = ref('')
 
 const sports = ref([])
-const selectedSportId = ref(null)
+// Chỉ có 1 môn Pickleball, mặc định sport_id = 1
+const selectedSportId = ref(1)
 const tournamentName = ref('')
 const tournamentNote = ref('')
 
-const duprEnabled = ref(true)
-const vnduprEnabled = ref(true)
-
 const minLevel = ref('Không giới hạn')
 const maxLevel = ref('Không giới hạn')
-const selectedType = ref(1)
 const selectedPlayMode = ref(1)
 const selectedFormat = ref(null)
 const autoApprove = ref(true)
 const allowParticipantAddFriends = ref(true)
-const sendNotification = ref(true)
 const { formattedDate } = useFormattedDate(date)
+const posterFile = ref(null)
+const posterPreview = ref(null)
+const posterImage = ref(null)
+const posterInputRef = ref(null)
 
 // =================================================================================
 // REFS CHO PHẦN TÌM KIẾM ĐỊA ĐIỂM
@@ -753,7 +876,6 @@ const setNumber = ref(1)
 const gamesPerSet = ref(11)
 const pointsDifference = ref(2)
 const maxPoints = ref(11)
-const courtSwitchPoints = ref(1)
 
 const openSet = ref(false)
 const openWinRule = ref(false)
@@ -766,6 +888,9 @@ const pointModalTitle = ref('')
 const pointInputType = ref('')
 const pointInput = ref(0)
 const pointInputError = ref('')
+const isTemplateModalOpen = ref(false)
+const templates = ref([])
+const isLoadingTemplates = ref(false)
 
 const minPointValue = computed(() => {
     if (pointInputType.value === 'max_points') {
@@ -776,33 +901,28 @@ const minPointValue = computed(() => {
 
 const swiperInstance = ref(null);
 const onSwiperInit = (swiper) => {
-  swiperInstance.value = swiper;
+    swiperInstance.value = swiper;
 };
 
 watch(selectedSportId, (id) => {
-  const index = sports.value.findIndex(s => s.id === id);
-  if (index !== -1 && swiperInstance.value) {
-    swiperInstance.value.slideTo(index);
-  }
+    const index = sports.value.findIndex(s => s.id === id);
+    if (index !== -1 && swiperInstance.value) {
+        swiperInstance.value.slideTo(index);
+    }
 });
 
 
 const genderPolicy = ref(3)
-const ageGroup = ref(1)
 const isRepeated = ref(false)
 const repeatUnit = ref('Tuần')
 const recurringWeekDays = ref([])
-const roleType = ref(2)
 const lockCancellation = ref(1)
+const allowCancellation = ref(true)
 
 const openGender = ref(false)
-const openAge = ref(false)
-const openRole = ref(false)
 const openLock = ref(false)
 
 const genderLabel = computed(() => genderOptions.find(g => g.value === genderPolicy.value)?.label || 'Không giới hạn')
-const ageGroupLabel = computed(() => ageGroupOptions.find(a => a.value === ageGroup.value)?.label || 'Không giới hạn')
-const roleLabel = computed(() => roleOptions.find(r => r.value === roleType.value)?.label || 'Tổ chức và tham gia')
 const lockCancellationLabel = computed(() => {
     return lockCancellation.value === 0
         ? 'Không có'
@@ -832,16 +952,16 @@ const formattedRepeatTime = computed(() => {
 // Định nghĩa trạng thái ban đầu để reset form
 const initialStates = {
     openDate: false, openTime: false, openPrivacy: false, openFee: false, openMinLevel: false, openMaxLevel: false,
-    openSet: false, openWinRule: false, openGender: false, openAge: false, openRole: false, openLock: false,
+    openSet: false, openWinRule: false, openGender: false, openLock: false,
     isLocationDropdownOpen: false, isPointModalOpen: false,
-    date: null, durationMinutes: null, selectedDuration: '', playerCount: 1, privacy: 'Công khai',
+    date: null, durationMinutes: null, selectedDuration: '', playerCount: 4, privacy: 'Công khai',
     fee: 'none', feeAmount: 0, formattedFeeAmount: '',
-    tournamentName: '', tournamentNote: '', selectedType: 1, selectedPlayMode: 1, selectedFormat: null, selectedSportId: null,
-    duprEnabled: true, vnduprEnabled: true, minLevel: 'Không giới hạn', maxLevel: 'Không giới hạn',
+    tournamentName: '', tournamentNote: '', selectedPlayMode: 1, selectedFormat: null, selectedSportId: 1,
+    minLevel: 'Không giới hạn', maxLevel: 'Không giới hạn',
     locationKeyword: '', selectedLocation: null, competitionLocations: [],
-    setNumber: 1, gamesPerSet: 11, pointsDifference: 2, maxPoints: 11, courtSwitchPoints: 1,
-    genderPolicy: 3, ageGroup: 1, isRepeated: false, repeatUnit: 'Tuần', recurringWeekDays: [], roleType: 2, lockCancellation: 1,
-    autoApprove: true, allowParticipantAddFriends: true, sendNotification: true,
+    setNumber: 1, gamesPerSet: 11, pointsDifference: 2, maxPoints: 11,
+    genderPolicy: 3, isRepeated: false, repeatUnit: 'Tuần', recurringWeekDays: [], lockCancellation: 1,
+    allowCancellation: true, autoApprove: true, allowParticipantAddFriends: true,
 };
 
 const resetFormState = () => {
@@ -856,8 +976,6 @@ const resetFormState = () => {
     formattedFeeAmount.value = initialStates.formattedFeeAmount;
     tournamentName.value = initialStates.tournamentName;
     tournamentNote.value = initialStates.tournamentNote;
-    duprEnabled.value = initialStates.duprEnabled;
-    vnduprEnabled.value = initialStates.vnduprEnabled;
     minLevel.value = initialStates.minLevel;
     maxLevel.value = initialStates.maxLevel;
     locationKeyword.value = initialStates.locationKeyword;
@@ -866,26 +984,27 @@ const resetFormState = () => {
     gamesPerSet.value = initialStates.gamesPerSet;
     pointsDifference.value = initialStates.pointsDifference;
     maxPoints.value = initialStates.maxPoints;
-    courtSwitchPoints.value = initialStates.courtSwitchPoints;
     genderPolicy.value = initialStates.genderPolicy;
-    ageGroup.value = initialStates.ageGroup;
     isRepeated.value = initialStates.isRepeated;
     repeatUnit.value = initialStates.repeatUnit;
     recurringWeekDays.value = [...initialStates.recurringWeekDays];
-    roleType.value = initialStates.roleType;
     lockCancellation.value = initialStates.lockCancellation;
+    allowCancellation.value = initialStates.allowCancellation;
     autoApprove.value = initialStates.autoApprove;
     allowParticipantAddFriends.value = initialStates.allowParticipantAddFriends;
-    sendNotification.value = initialStates.sendNotification;
     competitionLocations.value = initialStates.competitionLocations;
     isLocationDropdownOpen.value = initialStates.isLocationDropdownOpen;
     qrCodeImage.value = null;
     qrCodePreview.value = null;
     qrCodeFile.value = null;
-    // Đảm bảo chọn lại môn thể thao đầu tiên
-    if (sports.value.length > 0) {
-        selectedSportId.value = sports.value[0].id;
+    if (posterInputRef.value) {
+        posterInputRef.value.value = '';
     }
+    posterImage.value = null;
+    posterPreview.value = null;
+    posterFile.value = null;
+    // Đảm bảo chọn lại môn thể thao đầu tiên (Pickleball id=1)
+    selectedSportId.value = 1;
     // Đóng tất cả dropdown UI
     closeOtherDropdowns(null);
 };
@@ -904,8 +1023,6 @@ const closeOtherDropdowns = (exceptRef) => {
     if (exceptRef !== openSet) openSet.value = false
     if (exceptRef !== openWinRule) openWinRule.value = false
     if (exceptRef !== openGender) openGender.value = false
-    if (exceptRef !== openAge) openAge.value = false
-    if (exceptRef !== openRole) openRole.value = false
     if (exceptRef !== openLock) openLock.value = false
     // Đóng dropdown địa điểm
     if (exceptRef !== isLocationDropdownOpen) isLocationDropdownOpen.value = false
@@ -988,12 +1105,156 @@ const handleQrCodeUpload = (event) => {
     reader.readAsDataURL(file)
 }
 
+//handle poster file upload
+const handlePosterUpload = (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+
+    if (file.size > 5 * 1024 * 1024) {
+        toast.error('Kích thước ảnh không được quá 5MB')
+        return
+    }
+
+    posterImage.value = file
+    const reader = new FileReader()
+    reader.onload = (e) => {
+        posterPreview.value = e.target.result
+        posterImage.value = e.target.result // base64 for preview
+    }
+    reader.readAsDataURL(file)
+}
+
+//handle max_players
+const setPlayerCount = (value) => {
+    playerCount.value = value
+}
+
+// =================================================================================
+// Template helpers
+// =================================================================================
+
+const fetchTemplates = async () => {
+    isLoadingTemplates.value = true
+    try {
+        const res = await MiniTournamentService.getMiniTournamentTemplates()
+        // Controller trả về ['templates' => $templates]
+        templates.value = res?.data?.templates || res?.templates || []
+    } catch (error) {
+        console.error('Error fetching mini tournament templates:', error)
+        const errMessage = error?.response?.data?.message || 'Không tải được danh sách kèo mẫu.'
+        toast.error(errMessage)
+    } finally {
+        isLoadingTemplates.value = false
+    }
+}
+
+const openTemplateModal = async () => {
+    isTemplateModalOpen.value = true
+    if (!templates.value.length) {
+        await fetchTemplates()
+    }
+}
+
+const closeTemplateModal = () => {
+    isTemplateModalOpen.value = false
+}
+
+const applyTemplate = (template) => {
+    const s = template?.settings || {}
+
+    // Thông tin cơ bản
+    selectedSportId.value = s.sport_id ?? selectedSportId.value ?? 1
+    tournamentName.value = s.name ?? tournamentName.value
+    tournamentNote.value = s.description ?? tournamentNote.value
+
+    // Chế độ chơi & thể thức
+    if (s.play_mode !== undefined && s.play_mode !== null) {
+        selectedPlayMode.value = s.play_mode
+    }
+    if (s.format !== undefined && s.format !== null) {
+        selectedFormat.value = s.format
+    }
+
+    // Người chơi & quyền riêng tư
+    if (s.max_players) {
+        playerCount.value = s.max_players
+    }
+    if (s.is_private !== undefined) {
+        privacy.value = s.is_private ? 'Riêng tư' : 'Công khai'
+    }
+
+    // Phí tham gia
+    if (s.has_fee !== undefined) {
+        hasFee.value = !!s.has_fee
+    }
+    if (s.auto_split_fee !== undefined) {
+        autoSplitCourtFee.value = !!s.auto_split_fee
+    }
+    if (s.fee_amount !== undefined && s.fee_amount !== null) {
+        feeAmount.value = s.fee_amount
+        formattedFeeAmount.value = s.fee_amount
+            ? Number(s.fee_amount).toLocaleString('vi-VN')
+            : ''
+    }
+    if (s.fee_description !== undefined) {
+        paymentNote.value = s.fee_description || ''
+    }
+
+    // Trình độ
+    if (s.min_rating !== undefined && s.min_rating !== null) {
+        minLevel.value = s.min_rating
+    }
+    if (s.max_rating !== undefined && s.max_rating !== null) {
+        maxLevel.value = s.max_rating
+    }
+
+    // Luật thi đấu
+    if (s.set_number) setNumber.value = s.set_number
+    if (s.base_points) gamesPerSet.value = s.base_points
+    if (s.points_difference !== undefined && s.points_difference !== null) {
+        pointsDifference.value = s.points_difference
+    }
+    if (s.max_points) maxPoints.value = s.max_points
+
+    // Giới tính & lặp lại
+    if (s.gender !== undefined && s.gender !== null) {
+        genderPolicy.value = s.gender
+    }
+    if (s.recurring_schedule !== undefined) {
+        applyRecurringScheduleFromData(s.recurring_schedule)
+    }
+
+    // Cài đặt nâng cao
+    if (s.auto_approve !== undefined) {
+        autoApprove.value = !!s.auto_approve
+    }
+    if (s.allow_participant_add_friends !== undefined) {
+        allowParticipantAddFriends.value = !!s.allow_participant_add_friends
+    }
+
+    isTemplateModalOpen.value = false
+    toast.success('Đã áp dụng kèo mẫu')
+}
+
+// Clear poster
+const clearPoster = () => {
+    posterImage.value = null
+    posterPreview.value = null
+    posterFile.value = null
+    if (posterInputRef.value) posterInputRef.value.value = ''
+}
+
 // Clear QR code
 const clearQrCode = () => {
     qrCodeImage.value = null
     qrCodePreview.value = null
     qrCodeFile.value = null
     if (qrFileInput.value) qrFileInput.value.value = ''
+}
+
+// Chọn thể thức (format) - 1: Đánh đơn, 2: Đánh đôi
+const selectFormat = (formatId) => {
+    selectedFormat.value = formatId
 }
 
 const toggleOpenMinLevel = () => {
@@ -1009,19 +1270,11 @@ const toggleOpenMaxLevel = () => {
 }
 
 const toggleDUPR = () => {
-    // Chỉ cho phép thay đổi khi play_mode = 2 (Thi đấu)
-    if (selectedPlayMode.value !== 2) return
-    // Thi đấu thì không cho phép tắt - luôn bật
-    if (duprEnabled.value) return
-    duprEnabled.value = !duprEnabled.value
+    // DUPR tự động theo play_mode, không cần toggle riêng
 }
 
 const toggleVNDUPR = () => {
-    // Chỉ cho phép thay đổi khi play_mode = 2 (Thi đấu)
-    if (selectedPlayMode.value !== 2) return
-    // Thi đấu thì không cho phép tắt - luôn bật
-    if (vnduprEnabled.value) return
-    vnduprEnabled.value = !vnduprEnabled.value
+    // VNDUPR tự động theo play_mode, không cần toggle riêng
 }
 
 // Computed để kiểm tra có cho phép chỉnh sửa DUPR/VNDUPR không
@@ -1030,16 +1283,6 @@ const canEditDuprSettings = computed(() => selectedPlayMode.value === 2)
 // Khi play_mode thay đổi, tự động set DUPR/VNDUPR
 const handlePlayModeChange = (mode) => {
     selectedPlayMode.value = mode
-
-    // Nếu là Vui vẻ (1) hoặc Luyện tập (3): disable và set = false
-    // Nếu là Thi đấu (2): enable và set = true
-    if (mode === 2) {
-        duprEnabled.value = true
-        vnduprEnabled.value = true
-    } else {
-        duprEnabled.value = false
-        vnduprEnabled.value = false
-    }
 
     // Khi play_mode thay đổi, reset format về null
     selectedFormat.value = null
@@ -1063,18 +1306,6 @@ const toggleOpenGender = () => {
     openGender.value = !currentState
 }
 
-const toggleOpenAge = () => {
-    const currentState = openAge.value
-    closeOtherDropdowns(openAge)
-    openAge.value = !currentState
-}
-
-const toggleOpenRole = () => {
-    const currentState = openRole.value
-    closeOtherDropdowns(openRole)
-    openRole.value = !currentState
-}
-
 const toggleOpenLock = () => {
     const currentState = openLock.value
     closeOtherDropdowns(openLock)
@@ -1085,12 +1316,14 @@ const toggleOpenLock = () => {
 // Select Handlers (Giữ nguyên)
 // =================================================================================
 const decreasePlayer = () => {
-    if (playerCount.value > 1) {
+    // Tối thiểu 2 người chơi (bao gồm cả bạn)
+    if (playerCount.value > 2) {
         playerCount.value--
     }
 }
 
 const increasePlayer = () => {
+    // Có thể thêm giới hạn tối đa nếu BE yêu cầu (ví dụ 32)
     playerCount.value++
 }
 
@@ -1145,20 +1378,10 @@ const selectGender = (value) => {
     openGender.value = false
 }
 
-const selectAge = (value) => {
-    ageGroup.value = value
-    openAge.value = false
-}
-
 const toggleRecurringDay = (day) => {
     const idx = recurringWeekDays.value.indexOf(day)
     if (idx === -1) recurringWeekDays.value.push(day)
     else recurringWeekDays.value.splice(idx, 1)
-}
-
-const selectRole = (value) => {
-    roleType.value = value
-    openRole.value = false
 }
 
 const selectLock = (value) => {
@@ -1187,9 +1410,6 @@ const openPointModal = (type) => {
     } else if (type === 'max_points') {
         pointModalTitle.value = 'Điểm tối đa'
         pointInput.value = maxPoints.value
-    } else if (type === 'court_switch_points') {
-        pointModalTitle.value = 'Điểm đổi sân'
-        pointInput.value = courtSwitchPoints.value
     }
 
     isPointModalOpen.value = true
@@ -1198,6 +1418,22 @@ const openPointModal = (type) => {
 const closePointModal = () => {
     isPointModalOpen.value = false
     pointInputError.value = ''
+}
+
+const openLevelModal = () => {
+    isLevelModalOpen.value = true
+}
+
+const closeLevelModal = () => {
+    isLevelModalOpen.value = false
+}
+
+const openRulesModal = () => {
+    isRulesModalOpen.value = true
+}
+
+const closeRulesModal = () => {
+    isRulesModalOpen.value = false
 }
 
 const handlePointConfirm = () => {
@@ -1213,11 +1449,55 @@ const handlePointConfirm = () => {
         }
     } else if (pointInputType.value === 'max_points') {
         maxPoints.value = pointInput.value
-    } else if (pointInputType.value === 'court_switch_points') {
-        courtSwitchPoints.value = pointInput.value
     }
 
     closePointModal()
+}
+
+// Build settings object for saving template
+const buildTemplateSettings = () => {
+    return {
+        sport_id: selectedSportId.value,
+        name: tournamentName.value,
+        description: tournamentNote.value || null,
+        play_mode: selectedPlayMode.value,
+        format: selectedFormat.value,
+        max_players: playerCount.value,
+        is_private: privacy.value === 'Riêng tư',
+        has_fee: hasFee.value,
+        auto_split_fee: autoSplitCourtFee.value,
+        fee_amount: hasFee.value ? feeAmount.value : null,
+        fee_description: paymentNote.value || null,
+        min_rating: minLevel.value,
+        max_rating: maxLevel.value,
+        set_number: setNumber.value,
+        base_points: gamesPerSet.value,
+        points_difference: pointsDifference.value,
+        max_points: maxPoints.value,
+        gender: genderPolicy.value,
+        recurring_schedule: buildRecurringSchedule(),
+        allow_cancellation: allowCancellation.value,
+        cancellation_duration: allowCancellation.value ? getCancellationDuration() : null,
+        auto_approve: autoApprove.value,
+        allow_participant_add_friends: allowParticipantAddFriends.value,
+    }
+}
+
+const handleSaveTemplate = async () => {
+    try {
+        const settings = buildTemplateSettings()
+        const payload = {
+            name: tournamentName.value || 'Kèo mẫu Picki',
+            settings,
+        }
+        const res = await MiniTournamentService.saveMiniTournamentTemplate(payload)
+        const message = res?.message || 'Đã lưu cài đặt này làm mẫu'
+        toast.success(message)
+    } catch (error) {
+        console.error('Error saving mini tournament template:', error)
+        const errMessage = error?.response?.data?.message || 'Lưu mẫu thất bại. Vui lòng thử lại.'
+        toast.error(errMessage)
+    }
 }
 
 
@@ -1257,6 +1537,20 @@ const buildRecurringSchedule = () => {
     }
 }
 
+const getCancellationDuration = () => {
+    const minutesMap = {
+        1: 30,    // 30 phút
+        2: 60,    // 1 giờ
+        3: 120,   // 2 giờ
+        4: 180,   // 3 giờ
+        5: 240,   // 4 giờ
+        6: 360,   // 6 giờ
+        7: 720,   // 12 giờ
+        8: 1440,  // 24 giờ
+    }
+    return minutesMap[lockCancellation.value] || null
+}
+
 const handleSubmit = async () => {
     // Nếu kèo có thu phí nhưng không có QR mới và cũng không có QR cũ => bắt buộc upload
     if (hasFee.value && !qrCodeFile.value && !qrCodeImage.value) {
@@ -1280,20 +1574,6 @@ const handleSubmit = async () => {
     const getNumericLevel = (level) => {
         if (level === 'Không giới hạn') return null
         return Number.parseFloat(level)
-    }
-
-    const getCancellationDuration = () => {
-        const hoursMap = {
-            1: 1,
-            2: 2,
-            3: 4,
-            4: 6,
-            5: 8,
-            6: 12,
-            7: 24,
-        }
-        const hours = hoursMap[lockCancellation.value] || null
-        return hours ? hours * 60 : null
     }
 
     const data = {
@@ -1322,8 +1602,8 @@ const handleSubmit = async () => {
         gender: genderPolicy.value,
         recurring_schedule: buildRecurringSchedule(),
         apply_rule: true,
-        allow_cancellation: true,
-        cancellation_duration: getCancellationDuration(),
+        allow_cancellation: allowCancellation.value,
+        cancellation_duration: allowCancellation.value ? getCancellationDuration() : null,
         auto_approve: autoApprove.value,
         allow_participant_add_friends: allowParticipantAddFriends.value,
         status: 1,
@@ -1385,7 +1665,7 @@ const createMiniTournament = async (data) => {
         const res = await MiniTournamentService.storeMiniTournament(data)
         toast.success('Tạo kèo đấu thành công!')
         resetFormState()
-        if(res && res.id) {
+        if (res && res.id) {
             setTimeout(() => {
                 router.push({ name: 'mini-tournament-detail', params: { id: res.id } })
             }, 1000)
@@ -1400,9 +1680,8 @@ const fetchSports = async () => {
     try {
         const res = await SportService.getAllSports()
         sports.value = res
-        if (res.length > 0) {
-            selectedSportId.value = res[0].id
-        }
+        // BE hiện tại chỉ dùng Pickleball, mặc định sport_id = 1
+        selectedSportId.value = 1
     } catch (error) {
         console.error('Error fetching sports:', error)
     }
@@ -1456,7 +1735,7 @@ const applyRecurringScheduleFromData = (recurringSchedule) => {
 }
 
 const prefillForm = (data) => {
-    if(!data) return;
+    if (!data) return;
     // Thông tin cơ bản
     selectedSportId.value = data?.sport.id || null;
     tournamentName.value = data?.name || '';
@@ -1471,15 +1750,15 @@ const prefillForm = (data) => {
     }
 
     // Ngày giờ - địa điểm  - người chơi
-    if(data?.start_time) {
+    if (data?.start_time) {
         date.value = new Date(data.start_time);
     }
-    if(data?.duration) {
+    if (data?.duration) {
         durationMinutes.value = data.duration;
         const durationOption = durationOptions.find(option => option.value === data.duration);
         selectedDuration.value = durationOption ? durationOption.label : '';
     }
-    if(data?.competition_location) {
+    if (data?.competition_location) {
         selectedLocation.value = data.competition_location;
         locationKeyword.value = data.competition_location.name || '';
     }
@@ -1493,7 +1772,7 @@ const prefillForm = (data) => {
     qrCodePreview.value = data?.qr_code_url || null;
     qrCodeImage.value = data?.qr_code_url || null;
     feeAmount.value = data?.fee_amount || 0;
-    if(feeAmount.value) {
+    if (feeAmount.value) {
         formattedFeeAmount.value = feeAmount.value.toLocaleString('vi-VN');
     } else {
         formattedFeeAmount.value = '';
@@ -1512,6 +1791,24 @@ const prefillForm = (data) => {
     // Cài đặt nâng cao
     genderPolicy.value = data?.gender || 3
     applyRecurringScheduleFromData(data?.recurring_schedule)
+    
+    // Allow cancellation và cancellation duration
+    allowCancellation.value = data?.allow_cancellation !== undefined ? !!data.allow_cancellation : true
+    if (data?.cancellation_duration) {
+        // Map từ phút về value tương ứng
+        const minutesToValueMap = {
+            30: 1,
+            60: 2,
+            120: 3,
+            180: 4,
+            240: 5,
+            360: 6,
+            720: 7,
+            1440: 8,
+        }
+        lockCancellation.value = minutesToValueMap[data.cancellation_duration] || 1
+    }
+    
     autoApprove.value = !!data?.auto_approve
     allowParticipantAddFriends.value = !!data?.allow_participant_add_friends
 }
@@ -1526,9 +1823,49 @@ const detailMiniTournament = async (id) => {
     }
 };
 
+// Helper methods for RIGHT COLUMN
+const getSportName = (sportId) => {
+    if (!sports.value || !Array.isArray(sports.value)) return 'Chưa chọn'
+    const sport = sports.value.find(s => s.id === sportId)
+    return sport ? sport.name : 'Chưa chọn'
+}
+
+const getPlayModeName = (playModeId) => {
+    if (!playModes || !Array.isArray(playModes)) return 'Chưa chọn'
+    const mode = playModes.find(m => m.id === playModeId)
+    return mode ? mode.name : 'Chưa chọn'
+}
+
+const getFormatName = (formatId) => {
+    if (!formats || !Array.isArray(formats)) return 'Chưa chọn'
+    const format = formats.find(f => f.id === formatId)
+    return format ? format.name : 'Chưa chọn'
+}
+
+const getSportIcon = (sportId) => {
+    const icons = {
+        1: '🏸', // Cầu lông
+        2: '🎾', // Tennis
+        3: '🏓', // Bóng bàn
+    }
+    return icons[sportId] || '🏸'
+}
+
+const getFormatIcon = (formatId) => {
+    const icons = {
+        1: '👤', // Đơn
+        2: '👥', // Đôi
+    }
+    return icons[formatId] || '👤'
+}
+
+const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount)
+}
+
 onMounted(async () => {
     await fetchSports()
-    if(isEditMode.value) {
+    if (isEditMode.value) {
         await detailMiniTournament(miniTournamentId);
     }
     // Thêm listener cho sự kiện click toàn cục
@@ -1543,7 +1880,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-
 .filter-invert-white {
     filter: invert(1) grayscale(100%) brightness(200%) contrast(150%);
 }
@@ -1556,6 +1892,7 @@ onBeforeUnmount(() => {
 .scrollbar-hide::-webkit-scrollbar {
     display: none;
 }
+
 .fade-enter-active,
 .fade-leave-active {
     transition: opacity 0.1s ease;

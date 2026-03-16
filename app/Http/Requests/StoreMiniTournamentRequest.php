@@ -77,9 +77,6 @@ class StoreMiniTournamentRequest extends FormRequest
 
             'invite_user' => 'nullable|array',
             'invite_user.*' => 'exists:users,id',
-
-            // Role type for tournament creator
-            'role_type' => 'nullable|string|in:organizer,participant',
         ];
 
         // Custom validation: if has_fee is true, require fee_amount and qr_code_url
