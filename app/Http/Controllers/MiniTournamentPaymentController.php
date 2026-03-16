@@ -118,6 +118,7 @@ class MiniTournamentPaymentController extends Controller
         ]);
 
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
+        $autoConfirmPayment = (bool) $miniTournament->auto_approve;
 
         // Nếu kèo chia tiền tự động thì chỉ được thanh toán sau khi đã có ít nhất 1 trận hoàn tất
         if ($miniTournament->auto_split_fee) {
@@ -211,13 +212,13 @@ class MiniTournamentPaymentController extends Controller
 
                 $existingPayment->update([
                     'amount' => $feePerPerson,
-                    'status' => MiniParticipantPayment::STATUS_PAID,
+                    'status' => $autoConfirmPayment ? MiniParticipantPayment::STATUS_CONFIRMED : MiniParticipantPayment::STATUS_PAID,
                     'receipt_image' => $receiptImage,
                     'note' => $data['note'] ?? null,
                     'paid_at' => now(),
                     'admin_note' => null,
-                    'confirmed_at' => null,
-                    'confirmed_by' => null,
+                    'confirmed_at' => $autoConfirmPayment ? now() : null,
+                    'confirmed_by' => $autoConfirmPayment ? $userId : null,
                 ]);
 
                 $payment = $existingPayment;
@@ -228,18 +229,26 @@ class MiniTournamentPaymentController extends Controller
                     'participant_id' => $participant->id,
                     'user_id' => $userId,
                     'amount' => $feePerPerson,
-                    'status' => MiniParticipantPayment::STATUS_PAID,
+                    'status' => $autoConfirmPayment ? MiniParticipantPayment::STATUS_CONFIRMED : MiniParticipantPayment::STATUS_PAID,
                     'receipt_image' => $receiptImage,
                     'note' => $data['note'] ?? null,
                     'paid_at' => now(),
+                    'confirmed_at' => $autoConfirmPayment ? now() : null,
+                    'confirmed_by' => $autoConfirmPayment ? $userId : null,
                 ]);
+            }
+
+            if ($autoConfirmPayment) {
+                $participant->confirmPayment();
             }
 
             DB::commit();
 
             return ResponseHelper::success(
                 new MiniParticipantPaymentResource($payment->load(['user', 'confirmer'])),
-                'Thanh toán thành công, chờ chủ kèo xác nhận',
+                $autoConfirmPayment
+                    ? 'Thanh toán và xác nhận thành công'
+                    : 'Thanh toán thành công, chờ chủ kèo xác nhận',
                 200
             );
         } catch (\Throwable $e) {
