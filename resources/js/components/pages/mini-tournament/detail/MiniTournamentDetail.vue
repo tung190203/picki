@@ -257,19 +257,23 @@ export default {
 
         const pendingParticipants = computed(() => {
             if (!mini.value?.participants) return []
-            // Chỉ hiển thị người tự xin tham gia (invited_by = null) trong tab chờ duyệt
-            // Người được mời (invited_by != null) sẽ tự xác nhận, không cần admin duyệt
-            return mini.value.participants.filter(p => p.is_confirmed === false && p.invited_by === null)
+            // Chỉ hiển thị người tự xin tham gia (is_invited = false) trong tab chờ duyệt
+            // Người được mời (is_invited = true) sẽ tự xác nhận, không cần admin duyệt
+            return mini.value.participants.filter(p => p.is_confirmed === false && p.is_invited === false)
         })
 
         const invitedParticipants = computed(() => {
             if (!mini.value?.participants) return []
-            // Người được mời chưa xác nhận (invited_by != null, is_confirmed = false)
-            return mini.value.participants.filter(p => p.is_confirmed === false && p.invited_by !== null)
+            // Người được mời chưa xác nhận (is_invited = true, is_confirmed = false)
+            return mini.value.participants.filter(p => p.is_confirmed === false && p.is_invited === true)
         })
 
         const openPromotionModal = () => {
             isPromotionModalOpen.value = true;
+        };
+
+        const handlePaymentSubmitSuccess = async () => {
+            await detailMiniTournament(id);
         };
 
         const getPaymentStatusBadgeClass = (status) => {
@@ -698,6 +702,7 @@ export default {
             confirmedParticipants,
             pendingParticipants,
             invitedParticipants,
+            handlePaymentSubmitSuccess,
             getPaymentStatusBadgeClass,
             getPaymentStatusLabel,
             handleApproveParticipant,
