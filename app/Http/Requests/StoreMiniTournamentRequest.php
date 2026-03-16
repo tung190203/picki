@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\MiniTournament;
 use App\Rules\ValidRecurringSchedule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreMiniTournamentRequest extends FormRequest
 {
@@ -31,13 +32,13 @@ class StoreMiniTournamentRequest extends FormRequest
 
             // Play mode and format
             'play_mode' => 'required|in:casual,competition,practice,' . implode(',', [MiniTournament::PLAY_MODE_CASUAL, MiniTournament::PLAY_MODE_COMPETITION, MiniTournament::PLAY_MODE_PRACTICE]),
-            'format' => 'nullable|in:single,double,' . implode(',', MiniTournament::FORMAT),
+            'format' => 'required|in:single,double,mens_doubles,womens_doubles,mixed,' . implode(',', MiniTournament::FORMAT),
 
             // Time fields (new naming)
-            'start_time' => 'nullable|date',
+            'start_time' => 'required|date|after_or_equal:now',
             'end_time' => 'nullable|date|after:start_time',
-            'duration' => 'nullable|integer|min:1',
-            'competition_location_id' => 'nullable|exists:competition_locations,id',
+            'duration' => 'required|integer|min:1',
+            'competition_location_id' => 'required|exists:competition_locations,id',
 
             'is_private' => 'boolean',
 
@@ -48,11 +49,11 @@ class StoreMiniTournamentRequest extends FormRequest
             'qr_code_url' => 'nullable|image|mimes:png,jpg,jpeg,gif|max:5120',
             'payment_account_id' => 'nullable|exists:club_wallets,id',
             'fee_amount' => 'nullable|integer|min:0',
-            'max_players' => 'nullable|integer|min:1',
+            'max_players' => 'required|integer|min:2|max:100',
 
             // Rating
-            'min_rating' => 'nullable|numeric|min:0',
-            'max_rating' => 'nullable|numeric|min:0',
+            'min_rating' => 'nullable|numeric|min:1|max:8',
+            'max_rating' => 'nullable|numeric|min:1|max:8',
 
             // Game rules (updated naming) - conditional based on apply_rule
             'set_number' => 'nullable|integer|min:1',
@@ -76,7 +77,7 @@ class StoreMiniTournamentRequest extends FormRequest
             'status' => 'required|integer|in:' . implode(',', MiniTournament::STATUS),
 
             'invite_user' => 'nullable|array',
-            'invite_user.*' => 'exists:users,id',
+            'invite_user.*' => 'distinct|exists:users,id',
         ];
 
         // Custom validation: if has_fee is true, require fee_amount and qr_code_url
@@ -99,6 +100,30 @@ class StoreMiniTournamentRequest extends FormRequest
         }
 
         return $rules;
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            $minRating = $this->input('min_rating');
+            $maxRating = $this->input('max_rating');
+
+            if ($minRating !== null && $maxRating !== null && (float) $minRating > (float) $maxRating) {
+                $validator->errors()->add('min_rating', 'Trình độ tối thiểu không được lớn hơn trình độ tối đa.');
+            }
+
+            if ($this->boolean('has_fee') && !$this->file('qr_code_url') && !$this->filled('payment_account_id')) {
+                $validator->errors()->add('qr_code_url', 'Kèo thu phí cần có mã QR thanh toán hoặc tài khoản thanh toán.');
+            }
+
+            if ($this->boolean('apply_rule')) {
+                $basePoints = $this->input('base_points');
+                $maxPoints = $this->input('max_points');
+                if ($basePoints !== null && $maxPoints !== null && (int) $maxPoints < (int) $basePoints) {
+                    $validator->errors()->add('max_points', 'Điểm tối đa phải lớn hơn hoặc bằng điểm cơ bản.');
+                }
+            }
+        });
     }
 
     /**
@@ -206,13 +231,23 @@ class StoreMiniTournamentRequest extends FormRequest
             'name.max' => 'Tên kèo đấu không được vượt quá 255 ký tự',
             'play_mode.required' => 'Vui lòng chọn chế độ thi đấu',
             'play_mode.in' => 'Chế độ thi đấu không hợp lệ (casual, competition, practice)',
+            'format.required' => 'Vui lòng chọn thể thức thi đấu',
             'format.in' => 'Thể thức thi đấu không hợp lệ',
+            'start_time.required' => 'Vui lòng chọn thời gian bắt đầu',
             'start_time.date' => 'Thời gian bắt đầu không hợp lệ',
+            'start_time.after_or_equal' => 'Thời gian bắt đầu phải từ thời điểm hiện tại trở đi',
             'end_time.after' => 'Thời gian kết thúc phải sau thời gian bắt đầu',
+            'duration.required' => 'Vui lòng chọn thời lượng kèo đấu',
+            'duration.min' => 'Thời lượng kèo đấu phải lớn hơn 0 phút',
+            'competition_location_id.required' => 'Vui lòng chọn địa điểm thi đấu',
             'competition_location_id.exists' => 'Địa điểm thi đấu không hợp lệ',
             'fee_amount.required' => 'Vui lòng nhập phí tham gia',
             'fee_amount.min' => 'Phí tham gia phải lớn hơn 0',
-            'max_players.min' => 'Số người tham gia phải lớn hơn 0',
+            'max_players.required' => 'Vui lòng nhập số lượng người chơi',
+            'max_players.min' => 'Số người chơi tối thiểu là 2',
+            'max_players.max' => 'Số người chơi tối đa là 100',
+            'min_rating.min' => 'Trình độ tối thiểu phải từ 1.0',
+            'max_rating.max' => 'Trình độ tối đa không được vượt quá 8.0',
             'set_number.required' => 'Vui lòng nhập số set thi đấu',
             'set_number.min' => 'Số set thi đấu phải lớn hơn 0',
             'base_points.required' => 'Vui lòng nhập điểm cơ bản',
@@ -227,6 +262,7 @@ class StoreMiniTournamentRequest extends FormRequest
             'status.in' => 'Trạng thái không hợp lệ',
             'cancellation_duration.required' => 'Vui lòng nhập thời gian hủy kèo (phút)',
             'cancellation_duration.min' => 'Thời gian hủy kèo phải lớn hơn 0',
+            'invite_user.*.distinct' => 'Danh sách người được mời không được trùng lặp',
             'invite_user.*.exists' => 'Người dùng được mời không tồn tại',
         ];
     }

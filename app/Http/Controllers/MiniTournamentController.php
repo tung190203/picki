@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendPushJob;
 use App\Helpers\ResponseHelper;
 use App\Http\Requests\StoreMiniTournamentRequest;
 use App\Http\Requests\UpdateMiniTournamentRequest;
@@ -57,7 +58,7 @@ class MiniTournamentController extends Controller
                 ]);
                 $user = User::find($userId);
                 if ($user) {
-                    $user->notify(new MiniTournamentInvitationNotification($miniTournament));
+                    $user->notify(new MiniTournamentInvitationNotification($miniTournament, Auth::id()));
                 }
             }
         }
@@ -158,6 +159,14 @@ class MiniTournamentController extends Controller
         // Remove 'poster', 'qr_code_url' from data before updating tournament
         $data = collect($data)->except(['poster', 'qr_code_url'])->toArray();
 
+        // Safety fallback: đảm bảo fee_amount không null khi tắt thu phí.
+        if (array_key_exists('has_fee', $data) && !$data['has_fee']) {
+            $data['fee_amount'] = 0;
+            $data['auto_split_fee'] = false;
+            $data['fee_description'] = null;
+            $data['payment_account_id'] = null;
+        }
+
         $isOrganizer = $miniTournament->hasOrganizer(Auth::id());
 
         if (!$isOrganizer) {
@@ -185,15 +194,16 @@ class MiniTournamentController extends Controller
 
     public function destroy(Request $request, $id)
     {
-        $miniTournament = MiniTournament::find($id);
+        $miniTournament = MiniTournament::with(['participants', 'miniTournamentStaffs'])->find($id);
+
+        if(!$miniTournament) {
+            return ResponseHelper::error('Kèo đấu không tồn tại', 404);
+        }
+
         $isOrganizer = $miniTournament->hasOrganizer(Auth::id());
 
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền huỷ kèo đấu', 403);
-        }
-
-        if(!$miniTournament) {
-            return ResponseHelper::error('Kèo đấu không tồn tại', 404);
         }
 
         $hasCompletedMatch = MiniMatch::where('mini_tournament_id', $miniTournament->id)->where('status', MiniMatch::STATUS_COMPLETED)->exists();
@@ -225,10 +235,44 @@ class MiniTournamentController extends Controller
             return ResponseHelper::error($message, 403);
         }
 
+        $organizerIds = $miniTournament->miniTournamentStaffs
+            ->where('role', MiniTournamentStaff::ROLE_ORGANIZER)
+            ->pluck('user_id')
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $memberIds = $miniTournament->participants
+            ->pluck('user_id')
+            ->filter()
+            ->unique()
+            ->reject(fn($userId) => in_array((int)$userId, $organizerIds, true))
+            ->values()
+            ->toArray();
+
         DB::transaction(function () use ($miniTournament) {
             $miniTournament->delete();
         });
 
+        if (!empty($memberIds)) {
+            $this->pushToUsers(
+                $memberIds,
+                'Kèo đấu đã bị hủy',
+                'Kèo đấu "' . $miniTournament->name . '" đã bị chủ kèo hủy.',
+                [
+                    'type' => 'MINI_TOURNAMENT_CANCELLED',
+                    'mini_tournament_id' => $miniTournament->id,
+                ]
+            );
+        }
+
         return ResponseHelper::success(null, 'Xoá kèo đấu thành công');
+    }
+
+    private function pushToUsers(array $userIds, string $title, string $body, array $data = []): void
+    {
+        foreach ($userIds as $userId) {
+            SendPushJob::dispatch($userId, $title, $body, $data);
+        }
     }
 }
