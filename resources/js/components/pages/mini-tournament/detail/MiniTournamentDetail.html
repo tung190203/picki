@@ -126,13 +126,19 @@
                                 {{ mini?.status == 1 ? 'Công bố kèo đấu' : 'Huỷ công bố' }}
                             </button>
 
+                            <button @click="openPromotionModal"
+                                    class="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium px-4 py-2 rounded-md transition">
+                                Quảng bá
+                                <MegaphoneIcon class="w-4 h-4" />
+                            </button>
+
                             <button @click="goToEditPage"
                                     class="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium px-4 py-2 rounded-md transition">
                                 Chỉnh sửa
                                 <PencilIcon class="w-4 h-4" />
                             </button>
 
-                            <button @click="confirmRemoval"
+                            <button v-if="mini?.allow_cancellation" @click="confirmRemoval"
                                     class="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium px-4 py-2 rounded-md transition">
                                 Hủy bỏ
                                 <XCircleIcon class="w-5 h-5" />
@@ -156,14 +162,6 @@
                                     Từ chối lời mời
                                 </button>
                             </div>
-                            <div v-else-if="currentParticipant && isUserConfirmed && mini?.has_fee">
-                                <button
-                                    class="flex items-center justify-center gap-2 bg-[#D72D36] hover:bg-white text-white hover:text-[#D72D36] border hover:border-[#D72D36] font-medium px-6 py-2 rounded-md transition"
-                                    @click="openSubmitPaymentModal"
-                                >
-                                    Thanh toán kèo đấu
-                                </button>
-                            </div>
                         </template>
                     </div>
 
@@ -174,7 +172,7 @@
                             <p class="font-semibold">Quản lý điểm DUPR</p>
                         </div>
                         <div v-if="isCreator" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
-                            <button type="button" @click="openPaymentModal" class="flex items-center justify-start border border-[#BBBFCC] rounded px-3 py-2 hover:bg-gray-50 transition">
+                            <button type="button" @click="handlePaymentButtonClick" class="flex items-center justify-start border border-[#BBBFCC] rounded px-3 py-2 hover:bg-gray-50 transition">
                                 <CreditCardIcon class="w-5 h-5 mr-2" />
                                 <p class="font-semibold">Thanh toán</p>
                             </button>
@@ -189,6 +187,12 @@
                                             :class="autoApprove ? 'translate-x-6' : 'translate-x-1'" />
                                 </button>
                             </div>
+                        </div>
+                        <div v-else-if="mini?.has_fee" class="mb-4">
+                            <button type="button" @click="handlePaymentButtonClick" class="flex items-center justify-start border border-[#BBBFCC] rounded px-3 py-2 hover:bg-gray-50 transition w-full">
+                                <CreditCardIcon class="w-5 h-5 mr-2" />
+                                <p class="font-semibold">Thanh toán</p>
+                            </button>
                         </div>
                         <div class="border border-[#BBBFCC] rounded-lg my-4 p-4">
                             <div class="flex items-center justify-between mb-3">
@@ -208,21 +212,88 @@
                         <div class="border border-[#BBBFCC] rounded-lg my-4 p-4">
                             <div class="flex items-center justify-between mb-3">
                                 <h4 class="font-semibold text-[#6B6F80] uppercase text-sm">
-                                    NGƯỜI THAM GIA • {{ mini?.participants?.length || 0 }} / {{
+                                    NGƯỜI THAM GIA • {{ confirmedParticipants?.length || 0 }} / {{
                                         mini.max_players
                                     }}
                                 </h4>
                                 <span class="text-[#207AD5] text-xs font-semibold cursor-pointer" v-if="isCreator"
                                       @click="openInviteModalWithFriends">Mời bạn bè</span>
                             </div>
-                            <div v-if="mini?.participants?.length">
+                            <div v-if="confirmedParticipants?.length">
                                 <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
-                                    <UserCard v-for="(item, index) in mini.participants" :key="index" :id="item.id"
-                                              :name="item.user?.full_name" :avatar="item.user?.avatar_url"
-                                              :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
-                                              :status="item.is_confirmed == true ? 'approved' : 'pending'" />
-                                    <UserCard v-if="mini?.participants?.users?.length < mini.max_players"
+                                    <div v-for="(item, index) in confirmedParticipants" :key="index" class="relative">
+                                        <UserCard :id="item.id"
+                                                  :name="item.user?.full_name" :avatar="item.user?.avatar_url"
+                                                  :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
+                                                  :status="item.is_confirmed == true ? 'approved' : 'pending'" />
+                                        <!-- Payment Status Badge - chỉ hiện khi có thu phí và không phải confirmed -->
+                                        <div v-if="mini?.has_fee && item.payment_status !== 'confirmed'" class="absolute top-0 right-0 text-xs font-semibold px-2 py-1 rounded-full"
+                                             :class="getPaymentStatusBadgeClass(item.payment_status)">
+                                            {{ getPaymentStatusLabel(item.payment_status) }}
+                                        </div>
+                                    </div>
+                                    <UserCard v-if="confirmedParticipants?.length < mini.max_players"
                                               :empty="true" />
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Section: Chờ xác nhận (người tự xin) -->
+                        <div class="border border-[#BBBFCC] rounded-lg my-4 p-4" v-if="isCreator && pendingParticipants?.length">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold text-[#6B6F80] uppercase text-sm">
+                                    CHỜ DUYỆT • {{ pendingParticipants?.length || 0 }}
+                                </h4>
+                            </div>
+                            <div v-if="pendingParticipants?.length">
+                                <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
+                                    <div v-for="(item, index) in pendingParticipants" :key="index" class="flex flex-col gap-2">
+                                        <UserCard :id="item.id"
+                                                  :name="item.user?.full_name" :avatar="item.user?.avatar_url"
+                                                  :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
+                                                  :status="'pending'" />
+                                        <!-- Chủ kèo duyệt người tự xin -->
+                                        <div class="flex gap-1">
+                                            <button @click="handleApproveParticipant(item.id)" 
+                                                    class="flex-1 px-2 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition">
+                                                Duyệt
+                                            </button>
+                                            <button @click="handleRejectParticipant(item.id)" 
+                                                    class="flex-1 px-2 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition">
+                                                Từ chối
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Section: Lời mời chưa xác nhận (người được mời) -->
+                        <div class="border border-[#BBBFCC] rounded-lg my-4 p-4" v-if="invitedParticipants?.length">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold text-[#6B6F80] uppercase text-sm">
+                                    LỜI MỜI CHỜ XÁC NHẬN • {{ invitedParticipants?.length || 0 }}
+                                </h4>
+                            </div>
+                            <div v-if="invitedParticipants?.length">
+                                <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
+                                    <div v-for="(item, index) in invitedParticipants" :key="index" class="flex flex-col gap-2">
+                                        <UserCard :id="item.id"
+                                                  :name="item.user?.full_name" :avatar="item.user?.avatar_url"
+                                                  :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
+                                                  :status="'pending'" />
+                                        <!-- Người được mời tự xác nhận -->
+                                        <div v-if="item.user?.id === getUser?.id" class="flex gap-1">
+                                            <button @click="confirmMiniTournament" 
+                                                    class="flex-1 px-2 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition">
+                                                Xác nhận
+                                            </button>
+                                            <button @click="confirmDelineMiniParticipant" 
+                                                    class="flex-1 px-2 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition">
+                                                Từ chối
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

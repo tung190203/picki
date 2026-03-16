@@ -36,3 +36,7 @@ export const declineMiniTournament = async (miniParticipantId) => {
     return axiosInstance.post(`${miniParticipantEndpoint}/decline/${miniParticipantId}`).then((response) => response?.data);
 }
 
+export const confirmMiniParticipant = async (miniParticipantId) => {
+    return axiosInstance.post(`${miniParticipantEndpoint}/confirm/${miniParticipantId}`).then((response) => response?.data?.data);
+}
+

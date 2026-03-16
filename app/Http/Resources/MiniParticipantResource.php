@@ -15,10 +15,13 @@ class MiniParticipantResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id'            => $this->id,
-            'is_confirmed'  => (bool) $this->is_confirmed,
-            'joined_at'     => $this->created_at->format('d-m-Y'),
-            'user' => new UserListResource($this->whenLoaded('user')),
+            'id'                    => $this->id,
+            'is_confirmed'          => (bool) $this->is_confirmed,
+            'is_invited'            => (bool) $this->is_invited,
+            'payment_status'        => $this->payment_status?->value,
+            'payment_status_label'  => $this->payment_status?->label(),
+            'joined_at'             => $this->created_at->format('d-m-Y'),
+            'user'                  => new UserListResource($this->whenLoaded('user')),
         ];
     }
 }
