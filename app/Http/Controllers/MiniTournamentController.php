@@ -57,7 +57,7 @@ class MiniTournamentController extends Controller
                 ]);
                 $user = User::find($userId);
                 if ($user) {
-                    $user->notify(new MiniTournamentInvitationNotification($miniTournament));
+                    $user->notify(new MiniTournamentInvitationNotification($miniTournament, Auth::id()));
                 }
             }
         }

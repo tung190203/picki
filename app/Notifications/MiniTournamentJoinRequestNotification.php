@@ -33,11 +33,14 @@ class MiniTournamentJoinRequestNotification extends Notification implements Shou
 
     public function toDatabase($notifiable): array
     {
+        $requesterName = $this->participant->user?->full_name ?? 'Một người chơi';
+        $tournamentName = $this->participant->miniTournament?->name ?? 'kèo đấu';
+
         return [
             'mini_tournament_id' => $this->participant->mini_tournament_id,
             'participant_id' => $this->participant->id,
-            'title' => 'Có yêu cầu tham gia kèo đấu',
-            'message' => "{$this->participant->user->full_name} muốn tham gia kèo đấu {$this->participant->miniTournament->name}"
+            'title' => 'Yêu cầu tham gia mới',
+            'message' => "{$requesterName} vừa gửi yêu cầu tham gia kèo đấu \"{$tournamentName}\".",
         ];
     }
 
@@ -50,12 +53,14 @@ class MiniTournamentJoinRequestNotification extends Notification implements Shou
 
     public function toArray($notifiable): array
     {
+        $requesterName = $this->participant->user?->full_name ?? 'Một người chơi';
+        $tournamentName = $this->participant->miniTournament?->name ?? 'kèo đấu';
+
         return [
             'mini_tournament_id' => $this->participant->mini_tournament_id,
             'participant_id' => $this->participant->id,
-            'message' => $this->participant->type === 'user'
-                ? "{$this->participant->user->full_name} muốn tham gia kèo đấu {$this->participant->miniTournament->name}"
-                : "{$this->participant->team->name} muốn tham gia kèo đấu {$this->participant->miniTournament->name}",
+            'title' => 'Yêu cầu tham gia mới',
+            'message' => "{$requesterName} vừa gửi yêu cầu tham gia kèo đấu \"{$tournamentName}\".",
         ];
     }
 }

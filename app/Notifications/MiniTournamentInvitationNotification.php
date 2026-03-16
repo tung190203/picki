@@ -16,10 +16,12 @@ class MiniTournamentInvitationNotification extends Notification implements Shoul
      * Create a new notification instance.
      */
     protected $miniTournament;
+    protected ?int $invitedBy;
 
-    public function __construct(MiniTournament $miniTournament)
+    public function __construct(MiniTournament $miniTournament, ?int $invitedBy = null)
     {
         $this->miniTournament = $miniTournament;
+        $this->invitedBy = $invitedBy ?? auth()->id();
     }
 
     /**
@@ -38,31 +40,38 @@ class MiniTournamentInvitationNotification extends Notification implements Shoul
      */
     public function toDatabase($notifiable)
     {
+        $tournamentName = $this->miniTournament->name ?? 'kèo đấu';
+
         return [
             'mini_tournament_id' => $this->miniTournament->id,
             'title' => 'Bạn được mời tham gia kèo đấu',
-            'message' => "Bạn được mời tham gia kèo đấu: {$this->miniTournament->name}",
-            'invited_by' => auth()->id(),
+            'message' => "Bạn được mời tham gia kèo đấu \"{$tournamentName}\".",
+            'invited_by' => $this->invitedBy,
         ];
     }
 
     public function toBroadcast($notifiable): BroadcastMessage
     {
+        $tournamentName = $this->miniTournament->name ?? 'kèo đấu';
+
         return new BroadcastMessage([
             'mini_tournament_id' => $this->miniTournament->id,
             'title' => 'Bạn được mời tham gia kèo đấu',
-            'message' => "Bạn được mời tham gia kèo đấu: {$this->miniTournament->name}",
-            'invited_by' => auth()->id(),
+            'message' => "Bạn được mời tham gia kèo đấu \"{$tournamentName}\".",
+            'invited_by' => $this->invitedBy,
             'created_at' => now()->toDateTimeString(),
         ]);
     }
 
     public function toArray($notifiable): array
     {
+        $tournamentName = $this->miniTournament->name ?? 'kèo đấu';
+
         return [
             'mini_tournament_id' => $this->miniTournament->id,
-            'message' => "Bạn được mời tham gia kèo đấu: {$this->miniTournament->name}",
-            'invited_by' => auth()->id(),
+            'title' => 'Bạn được mời tham gia kèo đấu',
+            'message' => "Bạn được mời tham gia kèo đấu \"{$tournamentName}\".",
+            'invited_by' => $this->invitedBy,
         ];
     }
 }
