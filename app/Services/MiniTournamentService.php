@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\MiniTournament;
 use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
+use App\Enums\PaymentStatusEnum;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 
@@ -30,37 +31,31 @@ class MiniTournamentService
             'recurrence_series_id' => $seriesId,
         ]);
 
-        // Add creator as participant if role_type is 'participant'
-        $roleType = $data['role_type'] ?? 'participant';
-        if ($roleType !== 'organizer') {
-            $participant = MiniParticipant::create([
+        // Creator always participates by default with confirmed payment status
+        // (creator is exempt from payment or auto-confirmed)
+        $participant = MiniParticipant::create([
+            'mini_tournament_id' => $miniTournament->id,
+            'user_id' => $userId,
+            'is_confirmed' => true,
+            'is_invited' => false,
+            'payment_status' => PaymentStatusEnum::CONFIRMED,
+        ]);
+
+        // Tạo khoản thu cho chủ kèo nếu kèo có thu phí
+        // Nếu auto_split_fee = true, chỉ tạo payment khi kèo kết thúc (via command)
+        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
+            $feePerPerson = $miniTournament->fee_amount;
+
+            MiniParticipantPayment::create([
                 'mini_tournament_id' => $miniTournament->id,
+                'participant_id' => $participant->id,
                 'user_id' => $userId,
-                'is_confirmed' => true,
+                'amount' => $feePerPerson,
+                'status' => MiniParticipantPayment::STATUS_CONFIRMED,
+                'paid_at' => now(),
+                'confirmed_at' => now(),
+                'confirmed_by' => $userId,
             ]);
-
-            // Tạo khoản thu cho chủ kèo nếu kèo có thu phí
-            if ($miniTournament->has_fee) {
-                $participantCount = $miniTournament->participants()->count();
-                $feePerPerson = 0;
-
-                if ($miniTournament->auto_split_fee) {
-                    $feePerPerson = $participantCount > 0 ? round($miniTournament->fee_amount / $participantCount) : 0;
-                } else {
-                    $feePerPerson = $miniTournament->fee_amount;
-                }
-
-                MiniParticipantPayment::create([
-                    'mini_tournament_id' => $miniTournament->id,
-                    'participant_id' => $participant->id,
-                    'user_id' => $userId,
-                    'amount' => $feePerPerson,
-                    'status' => MiniParticipantPayment::STATUS_CONFIRMED,
-                    'paid_at' => now(),
-                    'confirmed_at' => now(),
-                    'confirmed_by' => $userId,
-                ]);
-            }
         }
 
         // Tạo batch occurrences nếu là recurring

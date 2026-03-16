@@ -280,6 +280,8 @@ class HomeController extends Controller
 
         $leaderboard = User::query()
             ->where('users.total_matches', '>', 5)
+            // Loại tài khoản VRPLUS khỏi bảng xếp hạng người chơi.
+            ->whereRaw('LOWER(COALESCE(users.role, "")) != ?', ['vrplus'])
             ->joinSub($scoreSubQuery, 'scores', function ($join) {
                 $join->on('scores.user_id', '=', 'users.id');
             })

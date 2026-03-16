@@ -27,6 +27,8 @@ class MiniTournament extends Model
         'has_fee',
         'auto_split_fee',
         'fee_amount',
+        'final_fee_per_person',
+        'auto_payment_created',
         'fee_description',
         'qr_code_url',
         'payment_account_id',
@@ -179,14 +181,68 @@ class MiniTournament extends Model
     }
 
     /**
+     * Hạn chót được phép hủy kèo (theo cấu hình allow_cancellation + cancellation_duration).
+     * - Nếu không cho hủy kèo: trả về null (dùng isCancellationClosed() để kiểm tra).
+     * - Nếu có cho hủy và có start_time:
+     *   - Nếu có cancellation_duration (phút): deadline = start_time - cancellation_duration.
+     *   - Nếu không có cancellation_duration: cho phép hủy tới đúng thời điểm start_time.
+     */
+    public function getCancellationDeadlineAttribute(): ?Carbon
+    {
+        if (!$this->allow_cancellation || !$this->start_time) {
+            return null;
+        }
+
+        $startTime = $this->start_time instanceof Carbon
+            ? $this->start_time
+            : Carbon::parse($this->start_time);
+
+        if ($this->cancellation_duration === null) {
+            return $startTime;
+        }
+
+        return $startTime->copy()->subMinutes($this->cancellation_duration);
+    }
+
+    /**
+     * Kiểm tra hiện tại đã hết hạn hủy kèo chưa.
+     * - Nếu không cho hủy kèo: luôn coi như đã hết hạn (để API chặn huỷ).
+     * - Nếu có deadline: hết hạn khi now > deadline.
+     */
+    public function isCancellationClosed(?Carbon $now = null): bool
+    {
+        $now = $now ?? Carbon::now();
+
+        // Nếu cấu hình không cho hủy thì coi như luôn đóng
+        if (!$this->allow_cancellation) {
+            return true;
+        }
+
+        $deadline = $this->cancellation_deadline;
+
+        // Nếu không có deadline cụ thể (thiếu start_time), coi như không đóng
+        if ($deadline === null) {
+            return false;
+        }
+
+        return $now->gt($deadline);
+    }
+
+    /**
      * Tính phí mỗi người dựa trên cài đặt
      * Nếu auto_split_fee = true: fee_amount / số người tham gia thực tế
      * Nếu auto_split_fee = false: fee_amount (tiền cố định mỗi người)
+     * Nếu kèo đã kết thúc: dùng final_fee_per_person (đã lock)
      */
     public function getFeePerPersonAttribute()
     {
         if (!$this->has_fee) {
             return 0;
+        }
+
+        // Nếu kèo đã kết thúc và có final_fee_per_person, dùng giá trị đó
+        if ($this->final_fee_per_person !== null) {
+            return $this->final_fee_per_person;
         }
 
         if ($this->auto_split_fee) {
@@ -258,6 +314,11 @@ class MiniTournament extends Model
     public function matches()
     {
         return $this->hasMany(MiniMatch::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(MiniParticipantPayment::class);
     }
 
     /**

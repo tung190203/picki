@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PaymentStatusEnum;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MiniParticipantPaymentResource;
 use App\Http\Resources\MiniTournamentResource;
@@ -50,8 +51,14 @@ class MiniTournamentPaymentController extends Controller
         $feePerPerson = 0;
         if ($miniTournament->has_fee) {
             if ($miniTournament->auto_split_fee) {
-                // Chia tự động: tổng tiền / số người hiện tại
-                $feePerPerson = $participantCount > 0 ? round($miniTournament->fee_amount / $participantCount) : 0;
+                // Nếu đã lock final_fee_per_person, dùng giá trị đó
+                if ($miniTournament->final_fee_per_person !== null) {
+                    $feePerPerson = $miniTournament->final_fee_per_person;
+                } else {
+                    // Chia tự động: tổng tiền / số người hiện tại
+                    $participantCount = $miniTournament->participants()->count();
+                    $feePerPerson = $participantCount > 0 ? round($miniTournament->fee_amount / $participantCount) : 0;
+                }
             } else {
                 // Tiền cố định mỗi người
                 $feePerPerson = $miniTournament->fee_amount;
@@ -93,14 +100,19 @@ class MiniTournamentPaymentController extends Controller
     }
 
     /**
-     * API đóng phí kèo cho thành viên
+     * API đóng phí kèo
      * API: POST /api/mini-tournaments/{id}/pay
-     * Body: participant_id, receipt_image (bắt buộc), note (không bắt buộc)
+     * Body: receipt_image (bắt buộc), note (không bắt buộc)
+     * 
+     * BE tự động xử lý:
+     * - Nếu user đã là thành viên: thanh toán cho participant hiện tại
+     * - Nếu user chưa là thành viên:
+     *   - Nếu auto_approve = true: tạo participant mới + thanh toán
+     *   - Nếu auto_approve = false: trả lỗi
      */
     public function pay(Request $request, $miniTournamentId)
     {
         $data = $request->validate([
-            'participant_id' => 'required|exists:mini_participants,id',
             'receipt_image' => 'required|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
             'note' => 'nullable|string|max:500',
         ]);
@@ -126,17 +138,38 @@ class MiniTournamentPaymentController extends Controller
             return ResponseHelper::error('Kèo này không thu phí tham gia', 400);
         }
 
-        $participant = MiniParticipant::where('id', $data['participant_id'])
-            ->where('mini_tournament_id', $miniTournamentId)
+        $userId = Auth::id();
+
+        // BE tự động tìm hoặc tạo participant
+        $participant = MiniParticipant::where('mini_tournament_id', $miniTournamentId)
+            ->where('user_id', $userId)
             ->first();
 
+        // Nếu chưa là thành viên, tạo participant mới
         if (!$participant) {
-            return ResponseHelper::error('Không tìm thấy thành viên', 404);
-        }
+            // Kiểm tra xem kèo có bật auto_approve không
+            if (!$miniTournament->auto_approve) {
+                return ResponseHelper::error(
+                    'Bạn chưa là thành viên của kèo này. Vui lòng tham gia kèo trước hoặc chủ kèo phải bật chế độ tự động duyệt',
+                    400
+                );
+            }
 
-        $userId = Auth::id();
-        if ($participant->user_id !== $userId) {
-            return ResponseHelper::error('Bạn không có quyền thanh toán cho thành viên này', 403);
+            // Calculate payment_status for new participant
+            $paymentStatus = PaymentStatusEnum::CONFIRMED;
+            if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
+                $paymentStatus = PaymentStatusEnum::PENDING;
+            }
+
+            // Tạo participant mới với auto_approve
+            $participant = MiniParticipant::create([
+                'mini_tournament_id' => $miniTournamentId,
+                'user_id' => $userId,
+                'is_confirmed' => true, // Tự động duyệt
+                'is_invited' => false,
+                'payment_status' => $paymentStatus,
+                'joined_at' => now(),
+            ]);
         }
 
         // Tính số tiền phải đóng
@@ -144,8 +177,13 @@ class MiniTournamentPaymentController extends Controller
         $feePerPerson = 0;
 
         if ($miniTournament->auto_split_fee) {
-            // Chia tự động: tổng tiền / số người
-            $feePerPerson = $participantCount > 0 ? round($miniTournament->fee_amount / $participantCount) : 0;
+            // Nếu đã lock final_fee_per_person, dùng giá trị đó
+            if ($miniTournament->final_fee_per_person !== null) {
+                $feePerPerson = $miniTournament->final_fee_per_person;
+            } else {
+                // Chia tự động: tổng tiền / số người
+                $feePerPerson = $participantCount > 0 ? round($miniTournament->fee_amount / $participantCount) : 0;
+            }
         } else {
             // Tiền cố định mỗi người
             $feePerPerson = $miniTournament->fee_amount;
@@ -153,7 +191,7 @@ class MiniTournamentPaymentController extends Controller
 
         // Kiểm tra xem đã có payment record chưa
         $existingPayment = MiniParticipantPayment::where('mini_tournament_id', $miniTournamentId)
-            ->where('participant_id', $data['participant_id'])
+            ->where('participant_id', $participant->id)
             ->first();
 
         $receiptImage = $data['receipt_image'];
@@ -187,7 +225,7 @@ class MiniTournamentPaymentController extends Controller
                 // Tạo payment mới
                 $payment = MiniParticipantPayment::create([
                     'mini_tournament_id' => $miniTournamentId,
-                    'participant_id' => $data['participant_id'],
+                    'participant_id' => $participant->id,
                     'user_id' => $userId,
                     'amount' => $feePerPerson,
                     'status' => MiniParticipantPayment::STATUS_PAID,
@@ -260,6 +298,12 @@ class MiniTournamentPaymentController extends Controller
                 'confirmed_by' => Auth::id(),
             ]);
 
+            // Update participant payment_status to confirmed
+            $participant = MiniParticipant::find($payment->participant_id);
+            if ($participant) {
+                $participant->confirmPayment();
+            }
+
             // Gửi notification cho thành viên
             $payment->load('user');
             if ($payment->user) {
@@ -310,6 +354,14 @@ class MiniTournamentPaymentController extends Controller
                 'confirmed_at' => now(),
                 'confirmed_by' => Auth::id(),
             ]);
+
+            // Update participant payment_status only if confirming
+            if ($isConfirm) {
+                $participant = MiniParticipant::find($payment->participant_id);
+                if ($participant) {
+                    $participant->confirmPayment();
+                }
+            }
 
             // Gửi notification cho thành viên
             $payment->load('user');
@@ -453,7 +505,11 @@ class MiniTournamentPaymentController extends Controller
 
     /**
      * Lấy trạng thái thanh toán của user hiện tại
-     * API: GET /api/mini-tournaments/{id}/my-payment
+     * API: POST /api/mini-tournaments/{id}/my-payment
+     * 
+     * Hỗ trợ cả user chưa là thành viên:
+     * - Nếu user đã là thành viên: lấy payment của participant
+     * - Nếu user chưa là thành viên: trả về thông tin thanh toán (chưa có payment)
      */
     public function myPayment(Request $request, $miniTournamentId)
     {
@@ -465,22 +521,26 @@ class MiniTournamentPaymentController extends Controller
             ->where('user_id', $userId)
             ->first();
 
-        if (!$participant) {
-            return ResponseHelper::error('Bạn chưa tham gia kèo này', 404);
+        // Lấy payment (nếu có participant)
+        $payment = null;
+        if ($participant) {
+            $payment = MiniParticipantPayment::with(['confirmer'])
+                ->where('mini_tournament_id', $miniTournamentId)
+                ->where('participant_id', $participant->id)
+                ->first();
         }
-
-        // Lấy payment
-        $payment = MiniParticipantPayment::with(['confirmer'])
-            ->where('mini_tournament_id', $miniTournamentId)
-            ->where('participant_id', $participant->id)
-            ->first();
 
         // Tính số tiền phải đóng
         $feePerPerson = 0;
         if ($miniTournament->has_fee) {
             $participantCount = $miniTournament->participants()->count();
             if ($miniTournament->auto_split_fee) {
-                $feePerPerson = $participantCount > 0 ? round($miniTournament->fee_amount / $participantCount) : 0;
+                // Nếu đã lock final_fee_per_person, dùng giá trị đó
+                if ($miniTournament->final_fee_per_person !== null) {
+                    $feePerPerson = $miniTournament->final_fee_per_person;
+                } else {
+                    $feePerPerson = $participantCount > 0 ? round($miniTournament->fee_amount / $participantCount) : 0;
+                }
             } else {
                 $feePerPerson = $miniTournament->fee_amount;
             }
@@ -492,7 +552,7 @@ class MiniTournamentPaymentController extends Controller
         }
 
         $data = [
-            'participant_id' => $participant->id,
+            'participant_id' => $participant?->id,
             'has_fee' => $miniTournament->has_fee,
             'fee_per_person' => $feePerPerson,
             'qr_code_url' => $qrUrl,

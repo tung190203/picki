@@ -249,9 +249,54 @@ export default {
             )
         })
 
+        const confirmedParticipants = computed(() => {
+            if (!mini.value?.participants) return []
+            // Filter participants with payment_status = 'confirmed'
+            return mini.value.participants.filter(p => p.payment_status === 'confirmed')
+        })
+
+        const pendingParticipants = computed(() => {
+            if (!mini.value?.participants) return []
+            // Chỉ hiển thị người tự xin tham gia (invited_by = null) trong tab chờ duyệt
+            // Người được mời (invited_by != null) sẽ tự xác nhận, không cần admin duyệt
+            return mini.value.participants.filter(p => p.is_confirmed === false && p.invited_by === null)
+        })
+
+        const invitedParticipants = computed(() => {
+            if (!mini.value?.participants) return []
+            // Người được mời chưa xác nhận (invited_by != null, is_confirmed = false)
+            return mini.value.participants.filter(p => p.is_confirmed === false && p.invited_by !== null)
+        })
+
         const openPromotionModal = () => {
             isPromotionModalOpen.value = true;
         };
+
+        const getPaymentStatusBadgeClass = (status) => {
+            switch(status) {
+                case 'confirmed':
+                    return 'bg-green-100 text-green-700'
+                case 'pending':
+                    return 'bg-yellow-100 text-yellow-700'
+                case 'cancelled':
+                    return 'bg-red-100 text-red-700'
+                default:
+                    return 'bg-gray-100 text-gray-700'
+            }
+        }
+
+        const getPaymentStatusLabel = (status) => {
+            switch(status) {
+                case 'confirmed':
+                    return 'Đã xác nhận'
+                case 'pending':
+                    return 'Chờ thanh toán'
+                case 'cancelled':
+                    return 'Đã hủy'
+                default:
+                    return 'Không xác định'
+            }
+        }
 
         const openInviteModalDefault = async () => {
             inviteType.value = 'staff'
@@ -441,6 +486,16 @@ export default {
             showSubmitPaymentModal.value = true
         }
 
+        const handlePaymentButtonClick = () => {
+            if (isCreator.value) {
+                // Chủ kèo: mở modal quản lý thanh toán
+                openPaymentModal()
+            } else {
+                // Member hoặc user bình thường: mở modal thanh toán
+                openSubmitPaymentModal()
+            }
+        }
+
 
         const publicMiniTournament = async () => {
             const newStatus = mini.value.status === 1 ? 2 : 1;
@@ -506,6 +561,36 @@ export default {
                 }
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Lỗi khi thực hiện yêu cầu này')
+            }
+        }
+
+        const handleApproveParticipant = async (participantId) => {
+            try {
+                await MiniParticipantService.confirmMiniParticipant(participantId)
+                toast.success('Đã duyệt người chơi tham gia')
+                await detailMiniTournament(id)
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Duyệt người chơi thất bại')
+            }
+        }
+
+        const handleRejectParticipant = async (participantId) => {
+            try {
+                await MiniParticipantService.deleteMiniParticipant(participantId)
+                toast.success('Đã từ chối người chơi')
+                await detailMiniTournament(id)
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Từ chối người chơi thất bại')
+            }
+        }
+
+        const handleCancelRequest = async (participantId) => {
+            try {
+                await MiniParticipantService.deleteMiniParticipant(participantId)
+                toast.success('Đã hủy yêu cầu tham gia')
+                await detailMiniTournament(id)
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Hủy yêu cầu thất bại')
             }
         }
 
@@ -607,7 +692,17 @@ export default {
             showPaymentModal,
             openPaymentModal,
             showSubmitPaymentModal,
-            openSubmitPaymentModal
+            openSubmitPaymentModal,
+            handlePaymentButtonClick,
+            toast,
+            confirmedParticipants,
+            pendingParticipants,
+            invitedParticipants,
+            getPaymentStatusBadgeClass,
+            getPaymentStatusLabel,
+            handleApproveParticipant,
+            handleRejectParticipant,
+            handleCancelRequest
         }
     }
 }

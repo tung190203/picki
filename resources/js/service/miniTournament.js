@@ -2,6 +2,9 @@ import axiosInstance from "@/utils/httpRequest.js";
 import {API_ENDPOINT} from "@/constants/index.js";
 
 const miniTournamentEndpoint = API_ENDPOINT.MINI_TOURNAMENT;
+// API base URL đã được cấu hình trong axiosInstance (thường là '/api'),
+// nên chỉ cần path tương đối tới resource.
+const miniTournamentTemplateEndpoint = '/mini-tournament-templates';
 
 export const storeMiniTournament = async (data) => {
   return axiosInstance.post(`${miniTournamentEndpoint}/store`, data)
@@ -50,8 +53,7 @@ export const remindAllMiniTournamentPayments = async (tournamentId) => {
 }
 
 export const getMyMiniTournamentPayment = async (tournamentId) => {
-  // Route khai báo POST /{id}/my-payment
-  return axiosInstance.post(`${miniTournamentEndpoint}/${tournamentId}/my-payment`)
+  return axiosInstance.get(`${miniTournamentEndpoint}/${tournamentId}/my-payment`)
     .then((response) => response.data.data);
 }
 
@@ -59,4 +61,16 @@ export const payMiniTournament = async (tournamentId, data) => {
   // data nên là FormData chứa: participant_id, receipt_image (file), note?
   return axiosInstance.post(`${miniTournamentEndpoint}/${tournamentId}/pay`, data)
     .then((response) => response.data.data);
+}
+
+// Templates
+export const saveMiniTournamentTemplate = async (payload) => {
+  // payload: { name, settings }
+  return axiosInstance.post(miniTournamentTemplateEndpoint, payload)
+    .then((response) => response.data); // { data, message, ... }
+}
+
+export const getMiniTournamentTemplates = async () => {
+  return axiosInstance.get(miniTournamentTemplateEndpoint)
+    .then((response) => response.data); // { data: { templates: [...] }, message }
 }
