@@ -151,15 +151,14 @@
                                     Tham gia kèo đấu
                                 </button>
                             </div>
-                            <div class="flex flex-wrap gap-3" v-else-if="currentParticipant && !isUserConfirmed">
-                                <button
-                                    class="flex items-center justify-center gap-2 bg-[#D72D36] hover:bg-white text-white hover:text-[#D72D36] border hover:border-[#D72D36] font-medium px-6 py-2 rounded-md transition"
+                            <div class="flex flex-wrap gap-3" v-else-if="currentParticipant && currentParticipant.is_invited === true && !isUserConfirmed">
+                                <button class="flex items-center justify-center gap-2 bg-[#D72D36] hover:bg-white text-white hover:text-[#D72D36] border hover:border-[#D72D36] font-medium px-6 py-2 rounded-md transition"
                                     @click="confirmMiniTournament">
-                                    Xác nhận lời mời
+                                    Xác nhận tham gia
                                 </button>
-                                <button @click="confirmDelineMiniParticipant"
-                                        class="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium px-4 py-2 rounded-md transition">
-                                    Từ chối lời mời
+                                <button class="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium px-4 py-2 rounded-md transition"
+                                    @click="confirmDelineMiniParticipant">
+                                    Từ chối tham gia
                                 </button>
                             </div>
                         </template>
@@ -232,12 +231,14 @@
                                             {{ getPaymentStatusLabel(item.payment_status) }}
                                         </div>
                                     </div>
-                                    <UserCard v-if="confirmedParticipants?.length < mini.max_players"
-                                              :empty="true" />
+                                        <UserCard
+                                                v-if="confirmedParticipants?.length < mini.max_players && (isCreator || (mini?.allow_participant_add_friends && currentParticipant && isUserConfirmed))"
+                                                :empty="true"
+                                                @clickEmpty="openInviteModalWithFriends"/>
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- Section: Chờ xác nhận (người tự xin) -->
                         <div class="border border-[#BBBFCC] rounded-lg my-4 p-4" v-if="isCreator && pendingParticipants?.length">
                             <div class="flex items-center justify-between mb-3">
@@ -253,14 +254,16 @@
                                                   :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
                                                   :status="'pending'" />
                                         <!-- Chủ kèo duyệt người tự xin -->
-                                        <div class="flex gap-1">
-                                            <button @click="handleApproveParticipant(item.id)" 
-                                                    class="flex-1 px-2 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition">
-                                                Duyệt
+                                        <div class="grid grid-cols-2 gap-1">
+                                            <button @click="handleApproveParticipant(item.id)"
+                                                    class="w-full px-2 py-1.5 text-xs font-medium text-white rounded transition flex items-center justify-center"
+                                                    style="background-color: #10b981;">
+                                                <span>Xác nhận</span>
                                             </button>
-                                            <button @click="handleRejectParticipant(item.id)" 
-                                                    class="flex-1 px-2 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition">
-                                                Từ chối
+                                            <button @click="handleRejectParticipant(item.id)"
+                                                    class="w-full px-2 py-1.5 text-xs font-medium text-white rounded transition flex items-center justify-center"
+                                                    style="background-color: #d72d36;">
+                                                <span>Từ chối</span>
                                             </button>
                                         </div>
                                     </div>
@@ -284,11 +287,11 @@
                                                   :status="'pending'" />
                                         <!-- Người được mời tự xác nhận -->
                                         <div v-if="item.user?.id === getUser?.id" class="flex gap-1">
-                                            <button @click="confirmMiniTournament" 
+                                            <button @click="confirmMiniTournament"
                                                     class="flex-1 px-2 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition">
                                                 Xác nhận
                                             </button>
-                                            <button @click="confirmDelineMiniParticipant" 
+                                            <button @click="confirmDelineMiniParticipant"
                                                     class="flex-1 px-2 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition">
                                                 Từ chối
                                             </button>
@@ -338,5 +341,6 @@
        <MiniTournamentSubmitReceiptModal
            v-model:isOpen="showSubmitPaymentModal"
            :miniId="mini.id"
+           @success="handlePaymentSubmitSuccess"
        />
 </div>

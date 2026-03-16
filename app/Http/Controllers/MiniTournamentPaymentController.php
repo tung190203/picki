@@ -103,7 +103,7 @@ class MiniTournamentPaymentController extends Controller
      * API đóng phí kèo
      * API: POST /api/mini-tournaments/{id}/pay
      * Body: receipt_image (bắt buộc), note (không bắt buộc)
-     * 
+     *
      * BE tự động xử lý:
      * - Nếu user đã là thành viên: thanh toán cho participant hiện tại
      * - Nếu user chưa là thành viên:
@@ -515,7 +515,7 @@ class MiniTournamentPaymentController extends Controller
     /**
      * Lấy trạng thái thanh toán của user hiện tại
      * API: POST /api/mini-tournaments/{id}/my-payment
-     * 
+     *
      * Hỗ trợ cả user chưa là thành viên:
      * - Nếu user đã là thành viên: lấy payment của participant
      * - Nếu user chưa là thành viên: trả về thông tin thanh toán (chưa có payment)
@@ -561,11 +561,6 @@ class MiniTournamentPaymentController extends Controller
         }
 
         $data = [
-            'participant_id' => $participant?->id,
-            'has_fee' => $miniTournament->has_fee,
-            'fee_per_person' => $feePerPerson,
-            'qr_code_url' => $qrUrl,
-            'fee_description' => $miniTournament->fee_description,
             'payment' => $payment ? new MiniParticipantPaymentResource($payment) : null,
         ];
 

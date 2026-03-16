@@ -447,9 +447,6 @@ class MiniParticipantController extends Controller
             return ResponseHelper::error('Không có quyền', 403);
         }
 
-        // Set payment_status to cancelled instead of deleting
-        $participant->update(['payment_status' => PaymentStatusEnum::CANCELLED]);
-
         // Lưu thông tin để gửi notification
         $participantData = [
             'id' => $participant->id,
@@ -457,6 +454,14 @@ class MiniParticipantController extends Controller
             'tournament_name' => $participant->miniTournament->name,
             'user_id' => $participant->user_id,
         ];
+
+        DB::transaction(function () use ($participant) {
+            MiniParticipantPayment::where('mini_tournament_id', $participant->mini_tournament_id)
+                ->where('participant_id', $participant->id)
+                ->delete();
+
+            $participant->delete();
+        });
 
         $participant->user?->notify(
             new MiniTournamentRemovedNotification($participantData, Auth::id())
