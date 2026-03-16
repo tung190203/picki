@@ -53,8 +53,7 @@ export const remindAllMiniTournamentPayments = async (tournamentId) => {
 }
 
 export const getMyMiniTournamentPayment = async (tournamentId) => {
-  // Route khai báo POST /{id}/my-payment
-  return axiosInstance.post(`${miniTournamentEndpoint}/${tournamentId}/my-payment`)
+  return axiosInstance.get(`${miniTournamentEndpoint}/${tournamentId}/my-payment`)
     .then((response) => response.data.data);
 }
 

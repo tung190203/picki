@@ -16,10 +16,12 @@ class MiniParticipant extends Model
         'user_id',
         'team_id',
         'is_confirmed',
+        'is_invited',
         'payment_status',
     ];
 
     protected $casts = [
+        'is_invited' => 'boolean',
         'payment_status' => PaymentStatusEnum::class,
     ];
 

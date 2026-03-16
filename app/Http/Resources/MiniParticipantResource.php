@@ -17,6 +17,7 @@ class MiniParticipantResource extends JsonResource
         return [
             'id'                    => $this->id,
             'is_confirmed'          => (bool) $this->is_confirmed,
+            'is_invited'            => (bool) $this->is_invited,
             'payment_status'        => $this->payment_status?->value,
             'payment_status_label'  => $this->payment_status?->label(),
             'joined_at'             => $this->created_at->format('d-m-Y'),

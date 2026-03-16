@@ -11,12 +11,34 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('mini_tournaments', function (Blueprint $table) {
-            $table->unsignedInteger('set_number')->nullable()->change();
-            $table->unsignedInteger('base_points')->nullable()->change();
-            $table->unsignedInteger('points_difference')->nullable()->change();
-            $table->unsignedInteger('max_points')->nullable()->change();
-        });
+        if (Schema::hasColumn('mini_tournaments', 'set_number')) {
+            Schema::table('mini_tournaments', function (Blueprint $table) {
+                $table->unsignedInteger('set_number')->nullable()->change();
+            });
+        }
+
+        // Backward compatible: some databases still have games_per_set before it is renamed to base_points.
+        if (Schema::hasColumn('mini_tournaments', 'base_points')) {
+            Schema::table('mini_tournaments', function (Blueprint $table) {
+                $table->unsignedInteger('base_points')->nullable()->change();
+            });
+        } elseif (Schema::hasColumn('mini_tournaments', 'games_per_set')) {
+            Schema::table('mini_tournaments', function (Blueprint $table) {
+                $table->unsignedInteger('games_per_set')->nullable()->change();
+            });
+        }
+
+        if (Schema::hasColumn('mini_tournaments', 'points_difference')) {
+            Schema::table('mini_tournaments', function (Blueprint $table) {
+                $table->unsignedInteger('points_difference')->nullable()->change();
+            });
+        }
+
+        if (Schema::hasColumn('mini_tournaments', 'max_points')) {
+            Schema::table('mini_tournaments', function (Blueprint $table) {
+                $table->unsignedInteger('max_points')->nullable()->change();
+            });
+        }
     }
 
     /**
@@ -24,11 +46,32 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('mini_tournaments', function (Blueprint $table) {
-            $table->unsignedInteger('set_number')->nullable(false)->change();
-            $table->unsignedInteger('base_points')->nullable(false)->change();
-            $table->unsignedInteger('points_difference')->nullable(false)->change();
-            $table->unsignedInteger('max_points')->nullable(false)->change();
-        });
+        if (Schema::hasColumn('mini_tournaments', 'set_number')) {
+            Schema::table('mini_tournaments', function (Blueprint $table) {
+                $table->unsignedInteger('set_number')->nullable(false)->change();
+            });
+        }
+
+        if (Schema::hasColumn('mini_tournaments', 'base_points')) {
+            Schema::table('mini_tournaments', function (Blueprint $table) {
+                $table->unsignedInteger('base_points')->nullable(false)->change();
+            });
+        } elseif (Schema::hasColumn('mini_tournaments', 'games_per_set')) {
+            Schema::table('mini_tournaments', function (Blueprint $table) {
+                $table->unsignedInteger('games_per_set')->nullable(false)->change();
+            });
+        }
+
+        if (Schema::hasColumn('mini_tournaments', 'points_difference')) {
+            Schema::table('mini_tournaments', function (Blueprint $table) {
+                $table->unsignedInteger('points_difference')->nullable(false)->change();
+            });
+        }
+
+        if (Schema::hasColumn('mini_tournaments', 'max_points')) {
+            Schema::table('mini_tournaments', function (Blueprint $table) {
+                $table->unsignedInteger('max_points')->nullable(false)->change();
+            });
+        }
     }
 };

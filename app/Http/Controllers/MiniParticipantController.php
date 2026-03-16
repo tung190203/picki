@@ -91,6 +91,7 @@ class MiniParticipantController extends Controller
             'mini_tournament_id' => $tournamentId,
             'user_id' => Auth::id(),
             'is_confirmed' => $isConfirmed,
+            'is_invited' => false,
             'payment_status' => $paymentStatus,
         ]);
 
@@ -219,6 +220,7 @@ class MiniParticipantController extends Controller
         $participant = $miniTournament->participants()->create([
             'user_id' => $validated['user_id'],
             'is_confirmed' => $isSuperAdmin,
+            'is_invited' => true,
             'invited_by' => Auth::id(),
             'payment_status' => $paymentStatus,
         ]);
@@ -550,6 +552,7 @@ class MiniParticipantController extends Controller
                 $newParticipant = $miniTournament->participants()->create([
                     'user_id' => $userId,
                     'is_confirmed' => $miniTournament->auto_approve && !$miniTournament->is_private,
+                    'is_invited' => true,
                     'invited_by' => Auth::id(),
                     'payment_status' => $paymentStatus,
                 ]);

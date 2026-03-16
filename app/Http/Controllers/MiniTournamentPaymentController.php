@@ -166,6 +166,7 @@ class MiniTournamentPaymentController extends Controller
                 'mini_tournament_id' => $miniTournamentId,
                 'user_id' => $userId,
                 'is_confirmed' => true, // Tự động duyệt
+                'is_invited' => false,
                 'payment_status' => $paymentStatus,
                 'joined_at' => now(),
             ]);

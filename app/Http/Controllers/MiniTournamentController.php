@@ -52,6 +52,7 @@ class MiniTournamentController extends Controller
                     'mini_tournament_id' => $miniTournament->id,
                     'user_id' => $userId,
                     'is_confirmed' => true,
+                    'is_invited' => true,
                     'payment_status' => $paymentStatus,
                 ]);
                 $user = User::find($userId);

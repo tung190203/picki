@@ -37,6 +37,7 @@ class MiniTournamentService
             'mini_tournament_id' => $miniTournament->id,
             'user_id' => $userId,
             'is_confirmed' => true,
+            'is_invited' => false,
             'payment_status' => PaymentStatusEnum::CONFIRMED,
         ]);
 
