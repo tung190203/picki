@@ -289,7 +289,7 @@
                             <!-- Fee details - chỉ hiện khi hasFee = true -->
                             <div v-if="hasFee" class="space-y-4 pl-4 border-l-2 border-red-200 ml-2">
                                 <!-- Miễn phí / Có phí -->
-                                <div class="flex gap-2">
+                                <!-- <div class="flex gap-2">
                                     <button @click="hasFee = false"
                                         class="flex-1 py-2 rounded text-sm font-medium transition-colors"
                                         :class="!hasFee ? 'bg-[#D72D36] text-white' : 'bg-gray-200 text-gray-700'">
@@ -300,7 +300,7 @@
                                         :class="hasFee ? 'bg-[#D72D36] text-white' : 'bg-gray-200 text-gray-700'">
                                         Có phí
                                     </button>
-                                </div>
+                                </div> -->
 
                                 <!-- Chia tiền sân tự động toggle -->
                                 <div class="flex items-center justify-between">
