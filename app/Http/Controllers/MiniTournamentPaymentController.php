@@ -118,7 +118,6 @@ class MiniTournamentPaymentController extends Controller
         ]);
 
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
-        $autoConfirmPayment = (bool) $miniTournament->auto_approve;
 
         // Nếu kèo chia tiền tự động thì chỉ được thanh toán sau khi đã có ít nhất 1 trận hoàn tất
         if ($miniTournament->auto_split_fee) {
@@ -212,13 +211,13 @@ class MiniTournamentPaymentController extends Controller
 
                 $existingPayment->update([
                     'amount' => $feePerPerson,
-                    'status' => $autoConfirmPayment ? MiniParticipantPayment::STATUS_CONFIRMED : MiniParticipantPayment::STATUS_PAID,
+                    'status' => MiniParticipantPayment::STATUS_PAID,
                     'receipt_image' => $receiptImage,
                     'note' => $data['note'] ?? null,
                     'paid_at' => now(),
                     'admin_note' => null,
-                    'confirmed_at' => $autoConfirmPayment ? now() : null,
-                    'confirmed_by' => $autoConfirmPayment ? $userId : null,
+                    'confirmed_at' => null,
+                    'confirmed_by' => null,
                 ]);
 
                 $payment = $existingPayment;
@@ -229,26 +228,18 @@ class MiniTournamentPaymentController extends Controller
                     'participant_id' => $participant->id,
                     'user_id' => $userId,
                     'amount' => $feePerPerson,
-                    'status' => $autoConfirmPayment ? MiniParticipantPayment::STATUS_CONFIRMED : MiniParticipantPayment::STATUS_PAID,
+                    'status' => MiniParticipantPayment::STATUS_PAID,
                     'receipt_image' => $receiptImage,
                     'note' => $data['note'] ?? null,
                     'paid_at' => now(),
-                    'confirmed_at' => $autoConfirmPayment ? now() : null,
-                    'confirmed_by' => $autoConfirmPayment ? $userId : null,
                 ]);
-            }
-
-            if ($autoConfirmPayment) {
-                $participant->confirmPayment();
             }
 
             DB::commit();
 
             return ResponseHelper::success(
                 new MiniParticipantPaymentResource($payment->load(['user', 'confirmer'])),
-                $autoConfirmPayment
-                    ? 'Thanh toán và xác nhận thành công'
-                    : 'Thanh toán thành công, chờ chủ kèo xác nhận',
+                'Thanh toán thành công, chờ chủ kèo xác nhận',
                 200
             );
         } catch (\Throwable $e) {
@@ -533,7 +524,7 @@ class MiniTournamentPaymentController extends Controller
         // Lấy payment (nếu có participant)
         $payment = null;
         if ($participant) {
-            $payment = MiniParticipantPayment::with(['confirmer'])
+            $payment = MiniParticipantPayment::with(['user', 'confirmer'])
                 ->where('mini_tournament_id', $miniTournamentId)
                 ->where('participant_id', $participant->id)
                 ->first();
@@ -560,9 +551,23 @@ class MiniTournamentPaymentController extends Controller
             $qrUrl = asset('storage/' . ltrim($qrUrl, '/'));
         }
 
-        $data = [
-            'payment' => $payment ? new MiniParticipantPaymentResource($payment) : null,
-        ];
+        $paymentData = $payment
+            ? (new MiniParticipantPaymentResource($payment))->toArray($request)
+            : [];
+
+        // Trả đầy đủ thông tin theo mini_tournament_id để FE luôn có dữ liệu hiển thị QR/phí,
+        // kể cả khi user chưa có bản ghi payment.
+        $data = array_merge([
+            'mini_tournament_id' => $miniTournament->id,
+            'participant_id' => $participant?->id,
+            'has_fee' => (bool) $miniTournament->has_fee,
+            'auto_split_fee' => (bool) $miniTournament->auto_split_fee,
+            'auto_payment_created' => (bool) $miniTournament->auto_payment_created,
+            'fee_amount' => (int) ($miniTournament->fee_amount ?? 0),
+            'fee_per_person' => (int) ($feePerPerson ?? 0),
+            'fee_description' => $miniTournament->fee_description,
+            'qr_code_url' => $qrUrl,
+        ], $paymentData);
 
         return ResponseHelper::success($data, 'Lấy thông tin thanh toán thành công');
     }

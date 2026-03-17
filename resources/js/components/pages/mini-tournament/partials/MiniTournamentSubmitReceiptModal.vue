@@ -175,6 +175,10 @@ const props = defineProps({
     type: [String, Number],
     required: true,
   },
+  hasFee: {
+    type: Boolean,
+    default: null,
+  },
 })
 
 const emit = defineEmits(['update:isOpen', 'success'])
@@ -239,13 +243,19 @@ const removePreview = () => {
 const fetchMyPayment = async () => {
   try {
     const data = await getMyMiniTournamentPayment(props.miniId)
-    participantId.value = data.participant_id
-    hasFee.value = data.has_fee
-    feePerPerson.value = data.fee_per_person
-    qrCodeUrl.value = data.qr_code_url
-    feeDescription.value = data.fee_description
+    // Contract mới: trả trực tiếp top-level, không bọc key `payment`.
+    // Fallback cho môi trường cũ (nếu còn trả data.payment).
+    const payload = data?.payment ? { ...data, ...data.payment } : (data || {})
 
-    if (!data.has_fee) {
+    participantId.value = payload.participant_id ?? null
+    // Ưu tiên lấy has_fee từ API mini detail truyền xuống.
+    // Fallback dùng my-payment để tương thích dữ liệu cũ.
+    hasFee.value = props.hasFee !== null ? Boolean(props.hasFee) : Boolean(payload.has_fee)
+    feePerPerson.value = Number(payload.fee_per_person || 0)
+    qrCodeUrl.value = payload.qr_code_url || null
+    feeDescription.value = payload.fee_description || ''
+
+    if (!hasFee.value) {
       toast.info('Kèo này không thu phí tham gia.')
     }
   } catch (error) {
