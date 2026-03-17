@@ -268,6 +268,25 @@ export default {
             return mini.value.participants.filter(p => p.is_confirmed === false && p.is_invited === true)
         })
 
+        const isAutoSplitPaymentReady = computed(() => {
+            if (!mini.value?.has_fee) return false
+            if (!mini.value?.auto_split_fee) return true
+
+            if (mini.value?.auto_payment_created) return true
+
+            // Fallback cho dữ liệu cũ chưa có auto_payment_created:
+            // auto-split chỉ coi là đã chia khoản thu khi xuất hiện trạng thái chờ/nộp tiền.
+            return (mini.value?.participants || []).some((p) =>
+                p.payment_status === 'pending' || p.payment_status === 'paid'
+            )
+        })
+
+        const canShowPaymentButton = computed(() => {
+            if (!mini.value?.has_fee) return false
+            if (!mini.value?.auto_split_fee) return true
+            return isAutoSplitPaymentReady.value
+        })
+
         const openPromotionModal = () => {
             isPromotionModalOpen.value = true;
         };
@@ -478,6 +497,10 @@ export default {
                 toast.error('Kèo này không thu phí tham gia.')
                 return
             }
+            if (mini.value.auto_split_fee && !isAutoSplitPaymentReady.value) {
+                toast.info('Kèo chia phí tự động, chỉ thanh toán sau khi hệ thống chia khoản thu.')
+                return
+            }
             showPaymentModal.value = true
         }
 
@@ -485,6 +508,10 @@ export default {
             if (!mini.value?.id) return
             if (!mini.value.has_fee) {
                 toast.error('Kèo này không thu phí tham gia.')
+                return
+            }
+            if (mini.value.auto_split_fee && !isAutoSplitPaymentReady.value) {
+                toast.info('Kèo chia phí tự động, chỉ thanh toán sau khi hệ thống chia khoản thu.')
                 return
             }
             showSubmitPaymentModal.value = true
@@ -705,6 +732,7 @@ export default {
             handlePaymentSubmitSuccess,
             getPaymentStatusBadgeClass,
             getPaymentStatusLabel,
+            canShowPaymentButton,
             handleApproveParticipant,
             handleRejectParticipant,
             handleCancelRequest
