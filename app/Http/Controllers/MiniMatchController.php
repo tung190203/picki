@@ -576,9 +576,19 @@ class MiniMatchController extends Controller
 
     private function validateAllSets($match, $tournament)
     {
+        // Kiểm tra apply_rule
+        if (!$tournament->apply_rule) {
+            // Nếu không áp dụng luật, chỉ cần có kết quả là được
+            if ($match->results->isEmpty()) {
+                return 'Trận đấu chưa có kết quả nào';
+            }
+            return null; // Bỏ qua validation
+        }
+
         $pointsToWinSet = $tournament->base_points;
         $pointsDifference = $tournament->points_difference;
         $maxPoints = $tournament->max_points;
+        $setNumber = $tournament->set_number;
 
         // Kiểm tra luật thi đấu
         if ($pointsToWinSet === null || $pointsDifference === null || $maxPoints === null) {
@@ -592,6 +602,9 @@ class MiniMatchController extends Controller
         if ($allResults->isEmpty()) {
             return 'Trận đấu chưa có kết quả nào';
         }
+
+        $team1WonSets = 0;
+        $team2WonSets = 0;
 
         // Validate từng set
         foreach ($allResults as $setNumber => $setResults) {
@@ -624,10 +637,29 @@ class MiniMatchController extends Controller
                 return "Set {$setNumber}: {$validation['message']}";
             }
 
-            // Cập nhật won_set với ID thực tế
+            // Đếm số set thắng
             $winnerTeamId = $validation['winner'];
+            if ($winnerTeamId === $team1Id) {
+                $team1WonSets++;
+            } else {
+                $team2WonSets++;
+            }
+
+            // Cập nhật won_set
             $teamA->update(['won_set' => ($teamA->team_id == $winnerTeamId)]);
             $teamB->update(['won_set' => ($teamB->team_id == $winnerTeamId)]);
+        }
+
+        // Validate không hòa số set
+        if ($team1WonSets === $team2WonSets) {
+            return "Không thể xác nhận kết quả khi hòa số set ({$team1WonSets}-{$team2WonSets})";
+        }
+
+        // Validate số set tối đa (optional - nếu muốn strict)
+        // Ví dụ: best of 3 thì tối đa 3 set
+        $totalSets = $allResults->count();
+        if ($totalSets > $setNumber) {
+            return "Số set vượt quá giới hạn ({$totalSets}/{$setNumber})";
         }
 
         return null; // Không có lỗi
@@ -700,15 +732,31 @@ class MiniMatchController extends Controller
             return ['error' => true, 'message' => 'Không được có tỉ số hòa'];
         }
 
-        // Check 2: Ít nhất 1 đội phải đạt pointsToWinSet (11 điểm)
         $winningScore = max($A, $B);
+        $losingScore = min($A, $B);
+        $scoreDiff = $winningScore - $losingScore;
+
+        // Check 2: Không được vượt quá max_points
+        if ($winningScore > $maxPoints) {
+            return ['error' => true, 'message' => "Điểm số không được vượt quá {$maxPoints}"];
+        }
+
+        // Check 3: Ít nhất 1 đội phải đạt pointsToWinSet
         if ($winningScore < $pointsToWinSet) {
             return ['error' => true, 'message' => "Ít nhất 1 đội phải đạt {$pointsToWinSet} điểm"];
         }
 
-        // Xác định winner
-        $winnerTeamId = $A > $B ? $team1Id : $team2Id;
+        // Check 4: Nếu chưa đạt max_points, phải đủ khoảng cách
+        if ($winningScore < $maxPoints) {
+            if ($scoreDiff < $pointsDifference) {
+                return ['error' => true, 'message' => "Phải thắng cách {$pointsDifference} điểm (hiện tại: {$scoreDiff})"];
+            }
+        }
 
+        // Check 5: Nếu đạt max_points, người thắng phải có điểm cao hơn
+        // (đã check ở Check 1 - không hòa)
+
+        $winnerTeamId = $A > $B ? $team1Id : $team2Id;
         return ['error' => false, 'winner' => $winnerTeamId];
     }
 
