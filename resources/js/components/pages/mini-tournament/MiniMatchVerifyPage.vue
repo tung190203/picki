@@ -36,7 +36,7 @@
                     <div class="px-8 py-8">
                         <div class="text-center mb-6">
                             <span class="inline-block px-4 py-2 bg-red-100 text-red-700 rounded-full text-sm font-semibold">
-                              {{ miniMatchData.name_of_match || '—' }}
+                              {{ miniMatchData.name || '—' }}
                             </span>
                         </div>
 

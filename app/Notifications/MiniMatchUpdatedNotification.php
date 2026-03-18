@@ -29,7 +29,7 @@ class MiniMatchUpdatedNotification extends Notification implements ShouldQueue
             'match_id' => $this->match->id,
             'mini_tournament_id' => $this->match->mini_tournament_id,
             'title' => 'Bạn có trận đấu mới',
-            'message' => "Trận đấu '{$this->match->name_of_match}' đã được sửa đổi.",
+            'message' => "Trận đấu '{$this->match->name}' đã được sửa đổi.",
         ];
     }
 
@@ -39,14 +39,14 @@ class MiniMatchUpdatedNotification extends Notification implements ShouldQueue
             'match_id' => $this->match->id,
             'mini_tournament_id' => $this->match->mini_tournament_id,
             'title' => 'Bạn có trận đấu mới',
-            'message' => "Trận đấu '{$this->match->name_of_match}' đã được sửa đổi.",
+            'message' => "Trận đấu '{$this->match->name}' đã được sửa đổi.",
         ]);
     }
     public function toArray($notifiable)
     {
         return [
             'match_id' => $this->match->id,
-            'message' => "Bạn có thay đổi ở trận đấu: {$this->match->name_of_match}",
+            'message' => "Bạn có thay đổi ở trận đấu: {$this->match->name}",
         ];
     }
 }

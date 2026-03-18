@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col items-center gap-2 max-w-[80px]">
+  <div class="flex flex-col items-center gap-2" :style="{ maxWidth: `${maxWidth}px` }">
     <div class="relative group">
       <div v-if="empty" @click="handleClick"
         :class="[
@@ -51,7 +51,18 @@
       </button>
     </div>
 
-    <div v-if="name" class="text-sm font-medium text-gray-700 text-center" v-tooltip="name">
+    <div
+      v-if="name"
+      class="text-sm font-medium text-gray-700 text-center leading-4 max-w-[80px] overflow-hidden break-words"
+      :style="{
+        display: '-webkit-box',
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: 'vertical',
+        minHeight: '32px',
+        maxWidth: `${maxWidth}px`
+      }"
+      v-tooltip="name"
+    >
       {{ name }}
     </div>
   </div>
@@ -98,6 +109,10 @@ const props = defineProps({
   size: {
     type: Number,
     default: 16,
+  },
+  maxWidth: {
+    type: Number,
+    default: 80,
   },
   badgeSize: {
     type: Number,

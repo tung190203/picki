@@ -13,8 +13,9 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" v-if="miniMatches.length > 0" >
         <div v-for="match in miniMatches" :key="match.id" @click="showMiniMatchDetail(match.id)"
              class="border border-[#BBBFCC] p-4 rounded-lg cursor-pointer hover:shadow-md transition">
-            <MiniMatchCard :matchTitle="match.name_of_match" :matchTime="formatDate(match.scheduled_at)"
-               :courtName="match.competition_location?.name || 'Chưa cập nhật'"
+            <MiniMatchCard :matchTitle="match.name" :matchTime="match.scheduled_at ? formatDate(match.scheduled_at) : null"
+               :matchId="match.id"
+               :courtName="`Sân ${match.yard_number || 1}`"
                :miniMatchType="match.match_type"
                :teamWinId="match.team_win_id"
                :team1="match.team1.members.map(m => ({
@@ -103,8 +104,9 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" v-if="scheduledMyMiniMatches.length > 0" >
         <div v-for="miniMatch in scheduledMyMiniMatches" :key="miniMatch.id" @click="showMiniMatchDetail(miniMatch.id)"
              class="border border-[#BBBFCC] p-4 rounded-lg cursor-pointer hover:shadow-md transition">
-            <MiniMatchCard :matchTitle="miniMatch.name_of_match" :matchTime="formatDate(miniMatch.scheduled_at)"
-               :courtName="miniMatch.competition_location?.name || 'Chưa cập nhật'"
+            <MiniMatchCard :matchTitle="miniMatch.name" :matchTime="miniMatch.scheduled_at ? formatDate(miniMatch.scheduled_at) : null"
+               :matchId="miniMatch.id"
+               :courtName="`Sân ${miniMatch.yard_number || 1}`"
                :miniMatchType="miniMatch.match_type"
                :teamWinId="miniMatch.team_win_id"
                :team1="miniMatch.team1.members.map(m => ({
