@@ -2,13 +2,18 @@
     <div class="bg-[#F6F7F9] border border-[#E2E5EA] rounded-2xl p-4 shadow-sm">
         <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-2">
-                <div class="relative flex cursor-pointer group" @click.stop>
+                <button
+                    type="button"
+                    class="relative flex cursor-pointer group"
+                    :class="!selectable ? 'opacity-50 cursor-not-allowed' : ''"
+                    @click.stop="selectable && emit('update:selected', !selected)"
+                >
                     <input
                         type="checkbox"
                         class="sr-only peer"
                         :checked="selected"
-                        @change="emit('update:selected', !selected)"
                         :disabled="!selectable"
+                        tabindex="-1"
                     />
                     <span
                         class="relative w-[18px] h-[18px] rounded-full border-2 border-[#9AA5B4] bg-white transition-all
@@ -19,7 +24,7 @@
                             opacity-0 peer-checked:opacity-100 transition-opacity"
                         ></span>
                     </span>
-                </div>
+                </button>
                 <h3
                     class="text-base leading-5 font-bold text-[#3E414C] max-w-[180px] overflow-hidden"
                     style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
@@ -123,6 +128,7 @@ import UserCard from '@/components/molecules/UserCard.vue'
 const MATCH_TYPE_SINGLE = 2
 
 const props = defineProps({
+    matchId: [String, Number],
     matchTitle: String,
     matchTime: String,
     courtName: String,

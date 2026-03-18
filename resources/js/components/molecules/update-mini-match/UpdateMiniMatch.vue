@@ -51,8 +51,49 @@ export default {
         const scores = ref([])
         const isSaving = ref(false)
         const showRefereeScreen = ref(false)
+        const team1Users = ref([])
+        const team2Users = ref([])
 
-        const maxPoints = computed(() => props.miniTournament?.max_points || 30)
+        const basePoints = computed(() => props.miniTournament?.base_points || 11)
+        const pointsDifference = computed(() => props.miniTournament?.points_difference || 2)
+        const maxPoints = computed(() => props.miniTournament?.max_points || 15)
+
+        const isValidSetScore = (s1, s2) => {
+            const a = Number(s1 || 0)
+            const b = Number(s2 || 0)
+
+            if (a < 0 || b < 0) return false
+            if (a > maxPoints.value || b > maxPoints.value) return false
+
+            if (a === 0 && b === 0) return true
+
+            if (a >= basePoints.value && (a - b) >= pointsDifference.value) return true
+            if (b >= basePoints.value && (b - a) >= pointsDifference.value) return true
+
+            if (a === maxPoints.value || b === maxPoints.value) return true
+
+            return false
+        }
+
+        const validateScoresByRules = () => {
+            const nonEmpty = scores.value.filter(s => Number(s.team1 || 0) > 0 || Number(s.team2 || 0) > 0)
+            if (nonEmpty.length === 0) return { ok: false, message: 'Vui lòng nhập kết quả trước khi xác nhận' }
+
+            for (let i = 0; i < scores.value.length; i++) {
+                const s = scores.value[i]
+                const a = Number(s.team1 || 0)
+                const b = Number(s.team2 || 0)
+                if (a === 0 && b === 0) continue
+                if (!isValidSetScore(a, b)) {
+                    return {
+                        ok: false,
+                        message: `Set ${i + 1} chưa đúng luật (${basePoints.value} điểm, cách ${pointsDifference.value}, tối đa ${maxPoints.value}).`
+                    }
+                }
+            }
+
+            return { ok: true }
+        }
 
         const incrementScore = (idx, team) => {
             if (team === '1' && scores.value[idx].team1 < maxPoints.value) scores.value[idx].team1++
@@ -70,12 +111,12 @@ export default {
         })
 
         const currentMiniMatch = computed(() => {
-            return props.data || props.data
+            return props.data
         })
 
         const qrCodeUrl = computed(() => {
             if (!currentMiniMatch.value?.id) return ''
-            return `${window.location.origin}/mini-match/${currentMiniMatch.value.id}/verify`
+            return `${globalThis.location.origin}/mini-match/${currentMiniMatch.value.id}/verify`
         })
 
         const addSet = () => {
@@ -127,6 +168,13 @@ export default {
             return [{ team1: 0, team2: 0 }]
         }
 
+        const resetFormState = () => {
+            scores.value = initializeScores()
+            team1Users.value = (props.data?.team1?.members || []).map(m => m?.user ?? m).filter(Boolean)
+            team2Users.value = (props.data?.team2?.members || []).map(m => m?.user ?? m).filter(Boolean)
+            showRefereeScreen.value = false
+        }
+
         const saveMiniMatch = async () => {
             if (isSaving.value) return
             try {
@@ -135,8 +183,8 @@ export default {
                 const sets = formatSetsForAPI()
                 const payload = {
                     match_id: currentMiniMatch.value.id,
-                    team1: props.data.team1?.members?.map(m => m.user.id) || [],
-                    team2: props.data.team2?.members?.map(m => m.user.id) || [],
+                    team1: team1Users.value.map(u => u.id),
+                    team2: team2Users.value.map(u => u.id),
                     team1_name: props.data.team1?.name,
                     team2_name: props.data.team2?.name,
                 }
@@ -150,6 +198,7 @@ export default {
                 toast.success('Cập nhật kết quả thành công!')
                 emit('updated', res)
                 isOpen.value = false
+                resetFormState()
             } catch (err) {
                 toast.error(err.response?.data?.message || 'Lỗi khi cập nhật')
             } finally {
@@ -157,9 +206,7 @@ export default {
             }
         }
 
-        const canConfirmMiniMatch = computed(() =>
-            scores.value.some(s => s.team1 > 0 || s.team2 > 0)
-        )
+        const canConfirmMiniMatch = computed(() => validateScoresByRules().ok)
 
         const confirmMiniMatchResult = async () => {
             if (isSaving.value || !canConfirmMiniMatch.value) return
@@ -170,8 +217,8 @@ export default {
                 if (sets.length > 0) {
                     const payload = {
                         match_id: currentMiniMatch.value.id,
-                        team1: props.data.team1?.members?.map(m => m.user.id) || [],
-                        team2: props.data.team2?.members?.map(m => m.user.id) || [],
+                        team1: team1Users.value.map(u => u.id),
+                        team2: team2Users.value.map(u => u.id),
                         team1_name: props.data.team1?.name,
                         team2_name: props.data.team2?.name,
                         sets: sets,
@@ -184,6 +231,7 @@ export default {
                 toast.success('Xác nhận kết quả thành công!')
                 emit('updated', res)
                 isOpen.value = false
+                resetFormState()
             } catch (err) {
                 toast.error(err.response?.data?.message || 'Lỗi xác nhận')
             } finally {
@@ -192,14 +240,13 @@ export default {
         }
 
         const closeModal = () => {
-            if (!isSaving.value) isOpen.value = false
+            if (isSaving.value) return
+            isOpen.value = false
+            resetFormState()
         }
 
         const emptySlots = (team) => {
-            const members =
-                team === 'team1'
-                    ? props.data.team1?.members?.length || 0
-                    : props.data.team2?.members?.length || 0
+            const members = team === 'team1' ? team1Users.value.length : team2Users.value.length
 
             const slots = props.miniTournament.player_per_team - members
             return slots > 0 ? Array.from({ length: slots }, (_, i) => i + 1) : []
@@ -221,15 +268,37 @@ export default {
             showRefereeScreen.value = false
         }
 
-        const team1ForReferee = computed(() => props.data.team1 || { name: 'Team 1', members: [] })
-        const team2ForReferee = computed(() => props.data.team2 || { name: 'Team 2', members: [] })
+        const team1ForReferee = computed(() => ({
+            name: props.data.team1?.name || 'Team 1',
+            members: team1Users.value.map(u => ({ user: u }))
+        }))
+        const team2ForReferee = computed(() => ({
+            name: props.data.team2?.name || 'Team 2',
+            members: team2Users.value.map(u => ({ user: u }))
+        }))
+
+        const removeMemberFromTeam = (team, userId) => {
+            if (!props.isCreator) return
+            if (team === 'team1') {
+                team1Users.value = team1Users.value.filter(u => u.id !== userId)
+                return
+            }
+            team2Users.value = team2Users.value.filter(u => u.id !== userId)
+        }
 
         watch(
             () => props.data,
             () => {
-                scores.value = initializeScores()
+                resetFormState()
             },
             { deep: true }
+        )
+
+        watch(
+            () => isOpen.value,
+            (val) => {
+                if (val) resetFormState()
+            }
         )
 
         return {
@@ -264,6 +333,9 @@ export default {
             onRefereeBack,
             team1ForReferee,
             team2ForReferee,
+            team1Users,
+            team2Users,
+            removeMemberFromTeam,
             maxPoints
         }
     }

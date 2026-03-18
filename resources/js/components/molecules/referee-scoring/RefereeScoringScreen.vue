@@ -439,7 +439,10 @@ export default {
         const isFirstServe = ref(true)
         const matchStarted = ref(false)
 
-        const serverPositionIndex = ref(0)
+        // handIndex: người đang cầm giao bóng trong đội (tay 1 / tay 2)
+        const serverHandIndex = ref(0)
+        // serveBoxIndex: ô phát bóng (đổi ô khi ghi điểm), KHÔNG đổi người
+        const serveBoxIndex = ref(0)
         const selectingServer = ref(false)
 
         const courtPositions = ref({
@@ -451,7 +454,7 @@ export default {
 
         const canStartMatch = computed(() => {
             const team = servingTeam.value
-            const pos = serverPositionIndex.value
+            const pos = serverHandIndex.value
             return Boolean(courtPositions.value?.[team]?.[pos])
         })
 
@@ -506,7 +509,8 @@ export default {
             servingTeam: servingTeam.value,
             serverNumber: serverNumber.value,
             isFirstServe: isFirstServe.value,
-            serverPositionIndex: serverPositionIndex.value,
+            serverHandIndex: serverHandIndex.value,
+            serveBoxIndex: serveBoxIndex.value,
             selectingServer: selectingServer.value,
             courtPositions: courtPositions.value,
             completedSets: completedSets.value,
@@ -520,7 +524,8 @@ export default {
             servingTeam.value = snap.servingTeam
             serverNumber.value = snap.serverNumber
             isFirstServe.value = snap.isFirstServe
-            serverPositionIndex.value = snap.serverPositionIndex
+            serverHandIndex.value = snap.serverHandIndex ?? 0
+            serveBoxIndex.value = snap.serveBoxIndex ?? 0
             selectingServer.value = Boolean(snap.selectingServer)
             courtPositions.value = snap.courtPositions
             completedSets.value = snap.completedSets
@@ -534,7 +539,7 @@ export default {
 
         const isServingPosition = (team, posIdx) => {
             if (team !== servingTeam.value) return false
-            return posIdx === serverPositionIndex.value
+            return posIdx === serverHandIndex.value
         }
 
         const getPositionLabel = (team, posIdx) => {
@@ -544,7 +549,7 @@ export default {
         const currentServerName = computed(() => {
             const team = servingTeam.value
             const positions = courtPositions.value[team]
-            const player = positions[serverPositionIndex.value]
+            const player = positions[serverHandIndex.value]
             return player?.full_name || 'N/A'
         })
 
@@ -553,7 +558,8 @@ export default {
             if (!matchStarted.value) {
                 servingTeam.value = servingTeam.value === 'team1' ? 'team2' : 'team1'
                 serverNumber.value = 1
-                serverPositionIndex.value = 0
+                serverHandIndex.value = 0
+                serveBoxIndex.value = 0
                 isFirstServe.value = true
             }
         }
@@ -568,7 +574,8 @@ export default {
             const p = courtPositions.value?.[team]?.[posIdx]
             if (!p) return
             servingTeam.value = team
-            serverPositionIndex.value = posIdx
+            serverHandIndex.value = posIdx
+            serveBoxIndex.value = 0
             serverNumber.value = 1
             isFirstServe.value = true
             selectingServer.value = false
@@ -581,7 +588,7 @@ export default {
             if (arr.length >= 2) {
                 courtPositions.value[team] = [arr[1], arr[0]]
                 if (servingTeam.value === team) {
-                    serverPositionIndex.value = serverPositionIndex.value === 0 ? 1 : 0
+                    serverHandIndex.value = serverHandIndex.value === 0 ? 1 : 0
                 }
             }
         }
@@ -598,19 +605,7 @@ export default {
             }
         }
 
-        const checkSetWin = () => {
-            const s1 = team1Score.value
-            const s2 = team2Score.value
-            const bp = basePoints.value
-            const pd = pointsDifference.value
-            const mp = maxPoints.value
-
-            if (s1 >= bp && (s1 - s2) >= pd) return true
-            if (s2 >= bp && (s2 - s1) >= pd) return true
-            if (s1 >= mp || s2 >= mp) return true
-
-            return false
-        }
+        // checkSetWin đã bỏ dùng vì không auto sang set nữa
 
         const handlePoint = () => {
             // Cho phép bấm POINT để bắt đầu trận (khi đã có người cầm bóng)
@@ -628,58 +623,59 @@ export default {
             }
 
             if (isDoubles.value) {
-                const team = servingTeam.value
-                const arr = courtPositions.value[team]
-                if (arr.length >= 2) {
-                    courtPositions.value[team] = [arr[1], arr[0]]
-                }
+                // Ghi điểm khi đang giao:
+                // - người giao (tay 1 / tay 2) KHÔNG đổi
+                // - chỉ đổi ô phát bóng (giống cầu lông)
+                serveBoxIndex.value = serveBoxIndex.value === 0 ? 1 : 0
             }
 
             if (isFirstServe.value) {
                 isFirstServe.value = false
             }
+            // Không tự động sang set mới khi đủ điểm.
+            // Trọng tài sẽ chủ động bấm "Xong Set" để chốt điểm và chuyển set.
+        }
 
-            if (checkSetWin()) {
-                finishCurrentSet()
-            }
+        const startMatchIfPossible = () => {
+            if (matchStarted.value) return true
+            if (!canStartMatch.value) return false
+            matchStarted.value = true
+            return true
+        }
+
+        const switchToOpponentFirstServer = () => {
+            servingTeam.value = servingTeam.value === 'team1' ? 'team2' : 'team1'
+            serverNumber.value = 1
+            serverHandIndex.value = 0
+            serveBoxIndex.value = 0
         }
 
         const handleSideOut = () => {
             // Cho phép bấm SIDE OUT để bắt đầu trận (khi đã có người cầm bóng)
-            if (!matchStarted.value) {
-                if (!canStartMatch.value) return
-                matchStarted.value = true
-            }
+            if (!startMatchIfPossible()) return
             if (!canScore.value) return
 
             pushHistory()
 
             if (isFirstServe.value) {
-                const opponent = servingTeam.value === 'team1' ? 'team2' : 'team1'
-                servingTeam.value = opponent
-                serverNumber.value = 1
-                serverPositionIndex.value = 0
+                switchToOpponentFirstServer()
                 isFirstServe.value = false
                 return
             }
 
             if (!isDoubles.value) {
-                const opponent = servingTeam.value === 'team1' ? 'team2' : 'team1'
-                servingTeam.value = opponent
-                serverNumber.value = 1
-                serverPositionIndex.value = 0
+                switchToOpponentFirstServer()
                 return
             }
 
             if (serverNumber.value === 1) {
                 serverNumber.value = 2
-                serverPositionIndex.value = 1
-            } else {
-                const opponent = servingTeam.value === 'team1' ? 'team2' : 'team1'
-                servingTeam.value = opponent
-                serverNumber.value = 1
-                serverPositionIndex.value = 0
+                // Đổi người giao trong cùng đội (tay 2), KHÔNG đổi ô (điểm không đổi)
+                serverHandIndex.value = serverHandIndex.value === 0 ? 1 : 0
+                return
             }
+
+            switchToOpponentFirstServer()
         }
 
         const handleUndo = () => {
@@ -703,7 +699,8 @@ export default {
                           ? 'team1' : 'team2'
             servingTeam.value = loser
             serverNumber.value = 1
-            serverPositionIndex.value = 0
+            serverHandIndex.value = 0
+            serveBoxIndex.value = 0
             isFirstServe.value = true
             actionHistory.value = []
 
@@ -771,7 +768,8 @@ export default {
             serverNumber,
             isFirstServe,
             matchStarted,
-            serverPositionIndex,
+            serverHandIndex,
+            serveBoxIndex,
             selectingServer,
             canStartMatch,
             canScore,

@@ -146,7 +146,49 @@ export default {
             return format(new Date(date.value), 'yyyy-MM-dd HH:mm:ss')
         })
 
-        const maxPoints = computed(() => props.miniTournament?.max_points || 30)
+        const basePoints = computed(() => props.miniTournament?.base_points || 11)
+        const pointsDifference = computed(() => props.miniTournament?.points_difference || 2)
+        const maxPoints = computed(() => props.miniTournament?.max_points || 15)
+
+        const isValidSetScore = (s1, s2) => {
+            const a = Number(s1 || 0)
+            const b = Number(s2 || 0)
+
+            if (a < 0 || b < 0) return false
+            if (a > maxPoints.value || b > maxPoints.value) return false
+
+            // set chưa nhập
+            if (a === 0 && b === 0) return true
+
+            // thắng theo base + cách điểm
+            if (a >= basePoints.value && (a - b) >= pointsDifference.value) return true
+            if (b >= basePoints.value && (b - a) >= pointsDifference.value) return true
+
+            // hoặc chạm tối đa
+            if (a === maxPoints.value || b === maxPoints.value) return true
+
+            return false
+        }
+
+        const validateScoresByRules = () => {
+            const nonEmpty = scores.value.filter(s => Number(s.team1 || 0) > 0 || Number(s.team2 || 0) > 0)
+            if (nonEmpty.length === 0) return { ok: false, message: 'Vui lòng nhập kết quả trước khi xác nhận' }
+
+            for (let i = 0; i < scores.value.length; i++) {
+                const s = scores.value[i]
+                const a = Number(s.team1 || 0)
+                const b = Number(s.team2 || 0)
+                if (a === 0 && b === 0) continue
+                if (!isValidSetScore(a, b)) {
+                    return {
+                        ok: false,
+                        message: `Set ${i + 1} chưa đúng luật (${basePoints.value} điểm, cách ${pointsDifference.value}, tối đa ${maxPoints.value}).`
+                    }
+                }
+            }
+
+            return { ok: true }
+        }
 
         const incrementScore = (idx, team) => {
             if (team === '1' && scores.value[idx].team1 < maxPoints.value) scores.value[idx].team1++
@@ -234,10 +276,8 @@ export default {
         const confirmMiniMatch = async () => {
             if (isSaving.value) return
 
-            if (!hasScores.value) {
-                toast.error('Vui lòng nhập kết quả trước khi xác nhận')
-                return
-            }
+            const v = validateScoresByRules()
+            if (!v.ok) return toast.error(v.message)
 
             isSaving.value = true
 
@@ -361,6 +401,8 @@ export default {
             addSet,
             removeSet,
             hasScores,
+            basePoints,
+            pointsDifference,
             showRefereeScreen,
             openRefereeScreen,
             onRefereeDone,
