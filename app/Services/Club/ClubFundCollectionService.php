@@ -80,6 +80,10 @@ class ClubFundCollectionService
                     ->values()
                     ->all();
             }
+            // Nếu không có QR trong request, kế thừa QR từ activity
+            if (empty($data['qr_code_url']) && !empty($activity->qr_code_url)) {
+                $data['qr_code_url'] = $activity->qr_code_url;
+            }
         }
 
         $endDate = $data['end_date'] ?? $data['deadline'] ?? null;
@@ -93,13 +97,13 @@ class ClubFundCollectionService
 
         // included_in_club_fund áp dụng cho tất cả khoản thu.
         // Nếu false: dùng QR riêng upload lên, không ghi transaction vào ví chính.
-        // Nếu true (mặc định): dùng QR ví chính, ghi transaction vào ví chính.
+        // Nếu true (mặc định): ưu tiên dùng QR ví chính, fallback sang QR riêng nếu ví chính chưa có.
         $includedInClubFund = array_key_exists('included_in_club_fund', $data)
             ? filter_var($data['included_in_club_fund'], FILTER_VALIDATE_BOOLEAN)
             : true;
 
-        // Chỉ lưu qr_code_url riêng cho collection khi included_in_club_fund = false.
-        $collectionQrUrl = !$includedInClubFund ? ($data['qr_code_url'] ?? null) : null;
+        // Luôn lưu qr_code_url nếu có (để làm fallback khi CLB chưa có QR chung)
+        $collectionQrUrl = $data['qr_code_url'] ?? null;
 
         $collection = ClubFundCollection::create([
             'club_id' => $club->id,
