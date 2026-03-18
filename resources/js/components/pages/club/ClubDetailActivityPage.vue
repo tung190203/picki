@@ -626,7 +626,8 @@ const initialFundData = computed(() => {
   return {
     title: `Chốt bill: ${activity.value.title}`,
     amount: amount,
-    memberIds: checkedInUserIds.length > 0 ? checkedInUserIds : participants.value.filter(p => p.status !== 'pending').map(p => p.userId)
+    memberIds: checkedInUserIds.length > 0 ? checkedInUserIds : participants.value.filter(p => p.status !== 'pending').map(p => p.userId),
+    qr_code_url: activity.value.fund_collection?.qr_code_url || activity.value.qr_code_url || null
   }
 })
 
@@ -888,18 +889,21 @@ const handleSubmitFundRevenue = async (data) => {
     formData.append('end_date', data.end_date);
     formData.append('activity_id', activityId.value);
     
-    // Pass included_in_club_fund if not a fund split
-    if (activity.value.fee_split_type !== 'fund') {
-        formData.append('included_in_club_fund', activity.value.included_in_club_fund ? 1 : 0);
-    }
+    // Sử dụng included_in_club_fund từ modal (user đã chọn), không dùng từ activity
+    formData.append('included_in_club_fund', data.included_in_club_fund ?? 1);
     
     if (Array.isArray(data.member_ids)) {
         data.member_ids.forEach(id => {
             formData.append('member_ids[]', id);
         });
     }
+    
+    // Gửi QR: ưu tiên file mới, nếu không có thì giữ QR cũ từ activity
     if (data.qr_image) {
         formData.append('qr_image', data.qr_image);
+    } else if (data.qr_code_url) {
+        // Nếu có QR cũ từ activity nhưng user không upload mới, gửi URL cũ
+        formData.append('qr_code_url', data.qr_code_url);
     }
 
     try {

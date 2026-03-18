@@ -260,6 +260,11 @@ watch(() => props.isOpen, (newVal) => {
         if (props.initialData.memberIds) {
             selectedMemberIds.value = [...props.initialData.memberIds]
         }
+        // Load existing QR code if available
+        if (props.initialData.qr_code_url) {
+            qrCodePreview.value = props.initialData.qr_code_url
+            // Don't set qrImageFile since it's an existing URL, not a new file
+        }
     }
 }, { immediate: true })
 
@@ -389,6 +394,7 @@ const submitCreateFund = () => {
         end_date: deadlineDate ? deadlineDate.format('YYYY-MM-DD') : null,
         member_ids: selectedMemberIds.value,
         qr_image: qrImageFile.value,
+        qr_code_url: qrImageFile.value ? null : (qrCodePreview.value || null), // Nếu không upload file mới, giữ URL cũ
         included_in_club_fund: includedInClubFund.value ? 1 : 0
     })
     close()

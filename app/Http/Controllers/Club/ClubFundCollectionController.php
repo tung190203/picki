@@ -68,18 +68,15 @@ class ClubFundCollectionController extends Controller
 
             $includedInClubFund = isset($data['included_in_club_fund']) ? (bool) $data['included_in_club_fund'] : true;
 
-            if (!$includedInClubFund && $request->hasFile('qr_image')) {
+            // Luôn lưu QR nếu có upload, bất kể có bật thu vào quỹ chung hay không (để làm fallback)
+            if ($request->hasFile('qr_image')) {
                 $data['qr_code_url'] = app(ImageOptimizationService::class)->optimizeThumbnail(
                     $request->file('qr_image'),
                     'qr_codes',
                     90
                 );
-            }
-            unset($data['qr_image']);
-
-            if ($includedInClubFund) {
-                unset($data['qr_code_url'], $data['qr_code_id']);
             } elseif (!empty($data['qr_code_id'])) {
+                // Sử dụng QR từ collection khác
                 $existingQr = ClubFundCollection::where('club_id', $clubId)
                     ->whereNotNull('qr_code_url')
                     ->where('qr_code_url', '!=', '')
@@ -87,8 +84,10 @@ class ClubFundCollectionController extends Controller
                 if ($existingQr) {
                     $data['qr_code_url'] = $existingQr->qr_code_url;
                 }
-                unset($data['qr_code_id']);
             }
+            // Nếu không upload file mới và không dùng qr_code_id, giữ nguyên qr_code_url từ request (kế thừa từ activity)
+            
+            unset($data['qr_image'], $data['qr_code_id']);
 
             $collection = $this->collectionService->createCollection($club, $data, $userId);
             $this->loadCollectionForDetail($collection);
@@ -210,16 +209,27 @@ class ClubFundCollectionController extends Controller
         $includedInClubFund = $collection->included_in_club_fund ?? true;
 
         if ($includedInClubFund) {
+            // Ưu tiên lấy QR setting chung (mainWallet)
             $mainWallet = $collection->club->mainWallet;
-            if (!$mainWallet || empty($mainWallet->qr_code_url)) {
-                return ResponseHelper::error('CLB chưa có mã QR thanh toán quỹ', 404);
+            if ($mainWallet && !empty($mainWallet->qr_code_url)) {
+                return ResponseHelper::success([
+                    'qr_code_url' => $mainWallet->qr_code_url,
+                    'qr_note'     => $mainWallet->qr_note,
+                ], 'Lấy mã QR thành công');
             }
-            return ResponseHelper::success([
-                'qr_code_url' => $mainWallet->qr_code_url,
-                'qr_note'     => $mainWallet->qr_note,
-            ], 'Lấy mã QR thành công');
+
+            // Fallback: nếu CLB chưa có QR chung, dùng QR riêng của collection (nếu có)
+            if (!empty($collection->qr_code_url)) {
+                return ResponseHelper::success([
+                    'qr_code_url' => $collection->qr_code_url,
+                    'qr_note'     => null,
+                ], 'Lấy mã QR thành công');
+            }
+
+            return ResponseHelper::error('CLB chưa có mã QR thanh toán quỹ và đợt thu này cũng chưa có mã QR', 404);
         }
 
+        // Không bật thu vào quỹ chung → chỉ lấy QR riêng của collection
         if (empty($collection->qr_code_url)) {
             return ResponseHelper::error('Đợt thu chưa có mã QR', 404);
         }

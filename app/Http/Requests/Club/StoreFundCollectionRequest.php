@@ -14,10 +14,12 @@ class StoreFundCollectionRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        // Chỉ convert qr_code_url thành qr_image nếu nó là file upload
         if ($this->hasFile('qr_code_url')) {
             $this->merge(['qr_image' => $this->file('qr_code_url')]);
             $this->request->remove('qr_code_url');
         }
+        // Nếu qr_code_url là string URL, giữ nguyên để kế thừa từ activity
 
         if ($this->has('included_in_club_fund')) {
             $val = $this->input('included_in_club_fund');
@@ -56,7 +58,11 @@ class StoreFundCollectionRequest extends FormRequest
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'qr_code_url' => 'nullable|string',
             'qr_image' => [
-                \Illuminate\Validation\Rule::requiredIf(fn () => $this->input('included_in_club_fund') === false),
+                // Chỉ yêu cầu qr_image nếu không bật thu vào quỹ chung VÀ không có qr_code_url (URL cũ)
+                \Illuminate\Validation\Rule::requiredIf(fn () => 
+                    $this->input('included_in_club_fund') === false && 
+                    empty($this->input('qr_code_url'))
+                ),
                 'nullable', 'image', 'mimes:png,jpg,jpeg,gif', 'max:5120',
             ],
             'qr_code_id' => [

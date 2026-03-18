@@ -127,6 +127,29 @@
                                         </div>
                                     </div>
 
+                                    <!-- QR Code Section (if exists) -->
+                                    <div v-if="details.collection.qr_code_url" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden p-6">
+                                        <div class="flex items-start justify-between mb-4">
+                                            <div>
+                                                <h4 class="text-sm font-bold text-[#838799] uppercase tracking-wider mb-1">Mã QR Thanh Toán</h4>
+                                                <p class="text-xs text-gray-500">QR code đã tải lên cho đợt thu này</p>
+                                            </div>
+                                            <button 
+                                                v-if="canManage"
+                                                @click="handleRemoveQR"
+                                                class="p-2 text-gray-400 hover:text-[#D72D36] transition-colors rounded-lg hover:bg-gray-50"
+                                                v-tooltip="'Xóa mã QR'"
+                                            >
+                                                <TrashIcon class="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                        <div class="flex justify-center">
+                                            <div class="relative w-64 h-64 bg-gray-50 rounded-xl border-2 border-gray-100 overflow-hidden">
+                                                <img :src="details.collection.qr_code_url" class="w-full h-full object-contain p-2" />
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <!-- Tabs & Member Lists -->
                                     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                                         <!-- Tabs Navigation -->
@@ -444,6 +467,21 @@ const isOverdue = (endDate) => {
 const overdueDays = (endDate) => {
     if (!endDate) return 0
     return dayjs().diff(dayjs(endDate), 'day')
+}
+
+const handleRemoveQR = async () => {
+    if (!selectedCollectionId.value) return
+    
+    try {
+        // Call API to update collection and remove QR
+        await ClubService.updateFundCollection(props.clubId, selectedCollectionId.value, {
+            qr_code_url: null
+        })
+        toast.success('Đã xóa mã QR')
+        await fetchDetails()
+    } catch (error) {
+        toast.error(error.response?.data?.message || 'Không thể xóa mã QR')
+    }
 }
 
 watch(() => props.isOpen, (newVal) => {
