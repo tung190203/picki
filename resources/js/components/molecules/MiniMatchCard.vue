@@ -28,9 +28,9 @@
                 <h3
                     class="text-base leading-5 font-bold text-[#3E414C] max-w-[180px] overflow-hidden"
                     style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
-                    v-tooltip="matchTitle"
+                    v-tooltip="displayTitle"
                 >
-                    {{ matchTitle }}
+                    {{ displayTitle }}
                 </h3>
             </div>
             <div class="flex items-center gap-1.5 text-[#7D8696]">
@@ -149,6 +149,11 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:selected'])
+
+const displayTitle = computed(() => {
+    const title = typeof props.matchTitle === 'string' ? props.matchTitle.trim() : ''
+    return title || 'Trận đấu'
+})
 
 const setsToDisplay = computed(() => {
     const normalized = Array.isArray(props.sets) ? props.sets : []

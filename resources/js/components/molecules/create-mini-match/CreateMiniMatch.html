@@ -20,32 +20,6 @@
                                         <input v-model="miniMatchName" type="text" placeholder="Tên trận đấu"
                                                class="w-full px-2 py-2 my-1 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]"/>
                                     </div>
-                                    <div
-                                        class="bg-[#EDEEF2] rounded-[4px] flex items-center gap-2 text-gray-700 mb-1 overflow-visible relative"
-                                        @click.stop>
-                                        <button @click="toggleOpenDate"
-                                                class="w-full flex items-center justify-between rounded-[4px] px-2 py-1 hover:bg-gray-200 transition-colors">
-                                            <div class="flex items-center">
-                                                <div class="w-9 h-9 flex items-center justify-center">
-                                                    <CalendarDaysIcon class="w-5 h-5 text-gray-700"/>
-                                                </div>
-                                                <span class="text-sm"
-                                                      :class="{ 'text-[#BBBFCC]': !formattedDate, 'text-gray-900 font-medium': formattedDate }">
-                                                    {{ formattedDate || 'Ngày & Giờ' }}
-                                                </span>
-                                            </div>
-                                            <ChevronDownIcon class="w-5 h-5 transition-transform text-gray-700"
-                                                             :class="{ 'rotate-180': openDate }"/>
-                                        </button>
-
-                                        <Transition name="fade">
-                                            <div v-if="openDate"
-                                                 class="absolute top-full left-0 right-0 mt-2 p-4 z-50 bg-white rounded-lg shadow-lg">
-                                                <VueDatePicker v-model="date" :locale="vi" inline auto-apply
-                                                               enable-time-picker/>
-                                            </div>
-                                        </Transition>
-                                    </div>
 
                                     <div class="flex items-center gap-2 text-gray-700">
                                         <MapPinIcon class="w-5 h-5"/>

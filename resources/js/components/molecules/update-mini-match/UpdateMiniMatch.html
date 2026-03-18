@@ -5,7 +5,7 @@
              @click.self="closeModal">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[85vh] max-h-[95vh] flex flex-col">
                 <div class="flex items-start justify-between p-6 border-b min-w-0 border-gray-200 ">
-                    <h2 class="text-2xl font-semibold text-gray-800 break-words whitespace-normal max-w-full min-w-0">{{ data.name_of_match || 'Trận đấu' }}</h2>
+                    <h2 class="text-2xl font-semibold text-gray-800 break-words whitespace-normal max-w-full min-w-0">{{ data.name || 'Trận đấu' }}</h2>
                     <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
                         <XMarkIcon class="w-6 h-6" />
                     </button>
@@ -13,7 +13,7 @@
                 <div class="p-6 overflow-y-auto flex-1">
                     <div class="grid sm:grid-cols-1 lg:grid-cols-2 gap-6">
                     <div class="space-y-4">
-                            <div class="flex items-center gap-2 text-gray-700 mb-1">
+                            <div v-if="data.scheduled_at" class="flex items-center gap-2 text-gray-700 mb-1">
                                 <CalendarDaysIcon class="w-5 h-5" />
                                 <span>{{ formatEventDate(data.scheduled_at) }}</span>
                             </div>

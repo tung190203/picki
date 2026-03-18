@@ -3614,16 +3614,6 @@ endpoints:
     queryParameters: []
     cleanQueryParameters: []
     bodyParameters:
-      round:
-        name: round
-        description: ''
-        required: false
-        example: consequatur
-        type: string
-        enumValues: []
-        exampleWasSpecified: false
-        nullable: true
-        custom: []
       participant1_id:
         name: participant1_id
         description: ''
@@ -3643,26 +3633,6 @@ endpoints:
         enumValues: []
         exampleWasSpecified: false
         nullable: false
-        custom: []
-      scheduled_at:
-        name: scheduled_at
-        description: 'Must be a valid date.'
-        required: false
-        example: '2025-09-18T03:11:15'
-        type: string
-        enumValues: []
-        exampleWasSpecified: false
-        nullable: true
-        custom: []
-      referee:
-        name: referee
-        description: 'The <code>id</code> of an existing record in the referees table.'
-        required: false
-        example: null
-        type: string
-        enumValues: []
-        exampleWasSpecified: false
-        nullable: true
         custom: []
       team1_name:
         name: team1_name
@@ -3684,18 +3654,8 @@ endpoints:
         exampleWasSpecified: false
         nullable: true
         custom: []
-      yard_number:
-        name: yard_number
-        description: 'Must not be greater than 50 characters.'
-        required: false
-        example: xbajwbpilpmufinllwloa
-        type: string
-        enumValues: []
-        exampleWasSpecified: false
-        nullable: true
-        custom: []
-      name_of_match:
-        name: name_of_match
+      name:
+        name: name
         description: 'Must not be greater than 255 characters.'
         required: false
         example: uydlsmsjuryvojcybzvrb
@@ -3705,12 +3665,9 @@ endpoints:
         nullable: true
         custom: []
     cleanBodyParameters:
-      round: consequatur
-      scheduled_at: '2025-09-18T03:11:15'
       team1_name: mqeopfuudtdsufvyvddqa
       team2_name: mniihfqcoynlazghdtqtq
-      yard_number: xbajwbpilpmufinllwloa
-      name_of_match: uydlsmsjuryvojcybzvrb
+      name: uydlsmsjuryvojcybzvrb
     fileParameters: []
     responses: []
     responseFields: []
@@ -3752,16 +3709,6 @@ endpoints:
     queryParameters: []
     cleanQueryParameters: []
     bodyParameters:
-      round:
-        name: round
-        description: ''
-        required: false
-        example: consequatur
-        type: string
-        enumValues: []
-        exampleWasSpecified: false
-        nullable: true
-        custom: []
       participant1_id:
         name: participant1_id
         description: ''
@@ -3802,38 +3749,8 @@ endpoints:
         exampleWasSpecified: false
         nullable: true
         custom: []
-      scheduled_at:
-        name: scheduled_at
-        description: 'Must be a valid date.'
-        required: false
-        example: '2025-09-18T03:11:15'
-        type: string
-        enumValues: []
-        exampleWasSpecified: false
-        nullable: true
-        custom: []
-      referee:
-        name: referee
-        description: 'The <code>id</code> of an existing record in the referees table.'
-        required: false
-        example: null
-        type: string
-        enumValues: []
-        exampleWasSpecified: false
-        nullable: true
-        custom: []
-      yard_number:
-        name: yard_number
-        description: 'Must not be greater than 50 characters.'
-        required: false
-        example: xbajwbpilpmufinllwloa
-        type: string
-        enumValues: []
-        exampleWasSpecified: false
-        nullable: true
-        custom: []
-      name_of_match:
-        name: name_of_match
+      name:
+        name: name
         description: 'Must not be greater than 255 characters.'
         required: false
         example: uydlsmsjuryvojcybzvrb
@@ -3843,12 +3760,9 @@ endpoints:
         nullable: true
         custom: []
     cleanBodyParameters:
-      round: consequatur
       team1_name: mqeopfuudtdsufvyvddqa
       team2_name: mniihfqcoynlazghdtqtq
-      scheduled_at: '2025-09-18T03:11:15'
-      yard_number: xbajwbpilpmufinllwloa
-      name_of_match: uydlsmsjuryvojcybzvrb
+      name: uydlsmsjuryvojcybzvrb
     fileParameters: []
     responses: []
     responseFields: []

@@ -38,8 +38,7 @@ class MiniMatchController extends Controller
 
         $query = MiniMatch::withFullRelations()
             ->where('mini_tournament_id', $miniTournament->id)
-            ->orderBy('round')
-            ->orderBy('scheduled_at');
+            ->orderBy('created_at', 'desc');
 
         if ($filter === 'my_matches') {
             $userId = Auth::id();
@@ -93,11 +92,7 @@ class MiniMatchController extends Controller
             'team2.*' => 'exists:users,id',
             'team1_name' => 'nullable|string|max:255',
             'team2_name' => 'nullable|string|max:255',
-            'scheduled_at' => 'nullable|date',
-            'round' => 'nullable|string',
-            'referee' => 'nullable|exists:referees,id',
-            'yard_number' => 'nullable|string|max:50',
-            'name_of_match' => 'nullable|string|max:255',
+            'name' => 'nullable|string|max:255',
         ]);
 
         $team1Count = count($data['team1']);
@@ -163,18 +158,14 @@ class MiniMatchController extends Controller
             foreach ($data['team2'] as $userId) {
                 $team2->members()->create(['user_id' => $userId]);
             }
-            $matchCount = MiniMatch::where('mini_tournament_id', $miniTournament->id)->count();
-            $defaultMatchName = 'Trận đấu số ' . ($matchCount + 1);
+            $defaultMatchName = $this->generateMatchName($miniTournament);
 
             $match = MiniMatch::create([
                 'mini_tournament_id' => $miniTournament->id,
                 'team1_id' => $team1->id,
                 'team2_id' => $team2->id,
-                'scheduled_at' => $data['scheduled_at'] ?? null,
                 'status' => MiniMatch::STATUS_PENDING,
-                'round' => $data['round'] ?? null,
-                'yard_number' => $data['yard_number'] ?? null,
-                'name_of_match' => $data['name_of_match'] ?? $defaultMatchName
+                'name' => $data['name'] ?? $defaultMatchName,
             ]);
 
             DB::commit();
@@ -211,10 +202,7 @@ class MiniMatchController extends Controller
             'team2.*' => 'exists:users,id',
             'team1_name' => 'nullable|string|max:255',
             'team2_name' => 'nullable|string|max:255',
-            'scheduled_at' => 'nullable|date',
-            'round' => 'nullable|string',
-            'yard_number' => 'nullable|string|max:50',
-            'name_of_match' => 'nullable|string|max:255',
+            'name' => 'nullable|string|max:255',
         ]);
 
         // ---- CHECK MATCH TYPE ----
@@ -271,10 +259,7 @@ class MiniMatchController extends Controller
 
             // ---- UPDATE MATCH INFO ----
             $match->update([
-                'scheduled_at' => $data['scheduled_at'] ?? $match->scheduled_at,
-                'round' => $data['round'] ?? $match->round,
-                'yard_number' => $data['yard_number'] ?? $match->yard_number,
-                'name_of_match' => $data['name_of_match'] ?? $match->name_of_match,
+                'name' => $data['name'] ?? $match->name,
             ]);
 
             DB::commit();
@@ -899,14 +884,11 @@ class MiniMatchController extends Controller
             'maxLng' => self::VALIDATION_RULE,
             'per_page' => 'sometimes|integer|min:1|max:200',
             'is_map' => 'sometimes|boolean',
-            'date_from' => 'sometimes|date',
             'location_id' => 'sometimes|integer|exists:locations,id',
             'sport_id' => 'sometimes|integer|exists:sports,id',
             'keyword' => 'sometimes|string|max:255',
             'rating' => 'sometimes',
             'rating.*' => 'integer',
-            'time_of_day' => 'sometimes|array',
-            'time_of_day.*' => 'in:morning,afternoon,evening',
             'slot_status' => 'sometimes|array',
             'slot_status.*' => 'in:one_slot,two_slot,full_slot',
             'type' => 'sometimes|array',
@@ -922,7 +904,6 @@ class MiniMatchController extends Controller
         $hasFilter = collect([
             'sport_id',
             'location_id',
-            'date_from',
             'keyword',
             'lat',
             'lng',
@@ -932,7 +913,6 @@ class MiniMatchController extends Controller
             'fee',
             'min_price',
             'max_price',
-            'time_of_day',
             'slot_status'
         ])->some(fn($key) => $request->filled($key));
 
@@ -1053,9 +1033,7 @@ class MiniMatchController extends Controller
             'team2.*' => 'exists:users,id',
             'team1_name' => 'nullable|string|max:255',
             'team2_name' => 'nullable|string|max:255',
-            'scheduled_at' => 'nullable|date',
-            'round' => 'nullable|string',
-            'name_of_match' => 'nullable|string|max:255',
+            'name' => 'nullable|string|max:255',
             'sets' => 'nullable|array',
             'sets.*.set_number' => 'required_with:sets|integer|min:1',
             'sets.*.results' => 'required_with:sets|array|size:2',
@@ -1102,9 +1080,7 @@ class MiniMatchController extends Controller
                 }
 
                 $match->update([
-                    'scheduled_at' => $data['scheduled_at'] ?? $match->scheduled_at,
-                    'round' => $data['round'] ?? $match->round,
-                    'name_of_match' => $data['name_of_match'] ?? $match->name_of_match,
+                    'name' => $data['name'] ?? $match->name,
                 ]);
             } else {
                 $allUserIds = array_unique(array_merge($data['team1'], $data['team2']));
@@ -1140,11 +1116,8 @@ class MiniMatchController extends Controller
                     'mini_tournament_id' => $miniTournament->id,
                     'team1_id' => $team1->id,
                     'team2_id' => $team2->id,
-                    'scheduled_at' => $data['scheduled_at'] ?? null,
                     'status' => MiniMatch::STATUS_PENDING,
-                    'round' => $data['round'] ?? null,
-                    'yard_number' => '1',
-                    'name_of_match' => $data['name_of_match'] ?? $this->generateMatchName($miniTournament),
+                    'name' => $data['name'] ?? $this->generateMatchName($miniTournament),
                 ]);
             }
 
