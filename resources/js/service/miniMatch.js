@@ -35,3 +35,7 @@ export const createMiniMatch = async(mini_tournament_id, data) => {
     return axiosInstance.post(`${miniMatchEndpoint}/store/${mini_tournament_id}`, data).then((response) => response.data.data);
 }
 
+export const saveMiniMatch = async(mini_tournament_id, data) => {
+    return axiosInstance.post(`${miniMatchEndpoint}/save/${mini_tournament_id}`, data).then((response) => response.data.data);
+}
+

@@ -27,16 +27,12 @@ class MiniMatchResource extends JsonResource
 
         return [
             'id' => $this->id,
-            'name_of_match' => $this->name_of_match,
+            'name' => $this->name,
             'mini_tournament_id' => $this->mini_tournament_id,
-            'round' => $this->round,
             'team1' => new MiniTeamResource($this->whenLoaded('team1')),
             'team2' => new MiniTeamResource($this->whenLoaded('team2')),
-            'scheduled_at' => $this->scheduled_at,
-            'referee_id' => $this->referee_id,
             'status' => $this->status,
             'team_win_id' => $this->team_win_id,
-            'yard_number' => $this->yard_number,
             'results_by_sets' => $groupedResults,
             'competition_location' => $this->whenLoaded('miniTournament', function () {
                 return optional(optional($this->miniTournament)->competitionLocation)?->only(['id', 'name', 'latitude', 'longitude']);

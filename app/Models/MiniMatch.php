@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Carbon;
 use Illuminate\Notifications\Notifiable;
 
 class MiniMatch extends Model
@@ -13,20 +12,16 @@ class MiniMatch extends Model
 
     protected $fillable = [
         'mini_tournament_id',
-        'round',
         'team1_id',
         'team2_id',
         'participant1_id',
         'participant2_id',
-        'scheduled_at',
-        'referee_id',
         'status',
         'participant_win_id',
         'team_win_id',
         'team1_confirm',
         'team2_confirm',
-        'yard_number',
-        'name_of_match',
+        'name',
     ];
 
     const PER_PAGE = 10;
@@ -129,7 +124,7 @@ class MiniMatch extends Model
             )
             ->when(
                 !empty($filters['keyword']),
-                fn($q) => $q->where('name_of_match', 'like', '%' . $filters['keyword'] . '%')
+                fn($q) => $q->where('name', 'like', '%' . $filters['keyword'] . '%')
                     ->orWhereHas('miniTournament', function ($sub) use ($filters) {
                         $sub->where('name', 'like', '%' . $filters['keyword'] . '%')
                             ->orWhereHas('competitionLocation', function ($locSub) use ($filters) {
@@ -141,13 +136,6 @@ class MiniMatch extends Model
                                     );
                             });
                     })
-            )
-            ->when(
-                !empty($filters['date_from']),
-                fn($q) => $q->whereBetween('scheduled_at', [
-                    Carbon::parse($filters['date_from'])->startOfDay(),
-                    Carbon::parse($filters['date_from'])->endOfDay()
-                ])
             )
             ->when(
                 !empty($filters['type']) && is_array($filters['type']),
@@ -195,25 +183,6 @@ class MiniMatch extends Model
                                 $subQuery->orWhereHas('miniTournament', function ($tq) use ($filters) {
                                     $tq->whereBetween('fee_amount', [$filters['min_price'], $filters['max_price']]);
                                 });
-                            }
-                        }
-                    });
-                }
-            )
-            ->when(
-                !empty($filters['time_of_day']) && is_array($filters['time_of_day']),
-                function ($q) use ($filters) {
-                    $q->where(function ($subQuery) use ($filters) {
-                        foreach ($filters['time_of_day'] as $timeOfDay) {
-                            if ($timeOfDay === 'morning') {
-                                $subQuery->orWhereTime('scheduled_at', '<', '11:00:00');
-                            } elseif ($timeOfDay === 'afternoon') {
-                                $subQuery->orWhere(function ($timeQuery) {
-                                    $timeQuery->whereTime('scheduled_at', '>=', '11:00:00')
-                                              ->whereTime('scheduled_at', '<', '16:00:00');
-                                });
-                            } elseif ($timeOfDay === 'evening') {
-                                $subQuery->orWhereTime('scheduled_at', '>=', '16:00:00');
                             }
                         }
                     });
