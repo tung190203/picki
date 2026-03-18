@@ -270,7 +270,7 @@
                             <NotificationCard v-for="(notification, index) in pinnedNotifications" :key="index"
                                 :data="notification"
                                 :is-admin="hasAnyRole(['admin', 'manager', 'secretary'])"
-                                @unpin="handleUnpinNotification" 
+                                @unpin="handleUnpinNotification"
                                 @pin="handlePinNotification"
                                 @click="handleNotificationClick(notification)" />
                         </template>
@@ -409,7 +409,7 @@
             <!-- Activity Schedule Modal -->
             <ClubActivityModal :is-open="isActivityModalOpen" :thumbnail="Thumbnail"
                 :upcoming-activities="upcomingActivities" :history-activities="historyActivities"
-                :next-match="nextMatch" :countdown="countdownText" 
+                :next-match="nextMatch" :countdown="countdownText"
                 :is-loading-upcoming="isLoadingMoreUpcoming" :is-loading-history="isLoadingMoreHistory"
                 :has-more-upcoming="currentUpcomingPage < upcomingMeta.last_page"
                 :has-more-history="currentHistoryPage < historyMeta.last_page"
@@ -1136,7 +1136,7 @@ const handleUpdateIntro = async (newDescription) => {
     try {
         const formData = new FormData()
         formData.append('description', newDescription)
-        
+
         await ClubService.updateClub(clubId.value, formData)
         await getClubDetail()
         toast.success('Cập nhật giới thiệu thành công')
@@ -1840,7 +1840,7 @@ onMounted(async () => {
         return;
     }
     await loadAllData()
-    
+
     timeInterval = setInterval(() => {
         currentTime.value = dayjs()
     }, 1000)

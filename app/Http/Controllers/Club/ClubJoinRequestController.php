@@ -71,7 +71,11 @@ class ClubJoinRequestController extends Controller
     {
         $member = ClubMember::where('club_id', $clubId)
             ->with(['user' => User::FULL_RELATIONS, 'club', 'reviewer', 'inviter'])
-            ->findOrFail($requestId);
+            ->find($requestId);
+
+        if (!$member) {
+            return ResponseHelper::error('Không tìm thấy yêu cầu tham gia trong CLB này', 404);
+        }
 
         return ResponseHelper::success(new ClubMemberResource($member), 'Lấy chi tiết yêu cầu thành công');
     }
@@ -117,7 +121,11 @@ class ClubJoinRequestController extends Controller
 
             $member = ClubMember::where('club_id', $clubId)
                 ->where('membership_status', \App\Enums\ClubMembershipStatus::Pending)
-                ->findOrFail($requestId);
+                ->find($requestId);
+
+            if (!$member) {
+                return ResponseHelper::error('Không tìm thấy yêu cầu tham gia đang chờ duyệt trong CLB này', 404);
+            }
         }
 
         try {
@@ -155,7 +163,11 @@ class ClubJoinRequestController extends Controller
 
             $member = ClubMember::where('club_id', $clubId)
                 ->where('membership_status', \App\Enums\ClubMembershipStatus::Pending)
-                ->findOrFail($requestId);
+                ->find($requestId);
+
+            if (!$member) {
+                return ResponseHelper::error('Không tìm thấy yêu cầu tham gia đang chờ duyệt trong CLB này', 404);
+            }
         }
 
         try {

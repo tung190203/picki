@@ -72,14 +72,22 @@ class ClubMemberController extends Controller
     {
         $member = ClubMember::where('club_id', $clubId)
             ->with(['user' => User::FULL_RELATIONS, 'club', 'reviewer'])
-            ->findOrFail($memberId);
+            ->find($memberId);
+
+        if (!$member) {
+            return ResponseHelper::error('Không tìm thấy thành viên trong CLB này', 404);
+        }
 
         return ResponseHelper::success(new ClubMemberResource($member), 'Lấy thông tin thành viên thành công');
     }
 
     public function update(UpdateMemberRequest $request, $clubId, $memberId)
     {
-        $member = ClubMember::where('club_id', $clubId)->findOrFail($memberId);
+        $member = ClubMember::where('club_id', $clubId)->find($memberId);
+
+        if (!$member) {
+            return ResponseHelper::error('Không tìm thấy thành viên trong CLB này', 404);
+        }
         $userId = auth()->id();
         $club = $member->club;
 
@@ -105,7 +113,11 @@ class ClubMemberController extends Controller
 
     public function destroy($clubId, $memberId)
     {
-        $member = ClubMember::where('club_id', $clubId)->findOrFail($memberId);
+        $member = ClubMember::where('club_id', $clubId)->find($memberId);
+
+        if (!$member) {
+            return ResponseHelper::error('Không tìm thấy thành viên trong CLB này', 404);
+        }
         $userId = auth()->id();
         $club = $member->club;
 

@@ -190,10 +190,8 @@ class ClubFundContributionService
      */
     public function markMemberPaid(ClubFundCollection $collection, int $memberUserId, int $confirmerId): ClubFundContribution
     {
-        if (!$collection->club_activity_id) {
-            throw new \Exception('Chỉ áp dụng cho đợt thu từ sự kiện');
-        }
-
+        // Cho phép mark-paid cho tất cả fund collection (không chỉ từ activity)
+        
         $assigned = $collection->assignedMembers()->where('user_id', $memberUserId)->first();
         if (!$assigned) {
             throw new \Exception('Thành viên không có trong danh sách thu');
@@ -225,10 +223,10 @@ class ClubFundContributionService
                 'status' => ClubFundContributionStatus::Confirmed,
             ]);
 
+            $club = $collection->club;
             $includedInClubFund = $collection->included_in_club_fund ?? true;
 
             if ($includedInClubFund) {
-                $club = $collection->club;
                 $mainWallet = $club->mainWallet;
                 if (!$mainWallet) {
                     $mainWallet = $this->walletService->createWallet($club, ['currency' => 'VND']);

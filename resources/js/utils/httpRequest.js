@@ -99,7 +99,12 @@ axiosInstance.interceptors.response.use(
     }
 
     if (error.response?.status === 404) {
-      router.push({ name: "not-found" });
+      const method = (originalRequest?.method || "").toUpperCase();
+      // Chỉ redirect sang trang not-found cho các request GET (ví dụ load page),
+      // còn các POST/PUT/DELETE sẽ để component tự xử lý lỗi (toast message, v.v.)
+      if (method === "GET") {
+        router.push({ name: "not-found" });
+      }
     }
 
     return Promise.reject(error);

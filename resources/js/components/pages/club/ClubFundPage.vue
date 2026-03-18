@@ -1176,8 +1176,8 @@ const handleSubmitFundRevenue = async (data) => {
         });
     }
 
-    // Only attach qr_image when the collection has its own QR (not using main club QR)
-    if (!data.included_in_club_fund && data.qr_image) {
+    // Luôn gửi qr_image nếu có (để làm fallback khi CLB chưa có QR chung)
+    if (data.qr_image) {
         formData.append('qr_image', data.qr_image);
     }
 
