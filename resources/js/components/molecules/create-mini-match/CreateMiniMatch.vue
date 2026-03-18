@@ -13,6 +13,7 @@ import VueDatePicker from "@vuepic/vue-datepicker";
 import {ChevronDownIcon} from "@heroicons/vue/24/solid/index.js";
 import { useFormattedDate } from '@/composables/formatedDate'
 import InviteUserParticipant from '@/components/molecules/InviteUserParticipant.vue'
+import RefereeScoringScreen from '@/components/molecules/referee-scoring/RefereeScoringScreen.vue'
 import { format } from 'date-fns'
 
 export default {
@@ -29,18 +30,20 @@ export default {
         MapPinIcon,
         QrcodeVue,
         UserCard,
-        InviteUserParticipant
+        InviteUserParticipant,
+        RefereeScoringScreen
     },
     props: {
         modelValue: Boolean,
         miniTournament: { type: Object, required: true },
-        isCreator: Boolean
+        isCreator: Boolean,
+        editMatch: { type: Object, default: null },
+        matchCount: { type: Number, default: 0 }
     },
 
     setup(props, {emit}) {
         const isSaving = ref(false)
         const miniMatchName = ref('')
-        const yardNumber = ref(1)
         const date = ref(null)
         const text_team1 = ref('Team 1')
         const text_team2 = ref('Team 2')
@@ -52,6 +55,9 @@ export default {
         const openDate = ref(false)
         const { formattedDate } = useFormattedDate(date)
 
+        const scores = ref([{ team1: 0, team2: 0 }])
+        const showRefereeScreen = ref(false)
+        const currentMatchId = ref(null)
 
         const isOpen = computed({
             get: () => props.modelValue,
@@ -60,11 +66,6 @@ export default {
 
         const closeModal = () => {
             if (!isSaving.value) isOpen.value = false
-        }
-
-        const incrementYard = () => yardNumber.value++
-        const decrementYard = () => {
-            if (yardNumber.value > 1) yardNumber.value--
         }
 
         const closeOtherDropdowns = (exceptRef) => {
@@ -100,14 +101,10 @@ export default {
 
         const emptySlots = (team) => {
             const totalSlots = playersPerTeam.value
-
-            const members =
-                team === 'team1'
-                    ? team1Users.value.length
-                    : team2Users.value.length
-
+            const members = team === 'team1'
+                ? team1Users.value.length
+                : team2Users.value.length
             const slots = totalSlots - members
-
             return slots > 0
                 ? Array.from({ length: slots }, (_, i) => i + 1)
                 : []
@@ -124,18 +121,24 @@ export default {
             } else if (selectingTeam.value === 'team2') {
                 team2Users.value.push(user)
             }
-
             showUserModal.value = false
         }
 
+        const defaultMatchName = computed(() => {
+            const count = props.matchCount + 1
+            const name = props.miniTournament?.name || ''
+            return `Trận ${count} kèo ${name}`
+        })
+
         const resetForm = () => {
-            miniMatchName.value = ''
-            yardNumber.value = 1
+            miniMatchName.value = defaultMatchName.value
             date.value = null
             team1Users.value = []
             team2Users.value = []
             text_team1.value = 'Team 1'
             text_team2.value = 'Team 2'
+            scores.value = [{ team1: 0, team2: 0 }]
+            currentMatchId.value = null
         }
 
         const scheduledAt = computed(() => {
@@ -143,90 +146,195 @@ export default {
             return format(new Date(date.value), 'yyyy-MM-dd HH:mm:ss')
         })
 
-        const saveMiniMatch = async () => {
-            if (isSaving.value) return
+        const maxPoints = computed(() => props.miniTournament?.max_points || 30)
 
-            /* ========= VALIDATE ========= */
-            if (!miniMatchName.value.trim()) {
-                toast.error('Vui lòng nhập tên trận đấu')
-                return
-            }
+        const incrementScore = (idx, team) => {
+            if (team === '1' && scores.value[idx].team1 < maxPoints.value) scores.value[idx].team1++
+            if (team === '2' && scores.value[idx].team2 < maxPoints.value) scores.value[idx].team2++
+        }
 
-            if (!date.value) {
-                toast.error('Vui lòng chọn ngày & giờ')
-                return
-            }
+        const decrementScore = (idx, team) => {
+            if (team === '1' && scores.value[idx].team1 > 0) scores.value[idx].team1--
+            if (team === '2' && scores.value[idx].team2 > 0) scores.value[idx].team2--
+        }
 
-            if (text_team1.value.trim() === text_team2.value.trim()) {
-                toast.error('Vui lòng nhập không trùng tên đội')
-                return
-            }
+        const addSet = () => {
+            scores.value.push({ team1: 0, team2: 0 })
+        }
 
-            if (team1Users.value.length === 0 || team2Users.value.length === 0) {
-                toast.error('Mỗi đội phải có ít nhất 1 người chơi')
-                return
-            }
+        const removeSet = (idx) => {
+            if (scores.value.length > 1) scores.value.splice(idx, 1)
+        }
+
+        const hasScores = computed(() => {
+            return scores.value.some(s => s.team1 > 0 || s.team2 > 0)
+        })
+
+        const formatSetsForAPI = () => {
+            return scores.value
+                .filter(s => s.team1 > 0 || s.team2 > 0)
+                .map((score, idx) => ({
+                    set_number: idx + 1,
+                    results: [
+                        { team: 'team1', score: Number(score.team1) },
+                        { team: 'team2', score: Number(score.team2) }
+                    ]
+                }))
+        }
+
+        const buildPayload = () => {
             const payload = {
                 name_of_match: miniMatchName.value,
-                yard_number: String(yardNumber.value),
                 scheduled_at: scheduledAt.value,
                 team1_name: text_team1.value,
                 team2_name: text_team2.value,
                 team1: team1Users.value.map(u => u.id),
                 team2: team2Users.value.map(u => u.id),
-                mini_tournament_id: props.miniTournament.id
+            }
+
+            if (currentMatchId.value) {
+                payload.match_id = currentMatchId.value
+            }
+
+            const sets = formatSetsForAPI()
+            if (sets.length > 0) {
+                payload.sets = sets
+            }
+
+            return payload
+        }
+
+        const saveMiniMatch = async () => {
+            if (isSaving.value) return
+
+            if (team1Users.value.length === 0 || team2Users.value.length === 0) {
+                toast.error('Mỗi đội phải có ít nhất 1 người chơi')
+                return
             }
 
             isSaving.value = true
 
             try {
-                const res = await MiniMatchService.createMiniMatch(props.miniTournament.id, payload)
-                toast.success('Thêm mới trận đấu thành công!')
-                isOpen.value = false
-                emit('created', res.data)
-                resetForm()
-                closeModal()
+                const payload = buildPayload()
+                const res = await MiniMatchService.saveMiniMatch(props.miniTournament.id, payload)
+                toast.success(currentMatchId.value ? 'Cập nhật trận đấu thành công!' : 'Tạo trận đấu thành công!')
 
+                if (!currentMatchId.value && res?.id) {
+                    currentMatchId.value = res.id
+                }
+
+                emit('created', res)
             } catch (error) {
-                toast.error(error.response?.data?.message || 'Tạo trận đấu thất bại')
+                toast.error(error.response?.data?.message || 'Lưu trận đấu thất bại')
             } finally {
                 isSaving.value = false
             }
         }
 
+        const confirmMiniMatch = async () => {
+            if (isSaving.value) return
+
+            if (!hasScores.value) {
+                toast.error('Vui lòng nhập kết quả trước khi xác nhận')
+                return
+            }
+
+            isSaving.value = true
+
+            try {
+                const payload = buildPayload()
+                const res = await MiniMatchService.saveMiniMatch(props.miniTournament.id, payload)
+
+                const matchId = currentMatchId.value || res?.id
+                if (matchId) {
+                    await MiniMatchService.confirmResults(matchId)
+                    toast.success('Xác nhận kết quả thành công!')
+                    isOpen.value = false
+                    emit('created', res)
+                    resetForm()
+                }
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Xác nhận thất bại')
+            } finally {
+                isSaving.value = false
+            }
+        }
+
+        const openRefereeScreen = () => {
+            if (team1Users.value.length === 0 || team2Users.value.length === 0) {
+                toast.error('Vui lòng chọn đội trước khi nhập điểm trọng tài')
+                return
+            }
+            showRefereeScreen.value = true
+        }
+
+        const onRefereeDone = (refereeScores) => {
+            scores.value = refereeScores.map(s => ({
+                team1: s.team1,
+                team2: s.team2
+            }))
+            showRefereeScreen.value = false
+        }
+
+        const onRefereeBack = () => {
+            showRefereeScreen.value = false
+        }
+
+        const team1ForReferee = computed(() => ({
+            name: text_team1.value,
+            members: team1Users.value.map(u => ({ user: u }))
+        }))
+
+        const team2ForReferee = computed(() => ({
+            name: text_team2.value,
+            members: team2Users.value.map(u => ({ user: u }))
+        }))
+
         watch(
-            () => props.miniTournament,
+            () => props.modelValue,
             (val) => {
-                if (!val) return
-
-                confirmedUsers.value = (val.participants || [])
-                    .filter(p => p.is_confirmed)
-                    .map(p => p.user)
-
-                const team1Ids = team1Users.value.map(u => u.id)
-                const team2Ids = team2Users.value.map(u => u.id)
-
-                selectableUsers.value = confirmedUsers.value.filter(
-                    user =>
-                        !team1Ids.includes(user.id) &&
-                        !team2Ids.includes(user.id)
-                )
-            },
-            {
-                immediate: true,
-                deep: true
+                if (val && !props.editMatch) {
+                    miniMatchName.value = defaultMatchName.value
+                }
             }
         )
 
+        watch(
+            () => props.editMatch,
+            (match) => {
+                if (!match) return
+                currentMatchId.value = match.id
+                miniMatchName.value = match.name_of_match || ''
+                date.value = match.scheduled_at ? new Date(match.scheduled_at) : null
+                text_team1.value = match.team1?.name || 'Team 1'
+                text_team2.value = match.team2?.name || 'Team 2'
+                team1Users.value = match.team1?.members?.map(m => m.user) || []
+                team2Users.value = match.team2?.members?.map(m => m.user) || []
+
+                if (match.results_by_sets) {
+                    const r = match.results_by_sets
+                    const sets = []
+                    Object.keys(r).forEach((key) => {
+                        const arr = r[key]
+                        if (!Array.isArray(arr)) return
+                        let t1Score = 0, t2Score = 0
+                        arr.forEach(item => {
+                            if (item.team?.id === match.team1?.id) t1Score = Number(item.score)
+                            if (item.team?.id === match.team2?.id) t2Score = Number(item.score)
+                        })
+                        sets.push({ team1: t1Score, team2: t2Score })
+                    })
+                    if (sets.length > 0) scores.value = sets
+                }
+            },
+            { deep: true }
+        )
 
         return {
             CalendarDaysIcon,
             isOpen,
             closeModal,
             props,
-            incrementYard,
-            decrementYard,
-            yardNumber,
             toggleOpenDate,
             formattedDate,
             openDate,
@@ -245,7 +353,22 @@ export default {
             selectableUsers,
             showUserModal,
             saveMiniMatch,
-            miniMatchName
+            confirmMiniMatch,
+            miniMatchName,
+            scores,
+            incrementScore,
+            decrementScore,
+            addSet,
+            removeSet,
+            hasScores,
+            showRefereeScreen,
+            openRefereeScreen,
+            onRefereeDone,
+            onRefereeBack,
+            team1ForReferee,
+            team2ForReferee,
+            currentMatchId,
+            maxPoints
         }
     }
 }

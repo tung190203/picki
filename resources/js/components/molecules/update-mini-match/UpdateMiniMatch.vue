@@ -9,6 +9,7 @@ import QrcodeVue from 'qrcode.vue'
 import { toast } from 'vue3-toastify'
 import * as MiniMatchService from '@/service/miniMatch.js';
 import UserCard from '@/components/molecules/UserCard.vue'
+import RefereeScoringScreen from '@/components/molecules/referee-scoring/RefereeScoringScreen.vue'
 
 export default {
     name: 'UpdateMiniMatch',
@@ -21,7 +22,8 @@ export default {
         CalendarDaysIcon,
         MapPinIcon,
         QrcodeVue,
-        UserCard
+        UserCard,
+        RefereeScoringScreen
     },
     props: {
         modelValue: {
@@ -46,20 +48,15 @@ export default {
     emit: ['update:modelValue', 'updated'],
 
     setup(props, { emit }) {
-        const yardNumber = ref(1)
         const scores = ref([])
         const isSaving = ref(false)
+        const showRefereeScreen = ref(false)
 
-        const incrementYard = () => yardNumber.value++
-        const decrementYard = () => {
-            if (yardNumber.value > 1) yardNumber.value--
-        }
+        const maxPoints = computed(() => props.miniTournament?.max_points || 30)
 
         const incrementScore = (idx, team) => {
-            const maxPoints =
-                props.miniTournament?.max_points || 11
-            if (team === '1' && scores.value[idx].team1 < maxPoints) scores.value[idx].team1++
-            if (team === '2' && scores.value[idx].team2 < maxPoints) scores.value[idx].team2++
+            if (team === '1' && scores.value[idx].team1 < maxPoints.value) scores.value[idx].team1++
+            if (team === '2' && scores.value[idx].team2 < maxPoints.value) scores.value[idx].team2++
         }
 
         const decrementScore = (idx, team) => {
@@ -82,7 +79,6 @@ export default {
         })
 
         const addSet = () => {
-            // if (!isMaxSets.value) scores.value.push({ team1: 0, team2: 0 })
             scores.value.push({ team1: 0, team2: 0 })
         }
 
@@ -90,21 +86,18 @@ export default {
             if (scores.value.length > 1) scores.value.splice(idx, 1)
         }
 
-        const formatResultsForAPI = () => {
-            return scores.value.map((score, idx) => ({
-                set_number: idx + 1,
-                results: [
-                    {
-                        team_id: props.data.team1.id,
-                        score: score.team1
-                    },
-                    {
-                        team_id: props.data.team2.id,
-                        score: score.team2
-                    }
-                ]
-            }))
+        const formatSetsForAPI = () => {
+            return scores.value
+                .filter(s => s.team1 > 0 || s.team2 > 0)
+                .map((score, idx) => ({
+                    set_number: idx + 1,
+                    results: [
+                        { team: 'team1', score: Number(score.team1) },
+                        { team: 'team2', score: Number(score.team2) }
+                    ]
+                }))
         }
+
         const initializeScores = () => {
             if (currentMiniMatch.value?.results_by_sets) {
                 const r = currentMiniMatch.value?.results_by_sets
@@ -118,22 +111,15 @@ export default {
                     const arr = r[key]
                     if (!Array.isArray(arr)) return
 
-                    let team1Score = '0'
-                    let team2Score = '0'
+                    let team1Score = 0
+                    let team2Score = 0
 
                     arr.forEach(item => {
-                        if (item.team?.id === team1Id) {
-                            team1Score = String(item.score)
-                        }
-                        if (item.team?.id === team2Id) {
-                            team2Score = String(item.score)
-                        }
+                        if (item.team?.id === team1Id) team1Score = Number(item.score)
+                        if (item.team?.id === team2Id) team2Score = Number(item.score)
                     })
 
-                    sets.push({
-                        team1: team1Score,
-                        team2: team2Score
-                    })
+                    sets.push({ team1: team1Score, team2: team2Score })
                 })
 
                 return sets;
@@ -146,14 +132,23 @@ export default {
             try {
                 isSaving.value = true
 
+                const sets = formatSetsForAPI()
                 const payload = {
-                    yard_number: yardNumber.value,
-                    sets: formatResultsForAPI()
+                    match_id: currentMiniMatch.value.id,
+                    team1: props.data.team1?.members?.map(m => m.user.id) || [],
+                    team2: props.data.team2?.members?.map(m => m.user.id) || [],
+                    team1_name: props.data.team1?.name,
+                    team2_name: props.data.team2?.name,
                 }
 
-                const res = await MiniMatchService.updateOrCreateSetMiniMatches(currentMiniMatch.value.id, payload)
+                if (sets.length > 0) {
+                    payload.sets = sets
+                }
+
+                const tournamentId = props.data.mini_tournament_id || props.miniTournament?.id
+                const res = await MiniMatchService.saveMiniMatch(tournamentId, payload)
                 toast.success('Cập nhật kết quả thành công!')
-                emit('updated', res.data)
+                emit('updated', res)
                 isOpen.value = false
             } catch (err) {
                 toast.error(err.response?.data?.message || 'Lỗi khi cập nhật')
@@ -161,6 +156,7 @@ export default {
                 isSaving.value = false
             }
         }
+
         const canConfirmMiniMatch = computed(() =>
             scores.value.some(s => s.team1 > 0 || s.team2 > 0)
         )
@@ -169,6 +165,21 @@ export default {
             if (isSaving.value || !canConfirmMiniMatch.value) return
             try {
                 isSaving.value = true
+
+                const sets = formatSetsForAPI()
+                if (sets.length > 0) {
+                    const payload = {
+                        match_id: currentMiniMatch.value.id,
+                        team1: props.data.team1?.members?.map(m => m.user.id) || [],
+                        team2: props.data.team2?.members?.map(m => m.user.id) || [],
+                        team1_name: props.data.team1?.name,
+                        team2_name: props.data.team2?.name,
+                        sets: sets,
+                    }
+                    const tournamentId = props.data.mini_tournament_id || props.miniTournament?.id
+                    await MiniMatchService.saveMiniMatch(tournamentId, payload)
+                }
+
                 const res = await MiniMatchService.confirmResults(currentMiniMatch.value.id)
                 toast.success('Xác nhận kết quả thành công!')
                 emit('updated', res)
@@ -180,7 +191,6 @@ export default {
             }
         }
 
-        /* ===================== UI HELPERS ===================== */
         const closeModal = () => {
             if (!isSaving.value) isOpen.value = false
         }
@@ -195,11 +205,29 @@ export default {
             return slots > 0 ? Array.from({ length: slots }, (_, i) => i + 1) : []
         }
 
+        const openRefereeScreen = () => {
+            showRefereeScreen.value = true
+        }
+
+        const onRefereeDone = (refereeScores) => {
+            scores.value = refereeScores.map(s => ({
+                team1: s.team1,
+                team2: s.team2
+            }))
+            showRefereeScreen.value = false
+        }
+
+        const onRefereeBack = () => {
+            showRefereeScreen.value = false
+        }
+
+        const team1ForReferee = computed(() => props.data.team1 || { name: 'Team 1', members: [] })
+        const team2ForReferee = computed(() => props.data.team2 || { name: 'Team 2', members: [] })
+
         watch(
             () => props.data,
             () => {
                 scores.value = initializeScores()
-                yardNumber.value = currentMiniMatch.value?.yard_number || 1
             },
             { deep: true }
         )
@@ -218,9 +246,6 @@ export default {
             isOpen,
             isSaving,
             currentMiniMatch,
-            yardNumber,
-            incrementYard,
-            decrementYard,
             scores,
             initializeScores,
             qrCodeUrl,
@@ -228,12 +253,18 @@ export default {
             decrementScore,
             addSet,
             removeSet,
-            formatResultsForAPI,
             saveMiniMatch,
             canConfirmMiniMatch,
             confirmMiniMatchResult,
             closeModal,
-            emptySlots
+            emptySlots,
+            showRefereeScreen,
+            openRefereeScreen,
+            onRefereeDone,
+            onRefereeBack,
+            team1ForReferee,
+            team2ForReferee,
+            maxPoints
         }
     }
 }

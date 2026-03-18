@@ -1,11 +1,11 @@
 <Teleport to="body">
     <Transition name="modal">
-        <div v-if="isOpen"
+        <div v-if="isOpen && !showRefereeScreen"
              class="fixed inset-0 bg-black backdrop-blur-[1px] bg-opacity-50 flex items-center justify-center z-50 p-4"
              @click.self="closeModal">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[85vh] max-h-[95vh] flex flex-col">
                 <div class="flex items-center justify-between p-6 border-b border-gray-200">
-                    <h2 class="text-2xl font-semibold text-gray-800">{{ 'Trận đấu' }}</h2>
+                    <h2 class="text-2xl font-semibold text-gray-800">{{ currentMatchId ? 'Sửa trận đấu' : 'Trận đấu' }}</h2>
                     <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
                         <XMarkIcon class="w-6 h-6"/>
                     </button>
@@ -19,24 +19,6 @@
                                     <div>
                                         <input v-model="miniMatchName" type="text" placeholder="Tên trận đấu"
                                                class="w-full px-2 py-2 my-1 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]"/>
-                                    </div>
-                                    <div class="flex items-center justify-between gap-3">
-                                        <div class="flex items-center gap-2">
-                                            <ClipboardIcon class="w-6 h-6"/>
-                                            <span class="text-gray-700">Sân số</span>
-                                        </div>
-                                        <div class="flex items-center gap-2">
-                                            <button @click="decrementYard"
-                                                    class="w-8 h-8 flex items-center justify-center bg-gray-800 text-white rounded hover:bg-gray-700 transition-colors">
-                                                <span class="text-lg">−</span>
-                                            </button>
-                                            <input v-model.number="yardNumber" type="text"
-                                                   class="w-16 text-center border border-gray-300 rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-                                            <button @click="incrementYard"
-                                                    class="w-8 h-8 flex items-center justify-center bg-gray-800 text-white rounded hover:bg-gray-700 transition-colors">
-                                                <span class="text-lg">+</span>
-                                            </button>
-                                        </div>
                                     </div>
                                     <div
                                         class="bg-[#EDEEF2] rounded-[4px] flex items-center gap-2 text-gray-700 mb-1 overflow-visible relative"
@@ -72,7 +54,58 @@
                                             }}</span>
                                     </div>
                                 </div>
+                            </div>
 
+                            <div class="bg-white rounded-[8px] p-5" v-if="isCreator">
+                                <label class="block text-sm font-semibold text-gray-700 mb-3">Kết quả</label>
+
+                                <div v-for="(score, index) in scores" :key="index" class="mb-4">
+                                    <div class="grid grid-cols-[2fr_1fr_2fr] gap-4 items-center">
+                                        <div class="border border-1 border-[#DCDEE6] rounded-lg p-3">
+                                            <button @click="incrementScore(index, '1')"
+                                                    class="w-full bg-[#EDEEF2] rounded px-3 py-2 text-gray-600 hover:bg-gray-300 transition-colors mb-2 flex items-center justify-center">
+                                                <PlusIcon class="w-5 h-5" />
+                                            </button>
+                                            <div class="text-center text-2xl font-bold mb-2">{{ score.team1 }}</div>
+                                            <button @click="decrementScore(index, '1')"
+                                                    class="w-full bg-[#EDEEF2] rounded px-3 py-2 text-gray-600 hover:bg-gray-300 transition-colors flex items-center justify-center">
+                                                <MinusIcon class="w-5 h-5" />
+                                            </button>
+                                        </div>
+
+                                        <div class="flex flex-col items-center gap-2">
+                                            <span class="text-sm font-semibold">Set {{ index + 1 }}</span>
+                                            <button v-if="scores.length > 1" @click="removeSet(index)"
+                                                    class="text-red-500 hover:text-red-700 transition-colors">
+                                                <XMarkIcon class="w-5 h-5" />
+                                            </button>
+                                        </div>
+
+                                        <div class="border border-1 border-[#DCDEE6] rounded-lg p-3">
+                                            <button @click="incrementScore(index, '2')"
+                                                    class="w-full bg-[#EDEEF2] rounded px-3 py-2 text-gray-600 hover:bg-gray-300 transition-colors mb-2 flex items-center justify-center">
+                                                <PlusIcon class="w-5 h-5" />
+                                            </button>
+                                            <div class="text-center text-2xl font-bold mb-2">{{ score.team2 }}</div>
+                                            <button @click="decrementScore(index, '2')"
+                                                    class="w-full bg-[#EDEEF2] rounded px-3 py-2 text-gray-600 hover:bg-gray-300 transition-colors flex items-center justify-center">
+                                                <MinusIcon class="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button @click="addSet"
+                                        class="w-full flex justify-center items-center gap-2 border p-3 rounded-lg text-[#838799] hover:bg-gray-100 transition-colors mb-4">
+                                    <PlusIcon class="w-5 h-5" />
+                                    <span class="text-sm font-semibold">Thêm hiệp</span>
+                                </button>
+
+                                <button @click="openRefereeScreen"
+                                        class="w-full flex justify-center items-center gap-2 border-2 border-red-400 p-3 rounded-lg text-red-500 hover:bg-red-50 transition-colors font-semibold">
+                                    <ClipboardIcon class="w-5 h-5" />
+                                    <span class="text-sm">Nhập điểm trọng tài</span>
+                                </button>
                             </div>
                         </div>
                         <div class="space-y-4">
@@ -129,6 +162,11 @@
                             {{ isSaving ? 'Đang lưu...' : 'Lưu' }}
                         </button>
 
+                        <button v-if="isCreator && hasScores" @click="confirmMiniMatch" :disabled="isSaving"
+                                class="flex items-center justify-center gap-2 px-12 py-3 bg-green-500 text-white rounded font-medium hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            {{ isSaving ? 'Đang xác nhận...' : 'Xác nhận' }}
+                        </button>
+
                         <button @click="closeModal" :disabled="isSaving"
                                 class="px-12 py-3 bg-gray-200 text-gray-700 rounded font-medium hover:bg-gray-300 transition-colors disabled:opacity-50">
                             Hủy
@@ -140,4 +178,14 @@
     </Transition>
 </Teleport>
 
-<InviteUserParticipant  v-model="showUserModal" :users="selectableUsers" @select="selectUserToTeam"/>
+<RefereeScoringScreen
+    v-if="showRefereeScreen"
+    :team1="team1ForReferee"
+    :team2="team2ForReferee"
+    :miniTournament="miniTournament"
+    :initialScores="scores"
+    @done="onRefereeDone"
+    @back="onRefereeBack"
+/>
+
+<InviteUserParticipant v-model="showUserModal" :users="selectableUsers" @select="selectUserToTeam"/>
