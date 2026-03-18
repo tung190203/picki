@@ -57,9 +57,15 @@ export default {
             if (!isSaving.value) isOpen.value = false
         }
 
-        const playersPerTeam = computed(() => {
-            return props.miniTournament.match_type === MATCH_TYPE_SINGLE ? 1 : 2
+        const isSingleMode = computed(() => {
+            // Ưu tiên `format` từ API mini-tournaments/{id}
+            const format = props.miniTournament?.format
+            if (typeof format === 'string') return format === 'single'
+            // fallback legacy nếu FE vẫn đang nhận match_type
+            return props.miniTournament?.match_type === MATCH_TYPE_SINGLE
         })
+
+        const playersPerTeam = computed(() => (isSingleMode.value ? 1 : 2))
 
         const confirmedUsers = computed(() =>
             props.miniTournament?.participants
@@ -94,8 +100,16 @@ export default {
 
         const selectUserToTeam = (user) => {
             if (selectingTeam.value === 'team1') {
+                if (team1Users.value.length >= playersPerTeam.value) {
+                    toast.error(`Mỗi đội chỉ được chọn ${playersPerTeam.value} người`)
+                    return
+                }
                 team1Users.value.push(user)
             } else if (selectingTeam.value === 'team2') {
+                if (team2Users.value.length >= playersPerTeam.value) {
+                    toast.error(`Mỗi đội chỉ được chọn ${playersPerTeam.value} người`)
+                    return
+                }
                 team2Users.value.push(user)
             }
             showUserModal.value = false
@@ -219,8 +233,8 @@ export default {
         const saveMiniMatch = async () => {
             if (isSaving.value) return
 
-            if (team1Users.value.length === 0 || team2Users.value.length === 0) {
-                toast.error('Mỗi đội phải có ít nhất 1 người chơi')
+            if (team1Users.value.length < playersPerTeam.value || team2Users.value.length < playersPerTeam.value) {
+                toast.error(`Mỗi đội phải có đủ ${playersPerTeam.value} người chơi`)
                 return
             }
 
@@ -271,8 +285,8 @@ export default {
         }
 
         const openRefereeScreen = () => {
-            if (team1Users.value.length === 0 || team2Users.value.length === 0) {
-                toast.error('Vui lòng chọn đội trước khi nhập điểm trọng tài')
+            if (team1Users.value.length < playersPerTeam.value || team2Users.value.length < playersPerTeam.value) {
+                toast.error(`Vui lòng chọn đủ ${playersPerTeam.value} người cho mỗi đội trước khi nhập điểm trọng tài`)
                 return
             }
             showRefereeScreen.value = true
@@ -306,6 +320,16 @@ export default {
                 if (val && !props.editMatch) {
                     miniMatchName.value = defaultMatchName.value
                 }
+            }
+        )
+
+        watch(
+            () => isSingleMode.value,
+            (val) => {
+                if (!val) return
+                // Trận đơn: cắt đội về 1 người/đội để khớp format
+                if (team1Users.value.length > 1) team1Users.value = team1Users.value.slice(0, 1)
+                if (team2Users.value.length > 1) team2Users.value = team2Users.value.slice(0, 1)
             }
         )
 
@@ -345,6 +369,7 @@ export default {
             props,
             emptySlots,
             isSaving,
+            isSingleMode,
             openInviteModalDefault,
             confirmedUsers,
             selectUserToTeam,
