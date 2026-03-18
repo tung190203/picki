@@ -1,203 +1,269 @@
 <template>
     <Teleport to="body">
-        <div class="fixed inset-0 bg-gray-900 z-[60] flex flex-col text-white">
-            <!-- Header -->
-            <div class="bg-gray-800 px-4 py-3">
-                <div class="flex items-center justify-between mb-2">
-                    <button @click="goBack" class="text-white">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                        </svg>
-                    </button>
-                    <h2 class="text-lg font-bold text-center flex-1">Nhập điểm trọng tài</h2>
-                    <button @click="handleTimeout" class="text-white p-1" title="Timeout">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                    </button>
-                </div>
-                <p class="text-center text-sm text-gray-300">
-                    {{ tournamentLabel }}
-                </p>
-                <p class="text-center text-xs text-gray-400 mt-1">
-                    {{ rulesLabel }}
-                </p>
-            </div>
-
-            <!-- Set Tabs -->
-            <div class="flex gap-2 px-4 py-2 bg-gray-800 overflow-x-auto">
-                <div v-for="(set, idx) in completedSets" :key="'completed-' + idx"
-                     class="px-3 py-1 rounded-full text-xs font-medium bg-gray-600 text-gray-200 whitespace-nowrap">
-                    SET {{ idx + 1 }}: {{ set.team1 }}-{{ set.team2 }}
-                </div>
-                <div class="px-3 py-1 rounded-full text-xs font-medium bg-red-500 text-white flex items-center gap-1 whitespace-nowrap">
-                    SET {{ currentSetIndex + 1 }}
-                    <span class="inline-block w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                    LIVE
-                </div>
-            </div>
-
-            <!-- Scoreboard -->
-            <div class="flex items-center justify-center gap-8 py-4 bg-gray-800">
-                <div class="text-center">
-                    <div class="text-5xl font-bold" :class="servingTeam === 'team1' ? 'text-red-400' : 'text-white'">
-                        {{ team1Score }}
+        <Transition name="modal">
+            <div
+                class="fixed inset-0 bg-black backdrop-blur-[1px] bg-opacity-50 flex items-center justify-center z-[60] p-4"
+                @click.self="goBack"
+            >
+                <div class="bg-white w-full max-w-4xl h-[95vh] sm:h-[85vh] max-h-[95vh] flex flex-col shadow-xl rounded-lg sm:rounded-lg overflow-hidden">
+                    <!-- Header -->
+                    <div class="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200">
+                        <button @click="goBack" class="text-gray-600 hover:text-gray-900 transition-colors">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                            </svg>
+                        </button>
+                        <div class="flex-1 text-center px-2">
+                            <h2 class="text-base sm:text-lg font-bold text-gray-900 leading-6">Nhập điểm trọng tài</h2>
+                            <p class="text-xs sm:text-sm text-gray-600 truncate">{{ tournamentLabel }}</p>
+                            <p class="text-[11px] sm:text-xs text-gray-500 truncate">{{ rulesLabel }}</p>
+                        </div>
+                        <button @click="handleTimeout" class="text-gray-600 hover:text-gray-900 transition-colors p-1" title="Timeout">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </button>
                     </div>
-                    <div class="text-sm text-gray-300 mt-1">{{ team1.name || 'TEAM A' }}</div>
-                </div>
-                <div class="text-2xl text-gray-500 font-bold">VS</div>
-                <div class="text-center">
-                    <div class="text-5xl font-bold" :class="servingTeam === 'team2' ? 'text-red-400' : 'text-white'">
-                        {{ team2Score }}
-                    </div>
-                    <div class="text-sm text-gray-300 mt-1">{{ team2.name || 'TEAM B' }}</div>
-                </div>
-            </div>
 
-            <!-- Court -->
-            <div class="flex-1 flex flex-col items-center justify-center px-4 py-2">
-                <div class="relative w-full max-w-md">
-                    <!-- Court grid -->
-                    <div class="grid grid-cols-2 gap-1 bg-gray-700 p-1 rounded-lg">
-                        <!-- Top-left (Team1 position 0) -->
-                        <div class="bg-gray-600 rounded-lg p-4 flex flex-col items-center justify-center min-h-[100px] relative cursor-pointer"
-                             :class="{ 'ring-2 ring-yellow-400': isServingPosition('team1', 0) }"
-                             @click="!matchStarted && swapPositions('team1')">
-                            <div v-if="courtPositions.team1[0]" class="text-center">
-                                <img :src="courtPositions.team1[0].avatar_url || '/images/default-avatar.png'"
-                                     :alt="courtPositions.team1[0].full_name"
-                                     class="w-12 h-12 rounded-full mx-auto border-2"
-                                     :class="isServingPosition('team1', 0) ? 'border-yellow-400' : 'border-gray-400'" />
-                                <p class="text-xs mt-1 truncate max-w-[80px]">{{ courtPositions.team1[0].full_name }}</p>
+                    <!-- Body -->
+                    <div class="flex-1 overflow-y-auto bg-gray-50">
+                        <!-- Set Tabs -->
+                        <div class="flex gap-2 px-4 sm:px-6 py-3 bg-white border-b border-gray-200 overflow-x-auto">
+                            <div
+                                v-for="(set, idx) in completedSets"
+                                :key="'completed-' + idx"
+                                class="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 whitespace-nowrap"
+                            >
+                                SET {{ idx + 1 }}: {{ set.team1 }}-{{ set.team2 }}
                             </div>
-                            <div v-if="isServingPosition('team1', 0)" class="absolute top-1 right-1">
-                                <span class="text-yellow-400 text-lg">🏐</span>
-                            </div>
-                            <div v-if="!matchStarted" class="absolute bottom-1 left-1/2 -translate-x-1/2">
-                                <span class="text-[10px] text-gray-400">{{ getPositionLabel('team1', 0) }}</span>
+                            <div class="px-3 py-1 rounded-full text-xs font-medium bg-red-500 text-white flex items-center gap-1 whitespace-nowrap">
+                                SET {{ currentSetIndex + 1 }}
+                                <span class="inline-block w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                                LIVE
                             </div>
                         </div>
 
-                        <!-- Top-right (Team2 position 0) -->
-                        <div class="bg-gray-600 rounded-lg p-4 flex flex-col items-center justify-center min-h-[100px] relative cursor-pointer"
-                             :class="{ 'ring-2 ring-yellow-400': isServingPosition('team2', 0) }"
-                             @click="!matchStarted && swapPositions('team2')">
-                            <div v-if="courtPositions.team2[0]" class="text-center">
-                                <img :src="courtPositions.team2[0].avatar_url || '/images/default-avatar.png'"
-                                     :alt="courtPositions.team2[0].full_name"
-                                     class="w-12 h-12 rounded-full mx-auto border-2"
-                                     :class="isServingPosition('team2', 0) ? 'border-yellow-400' : 'border-gray-400'" />
-                                <p class="text-xs mt-1 truncate max-w-[80px]">{{ courtPositions.team2[0].full_name }}</p>
-                            </div>
-                            <div v-if="isServingPosition('team2', 0)" class="absolute top-1 right-1">
-                                <span class="text-yellow-400 text-lg">🏐</span>
-                            </div>
-                            <div v-if="!matchStarted" class="absolute bottom-1 left-1/2 -translate-x-1/2">
-                                <span class="text-[10px] text-gray-400">{{ getPositionLabel('team2', 0) }}</span>
+                        <!-- Scoreboard -->
+                        <div class="px-4 sm:px-6 py-4 bg-white">
+                            <div class="flex items-center justify-center gap-6 sm:gap-10">
+                                <div class="text-center">
+                                    <div class="text-5xl sm:text-6xl font-bold" :class="servingTeam === 'team1' ? 'text-red-500' : 'text-gray-900'">
+                                        {{ team1Score }}
+                                    </div>
+                                    <div class="text-sm text-gray-600 mt-1">{{ team1.name || 'TEAM A' }}</div>
+                                </div>
+                                <div class="text-xl sm:text-2xl text-gray-400 font-bold">VS</div>
+                                <div class="text-center">
+                                    <div class="text-5xl sm:text-6xl font-bold" :class="servingTeam === 'team2' ? 'text-red-500' : 'text-gray-900'">
+                                        {{ team2Score }}
+                                    </div>
+                                    <div class="text-sm text-gray-600 mt-1">{{ team2.name || 'TEAM B' }}</div>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Middle: swap & choose ball buttons -->
-                        <div class="col-span-2 flex items-center justify-center gap-4 py-2" v-if="!matchStarted && isDoubles">
-                            <button @click="swapPositions('team1')"
-                                    class="px-3 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-400 transition-colors">
-                                ⇅ Đổi chỗ T1
+                        <!-- Court -->
+                        <div class="px-4 sm:px-6 py-4 flex flex-col items-center justify-center">
+                            <div class="relative w-full max-w-md">
+                                <!-- Court background -->
+                                <div class="absolute inset-3 rounded-2xl border-2 border-white pointer-events-none"></div>
+                                <div class="absolute inset-y-3 left-1/2 w-[2px] bg-white/80 -translate-x-1/2 pointer-events-none"></div>
+
+                                <div class="relative grid grid-cols-2 gap-2 bg-[#F2F7FC] p-3 rounded-2xl border border-gray-200">
+                                    <!-- Top-left (Team1 position 0) -->
+                                    <div
+                                        class="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center min-h-[100px] relative cursor-pointer"
+                                        :class="{ 'ring-2 ring-red-400': isServingPosition('team1', 0) }"
+                                        @click="!matchStarted && swapPositions('team1')"
+                                    >
+                                        <div v-if="courtPositions.team1[0]" class="text-center">
+                                            <img
+                                                :src="courtPositions.team1[0].avatar_url || '/images/default-avatar.png'"
+                                                :alt="courtPositions.team1[0].full_name"
+                                                class="w-12 h-12 rounded-full mx-auto border-2"
+                                                :class="isServingPosition('team1', 0) ? 'border-red-400' : 'border-gray-300'"
+                                            />
+                                            <p class="text-xs mt-1 truncate max-w-[100px] text-gray-700">{{ courtPositions.team1[0].full_name }}</p>
+                                        </div>
+                                        <div v-if="isServingPosition('team1', 0)" class="absolute top-2 right-2">
+                                            <span class="text-red-500 text-lg">🏐</span>
+                                        </div>
+                                        <div v-if="!matchStarted" class="absolute bottom-2 left-1/2 -translate-x-1/2">
+                                            <span class="text-[10px] text-gray-400">{{ getPositionLabel('team1', 0) }}</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Top-right (Team2 position 0) -->
+                                    <div
+                                        class="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center min-h-[100px] relative cursor-pointer"
+                                        :class="{ 'ring-2 ring-red-400': isServingPosition('team2', 0) }"
+                                        @click="!matchStarted && swapPositions('team2')"
+                                    >
+                                        <div v-if="courtPositions.team2[0]" class="text-center">
+                                            <img
+                                                :src="courtPositions.team2[0].avatar_url || '/images/default-avatar.png'"
+                                                :alt="courtPositions.team2[0].full_name"
+                                                class="w-12 h-12 rounded-full mx-auto border-2"
+                                                :class="isServingPosition('team2', 0) ? 'border-red-400' : 'border-gray-300'"
+                                            />
+                                            <p class="text-xs mt-1 truncate max-w-[100px] text-gray-700">{{ courtPositions.team2[0].full_name }}</p>
+                                        </div>
+                                        <div v-if="isServingPosition('team2', 0)" class="absolute top-2 right-2">
+                                            <span class="text-red-500 text-lg">🏐</span>
+                                        </div>
+                                        <div v-if="!matchStarted" class="absolute bottom-2 left-1/2 -translate-x-1/2">
+                                            <span class="text-[10px] text-gray-400">{{ getPositionLabel('team2', 0) }}</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Middle controls: swap positions / swap courts -->
+                                    <div
+                                        v-if="!matchStarted && isDoubles"
+                                        class="col-span-2 flex items-center justify-center gap-6 py-3"
+                                    >
+                                        <!-- Small arrows: swap 2 players in team1 -->
+                                        <button
+                                            @click="swapPositions('team1')"
+                                            class="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold bg-white border border-gray-200 text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
+                                        >
+                                            ⇅
+                                        </button>
+                                        <!-- Big arrows: swap 2 teams' courts -->
+                                        <button
+                                            @click="swapTeams"
+                                            class="w-11 h-11 rounded-full flex items-center justify-center text-lg font-semibold bg-white border-2 border-gray-300 text-gray-800 shadow-md hover:bg-gray-50 transition-colors"
+                                        >
+                                            ⇄
+                                        </button>
+                                        <!-- Small arrows: swap 2 players in team2 -->
+                                        <button
+                                            @click="swapPositions('team2')"
+                                            class="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold bg-white border border-gray-200 text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
+                                        >
+                                            ⇅
+                                        </button>
+                                    </div>
+
+                                    <!-- Bottom-left (Team1 position 1) -->
+                                    <div
+                                        v-if="isDoubles"
+                                        class="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center min-h-[100px] relative cursor-pointer"
+                                        :class="{ 'ring-2 ring-red-400': isServingPosition('team1', 1) }"
+                                        @click="!matchStarted && swapPositions('team1')"
+                                    >
+                                        <div v-if="courtPositions.team1[1]" class="text-center">
+                                            <img
+                                                :src="courtPositions.team1[1].avatar_url || '/images/default-avatar.png'"
+                                                :alt="courtPositions.team1[1].full_name"
+                                                class="w-12 h-12 rounded-full mx-auto border-2"
+                                                :class="isServingPosition('team1', 1) ? 'border-red-400' : 'border-gray-300'"
+                                            />
+                                            <p class="text-xs mt-1 truncate max-w-[100px] text-gray-700">{{ courtPositions.team1[1].full_name }}</p>
+                                        </div>
+                                        <div v-if="isServingPosition('team1', 1)" class="absolute top-2 right-2">
+                                            <span class="text-red-500 text-lg">🏐</span>
+                                        </div>
+                                        <div v-if="!matchStarted" class="absolute bottom-2 left-1/2 -translate-x-1/2">
+                                            <span class="text-[10px] text-gray-400">{{ getPositionLabel('team1', 1) }}</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Bottom-right (Team2 position 1) -->
+                                    <div
+                                        v-if="isDoubles"
+                                        class="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center min-h-[100px] relative cursor-pointer"
+                                        :class="{ 'ring-2 ring-red-400': isServingPosition('team2', 1) }"
+                                        @click="!matchStarted && swapPositions('team2')"
+                                    >
+                                        <div v-if="courtPositions.team2[1]" class="text-center">
+                                            <img
+                                                :src="courtPositions.team2[1].avatar_url || '/images/default-avatar.png'"
+                                                :alt="courtPositions.team2[1].full_name"
+                                                class="w-12 h-12 rounded-full mx-auto border-2"
+                                                :class="isServingPosition('team2', 1) ? 'border-red-400' : 'border-gray-300'"
+                                            />
+                                            <p class="text-xs mt-1 truncate max-w-[100px] text-gray-700">{{ courtPositions.team2[1].full_name }}</p>
+                                        </div>
+                                        <div v-if="isServingPosition('team2', 1)" class="absolute top-2 right-2">
+                                            <span class="text-red-500 text-lg">🏐</span>
+                                        </div>
+                                        <div v-if="!matchStarted" class="absolute bottom-2 left-1/2 -translate-x-1/2">
+                                            <span class="text-[10px] text-gray-400">{{ getPositionLabel('team2', 1) }}</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Center ball icon: choose serving team before start, show server during match -->
+                                    <div
+                                        class="pointer-events-auto absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+                                    >
+                                        <button
+                                            @click="chooseBall"
+                                            class="w-10 h-10 rounded-full flex items-center justify-center shadow-md border"
+                                            :class="servingTeam === 'team1'
+                                                ? 'bg-red-50 border-red-200 text-red-600'
+                                                : 'bg-blue-50 border-blue-200 text-blue-600'"
+                                        >
+                                            🏐
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="text-center mt-4 text-sm text-gray-500">
+                                    <template v-if="matchStarted">
+                                        Giao bóng: <span class="text-red-600 font-semibold">{{ currentServerName }}</span>
+                                        <span class="ml-2 text-gray-400">(Tay {{ isFirstServe ? '1*' : serverNumber }})</span>
+                                    </template>
+                                    <template v-else>
+                                        <span class="text-gray-600">Chọn đội giao bóng và vị trí để bắt đầu</span>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="bg-white px-4 sm:px-6 py-4 border-t border-gray-200 space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <button
+                                @click="handleSideOut"
+                                :disabled="!matchStarted"
+                                class="py-4 rounded-lg font-bold text-base sm:text-lg transition-colors disabled:opacity-40"
+                                :class="matchStarted ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-gray-200 text-gray-400'"
+                            >
+                                SIDE OUT
+                                <span class="block text-xs font-normal opacity-80">ĐỔI GIAO BÓNG</span>
                             </button>
-                            <button @click="chooseBall"
-                                    class="px-3 py-1 rounded text-xs transition-colors"
-                                    :class="servingTeam === 'team1' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'">
-                                🏐 {{ servingTeam === 'team1' ? team1.name : team2.name }}
+                            <button
+                                @click="handlePoint"
+                                :disabled="!matchStarted"
+                                class="py-4 rounded-lg font-bold text-base sm:text-lg transition-colors disabled:opacity-40"
+                                :class="matchStarted ? 'bg-gray-700 hover:bg-gray-800 text-white' : 'bg-gray-200 text-gray-400'"
+                            >
+                                POINT +1
+                                <span class="block text-xs font-normal opacity-80">GHI ĐIỂM</span>
                             </button>
-                            <button @click="swapPositions('team2')"
-                                    class="px-3 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-400 transition-colors">
-                                ⇅ Đổi chỗ T2
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <button
+                                @click="handleUndo"
+                                :disabled="actionHistory.length === 0"
+                                class="py-3 rounded-lg font-medium text-sm transition-colors disabled:opacity-50"
+                                :class="actionHistory.length > 0 ? 'bg-gray-100 hover:bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-400'"
+                            >
+                                ↩ Hoàn tác
+                            </button>
+                            <button
+                                @click="handleFinishSet"
+                                class="py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm transition-colors disabled:opacity-50"
+                                :disabled="!matchStarted"
+                            >
+                                ✓ Xong Set
                             </button>
                         </div>
-
-                        <!-- Bottom-left (Team1 position 1) -->
-                        <div v-if="isDoubles"
-                             class="bg-gray-600 rounded-lg p-4 flex flex-col items-center justify-center min-h-[100px] relative cursor-pointer"
-                             :class="{ 'ring-2 ring-yellow-400': isServingPosition('team1', 1) }"
-                             @click="!matchStarted && swapPositions('team1')">
-                            <div v-if="courtPositions.team1[1]" class="text-center">
-                                <img :src="courtPositions.team1[1].avatar_url || '/images/default-avatar.png'"
-                                     :alt="courtPositions.team1[1].full_name"
-                                     class="w-12 h-12 rounded-full mx-auto border-2"
-                                     :class="isServingPosition('team1', 1) ? 'border-yellow-400' : 'border-gray-400'" />
-                                <p class="text-xs mt-1 truncate max-w-[80px]">{{ courtPositions.team1[1].full_name }}</p>
-                            </div>
-                            <div v-if="isServingPosition('team1', 1)" class="absolute top-1 right-1">
-                                <span class="text-yellow-400 text-lg">🏐</span>
-                            </div>
-                            <div v-if="!matchStarted" class="absolute bottom-1 left-1/2 -translate-x-1/2">
-                                <span class="text-[10px] text-gray-400">{{ getPositionLabel('team1', 1) }}</span>
-                            </div>
-                        </div>
-
-                        <!-- Bottom-right (Team2 position 1) -->
-                        <div v-if="isDoubles"
-                             class="bg-gray-600 rounded-lg p-4 flex flex-col items-center justify-center min-h-[100px] relative cursor-pointer"
-                             :class="{ 'ring-2 ring-yellow-400': isServingPosition('team2', 1) }"
-                             @click="!matchStarted && swapPositions('team2')">
-                            <div v-if="courtPositions.team2[1]" class="text-center">
-                                <img :src="courtPositions.team2[1].avatar_url || '/images/default-avatar.png'"
-                                     :alt="courtPositions.team2[1].full_name"
-                                     class="w-12 h-12 rounded-full mx-auto border-2"
-                                     :class="isServingPosition('team2', 1) ? 'border-yellow-400' : 'border-gray-400'" />
-                                <p class="text-xs mt-1 truncate max-w-[80px]">{{ courtPositions.team2[1].full_name }}</p>
-                            </div>
-                            <div v-if="isServingPosition('team2', 1)" class="absolute top-1 right-1">
-                                <span class="text-yellow-400 text-lg">🏐</span>
-                            </div>
-                            <div v-if="!matchStarted" class="absolute bottom-1 left-1/2 -translate-x-1/2">
-                                <span class="text-[10px] text-gray-400">{{ getPositionLabel('team2', 1) }}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Service indicator -->
-                    <div class="text-center mt-3 text-sm text-gray-400">
-                        <template v-if="matchStarted">
-                            Giao bóng: <span class="text-yellow-400 font-semibold">{{ currentServerName }}</span>
-                            <span class="ml-2 text-gray-500">(Tay {{ isFirstServe ? '1*' : serverNumber }})</span>
-                        </template>
-                        <template v-else>
-                            <span class="text-yellow-400">Chọn đội giao bóng và vị trí để bắt đầu</span>
-                        </template>
                     </div>
                 </div>
             </div>
-
-            <!-- Action Buttons -->
-            <div class="bg-gray-800 px-4 py-4 space-y-3">
-                <div class="grid grid-cols-2 gap-3">
-                    <button @click="handleSideOut" :disabled="!matchStarted"
-                            class="py-4 rounded-lg font-bold text-lg transition-colors disabled:opacity-40"
-                            :class="matchStarted ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-gray-600 text-gray-400'">
-                        SIDE OUT
-                        <span class="block text-xs font-normal opacity-75">ĐỔI GIAO BÓNG</span>
-                    </button>
-                    <button @click="handlePoint" :disabled="!matchStarted"
-                            class="py-4 rounded-lg font-bold text-lg transition-colors disabled:opacity-40"
-                            :class="matchStarted ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-600 text-gray-400'">
-                        POINT +1
-                        <span class="block text-xs font-normal opacity-75">GHI ĐIỂM</span>
-                    </button>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <button @click="handleUndo" :disabled="actionHistory.length === 0"
-                            class="py-3 rounded-lg font-medium text-sm transition-colors"
-                            :class="actionHistory.length > 0 ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-700 text-gray-500'">
-                        ↩ Hoàn tác
-                    </button>
-                    <button @click="handleFinishSet"
-                            class="py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm transition-colors"
-                            :disabled="!matchStarted">
-                        ✓ Xong Set
-                    </button>
-                </div>
-            </div>
-        </div>
+        </Transition>
     </Teleport>
 </template>
 
@@ -305,7 +371,13 @@ export default {
         })
 
         const chooseBall = () => {
-            servingTeam.value = servingTeam.value === 'team1' ? 'team2' : 'team1'
+            // Trước khi bắt đầu: dùng để chọn đội cầm bóng đầu tiên
+            if (!matchStarted.value) {
+                servingTeam.value = servingTeam.value === 'team1' ? 'team2' : 'team1'
+                serverNumber.value = 1
+                serverPositionIndex.value = 0
+                isFirstServe.value = true
+            }
         }
 
         const swapPositions = (team) => {
@@ -313,6 +385,15 @@ export default {
             const arr = courtPositions.value[team]
             if (arr.length >= 2) {
                 courtPositions.value[team] = [arr[1], arr[0]]
+            }
+        }
+
+        const swapTeams = () => {
+            if (matchStarted.value) return
+            const current = courtPositions.value
+            courtPositions.value = {
+                team1: current.team2,
+                team2: current.team1
             }
         }
 
@@ -491,6 +572,7 @@ export default {
             getPositionLabel,
             chooseBall,
             swapPositions,
+            swapTeams,
             handlePoint,
             handleSideOut,
             handleUndo,

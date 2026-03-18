@@ -3,7 +3,7 @@
         <div v-if="isOpen && !showRefereeScreen"
              class="fixed inset-0 bg-black backdrop-blur-[1px] bg-opacity-50 flex items-center justify-center z-50 p-4"
              @click.self="closeModal">
-            <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[85vh] max-h-[95vh] flex flex-col">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[95vh] sm:h-[85vh] max-h-[95vh] flex flex-col">
                 <div class="flex items-center justify-between p-6 border-b border-gray-200">
                     <h2 class="text-2xl font-semibold text-gray-800">{{ currentMatchId ? 'Sửa trận đấu' : 'Trận đấu' }}</h2>
                     <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
