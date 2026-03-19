@@ -402,7 +402,7 @@
                                 </svg>
                             </div>
                             <span class="text-[16px] font-bold text-[#3E414C] mb-1">Luật thi đấu</span>
-                            <span class="text-[12px] text-[#6B6F80]">{{ setNumber }} set, {{ gamesPerSet }} điểm</span>
+                            <span class="text-[12px] text-[#6B6F80]">{{ rulesCardSubtitle }}</span>
                         </button>
                     </div>
                 </div>
@@ -494,7 +494,7 @@
                     <div class="space-y-2">
                         <button v-for="sport in sports" :key="sport.id" @click="selectSport(sport.id)" :class="[
                             'w-full flex items-center gap-3 px-4 py-3 rounded-[8px] border transition-colors',
-                            selectedSport === sport.id
+                            selectedSportId === sport.id
                                 ? 'bg-[#D72D36] text-white border-[#D72D36]'
                                 : 'border-[#BBBFCC] text-gray-700 hover:border-gray-400'
                         ]">
@@ -863,6 +863,7 @@ const paymentNote = ref('')
 const qrCodeImage = ref(null)
 const qrCodePreview = ref(null)
 const qrCodeFile = ref(null) // File object for upload
+const isSubmitting = ref(false)
 const qrFileInput = ref(null)
 
 // Legacy fee fields
@@ -906,6 +907,12 @@ const gamesPerSet = ref(11)
 const pointsDifference = ref(2)
 const maxPoints = ref(11)
 const applyRule = ref(true)
+
+/** Dòng mô tả dưới ô "Luật thi đấu" trên form (không hiện set/điểm khi đã tắt áp dụng luật) */
+const rulesCardSubtitle = computed(() => {
+    if (!applyRule.value) return 'Không áp dụng luật'
+    return `${setNumber.value} set, ${gamesPerSet.value} điểm`
+})
 
 const openSet = ref(false)
 const openWinRule = ref(false)
@@ -1568,6 +1575,8 @@ const buildTemplateSettings = () => {
 }
 
 const handleSaveTemplate = async () => {
+    if (isSubmitting.value) return
+    isSubmitting.value = true
     try {
         const settings = buildTemplateSettings()
         const payload = {
@@ -1581,6 +1590,8 @@ const handleSaveTemplate = async () => {
         console.error('Error saving mini tournament template:', error)
         const errMessage = error?.response?.data?.message || 'Lưu mẫu thất bại. Vui lòng thử lại.'
         toast.error(errMessage)
+    } finally {
+        isSubmitting.value = false
     }
 }
 
@@ -1636,83 +1647,89 @@ const getCancellationDuration = () => {
 }
 
 const handleSubmit = async () => {
-    // Nếu kèo có thu phí nhưng không có QR mới và cũng không có QR cũ => bắt buộc upload
-    if (hasFee.value && !qrCodeFile.value && !qrCodeImage.value) {
-        toast.error('Vui lòng tải ảnh mã QR thanh toán lên')
-        return
-    }
-    let startTime = null;
-    if (date.value) {
-        const d = new Date(date.value);
-
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const hours = String(d.getHours()).padStart(2, '0');
-        const minutes = String(d.getMinutes()).padStart(2, '0');
-        const seconds = String(d.getSeconds()).padStart(2, '0');
-
-        startTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    }
-
-    const getNumericLevel = (level) => {
-        if (level === 'Không giới hạn') return null
-        return Number.parseFloat(level)
-    }
-
-    const rulePayload = applyRule.value
-        ? {
-            set_number: setNumber.value,
-            base_points: gamesPerSet.value,
-            points_difference: pointsDifference.value,
-            max_points: maxPoints.value,
+    if (isSubmitting.value) return
+    isSubmitting.value = true
+    try {
+        // Nếu kèo có thu phí nhưng không có QR mới và cũng không có QR cũ => bắt buộc upload
+        if (hasFee.value && !qrCodeFile.value && !qrCodeImage.value) {
+            toast.error('Vui lòng tải ảnh mã QR thanh toán lên')
+            return
         }
-        : {
-            set_number: null,
-            base_points: null,
-            points_difference: null,
-            max_points: null,
+        let startTime = null;
+        if (date.value) {
+            const d = new Date(date.value);
+
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            const seconds = String(d.getSeconds()).padStart(2, '0');
+
+            startTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         }
 
-    const data = {
-        sport_id: selectedSportId.value,
-        name: tournamentName.value,
-        description: tournamentNote.value || null,
-        play_mode: selectedPlayMode.value,
-        format: selectedFormat.value,
-        start_time: startTime,
-        duration: durationMinutes.value,
-        competition_location_id: selectedLocation.value ? selectedLocation.value?.id : null,
-        max_players: playerCount.value,
-        is_private: privacy.value === 'Riêng tư',
+        const getNumericLevel = (level) => {
+            if (level === 'Không giới hạn') return null
+            return Number.parseFloat(level)
+        }
 
-        has_fee: hasFee.value,
-        auto_split_fee: autoSplitCourtFee.value,
-        fee_description: paymentNote.value || null,
-        fee_amount: hasFee.value ? feeAmount.value : null,
+        const rulePayload = applyRule.value
+            ? {
+                set_number: setNumber.value,
+                base_points: gamesPerSet.value,
+                points_difference: pointsDifference.value,
+                max_points: maxPoints.value,
+            }
+            : {
+                set_number: null,
+                base_points: null,
+                points_difference: null,
+                max_points: null,
+            }
 
-        min_rating: getNumericLevel(minLevel.value),
-        max_rating: getNumericLevel(maxLevel.value),
-        ...rulePayload,
-        gender: genderPolicy.value,
-        recurring_schedule: buildRecurringSchedule(),
-        apply_rule: applyRule.value,
-        allow_cancellation: allowCancellation.value,
-        cancellation_duration: allowCancellation.value ? getCancellationDuration() : null,
-        auto_approve: autoApprove.value,
-        allow_participant_add_friends: allowParticipantAddFriends.value,
-        status: 1,
-        invite_user: []
-    }
+        const data = {
+            sport_id: selectedSportId.value,
+            name: tournamentName.value,
+            description: tournamentNote.value || null,
+            play_mode: selectedPlayMode.value,
+            format: selectedFormat.value,
+            start_time: startTime,
+            duration: durationMinutes.value,
+            competition_location_id: selectedLocation.value ? selectedLocation.value?.id : null,
+            max_players: playerCount.value,
+            is_private: privacy.value === 'Riêng tư',
 
-    if (isEditMode.value) {
-        await updateMiniTournament(miniTournamentId, data)
-    } else {
-        // Khi có file QR code, dùng FormData để gửi multipart/form-data
-        const payload = qrCodeFile.value
-            ? buildFormDataWithFile(data)
-            : { ...data, qr_code_url: qrCodeImage.value || null }
-        await createMiniTournament(payload)
+            has_fee: hasFee.value,
+            auto_split_fee: autoSplitCourtFee.value,
+            fee_description: paymentNote.value || null,
+            fee_amount: hasFee.value ? feeAmount.value : null,
+
+            min_rating: getNumericLevel(minLevel.value),
+            max_rating: getNumericLevel(maxLevel.value),
+            ...rulePayload,
+            gender: genderPolicy.value,
+            recurring_schedule: buildRecurringSchedule(),
+            apply_rule: applyRule.value,
+            allow_cancellation: allowCancellation.value,
+            cancellation_duration: allowCancellation.value ? getCancellationDuration() : null,
+            auto_approve: autoApprove.value,
+            allow_participant_add_friends: allowParticipantAddFriends.value,
+            status: 1,
+            invite_user: []
+        }
+
+        if (isEditMode.value) {
+            await updateMiniTournament(miniTournamentId, data)
+        } else {
+            // Khi có file QR code, dùng FormData để gửi multipart/form-data
+            const payload = qrCodeFile.value
+                ? buildFormDataWithFile(data)
+                : { ...data, qr_code_url: qrCodeImage.value || null }
+            await createMiniTournament(payload)
+        }
+    } finally {
+        isSubmitting.value = false
     }
 }
 
