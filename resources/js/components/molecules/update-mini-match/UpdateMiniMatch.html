@@ -153,10 +153,10 @@
                     <div class="flex gap-3">
                         <button @click="saveMiniMatch" :disabled="isSaving"
                                 class="px-12 py-3 bg-red-500 text-white rounded font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                            {{ isSaving && !canConfirmMiniMatch ? 'Đang lưu...' : 'Lưu' }}
+                            {{ isSaving ? 'Đang lưu...' : 'Lưu' }}
                         </button>
                         <button v-if="isCreator" @click="confirmMiniMatchResult"
-                                :disabled="isSaving || !canConfirmMiniMatch || currentMiniMatch.status === 'completed'"
+                                :disabled="isSaving || currentMiniMatch.status === 'completed'"
                                 class="flex items-center justify-center gap-2 px-12 py-3 bg-green-500 text-white rounded font-medium hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                             <template v-if="currentMiniMatch.status === 'completed'">
                                 <CheckBadgeIcon class="w-6 h-6 text-white" />
