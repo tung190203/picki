@@ -1217,6 +1217,21 @@ const applyTemplate = (template) => {
         selectedFormat.value = s.format
     }
 
+    // Thời gian & thời lượng
+    if (s.start_time) {
+        date.value = new Date(s.start_time)
+    } else {
+        date.value = null
+    }
+    if (s.duration !== undefined && s.duration !== null) {
+        durationMinutes.value = s.duration
+        const durationOption = durationOptions.find(option => option.value === s.duration)
+        selectedDuration.value = durationOption ? durationOption.label : ''
+    } else {
+        durationMinutes.value = null
+        selectedDuration.value = ''
+    }
+
     // Người chơi & quyền riêng tư
     if (s.max_players) {
         playerCount.value = s.max_players
@@ -1275,6 +1290,18 @@ const applyTemplate = (template) => {
     }
     if (s.allow_participant_add_friends !== undefined) {
         allowParticipantAddFriends.value = !!s.allow_participant_add_friends
+    }
+
+    // Địa điểm thi đấu
+    if (s.competition_location_id) {
+        selectedLocation.value = {
+            id: s.competition_location_id,
+            name: s.competition_location_name || '',
+        }
+        locationKeyword.value = s.competition_location_name || ''
+    } else {
+        selectedLocation.value = null
+        locationKeyword.value = ''
     }
 
     isTemplateModalOpen.value = false
@@ -1555,6 +1582,10 @@ const buildTemplateSettings = () => {
         description: tournamentNote.value || null,
         play_mode: selectedPlayMode.value,
         format: selectedFormat.value,
+        competition_location_id: selectedLocation.value?.id || null,
+        competition_location_name: selectedLocation.value?.name || null,
+        start_time: date.value ? date.value.toISOString() : null,
+        duration: durationMinutes.value,
         max_players: playerCount.value,
         is_private: privacy.value === 'Riêng tư',
         has_fee: hasFee.value,
