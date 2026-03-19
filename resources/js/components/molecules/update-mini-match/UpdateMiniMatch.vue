@@ -54,50 +54,11 @@ export default {
         const team1Users = ref([])
         const team2Users = ref([])
 
-        const basePoints = computed(() => props.miniTournament?.base_points || 11)
-        const pointsDifference = computed(() => props.miniTournament?.points_difference || 2)
-        const maxPoints = computed(() => props.miniTournament?.max_points || 15)
-
-        const isValidSetScore = (s1, s2) => {
-            const a = Number(s1 || 0)
-            const b = Number(s2 || 0)
-
-            if (a < 0 || b < 0) return false
-            if (a > maxPoints.value || b > maxPoints.value) return false
-
-            if (a === 0 && b === 0) return true
-
-            if (a >= basePoints.value && (a - b) >= pointsDifference.value) return true
-            if (b >= basePoints.value && (b - a) >= pointsDifference.value) return true
-
-            if (a === maxPoints.value || b === maxPoints.value) return true
-
-            return false
-        }
-
-        const validateScoresByRules = () => {
-            const nonEmpty = scores.value.filter(s => Number(s.team1 || 0) > 0 || Number(s.team2 || 0) > 0)
-            if (nonEmpty.length === 0) return { ok: false, message: 'Vui lòng nhập kết quả trước khi xác nhận' }
-
-            for (let i = 0; i < scores.value.length; i++) {
-                const s = scores.value[i]
-                const a = Number(s.team1 || 0)
-                const b = Number(s.team2 || 0)
-                if (a === 0 && b === 0) continue
-                if (!isValidSetScore(a, b)) {
-                    return {
-                        ok: false,
-                        message: `Set ${i + 1} chưa đúng luật (${basePoints.value} điểm, cách ${pointsDifference.value}, tối đa ${maxPoints.value}).`
-                    }
-                }
-            }
-
-            return { ok: true }
-        }
+        const SCORE_UI_MAX = 999
 
         const incrementScore = (idx, team) => {
-            if (team === '1' && scores.value[idx].team1 < maxPoints.value) scores.value[idx].team1++
-            if (team === '2' && scores.value[idx].team2 < maxPoints.value) scores.value[idx].team2++
+            if (team === '1' && scores.value[idx].team1 < SCORE_UI_MAX) scores.value[idx].team1++
+            if (team === '2' && scores.value[idx].team2 < SCORE_UI_MAX) scores.value[idx].team2++
         }
 
         const decrementScore = (idx, team) => {
@@ -206,10 +167,8 @@ export default {
             }
         }
 
-        const canConfirmMiniMatch = computed(() => validateScoresByRules().ok)
-
         const confirmMiniMatchResult = async () => {
-            if (isSaving.value || !canConfirmMiniMatch.value) return
+            if (isSaving.value) return
             try {
                 isSaving.value = true
 
@@ -323,7 +282,6 @@ export default {
             addSet,
             removeSet,
             saveMiniMatch,
-            canConfirmMiniMatch,
             confirmMiniMatchResult,
             closeModal,
             emptySlots,
@@ -335,8 +293,7 @@ export default {
             team2ForReferee,
             team1Users,
             team2Users,
-            removeMemberFromTeam,
-            maxPoints
+            removeMemberFromTeam
         }
     }
 }

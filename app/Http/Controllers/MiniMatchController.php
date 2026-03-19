@@ -575,172 +575,109 @@ class MiniMatchController extends Controller
 
     private function validateAllSets($match, $tournament)
     {
-        $pointsToWinSet = $tournament->base_points;
-        $pointsDifference = $tournament->points_difference;
-        $maxPoints = $tournament->max_points;
-        $setNumber = $tournament->set_number;
-        if ($pointsToWinSet === null || $pointsDifference === null || $maxPoints === null) {
-            return 'Kèo đấu chưa thiết lập đủ luật thi đấu';
-        }
-
-        if (!$tournament->apply_rule) {
-            if ($match->results->isEmpty()) {
-                return 'Trận đấu chưa có kết quả nào';
-            }
-            return null;
+        // Kiểm tra có kết quả không
+        if ($match->results->isEmpty()) {
+            return 'Trận đấu chưa có kết quả nào';
         }
 
         $team1Id = $match->team1_id;
         $team2Id = $match->team2_id;
         $allResults = $match->results->groupBy('set_number');
 
-        if ($allResults->isEmpty()) {
-            return 'Trận đấu chưa có kết quả nào';
-        }
-
         $team1WonSets = 0;
         $team2WonSets = 0;
+        $maxPoints = $tournament->max_points ?? 999;
+        $configSetNumber = $tournament->set_number ?? 99;
+        $pointsDiff = $tournament->points_difference ?? 2;
+        $basePoints = $tournament->base_points ?? 11;
+        $applyRule = $tournament->apply_rule ?? false;
 
-        foreach ($allResults as $setNumber => $setResults) {
+        foreach ($allResults as $sNum => $setResults) {
             if ($setResults->count() !== 2) {
-                return "Set {$setNumber}: Thiếu điểm số của một trong hai đội";
+                return "Set {$sNum}: Thiếu điểm số của một trong hai đội";
             }
 
             $teamA = $setResults->firstWhere('team_id', $team1Id);
             $teamB = $setResults->firstWhere('team_id', $team2Id);
 
             if (!$teamA || !$teamB) {
-                return "Set {$setNumber}: Dữ liệu không hợp lệ";
+                return "Set {$sNum}: Dữ liệu không hợp lệ";
             }
 
-            $A = (int) $teamA->score;
-            $B = (int) $teamB->score;
+            $scoreA = (int) $teamA->score;
+            $scoreB = (int) $teamB->score;
 
-            $validation = $this->validateSetScore(
-                $A,
-                $B,
-                $pointsToWinSet,
-                $pointsDifference,
-                $maxPoints,
-                $team1Id,
-                $team2Id
-            );
-
-            if ($validation['error']) {
-                return "Set {$setNumber}: {$validation['message']}";
+            if ($scoreA < 0 || $scoreB < 0) {
+                return "Set {$sNum}: Điểm số không được âm";
             }
 
-            $winnerTeamId = $validation['winner'];
-            if ($winnerTeamId === $team1Id) {
+            if ($scoreA == $scoreB) {
+                return "Set {$sNum}: Tỉ số hòa ({$scoreA}-{$scoreB}) không hợp lệ";
+            }
+
+            if ($scoreA > $maxPoints || $scoreB > $maxPoints) {
+                return "Set {$sNum}: Điểm số vượt quá giới hạn ({$maxPoints})";
+            }
+
+            if ($scoreA > $scoreB) {
+                $teamA->update(['won_set' => true]);
+                $teamB->update(['won_set' => false]);
                 $team1WonSets++;
             } else {
+                $teamA->update(['won_set' => false]);
+                $teamB->update(['won_set' => true]);
                 $team2WonSets++;
             }
+        }
 
-            $teamA->update(['won_set' => ($teamA->team_id == $winnerTeamId)]);
-            $teamB->update(['won_set' => ($teamB->team_id == $winnerTeamId)]);
+        // Kiểm tra cách điểm sau khi xác định winner
+        foreach ($allResults as $sNum => $setResults) {
+            $teamA = $setResults->firstWhere('team_id', $team1Id);
+            $teamB = $setResults->firstWhere('team_id', $team2Id);
+            $scoreA = (int) $teamA->score;
+            $scoreB = (int) $teamB->score;
+            $winningScore = max($scoreA, $scoreB);
+            $losingScore = min($scoreA, $scoreB);
+            $actualDiff = $winningScore - $losingScore;
+
+            if ($actualDiff < 1) {
+                return "Set {$sNum}: Tỉ số hòa ({$scoreA}-{$scoreB}) không hợp lệ";
+            }
+
+            if ($applyRule) {
+                if ($winningScore < $basePoints) {
+                    return "Set {$sNum}: Điểm thắng phải đạt tối thiểu {$basePoints} điểm (hiện tại: {$winningScore})";
+                }
+                // Khi đạt max_points: được phép thắng cách 1 điểm (luật deuce)
+                if ($maxPoints > 0 && $winningScore == $maxPoints) {
+                    if ($actualDiff < 1) {
+                        return "Set {$sNum}: Tỉ số hòa ({$scoreA}-{$scoreB}) không hợp lệ";
+                    }
+                    continue;
+                }
+                if ($actualDiff < $pointsDiff) {
+                    return "Set {$sNum}: Thắng cách {$pointsDiff} điểm mới hợp lệ (hiện tại: {$actualDiff} điểm - {$scoreA}-{$scoreB})";
+                }
+            } else {
+                // Không áp dụng luật: chỉ kiểm tra tỉ số bất thường
+                if ($actualDiff < $pointsDiff) {
+                    return "Set {$sNum}: Cách biệt {$actualDiff} điểm ({$scoreA}-{$scoreB}) nhỏ hơn quy định ({$pointsDiff} điểm)";
+                }
+            }
         }
 
         if ($team1WonSets === $team2WonSets) {
-            return "Không thể xác nhận kết quả khi hòa số set ({$team1WonSets}-{$team2WonSets})";
+            return "Hòa số set ({$team1WonSets}-{$team2WonSets}), không xác định được đội thắng";
         }
 
         $totalSets = $allResults->count();
-        if ($totalSets > $setNumber) {
-            return "Số set vượt quá giới hạn ({$totalSets}/{$setNumber})";
+        if ($configSetNumber > 0 && $totalSets > $configSetNumber) {
+            return "Số set vượt quá giới hạn ({$totalSets}/{$configSetNumber})";
         }
 
         return null;
     }
 
-    // ============================================
-    // 4. VALIDATE SET SCORE - LOGIC THẮNG THUA
-    // ============================================
-    // private function validateSetScore($A, $B, $pointsToWinSet, $pointsDifference, $maxPoints, $team1Id, $team2Id)
-    // {
-    //     if ($A < 0 || $B < 0) {
-    //         return ['error' => true, 'message' => 'Điểm số không hợp lệ'];
-    //     }
-
-    //     $scoreDiff = abs($A - $B);
-    //     $isPointsToWinReached = ($A >= $pointsToWinSet || $B >= $pointsToWinSet);
-    //     $isMaxPointsReached = ($A == $maxPoints || $B == $maxPoints);
-    //     $winnerTeamId = null;
-
-    //     if ($pointsToWinSet == $maxPoints) {
-    //         // Trường hợp: 11-2-11
-    //         if (!$isMaxPointsReached) {
-    //             return ['error' => true, 'message' => "Chưa đạt điểm tối đa {$maxPoints}"];
-    //         }
-    //         $winnerTeamId = $A > $B ? $team1Id : $team2Id;
-    //     } else {
-    //         // Trường hợp: 11-2-15
-    //         if ($isPointsToWinReached && $scoreDiff >= $pointsDifference) {
-    //             $winnerTeamId = $A > $B ? $team1Id : $team2Id;
-    //         } elseif ($isMaxPointsReached) {
-    //             if ($A == $B) {
-    //                 return ['error' => true, 'message' => "Điểm số hòa tại điểm tối đa {$maxPoints}"];
-    //             }
-    //             $winnerTeamId = $A > $B ? $team1Id : $team2Id;
-    //         } else {
-    //             return ['error' => true, 'message' => 'Set chưa hoàn thành hoặc chưa đủ điều kiện thắng'];
-    //         }
-    //     }
-
-    //     // Anti-cheat
-    //     $winningScore = max($A, $B);
-    //     $losingScore = min($A, $B);
-
-    //     if ($pointsToWinSet == $maxPoints) {
-    //         if (!($winningScore == $maxPoints && $losingScore < $maxPoints)) {
-    //             return ['error' => true, 'message' => 'Điểm số không hợp lệ (anti-cheat)'];
-    //         }
-    //     } else {
-    //         if ($winningScore < $maxPoints) {
-    //             if ($winningScore < $pointsToWinSet || ($winningScore - $losingScore) < $pointsDifference) {
-    //                 return ['error' => true, 'message' => 'Điểm số không hợp lệ (anti-cheat)'];
-    //             }
-    //         } else {
-    //             if ($winningScore != $maxPoints || $winningScore <= $losingScore) {
-    //                 return ['error' => true, 'message' => 'Điểm số không hợp lệ (anti-cheat)'];
-    //             }
-    //         }
-    //     }
-
-    //     return ['error' => false, 'winner' => $winnerTeamId];
-    // }
-    private function validateSetScore($A, $B, $pointsToWinSet, $pointsDifference, $maxPoints, $team1Id, $team2Id)
-    {
-        if ($A < 0 || $B < 0) {
-            return ['error' => true, 'message' => 'Điểm số không hợp lệ'];
-        }
-
-        // Check 1: Không được hòa
-        if ($A == $B) {
-            return ['error' => true, 'message' => 'Không được có tỉ số hòa'];
-        }
-
-        $winningScore = max($A, $B);
-        $losingScore = min($A, $B);
-        $scoreDiff = $winningScore - $losingScore;
-
-        if ($winningScore > $maxPoints) {
-            return ['error' => true, 'message' => "Điểm số không được vượt quá {$maxPoints}"];
-        }
-
-        if ($winningScore < $pointsToWinSet) {
-            return ['error' => true, 'message' => "Ít nhất 1 đội phải đạt {$pointsToWinSet} điểm"];
-        }
-
-        if ($winningScore < $maxPoints) {
-            if ($scoreDiff < $pointsDifference) {
-                return ['error' => true, 'message' => "Phải thắng cách {$pointsDifference} điểm (hiện tại: {$scoreDiff})"];
-            }
-        }
-
-        $winnerTeamId = $A > $B ? $team1Id : $team2Id;
-        return ['error' => false, 'winner' => $winnerTeamId];
-    }
 
     /**
      * Logic xử lý khi trận đấu hoàn tất (Tính winner, Elo/VNDUPR)
@@ -1152,7 +1089,15 @@ class MiniMatchController extends Controller
             }
 
             if (!empty($data['sets'])) {
+                // Phải lưu sets trước rồi mới validate: validateAllSets đọc từ DB ($match->results)
                 $this->processSets($match, $data['sets']);
+                $match->unsetRelation('results');
+                $match->load('results');
+                $setValidationError = $this->validateAllSets($match, $miniTournament);
+                if ($setValidationError) {
+                    DB::rollBack();
+                    return ResponseHelper::error("Lỗi kết quả set: {$setValidationError}", 400);
+                }
             }
 
             DB::commit();
