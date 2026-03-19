@@ -337,90 +337,92 @@ class MiniTournamentService
     }
 
     /**
-     * Cập nhật cả chuỗi: hủy chuỗi cũ, tạo chuỗi mới với thông tin đã sửa.
+     * Cập nhật cả chuỗi: cập nhật thông tin cho TẤT CẢ kèo trong chuỗi,
+     * giữ nguyên participants, payments, matches đã có.
      */
     public function updateTournamentAsNewSeries(MiniTournament $tournament, array $data, int $userId): MiniTournament
     {
         $seriesId = $tournament->recurrence_series_id;
 
+        \Log::info('updateTournamentAsNewSeries - START', [
+            'tournament_id' => $tournament->id,
+            'series_id' => $seriesId,
+            'data_keys' => array_keys($data),
+        ]);
+
         if (!$seriesId) {
             throw new \Exception('Kèo đấu này không thuộc chuỗi lặp lại');
         }
 
-        // Chuẩn bị payload cho kèo mới
-        $payload = [
-            'sport_id' => $data['sport_id'] ?? $tournament->sport_id,
-            'name' => $data['name'] ?? $tournament->name,
-            'description' => $data['description'] ?? $tournament->description,
-            'play_mode' => $data['play_mode'] ?? $tournament->play_mode,
-            'format' => $data['format'] ?? $tournament->format,
-            'start_time' => $data['start_time'] ?? $tournament->start_time,
-            'duration' => $data['duration'] ?? $tournament->duration,
-            'competition_location_id' => $data['competition_location_id'] ?? $tournament->competition_location_id,
-            'is_private' => $data['is_private'] ?? $tournament->is_private,
-            'has_fee' => $data['has_fee'] ?? $tournament->has_fee,
-            'auto_split_fee' => $data['auto_split_fee'] ?? $tournament->auto_split_fee,
-            'fee_amount' => $data['fee_amount'] ?? $tournament->fee_amount,
-            'fee_description' => $data['fee_description'] ?? $tournament->fee_description,
-            'qr_code_url' => $data['qr_code_url'] ?? $tournament->qr_code_url,
-            'payment_account_id' => $data['payment_account_id'] ?? $tournament->payment_account_id,
-            'max_players' => $data['max_players'] ?? $tournament->max_players,
-            'min_rating' => $data['min_rating'] ?? $tournament->min_rating,
-            'max_rating' => $data['max_rating'] ?? $tournament->max_rating,
-            'set_number' => $data['set_number'] ?? $tournament->set_number,
-            'base_points' => $data['base_points'] ?? $tournament->base_points,
-            'points_difference' => $data['points_difference'] ?? $tournament->points_difference,
-            'max_points' => $data['max_points'] ?? $tournament->max_points,
-            'gender' => $data['gender'] ?? $tournament->gender,
-            'auto_approve' => $data['auto_approve'] ?? $tournament->auto_approve,
-            'allow_participant_add_friends' => $data['allow_participant_add_friends'] ?? $tournament->allow_participant_add_friends,
-            'allow_cancellation' => $data['allow_cancellation'] ?? $tournament->allow_cancellation,
-            'cancellation_duration' => $data['cancellation_duration'] ?? $tournament->cancellation_duration,
-            'apply_rule' => $data['apply_rule'] ?? $tournament->apply_rule,
-            'recurring_schedule' => $data['recurring_schedule'] ?? $tournament->getRecurringScheduleRaw(),
-            'poster' => $data['poster'] ?? $tournament->poster,
-        ];
+        // Lấy danh sách TẤT CẢ kèo trong chuỗi (bao gồm cả đã hoàn thành)
+        $allTournaments = MiniTournament::where('recurrence_series_id', $seriesId)->get();
 
-        // Nếu có thay đổi start_time hoặc recurring_schedule
-        if (isset($data['start_time']) || isset($data['recurring_schedule'])) {
-            $startTime = isset($data['start_time']) ? Carbon::parse($data['start_time']) : Carbon::parse($tournament->start_time);
-            $duration = $data['duration'] ?? $tournament->duration;
-            $payload['end_time'] = $duration ? $startTime->copy()->addMinutes($duration) : null;
+        \Log::info('updateTournamentAsNewSeries - tournaments found', [
+            'count' => $allTournaments->count(),
+            'ids' => $allTournaments->pluck('id')->toArray(),
+        ]);
+
+        if ($allTournaments->isEmpty()) {
+            throw new \Exception('Chuỗi kèo đấu không tồn tại');
         }
 
-        return DB::transaction(function () use ($tournament, $seriesId, $payload, $userId) {
-            // Hủy chuỗi cũ (xóa các bản ghi chưa hoàn thành, đánh dấu đã thay thế)
-            $this->replaceSeriesKeepingHistory($seriesId);
+        // Lấy recurring_schedule mới (nếu có thay đổi)
+        $newRecurringSchedule = $data['recurring_schedule'] ?? null;
 
-            // Tạo chuỗi mới với series ID mới
-            $newSeriesId = Str::uuid()->toString();
-            $payload['recurrence_series_id'] = $newSeriesId;
-            $payload['recurrence_series_cancelled_at'] = null;
+        return DB::transaction(function () use ($allTournaments, $data, $newRecurringSchedule, $userId) {
+            $updatedCount = 0;
 
-            $newTournament = MiniTournament::create($payload);
+            // Cập nhật thông tin cho TẤT CẢ kèo trong chuỗi
+            foreach ($allTournaments as $t) {
+                $updateData = [];
 
-            // Sync staff và creator cho kèo mới
-            $this->syncStaffAndCreatorForOccurrence($tournament, $newTournament, $userId);
+                // Chỉ cập nhật các trường được thay đổi trong data
+                $fieldsToUpdate = [
+                    'sport_id', 'name', 'description', 'play_mode', 'format',
+                    'competition_location_id', 'is_private', 'has_fee', 'auto_split_fee',
+                    'fee_amount', 'fee_description', 'payment_account_id', 'max_players',
+                    'min_rating', 'max_rating', 'set_number', 'base_points',
+                    'points_difference', 'max_points', 'gender', 'auto_approve',
+                    'allow_participant_add_friends', 'allow_cancellation',
+                    'cancellation_duration', 'apply_rule', 'poster'
+                ];
 
-            return $newTournament;
+                foreach ($fieldsToUpdate as $field) {
+                    if (array_key_exists($field, $data)) {
+                        $updateData[$field] = $data[$field];
+                    }
+                }
+
+                // Cập nhật duration nếu có thay đổi
+                if (isset($data['duration'])) {
+                    $updateData['duration'] = $data['duration'];
+                    $startTime = $t->start_time;
+                    if ($startTime) {
+                        $updateData['end_time'] = $startTime->copy()->addMinutes($data['duration']);
+                    }
+                }
+
+                // Cập nhật recurring_schedule nếu có thay đổi
+                if ($newRecurringSchedule !== null) {
+                    $updateData['recurring_schedule'] = $newRecurringSchedule;
+                }
+
+                \Log::info('updateTournamentAsNewSeries - updating tournament', [
+                    'tournament_id' => $t->id,
+                    'update_data' => $updateData,
+                ]);
+
+                if (!empty($updateData)) {
+                    $t->update($updateData);
+                    $updatedCount++;
+                }
+            }
+
+            \Log::info('updateTournamentAsNewSeries - DONE', [
+                'updated_count' => $updatedCount,
+            ]);
+
+            return $allTournaments->first()->fresh();
         });
-    }
-
-    /**
-     * Khi sửa cả chuỗi: xóa hết bản ghi cũ chưa hoàn thành,
-     * chỉ giữ lại bản ghi đã hoàn thành hoặc đã hủy để xem lịch sử.
-     */
-    private function replaceSeriesKeepingHistory(string $seriesId): void
-    {
-        $now = Carbon::now();
-
-        // Xóa các kèo chưa hoàn thành trong chuỗi cũ
-        MiniTournament::where('recurrence_series_id', $seriesId)
-            ->whereNotIn('status', [MiniTournament::STATUS_CLOSED, MiniTournament::STATUS_CANCELLED])
-            ->delete();
-
-        // Đánh dấu chuỗi đã bị thay thế
-        MiniTournament::where('recurrence_series_id', $seriesId)
-            ->update(['recurrence_series_cancelled_at' => $now]);
     }
 }
