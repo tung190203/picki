@@ -119,7 +119,10 @@
                                     <!-- players -->
                                     <div class="absolute inset-0 p-4">
                                         <!-- Team1: left -->
-                                        <div class="absolute left-4 top-4 w-[calc(50%-1.25rem)] flex flex-col items-center justify-center">
+                                        <div
+                                            class="absolute left-4 w-[calc(50%-1.25rem)] flex flex-col items-center justify-center"
+                                            :class="isDoubles ? 'top-4' : 'top-1/2 -translate-y-1/2'"
+                                        >
                                             <div class="relative">
                                                 <span class="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-blue-50 border border-blue-200 text-blue-600 text-xs font-bold flex items-center justify-center">1</span>
                                                 <span
@@ -143,7 +146,10 @@
                                                 {{ courtPositions.team1[0]?.full_name || '—' }}
                                             </div>
                                         </div>
-                                        <div class="absolute left-4 bottom-4 w-[calc(50%-1.25rem)] flex flex-col items-center justify-center">
+                                        <div
+                                            v-if="isDoubles"
+                                            class="absolute left-4 bottom-4 w-[calc(50%-1.25rem)] flex flex-col items-center justify-center"
+                                        >
                                             <div class="relative">
                                                 <span class="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-blue-50 border border-blue-200 text-blue-600 text-xs font-bold flex items-center justify-center">2</span>
                                                 <span
@@ -169,7 +175,10 @@
                                         </div>
 
                                         <!-- Team2: right -->
-                                        <div class="absolute right-4 top-4 w-[calc(50%-1.25rem)] flex flex-col items-center justify-center">
+                                        <div
+                                            class="absolute right-4 w-[calc(50%-1.25rem)] flex flex-col items-center justify-center"
+                                            :class="isDoubles ? 'top-4' : 'top-1/2 -translate-y-1/2'"
+                                        >
                                             <div class="relative">
                                                 <span class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-50 border border-red-200 text-red-600 text-xs font-bold flex items-center justify-center">1</span>
                                                 <span
@@ -193,7 +202,10 @@
                                                 {{ courtPositions.team2[0]?.full_name || '—' }}
                                             </div>
                                         </div>
-                                        <div class="absolute right-4 bottom-4 w-[calc(50%-1.25rem)] flex flex-col items-center justify-center">
+                                        <div
+                                            v-if="isDoubles"
+                                            class="absolute right-4 bottom-4 w-[calc(50%-1.25rem)] flex flex-col items-center justify-center"
+                                        >
                                             <div class="relative">
                                                 <span class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-50 border border-red-200 text-red-600 text-xs font-bold flex items-center justify-center">2</span>
                                                 <span
@@ -219,8 +231,11 @@
                                         </div>
                                     </div>
 
-                                    <!-- center actions (setup / in-match) -->
-                                    <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-auto">
+                                    <!-- center actions (doubles only) -->
+                                    <div
+                                        v-if="isDoubles"
+                                        class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-auto"
+                                    >
                                         <div class="flex items-center gap-2">
                                             <div class="flex items-center gap-2">
                                                 <button
@@ -298,7 +313,7 @@
                                             >
                                                 ✕
                                             </button>
-                                            <div class="w-full h-full grid grid-cols-2 grid-rows-2 gap-2">
+                                            <div class="w-full h-full grid grid-cols-2 gap-2" :class="isDoubles ? 'grid-rows-2' : 'grid-rows-1'">
                                                 <button
                                                     type="button"
                                                     class="rounded-xl border border-gray-200 bg-white shadow-sm flex flex-col items-center justify-center"
@@ -316,6 +331,7 @@
                                                     <div class="mt-2 text-xs font-semibold text-gray-700 truncate max-w-[120px]">{{ courtPositions.team2[0]?.full_name || 'Team B - 1' }}</div>
                                                 </button>
                                                 <button
+                                                    v-if="isDoubles"
                                                     type="button"
                                                     class="rounded-xl border border-gray-200 bg-white shadow-sm flex flex-col items-center justify-center"
                                                     @click="setInitialServer('team1', 1)"
@@ -324,6 +340,7 @@
                                                     <div class="mt-2 text-xs font-semibold text-gray-700 truncate max-w-[120px]">{{ courtPositions.team1[1]?.full_name || 'Team A - 2' }}</div>
                                                 </button>
                                                 <button
+                                                    v-if="isDoubles"
                                                     type="button"
                                                     class="rounded-xl border border-gray-200 bg-white shadow-sm flex flex-col items-center justify-center"
                                                     @click="setInitialServer('team2', 1)"
@@ -334,6 +351,38 @@
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+
+                                <!-- Singles: actions row below court -->
+                                <div
+                                    v-if="!isDoubles"
+                                    class="mt-3 flex items-center justify-center gap-3"
+                                >
+                                    <button
+                                        type="button"
+                                        class="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 text-gray-800 shadow-sm"
+                                        title="Timeout"
+                                        @click="handleTimeout"
+                                    >
+                                        ⌛
+                                    </button>
+                                    <button
+                                        v-if="!matchStarted"
+                                        type="button"
+                                        class="w-10 h-10 rounded-full bg-gray-900 text-white shadow-md flex items-center justify-center"
+                                        title="Chọn người giao bóng đầu tiên"
+                                        @click="toggleSelectingServer"
+                                    >
+                                        🏐
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="swapTeams"
+                                        class="w-11 h-11 rounded-full bg-white border border-gray-300 text-gray-900 shadow-md"
+                                        title="Đổi bên hai đội"
+                                    >
+                                        ⇄
+                                    </button>
                                 </div>
 
                                 <div class="mt-3 text-center text-xs text-gray-500">

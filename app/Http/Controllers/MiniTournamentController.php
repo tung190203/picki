@@ -41,13 +41,13 @@ class MiniTournamentController extends Controller
 
         if ($request->has('invite_user')) {
             $inviteUsers = $request->input('invite_user', []);
-            
+
             // Calculate payment_status for invited users
             $paymentStatus = \App\Enums\PaymentStatusEnum::CONFIRMED;
             if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
                 $paymentStatus = \App\Enums\PaymentStatusEnum::PENDING;
             }
-            
+
             foreach ($inviteUsers as $userId) {
                 MiniParticipant::create([
                     'mini_tournament_id' => $miniTournament->id,
@@ -273,6 +273,26 @@ class MiniTournamentController extends Controller
     {
         foreach ($userIds as $userId) {
             SendPushJob::dispatch($userId, $title, $body, $data);
+        }
+    }
+
+    public function cancelRecurrenceSeries(Request $request, $tournamentId)
+    {
+        $userId = Auth::id();
+
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        try {
+            $count = $this->tournamentService->cancelRecurrenceSeries((string) $tournamentId, $userId);
+            return ResponseHelper::success(
+                ['deleted_count' => $count],
+                'Đã xóa các kèo hợp lệ trong chuỗi lặp lại',
+                200
+            );
+        } catch (\Exception $e) {
+            return ResponseHelper::error($e->getMessage(), 403);
         }
     }
 }

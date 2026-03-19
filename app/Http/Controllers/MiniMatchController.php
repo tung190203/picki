@@ -502,7 +502,6 @@ class MiniMatchController extends Controller
             return $match;
         });
 
-        // Gửi thông báo
         $team1UserIds = $match->team1->members()->pluck('user_id')->toArray();
         $team2UserIds = $match->team2->members()->pluck('user_id')->toArray();
         $allParticipantIds = array_unique(array_merge($team1UserIds, $team2UserIds));
@@ -579,10 +578,16 @@ class MiniMatchController extends Controller
         $pointsToWinSet = $tournament->base_points;
         $pointsDifference = $tournament->points_difference;
         $maxPoints = $tournament->max_points;
-
-        // Kiểm tra luật thi đấu
+        $setNumber = $tournament->set_number;
         if ($pointsToWinSet === null || $pointsDifference === null || $maxPoints === null) {
             return 'Kèo đấu chưa thiết lập đủ luật thi đấu';
+        }
+
+        if (!$tournament->apply_rule) {
+            if ($match->results->isEmpty()) {
+                return 'Trận đấu chưa có kết quả nào';
+            }
+            return null;
         }
 
         $team1Id = $match->team1_id;
@@ -593,7 +598,9 @@ class MiniMatchController extends Controller
             return 'Trận đấu chưa có kết quả nào';
         }
 
-        // Validate từng set
+        $team1WonSets = 0;
+        $team2WonSets = 0;
+
         foreach ($allResults as $setNumber => $setResults) {
             if ($setResults->count() !== 2) {
                 return "Set {$setNumber}: Thiếu điểm số của một trong hai đội";
@@ -609,7 +616,6 @@ class MiniMatchController extends Controller
             $A = (int) $teamA->score;
             $B = (int) $teamB->score;
 
-            // Validate logic thắng thua
             $validation = $this->validateSetScore(
                 $A,
                 $B,
@@ -624,13 +630,27 @@ class MiniMatchController extends Controller
                 return "Set {$setNumber}: {$validation['message']}";
             }
 
-            // Cập nhật won_set với ID thực tế
             $winnerTeamId = $validation['winner'];
+            if ($winnerTeamId === $team1Id) {
+                $team1WonSets++;
+            } else {
+                $team2WonSets++;
+            }
+
             $teamA->update(['won_set' => ($teamA->team_id == $winnerTeamId)]);
             $teamB->update(['won_set' => ($teamB->team_id == $winnerTeamId)]);
         }
 
-        return null; // Không có lỗi
+        if ($team1WonSets === $team2WonSets) {
+            return "Không thể xác nhận kết quả khi hòa số set ({$team1WonSets}-{$team2WonSets})";
+        }
+
+        $totalSets = $allResults->count();
+        if ($totalSets > $setNumber) {
+            return "Số set vượt quá giới hạn ({$totalSets}/{$setNumber})";
+        }
+
+        return null;
     }
 
     // ============================================
@@ -700,15 +720,25 @@ class MiniMatchController extends Controller
             return ['error' => true, 'message' => 'Không được có tỉ số hòa'];
         }
 
-        // Check 2: Ít nhất 1 đội phải đạt pointsToWinSet (11 điểm)
         $winningScore = max($A, $B);
+        $losingScore = min($A, $B);
+        $scoreDiff = $winningScore - $losingScore;
+
+        if ($winningScore > $maxPoints) {
+            return ['error' => true, 'message' => "Điểm số không được vượt quá {$maxPoints}"];
+        }
+
         if ($winningScore < $pointsToWinSet) {
             return ['error' => true, 'message' => "Ít nhất 1 đội phải đạt {$pointsToWinSet} điểm"];
         }
 
-        // Xác định winner
-        $winnerTeamId = $A > $B ? $team1Id : $team2Id;
+        if ($winningScore < $maxPoints) {
+            if ($scoreDiff < $pointsDifference) {
+                return ['error' => true, 'message' => "Phải thắng cách {$pointsDifference} điểm (hiện tại: {$scoreDiff})"];
+            }
+        }
 
+        $winnerTeamId = $A > $B ? $team1Id : $team2Id;
         return ['error' => false, 'winner' => $winnerTeamId];
     }
 

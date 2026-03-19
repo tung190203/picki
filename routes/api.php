@@ -534,6 +534,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::get('/{id}', [MiniTournamentController::class, 'show']);
         Route::post('/update/{id}', [MiniTournamentController::class, 'update']);
         Route::post('/delete/{id}', [MiniTournamentController::class,'destroy']);
+        Route::post('/{tournamentId}/recurrence-series/cancel', [MiniTournamentController::class, 'cancelRecurrenceSeries']);
 
         // Mini Tournament Payment Routes
         Route::get('/{id}/payments', [MiniTournamentPaymentController::class, 'index']);
