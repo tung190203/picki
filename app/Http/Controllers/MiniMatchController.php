@@ -1088,6 +1088,11 @@ class MiniMatchController extends Controller
                 ]);
             }
 
+            // Lưu kết quả các set (nếu có)
+            if (!empty($data['sets'])) {
+                $this->processSets($match, $data['sets']);
+            }
+
             // NOTE: Không validate kết quả set ở đây
             // Việc validate (điểm >= 11) chỉ áp dụng khi CONFIRM trận đấu
             // Cho phép lưu kết quả tạm thời (dù chưa đạt 11 điểm) để người dùng tiếp tục chỉnh sửa
