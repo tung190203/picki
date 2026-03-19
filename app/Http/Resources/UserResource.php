@@ -15,6 +15,10 @@ class UserResource extends JsonResource
 
     public function toArray(Request $request): array
     {
+        if (!$this->resource) {
+            return [];
+        }
+
         $vnRank = $this->vn_rank;
 
         // Fallback for single user requests or when attributes are missing
