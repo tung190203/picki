@@ -1088,17 +1088,9 @@ class MiniMatchController extends Controller
                 ]);
             }
 
-            if (!empty($data['sets'])) {
-                // Phải lưu sets trước rồi mới validate: validateAllSets đọc từ DB ($match->results)
-                $this->processSets($match, $data['sets']);
-                $match->unsetRelation('results');
-                $match->load('results');
-                $setValidationError = $this->validateAllSets($match, $miniTournament);
-                if ($setValidationError) {
-                    DB::rollBack();
-                    return ResponseHelper::error("Lỗi kết quả set: {$setValidationError}", 400);
-                }
-            }
+            // NOTE: Không validate kết quả set ở đây
+            // Việc validate (điểm >= 11) chỉ áp dụng khi CONFIRM trận đấu
+            // Cho phép lưu kết quả tạm thời (dù chưa đạt 11 điểm) để người dùng tiếp tục chỉnh sửa
 
             DB::commit();
 
