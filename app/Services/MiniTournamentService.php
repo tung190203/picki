@@ -3,11 +3,13 @@
 namespace App\Services;
 
 use App\Models\MiniTournament;
+use App\Models\MiniMatch;
 use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
 use App\Models\MiniTournamentStaff;
 use App\Enums\PaymentStatusEnum;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -272,5 +274,65 @@ class MiniTournamentService
                 ]
             );
         }
+    }
+
+    public function cancelRecurrenceSeries(string $seriesIdOrTournamentId, int $userId): int
+    {
+        $seriesId = Str::isUuid($seriesIdOrTournamentId)
+            ? $seriesIdOrTournamentId
+            : MiniTournament::where('id', $seriesIdOrTournamentId)->value('recurrence_series_id');
+
+        if (!$seriesId) {
+            throw new \Exception('Chuỗi kèo đấu không tồn tại');
+        }
+
+        $tournamentIds = MiniTournament::where('recurrence_series_id', $seriesId)
+            ->pluck('id')
+            ->toArray();
+
+        $hasPermission = MiniTournamentStaff::where('user_id', $userId)
+            ->where('role', MiniTournamentStaff::ROLE_ORGANIZER)
+            ->whereIn('mini_tournament_id', $tournamentIds)
+            ->exists();
+
+        if (!$hasPermission) {
+            throw new \Exception('Chỉ organizer mới có quyền hủy chuỗi kèo đấu');
+        }
+
+        $now = Carbon::now();
+
+        $candidates = MiniTournament::where('recurrence_series_id', $seriesId)
+            ->where('status', '!=', MiniTournament::STATUS_CLOSED)
+            ->where('start_time', '>', $now)
+            ->get();
+
+        $deleteIds = [];
+        foreach ($candidates as $tournament) {
+            if (!$tournament->allow_cancellation) {
+                continue;
+            }
+            if ($tournament->isCancellationClosed($now)) {
+                continue;
+            }
+            $hasCompletedMatch = MiniMatch::where('mini_tournament_id', $tournament->id)
+                ->where('status', MiniMatch::STATUS_COMPLETED)
+                ->exists();
+            if ($hasCompletedMatch) {
+                continue;
+            }
+            $deleteIds[] = $tournament->id;
+        }
+
+        DB::transaction(function () use ($deleteIds, $seriesId, $now) {
+            if (!empty($deleteIds)) {
+                MiniTournament::whereIn('id', $deleteIds)->delete();
+            }
+
+            // Đánh dấu chuỗi đã bị hủy (ngăn không cho tạo kèo mới)
+            MiniTournament::where('recurrence_series_id', $seriesId)
+                ->update(['recurrence_series_cancelled_at' => $now]);
+        });
+
+        return count($deleteIds);
     }
 }

@@ -91,6 +91,8 @@ class MiniTournamentResource extends JsonResource
             // Recurring schedule
             // Same format as clubs: { period, week_days, recurring_date }
             'recurring_schedule' => $this->recurring_schedule,
+            'recurrence_series_id' => $this->recurrence_series_id,
+            'recurrence_series_cancelled_at' => $this->recurrence_series_cancelled_at,
         ];
 
         // Include game rule fields only if apply_rule is true

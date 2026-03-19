@@ -26,6 +26,11 @@ export const deleteMiniTournament = async (id) => {
         .then((response) => response.data.data);
 }
 
+export const cancelRecurrenceSeries = async (tournamentId) => {
+    return axiosInstance.post(`${miniTournamentEndpoint}/${tournamentId}/recurrence-series/cancel`)
+        .then((response) => response.data);
+}
+
 // Payments
 export const getMiniTournamentPayments = async (id) => {
   return axiosInstance.get(`${miniTournamentEndpoint}/${id}/payments`)
