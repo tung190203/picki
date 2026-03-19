@@ -575,27 +575,63 @@ class MiniMatchController extends Controller
 
     private function validateAllSets($match, $tournament)
     {
-        $pointsToWinSet = $tournament->base_points;
-        $pointsDifference = $tournament->points_difference;
-        $maxPoints = $tournament->max_points;
-        $setNumber = $tournament->set_number;
-        if ($pointsToWinSet === null || $pointsDifference === null || $maxPoints === null) {
-            return 'Kèo đấu chưa thiết lập đủ luật thi đấu';
-        }
-
-        if (!$tournament->apply_rule) {
-            if ($match->results->isEmpty()) {
-                return 'Trận đấu chưa có kết quả nào';
-            }
-            return null;
+        // Kiểm tra có kết quả không
+        if ($match->results->isEmpty()) {
+            return 'Trận đấu chưa có kết quả nào';
         }
 
         $team1Id = $match->team1_id;
         $team2Id = $match->team2_id;
         $allResults = $match->results->groupBy('set_number');
 
-        if ($allResults->isEmpty()) {
-            return 'Trận đấu chưa có kết quả nào';
+        // Nếu không áp dụng luật, chỉ cần kiểm tra đơn giản
+        if (!$tournament->apply_rule) {
+            // Kiểm tra mỗi set phải có đủ 2 đội và ít nhất 1 đội đạt >= 11 điểm
+            foreach ($allResults as $setNumber => $setResults) {
+                if ($setResults->count() !== 2) {
+                    return "Set {$setNumber}: Thiếu điểm số của một trong hai đội";
+                }
+
+                $teamA = $setResults->firstWhere('team_id', $team1Id);
+                $teamB = $setResults->firstWhere('team_id', $team2Id);
+
+                if (!$teamA || !$teamB) {
+                    return "Set {$setNumber}: Dữ liệu không hợp lệ";
+                }
+
+                $scoreA = (int) $teamA->score;
+                $scoreB = (int) $teamB->score;
+
+                // Kiểm tra ít nhất 1 đội đạt >= 11 điểm
+                if ($scoreA < 11 && $scoreB < 11) {
+                    return "Set {$setNumber}: Ít nhất 1 đội phải đạt 11 điểm trở lên";
+                }
+
+                // Xác định đội thắng set (nếu hòa thì không có đội nào thắng set)
+                if ($scoreA > $scoreB) {
+                    $teamA->update(['won_set' => true]);
+                    $teamB->update(['won_set' => false]);
+                } elseif ($scoreB > $scoreA) {
+                    $teamA->update(['won_set' => false]);
+                    $teamB->update(['won_set' => true]);
+                } else {
+                    // Hòa - không đội nào thắng set
+                    $teamA->update(['won_set' => false]);
+                    $teamB->update(['won_set' => false]);
+                }
+            }
+
+            return null;
+        }
+
+        // Nếu áp dụng luật, kiểm tra đầy đủ
+        $pointsToWinSet = $tournament->base_points;
+        $pointsDifference = $tournament->points_difference;
+        $maxPoints = $tournament->max_points;
+        $setNumber = $tournament->set_number;
+        
+        if ($pointsToWinSet === null || $pointsDifference === null || $maxPoints === null) {
+            return 'Kèo đấu chưa thiết lập đủ luật thi đấu';
         }
 
         $team1WonSets = 0;
