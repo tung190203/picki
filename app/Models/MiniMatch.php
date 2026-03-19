@@ -22,6 +22,7 @@ class MiniMatch extends Model
         'team1_confirm',
         'team2_confirm',
         'name',
+        'note',
     ];
 
     const PER_PAGE = 10;

@@ -331,6 +331,7 @@
                  :selected-club="selectedClub" :search-query="searchQuery" :current-radius="currentRadius" :current-club-id="selectedClub" @update:radius="onRadiusChange" @update:searchQuery="onSearchChange"
                  @change-scope="onScopeChange" @change-club="onClubChange" @invite="handleInvite" />
     <DeleteConfirmationModal v-model="showDeleteModal" title="Xác nhận hủy bỏ kèo đấu" message="Thao tác này không thể hoàn tác." confirmButtonText="Xác nhận" @confirm="removeMiniTournament" />
+    <CancelRecurrenceModal v-model="showCancelRecurrenceModal" @cancelSingle="showDeleteModal = true" @cancelSeries="cancelRecurrenceSeries" />
     <DeleteConfirmationModal v-model="showDelineMiniParticipantModal" title="Xác nhận từ chối tham gia kèo đấu" message="Thao tác này không thể hoàn tác." confirmButtonText="Xác nhận" @confirm="declineMiniTournament" />
     <PromotionModal v-model="isPromotionModalOpen" promotable-type="mini_tournament" :promotable-id="Number(id)" @success="toast.success('Đã gửi quảng bá thành công')" />
         <MiniTournamentPaymentModal
