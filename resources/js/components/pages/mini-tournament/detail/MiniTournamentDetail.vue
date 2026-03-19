@@ -33,6 +33,7 @@ import { useUserStore } from '@/store/auth';
 import * as MiniTournamentStaffService from '@/service/miniTournamentStaff.js';
 import QRcodeModal from '@/components/molecules/QRcodeModal.vue';
 import DeleteConfirmationModal from '@/components/molecules/DeleteConfirmationModal.vue';
+import CancelRecurrenceModal from '@/components/molecules/CancelRecurrenceModal.vue';
 import MiniMatchScheduleTab from '@/components/molecules/mini-match-schedule-tab/MiniMatchScheduleTab.vue'
 import ChatFormMiniTournament from '@/components/organisms/ChatFormMiniTournament.vue'
 import PromotionModal from '@/components/organisms/PromotionModal.vue'
@@ -67,6 +68,7 @@ export default {
         InviteGroup,
         ShareAction,
         DeleteConfirmationModal,
+        CancelRecurrenceModal,
         ChatFormMiniTournament,
         PromotionModal,
         MiniTournamentPaymentModal,
@@ -99,6 +101,7 @@ export default {
         const descriptionModel = ref('');
         const isEditingDescription = ref(false);
         const showDeleteModal = ref(false);
+        const showCancelRecurrenceModal = ref(false);
         const isPromotionModalOpen = ref(false);
         const currentParticipant = ref(null)
         const isUserConfirmed = ref(false)
@@ -475,7 +478,13 @@ export default {
         };
 
         const confirmRemoval = () => {
-            showDeleteModal.value = true;
+            // Kiểm tra xem kèo có thuộc chuỗi lặp lại không
+            const seriesId = mini.value.recurrence_series_id
+            if (seriesId) {
+                showCancelRecurrenceModal.value = true;
+            } else {
+                showDeleteModal.value = true;
+            }
         };
 
         const removeMiniTournament = async () => {
@@ -488,6 +497,19 @@ export default {
                 }, 1500)
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi xoá giải đấu.')
+            }
+        }
+
+        const cancelRecurrenceSeries = async () => {
+            const id = mini.value.id
+            try {
+                await MiniTournamnetService.cancelRecurrenceSeries(id)
+                toast.success('Đã hủy toàn bộ chuỗi kèo đấu lặp lại!')
+                setTimeout(() => {
+                    router.push('/')
+                }, 1500)
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi hủy chuỗi kèo đấu.')
             }
         }
 
@@ -693,6 +715,7 @@ export default {
             isEditingDescription,
             isDescriptionChanged,
             showDeleteModal,
+            showCancelRecurrenceModal,
             isPromotionModalOpen,
             openPromotionModal,
             MiniMatchScheduleTab,
@@ -713,6 +736,7 @@ export default {
             saveDescription,
             confirmRemoval,
             removeMiniTournament,
+            cancelRecurrenceSeries,
             publicMiniTournament,
             joinerMiniTournament,
             confirmMiniTournament,
