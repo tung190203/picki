@@ -19,7 +19,7 @@ class MiniParticipantPaymentResource extends JsonResource
             'mini_tournament_id' => $this->mini_tournament_id,
             'participant_id' => $this->participant_id,
             'user_id' => $this->user_id,
-            'user' => new UserResource($this->whenLoaded('user')),
+            'user' => $this->whenLoaded('user', fn() => new UserResource($this->user)),
             'amount' => $this->amount,
             'status' => $this->status,
             'status_text' => $this->status_text,
@@ -29,7 +29,7 @@ class MiniParticipantPaymentResource extends JsonResource
             'paid_at' => $this->paid_at,
             'confirmed_at' => $this->confirmed_at,
             'confirmed_by' => $this->confirmed_by,
-            'confirmer' => new UserResource($this->whenLoaded('confirmer')),
+            'confirmer' => $this->whenLoaded('confirmer', fn() => new UserResource($this->confirmer)),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
