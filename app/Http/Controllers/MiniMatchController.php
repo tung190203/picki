@@ -576,23 +576,34 @@ class MiniMatchController extends Controller
 
     private function validateAllSets($match, $tournament)
     {
+        $pointsToWinSet = $tournament->base_points;
+        $pointsDifference = $tournament->points_difference;
+        $maxPoints = $tournament->max_points;
+        $setNumber = $tournament->set_number;
+
+        // Debug logging
+        \Log::info('Validate All Sets', [
+            'tournament_id' => $tournament->id,
+            'base_points' => $pointsToWinSet,
+            'points_difference' => $pointsDifference,
+            'max_points' => $maxPoints,
+            'set_number' => $setNumber,
+            'apply_rule' => $tournament->apply_rule,
+        ]);
+
+        // Kiểm tra luật thi đấu
+        if ($pointsToWinSet === null || $pointsDifference === null || $maxPoints === null) {
+            return 'Kèo đấu chưa thiết lập đủ luật thi đấu';
+        }
+
         // Kiểm tra apply_rule
         if (!$tournament->apply_rule) {
             // Nếu không áp dụng luật, chỉ cần có kết quả là được
             if ($match->results->isEmpty()) {
                 return 'Trận đấu chưa có kết quả nào';
             }
+            \Log::info('Apply rule is false, skipping validation');
             return null; // Bỏ qua validation
-        }
-
-        $pointsToWinSet = $tournament->base_points;
-        $pointsDifference = $tournament->points_difference;
-        $maxPoints = $tournament->max_points;
-        $setNumber = $tournament->set_number;
-
-        // Kiểm tra luật thi đấu
-        if ($pointsToWinSet === null || $pointsDifference === null || $maxPoints === null) {
-            return 'Kèo đấu chưa thiết lập đủ luật thi đấu';
         }
 
         $team1Id = $match->team1_id;
@@ -723,6 +734,14 @@ class MiniMatchController extends Controller
     // }
     private function validateSetScore($A, $B, $pointsToWinSet, $pointsDifference, $maxPoints, $team1Id, $team2Id)
     {
+        \Log::info('Validate Set Score', [
+            'A' => $A,
+            'B' => $B,
+            'pointsToWinSet' => $pointsToWinSet,
+            'pointsDifference' => $pointsDifference,
+            'maxPoints' => $maxPoints,
+        ]);
+
         if ($A < 0 || $B < 0) {
             return ['error' => true, 'message' => 'Điểm số không hợp lệ'];
         }
@@ -736,6 +755,12 @@ class MiniMatchController extends Controller
         $losingScore = min($A, $B);
         $scoreDiff = $winningScore - $losingScore;
 
+        \Log::info('Score Analysis', [
+            'winningScore' => $winningScore,
+            'losingScore' => $losingScore,
+            'scoreDiff' => $scoreDiff,
+        ]);
+
         // Check 2: Không được vượt quá max_points
         if ($winningScore > $maxPoints) {
             return ['error' => true, 'message' => "Điểm số không được vượt quá {$maxPoints}"];
@@ -748,6 +773,13 @@ class MiniMatchController extends Controller
 
         // Check 4: Nếu chưa đạt max_points, phải đủ khoảng cách
         if ($winningScore < $maxPoints) {
+            \Log::info('Checking points difference', [
+                'winningScore < maxPoints' => true,
+                'scoreDiff' => $scoreDiff,
+                'pointsDifference' => $pointsDifference,
+                'scoreDiff < pointsDifference' => ($scoreDiff < $pointsDifference),
+            ]);
+            
             if ($scoreDiff < $pointsDifference) {
                 return ['error' => true, 'message' => "Phải thắng cách {$pointsDifference} điểm (hiện tại: {$scoreDiff})"];
             }
