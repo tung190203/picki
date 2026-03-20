@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\GuestController;
 use App\Http\Controllers\MiniTournamentStaffController;
 use App\Http\Controllers\UserMatchStatsController;
 use App\Http\Controllers\AuthController;
@@ -545,6 +546,13 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{id}/payments/{paymentId}/reject', [MiniTournamentPaymentController::class, 'reject']);
         Route::post('/{id}/payments/remind/{participantId}', [MiniTournamentPaymentController::class, 'remind']);
         Route::post('/{id}/payments/remind-all', [MiniTournamentPaymentController::class, 'remindAll']);
+
+        // Guest Routes
+        Route::get('/{id}/guests', [GuestController::class, 'index']);
+        Route::post('/{id}/guests', [GuestController::class, 'store']);
+        Route::get('/{id}/guaranteed-guests', [GuestController::class, 'guaranteedGuests']);
+        Route::get('/{id}/guarantor-candidates', [GuestController::class, 'guarantorCandidates']);
+        Route::get('/{id}/guarantor-guests/{userId}', [GuestController::class, 'guarantorGuests']);
     });
     // Mini Tournament Templates
     Route::prefix('mini-tournament-templates')->group(function (): void {

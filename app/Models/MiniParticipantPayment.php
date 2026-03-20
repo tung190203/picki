@@ -21,6 +21,11 @@ class MiniParticipantPayment extends Model
         'paid_at',
         'confirmed_at',
         'confirmed_by',
+        'guest_ids',
+    ];
+
+    protected $casts = [
+        'guest_ids' => 'array',
     ];
 
     const PER_PAGE = 20;

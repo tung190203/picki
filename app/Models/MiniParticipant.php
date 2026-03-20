@@ -18,11 +18,18 @@ class MiniParticipant extends Model
         'is_confirmed',
         'is_invited',
         'payment_status',
+        'is_guest',
+        'guest_name',
+        'guest_phone',
+        'guarantor_user_id',
+        'estimated_level_min',
+        'estimated_level_max',
     ];
 
     protected $casts = [
         'is_invited' => 'boolean',
         'payment_status' => PaymentStatusEnum::class,
+        'is_guest' => 'boolean',
     ];
 
     const PER_PAGE = 20;
@@ -36,6 +43,38 @@ class MiniParticipant extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the guarantor (người bảo lãnh) for guest participants
+     */
+    public function guarantor()
+    {
+        return $this->belongsTo(User::class, 'guarantor_user_id');
+    }
+
+    /**
+     * Scope: Filter only guest participants
+     */
+    public function scopeGuests($query)
+    {
+        return $query->where('is_guest', true);
+    }
+
+    /**
+     * Scope: Filter guests guaranteed by a specific user
+     */
+    public function scopeGuaranteedBy($query, int $userId)
+    {
+        return $query->where('is_guest', true)->where('guarantor_user_id', $userId);
+    }
+
+    /**
+     * Scope: Filter guests with pending payment status
+     */
+    public function scopeGuestPendingPayment($query)
+    {
+        return $query->where('is_guest', true)->where('payment_status', PaymentStatusEnum::PENDING);
     }
 
     public function scopeWithFullRelations($query) {

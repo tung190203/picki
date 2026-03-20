@@ -202,8 +202,9 @@
                             <div v-if="mini?.staff?.organizer?.length">
                                 <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
                                     <UserCard v-for="(item, index) in mini.staff.organizer" :key="index" :id="item.id"
+                                              :userId="item.user?.id"
                                               :name="item.user.full_name" :avatar="item.user.avatar_url"
-                                              :rating="getUserScore(item.user)" status="approved"  @removeUser="handleRemoveStaff"/>
+                                              :rating="getUserScore(item.user)" status="approved"  @removeUser="(data) => handleRemoveStaff(item.id, data.userId, data.name, data.avatar)"/>
                                     <UserCard :empty="true" @clickEmpty="openInviteModalDefault" v-if="isCreator" />
                                 </div>
                             </div>
@@ -211,91 +212,98 @@
                         <div class="border border-[#BBBFCC] rounded-lg my-4 p-4">
                             <div class="flex items-center justify-between mb-3">
                                 <h4 class="font-semibold text-[#6B6F80] uppercase text-sm">
-                                    NGƯỜI THAM GIA • {{ confirmedParticipants?.length || 0 }} / {{
-                                        mini.max_players
-                                    }}
+                                    NGƯỜI THAM GIA • {{ displayedParticipants?.length || 0 }} / {{ mini.max_players }}
                                 </h4>
-                                <span class="text-[#207AD5] text-xs font-semibold cursor-pointer" v-if="isCreator"
-                                      @click="openInviteModalWithFriends">Mời bạn bè</span>
+                                <span class="flex items-center gap-2">
+                                    <span class="text-[#207AD5] text-xs font-semibold cursor-pointer" v-if="isCreator"
+                                          @click="openInviteModalWithFriends">Mời bạn bè</span>
+                                    <button v-if="isCreator && !isGuestSectionFull"
+                                            @click="openAddGuestModal"
+                                            class="text-[#D72D36] text-xs font-semibold cursor-pointer hover:underline">
+                                        + Thêm Guest
+                                    </button>
+                                </span>
                             </div>
-                            <div v-if="confirmedParticipants?.length">
+                            <div v-if="displayedParticipants?.length">
                                 <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
-                                    <div v-for="(item, index) in confirmedParticipants" :key="index" class="relative">
+                                    <div v-for="(item, index) in displayedParticipants" :key="item.id || index" class="relative">
                                         <UserCard :id="item.id"
-                                                  :name="item.user?.full_name" :avatar="item.user?.avatar_url"
+                                                  :name="item.user?.full_name || item.guest_name || 'Guest'"
+                                                  :avatar="item.user?.avatar_url"
                                                   :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
-                                                  :status="item.is_confirmed == true ? 'approved' : 'pending'" />
-                                        <!-- Payment Status Badge - chỉ hiện khi có thu phí và không phải confirmed -->
-                                        <div v-if="mini?.has_fee && item.payment_status !== 'confirmed'" class="absolute top-0 right-0 text-xs font-semibold px-2 py-1 rounded-full"
-                                             :class="getPaymentStatusBadgeClass(item.payment_status)">
-                                            {{ getPaymentStatusLabel(item.payment_status) }}
+                                                  :status="'approved'" />
+                                        <div v-if="item.is_guest" class="text-[10px] text-[#6B7280] text-center mt-1">
+                                            <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
                                         </div>
                                     </div>
-                                        <UserCard
-                                                v-if="confirmedParticipants?.length < mini.max_players && (isCreator || (mini?.allow_participant_add_friends && currentParticipant && isUserConfirmed))"
-                                                :empty="true"
-                                                @clickEmpty="openInviteModalWithFriends"/>
+                                    <UserCard
+                                            v-if="displayedParticipants?.length < mini.max_players && (isCreator || (mini?.allow_participant_add_friends && currentParticipant && isUserConfirmed))"
+                                            :empty="true"
+                                            @clickEmpty="openInviteModalWithFriends"/>
                                 </div>
                             </div>
+                            <p v-else class="text-sm text-gray-500">Chưa có ai tham gia đã thanh toán.</p>
                         </div>
 
-                        <!-- Section: Chờ xác nhận (người tự xin) -->
-                        <div class="border border-[#BBBFCC] rounded-lg my-4 p-4" v-if="isCreator && pendingParticipants?.length">
+                        <!-- Section: Chưa thanh toán -->
+                        <div class="border border-[#BBBFCC] rounded-lg my-4 p-4" v-if="unpaidParticipants?.length">
                             <div class="flex items-center justify-between mb-3">
                                 <h4 class="font-semibold text-[#6B6F80] uppercase text-sm">
-                                    CHỜ DUYỆT • {{ pendingParticipants?.length || 0 }}
+                                    CHƯA THANH TOÁN • {{ unpaidParticipants?.length || 0 }}
                                 </h4>
                             </div>
-                            <div v-if="pendingParticipants?.length">
-                                <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
-                                    <div v-for="(item, index) in pendingParticipants" :key="index" class="flex flex-col gap-2">
-                                        <UserCard :id="item.id"
-                                                  :name="item.user?.full_name" :avatar="item.user?.avatar_url"
-                                                  :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
-                                                  :status="'pending'" />
-                                        <!-- Chủ kèo duyệt người tự xin -->
-                                        <div class="grid grid-cols-2 gap-1">
-                                            <button @click="handleApproveParticipant(item.id)"
-                                                    class="w-full px-2 py-1.5 text-xs font-medium text-white rounded transition flex items-center justify-center"
-                                                    style="background-color: #10b981;">
-                                                <span>Xác nhận</span>
-                                            </button>
-                                            <button @click="handleRejectParticipant(item.id)"
-                                                    class="w-full px-2 py-1.5 text-xs font-medium text-white rounded transition flex items-center justify-center"
-                                                    style="background-color: #d72d36;">
-                                                <span>Từ chối</span>
-                                            </button>
-                                        </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
+                                <div v-for="(item, index) in unpaidParticipants" :key="item.id || index" class="relative">
+                                    <UserCard :id="item.id"
+                                              :name="item.user?.full_name || item.guest_name || 'Guest'"
+                                              :avatar="item.user?.avatar_url"
+                                              :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
+                                              :status="'approved'" />
+                                    <div v-if="item.is_guest" class="text-[10px] text-[#6B7280] text-center mt-1">
+                                        <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Section: Lời mời chưa xác nhận (người được mời) -->
-                        <div class="border border-[#BBBFCC] rounded-lg my-4 p-4" v-if="invitedParticipants?.length">
+                        <!-- Section: Chờ xác nhận (người tự xin + người được mời) -->
+                        <div class="border border-[#BBBFCC] rounded-lg my-4 p-4" v-if="waitingConfirmationParticipants?.length">
                             <div class="flex items-center justify-between mb-3">
                                 <h4 class="font-semibold text-[#6B6F80] uppercase text-sm">
-                                    LỜI MỜI CHỜ XÁC NHẬN • {{ invitedParticipants?.length || 0 }}
+                                    CHỜ XÁC NHẬN • {{ waitingConfirmationParticipants?.length || 0 }}
                                 </h4>
                             </div>
-                            <div v-if="invitedParticipants?.length">
-                                <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
-                                    <div v-for="(item, index) in invitedParticipants" :key="index" class="flex flex-col gap-2">
-                                        <UserCard :id="item.id"
-                                                  :name="item.user?.full_name" :avatar="item.user?.avatar_url"
-                                                  :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
-                                                  :status="'pending'" />
-                                        <!-- Người được mời tự xác nhận -->
-                                        <div v-if="item.user?.id === getUser?.id" class="flex gap-1">
-                                            <button @click="confirmMiniTournament"
-                                                    class="flex-1 px-2 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition">
-                                                Xác nhận
-                                            </button>
-                                            <button @click="confirmDelineMiniParticipant"
-                                                    class="flex-1 px-2 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition">
-                                                Từ chối
-                                            </button>
-                                        </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
+                                <div v-for="(item, index) in waitingConfirmationParticipants" :key="item.id || index" class="flex flex-col gap-2">
+                                    <UserCard :id="item.id"
+                                              :name="item.user?.full_name || item.guest_name" :avatar="item.user?.avatar_url"
+                                              :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
+                                              :status="'pending'" />
+                                    <span v-if="item.is_invited" class="text-[10px] text-[#207AD5]">Được mời</span>
+                                    <span v-else class="text-[10px] text-gray-500">Xin tham gia</span>
+                                    <!-- Chủ kèo: duyệt/từ chối người tự xin -->
+                                    <div v-if="isCreator" class="grid grid-cols-2 gap-1">
+                                        <button @click="handleApproveParticipant(item.id)"
+                                                class="w-full px-2 py-1.5 text-xs font-medium text-white rounded transition flex items-center justify-center"
+                                                style="background-color: #10b981;">
+                                            Xác nhận
+                                        </button>
+                                        <button @click="handleRejectParticipant(item.id)"
+                                                class="w-full px-2 py-1.5 text-xs font-medium text-white rounded transition flex items-center justify-center"
+                                                style="background-color: #d72d36;">
+                                            Từ chối
+                                        </button>
+                                    </div>
+                                    <!-- Người được mời: tự xác nhận hoặc từ chối -->
+                                    <div v-else-if="item.user?.id === getUser?.id" class="flex gap-1">
+                                        <button @click="confirmMiniTournament"
+                                                class="flex-1 px-2 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition">
+                                            Xác nhận
+                                        </button>
+                                        <button @click="confirmDelineMiniParticipant"
+                                                class="flex-1 px-2 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition">
+                                            Từ chối
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -344,5 +352,18 @@
            :miniId="mini.id"
            :hasFee="mini?.has_fee"
            @success="handlePaymentSubmitSuccess"
+       />
+       <AddGuestModal
+           v-model:isOpen="showAddGuestModal"
+           :miniTournament="mini"
+           @success="handleAddGuestSuccess"
+       />
+       <DeleteStaffModal
+           v-model="showDeleteStaffModal"
+           :staffId="deleteStaffData.staffId"
+           :guarantor="deleteStaffData.guarantor"
+           :guests="deleteStaffData.guests"
+           :candidates="deleteStaffData.candidates"
+           @confirm="handleConfirmDeleteStaff"
        />
 </div>
