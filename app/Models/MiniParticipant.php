@@ -22,6 +22,8 @@ class MiniParticipant extends Model
         'guest_name',
         'guest_phone',
         'guarantor_user_id',
+        'estimated_level_min',
+        'estimated_level_max',
     ];
 
     protected $casts = [

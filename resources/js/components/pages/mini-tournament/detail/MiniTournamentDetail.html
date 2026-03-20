@@ -211,7 +211,7 @@
                         <div class="border border-[#BBBFCC] rounded-lg my-4 p-4">
                             <div class="flex items-center justify-between mb-3">
                                 <h4 class="font-semibold text-[#6B6F80] uppercase text-sm">
-                                    NGƯỜI THAM GIA • {{ confirmedParticipants?.length || 0 }} / {{
+                                    NGƯỜI THAM GIA • {{ displayedParticipants?.length || 0 }} / {{
                                         mini.max_players
                                     }}
                                 </h4>
@@ -225,13 +225,14 @@
                                       + Thêm Guest
                                     </button>
                             </div>
-                            <div v-if="confirmedParticipants?.length">
+                            <div v-if="displayedParticipants?.length">
                                 <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
-                                    <div v-for="(item, index) in confirmedParticipants" :key="index" class="relative">
+                                    <div v-for="(item, index) in displayedParticipants" :key="item.id || index" class="relative">
                                         <UserCard :id="item.id"
-                                                  :name="item.user?.full_name" :avatar="item.user?.avatar_url"
+                                                  :name="item.user?.full_name || item.guest_name || 'Guest'"
+                                                  :avatar="item.user?.avatar_url"
                                                   :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
-                                                  :status="item.is_confirmed == true ? 'approved' : 'pending'" />
+                                                  :status="item.is_guest ? 'approved' : (item.is_confirmed == true ? 'approved' : 'pending')" />
                                         <!-- Payment Status Badge - chỉ hiện khi có thu phí và không phải confirmed -->
                                         <div v-if="mini?.has_fee && item.payment_status !== 'confirmed'" class="absolute top-0 right-0 text-xs font-semibold px-2 py-1 rounded-full"
                                              :class="getPaymentStatusBadgeClass(item.payment_status)">
@@ -239,7 +240,7 @@
                                         </div>
                                     </div>
                                         <UserCard
-                                                v-if="confirmedParticipants?.length < mini.max_players && (isCreator || (mini?.allow_participant_add_friends && currentParticipant && isUserConfirmed))"
+                                                v-if="displayedParticipants?.length < mini.max_players && (isCreator || (mini?.allow_participant_add_friends && currentParticipant && isUserConfirmed))"
                                                 :empty="true"
                                                 @clickEmpty="openInviteModalWithFriends"/>
                                 </div>

@@ -222,10 +222,33 @@ class MiniTournamentPaymentController extends Controller
         DB::beginTransaction();
         try {
             if ($existingPayment) {
-                // Cập nhật payment existing
                 if (in_array($existingPayment->status, [MiniParticipantPayment::STATUS_CONFIRMED])) {
-                    DB::rollBack();
-                    return ResponseHelper::error('Thanh toán đã được xác nhận, không thể cập nhật', 400);
+                    // Payment đã confirmed rồi → chỉ cho phép thêm guest bằng cách tạo payment record riêng
+                    if (empty($guestIds)) {
+                        DB::rollBack();
+                        return ResponseHelper::error('Thanh toán đã được xác nhận, không thể cập nhật', 400);
+                    }
+
+                    // Tạo payment record mới cho phần guest
+                    $guestPayment = MiniParticipantPayment::create([
+                        'mini_tournament_id' => $miniTournamentId,
+                        'participant_id' => $existingPayment->participant_id,
+                        'user_id' => $userId,
+                        'amount' => $extraAmount,
+                        'status' => MiniParticipantPayment::STATUS_PAID,
+                        'receipt_image' => $receiptImage,
+                        'note' => $data['note'] ?? null,
+                        'paid_at' => now(),
+                        'guest_ids' => $guestIds,
+                    ]);
+
+                    DB::commit();
+
+                    return ResponseHelper::success(
+                        new MiniParticipantPaymentResource($guestPayment->load(['user', 'confirmer'])),
+                        'Thanh toán cho guest thành công, chờ chủ kèo xác nhận',
+                        200
+                    );
                 }
 
                 $existingPayment->update([
@@ -242,7 +265,6 @@ class MiniTournamentPaymentController extends Controller
 
                 $payment = $existingPayment;
             } else {
-                // Tạo payment mới
                 $payment = MiniParticipantPayment::create([
                     'mini_tournament_id' => $miniTournamentId,
                     'participant_id' => $participant->id,

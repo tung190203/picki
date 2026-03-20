@@ -7,6 +7,7 @@ use App\Helpers\ResponseHelper;
 use App\Http\Resources\MiniParticipantResource;
 use App\Models\MiniParticipant;
 use App\Models\MiniTournament;
+use App\Models\MiniParticipantPayment;
 use App\Models\MiniTournamentStaff;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -33,6 +34,8 @@ class GuestController extends Controller
             'guest_name' => 'required|string|max:255',
             'guest_phone' => 'required|string|max:20',
             'guarantor_user_id' => 'nullable|integer|exists:users,id',
+            'estimated_level' => 'nullable|numeric|min:1|max:8',
+            'estimated_level_max' => 'nullable|numeric|min:1|max:8|gte:estimated_level',
         ]);
 
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
@@ -42,15 +45,10 @@ class GuestController extends Controller
             return ResponseHelper::error('Bạn không có quyền thêm guest cho kèo này', 403);
         }
 
-        // Kiểm tra kèo có đang mở không
-        if ($miniTournament->status !== MiniTournament::STATUS_OPEN) {
-            return ResponseHelper::error('Kèo không còn nhận thêm người tham gia', 400);
-        }
-
         // Nếu tournament miễn phí → auto gán host làm guarantor, payment_status = confirmed
         if (!$miniTournament->has_fee) {
             $data['guarantor_user_id'] = $miniTournament->staff()
-                ->where('role', MiniTournamentStaff::ROLE_ORGANIZER)
+                ->where('mini_tournament_staff.role', MiniTournamentStaff::ROLE_ORGANIZER)
                 ->first()?->user_id ?? auth()->id();
         }
 
@@ -110,7 +108,28 @@ class GuestController extends Controller
             'guest_phone' => $data['guest_phone'],
             'guarantor_user_id' => $guarantorUserId,
             'payment_status' => $paymentStatus,
+            'estimated_level_min' => $data['estimated_level_min'] ?? null,
+            'estimated_level_max' => $data['estimated_level_max'] ?? null,
         ]);
+
+        // Luôn tạo payment record cho guest khi kèo có thu phí
+        if ($miniTournament->has_fee) {
+            $feeAmount = $miniTournament->auto_split_fee
+                ? round($miniTournament->fee_amount / max($miniTournament->participants()->count(), 1))
+                : $miniTournament->fee_amount;
+
+            MiniParticipantPayment::create([
+                'mini_tournament_id' => $miniTournamentId,
+                'participant_id' => $participant->id,
+                'user_id' => $guarantorUserId,
+                'amount' => $feeAmount,
+                'status' => $paymentStatus,
+                'note' => "Guest {$data['guest_name']} - {$data['guest_phone']}",
+                'confirmed_at' => $paymentStatus === PaymentStatusEnum::CONFIRMED ? now() : null,
+                'confirmed_by' => $paymentStatus === PaymentStatusEnum::CONFIRMED ? $guarantorUserId : null,
+                'paid_at' => $paymentStatus === PaymentStatusEnum::CONFIRMED ? now() : null,
+            ]);
+        }
 
         // Load relations for response
         $participant->load(['user', 'guarantor']);

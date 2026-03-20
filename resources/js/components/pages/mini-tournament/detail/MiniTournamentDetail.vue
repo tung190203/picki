@@ -261,6 +261,14 @@ export default {
             return mini.value.participants.filter(p => p.payment_status === 'confirmed')
         })
 
+        // Người tham gia hiển thị: đã xác nhận thanh toán HOẶC là guest (đã thêm vào kèo)
+        const displayedParticipants = computed(() => {
+            if (!mini.value?.participants) return []
+            return mini.value.participants.filter(
+                p => p.payment_status === 'confirmed' || p.is_guest === true
+            )
+        })
+
         const pendingParticipants = computed(() => {
             if (!mini.value?.participants) return []
             // Chỉ hiển thị người tự xin tham gia (is_invited = false) trong tab chờ duyệt
@@ -770,6 +778,7 @@ export default {
             handlePaymentButtonClick,
             toast,
             confirmedParticipants,
+            displayedParticipants,
             pendingParticipants,
             invitedParticipants,
             guestParticipants,
