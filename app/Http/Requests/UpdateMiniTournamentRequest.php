@@ -64,6 +64,7 @@ class UpdateMiniTournamentRequest extends FormRequest
 
             // Recurring schedule (same format as clubs)
             'recurring_schedule' => ['nullable', 'array', new ValidRecurringSchedule()],
+            'edit_scope' => 'sometimes|string|in:this_occurrence,entire_series',
 
             'status' => 'sometimes|integer|in:' . implode(',', MiniTournament::STATUS),
 
@@ -188,6 +189,7 @@ class UpdateMiniTournamentRequest extends FormRequest
             'format.in' => 'Thể thức thi đấu không hợp lệ',
             'gender.in' => 'Giới tính không hợp lệ',
             'status.in' => 'Trạng thái không hợp lệ',
+            'edit_scope.in' => 'Giá trị edit_scope không hợp lệ',
         ];
     }
 }
