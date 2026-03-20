@@ -335,4 +335,94 @@ class MiniTournamentService
 
         return count($deleteIds);
     }
+
+    /**
+     * Cập nhật cả chuỗi: cập nhật thông tin cho TẤT CẢ kèo trong chuỗi,
+     * giữ nguyên participants, payments, matches đã có.
+     */
+    public function updateTournamentAsNewSeries(MiniTournament $tournament, array $data, int $userId): MiniTournament
+    {
+        $seriesId = $tournament->recurrence_series_id;
+
+        \Log::info('updateTournamentAsNewSeries - START', [
+            'tournament_id' => $tournament->id,
+            'series_id' => $seriesId,
+            'data_keys' => array_keys($data),
+        ]);
+
+        if (!$seriesId) {
+            throw new \Exception('Kèo đấu này không thuộc chuỗi lặp lại');
+        }
+
+        // Lấy danh sách TẤT CẢ kèo trong chuỗi (bao gồm cả đã hoàn thành)
+        $allTournaments = MiniTournament::where('recurrence_series_id', $seriesId)->get();
+
+        \Log::info('updateTournamentAsNewSeries - tournaments found', [
+            'count' => $allTournaments->count(),
+            'ids' => $allTournaments->pluck('id')->toArray(),
+        ]);
+
+        if ($allTournaments->isEmpty()) {
+            throw new \Exception('Chuỗi kèo đấu không tồn tại');
+        }
+
+        // Lấy recurring_schedule mới (nếu có thay đổi)
+        $newRecurringSchedule = $data['recurring_schedule'] ?? null;
+
+        return DB::transaction(function () use ($allTournaments, $data, $newRecurringSchedule, $userId) {
+            $updatedCount = 0;
+
+            // Cập nhật thông tin cho TẤT CẢ kèo trong chuỗi
+            foreach ($allTournaments as $t) {
+                $updateData = [];
+
+                // Chỉ cập nhật các trường được thay đổi trong data
+                $fieldsToUpdate = [
+                    'sport_id', 'name', 'description', 'play_mode', 'format',
+                    'competition_location_id', 'is_private', 'has_fee', 'auto_split_fee',
+                    'fee_amount', 'fee_description', 'payment_account_id', 'max_players',
+                    'min_rating', 'max_rating', 'set_number', 'base_points',
+                    'points_difference', 'max_points', 'gender', 'auto_approve',
+                    'allow_participant_add_friends', 'allow_cancellation',
+                    'cancellation_duration', 'apply_rule', 'poster'
+                ];
+
+                foreach ($fieldsToUpdate as $field) {
+                    if (array_key_exists($field, $data)) {
+                        $updateData[$field] = $data[$field];
+                    }
+                }
+
+                // Cập nhật duration nếu có thay đổi
+                if (isset($data['duration'])) {
+                    $updateData['duration'] = $data['duration'];
+                    $startTime = $t->start_time;
+                    if ($startTime) {
+                        $updateData['end_time'] = $startTime->copy()->addMinutes($data['duration']);
+                    }
+                }
+
+                // Cập nhật recurring_schedule nếu có thay đổi
+                if ($newRecurringSchedule !== null) {
+                    $updateData['recurring_schedule'] = $newRecurringSchedule;
+                }
+
+                \Log::info('updateTournamentAsNewSeries - updating tournament', [
+                    'tournament_id' => $t->id,
+                    'update_data' => $updateData,
+                ]);
+
+                if (!empty($updateData)) {
+                    $t->update($updateData);
+                    $updatedCount++;
+                }
+            }
+
+            \Log::info('updateTournamentAsNewSeries - DONE', [
+                'updated_count' => $updatedCount,
+            ]);
+
+            return $allTournaments->first()->fresh();
+        });
+    }
 }
