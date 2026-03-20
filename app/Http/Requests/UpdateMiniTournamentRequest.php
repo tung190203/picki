@@ -37,7 +37,7 @@ class UpdateMiniTournamentRequest extends FormRequest
             'has_fee' => 'boolean',
             'auto_split_fee' => 'boolean',
             'fee_description' => 'nullable|string|max:500',
-            'qr_code_url' => 'nullable|string',
+            'qr_code_url' => 'nullable|image|mimes:png,jpg,jpeg,gif|max:5120',
             'payment_account_id' => 'nullable|exists:club_wallets,id',
             'fee_amount' => 'nullable|integer|min:0',
             'max_players' => 'nullable|integer|min:1',
