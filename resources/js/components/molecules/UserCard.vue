@@ -130,6 +130,10 @@ const props = defineProps({
     type: String,
     default: false,
   },
+    userId: {
+        type: [Number, String],
+        default: null,
+    },
     flagDelete: {
         type: Boolean,
         default: true,
@@ -141,7 +145,12 @@ const emit = defineEmits(['clickEmpty', 'removeUser'])
 const showModal = ref(false)
 
 const confirmDelete = () => {
-  emit('removeUser', props.id)
+  emit('removeUser', {
+    id: props.id,
+    userId: props.userId ?? props.id,
+    name: props.name,
+    avatar: props.avatar,
+  })
 }
 
 const handleClick = () => {

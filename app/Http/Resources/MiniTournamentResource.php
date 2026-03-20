@@ -15,7 +15,10 @@ class MiniTournamentResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $participants = $this->relationLoaded('participants') ? $this->participants : collect();
+        $model = $this->resource;
+        $participants = ($model instanceof \Illuminate\Database\Eloquent\Model && $model->relationLoaded('participants'))
+            ? $model->participants
+            : collect();
 
         $qrUrl = $this->qr_code_url;
         if ($qrUrl && !str_starts_with($qrUrl, 'http')) {
