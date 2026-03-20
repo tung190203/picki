@@ -1751,7 +1751,10 @@ const handleSubmit = async () => {
         }
 
         if (isEditMode.value) {
-            await updateMiniTournament(miniTournamentId, data)
+            const payload = qrCodeFile.value
+                ? buildFormDataWithFile(data)
+                : { ...data, qr_code_url: qrCodeImage.value || null }
+            await updateMiniTournament(miniTournamentId, payload)
         } else {
             // Khi có file QR code, dùng FormData để gửi multipart/form-data
             const payload = qrCodeFile.value
