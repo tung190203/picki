@@ -8,10 +8,10 @@
       <Transition name="scale">
         <div
           v-if="isOpen"
-          class="bg-white rounded-[16px] w-full max-w-[420px] transition-all duration-300 flex flex-col p-6 relative shadow-2xl overflow-hidden"
+          class="bg-white rounded-[16px] w-full max-w-[480px] transition-all duration-300 flex flex-col p-6 relative shadow-2xl overflow-hidden"
         >
           <!-- Nội dung -->
-          <div class="flex flex-col items-center justify-center w-full mb-6 mt-2">
+          <div class="flex flex-col items-center justify-center w-full mb-4 mt-2">
             <p class="text-[14px] font-bold text-[#1F2937] text-center mb-4 px-4">
               {{ titleText }}
             </p>
@@ -31,13 +31,61 @@
               </div>
             </div>
 
-            <div class="flex items-center space-x-1.5 font-bold" v-if="feePerPerson">
+            <div class="flex items-center space-x-1.5 font-bold" v-if="totalAmount > 0">
               <span class="text-[14px] text-[#1F2937]">VNĐ</span>
-              <span class="text-[20px] text-[#4392E0]">{{ formatAmount(feePerPerson) }}</span>
+              <span class="text-[20px] text-[#4392E0]">{{ formatAmount(totalAmount) }}</span>
             </div>
+            <p class="text-[11px] text-[#6B7280] mt-1" v-if="selectedGuestIds.length > 0">
+              Bao gồm {{ selectedGuestIds.length }} guest ({{ formatAmount(feePerPerson * selectedGuestIds.length) }}đ)
+            </p>
           </div>
 
           <div class="space-y-5">
+            <!-- Guest selection section -->
+            <div v-if="guaranteedGuests.length > 0 && hasFee">
+              <div class="bg-[#FEF3C7] rounded-lg p-3 mb-3">
+                <p class="text-xs font-bold text-[#92400E] uppercase tracking-wide mb-1">
+                  Đóng tiền cho guest bạn bảo lãnh
+                </p>
+                <p class="text-[11px] text-[#B45309]">
+                  Bạn đang bảo lãnh {{ guaranteedGuests.length }} guest. Chọn guest cần đóng tiền để tính vào phí.
+                </p>
+              </div>
+              <div class="max-h-[160px] overflow-y-auto space-y-2 pr-1">
+                <div
+                  v-for="guest in guaranteedGuests"
+                  :key="guest.id"
+                  @click="toggleGuest(guest.id)"
+                  class="flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition"
+                  :class="selectedGuestIds.includes(guest.id)
+                    ? 'border-[#D72D36] bg-red-50'
+                    : 'border-gray-200 bg-white hover:border-gray-300'"
+                >
+                  <div
+                    class="w-5 h-5 rounded border-2 flex items-center justify-center transition shrink-0"
+                    :class="selectedGuestIds.includes(guest.id)
+                      ? 'border-[#D72D36] bg-[#D72D36]'
+                      : 'border-gray-300'"
+                  >
+                    <svg v-if="selectedGuestIds.includes(guest.id)" class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[13px] font-semibold text-[#1F2937] truncate">
+                      {{ guest.guest_name }}
+                    </p>
+                    <p class="text-[11px] text-[#6B7280]">
+                      {{ guest.guest_phone }}
+                    </p>
+                  </div>
+                  <span class="text-[12px] font-bold text-[#D72D36] shrink-0">
+                    +{{ formatAmount(feePerPerson) }}đ
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <!-- Upload -->
             <div>
               <label
@@ -165,6 +213,7 @@ import {
   getMyMiniTournamentPayment,
   payMiniTournament,
 } from '@/service/miniTournament'
+import { getGuaranteedGuests } from '@/service/guest.js'
 
 const props = defineProps({
   isOpen: {
@@ -195,6 +244,14 @@ const feePerPerson = ref(0)
 const qrCodeUrl = ref(null)
 const feeDescription = ref('')
 
+// Guest selection
+const guaranteedGuests = ref([])
+const selectedGuestIds = ref([])
+
+const totalAmount = computed(() => {
+  return feePerPerson.value + (feePerPerson.value * selectedGuestIds.value.length)
+})
+
 const titleText = computed(() =>
   hasFee.value ? 'Thanh toán phí tham gia kèo' : 'Kèo này không thu phí'
 )
@@ -206,6 +263,7 @@ const resetForm = () => {
   selectedFile.value = null
   previewImage.value = null
   note.value = ''
+  selectedGuestIds.value = []
   if (fileInput.value) fileInput.value.value = ''
 }
 
@@ -240,16 +298,21 @@ const removePreview = () => {
   if (fileInput.value) fileInput.value.value = ''
 }
 
+const toggleGuest = (guestId) => {
+  const idx = selectedGuestIds.value.indexOf(guestId)
+  if (idx === -1) {
+    selectedGuestIds.value.push(guestId)
+  } else {
+    selectedGuestIds.value.splice(idx, 1)
+  }
+}
+
 const fetchMyPayment = async () => {
   try {
     const data = await getMyMiniTournamentPayment(props.miniId)
-    // Contract mới: trả trực tiếp top-level, không bọc key `payment`.
-    // Fallback cho môi trường cũ (nếu còn trả data.payment).
     const payload = data?.payment ? { ...data, ...data.payment } : (data || {})
 
     participantId.value = payload.participant_id ?? null
-    // Ưu tiên lấy has_fee từ API mini detail truyền xuống.
-    // Fallback dùng my-payment để tương thích dữ liệu cũ.
     hasFee.value = props.hasFee !== null ? Boolean(props.hasFee) : Boolean(payload.has_fee)
     feePerPerson.value = Number(payload.fee_per_person || 0)
     qrCodeUrl.value = payload.qr_code_url || null
@@ -264,6 +327,16 @@ const fetchMyPayment = async () => {
   }
 }
 
+const fetchGuaranteedGuests = async () => {
+  if (!hasFee.value) return
+  try {
+    const data = await getGuaranteedGuests(props.miniId)
+    guaranteedGuests.value = data || []
+  } catch (error) {
+    guaranteedGuests.value = []
+  }
+}
+
 const handleSubmit = async () => {
   if (!selectedFile.value) {
     toast.error('Vui lòng chọn ảnh biên lai')
@@ -273,10 +346,15 @@ const handleSubmit = async () => {
   try {
     isSubmitting.value = true
     const formData = new FormData()
-    // Không cần truyền participant_id, BE sẽ tự xử lý
     formData.append('receipt_image', selectedFile.value)
     if (note.value) {
       formData.append('note', note.value)
+    }
+    // Pass selected guest IDs
+    if (selectedGuestIds.value.length > 0) {
+      selectedGuestIds.value.forEach(id => {
+        formData.append('guest_ids[]', id)
+      })
     }
 
     const response = await payMiniTournament(props.miniId, formData)
@@ -292,9 +370,10 @@ const handleSubmit = async () => {
 
 watch(
   () => props.isOpen,
-  (open) => {
+  async (open) => {
     if (open) {
-      fetchMyPayment()
+      await fetchMyPayment()
+      await fetchGuaranteedGuests()
     }
   }
 )
@@ -302,6 +381,7 @@ watch(
 onMounted(() => {
   if (props.isOpen) {
     fetchMyPayment()
+    fetchGuaranteedGuests()
   }
 })
 </script>

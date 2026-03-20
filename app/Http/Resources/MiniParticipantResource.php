@@ -22,6 +22,11 @@ class MiniParticipantResource extends JsonResource
             'payment_status_label'  => $this->payment_status?->label(),
             'joined_at'             => $this->created_at->format('d-m-Y'),
             'user'                  => new UserListResource($this->whenLoaded('user')),
+            // Guest fields
+            'is_guest'              => (bool) $this->is_guest,
+            'guest_name'            => $this->when($this->is_guest, $this->guest_name),
+            'guest_phone'           => $this->when($this->is_guest, $this->guest_phone),
+            'guarantor'             => new UserListResource($this->whenLoaded('guarantor')),
         ];
     }
 }

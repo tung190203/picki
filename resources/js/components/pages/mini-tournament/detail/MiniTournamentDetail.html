@@ -217,6 +217,13 @@
                                 </h4>
                                 <span class="text-[#207AD5] text-xs font-semibold cursor-pointer" v-if="isCreator"
                                       @click="openInviteModalWithFriends">Mời bạn bè</span>
+                                <button
+                                      v-if="isCreator"
+                                      @click="openAddGuestModal"
+                                      class="text-[#D72D36] text-xs font-semibold cursor-pointer hover:underline ml-2"
+                                    >
+                                      + Thêm Guest
+                                    </button>
                             </div>
                             <div v-if="confirmedParticipants?.length">
                                 <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
@@ -265,6 +272,35 @@
                                                     style="background-color: #d72d36;">
                                                 <span>Từ chối</span>
                                             </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Section: Guest -->
+                        <div class="border border-[#BBBFCC] rounded-lg my-4 p-4" v-if="guestParticipants?.length">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold text-[#6B6F80] uppercase text-sm">
+                                    GUEST • {{ guestParticipants?.length || 0 }}
+                                </h4>
+                            </div>
+                            <div v-if="guestParticipants?.length">
+                                <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
+                                    <div v-for="(item, index) in guestParticipants" :key="index" class="relative">
+                                        <UserCard :id="item.id"
+                                                  :name="item.user?.full_name || item.guest_name"
+                                                  :avatar="item.user?.avatar_url"
+                                                  :rating="getUserScore(item.user)"
+                                                  @removeUser="handleRemoveUser"
+                                                  :status="item.is_confirmed == true ? 'approved' : 'pending'" />
+                                        <div class="text-[10px] text-[#6B7280] text-center mt-1">
+                                            <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
+                                        </div>
+                                        <!-- Payment Status Badge -->
+                                        <div v-if="mini?.has_fee" class="absolute top-0 right-0 text-xs font-semibold px-2 py-1 rounded-full"
+                                             :class="getPaymentStatusBadgeClass(item.payment_status)">
+                                            {{ getPaymentStatusLabel(item.payment_status) }}
                                         </div>
                                     </div>
                                 </div>
@@ -344,5 +380,10 @@
            :miniId="mini.id"
            :hasFee="mini?.has_fee"
            @success="handlePaymentSubmitSuccess"
+       />
+       <AddGuestModal
+           v-model:isOpen="showAddGuestModal"
+           :miniTournament="mini"
+           @success="handleAddGuestSuccess"
        />
 </div>

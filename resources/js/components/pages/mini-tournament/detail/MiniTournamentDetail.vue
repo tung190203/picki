@@ -39,6 +39,7 @@ import ChatFormMiniTournament from '@/components/organisms/ChatFormMiniTournamen
 import PromotionModal from '@/components/organisms/PromotionModal.vue'
 import MiniTournamentPaymentModal from '@/components/pages/mini-tournament/partials/MiniTournamentPaymentModal.vue'
 import MiniTournamentSubmitReceiptModal from '@/components/pages/mini-tournament/partials/MiniTournamentSubmitReceiptModal.vue'
+import AddGuestModal from '@/components/pages/mini-tournament/partials/AddGuestModal.vue'
 
 export default {
     name: 'MiniTournamentDetail',
@@ -73,6 +74,7 @@ export default {
         PromotionModal,
         MiniTournamentPaymentModal,
         MiniTournamentSubmitReceiptModal,
+        AddGuestModal,
         MegaphoneIcon
     },
 
@@ -108,6 +110,7 @@ export default {
         const showDelineMiniParticipantModal = ref(false)
         const showPaymentModal = ref(false)
         const showSubmitPaymentModal = ref(false)
+        const showAddGuestModal = ref(false)
 
         const isDescriptionChanged = computed(() => {
             return descriptionModel.value !== mini.value.description;
@@ -269,6 +272,11 @@ export default {
             if (!mini.value?.participants) return []
             // Người được mời chưa xác nhận (is_invited = true, is_confirmed = false)
             return mini.value.participants.filter(p => p.is_confirmed === false && p.is_invited === true)
+        })
+
+        const guestParticipants = computed(() => {
+            if (!mini.value?.participants) return []
+            return mini.value.participants.filter(p => p.is_guest === true)
         })
 
         const isAutoSplitPaymentReady = computed(() => {
@@ -539,6 +547,15 @@ export default {
             showSubmitPaymentModal.value = true
         }
 
+        const openAddGuestModal = () => {
+            if (!mini.value?.id) return
+            showAddGuestModal.value = true
+        }
+
+        const handleAddGuestSuccess = async () => {
+            await detailMiniTournament(id)
+        }
+
         const handlePaymentButtonClick = () => {
             if (isCreator.value) {
                 // Chủ kèo: mở modal quản lý thanh toán
@@ -748,12 +765,16 @@ export default {
             openPaymentModal,
             showSubmitPaymentModal,
             openSubmitPaymentModal,
+            showAddGuestModal,
+            openAddGuestModal,
             handlePaymentButtonClick,
             toast,
             confirmedParticipants,
             pendingParticipants,
             invitedParticipants,
+            guestParticipants,
             handlePaymentSubmitSuccess,
+            handleAddGuestSuccess,
             getPaymentStatusBadgeClass,
             getPaymentStatusLabel,
             canShowPaymentButton,
