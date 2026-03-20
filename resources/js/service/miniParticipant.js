@@ -14,9 +14,16 @@ export const getMiniTournamentInviteGroups = async(miniTournamentId, payload) =>
   .then((response) => response?.data?.data);
 }
 
-export const deleteStaff = async(staffId) => {
-    return axiosInstance.post(`${miniParticipantEndpoint}/delete-staff/${staffId}`)
-        .then((response) => response?.data?.data);
+export const deleteStaff = async(staffId, action = null, newGuarantorUserId = null) => {
+    const payload = {};
+    if (action) {
+        payload.action = action;
+    }
+    if (newGuarantorUserId) {
+        payload.new_guarantor_user_id = newGuarantorUserId;
+    }
+    return axiosInstance.post(`${miniParticipantEndpoint}/delete-staff/${staffId}`, payload)
+        .then((response) => response?.data);
 }
 
 export const deleteMiniParticipant = async(miniParticipantId) => {

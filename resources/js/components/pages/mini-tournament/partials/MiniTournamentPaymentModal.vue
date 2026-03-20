@@ -127,42 +127,69 @@
                   <div
                     v-for="payment in awaitingConfirmationPayments"
                     :key="payment.id"
-                    class="flex items-center justify-between p-4 hover:bg-gray-50 transition"
+                    class="p-4 hover:bg-gray-50 transition"
                   >
-                    <div class="flex items-center gap-4">
-                      <img
-                        :src="payment.user?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(payment.user?.full_name || '')}`"
-                        :alt="payment.user?.full_name || 'Avatar'"
-                        class="w-10 h-10 rounded-full border border-gray-100"
-                      />
-                      <div>
-                        <p class="font-semibold text-sm text-[#1F2937]">
-                          {{ payment.user?.full_name || 'Ẩn danh' }}
-                        </p>
-                        <p class="text-xs text-[#6B6F80] mt-0.5">
-                          Đã thanh toán:
-                          <span class="font-semibold text-[#D72D36]">
-                            {{ formatCurrency(payment.amount) }}đ
-                          </span>
-                          <span v-if="payment.paid_at"> • {{ formatTime(payment.paid_at) }}</span>
-                        </p>
+                    <!-- Main payment info -->
+                    <div class="flex items-center justify-between mb-2">
+                      <div class="flex items-center gap-4">
+                        <img
+                          :src="payment.user?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(payment.user?.full_name || '')}`"
+                          :alt="payment.user?.full_name || 'Avatar'"
+                          class="w-10 h-10 rounded-full border border-gray-100"
+                        />
+                        <div>
+                          <p class="font-semibold text-sm text-[#1F2937]">
+                            {{ payment.user?.full_name || 'Ẩn danh' }}
+                          </p>
+                          <p class="text-xs text-[#6B6F80] mt-0.5">
+                            Đã thanh toán:
+                            <span class="font-semibold text-[#D72D36]">
+                              {{ formatCurrency(payment.amount) }}đ
+                            </span>
+                            <span v-if="payment.paid_at"> • {{ formatTime(payment.paid_at) }}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2" v-if="canManage">
+                        <button
+                          type="button"
+                          class="px-3 py-1.5 rounded-full text-xs font-semibold bg-white text-[#D72D36] border border-[#D72D36] hover:bg-red-50 transition"
+                          @click="handleReject(payment)"
+                        >
+                          Không duyệt
+                        </button>
+                        <button
+                          type="button"
+                          class="px-4 py-1.5 rounded-full text-xs font-semibold bg-[#10B981] text-white hover:bg-[#059669] transition"
+                          @click="handleConfirm(payment)"
+                        >
+                          Duyệt
+                        </button>
                       </div>
                     </div>
-                    <div class="flex items-center gap-2" v-if="canManage">
-                      <button
-                        type="button"
-                        class="px-3 py-1.5 rounded-full text-xs font-semibold bg-white text-[#D72D36] border border-[#D72D36] hover:bg-red-50 transition"
-                        @click="handleReject(payment)"
+                    <!-- Guest info in this payment -->
+                    <div v-if="payment.guest_participants?.length" class="ml-14 mt-1 space-y-1.5">
+                      <p class="text-[11px] font-semibold text-[#92400E] uppercase tracking-wide">
+                        Guest được đóng tiền ({{ payment.guest_participants.length }}):
+                      </p>
+                      <div
+                        v-for="guest in payment.guest_participants"
+                        :key="guest.id"
+                        class="flex items-center gap-2 bg-[#FEF3C7] rounded-lg px-3 py-2"
                       >
-                        Không duyệt
-                      </button>
-                      <button
-                        type="button"
-                        class="px-4 py-1.5 rounded-full text-xs font-semibold bg-[#10B981] text-white hover:bg-[#059669] transition"
-                        @click="handleConfirm(payment)"
-                      >
-                        Duyệt
-                      </button>
+                        <div class="flex-1 min-w-0">
+                          <p class="text-[12px] font-semibold text-[#78350F] truncate">
+                            {{ guest.guest_name }}
+                            <span v-if="guest.is_guest" class="ml-1 text-[10px] font-normal bg-[#FDE68A] text-[#92400E] px-1.5 py-0.5 rounded">Guest</span>
+                          </p>
+                          <p class="text-[11px] text-[#B45309]">
+                            SĐT: {{ guest.guest_phone }}
+                            <span v-if="guest.guarantor" class="ml-2">
+                              • Bảo lãnh: {{ guest.guarantor?.full_name }}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -160,10 +160,8 @@ class MiniTournamentController extends Controller
         $editScope = $data['edit_scope'] ?? 'this_occurrence';
         unset($data['edit_scope']);
 
-        // Remove 'poster', 'qr_code_url' from data before updating tournament
         $data = collect($data)->except(['poster', 'qr_code_url'])->toArray();
 
-        // Safety fallback: đảm bảo fee_amount không null khi tắt thu phí.
         if (array_key_exists('has_fee', $data) && !$data['has_fee']) {
             $data['fee_amount'] = 0;
             $data['auto_split_fee'] = false;
@@ -177,9 +175,7 @@ class MiniTournamentController extends Controller
             return ResponseHelper::error('Bạn không có quyền cập nhật kèo đấu', 403);
         }
 
-        // Xử lý theo edit_scope - entire_series cần có recurrence_series_id
         if ($editScope === 'entire_series' && !empty($miniTournament->recurrence_series_id)) {
-            \Log::info('MiniTournament update - CALLING SERVICE');
             try {
                 $updatedTournament = $this->tournamentService->updateTournamentAsNewSeries($miniTournament, $data, Auth::id());
                 return ResponseHelper::success(
@@ -191,7 +187,6 @@ class MiniTournamentController extends Controller
             }
         }
 
-        // this_occurrence - chỉ cập nhật kèo hiện tại
         $miniTournament->update($data);
 
         if ($request->hasFile('poster')) {
