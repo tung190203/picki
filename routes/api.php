@@ -552,6 +552,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{id}/guests', [GuestController::class, 'store']);
         Route::get('/{id}/guaranteed-guests', [GuestController::class, 'guaranteedGuests']);
         Route::get('/{id}/guarantor-candidates', [GuestController::class, 'guarantorCandidates']);
+        Route::get('/{id}/guarantor-guests/{userId}', [GuestController::class, 'guarantorGuests']);
     });
     // Mini Tournament Templates
     Route::prefix('mini-tournament-templates')->group(function (): void {

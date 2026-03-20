@@ -59,31 +59,36 @@
 
             <!-- Trình độ ước tính -->
             <div>
-              <div class="flex items-center justify-between mb-1.5">
-                <label for="add-guest-skill" class="block text-[13px] font-semibold text-[#6B7280] uppercase tracking-wide">
-                  Trình độ ước tính
-                </label>
-                <span class="text-[13px] font-bold text-[#D72D36]">{{ Number(form.guest_estimated_rating).toFixed(1) }}</span>
+              <label class="block text-[13px] font-semibold text-[#6B7280] mb-1.5 uppercase tracking-wide">
+                Trình độ ước tính
+              </label>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <p class="text-[11px] text-[#9CA3AF] mb-1">Từ</p>
+                  <input
+                    v-model.number="form.estimated_level_min"
+                    type="number"
+                    min="1"
+                    max="8"
+                    step="0.5"
+                    placeholder="1.0"
+                    class="w-full bg-[#F9FAFB] border border-gray-200 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
+                  />
+                </div>
+                <div>
+                  <p class="text-[11px] text-[#9CA3AF] mb-1">Đến</p>
+                  <input
+                    v-model.number="form.estimated_level_max"
+                    type="number"
+                    min="1"
+                    max="8"
+                    step="0.5"
+                    placeholder="8.0"
+                    class="w-full bg-[#F9FAFB] border border-gray-200 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
+                  />
+                </div>
               </div>
-              <input
-                id="add-guest-skill"
-                v-model.number="form.guest_estimated_rating"
-                type="range"
-                min="1"
-                max="8"
-                step="0.5"
-                class="w-full h-2 bg-[#FEE2E2] rounded-lg appearance-none cursor-pointer accent-[#D72D36] slider-red"
-              />
-              <div class="flex justify-between text-[11px] text-[#9CA3AF] mt-0.5">
-                <span>1.0</span>
-                <span>2.0</span>
-                <span>3.0</span>
-                <span>4.0</span>
-                <span>5.0</span>
-                <span>6.0</span>
-                <span>7.0</span>
-                <span>8.0</span>
-              </div>
+              <p class="text-[11px] text-[#9CA3AF] mt-1">Khoảng trình độ ước tính từ 1.0 đến 8.0</p>
             </div>
 
             <!-- Người bảo lãnh (Thu tiền) - luôn hiển thị như trong ảnh -->
@@ -183,7 +188,8 @@ const form = ref({
   guest_name: '',
   guest_phone: '',
   guarantor_user_id: '',
-  guest_estimated_rating: 4,
+  estimated_level_min: null,
+  estimated_level_max: null,
 })
 
 const errors = ref({})
@@ -217,7 +223,8 @@ const resetForm = () => {
     guest_name: '',
     guest_phone: '',
     guarantor_user_id: '',
-    guest_estimated_rating: 4,
+    estimated_level_min: null,
+    estimated_level_max: null,
   }
   errors.value = {}
 }
@@ -255,6 +262,12 @@ const handleSubmit = async () => {
     }
     if (props.miniTournament?.has_fee && form.value.guarantor_user_id) {
       payload.guarantor_user_id = Number(form.value.guarantor_user_id)
+    }
+    if (form.value.estimated_level_min != null) {
+      payload.estimated_level_min = Number(form.value.estimated_level_min)
+    }
+    if (form.value.estimated_level_max != null) {
+      payload.estimated_level_max = Number(form.value.estimated_level_max)
     }
 
     const response = await addGuest(props.miniTournament.id, payload)

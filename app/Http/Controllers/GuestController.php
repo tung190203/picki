@@ -10,6 +10,7 @@ use App\Models\MiniTournament;
 use App\Models\MiniParticipantPayment;
 use App\Models\MiniTournamentStaff;
 use App\Models\User;
+use App\Notifications\GuestAddedNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -34,8 +35,8 @@ class GuestController extends Controller
             'guest_name' => 'required|string|max:255',
             'guest_phone' => 'required|string|max:20',
             'guarantor_user_id' => 'nullable|integer|exists:users,id',
-            'estimated_level' => 'nullable|numeric|min:1|max:8',
-            'estimated_level_max' => 'nullable|numeric|min:1|max:8|gte:estimated_level',
+            'estimated_level_min' => 'nullable|numeric|min:1|max:8',
+            'estimated_level_max' => 'nullable|numeric|min:1|max:8',
         ]);
 
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
@@ -89,14 +90,17 @@ class GuestController extends Controller
             }
         }
 
-        // Tạo user cho guest
-        $randomPassword = Str::random(12);
-        $guestUser = User::create([
-            'full_name' => $data['guest_name'],
-            'phone' => $data['guest_phone'],
-            'password' => $randomPassword,
-            'visibility' => User::VISIBILITY_PRIVATE,
-        ]);
+        // Tạo hoặc tìm user cho guest (theo phone để tránh trùng số điện thoại)
+        $guestUser = User::where('phone', $data['guest_phone'])->first();
+        if (!$guestUser) {
+            $randomPassword = Str::random(12);
+            $guestUser = User::create([
+                'full_name' => $data['guest_name'],
+                'phone' => $data['guest_phone'],
+                'password' => $randomPassword,
+                'visibility' => User::VISIBILITY_PRIVATE,
+            ]);
+        }
 
         // Tạo participant cho guest
         $participant = MiniParticipant::create([
@@ -133,6 +137,14 @@ class GuestController extends Controller
 
         // Load relations for response
         $participant->load(['user', 'guarantor']);
+
+        // Gửi thông báo cho người bảo lãnh (nếu có)
+        if ($guarantorUserId && $guarantorUserId !== auth()->id()) {
+            $guarantor = User::find($guarantorUserId);
+            if ($guarantor) {
+                $guarantor->notify(new GuestAddedNotification($miniTournament, $participant));
+            }
+        }
 
         return ResponseHelper::success(
             new MiniParticipantResource($participant),
@@ -233,5 +245,29 @@ class GuestController extends Controller
             ->values();
 
         return ResponseHelper::success($all, 'Lấy danh sách người bảo lãnh thành công');
+    }
+
+    /**
+     * Lấy danh sách guest do một user bảo lãnh
+     * API: GET /api/mini-tournaments/{id}/guarantor-guests/{userId}
+     */
+    public function guarantorGuests(Request $request, $miniTournamentId, $userId)
+    {
+        $miniTournament = MiniTournament::findOrFail($miniTournamentId);
+
+        if (!$miniTournament->hasOrganizer(auth()->id())) {
+            return ResponseHelper::error('Bạn không có quyền xem danh sách này', 403);
+        }
+
+        $guests = MiniParticipant::with(['user', 'guarantor'])
+            ->where('mini_tournament_id', $miniTournamentId)
+            ->where('is_guest', true)
+            ->where('guarantor_user_id', $userId)
+            ->get();
+
+        return ResponseHelper::success(
+            MiniParticipantResource::collection($guests),
+            'Lấy danh sách guest thành công'
+        );
     }
 }

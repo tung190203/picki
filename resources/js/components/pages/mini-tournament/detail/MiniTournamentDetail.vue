@@ -40,6 +40,7 @@ import PromotionModal from '@/components/organisms/PromotionModal.vue'
 import MiniTournamentPaymentModal from '@/components/pages/mini-tournament/partials/MiniTournamentPaymentModal.vue'
 import MiniTournamentSubmitReceiptModal from '@/components/pages/mini-tournament/partials/MiniTournamentSubmitReceiptModal.vue'
 import AddGuestModal from '@/components/pages/mini-tournament/partials/AddGuestModal.vue'
+import DeleteStaffModal from '@/components/molecules/DeleteStaffModal.vue'
 
 export default {
     name: 'MiniTournamentDetail',
@@ -111,6 +112,13 @@ export default {
         const showPaymentModal = ref(false)
         const showSubmitPaymentModal = ref(false)
         const showAddGuestModal = ref(false)
+        const showDeleteStaffModal = ref(false)
+        const deleteStaffData = ref({
+            staffId: null,
+            guarantor: null,
+            guests: [],
+            candidates: [],
+        })
 
         const isDescriptionChanged = computed(() => {
             return descriptionModel.value !== mini.value.description;
@@ -257,34 +265,41 @@ export default {
 
         const confirmedParticipants = computed(() => {
             if (!mini.value?.participants) return []
-            // Filter participants with payment_status = 'confirmed'
             return mini.value.participants.filter(p => p.payment_status === 'confirmed')
         })
 
-        // Người tham gia hiển thị: đã xác nhận thanh toán HOẶC là guest (đã thêm vào kèo)
+        // Người tham gia: tất cả user + guest đã thanh toán (payment_status = confirmed)
         const displayedParticipants = computed(() => {
+            return confirmedParticipants.value
+        })
+
+        // Chưa thanh toán: user và guest đã tham gia (is_confirmed) nhưng chưa thanh toán
+        const unpaidParticipants = computed(() => {
             if (!mini.value?.participants) return []
             return mini.value.participants.filter(
-                p => p.payment_status === 'confirmed' || p.is_guest === true
+                p => p.is_confirmed === true && p.payment_status !== 'confirmed'
             )
         })
 
+        // Chờ xác nhận: người tự xin (is_invited=false) + người được mời (is_invited=true) chưa xác nhận
         const pendingParticipants = computed(() => {
             if (!mini.value?.participants) return []
-            // Chỉ hiển thị người tự xin tham gia (is_invited = false) trong tab chờ duyệt
-            // Người được mời (is_invited = true) sẽ tự xác nhận, không cần admin duyệt
             return mini.value.participants.filter(p => p.is_confirmed === false && p.is_invited === false)
         })
 
         const invitedParticipants = computed(() => {
             if (!mini.value?.participants) return []
-            // Người được mời chưa xác nhận (is_invited = true, is_confirmed = false)
             return mini.value.participants.filter(p => p.is_confirmed === false && p.is_invited === true)
         })
 
-        const guestParticipants = computed(() => {
-            if (!mini.value?.participants) return []
-            return mini.value.participants.filter(p => p.is_guest === true)
+        // Gộp: chờ xác nhận = pending (tự xin) + invited (được mời)
+        const waitingConfirmationParticipants = computed(() => {
+            return [...pendingParticipants.value, ...invitedParticipants.value]
+        })
+
+        // Guest section đầy khi: confirmed (user + guest) >= max_players
+        const isGuestSectionFull = computed(() => {
+            return confirmedParticipants.value.length >= (mini.value?.max_players || 0)
         })
 
         const isAutoSplitPaymentReady = computed(() => {
@@ -432,9 +447,24 @@ export default {
             showQRCodeModal.value = true;
         }
 
-        const handleRemoveStaff = async (staffId) => {
+        const handleRemoveStaff = async (staffId, staffUserId, staffName, staffAvatar) => {
             try {
-                await MiniParticipantService.deleteStaff(staffId);
+                const response = await MiniParticipantService.deleteStaff(staffId);
+                // Nếu staff có guest bảo lãnh, API trả về thông tin để hiển thị modal
+                if (response?.data?.has_guaranteed_guests) {
+                    const data = response.data;
+                    deleteStaffData.value = {
+                        staffId,
+                        guarantor: {
+                            full_name: data.guarantor_name,
+                            avatar_url: staffAvatar,
+                        },
+                        guests: data.guaranteed_guests || [],
+                        candidates: data.guarantor_candidates || [],
+                    };
+                    showDeleteStaffModal.value = true;
+                    return;
+                }
                 toast.success('Đã xóa người tổ chức khỏi kèo đấu');
                 await detailMiniTournament(id);
             } catch (error) {
@@ -442,13 +472,26 @@ export default {
             }
         };
 
-        const handleRemoveUser = async (miniParticipantId) => {
+        const handleRemoveUser = async (data) => {
+            // Support both old format (id only) and new format (object)
+            const miniParticipantId = typeof data === 'object' ? data.id : data;
             try {
                 await MiniParticipantService.deleteMiniParticipant(miniParticipantId);
                 toast.success('Đã xóa người chơi khỏi kèo đấu');
                 await detailMiniTournament(id);
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Xóa người chơi thất bại');
+            }
+        };
+
+        const handleConfirmDeleteStaff = async ({ staffId, action, newGuarantorUserId }) => {
+            try {
+                await MiniParticipantService.deleteStaff(staffId, action, newGuarantorUserId);
+                toast.success('Đã xóa người tổ chức khỏi kèo đấu');
+                showDeleteStaffModal.value = false;
+                await detailMiniTournament(id);
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Xóa người tổ chức thất bại');
             }
         };
 
@@ -775,13 +818,18 @@ export default {
             openSubmitPaymentModal,
             showAddGuestModal,
             openAddGuestModal,
+            showDeleteStaffModal,
+            deleteStaffData,
+            handleConfirmDeleteStaff,
             handlePaymentButtonClick,
             toast,
             confirmedParticipants,
             displayedParticipants,
             pendingParticipants,
             invitedParticipants,
-            guestParticipants,
+            waitingConfirmationParticipants,
+            unpaidParticipants,
+            isGuestSectionFull,
             handlePaymentSubmitSuccess,
             handleAddGuestSuccess,
             getPaymentStatusBadgeClass,

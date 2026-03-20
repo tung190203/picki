@@ -461,9 +461,18 @@ class MiniParticipantController extends Controller
         ];
 
         DB::transaction(function () use ($participant) {
+            // Xóa payment record của chính participant này
             MiniParticipantPayment::where('mini_tournament_id', $participant->mini_tournament_id)
                 ->where('participant_id', $participant->id)
                 ->delete();
+
+            // Nếu là guest — xóa luôn payment mà guest tạo ra cho người bảo lãnh
+            if ($participant->is_guest && $participant->guarantor_user_id) {
+                MiniParticipantPayment::where('mini_tournament_id', $participant->mini_tournament_id)
+                    ->where('user_id', $participant->guarantor_user_id)
+                    ->where('participant_id', $participant->id)
+                    ->delete();
+            }
 
             $participant->delete();
         });
@@ -485,7 +494,7 @@ class MiniParticipantController extends Controller
         return ResponseHelper::success(null, 'Đã xóa người tham gia khỏi kèo đấu');
     }
 
-    public function deleteStaff($staffId)
+    public function deleteStaff(Request $request, $staffId)
     {
         $tournamentStaff = DB::table('mini_tournament_staff')->where('id', $staffId)->first();
         if (!$tournamentStaff) {
@@ -496,12 +505,119 @@ class MiniParticipantController extends Controller
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền xoá nhân viên này', 403);
         }
-        if( $tournamentStaff->role === MiniTournamentStaff::ROLE_ORGANIZER) {
+        if ($tournamentStaff->role === MiniTournamentStaff::ROLE_ORGANIZER) {
             return ResponseHelper::error('Không thể xoá nhân viên với vai trò tổ chức', 400);
         }
         if ($tournamentStaff->user_id === Auth::id()) {
             return ResponseHelper::error('Bạn không thể tự xoá chính mình', 400);
         }
+
+        // Bước 1: Lấy action từ request
+        $action = $request->input('action');
+
+        // Kiểm tra xem staff này có guest bảo lãnh không
+        $guaranteedGuests = MiniParticipant::where('mini_tournament_id', $tournament->id)
+            ->where('is_guest', true)
+            ->where('guarantor_user_id', $tournamentStaff->user_id)
+            ->with(['user', 'guarantor'])
+            ->get();
+
+        $hasGuaranteedGuests = $guaranteedGuests->isNotEmpty();
+
+        // Nếu có guest bảo lãnh và chưa có action → trả về thông tin để FE hiển thị modal
+        if ($hasGuaranteedGuests && !$action) {
+            // Lấy candidate người bảo lãnh thay thế
+            $organizers = collect($tournament->staff)
+                ->where('role', MiniTournamentStaff::ROLE_ORGANIZER)
+                ->map(fn($user) => [
+                    'user_id' => $user->id,
+                    'full_name' => $user->full_name,
+                    'avatar_url' => $user->avatar_url,
+                    'is_organizer' => true,
+                ]);
+
+            $paidParticipants = MiniParticipant::with('user')
+                ->where('mini_tournament_id', $tournament->id)
+                ->where('is_confirmed', true)
+                ->where('is_guest', false)
+                ->where('payment_status', PaymentStatusEnum::CONFIRMED)
+                ->where('user_id', '!=', $tournamentStaff->user_id)
+                ->get()
+                ->map(fn($p) => [
+                    'user_id' => $p->user_id,
+                    'full_name' => $p->user?->full_name,
+                    'avatar_url' => $p->user?->avatar_url,
+                    'is_organizer' => false,
+                ]);
+
+            $guarantorCandidates = $organizers->concat($paidParticipants)
+                ->unique('user_id')
+                ->values();
+
+            return ResponseHelper::success([
+                'has_guaranteed_guests' => true,
+                'guarantor_user_id' => $tournamentStaff->user_id,
+                'guarantor_name' => DB::table('users')->where('id', $tournamentStaff->user_id)->value('full_name'),
+                'guaranteed_guests' => MiniParticipantResource::collection($guaranteedGuests),
+                'guarantor_candidates' => $guarantorCandidates,
+            ], 'Staff có guest bảo lãnh, cần xác nhận hành động', 200);
+        }
+
+        // Bước 2: Xử lý theo action
+        if ($action === 'delete_guests') {
+            // Xóa toàn bộ guest do staff này bảo lãnh
+            $guestIds = $guaranteedGuests->pluck('id')->toArray();
+            if (!empty($guestIds)) {
+                // Xóa payment của guest
+                MiniParticipantPayment::where('mini_tournament_id', $tournament->id)
+                    ->whereIn('participant_id', $guestIds)
+                    ->delete();
+                // Xóa payment mà guest tạo cho người bảo lãnh
+                MiniParticipantPayment::where('mini_tournament_id', $tournament->id)
+                    ->where('user_id', $tournamentStaff->user_id)
+                    ->whereIn('participant_id', $guestIds)
+                    ->delete();
+                // Xóa guest
+                MiniParticipant::whereIn('id', $guestIds)->delete();
+            }
+        } elseif ($action === 'transfer_guarantor') {
+            // Chuyển guarantor sang user khác
+            $newGuarantorId = $request->input('new_guarantor_user_id');
+            if (!$newGuarantorId) {
+                return ResponseHelper::error('Vui lòng chọn người bảo lãnh mới', 400);
+            }
+
+            // Validate new guarantor
+            $isValidNewGuarantor = $tournament->staff()
+                ->where('mini_tournament_staff.role', MiniTournamentStaff::ROLE_ORGANIZER)
+                ->where('user_id', $newGuarantorId)
+                ->exists()
+                || MiniParticipant::where('mini_tournament_id', $tournament->id)
+                    ->where('is_confirmed', true)
+                    ->where('is_guest', false)
+                    ->where('payment_status', PaymentStatusEnum::CONFIRMED)
+                    ->where('user_id', $newGuarantorId)
+                    ->exists();
+
+            if (!$isValidNewGuarantor) {
+                return ResponseHelper::error('Người bảo lãnh mới không hợp lệ', 400);
+            }
+
+            // Cập nhật guarantor cho các guest
+            MiniParticipant::whereIn('id', $guaranteedGuests->pluck('id')->toArray())
+                ->update(['guarantor_user_id' => $newGuarantorId]);
+
+            // Cập nhật payment: chuyển user_id từ old guarantor → new guarantor
+            MiniParticipantPayment::where('mini_tournament_id', $tournament->id)
+                ->where('user_id', $tournamentStaff->user_id)
+                ->whereIn('participant_id', $guaranteedGuests->pluck('id')->toArray())
+                ->update([
+                    'user_id' => $newGuarantorId,
+                    'confirmed_by' => $newGuarantorId,
+                ]);
+        }
+
+        // Bước 3: Xóa staff
         DB::table('mini_tournament_staff')->where('id', $staffId)->delete();
 
         return ResponseHelper::success(null, 'Xoá nhân viên thành công', 200);
