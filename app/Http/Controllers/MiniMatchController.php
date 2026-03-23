@@ -15,9 +15,11 @@ use App\Models\VnduprHistory;
 use App\Notifications\MiniMatchCreatedNotification;
 use App\Notifications\MiniMatchResultConfirmedNotification;
 use App\Notifications\MiniMatchUpdatedNotification;
+use App\Services\MiniTournamentPaymentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class MiniMatchController extends Controller
 {
@@ -834,6 +836,18 @@ class MiniMatchController extends Controller
                 }
             }
         }
+
+        $tournament = $match->miniTournament;
+        if ($tournament && $tournament->has_fee && $tournament->auto_split_fee && !$tournament->auto_payment_created) {
+            try {
+                app(MiniTournamentPaymentService::class)->createAutoPaymentsWhenTournamentEnds($tournament);
+            } catch (\Exception $e) {
+                Log::error('Auto split fee error: ' . $e->getMessage(), [
+                    'tournament_id' => $tournament->id,
+                    'match_id' => $match->id,
+                ]);
+            }
+        }
     }
 
     /**
@@ -932,11 +946,24 @@ class MiniMatchController extends Controller
 
     private function processSets(MiniMatch $match, array $setsData): void
     {
+        // Lấy danh sách set_number được gửi lên
+        $sentSetNumbers = collect($setsData)->pluck('set_number')->toArray();
+
+        // Xóa các set không có trong request (tự động xóa set không được gửi lên)
+        if (!empty($sentSetNumbers)) {
+            MiniMatchResult::where('mini_match_id', $match->id)
+                ->whereNotIn('set_number', $sentSetNumbers)
+                ->delete();
+        }
+
+        // Lưu/cập nhật các set được gửi lên
         foreach ($setsData as $set) {
+            // Xóa set cũ trước khi lưu mới
             MiniMatchResult::where('mini_match_id', $match->id)
                 ->where('set_number', $set['set_number'])
                 ->delete();
 
+            // Lưu kết quả set mới
             foreach ($set['results'] as $res) {
                 $teamId = $res['team'] === 'team1' ? $match->team1_id : $match->team2_id;
                 MiniMatchResult::create([
@@ -1092,10 +1119,6 @@ class MiniMatchController extends Controller
             if (!empty($data['sets'])) {
                 $this->processSets($match, $data['sets']);
             }
-
-            // NOTE: Không validate kết quả set ở đây
-            // Việc validate (điểm >= 11) chỉ áp dụng khi CONFIRM trận đấu
-            // Cho phép lưu kết quả tạm thời (dù chưa đạt 11 điểm) để người dùng tiếp tục chỉnh sửa
 
             DB::commit();
 

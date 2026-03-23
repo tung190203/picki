@@ -321,6 +321,14 @@ export default {
             return isAutoSplitPaymentReady.value
         })
 
+        // Organizer: luôn thấy nút quản lý thanh toán sau khi trận đấu hoàn tất
+        const canManagePayments = computed(() => {
+            if (!mini.value?.has_fee) return false
+            if (!isCreator.value) return false
+            if (!mini.value?.auto_split_fee) return true
+            return isAutoSplitPaymentReady.value
+        })
+
         const openPromotionModal = () => {
             isPromotionModalOpen.value = true;
         };
@@ -835,6 +843,7 @@ export default {
             getPaymentStatusBadgeClass,
             getPaymentStatusLabel,
             canShowPaymentButton,
+            canManagePayments,
             handleApproveParticipant,
             handleRejectParticipant,
             handleCancelRequest
