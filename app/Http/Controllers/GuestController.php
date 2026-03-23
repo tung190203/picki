@@ -189,11 +189,16 @@ class GuestController extends Controller
     {
         $userId = auth()->id();
 
-        $guests = MiniParticipant::with(['user', 'guarantor'])
+        $guests = MiniParticipant::with(['user', 'guarantor', 'payments'])
             ->where('mini_tournament_id', $miniTournamentId)
             ->where('is_guest', true)
             ->where('guarantor_user_id', $userId)
-            ->where('payment_status', PaymentStatusEnum::PENDING)
+            ->whereHas('payments', function ($query) {
+                $query->whereIn('status', [
+                    MiniParticipantPayment::STATUS_PENDING,
+                    MiniParticipantPayment::STATUS_REJECTED,
+                ]);
+            })
             ->orderBy('created_at', 'desc')
             ->get();
 
