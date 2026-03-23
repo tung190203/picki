@@ -125,7 +125,7 @@ class GuestController extends Controller
             MiniParticipantPayment::create([
                 'mini_tournament_id' => $miniTournamentId,
                 'participant_id' => $participant->id,
-                'user_id' => $guarantorUserId,
+                'user_id' => $guestUser->id,
                 'amount' => $feeAmount,
                 'status' => $paymentStatus,
                 'note' => "Guest {$data['guest_name']} - {$data['guest_phone']}",
