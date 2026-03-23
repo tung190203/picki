@@ -842,6 +842,10 @@ class MiniMatchController extends Controller
             try {
                 app(MiniTournamentPaymentService::class)->createAutoPaymentsWhenTournamentEnds($tournament);
             } catch (\Exception $e) {
+                Log::error('Auto split fee error: ' . $e->getMessage(), [
+                    'tournament_id' => $tournament->id,
+                    'match_id' => $match->id,
+                ]);
             }
         }
     }
