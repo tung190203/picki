@@ -44,8 +44,8 @@ class MiniTournamentPaymentController extends Controller
         $confirmedPayments = $payments->filter(fn($p) => $p->status === MiniParticipantPayment::STATUS_CONFIRMED);
         $rejectedPayments = $payments->filter(fn($p) => $p->status === MiniParticipantPayment::STATUS_REJECTED);
 
-        // Tính tổng tiền
-        $participantCount = $miniTournament->participants()->count();
+        // Tính tổng tiền (chỉ đếm participants đã confirmed)
+        $participantCount = $miniTournament->participants()->where('is_confirmed', true)->count();
 
         // Tính số tiền mỗi người phải đóng
         $feePerPerson = 0;
@@ -55,9 +55,9 @@ class MiniTournamentPaymentController extends Controller
                 if ($miniTournament->final_fee_per_person !== null) {
                     $feePerPerson = $miniTournament->final_fee_per_person;
                 } else {
-                    // Chia tự động: tổng tiền / số người hiện tại
-                    $participantCount = $miniTournament->participants()->count();
-                    $feePerPerson = $participantCount > 0 ? round($miniTournament->fee_amount / $participantCount) : 0;
+                    // Chia tự động: tổng tiền / số người đã confirmed
+                $participantCount = $miniTournament->participants()->where('is_confirmed', true)->count();
+                $feePerPerson = $participantCount > 0 ? round($miniTournament->fee_amount / $participantCount) : 0;
                 }
             } else {
                 // Tiền cố định mỗi người

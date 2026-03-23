@@ -151,19 +151,11 @@ class MiniParticipantController extends Controller
                 );
             }
 
-            // Gắn thanh toán pending cho người chơi nếu kèo có thu phí
-            if ($miniTournament->has_fee) {
-                // Tính số tiền phải đóng
-                $participantCount = $miniTournament->participants()->count();
-                $feePerPerson = 0;
-
-                if ($miniTournament->auto_split_fee) {
-                    // Chia tự động: tổng tiền / số người
-                    $feePerPerson = $participantCount > 0 ? round($miniTournament->fee_amount / $participantCount) : 0;
-                } else {
-                    // Tiền cố định mỗi người
-                    $feePerPerson = $miniTournament->fee_amount;
-                }
+            // Gắn thanh toán pending cho người chơi nếu kèo có thu phí VÀ KHÔNG phải auto_split_fee
+            // auto_split_fee = true: KHÔNG tạo payment ở đây, sẽ tạo khi kèo kết thúc
+            if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
+                // Tiền cố định mỗi người
+                $feePerPerson = $miniTournament->fee_amount;
 
                 MiniParticipantPayment::firstOrCreate(
                     [
@@ -297,19 +289,11 @@ class MiniParticipantController extends Controller
             ]
         );
 
-        // Gắn thanh toán pending nếu kèo có thu phí
-        if ($participant->miniTournament->has_fee) {
-            // Tính số tiền phải đóng
-            $participantCount = $participant->miniTournament->participants()->count();
-            $feePerPerson = 0;
-
-            if ($participant->miniTournament->auto_split_fee) {
-                // Chia tự động: tổng tiền / số người
-                $feePerPerson = $participantCount > 0 ? round($participant->miniTournament->fee_amount / $participantCount) : 0;
-            } else {
-                // Tiền cố định mỗi người
-                $feePerPerson = $participant->miniTournament->fee_amount;
-            }
+        // Gắn thanh toán pending nếu kèo có thu phí VÀ KHÔNG phải auto_split_fee
+        // auto_split_fee = true: KHÔNG tạo payment ở đây, sẽ tạo khi kèo kết thúc
+        if ($participant->miniTournament->has_fee && !$participant->miniTournament->auto_split_fee) {
+            // Tiền cố định mỗi người
+            $feePerPerson = $participant->miniTournament->fee_amount;
 
             MiniParticipantPayment::firstOrCreate(
                 [
@@ -380,19 +364,11 @@ class MiniParticipantController extends Controller
             $organizer->notify(new MiniTournamentMemberJoinedNotification($participant));
         }
 
-        // Gắn thanh toán pending nếu kèo có thu phí
-        if ($participant->miniTournament->has_fee) {
-            // Tính số tiền phải đóng
-            $participantCount = $participant->miniTournament->participants()->count();
-            $feePerPerson = 0;
-
-            if ($participant->miniTournament->auto_split_fee) {
-                // Chia tự động: tổng tiền / số người
-                $feePerPerson = $participantCount > 0 ? round($participant->miniTournament->fee_amount / $participantCount) : 0;
-            } else {
-                // Tiền cố định mỗi người
-                $feePerPerson = $participant->miniTournament->fee_amount;
-            }
+        // Gắn thanh toán pending nếu kèo có thu phí VÀ KHÔNG phải auto_split_fee
+        // auto_split_fee = true: KHÔNG tạo payment ở đây, sẽ tạo khi kèo kết thúc
+        if ($participant->miniTournament->has_fee && !$participant->miniTournament->auto_split_fee) {
+            // Tiền cố định mỗi người
+            $feePerPerson = $participant->miniTournament->fee_amount;
 
             MiniParticipantPayment::firstOrCreate(
                 [
