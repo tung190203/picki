@@ -15,8 +15,9 @@ class MiniTournamentPaymentService
      * Tạo khoản thu tự động khi kèo kết thúc (auto_split_fee = true)
      * - Tính final_fee_per_person dựa trên số người cuối cùng
      * - Tạo payment record cho tất cả participants
-     * - Mặc định chủ kèo đã thanh toán (confirmed)
-     * - Gửi thông báo đến tất cả users
+     * - Organizer → CONFIRMED (miễn phí)
+     * - Guest bảo lãnh bởi organizer → CONFIRMED
+     * - Member khác và Guest bảo lãnh bởi member khác → PENDING
      */
     public function createAutoPaymentsWhenTournamentEnds(MiniTournament $tournament): bool
     {
@@ -51,45 +52,61 @@ class MiniTournamentPaymentService
                 'auto_payment_created' => true,
             ]);
 
-            // Lấy staff (chủ kèo) - staff() trả về User objects
+            // Lấy organizers
             $organizers = $tournament->staff()->pluck('users.id')->toArray();
 
-            // Tạo payment cho tất cả participants
+            // Tạo hoặc cập nhật payment cho tất cả participants
             foreach ($participants as $participant) {
+                $isOrganizer = in_array($participant->user_id, $organizers);
+
+                // Kiểm tra guest bảo lãnh bởi organizer
+                $isGuestByOrganizer = $participant->is_guest
+                    && $participant->guarantor_user_id !== null
+                    && in_array($participant->guarantor_user_id, $organizers);
+
+                // Xác định status: organizer và guest bảo lãnh bởi organizer → CONFIRMED
+                $shouldBeConfirmed = $isOrganizer || $isGuestByOrganizer;
+
                 // Kiểm tra xem đã có payment chưa
                 $existingPayment = MiniParticipantPayment::where('mini_tournament_id', $tournament->id)
                     ->where('participant_id', $participant->id)
                     ->first();
 
                 if ($existingPayment) {
-                    continue; // Bỏ qua nếu đã có
-                }
-
-                $isOrganizer = in_array($participant->user_id, $organizers);
-
-                // Tạo payment record
-                $payment = MiniParticipantPayment::create([
-                    'mini_tournament_id' => $tournament->id,
-                    'participant_id' => $participant->id,
-                    'user_id' => $participant->user_id,
-                    'amount' => $finalFeePerPerson,
-                    'status' => $isOrganizer ? MiniParticipantPayment::STATUS_CONFIRMED : MiniParticipantPayment::STATUS_PENDING,
-                    'paid_at' => $isOrganizer ? now() : null,
-                    'confirmed_at' => $isOrganizer ? now() : null,
-                    'confirmed_by' => $isOrganizer ? $participant->user_id : null,
-                ]);
-
-                // Update participant payment_status
-                if ($isOrganizer) {
-                    $participant->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
+                    // Cập nhật lại amount cho payments đã tạo trước đó
+                    // KHÔNG thay đổi status đã confirmed
+                    $existingPayment->update([
+                        'amount' => $finalFeePerPerson,
+                    ]);
                 } else {
-                    $participant->update(['payment_status' => PaymentStatusEnum::PENDING]);
+                    // Tạo payment record mới
+                    $payment = MiniParticipantPayment::create([
+                        'mini_tournament_id' => $tournament->id,
+                        'participant_id' => $participant->id,
+                        'user_id' => $participant->user_id,
+                        'amount' => $finalFeePerPerson,
+                        'status' => $shouldBeConfirmed
+                            ? MiniParticipantPayment::STATUS_CONFIRMED
+                            : MiniParticipantPayment::STATUS_PENDING,
+                        'paid_at' => $shouldBeConfirmed ? now() : null,
+                        'confirmed_at' => $shouldBeConfirmed ? now() : null,
+                        'confirmed_by' => $shouldBeConfirmed ? $participant->user_id : null,
+                    ]);
+
+                    // Gửi thông báo cho người cần thanh toán (không gửi cho organizer)
+                    if (!$shouldBeConfirmed) {
+                        $participant->user?->notify(
+                            new MiniTournamentPaymentCreatedNotification($tournament, $payment, $finalFeePerPerson)
+                        );
+                    }
                 }
 
-                // Gửi thông báo
-                $participant->user?->notify(
-                    new MiniTournamentPaymentCreatedNotification($tournament, $payment, $finalFeePerPerson)
-                );
+                // Cập nhật participant payment_status nếu cần
+                $participant->update([
+                    'payment_status' => $shouldBeConfirmed
+                        ? PaymentStatusEnum::CONFIRMED
+                        : PaymentStatusEnum::PENDING,
+                ]);
             }
 
             DB::commit();
