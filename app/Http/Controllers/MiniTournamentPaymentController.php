@@ -32,8 +32,8 @@ class MiniTournamentPaymentController extends Controller
             'sport',
         ])->findOrFail($miniTournamentId);
 
-        // Load payments với user relationships
-        $payments = MiniParticipantPayment::with(['user', 'confirmer'])
+        // Load payments với user, confirmer và participant (để lấy guarantor nếu là guest)
+        $payments = MiniParticipantPayment::with(['user', 'confirmer', 'participant'])
             ->where('mini_tournament_id', $miniTournamentId)
             ->orderBy('created_at', 'desc')
             ->get();
@@ -193,19 +193,19 @@ class MiniTournamentPaymentController extends Controller
 
         // Tính thêm tiền cho guest_ids nếu có
         $guestIds = $data['guest_ids'] ?? [];
-        $extraAmount = 0;
         if (!empty($guestIds)) {
             // Validate: chỉ được đóng tiền cho guest mà user này bảo lãnh
             $validGuests = MiniParticipant::whereIn('id', $guestIds)
                 ->where('guarantor_user_id', $userId)
                 ->where('is_guest', true)
-                ->where('payment_status', PaymentStatusEnum::PENDING)
+                ->whereIn('payment_status', [
+                    PaymentStatusEnum::PENDING->value,
+                    MiniParticipantPayment::STATUS_REJECTED,
+                ])
                 ->pluck('id')
                 ->toArray();
 
-            $validGuestCount = count($validGuests);
-            $extraAmount = $feePerPerson * $validGuestCount;
-            $guestIds = $validGuests; // chỉ giữ lại những guest hợp lệ
+            $guestIds = $validGuests;
         }
 
         // Kiểm tra xem đã có payment record chưa
@@ -221,38 +221,103 @@ class MiniTournamentPaymentController extends Controller
 
         DB::beginTransaction();
         try {
+            $payments = [];
+
+            if (!empty($guestIds)) {
+                // Khi auto_split_fee = true: thanh toán cho cả user + guests trong 1 request
+                // Khi auto_split_fee = false: chỉ thanh toán cho guests
+                if ($miniTournament->auto_split_fee) {
+                    // Cập nhật payment của chính user
+                    if ($existingPayment) {
+                        if (in_array($existingPayment->status, [MiniParticipantPayment::STATUS_CONFIRMED])) {
+                            DB::rollBack();
+                            return ResponseHelper::error('Thanh toán của bạn đã được xác nhận, không thể cập nhật', 400);
+                        }
+
+                        $existingPayment->update([
+                            'amount' => $feePerPerson,
+                            'status' => MiniParticipantPayment::STATUS_PAID,
+                            'receipt_image' => $receiptImage,
+                            'note' => $data['note'] ?? null,
+                            'paid_at' => now(),
+                            'admin_note' => null,
+                            'confirmed_at' => null,
+                            'confirmed_by' => null,
+                        ]);
+                        $existingPayment->load(['user', 'confirmer']);
+                        $payments[] = $existingPayment;
+                    } else {
+                        $myPayment = MiniParticipantPayment::create([
+                            'mini_tournament_id' => $miniTournamentId,
+                            'participant_id' => $participant->id,
+                            'user_id' => $userId,
+                            'amount' => $feePerPerson,
+                            'status' => MiniParticipantPayment::STATUS_PAID,
+                            'receipt_image' => $receiptImage,
+                            'note' => $data['note'] ?? null,
+                            'paid_at' => now(),
+                        ]);
+                        $myPayment->load(['user', 'confirmer']);
+                        $payments[] = $myPayment;
+                    }
+                }
+
+                // Cập nhật payment của từng guest
+                $guests = MiniParticipant::whereIn('id', $guestIds)->get();
+                foreach ($guests as $guest) {
+                    $existingGuestPayment = MiniParticipantPayment::where('mini_tournament_id', $miniTournamentId)
+                        ->where('participant_id', $guest->id)
+                        ->first();
+
+                    if ($existingGuestPayment) {
+                        if ($existingGuestPayment->status === MiniParticipantPayment::STATUS_CONFIRMED) {
+                            DB::rollBack();
+                            return ResponseHelper::error("Thanh toán cho guest {$guest->guest_name} đã được xác nhận", 400);
+                        }
+
+                        $existingGuestPayment->update([
+                            'amount' => $feePerPerson,
+                            'status' => MiniParticipantPayment::STATUS_PAID,
+                            'receipt_image' => $receiptImage,
+                            'note' => $data['note'] ?? null,
+                            'paid_at' => now(),
+                            'admin_note' => null,
+                            'confirmed_at' => null,
+                            'confirmed_by' => null,
+                        ]);
+                        $existingGuestPayment->load(['user', 'confirmer']);
+                        $payments[] = $existingGuestPayment;
+                    } else {
+                        DB::rollBack();
+                        return ResponseHelper::error("Không tìm thấy bản ghi thanh toán cho guest {$guest->guest_name}", 400);
+                    }
+                }
+
+                MiniParticipant::whereIn('id', $guestIds)
+                    ->update(['payment_status' => PaymentStatusEnum::PENDING->value]);
+
+                DB::commit();
+
+                $message = $miniTournament->auto_split_fee
+                    ? 'Thanh toán cho bản thân và guest thành công, chờ chủ kèo xác nhận'
+                    : 'Thanh toán cho guest thành công, chờ chủ kèo xác nhận';
+
+                return ResponseHelper::success(
+                    MiniParticipantPaymentResource::collection(collect($payments)),
+                    $message,
+                    200
+                );
+            }
+
+            // Không có guest_ids: xử lý thanh toán của user
             if ($existingPayment) {
                 if (in_array($existingPayment->status, [MiniParticipantPayment::STATUS_CONFIRMED])) {
-                    // Payment đã confirmed rồi → chỉ cho phép thêm guest bằng cách tạo payment record riêng
-                    if (empty($guestIds)) {
-                        DB::rollBack();
-                        return ResponseHelper::error('Thanh toán đã được xác nhận, không thể cập nhật', 400);
-                    }
-
-                    // Tạo payment record mới cho phần guest
-                    $guestPayment = MiniParticipantPayment::create([
-                        'mini_tournament_id' => $miniTournamentId,
-                        'participant_id' => $existingPayment->participant_id,
-                        'user_id' => $userId,
-                        'amount' => $extraAmount,
-                        'status' => MiniParticipantPayment::STATUS_PAID,
-                        'receipt_image' => $receiptImage,
-                        'note' => $data['note'] ?? null,
-                        'paid_at' => now(),
-                        'guest_ids' => $guestIds,
-                    ]);
-
-                    DB::commit();
-
-                    return ResponseHelper::success(
-                        new MiniParticipantPaymentResource($guestPayment->load(['user', 'confirmer'])),
-                        'Thanh toán cho guest thành công, chờ chủ kèo xác nhận',
-                        200
-                    );
+                    DB::rollBack();
+                    return ResponseHelper::error('Thanh toán đã được xác nhận, không thể cập nhật', 400);
                 }
 
                 $existingPayment->update([
-                    'amount' => $feePerPerson + $extraAmount,
+                    'amount' => $feePerPerson,
                     'status' => MiniParticipantPayment::STATUS_PAID,
                     'receipt_image' => $receiptImage,
                     'note' => $data['note'] ?? null,
@@ -260,7 +325,6 @@ class MiniTournamentPaymentController extends Controller
                     'admin_note' => null,
                     'confirmed_at' => null,
                     'confirmed_by' => null,
-                    'guest_ids' => !empty($guestIds) ? $guestIds : null,
                 ]);
 
                 $payment = $existingPayment;
@@ -269,12 +333,11 @@ class MiniTournamentPaymentController extends Controller
                     'mini_tournament_id' => $miniTournamentId,
                     'participant_id' => $participant->id,
                     'user_id' => $userId,
-                    'amount' => $feePerPerson + $extraAmount,
+                    'amount' => $feePerPerson,
                     'status' => MiniParticipantPayment::STATUS_PAID,
                     'receipt_image' => $receiptImage,
                     'note' => $data['note'] ?? null,
                     'paid_at' => now(),
-                    'guest_ids' => !empty($guestIds) ? $guestIds : null,
                 ]);
             }
 
@@ -345,12 +408,6 @@ class MiniTournamentPaymentController extends Controller
             $participant = MiniParticipant::find($payment->participant_id);
             if ($participant) {
                 $participant->confirmPayment();
-            }
-
-            // Update payment_status for all guests in this payment
-            if (!empty($payment->guest_ids)) {
-                MiniParticipant::whereIn('id', $payment->guest_ids)
-                    ->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
             }
 
             // Gửi notification cho thành viên
