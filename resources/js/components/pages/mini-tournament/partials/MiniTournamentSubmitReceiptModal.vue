@@ -12,11 +12,14 @@
         >
           <!-- Nội dung -->
           <div class="flex flex-col items-center justify-center w-full mb-4 mt-2">
-            <p class="text-[14px] font-bold text-[#1F2937] text-center mb-4 px-4">
+            <p class="text-[14px] font-bold text-[#1F2937] text-center mb-2 px-4">
               {{ titleText }}
             </p>
+            <p class="text-[12px] text-[#10B981] font-medium text-center px-4" v-if="subtitleText">
+              {{ subtitleText }}
+            </p>
 
-            <div class="w-36 h-36 bg-gray-50 flex items-center justify-center mb-4 overflow-hidden">
+            <div class="w-36 h-36 bg-gray-50 flex items-center justify-center mb-4 overflow-hidden mt-3">
               <img
                 v-if="qrCodeUrl"
                 :src="qrCodeUrl"
@@ -49,6 +52,9 @@
                 </p>
                 <p class="text-[11px] text-[#B45309]">
                   Bạn đang bảo lãnh {{ guaranteedGuests.length }} guest. Chọn guest cần đóng tiền để tính vào phí.
+                </p>
+                <p class="text-[11px] text-[#92400E] mt-1" v-if="isAutoSplitFee">
+                  Với chia tự động, mỗi guest sẽ đóng {{ formatAmount(feePerPerson) }}đ
                 </p>
               </div>
               <div class="max-h-[160px] overflow-y-auto space-y-2 pr-1">
@@ -243,6 +249,7 @@ const hasFee = ref(false)
 const feePerPerson = ref(0)
 const qrCodeUrl = ref(null)
 const feeDescription = ref('')
+const isAutoSplitFee = ref(false)
 
 // Guest selection
 const guaranteedGuests = ref([])
@@ -252,9 +259,18 @@ const totalAmount = computed(() => {
   return feePerPerson.value + (feePerPerson.value * selectedGuestIds.value.length)
 })
 
-const titleText = computed(() =>
-  hasFee.value ? 'Thanh toán phí tham gia kèo' : 'Kèo này không thu phí'
-)
+const titleText = computed(() => {
+  if (!hasFee.value) return 'Kèo này không thu phí'
+  if (isAutoSplitFee.value) return 'Nộp bằng chứng thanh toán (Chia tự động)'
+  return 'Thanh toán phí tham gia kèo'
+})
+
+const subtitleText = computed(() => {
+  if (isAutoSplitFee.value) {
+    return `Mỗi người phải đóng: ${formatAmount(feePerPerson.value)}đ`
+  }
+  return ''
+})
 
 const formatAmount = (value) =>
   new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(value || 0)
@@ -317,6 +333,7 @@ const fetchMyPayment = async () => {
     feePerPerson.value = Number(payload.fee_per_person || 0)
     qrCodeUrl.value = payload.qr_code_url || null
     feeDescription.value = payload.fee_description || ''
+    isAutoSplitFee.value = Boolean(payload.auto_split_fee)
 
     if (!hasFee.value) {
       toast.info('Kèo này không thu phí tham gia.')

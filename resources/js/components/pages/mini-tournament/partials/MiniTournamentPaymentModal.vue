@@ -13,9 +13,11 @@
           <!-- Header -->
           <div class="p-6 px-8 flex items-center justify-between border-b border-gray-100 bg-white flex-shrink-0">
             <div>
-              <h2 class="text-xl font-bold text-[#2D3139]">Thanh toán kèo đấu</h2>
+              <h2 class="text-xl font-bold text-[#2D3139]">
+                {{ paymentConfig.auto_split_fee ? 'Quản lý thanh toán' : 'Thanh toán kèo đấu' }}
+              </h2>
               <p class="text-xs text-[#6B6F80] mt-1">
-                Theo dõi trạng thái thanh toán từng người tham gia kèo
+                {{ paymentConfig.auto_split_fee ? 'Theo dõi trạng thái thanh toán của từng người (chia tự động)' : 'Theo dõi trạng thái thanh toán từng người tham gia kèo' }}
               </p>
             </div>
             <button
@@ -45,7 +47,13 @@
                   {{ paymentConfig.has_fee ? 'Có thu phí tham gia' : 'Không thu phí' }}
                 </p>
                 <p class="text-sm text-[#3E414C]" v-if="paymentConfig.has_fee">
-                  Số tiền: <span class="font-semibold">{{ formatCurrency(paymentConfig.fee_amount) }}đ</span>
+                  Tổng phí: <span class="font-semibold">{{ formatCurrency(paymentConfig.fee_amount) }}đ</span>
+                </p>
+                <p class="text-sm text-[#3E414C]" v-if="paymentConfig.auto_split_fee">
+                  Mỗi người: <span class="font-semibold text-[#D72D36]">{{ formatCurrency(paymentConfig.fee_per_person) }}đ</span>
+                </p>
+                <p class="text-xs text-[#10B981] font-medium" v-if="paymentConfig.auto_split_fee">
+                  ✓ Chia tự động theo số người
                 </p>
                 <p class="text-xs text-[#6B6F80]" v-if="paymentConfig.fee_description">
                   {{ paymentConfig.fee_description }}
@@ -84,14 +92,19 @@
                     <span class="font-semibold">{{ summary.total_pending }}</span>
                   </p>
                 </div>
-                <button
-                  v-if="canManage"
-                  type="button"
-                  class="mt-3 inline-flex items-center justify-center px-4 py-2 rounded-full text-xs font-semibold bg-[#FBEAEB] text-[#D72D36] hover:bg-[#F7D5D7] transition"
-                  @click="handleRemindAll"
-                >
-                  Nhắc tất cả chưa thanh toán
-                </button>
+                <div class="mt-3 space-y-2">
+                  <p class="text-[11px] text-[#6B6F80]" v-if="paymentConfig.auto_split_fee">
+                    <span class="text-[#10B981]">✓</span> Chủ kèo & guest bảo lãnh bởi chủ kèo: tự động xác nhận
+                  </p>
+                  <button
+                    v-if="canManage"
+                    type="button"
+                    class="inline-flex items-center justify-center px-4 py-2 rounded-full text-xs font-semibold bg-[#FBEAEB] text-[#D72D36] hover:bg-[#F7D5D7] transition w-full"
+                    @click="handleRemindAll"
+                  >
+                    Nhắc tất cả chưa thanh toán
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -116,8 +129,60 @@
               </div>
 
               <div class="divide-y divide-gray-50 max-h-[420px] overflow-y-auto">
-                <!-- Awaiting confirmation -->
-                <div v-if="activeTab === 'awaiting'">
+                <!-- Pending (chưa thanh toán) - Tab 1 -->
+                <div v-if="activeTab === 'pending'">
+                  <div
+                    v-if="pendingPayments.length === 0"
+                    class="py-10 text-center text-sm text-gray-400"
+                  >
+                    Không có thành viên nào ở trạng thái chờ thanh toán.
+                  </div>
+                  <div
+                    v-for="payment in pendingPayments"
+                    :key="payment.id"
+                    class="flex items-center justify-between p-4 hover:bg-gray-50 transition"
+                  >
+                    <div class="flex items-center gap-4">
+                      <template v-if="payment.is_guest">
+                        <div class="w-10 h-10 rounded-full bg-[#FDE68A] border border-[#F59E0B] flex items-center justify-center text-xs font-bold text-[#92400E] shrink-0">
+                          G
+                        </div>
+                      </template>
+                      <template v-else>
+                        <img
+                          :src="payment.user?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(payment.user?.full_name || '')}`"
+                          :alt="payment.user?.full_name || 'Avatar'"
+                          class="w-10 h-10 rounded-full border border-gray-100"
+                        />
+                      </template>
+                      <div>
+                        <p class="font-semibold text-sm text-[#1F2937]">
+                          <span v-if="payment.is_guest" class="mr-1 text-[10px] font-bold bg-[#FDE68A] text-[#92400E] px-1.5 py-0.5 rounded">Guest</span>
+                          {{ payment.is_guest ? payment.participant?.guest_name : (payment.user?.full_name || 'Ẩn danh') }}
+                        </p>
+                        <p class="text-xs text-[#6B6F80] mt-0.5">
+                          Trạng thái: {{ payment.status_text }}
+                        </p>
+                        <template v-if="payment.is_guest && payment.participant?.guarantor">
+                          <p class="text-[11px] text-[#B45309]">
+                            Bảo lãnh: {{ payment.participant?.guarantor?.full_name }}
+                          </p>
+                        </template>
+                      </div>
+                    </div>
+                    <button
+                      v-if="canManage"
+                      type="button"
+                      class="px-4 py-1.5 rounded-full text-xs font-semibold bg-[#F6E4C8] text-[#E0A243] hover:bg-[#D48D3B] hover:text-white transition"
+                      @click="handleRemind(payment)"
+                    >
+                      Nhắc thanh toán
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Awaiting confirmation - Tab 2 -->
+                <div v-else-if="activeTab === 'awaiting'">
                   <div
                     v-if="awaitingConfirmationPayments.length === 0"
                     class="py-10 text-center text-sm text-gray-400"
@@ -188,7 +253,7 @@
                   </div>
                 </div>
 
-                <!-- Confirmed -->
+                <!-- Confirmed - Tab 3 -->
                 <div v-else-if="activeTab === 'confirmed'">
                   <div
                     v-if="confirmedPayments.length === 0"
@@ -238,58 +303,6 @@
                     >
                       ĐÃ XÁC NHẬN
                     </span>
-                  </div>
-                </div>
-
-                <!-- Pending (chưa thanh toán) -->
-                <div v-else>
-                  <div
-                    v-if="pendingPayments.length === 0"
-                    class="py-10 text-center text-sm text-gray-400"
-                  >
-                    Không có thành viên nào ở trạng thái chờ thanh toán.
-                  </div>
-                  <div
-                    v-for="payment in pendingPayments"
-                    :key="payment.id"
-                    class="flex items-center justify-between p-4 hover:bg-gray-50 transition"
-                  >
-                    <div class="flex items-center gap-4">
-                      <template v-if="payment.is_guest">
-                        <div class="w-10 h-10 rounded-full bg-[#FDE68A] border border-[#F59E0B] flex items-center justify-center text-xs font-bold text-[#92400E] shrink-0">
-                          G
-                        </div>
-                      </template>
-                      <template v-else>
-                        <img
-                          :src="payment.user?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(payment.user?.full_name || '')}`"
-                          :alt="payment.user?.full_name || 'Avatar'"
-                          class="w-10 h-10 rounded-full border border-gray-100"
-                        />
-                      </template>
-                      <div>
-                        <p class="font-semibold text-sm text-[#1F2937]">
-                          <span v-if="payment.is_guest" class="mr-1 text-[10px] font-bold bg-[#FDE68A] text-[#92400E] px-1.5 py-0.5 rounded">Guest</span>
-                          {{ payment.is_guest ? payment.participant?.guest_name : (payment.user?.full_name || 'Ẩn danh') }}
-                        </p>
-                        <p class="text-xs text-[#6B6F80] mt-0.5">
-                          Trạng thái: {{ payment.status_text }}
-                        </p>
-                        <template v-if="payment.is_guest && payment.participant?.guarantor">
-                          <p class="text-[11px] text-[#B45309]">
-                            Bảo lãnh: {{ payment.participant?.guarantor?.full_name }}
-                          </p>
-                        </template>
-                      </div>
-                    </div>
-                    <button
-                      v-if="canManage"
-                      type="button"
-                      class="px-4 py-1.5 rounded-full text-xs font-semibold bg-[#F6E4C8] text-[#E0A243] hover:bg-[#D48D3B] hover:text-white transition"
-                      @click="handleRemind(payment)"
-                    >
-                      Nhắc thanh toán
-                    </button>
                   </div>
                 </div>
               </div>
@@ -351,8 +364,12 @@ const pendingPayments = ref([])
 const awaitingConfirmationPayments = ref([])
 const confirmedPayments = ref([])
 
-const activeTab = ref('awaiting')
+const activeTab = ref('pending')
 const tabs = computed(() => [
+  {
+    key: 'pending',
+    label: `Chưa thanh toán (${summary.value.total_pending || 0})`,
+  },
   {
     key: 'awaiting',
     label: `Chờ duyệt (${summary.value.total_awaiting_confirmation || 0})`,
@@ -360,10 +377,6 @@ const tabs = computed(() => [
   {
     key: 'confirmed',
     label: `Đã xác nhận (${summary.value.total_confirmed || 0})`,
-  },
-  {
-    key: 'pending',
-    label: `Chưa thanh toán (${summary.value.total_pending || 0})`,
   },
 ])
 

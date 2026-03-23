@@ -117,11 +117,11 @@ class GuestController extends Controller
             'estimated_level_max' => $data['estimated_level_max'] ?? null,
         ]);
 
-        // Luôn tạo payment record cho guest khi kèo có thu phí
-        if ($miniTournament->has_fee) {
-            $feeAmount = $miniTournament->auto_split_fee
-                ? round($miniTournament->fee_amount / max($miniTournament->participants()->count(), 1))
-                : $miniTournament->fee_amount;
+        // Luôn tạo payment record cho guest khi kèo có thu phí VÀ KHÔNG phải auto_split_fee
+        // auto_split_fee = true: KHÔNG tạo payment ở đây, sẽ tạo khi kèo kết thúc
+        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
+            // Tiền cố định mỗi người
+            $feeAmount = $miniTournament->fee_amount;
 
             MiniParticipantPayment::create([
                 'mini_tournament_id' => $miniTournamentId,
