@@ -56,7 +56,7 @@ class MiniParticipantPayment extends Model
      */
     public function participant()
     {
-        return $this->belongsTo(MiniParticipant::class);
+        return $this->belongsTo(MiniParticipant::class, 'participant_id');
     }
 
     /**

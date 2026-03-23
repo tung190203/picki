@@ -91,7 +91,7 @@ class MiniParticipant extends Model
      */
     public function payments()
     {
-        return $this->hasMany(MiniParticipantPayment::class);
+        return $this->hasMany(MiniParticipantPayment::class, 'participant_id');
     }
 
     /**
