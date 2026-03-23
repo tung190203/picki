@@ -81,9 +81,10 @@ class GuestController extends Controller
         }
 
         // Xác định payment_status
+        // auto_split_fee = true: luôn CONFIRMED (kèo kết thúc sẽ chia lại tiền)
         $paymentStatus = PaymentStatusEnum::CONFIRMED;
-        if ($miniTournament->has_fee && $guarantorUserId) {
-            // Kiểm tra xem guarantor có phải là organizer không
+        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && $guarantorUserId) {
+            // Chỉ set PENDING khi KHÔNG phải auto_split_fee và guarantor không phải organizer
             $isGuarantorOrganizer = $miniTournament->hasOrganizer($guarantorUserId);
             if (!$isGuarantorOrganizer) {
                 $paymentStatus = PaymentStatusEnum::PENDING;

@@ -358,8 +358,15 @@ const handleSubmit = async () => {
     }
 
     const response = await payMiniTournament(props.miniId, formData)
-    toast.success(response?.message || 'Gửi biên lai thành công')
-    emit('success', response?.data || null)
+    // BE trả về array khi auto_split_fee=true + có guest_ids, object khi không
+    const payments = response?.data
+    const paymentCount = Array.isArray(payments) ? payments.length : 1
+    const guestCount = paymentCount - 1
+    const message = guestCount > 0
+      ? `Đã gửi biên lai cho bản thân và ${guestCount} guest`
+      : (response?.message || 'Gửi biên lai thành công')
+    toast.success(message)
+    emit('success', payments)
     close()
   } catch (error) {
     toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi gửi biên lai')
