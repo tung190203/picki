@@ -37,6 +37,7 @@ class DatabaseSeeder extends Seeder
             TournamentFullSeeder::class,
             MiniTournamentFullSeeder::class,
             FollowSeeder::class,
+            SystemNotificationSeeder::class,
         ]);
     }
 }
