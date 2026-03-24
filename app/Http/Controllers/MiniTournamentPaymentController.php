@@ -10,7 +10,7 @@ use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
 use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
-use App\Models\MiniMatch;
+
 use App\Notifications\PaymentConfirmedNotification;
 use App\Notifications\PaymentRejectedNotification;
 use App\Notifications\PaymentReminderNotification;
@@ -121,18 +121,12 @@ class MiniTournamentPaymentController extends Controller
 
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
 
-        // Nếu kèo chia tiền tự động thì chỉ được thanh toán sau khi đã có ít nhất 1 trận hoàn tất
-        if ($miniTournament->auto_split_fee) {
-            $hasCompletedMatch = MiniMatch::where('mini_tournament_id', $miniTournament->id)
-                ->where('status', MiniMatch::STATUS_COMPLETED)
-                ->exists();
-
-            if (!$hasCompletedMatch) {
-                return ResponseHelper::error(
-                    'Kèo đang cài đặt chia tiền tự động, chỉ được thanh toán sau khi trận đấu đã kết thúc',
-                    400
-                );
-            }
+        // Nếu kèo chia tiền tự động thì chỉ được thanh toán khi đã chia tiền tự động (kèo bắt đầu)
+        if ($miniTournament->auto_split_fee && !$miniTournament->auto_payment_created) {
+            return ResponseHelper::error(
+                'Kèo đang cài đặt chia tiền tự động, chỉ được thanh toán khi kèo đã bắt đầu',
+                400
+            );
         }
 
         // Kiểm tra kèo có thu phí không
@@ -226,8 +220,13 @@ class MiniTournamentPaymentController extends Controller
             if (!empty($guestIds)) {
                 // Khi auto_split_fee = true: thanh toán cho cả user + guests trong 1 request
                 // Khi auto_split_fee = false: chỉ thanh toán cho guests
+                $paymentStatus = $miniTournament->auto_approve
+                    ? MiniParticipantPayment::STATUS_CONFIRMED
+                    : MiniParticipantPayment::STATUS_PAID;
+
                 if ($miniTournament->auto_split_fee) {
                     // Cập nhật payment của chính user
+                    $myPayment = null;
                     if ($existingPayment) {
                         if (in_array($existingPayment->status, [MiniParticipantPayment::STATUS_CONFIRMED])) {
                             DB::rollBack();
@@ -236,29 +235,37 @@ class MiniTournamentPaymentController extends Controller
 
                         $existingPayment->update([
                             'amount' => $feePerPerson,
-                            'status' => MiniParticipantPayment::STATUS_PAID,
+                            'status' => $paymentStatus,
                             'receipt_image' => $receiptImage,
                             'note' => $data['note'] ?? null,
                             'paid_at' => now(),
                             'admin_note' => null,
-                            'confirmed_at' => null,
-                            'confirmed_by' => null,
+                            'confirmed_at' => $miniTournament->auto_approve ? now() : null,
+                            'confirmed_by' => $miniTournament->auto_approve ? $userId : null,
                         ]);
                         $existingPayment->load(['user', 'confirmer']);
                         $payments[] = $existingPayment;
+                        $myPayment = $existingPayment;
                     } else {
                         $myPayment = MiniParticipantPayment::create([
                             'mini_tournament_id' => $miniTournamentId,
                             'participant_id' => $participant->id,
                             'user_id' => $userId,
                             'amount' => $feePerPerson,
-                            'status' => MiniParticipantPayment::STATUS_PAID,
+                            'status' => $paymentStatus,
                             'receipt_image' => $receiptImage,
                             'note' => $data['note'] ?? null,
                             'paid_at' => now(),
+                            'confirmed_at' => $miniTournament->auto_approve ? now() : null,
+                            'confirmed_by' => $miniTournament->auto_approve ? $userId : null,
                         ]);
                         $myPayment->load(['user', 'confirmer']);
                         $payments[] = $myPayment;
+                    }
+
+                    if ($miniTournament->auto_approve && $myPayment?->user) {
+                        $participant->update(['is_confirmed' => true, 'payment_status' => PaymentStatusEnum::CONFIRMED]);
+                        $myPayment->user->notify(new PaymentConfirmedNotification($myPayment));
                     }
                 }
 
@@ -277,13 +284,13 @@ class MiniTournamentPaymentController extends Controller
 
                         $existingGuestPayment->update([
                             'amount' => $feePerPerson,
-                            'status' => MiniParticipantPayment::STATUS_PAID,
+                            'status' => $paymentStatus,
                             'receipt_image' => $receiptImage,
                             'note' => $data['note'] ?? null,
                             'paid_at' => now(),
                             'admin_note' => null,
-                            'confirmed_at' => null,
-                            'confirmed_by' => null,
+                            'confirmed_at' => $miniTournament->auto_approve ? now() : null,
+                            'confirmed_by' => $miniTournament->auto_approve ? $userId : null,
                         ]);
                         $existingGuestPayment->load(['user', 'confirmer']);
                         $payments[] = $existingGuestPayment;
@@ -293,14 +300,21 @@ class MiniTournamentPaymentController extends Controller
                     }
                 }
 
+                $guestPaymentStatus = $miniTournament->auto_approve
+                    ? PaymentStatusEnum::CONFIRMED->value
+                    : PaymentStatusEnum::PENDING->value;
                 MiniParticipant::whereIn('id', $guestIds)
-                    ->update(['payment_status' => PaymentStatusEnum::PENDING->value]);
+                    ->update(['payment_status' => $guestPaymentStatus]);
 
                 DB::commit();
 
-                $message = $miniTournament->auto_split_fee
-                    ? 'Thanh toán cho bản thân và guest thành công, chờ chủ kèo xác nhận'
-                    : 'Thanh toán cho guest thành công, chờ chủ kèo xác nhận';
+                $message = $miniTournament->auto_approve
+                    ? ($miniTournament->auto_split_fee
+                        ? 'Thanh toán cho bản thân và guest thành công, đã được xác nhận'
+                        : 'Thanh toán cho guest thành công, đã được xác nhận')
+                    : ($miniTournament->auto_split_fee
+                        ? 'Thanh toán cho bản thân và guest thành công, chờ chủ kèo xác nhận'
+                        : 'Thanh toán cho guest thành công, chờ chủ kèo xác nhận');
 
                 return ResponseHelper::success(
                     MiniParticipantPaymentResource::collection(collect($payments)),
@@ -316,36 +330,66 @@ class MiniTournamentPaymentController extends Controller
                     return ResponseHelper::error('Thanh toán đã được xác nhận, không thể cập nhật', 400);
                 }
 
+                $newStatus = $miniTournament->auto_approve
+                    ? MiniParticipantPayment::STATUS_CONFIRMED
+                    : MiniParticipantPayment::STATUS_PAID;
+
                 $existingPayment->update([
                     'amount' => $feePerPerson,
-                    'status' => MiniParticipantPayment::STATUS_PAID,
+                    'status' => $newStatus,
                     'receipt_image' => $receiptImage,
                     'note' => $data['note'] ?? null,
                     'paid_at' => now(),
                     'admin_note' => null,
-                    'confirmed_at' => null,
-                    'confirmed_by' => null,
+                    'confirmed_at' => $miniTournament->auto_approve ? now() : null,
+                    'confirmed_by' => $miniTournament->auto_approve ? $userId : null,
                 ]);
+
+                if ($miniTournament->auto_approve) {
+                    $participant->update([
+                        'is_confirmed' => true,
+                        'payment_status' => PaymentStatusEnum::CONFIRMED,
+                    ]);
+                    $existingPayment->user?->notify(new PaymentConfirmedNotification($existingPayment));
+                }
 
                 $payment = $existingPayment;
             } else {
+                $newStatus = $miniTournament->auto_approve
+                    ? MiniParticipantPayment::STATUS_CONFIRMED
+                    : MiniParticipantPayment::STATUS_PAID;
+
                 $payment = MiniParticipantPayment::create([
                     'mini_tournament_id' => $miniTournamentId,
                     'participant_id' => $participant->id,
                     'user_id' => $userId,
                     'amount' => $feePerPerson,
-                    'status' => MiniParticipantPayment::STATUS_PAID,
+                    'status' => $newStatus,
                     'receipt_image' => $receiptImage,
                     'note' => $data['note'] ?? null,
                     'paid_at' => now(),
+                    'confirmed_at' => $miniTournament->auto_approve ? now() : null,
+                    'confirmed_by' => $miniTournament->auto_approve ? $userId : null,
                 ]);
+
+                if ($miniTournament->auto_approve) {
+                    $participant->update([
+                        'is_confirmed' => true,
+                        'payment_status' => PaymentStatusEnum::CONFIRMED,
+                    ]);
+                    $payment->user?->notify(new PaymentConfirmedNotification($payment));
+                }
             }
 
             DB::commit();
 
+            $message = $miniTournament->auto_approve
+                ? 'Thanh toán thành công, đã được xác nhận'
+                : 'Thanh toán thành công, chờ chủ kèo xác nhận';
+
             return ResponseHelper::success(
                 new MiniParticipantPaymentResource($payment->load(['user', 'confirmer'])),
-                'Thanh toán thành công, chờ chủ kèo xác nhận',
+                $message,
                 200
             );
         } catch (\Throwable $e) {
@@ -517,20 +561,6 @@ class MiniTournamentPaymentController extends Controller
             return ResponseHelper::error('Kèo này không thu phí tham gia', 400);
         }
 
-        // Nếu kèo chia tiền tự động thì chỉ được nhắc thanh toán sau khi đã có ít nhất 1 trận hoàn tất
-        if ($miniTournament->auto_split_fee) {
-            $hasCompletedMatch = MiniMatch::where('mini_tournament_id', $miniTournament->id)
-                ->where('status', MiniMatch::STATUS_COMPLETED)
-                ->exists();
-
-            if (!$hasCompletedMatch) {
-                return ResponseHelper::error(
-                    'Kèo đang cài đặt chia tiền tự động, chỉ được nhắc thanh toán sau khi trận đấu đã kết thúc',
-                    400
-                );
-            }
-        }
-
         $participant = MiniParticipant::where('id', $participantId)
             ->where('mini_tournament_id', $miniTournamentId)
             ->first();
@@ -574,20 +604,6 @@ class MiniTournamentPaymentController extends Controller
         // Kiểm tra kèo có thu phí không
         if (!$miniTournament->has_fee) {
             return ResponseHelper::error('Kèo này không thu phí tham gia', 400);
-        }
-
-        // Nếu kèo chia tiền tự động thì chỉ được nhắc thanh toán sau khi đã có ít nhất 1 trận hoàn tất
-        if ($miniTournament->auto_split_fee) {
-            $hasCompletedMatch = MiniMatch::where('mini_tournament_id', $miniTournament->id)
-                ->where('status', MiniMatch::STATUS_COMPLETED)
-                ->exists();
-
-            if (!$hasCompletedMatch) {
-                return ResponseHelper::error(
-                    'Kèo đang cài đặt chia tiền tự động, chỉ được nhắc thanh toán sau khi trận đấu đã kết thúc',
-                    400
-                );
-            }
         }
 
         // Lấy danh sách thành viên chưa thanh toán
@@ -642,12 +658,103 @@ class MiniTournamentPaymentController extends Controller
                 ->first();
         }
 
+        // === POST: User nộp tiền ===
+        if ($request->isMethod('POST')) {
+            $data = $request->validate([
+                'admin_note' => 'nullable|string|max:500',
+            ]);
+
+            if (!$miniTournament->has_fee) {
+                return ResponseHelper::error('Kèo đấu này không thu phí', 400);
+            }
+
+            // === Tạo participant nếu chưa tham gia ===
+            if (!$participant) {
+                if ($miniTournament->max_players) {
+                    $confirmedCount = $miniTournament->participants()
+                        ->where('is_confirmed', true)
+                        ->count();
+                    if ($confirmedCount >= $miniTournament->max_players) {
+                        return ResponseHelper::error('Kèo đã đủ số lượng người chơi.', 400);
+                    }
+                }
+
+                $participant = MiniParticipant::create([
+                    'mini_tournament_id' => $miniTournamentId,
+                    'user_id' => $userId,
+                    'is_confirmed' => false,
+                    'is_invited' => false,
+                    'payment_status' => PaymentStatusEnum::PENDING,
+                ]);
+            }
+
+            // === Tạo payment record nếu chưa có ===
+            if (!$payment) {
+                $payment = MiniParticipantPayment::create([
+                    'mini_tournament_id' => $miniTournamentId,
+                    'participant_id' => $participant->id,
+                    'user_id' => $userId,
+                    'amount' => $miniTournament->fee_amount,
+                    'status' => MiniParticipantPayment::STATUS_PENDING,
+                ]);
+            }
+
+            // === Kiểm tra trạng thái payment hiện tại ===
+            if (!in_array($payment->status, [MiniParticipantPayment::STATUS_PENDING, MiniParticipantPayment::STATUS_REJECTED])) {
+                return ResponseHelper::error('Thanh toán đang ở trạng thái không thể cập nhật', 400);
+            }
+
+            DB::beginTransaction();
+            try {
+                // Nếu auto_approve = true: tự động confirm
+                if ($miniTournament->auto_approve) {
+                    $payment->update([
+                        'status' => MiniParticipantPayment::STATUS_CONFIRMED,
+                        'paid_at' => now(),
+                        'confirmed_at' => now(),
+                        'confirmed_by' => $userId,
+                    ]);
+
+                    $participant->update([
+                        'is_confirmed' => true,
+                        'payment_status' => PaymentStatusEnum::CONFIRMED,
+                    ]);
+
+                    if ($payment->user) {
+                        $payment->user->notify(new PaymentConfirmedNotification($payment));
+                    }
+
+                    DB::commit();
+
+                    return ResponseHelper::success(
+                        new MiniParticipantPaymentResource($payment->load(['user', 'confirmer'])),
+                        'Đã xác nhận thanh toán thành công'
+                    );
+                }
+
+                // auto_approve = false: chỉ đánh dấu paid
+                $payment->update([
+                    'status' => MiniParticipantPayment::STATUS_PAID,
+                    'paid_at' => now(),
+                ]);
+
+                DB::commit();
+
+                return ResponseHelper::success(
+                    new MiniParticipantPaymentResource($payment->load(['user', 'confirmer'])),
+                    'Đã đánh dấu đã thanh toán, chờ xác nhận từ admin'
+                );
+            } catch (\Throwable $e) {
+                DB::rollBack();
+                return ResponseHelper::error($e->getMessage());
+            }
+        }
+
         // Tính số tiền phải đóng
         $feePerPerson = 0;
         if ($miniTournament->has_fee) {
             $participantCount = $miniTournament->participants()->count();
             if ($miniTournament->auto_split_fee) {
-                // Nếu đã lock final_fee_per_person, dùng giá trị đó
                 if ($miniTournament->final_fee_per_person !== null) {
                     $feePerPerson = $miniTournament->final_fee_per_person;
                 } else {
@@ -667,14 +774,13 @@ class MiniTournamentPaymentController extends Controller
             ? (new MiniParticipantPaymentResource($payment))->toArray($request)
             : [];
 
-        // Trả đầy đủ thông tin theo mini_tournament_id để FE luôn có dữ liệu hiển thị QR/phí,
-        // kể cả khi user chưa có bản ghi payment.
         $data = array_merge([
             'mini_tournament_id' => $miniTournament->id,
             'participant_id' => $participant?->id,
             'has_fee' => (bool) $miniTournament->has_fee,
             'auto_split_fee' => (bool) $miniTournament->auto_split_fee,
             'auto_payment_created' => (bool) $miniTournament->auto_payment_created,
+            'auto_approve' => (bool) $miniTournament->auto_approve,
             'fee_amount' => (int) ($miniTournament->fee_amount ?? 0),
             'fee_per_person' => (int) ($feePerPerson ?? 0),
             'fee_description' => $miniTournament->fee_description,
