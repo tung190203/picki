@@ -15,7 +15,6 @@ use App\Models\VnduprHistory;
 use App\Notifications\MiniMatchCreatedNotification;
 use App\Notifications\MiniMatchResultConfirmedNotification;
 use App\Notifications\MiniMatchUpdatedNotification;
-use App\Services\MiniTournamentPaymentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -834,14 +833,6 @@ class MiniMatchController extends Controller
                         ['score_value' => $R_new, 'updated_at' => now()]
                     );
                 }
-            }
-        }
-
-        $tournament = $match->miniTournament;
-        if ($tournament && $tournament->has_fee && $tournament->auto_split_fee && !$tournament->auto_payment_created) {
-            try {
-                app(MiniTournamentPaymentService::class)->createAutoPaymentsWhenTournamentEnds($tournament);
-            } catch (\Exception $e) {
             }
         }
     }
