@@ -10,7 +10,6 @@ use App\Models\MiniTournamentStaff;
 use App\Enums\PaymentStatusEnum;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class MiniTournamentService
@@ -24,11 +23,6 @@ class MiniTournamentService
         if (!isset($data['fee_amount']) || $data['fee_amount'] === null) {
             $data['fee_amount'] = 0;
         }
-
-        Log::info('MiniTournamentService::createTournament', [
-            'has_recurring' => !empty($recurringSchedule),
-            'series_id' => $seriesId,
-        ]);
 
         $miniTournament = MiniTournament::create([
             ...$data,
@@ -343,24 +337,11 @@ class MiniTournamentService
     public function updateTournamentAsNewSeries(MiniTournament $tournament, array $data, int $userId): MiniTournament
     {
         $seriesId = $tournament->recurrence_series_id;
-
-        \Log::info('updateTournamentAsNewSeries - START', [
-            'tournament_id' => $tournament->id,
-            'series_id' => $seriesId,
-            'data_keys' => array_keys($data),
-        ]);
-
         if (!$seriesId) {
             throw new \Exception('Kèo đấu này không thuộc chuỗi lặp lại');
         }
 
-        // Lấy danh sách TẤT CẢ kèo trong chuỗi (bao gồm cả đã hoàn thành)
         $allTournaments = MiniTournament::where('recurrence_series_id', $seriesId)->get();
-
-        \Log::info('updateTournamentAsNewSeries - tournaments found', [
-            'count' => $allTournaments->count(),
-            'ids' => $allTournaments->pluck('id')->toArray(),
-        ]);
 
         if ($allTournaments->isEmpty()) {
             throw new \Exception('Chuỗi kèo đấu không tồn tại');
@@ -398,7 +379,8 @@ class MiniTournamentService
                     $updateData['duration'] = $data['duration'];
                     $startTime = $t->start_time;
                     if ($startTime) {
-                        $updateData['end_time'] = $startTime->copy()->addMinutes($data['duration']);
+                        $startCarbon = $startTime instanceof Carbon ? $startTime : Carbon::parse($startTime);
+                        $updateData['end_time'] = $startCarbon->copy()->addMinutes($data['duration']);
                     }
                 }
 
@@ -407,20 +389,11 @@ class MiniTournamentService
                     $updateData['recurring_schedule'] = $newRecurringSchedule;
                 }
 
-                \Log::info('updateTournamentAsNewSeries - updating tournament', [
-                    'tournament_id' => $t->id,
-                    'update_data' => $updateData,
-                ]);
-
                 if (!empty($updateData)) {
                     $t->update($updateData);
                     $updatedCount++;
                 }
             }
-
-            \Log::info('updateTournamentAsNewSeries - DONE', [
-                'updated_count' => $updatedCount,
-            ]);
 
             return $allTournaments->first()->fresh();
         });
