@@ -5,23 +5,22 @@ namespace App\Console\Commands;
 use App\Models\MiniTournament;
 use App\Services\MiniTournamentPaymentService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Carbon;
 
 class CreateAutoPaymentsCommand extends Command
 {
     protected $signature = 'mini-tournaments:create-auto-payments';
-    protected $description = 'Tạo khoản thu tự động cho kèo đã kết thúc (auto_split_fee = true)';
+    protected $description = 'Tạo khoản thu tự động khi kèo bắt đầu (auto_split_fee = true)';
 
     public function handle(MiniTournamentPaymentService $paymentService): int
     {
         $this->info('Bắt đầu tạo khoản thu tự động...');
 
         try {
-            // Lấy tất cả kèo đã kết thúc, có thu phí, chia tiền tự động, nhưng chưa tạo payment
+            // Lấy tất cả kèo đã bắt đầu, có thu phí, chia tiền tự động, nhưng chưa tạo payment
             $tournaments = MiniTournament::where('has_fee', 1)
                 ->where('auto_split_fee', 1)
                 ->where('auto_payment_created', 0)
-                ->where('end_time', '<', now())
+                ->where('start_time', '<=', now())
                 ->get();
 
             $count = 0;

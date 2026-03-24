@@ -52,6 +52,10 @@ class MiniTournament extends Model
         'status',
     ];
 
+    protected $casts = [
+        'auto_approve' => 'boolean',
+    ];
+
     const PER_PAGE = 15;
 
     // Play Mode: 1=casual, 2=competition, 3=practice
