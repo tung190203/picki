@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Club\Club;
 use App\Models\Club\ClubActivity;
+use App\Models\MiniMatch;
 use App\Models\MiniTournament;
 use App\Models\Tournament;
 use Illuminate\Http\Request;
@@ -117,6 +118,36 @@ class MetaPreviewController extends Controller
         $url = $this->canonicalUrl($request, "/clubs/{$clubId}/activities/{$activityId}");
 
         return view('meta.club-activity', compact('title', 'description', 'image', 'url'));
+    }
+
+    public function miniMatch(Request $request, int $id): View
+    {
+        if (!$request->attributes->get('is_crawler', false)) {
+            return view('app');
+        }
+
+        $match = MiniMatch::withFullRelations()->find($id);
+
+        if (!$match) {
+            return view('app');
+        }
+
+        $tournament = $match->miniTournament;
+        $team1 = $match->team1;
+        $team2 = $match->team2;
+
+        $title = $match->name ?: "Kèo {$team1->name} vs {$team2->name}";
+        $description = "Kèo Pickleball: {$team1->name} vs {$team2->name}";
+        $description .= $tournament ? " - {$tournament->name}" : '';
+        $description = \Str::limit($description, 160);
+
+        $image = $tournament?->poster
+            ? $this->absoluteUrl(asset('storage/' . $tournament->poster))
+            : $this->absoluteUrl(asset('favicon.png'));
+
+        $url = $this->canonicalUrl($request, "/mini-match/{$id}/verify");
+
+        return view('meta.mini-match', compact('title', 'description', 'image', 'url'));
     }
 
     protected function canonicalUrl(Request $request, string $path): string
