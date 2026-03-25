@@ -83,6 +83,7 @@ class MiniMatch extends Model
             'results.team.members.user',
             'miniTournament.competitionLocation',
             'miniTournament.sport',
+            'miniTournament.club',
         ]);
     }
     public function scopeLoadFullRelations()
@@ -95,6 +96,7 @@ class MiniMatch extends Model
             'results.team.members.user',
             'miniTournament.competitionLocation',
             'miniTournament.sport',
+            'miniTournament.club',
         ]);
     }
 

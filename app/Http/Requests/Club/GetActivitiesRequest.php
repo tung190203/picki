@@ -16,6 +16,7 @@ class GetActivitiesRequest extends FormRequest
         return [
             'page' => 'sometimes|integer|min:1',
             'per_page' => 'sometimes|integer|min:1|max:100',
+            'category' => 'sometimes|in:all,activity,mini_tournament,tournament',
             'type' => 'sometimes|in:meeting,practice,match,tournament,event,other',
             'statuses' => 'sometimes|array',
             'statuses.*' => 'sometimes|in:all,registered,available,scheduled,ongoing,completed,cancelled',
