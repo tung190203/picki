@@ -270,6 +270,7 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
 
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
+            Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-check-in', [ClubMiniTournamentController::class, 'markCheckIn']);
         });
     });
 });
@@ -528,6 +529,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
 
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
+            Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-check-in', [ClubMiniTournamentController::class, 'markCheckIn']);
         });
     });
 
