@@ -374,4 +374,51 @@ class ClubActivityController extends Controller
             return ResponseHelper::error($e->getMessage(), 403);
         }
     }
+
+    /**
+     * Admin đánh dấu member đã check-in
+     */
+    public function markCheckIn($clubId, $activityId, $participantId)
+    {
+        $activity = ClubActivity::where('club_id', $clubId)->findOrFail($activityId);
+        $userId = auth()->id();
+
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        // Check permission: chỉ admin, manager, secretary mới được check-in hộ
+        $club = $activity->club;
+        $member = $club->activeMembers()->where('user_id', $userId)->first();
+        if (!$member || !in_array($member->role, [\App\Enums\ClubMemberRole::Admin, \App\Enums\ClubMemberRole::Manager, \App\Enums\ClubMemberRole::Secretary])) {
+            return ResponseHelper::error('Bạn không có quyền đánh dấu check-in', 403);
+        }
+
+        $participant = $activity->participants()->where('id', $participantId)->first();
+        if (!$participant) {
+            return ResponseHelper::error('Thành viên không tồn tại trong hoạt động này', 404);
+        }
+
+        // Chỉ đánh dấu attended được
+        if ($participant->status === \App\Enums\ClubActivityParticipantStatus::Attended) {
+            return ResponseHelper::error('Thành viên đã được đánh dấu check-in rồi', 422);
+        }
+
+        if (!in_array($participant->status, [\App\Enums\ClubActivityParticipantStatus::Accepted, \App\Enums\ClubActivityParticipantStatus::Pending])) {
+            return ResponseHelper::error('Không thể đánh dấu check-in cho trạng thái: ' . $participant->status->value, 422);
+        }
+
+        $participant->update([
+            'status' => \App\Enums\ClubActivityParticipantStatus::Attended,
+            'checked_in_at' => now(),
+            'is_absent' => false,
+        ]);
+
+        $participant->load('user');
+
+        return ResponseHelper::success(
+            new \App\Http\Resources\Club\ClubActivityParticipantResource($participant),
+            'Đã đánh dấu check-in thành công'
+        );
+    }
 }
