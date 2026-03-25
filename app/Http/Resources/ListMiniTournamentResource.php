@@ -24,6 +24,7 @@ class ListMiniTournamentResource extends JsonResource
         
         $data = [
             'id' => $this->id,
+            'club_id' => $this->club_id,
             'poster' => $posterUrl,
             'start_time' => $this->start_time,
             'end_time' => $this->end_time,
@@ -32,6 +33,9 @@ class ListMiniTournamentResource extends JsonResource
             'name' => $this->name,
             'description' => $this->description,
             'competition_location' => new CompetitionLocationResource($this->whenLoaded('competitionLocation')),
+            'club' => ($this->whenLoaded('club') && $this->club && $this->club->is_public !== false)
+                ? new \App\Http\Resources\ClubResource($this->club)
+                : null,
             'status' => $this->status,
             'status_text' => $this->status_text,
             'has_fee' => $this->has_fee,
