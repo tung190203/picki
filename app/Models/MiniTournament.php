@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Club\Club;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,6 +17,7 @@ class MiniTournament extends Model
     protected $fillable = [
         'poster',
         'sport_id',
+        'club_id',
         'name',
         'description',
         'play_mode',
@@ -299,6 +301,11 @@ class MiniTournament extends Model
         return $this->belongsTo(Sport::class);
     }
 
+    public function club()
+    {
+        return $this->belongsTo(Club::class);
+    }
+
     public function competitionLocation()
     {
         return $this->belongsTo(CompetitionLocation::class);
@@ -413,6 +420,7 @@ class MiniTournament extends Model
         return $query->with([
             'sport',
             'competitionLocation',
+            'club',
             'recurringSchedule',
             'participants.user.sports.sport',
             'participants.user.sports.scores',
@@ -427,6 +435,7 @@ class MiniTournament extends Model
         return $this->load([
             'sport',
             'competitionLocation',
+            'club',
             'recurringSchedule',
             'participants.user.sports.sport',
             'participants.user.sports.scores',

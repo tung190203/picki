@@ -33,6 +33,7 @@ use App\Http\Controllers\Club\ClubMonthlyFeePaymentController;
 use App\Http\Controllers\Club\ClubDashboardController;
 use App\Http\Controllers\Club\ClubJoinRequestController;
 use App\Http\Controllers\Club\ClubReportController;
+use App\Http\Controllers\Club\ClubMiniTournamentController;
 use App\Http\Controllers\CompetitionLocationYardController;
 use App\Http\Controllers\DeviceTokenController;
 use App\Http\Controllers\FacilityController;
@@ -265,6 +266,9 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
                 Route::get('/{paymentId}', [ClubMonthlyFeePaymentController::class, 'show']);
                 Route::get('/member/{memberId}', [ClubMonthlyFeePaymentController::class, 'getMemberPayments']);
             });
+
+            Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
+            Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
         });
     });
 });
@@ -520,6 +524,9 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
                 Route::get('/{paymentId}', [ClubMonthlyFeePaymentController::class, 'show']);
                 Route::get('/member/{memberId}', [ClubMonthlyFeePaymentController::class, 'getMemberPayments']);
             });
+
+            Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
+            Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
         });
     });
 

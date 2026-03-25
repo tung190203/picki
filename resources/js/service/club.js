@@ -112,6 +112,10 @@ export const cancelActivity = async (clubId, activityId, data = {}) => {
     return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/activities/${activityId}/cancel`, data).then((response) => response.data);
 }
 
+export const cancelRecurrenceSeries = async (clubId, activityId, data = {}) => {
+    return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/activities/${activityId}/recurrence-series/cancel`, data).then((response) => response.data);
+}
+
 export const getListJoinActivityRequest = async (clubId, activityId, params = {}) => {
   const { data } = await axiosInstance.get(`${API_ENDPOINT.CLUB}/${clubId}/activities/${activityId}/participants`, { params })
   return data
