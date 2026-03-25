@@ -9,6 +9,7 @@ use App\Http\Requests\StoreMiniTournamentRequest;
 use App\Http\Requests\UpdateMiniTournamentRequest;
 use App\Http\Resources\MiniTournamentResource;
 use App\Models\Club\Club;
+use App\Models\MiniParticipant;
 use App\Models\MiniTournamentStaff;
 use App\Models\User;
 use App\Notifications\MiniTournamentInvitationNotification;
@@ -136,5 +137,58 @@ class ClubMiniTournamentController extends Controller
         $miniTournament->loadFullRelations();
 
         return ResponseHelper::success(new MiniTournamentResource($miniTournament), 'Cập nhật kèo cho CLB thành công');
+    }
+
+    /**
+     * Admin đánh dấu member đã check-in kèo đấu
+     */
+    public function markCheckIn(int $clubId, int $miniTournamentId, int $participantId)
+    {
+        $club = Club::findOrFail($clubId);
+        $miniTournament = \App\Models\MiniTournament::findOrFail($miniTournamentId);
+        $userId = Auth::id();
+
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        if ((int) $miniTournament->club_id !== $club->id) {
+            return ResponseHelper::error('Kèo đấu không thuộc CLB này', 404);
+        }
+
+        // Check permission: chỉ admin, manager, secretary của CLB HOẶC organizer của kèo mới được check-in hộ
+        $clubMember = $club->activeMembers()->where('user_id', $userId)->first();
+        $isClubStaff = $clubMember && in_array($clubMember->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary], true);
+        $isTournamentOrganizer = $miniTournament->staff->contains(fn($staff) => (int) $staff->pivot->user_id === $userId && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ORGANIZER);
+
+        if (!$isClubStaff && !$isTournamentOrganizer) {
+            return ResponseHelper::error('Bạn không có quyền đánh dấu check-in cho kèo này', 403);
+        }
+
+        $participant = $miniTournament->participants()->where('id', $participantId)->first();
+        if (!$participant) {
+            return ResponseHelper::error('Thành viên không tồn tại trong kèo đấu này', 404);
+        }
+
+        // Kiểm tra đã check-in chưa
+        if ($participant->is_confirmed) {
+            return ResponseHelper::error('Thành viên đã được đánh dấu check-in rồi', 422);
+        }
+
+        // Kiểm tra thanh toán: kèo có phí thì phải CONFIRMED mới check-in được
+        if ($miniTournament->has_fee && $participant->payment_status !== \App\Enums\PaymentStatusEnum::CONFIRMED) {
+            return ResponseHelper::error('Thành viên chưa thanh toán hoặc chưa được xác nhận thanh toán', 422);
+        }
+
+        $participant->update([
+            'is_confirmed' => true,
+        ]);
+
+        $participant->load('user');
+
+        return ResponseHelper::success(
+            new \App\Http\Resources\MiniParticipantResource($participant),
+            'Đã đánh dấu check-in thành công'
+        );
     }
 }
