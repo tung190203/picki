@@ -60,10 +60,10 @@
           <p class="text-[#838799] whitespace-pre-line">{{ activity.summary }}</p>
         </div>
         <div class="flex items-center gap-3">
-          <Button 
+          <Button
             v-if="isOwner && !isFinished && activity.status !== 'completed' && activity.status !== 'cancelled'"
-            size="lg" 
-            color="primary" 
+            size="lg"
+            color="primary"
             class="px-4 py-1 rounded-[4px] font-semibold shadow-lg shadow-blue-100"
             @click="updateEvent"
           >
@@ -72,10 +72,10 @@
               Cập nhật
             </div>
           </Button>
-          <Button 
+          <Button
             v-if="registrationButtonState.showAbsent"
-            size="lg" 
-            color="white" 
+            size="lg"
+            color="white"
             class="px-4 py-1 rounded-[4px] font-semibold border border-[#DCDEE6] bg-[#EDEEF2] text-[#3E414C] shadow-sm transition-all hover:bg-gray-50"
             @click="handleSelfAbsentActivity"
           >
@@ -84,9 +84,9 @@
               Báo vắng
             </div>
           </Button>
-          <Button 
-            size="lg" 
-            :color="registrationButtonState.color" 
+          <Button
+            size="lg"
+            :color="registrationButtonState.color"
             class="px-4 py-1 rounded-[4px] font-semibold"
             :class="registrationButtonState.shadowClass"
             :disabled="registrationButtonState.disabled"
@@ -97,10 +97,10 @@
               {{ registrationButtonState.text }}
             </div>
           </Button>
-          <Button 
+          <Button
             v-if="isOwner && !isFinished && activity.status !== 'completed' && activity.status !== 'cancelled'"
-            size="lg" 
-            color="danger" 
+            size="lg"
+            color="danger"
             class="px-4 py-1 rounded-[4px] font-semibold shadow-lg shadow-red-100"
             @click="shareEvent"
           >
@@ -109,10 +109,10 @@
               Chia sẻ
             </div>
           </Button>
-          <Button 
+          <Button
             v-if="isOwner && !isFinished && activity.status !== 'completed' && activity.status !== 'cancelled'"
-            size="lg" 
-            color="white" 
+            size="lg"
+            color="white"
             class="px-4 py-1 rounded-[4px] font-semibold border border-[#D72D36] bg-[#FFF5F5] text-[#D72D36] shadow-sm transition-all hover:bg-[#FFEBEB]"
             @click="openPromotionModal"
           >
@@ -121,10 +121,10 @@
               Quảng bá
             </div>
           </Button>
-          <Button 
+          <Button
             v-if="isOwner && !isFinished && activity.status !== 'completed' && activity.status !== 'cancelled'"
-            size="lg" 
-            color="white" 
+            size="lg"
+            color="white"
             class="px-4 py-1 rounded-[4px] font-semibold border border-[#DCDEE6] bg-[#EDEEF2] text-[#3E414C] shadow-sm transition-all hover:bg-gray-50"
             @click="cancelEvent"
           >
@@ -133,10 +133,10 @@
               Huỷ sự kiện
             </div>
           </Button>
-          <Button 
+          <Button
             v-if="!isOwner && !isFinished && activity.status !== 'completed' && activity.status !== 'cancelled'"
-            size="lg" 
-            color="white" 
+            size="lg"
+            color="white"
             class="px-4 py-1 rounded-[4px] font-semibold border border-[#DCDEE6] bg-[#EDEEF2] text-[#3E414C] shadow-sm transition-all hover:bg-gray-50"
             @click="shareEvent"
           >
@@ -259,7 +259,7 @@
               <ChevronDownIcon class="w-5 h-5 text-gray-400" />
             </button>
           </div>
-          
+
           <div class="grid transition-all duration-300 ease-in-out" :class="isJoinRequestExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'">
             <div class="overflow-hidden">
               <div class="px-8 py-4 flex flex-col items-center" v-if="joinActivityRequests.length === 0">
@@ -307,7 +307,7 @@
                 <ChevronDownIcon class="w-5 h-5 text-gray-400" />
               </button>
             </div>
-          
+
           <div class="grid transition-all duration-300 ease-in-out" :class="isParticipantsExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'">
             <div class="overflow-hidden">
               <div class="px-6 pb-6 pt-2">
@@ -338,7 +338,7 @@
                     </span>
                   </div>
                 <div class="space-y-0" v-if="participants && participants.filter(p => p.status !== 'pending').length">
-                  <div v-for="(user, index) in participants.filter(p => p.status !== 'pending')" :key="user.id" 
+                  <div v-for="(user, index) in participants.filter(p => p.status !== 'pending')" :key="user.id"
                     class="flex items-center py-5 group cursor-pointer gap-5" @click="goToProfile(user.userId)"
                     :class="{ 'border-t border-[#F0F2F5]': index !== 0 }">
                     <div class="relative flex-shrink-0">
@@ -387,7 +387,7 @@
               <ChevronDownIcon class="w-5 h-5 text-gray-400" />
             </button>
           </div>
-          
+
           <div class="grid transition-all duration-300 ease-in-out" :class="isQRExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'">
             <div class="overflow-hidden">
               <div class="p-8 flex flex-col items-center">
@@ -403,18 +403,18 @@
                   <span class="text-sm text-[#4392E0] break-all">{{ pageUrl }}</span>
                 </div>
                 <div class="flex items-center gap-3 w-full">
-                  <Button 
-                      size="md" 
-                      color="white" 
+                  <Button
+                      size="md"
+                      color="white"
                       class="flex-1 bg-white text-[#D72D36] border border-[#D72D36] font-bold py-3 hover:bg-[#FFF5F5] flex items-center justify-center"
                       @click="copyLink"
                   >
                     <LinkIcon class="w-5 h-5 mr-2" />
                     Sao chép link
                   </Button>
-                  <Button 
-                      size="md" 
-                      color="danger" 
+                  <Button
+                      size="md"
+                      color="danger"
                       class="flex-1 bg-[#D72D36] text-white border border-[#D72D36] font-bold py-3 hover:bg-[#c4252e] flex items-center justify-center"
                       @click="downloadQR"
                   >
@@ -439,6 +439,7 @@
     <CancelActivityModal
       v-model="showCancelModal"
       :is-submitting="isCancelling"
+      :recurrence-series-id="activity.recurrence_series_id"
       @confirm="confirmCancelEvent"
     />
 
@@ -465,11 +466,11 @@
 </template>
 
 <script setup>
-import { 
-    ArrowLeftIcon, 
-    ShareIcon, 
-    ClockIcon, 
-    MapPinIcon, 
+import {
+    ArrowLeftIcon,
+    ShareIcon,
+    ClockIcon,
+    MapPinIcon,
     UsersIcon,
     ChevronDownIcon,
     ArrowDownTrayIcon,
@@ -552,10 +553,10 @@ const recurringText = computed(() => {
         if (schedule.period === 'weekly') {
             const days = schedule.week_days
             if (!days || (Array.isArray(days) && days.length === 0)) return 'Hàng tuần'
-            
+
             const rawDays = Array.isArray(days) ? days : String(days).split(',').filter(d => d !== '').map(Number)
             const dayValues = rawDays.map(d => Number(d) === 7 ? 0 : Number(d))
-            
+
             const uniqueDays = [...new Set(dayValues)].sort((a, b) => {
                 if (a === 0) return 1
                 if (b === 0) return -1
@@ -580,10 +581,10 @@ const recurringText = computed(() => {
     // Handle old format (array or string)
     const days = schedule
     if (Array.isArray(days) && days.length === 0) return 'Không lặp lại'
-    
+
     const rawDays = Array.isArray(days) ? days : String(days).split(',').filter(d => d !== '').map(Number)
     const dayValues = rawDays.map(d => Number(d) === 7 ? 0 : Number(d))
-    
+
     const uniqueDays = [...new Set(dayValues)].sort((a, b) => {
         if (a === 0) return 1
         if (b === 0) return -1
@@ -606,9 +607,7 @@ const totalParticipantAttended = computed(() => {
 
 const initialFundData = computed(() => {
   if (!activity.value) return {}
-  
-  // Selection logic for "Chốt bill"
-  // Default to pre-selecting all checked-in participants
+
   const checkedInUserIds = participants.value
     .filter(p => p.has_checked_in)
     .map(p => p.userId)
@@ -659,7 +658,7 @@ const getActivityDetail = async () => {
                 is_private: data.type === 'private',
                 guest_fee: data.guest_fee || 0
             }
-            
+
             if (data.participants) {
                 participants.value = data.participants?.map(p => ({
                     id: p.id,
@@ -713,7 +712,7 @@ const cancelJoinEvent = async () => {
     const userId = getUser.value.id
     const pendingRequest = joinActivityRequests.value.find(r => r.user_id === userId || r.user?.id === userId)
     if (!pendingRequest) return
-    
+
     try {
         await ClubService.cancelActivityJoinRequest(clubId, activityId.value, pendingRequest.id)
         toast.success('Đã hủy yêu cầu tham gia')
@@ -769,7 +768,7 @@ const registrationButtonState = computed(() => {
             showAbsent: false
         }
     }
-    
+
     // 1. Check if user is in joinActivityRequests (Pending)
     const pendingRequest = joinActivityRequests.value.find(r => r.user_id === userId || r.user?.id === userId)
     if (pendingRequest) {
@@ -783,7 +782,7 @@ const registrationButtonState = computed(() => {
             showAbsent: false
         }
     }
-    
+
     // 2. Check if user is in participants (Joined)
     const participant = participants.value.find(p => p.userId === userId)
     if (participant) {
@@ -832,7 +831,7 @@ const registrationButtonState = computed(() => {
             showAbsent: false
         }
     }
-    
+
     // Default state: Register Now
     return {
         text: 'Đăng ký ngay',
@@ -863,8 +862,8 @@ const updateEvent = () => {
 }
 
 const goToFundPage = () => {
-    router.push({ 
-        name: 'club-fund', 
+    router.push({
+        name: 'club-fund',
         params: { id: clubId },
         query: { collectionId: activity.value.fund_collection_id }
     })
@@ -888,16 +887,16 @@ const handleSubmitFundRevenue = async (data) => {
     formData.append('deadline', data.deadline);
     formData.append('end_date', data.end_date);
     formData.append('activity_id', activityId.value);
-    
+
     // Sử dụng included_in_club_fund từ modal (user đã chọn), không dùng từ activity
     formData.append('included_in_club_fund', data.included_in_club_fund ?? 1);
-    
+
     if (Array.isArray(data.member_ids)) {
         data.member_ids.forEach(id => {
             formData.append('member_ids[]', id);
         });
     }
-    
+
     // Gửi QR: ưu tiên file mới, nếu không có thì giữ QR cũ từ activity
     if (data.qr_image) {
         formData.append('qr_image', data.qr_image);
@@ -959,9 +958,17 @@ const confirmCancelEvent = async (data) => {
     if (isCancelling.value) return
     isCancelling.value = true
     try {
-        await ClubService.cancelActivity(clubId, activityId.value, data)
+        if (data.cancel_series && activity.value.recurrence_series_id) {
+            await ClubService.cancelRecurrenceSeries(clubId, activityId.value, {
+                cancellation_reason: data.cancellation_reason,
+                cancel_transactions: data.cancel_transactions
+            })
+        } else {
+            await ClubService.cancelActivity(clubId, activityId.value, data)
+        }
         showCancelModal.value = false
-        router.push({name: 'club-detail', params: {id: clubId}})
+        await router.push({name: 'club-detail', params: {id: clubId}})
+        toast.success(data.cancel_series ? 'Đã hủy toàn bộ chuỗi sự kiện' : 'Đã hủy sự kiện')
     } catch (error) {
         toast.error(error.response?.data?.message || 'Không thể huỷ sự kiện')
     } finally {
@@ -982,14 +989,14 @@ const copyLink = async () => {
 
 const downloadQR = async () => {
   if (!qrcodeContainer.value) return;
-  
+
   try {
     const canvas = await html2canvas(qrcodeContainer.value, {
       scale: 2,
       backgroundColor: '#ffffff',
       useCORS: true
     });
-    
+
     triggerDownload(canvas);
   } catch (error) {
     console.error('Lỗi khi tạo ảnh QR:', error);

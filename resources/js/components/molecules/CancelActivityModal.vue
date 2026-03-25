@@ -3,10 +3,10 @@
     <div v-if="modelValue"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900 bg-opacity-50 backdrop-blur-sm"
       @click.self="closeModal">
-      
+
       <div class="bg-white rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 overflow-hidden"
         role="dialog" aria-modal="true">
-        
+
         <div class="p-5 border-b border-gray-100 flex items-center justify-between">
           <h3 class="text-xl font-semibold text-gray-900">
             Huỷ sự kiện
@@ -38,7 +38,15 @@
             </div>
             <Toggle v-model="refund" />
           </div>
-          
+
+          <div v-if="recurrenceSeriesId" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+            <div>
+              <div class="text-sm font-medium text-gray-900">Hủy chuỗi</div>
+              <div class="text-xs text-gray-500">Hủy toàn bộ chuỗi sự kiện</div>
+            </div>
+            <Toggle v-model="cancelSeries" />
+          </div>
+
           <p class="text-[13px] text-amber-600 bg-amber-50 p-2 rounded border border-amber-100 italic">
             * Lưu ý: Thao tác huỷ sự kiện không thể hoàn tác.
           </p>
@@ -74,6 +82,10 @@ const props = defineProps({
   isSubmitting: {
     type: Boolean,
     default: false
+  },
+  recurrenceSeriesId: {
+    type: [String, Number],
+    default: null
   }
 })
 
@@ -81,12 +93,13 @@ const emit = defineEmits(['update:modelValue', 'confirm'])
 
 const reason = ref('')
 const refund = ref(true)
-
+const cancelSeries = ref(false)
 // Reset form when modal opens
 watch(() => props.modelValue, (newVal) => {
   if (newVal) {
     reason.value = ''
     refund.value = true
+    cancelSeries.value = false
   }
 })
 
@@ -97,7 +110,8 @@ const closeModal = () => {
 const handleConfirm = () => {
   emit('confirm', {
     cancellation_reason: reason.value,
-    cancel_transactions: refund.value
+    cancel_transactions: refund.value,
+    cancel_series: cancelSeries.value
   })
 }
 </script>

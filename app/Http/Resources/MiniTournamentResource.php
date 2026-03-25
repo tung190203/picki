@@ -32,12 +32,16 @@ class MiniTournamentResource extends JsonResource
 
         $data = [
             'id' => $this->id,
+            'club_id' => $this->club_id,
             'poster' => $posterUrl,
             'sport' => new SportResource($this->whenLoaded('sport')),
             'name' => $this->name,
             'description' => $this->description,
             'play_mode' => $this->play_mode,
             'format' => $this->format,
+            'club' => ($this->whenLoaded('club') && $this->club && $this->club->is_public !== false)
+                ? new ClubResource($this->club)
+                : null,
 
             // Updated time fields
             'start_time' => $this->start_time,
