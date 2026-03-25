@@ -88,36 +88,40 @@ class ClubActivityController extends Controller
         $items = collect();
         $totalCount = 0;
 
-        // Query based on category
+        // Query based on category (default: all)
+        $isHistoryOnly = $statusesOnlyCompletedOrCancelled;
+        $orderDirection = $isHistoryOnly ? 'desc' : 'asc';
+
+        // Activities
         if ($category === 'all' || $category === 'activity') {
             $activities = $this->activityService->getActivities($club, $filters, $userId);
-            $activityItems = $activities->items();
-
-            // Convert to array format with _type
-            foreach ($activityItems as $activity) {
-                $itemData = (new ClubActivityListResource($activity))->resolve();
-                $itemData['_type'] = 'activity';
-                $items->push($itemData);
+            foreach ($activities->items() as $activity) {
+                $items->push([
+                    'id' => $activity->id,
+                    'type' => 'activity',
+                    'data' => new ClubActivityListResource($activity),
+                ]);
             }
-
             $totalCount += $activities->total();
         }
 
+        // Mini Tournaments
         if ($category === 'all' || $category === 'mini_tournament') {
             $miniTournaments = $this->getMiniTournaments($club, $filters, $userId);
             foreach ($miniTournaments as $tournament) {
-                $itemData = (new \App\Http\Resources\ListMiniTournamentResource($tournament))->resolve();
-                $itemData['_type'] = 'mini_tournament';
-                $items->push($itemData);
+                $items->push([
+                    'id' => $tournament->id,
+                    'type' => 'mini_tournament',
+                    'data' => new \App\Http\Resources\ListMiniTournamentResource($tournament),
+                ]);
             }
             $totalCount += $miniTournaments->count();
         }
 
-        // Sort by start_time (upcoming: asc, completed: desc)
-        $isHistoryOnly = $statusesOnlyCompletedOrCancelled;
+        // Sort by start_time
         $items = $isHistoryOnly
-            ? $items->sortByDesc('start_time')->values()
-            : $items->sortBy('start_time')->values();
+            ? $items->sortByDesc(fn($i) => $i['data']->resource->start_time ?? '')->values()
+            : $items->sortBy(fn($i) => $i['data']->resource->start_time ?? '')->values();
 
         // Pagination
         $perPage = $filters['per_page'] ?? 15;
@@ -127,7 +131,7 @@ class ClubActivityController extends Controller
 
         $data = [
             'categories' => $categories,
-            'items' => ClubMixedContentResource::collection($paginatedItems),
+            'items' => $paginatedItems,
         ];
 
         $meta = [
