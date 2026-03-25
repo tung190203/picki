@@ -8,9 +8,10 @@ class ClubActivityListResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        return [
+        $data = [
             'id' => $this->id,
             'title' => $this->title,
+            'name' => $this->title,
             'status' => $this->status,
             'start_time' => $this->start_time?->format('c'),
             'duration' => $this->duration,
@@ -36,5 +37,7 @@ class ClubActivityListResource extends JsonResource
             'participants_count' => $this->whenLoaded('participants', fn() => $this->participants->count()),
             'participants' => $this->whenLoaded('participants', fn() => ClubActivityParticipantResource::collection($this->participants)),
         ];
+
+        return $data;
     }
 }

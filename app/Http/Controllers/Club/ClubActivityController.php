@@ -10,8 +10,10 @@ use App\Http\Requests\Club\StoreActivityRequest;
 use App\Http\Requests\Club\UpdateActivityRequest;
 use App\Http\Resources\Club\ClubActivityListResource;
 use App\Http\Resources\Club\ClubActivityResource;
+use App\Http\Resources\Club\ClubMixedContentResource;
 use App\Models\Club\Club;
 use App\Models\Club\ClubActivity;
+use App\Models\MiniTournament;
 use App\Models\User;
 use App\Services\Club\ClubActivityService;
 use Carbon\Carbon;
@@ -28,12 +30,27 @@ class ClubActivityController extends Controller
     ) {
     }
 
+    /**
+     * Danh sách categories cho màn hoạt động
+     */
+    public static function getCategories(): array
+    {
+        return [
+            ['key' => 'all', 'label' => 'Tất cả', 'icon' => null],
+            ['key' => 'activity', 'label' => 'Hoạt động', 'icon' => 'calendar'],
+            ['key' => 'mini_tournament', 'label' => 'Kèo', 'icon' => 'soccer'],
+            ['key' => 'tournament', 'label' => 'Giải đấu', 'icon' => 'trophy'],
+        ];
+    }
+
     public function index(GetActivitiesRequest $request, $clubId)
     {
         $club = Club::findOrFail($clubId);
         $userId = auth()->id();
         $filters = $request->validated();
+        $category = $filters['category'] ?? 'all';
 
+        // Client gửi statuses = tab hiện tại
         $clientSentStatuses = $request->has('statuses');
         if (!$clientSentStatuses) {
             $filters['statuses'] = ['scheduled', 'ongoing'];
@@ -59,8 +76,7 @@ class ClubActivityController extends Controller
             }
         }
 
-        $version = (int) Cache::get('club_activities_version:' . $clubId, 0);
-        $cacheKey = 'club_activities:' . $clubId . ':' . $version . ':' . md5(json_encode($filters) . ':' . ($userId ?? 'guest'));
+        $cacheKey = 'club_content:' . $clubId . ':' . md5(json_encode($filters) . ':' . $category . ':' . ($userId ?? 'guest'));
 
         $cached = Cache::get($cacheKey);
         if ($cached !== null) {
@@ -68,23 +84,120 @@ class ClubActivityController extends Controller
             return response()->json($cached, 200, [], $options);
         }
 
-        $activities = $this->activityService->getActivities($club, $filters, $userId);
+        $categories = self::getCategories();
+        $items = collect();
+        $totalCount = 0;
+
+        // Query based on category (default: all)
+        $isHistoryOnly = $statusesOnlyCompletedOrCancelled;
+        $orderDirection = $isHistoryOnly ? 'desc' : 'asc';
+
+        // Activities
+        if ($category === 'all' || $category === 'activity') {
+            $activities = $this->activityService->getActivities($club, $filters, $userId);
+            foreach ($activities->items() as $activity) {
+                $items->push([
+                    'id' => $activity->id,
+                    'type' => 'activity',
+                    'data' => new ClubActivityListResource($activity),
+                ]);
+            }
+            $totalCount += $activities->total();
+        }
+
+        // Mini Tournaments
+        if ($category === 'all' || $category === 'mini_tournament') {
+            $miniTournaments = $this->getMiniTournaments($club, $filters, $userId);
+            foreach ($miniTournaments as $tournament) {
+                $items->push([
+                    'id' => $tournament->id,
+                    'type' => 'mini_tournament',
+                    'data' => new \App\Http\Resources\ListMiniTournamentResource($tournament),
+                ]);
+            }
+            $totalCount += $miniTournaments->count();
+        }
+
+        // Sort by start_time
+        $items = $isHistoryOnly
+            ? $items->sortByDesc(fn($i) => $i['data']->resource->start_time ?? '')->values()
+            : $items->sortBy(fn($i) => $i['data']->resource->start_time ?? '')->values();
+
+        // Pagination
+        $perPage = $filters['per_page'] ?? 15;
+        $currentPage = $filters['page'] ?? 1;
+        $offset = ($currentPage - 1) * $perPage;
+        $paginatedItems = $items->slice($offset, $perPage)->values();
 
         $data = [
-            'activities' => ClubActivityListResource::collection($activities->items())->toArray($request),
-        ];
-        $meta = [
-            'current_page' => $activities->currentPage(),
-            'per_page' => $activities->perPage(),
-            'total' => $activities->total(),
-            'last_page' => $activities->lastPage(),
+            'categories' => $categories,
+            'items' => $paginatedItems,
         ];
 
-        $response = ResponseHelper::success($data, 'Lấy danh sách hoạt động thành công', 200, $meta);
+        $meta = [
+            'current_page' => $currentPage,
+            'per_page' => $perPage,
+            'total' => $totalCount,
+            'last_page' => (int) ceil($totalCount / $perPage),
+        ];
+
+        $response = ResponseHelper::success($data, 'Lấy danh sách nội dung thành công', 200, $meta);
         $responseData = $response->getData(true);
         Cache::put($cacheKey, $responseData, self::ACTIVITIES_CACHE_TTL);
 
         return $response;
+    }
+
+    /**
+     * Lấy danh sách mini tournaments của club
+     */
+    private function getMiniTournaments(Club $club, array $filters, ?int $userId)
+    {
+        $query = MiniTournament::withFullRelations()
+            ->where('club_id', $club->id);
+
+        // Apply date filters
+        $dateFrom = $filters['date_from'] ?? null;
+        $dateTo = $filters['date_to'] ?? null;
+
+        if (!empty($dateFrom)) {
+            $query->whereDate('start_time', '>=', $dateFrom);
+        }
+        if (!empty($dateTo)) {
+            $query->whereDate('start_time', '<=', $dateTo);
+        }
+
+        // Apply status filters
+        $statuses = $filters['statuses'] ?? [];
+        $hasAll = in_array('all', $statuses);
+        $isHistoryOnly = !empty($statuses)
+            && empty(array_diff($statuses, ['completed', 'cancelled']));
+
+        if (!$hasAll && !empty($statuses)) {
+            $mappedStatuses = [];
+            foreach ($statuses as $status) {
+                $mappedStatuses[] = match ($status) {
+                    'scheduled', 'ongoing' => MiniTournament::STATUS_OPEN,
+                    'completed' => MiniTournament::STATUS_CLOSED,
+                    'cancelled' => MiniTournament::STATUS_CANCELLED,
+                    default => null,
+                };
+            }
+            $mappedStatuses = array_filter($mappedStatuses);
+
+            if (!empty($mappedStatuses)) {
+                $query->whereIn('status', $mappedStatuses);
+            }
+        } elseif (empty($statuses)) {
+            // Default: show ongoing/upcoming
+            $query->whereIn('status', [MiniTournament::STATUS_OPEN]);
+        }
+
+        // Sort
+        $orderDirection = $isHistoryOnly ? 'desc' : 'asc';
+        $query->orderBy('start_time', $orderDirection);
+
+        return $query->limit($filters['per_page'] ?? 50)->get();
     }
 
     public function store(StoreActivityRequest $request, $clubId)
@@ -260,5 +373,52 @@ class ClubActivityController extends Controller
         } catch (\Exception $e) {
             return ResponseHelper::error($e->getMessage(), 403);
         }
+    }
+
+    /**
+     * Admin đánh dấu member đã check-in
+     */
+    public function markCheckIn($clubId, $activityId, $participantId)
+    {
+        $activity = ClubActivity::where('club_id', $clubId)->findOrFail($activityId);
+        $userId = auth()->id();
+
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        // Check permission: chỉ admin, manager, secretary mới được check-in hộ
+        $club = $activity->club;
+        $member = $club->activeMembers()->where('user_id', $userId)->first();
+        if (!$member || !in_array($member->role, [\App\Enums\ClubMemberRole::Admin, \App\Enums\ClubMemberRole::Manager, \App\Enums\ClubMemberRole::Secretary])) {
+            return ResponseHelper::error('Bạn không có quyền đánh dấu check-in', 403);
+        }
+
+        $participant = $activity->participants()->where('id', $participantId)->first();
+        if (!$participant) {
+            return ResponseHelper::error('Thành viên không tồn tại trong hoạt động này', 404);
+        }
+
+        // Chỉ đánh dấu attended được
+        if ($participant->status === \App\Enums\ClubActivityParticipantStatus::Attended) {
+            return ResponseHelper::error('Thành viên đã được đánh dấu check-in rồi', 422);
+        }
+
+        if (!in_array($participant->status, [\App\Enums\ClubActivityParticipantStatus::Accepted, \App\Enums\ClubActivityParticipantStatus::Pending])) {
+            return ResponseHelper::error('Không thể đánh dấu check-in cho trạng thái: ' . $participant->status->value, 422);
+        }
+
+        $participant->update([
+            'status' => \App\Enums\ClubActivityParticipantStatus::Attended,
+            'checked_in_at' => now(),
+            'is_absent' => false,
+        ]);
+
+        $participant->load('user');
+
+        return ResponseHelper::success(
+            new \App\Http\Resources\Club\ClubActivityParticipantResource($participant),
+            'Đã đánh dấu check-in thành công'
+        );
     }
 }
