@@ -6,6 +6,7 @@ use App\Enums\PaymentStatusEnum;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MiniParticipantPaymentResource;
 use App\Http\Resources\MiniTournamentResource;
+use App\Models\Club\ClubFundContribution;
 use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
 use App\Models\MiniTournament;
@@ -490,6 +491,31 @@ class MiniTournamentPaymentController extends Controller
 
             // Cập nhật payment_status của participant
             $participant->confirmPayment();
+
+            // Sync ClubFundContribution nếu kèo có club_fund_collection_id
+            if ($miniTournament->club_fund_collection_id && $participant->user_id) {
+                $collection = \App\Models\Club\ClubFundCollection::find($miniTournament->club_fund_collection_id);
+                if ($collection) {
+                    $feePerPersonCalc = $miniTournament->has_fee
+                        ? ($miniTournament->auto_split_fee
+                            ? ($miniTournament->final_fee_per_person ?? $miniTournament->fee_amount)
+                            : $miniTournament->fee_amount)
+                        : 0;
+
+                    ClubFundContribution::updateOrCreate(
+                        [
+                            'club_fund_collection_id' => $collection->id,
+                            'user_id' => $participant->user_id,
+                        ],
+                        [
+                            'amount' => $feePerPersonCalc,
+                            'receipt_url' => $receiptImage,
+                            'note' => $note,
+                            'status' => \App\Enums\ClubFundContributionStatus::Confirmed,
+                        ]
+                    );
+                }
+            }
 
             $payment->load('user');
             if ($payment->user) {

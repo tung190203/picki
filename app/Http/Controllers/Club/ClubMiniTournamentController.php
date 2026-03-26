@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Club;
 
+use App\Enums\ClubFundCollectionStatus;
+use App\Enums\ClubFundContributionStatus;
 use App\Enums\ClubMemberRole;
 use App\Enums\PaymentStatusEnum;
 use App\Helpers\ResponseHelper;
@@ -11,6 +13,8 @@ use App\Http\Requests\UpdateMiniTournamentRequest;
 use App\Http\Resources\MiniParticipantResource;
 use App\Http\Resources\MiniTournamentResource;
 use App\Models\Club\Club;
+use App\Models\Club\ClubFundCollection;
+use App\Models\Club\ClubFundContribution;
 use App\Models\MiniParticipant;
 use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
@@ -47,14 +51,83 @@ class ClubMiniTournamentController extends Controller
         $data = $request->safe()->except(['invite_user', 'poster', 'qr_code_url']);
         $data['club_id'] = $club->id;
 
+        // === Xử lý QR code: nếu CLB có mã QR chung và use_club_fund = true thì gán luôn ===
+        $qrFile = $request->file('qr_code_url');
+        if (!$qrFile && $request->boolean('use_club_fund')) {
+            $clubQrWallet = $club->activeQrWallet();
+            if ($clubQrWallet && $clubQrWallet->qr_code_url) {
+                $qrUrl = str_starts_with($clubQrWallet->qr_code_url, 'http')
+                    ? $clubQrWallet->qr_code_url
+                    : asset('storage/' . $clubQrWallet->qr_code_url);
+                $data['qr_code_url'] = $qrUrl;
+            }
+        }
+
         $miniTournament = $this->tournamentService->createTournament($data, $userId);
         $miniTournament->staff()->attach($userId, ['role' => MiniTournamentStaff::ROLE_ORGANIZER]);
+
+        // === Xử lý use_club_fund: tạo ClubFundCollection và xác nhận thanh toán ===
+        if ($miniTournament->use_club_fund && $miniTournament->has_fee) {
+            // Tạo ClubFundCollection
+            $collection = ClubFundCollection::create([
+                'club_id' => $club->id,
+                'title' => $miniTournament->name,
+                'description' => $miniTournament->fee_description,
+                'target_amount' => $miniTournament->fee_amount,
+                'amount_per_member' => $miniTournament->auto_split_fee
+                    ? $miniTournament->fee_amount
+                    : $miniTournament->fee_amount,
+                'currency' => 'VND',
+                'start_date' => $miniTournament->start_time,
+                'end_date' => $miniTournament->end_time ?? $miniTournament->start_time,
+                'status' => ClubFundCollectionStatus::Active,
+                'qr_code_url' => $miniTournament->qr_code_url,
+                'created_by' => $userId,
+                'included_in_club_fund' => true,
+            ]);
+
+            $miniTournament->update(['club_fund_collection_id' => $collection->id]);
+
+            // Gán member CLB (intersect participant.user_id với club.member.user_id)
+            $clubMemberUserIds = $club->activeMembers()->pluck('user_id')->toArray();
+            $participantUserIds = $miniTournament->participants()->pluck('user_id')->toArray();
+            $commonUserIds = array_intersect($clubMemberUserIds, $participantUserIds);
+
+            if (!empty($commonUserIds)) {
+                $collection->assignedMembers()->attach($commonUserIds, [
+                    'amount_due' => $miniTournament->auto_split_fee
+                        ? $miniTournament->fee_amount
+                        : $miniTournament->fee_amount,
+                ]);
+            }
+
+            // Set payment_status = CONFIRMED cho TẤT CẢ participants (member + guest)
+            $miniTournament->participants()->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
+
+            // Tạo confirmed contribution cho từng participant là member CLB
+            $feePerPerson = $miniTournament->auto_split_fee
+                ? $miniTournament->fee_amount
+                : $miniTournament->fee_amount;
+
+            foreach ($miniTournament->participants as $participant) {
+                if (in_array($participant->user_id, $commonUserIds)) {
+                    ClubFundContribution::create([
+                        'club_fund_collection_id' => $collection->id,
+                        'user_id' => $participant->user_id,
+                        'amount' => $feePerPerson,
+                        'receipt_url' => null,
+                        'note' => 'Admin đánh dấu đã đóng khi tạo kèo quỹ bao',
+                        'status' => ClubFundContributionStatus::Confirmed,
+                    ]);
+                }
+            }
+        }
 
         if ($request->has('invite_user')) {
             $inviteUsers = $request->input('invite_user', []);
 
             $paymentStatus = \App\Enums\PaymentStatusEnum::CONFIRMED;
-            if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
+            if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
                 $paymentStatus = \App\Enums\PaymentStatusEnum::PENDING;
             }
 
@@ -68,6 +141,19 @@ class ClubMiniTournamentController extends Controller
                 $user = User::find($invitedUserId);
                 if ($user) {
                     $user->notify(new MiniTournamentInvitationNotification($miniTournament, $userId));
+                }
+            }
+
+            // Nếu use_club_fund = true, cập nhật lại payment_status của invited users
+            if ($miniTournament->use_club_fund && $miniTournament->has_fee) {
+                $invitedParticipantIds = $miniTournament->participants()
+                    ->whereIn('user_id', $inviteUsers)
+                    ->pluck('id')
+                    ->toArray();
+                if (!empty($invitedParticipantIds)) {
+                    $miniTournament->participants()
+                        ->whereIn('id', $invitedParticipantIds)
+                        ->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
                 }
             }
         }

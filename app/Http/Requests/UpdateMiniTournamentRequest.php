@@ -78,6 +78,9 @@ class UpdateMiniTournamentRequest extends FormRequest
             'fee_amount' => 'nullable|integer|min:0',
             'max_players' => 'nullable|integer|min:1',
 
+            // Club fund integration
+            'use_club_fund' => 'boolean',
+
             // Rating
             'min_rating' => 'nullable|numeric|min:0',
             'max_rating' => 'nullable|numeric|min:0',
