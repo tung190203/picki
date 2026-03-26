@@ -32,7 +32,7 @@ class ClubMiniTournamentController extends Controller
         if (!$club) {
             return ResponseHelper::error('CLB không tồn tại', 404);
         }
-        
+
         $userId = Auth::id();
 
         if (!$userId) {
@@ -133,6 +133,11 @@ class ClubMiniTournamentController extends Controller
         if ($posterFile) {
             $posterPath = $posterFile->store('posters', 'public');
             $miniTournament->update(['poster' => asset('storage/' . $posterPath)]);
+        } elseif ($request->filled('poster') && is_string($request->input('poster'))) {
+            $posterStr = trim((string) $request->input('poster'));
+            if ($posterStr !== '' && filter_var($posterStr, FILTER_VALIDATE_URL)) {
+                $miniTournament->update(['poster' => $posterStr]);
+            }
         }
 
         $qrFile = $request->file('qr_code_url');
@@ -182,11 +187,7 @@ class ClubMiniTournamentController extends Controller
             return ResponseHelper::error('Thành viên đã được đánh dấu check-in rồi', 422);
         }
 
-        // Kiểm tra thanh toán: kèo có phí thì phải CONFIRMED mới check-in được
-        if ($miniTournament->has_fee && $participant->payment_status !== PaymentStatusEnum::CONFIRMED) {
-            return ResponseHelper::error('Thành viên chưa thanh toán hoặc chưa được xác nhận thanh toán', 422);
-        }
-
+        // Admin/organizer được quyền check-in hộ thành viên mà không cần thanh toán đã confirmed
         $participant->update([
             'is_confirmed' => true,
             'checked_in_at' => now(),

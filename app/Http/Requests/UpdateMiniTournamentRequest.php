@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\MiniTournament;
 use App\Rules\ValidRecurringSchedule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\UploadedFile;
 
 class UpdateMiniTournamentRequest extends FormRequest
 {
@@ -16,7 +17,42 @@ class UpdateMiniTournamentRequest extends FormRequest
     public function rules(): array
     {
         $rules = [
-            'poster' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            // File upload HOẶC URL string (app gửi lại poster hiện có khi update multipart)
+            'poster' => [
+                'nullable',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if ($value === null || $value === '') {
+                        return;
+                    }
+                    $file = $value instanceof UploadedFile ? $value : $this->file('poster');
+                    if ($file instanceof UploadedFile) {
+                        if (!$file->isValid()) {
+                            $fail('Trường poster phải là một hình ảnh hợp lệ.');
+                            return;
+                        }
+                        $allowedMimes = ['jpeg', 'png', 'jpg', 'gif', 'svg'];
+                        if (!in_array(strtolower($file->getClientOriginalExtension()), $allowedMimes, true)) {
+                            $fail('Poster phải là định dạng jpeg, png, jpg, gif hoặc svg.');
+                            return;
+                        }
+                        if ($file->getSize() > 2048 * 1024) {
+                            $fail('Poster không được vượt quá 2MB.');
+                        }
+                        return;
+                    }
+                    if (!is_string($value)) {
+                        $fail('Trường poster phải là một hình ảnh hoặc URL hợp lệ.');
+                        return;
+                    }
+                    if (strlen($value) > 2048) {
+                        $fail('URL poster không được vượt quá 2048 ký tự.');
+                        return;
+                    }
+                    if (filter_var($value, FILTER_VALIDATE_URL) === false) {
+                        $fail('Poster phải là URL hợp lệ hoặc file ảnh.');
+                    }
+                },
+            ],
             'sport_id' => 'sometimes|exists:sports,id',
             'name' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
