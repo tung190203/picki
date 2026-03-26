@@ -194,7 +194,7 @@ class ClubActivityController extends Controller
                     if ($userId) {
                         $q->orWhere(function ($draftQ) use ($userId) {
                             $draftQ->where('status', MiniTournament::STATUS_DRAFT)
-                                ->where('creator_id', $userId);
+                                ->where('created_by', $userId);
                         });
                     }
                 });
@@ -205,8 +205,8 @@ class ClubActivityController extends Controller
                 $q->whereIn('status', [MiniTournament::STATUS_OPEN]);
                 if ($userId) {
                     $q->orWhere(function ($draftQ) use ($userId) {
-                        $draftQ->where('status', MiniTournament::STATUS_DRAFT)
-                            ->where('creator_id', $userId);
+                    $draftQ->where('status', MiniTournament::STATUS_DRAFT)
+                        ->where('created_by', $userId);
                     });
                 }
             });
