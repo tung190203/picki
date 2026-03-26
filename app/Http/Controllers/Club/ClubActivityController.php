@@ -188,11 +188,28 @@ class ClubActivityController extends Controller
             $mappedStatuses = array_filter($mappedStatuses);
 
             if (!empty($mappedStatuses)) {
-                $query->whereIn('status', $mappedStatuses);
+                $query->where(function ($q) use ($mappedStatuses, $userId) {
+                    $q->whereIn('status', $mappedStatuses);
+                    // Show draft tournaments only to their creator
+                    if ($userId) {
+                        $q->orWhere(function ($draftQ) use ($userId) {
+                            $draftQ->where('status', MiniTournament::STATUS_DRAFT)
+                                ->where('creator_id', $userId);
+                        });
+                    }
+                });
             }
         } elseif (empty($statuses)) {
-            // Default: show ongoing/upcoming
-            $query->whereIn('status', [MiniTournament::STATUS_OPEN]);
+            // Default: show ongoing/upcoming, plus drafts for creator
+            $query->where(function ($q) use ($userId) {
+                $q->whereIn('status', [MiniTournament::STATUS_OPEN]);
+                if ($userId) {
+                    $q->orWhere(function ($draftQ) use ($userId) {
+                        $draftQ->where('status', MiniTournament::STATUS_DRAFT)
+                            ->where('creator_id', $userId);
+                    });
+                }
+            });
         }
 
         // Sort

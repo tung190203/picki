@@ -27,6 +27,8 @@ class MiniTournamentService
         $miniTournament = MiniTournament::create([
             ...$data,
             'recurrence_series_id' => $seriesId,
+            'use_club_fund' => $data['use_club_fund'] ?? false,
+            'club_fund_collection_id' => $data['club_fund_collection_id'] ?? null,
         ]);
 
         // Creator always participates by default with confirmed payment status
@@ -365,7 +367,8 @@ class MiniTournamentService
                     'min_rating', 'max_rating', 'set_number', 'base_points',
                     'points_difference', 'max_points', 'gender', 'auto_approve',
                     'allow_participant_add_friends', 'allow_cancellation',
-                    'cancellation_duration', 'apply_rule', 'poster'
+                    'cancellation_duration', 'apply_rule', 'poster',
+                    'use_club_fund',
                 ];
 
                 foreach ($fieldsToUpdate as $field) {
