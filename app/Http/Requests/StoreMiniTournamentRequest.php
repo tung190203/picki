@@ -165,7 +165,7 @@ class StoreMiniTournamentRequest extends FormRequest
                 $schedule = [
                     'period' => $recurringSchedule['period'] ?? null,
                 ];
-                
+
                 if ($schedule['period'] === 'weekly' && isset($recurringSchedule['week_days'])) {
                     $schedule['week_days'] = array_values(array_filter(
                         (array) $recurringSchedule['week_days'],
@@ -174,7 +174,7 @@ class StoreMiniTournamentRequest extends FormRequest
                 } elseif (in_array($schedule['period'], ['monthly', 'quarterly', 'yearly']) && isset($recurringSchedule['recurring_date'])) {
                     $schedule['recurring_date'] = $recurringSchedule['recurring_date'];
                 }
-                
+
                 $this->merge(['recurring_schedule' => $schedule]);
             }
             // If it's already an object/array from JSON, leave it as is

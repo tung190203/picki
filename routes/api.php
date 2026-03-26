@@ -117,6 +117,7 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
 
         Route::prefix('{clubId}')->group(function () {
             Route::get('/profile', [ClubController::class, 'getProfile']);
+            Route::get('/content', [ClubActivityController::class, 'index']);
             Route::get('/fund', [ClubController::class, 'getFund']);
             Route::put('/fund', [ClubController::class, 'updateFund']);
             Route::get('/fund/overview', [ClubWalletController::class, 'getFundOverview']);
@@ -170,7 +171,6 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
             });
 
             Route::prefix('activities')->group(function () {
-                Route::get('/', [ClubActivityController::class, 'index']);
                 Route::post('/', [ClubActivityController::class, 'store']);
                 Route::get('/{activityId}', [ClubActivityController::class, 'show']);
                 Route::match(['put', 'post'], '/{activityId}', [ClubActivityController::class, 'update']);
@@ -271,6 +271,7 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
             Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-check-in', [ClubMiniTournamentController::class, 'markCheckIn']);
+            Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-absent', [ClubMiniTournamentController::class, 'markAbsent']);
         });
     });
 });
@@ -378,6 +379,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
 
         Route::prefix('{clubId}')->group(function () {
             Route::get('/profile', [ClubController::class, 'getProfile']);
+            Route::get('/content', [ClubActivityController::class, 'index']);
             Route::get('/fund', [ClubController::class, 'getFund']);
             Route::put('/fund', [ClubController::class, 'updateFund']);
             Route::get('/fund/overview', [ClubWalletController::class, 'getFundOverview']);
@@ -431,7 +433,6 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
             });
 
             Route::prefix('activities')->group(function () {
-                Route::get('/', [ClubActivityController::class, 'index']);
                 Route::post('/', [ClubActivityController::class, 'store']);
                 Route::get('/{activityId}', [ClubActivityController::class, 'show']);
                 Route::match(['put', 'post'], '/{activityId}', [ClubActivityController::class, 'update']);
@@ -530,6 +531,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
             Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-check-in', [ClubMiniTournamentController::class, 'markCheckIn']);
+            Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-absent', [ClubMiniTournamentController::class, 'markAbsent']);
         });
     });
 
@@ -551,9 +553,9 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::get('/{id}/payments', [MiniTournamentPaymentController::class, 'index']);
         Route::post('/{id}/pay', [MiniTournamentPaymentController::class, 'pay']);
         Route::match(['get', 'post'], '/{id}/my-payment', [MiniTournamentPaymentController::class, 'myPayment']);
-        Route::post('/{id}/payments/{paymentId}/mark-paid', [MiniTournamentPaymentController::class, 'markPaid']);
-        Route::post('/{id}/payments/{paymentId}/confirm', [MiniTournamentPaymentController::class, 'confirm']);
-        Route::post('/{id}/payments/{paymentId}/reject', [MiniTournamentPaymentController::class, 'reject']);
+        Route::post('/{id}/payments/{participantId}/mark-paid', [MiniTournamentPaymentController::class, 'markPaid']);
+        Route::post('/{id}/payments/{participantId}/confirm', [MiniTournamentPaymentController::class, 'confirm']);
+        Route::post('/{id}/payments/{participantId}/reject', [MiniTournamentPaymentController::class, 'reject']);
         Route::post('/{id}/payments/remind/{participantId}', [MiniTournamentPaymentController::class, 'remind']);
         Route::post('/{id}/payments/remind-all', [MiniTournamentPaymentController::class, 'remindAll']);
 
@@ -583,6 +585,8 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::match(['get', 'post'], '/candidates/{miniTournamentId}', [MiniParticipantController::class, 'getCandidates']);
         Route::post('/delete/{participantId}', [MiniParticipantController::class, 'delete']);
         Route::post('/delete-staff/{staffId}', [MiniParticipantController::class, 'deleteStaff']);
+        Route::post('/self/check-in/{miniTournamentId}', [MiniParticipantController::class, 'selfCheckIn']);
+        Route::post('/self/absent/{miniTournamentId}', [MiniParticipantController::class, 'selfMarkAbsent']);
     });
     // Mini Match Routes
     Route::prefix('mini-matches')->group(function (): void {
