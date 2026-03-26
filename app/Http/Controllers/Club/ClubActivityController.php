@@ -133,7 +133,6 @@ class ClubActivityController extends Controller
         $paginatedItems = $items->slice($offset, $perPage)->values();
 
         $data = [
-            'categories' => $categories,
             'items' => $paginatedItems,
         ];
 

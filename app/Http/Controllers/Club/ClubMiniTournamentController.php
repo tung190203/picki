@@ -28,7 +28,11 @@ class ClubMiniTournamentController extends Controller
 
     public function store(StoreMiniTournamentRequest $request, int $clubId)
     {
-        $club = Club::findOrFail($clubId);
+        $club = Club::find($clubId);
+        if (!$club) {
+            return ResponseHelper::error('CLB không tồn tại', 404);
+        }
+        
         $userId = Auth::id();
 
         if (!$userId) {

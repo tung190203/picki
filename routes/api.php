@@ -117,6 +117,7 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
 
         Route::prefix('{clubId}')->group(function () {
             Route::get('/profile', [ClubController::class, 'getProfile']);
+            Route::get('/content', [ClubActivityController::class, 'index']);
             Route::get('/fund', [ClubController::class, 'getFund']);
             Route::put('/fund', [ClubController::class, 'updateFund']);
             Route::get('/fund/overview', [ClubWalletController::class, 'getFundOverview']);
@@ -170,7 +171,6 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
             });
 
             Route::prefix('activities')->group(function () {
-                Route::get('/', [ClubActivityController::class, 'index']);
                 Route::post('/', [ClubActivityController::class, 'store']);
                 Route::get('/{activityId}', [ClubActivityController::class, 'show']);
                 Route::match(['put', 'post'], '/{activityId}', [ClubActivityController::class, 'update']);
@@ -379,6 +379,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
 
         Route::prefix('{clubId}')->group(function () {
             Route::get('/profile', [ClubController::class, 'getProfile']);
+            Route::get('/content', [ClubActivityController::class, 'index']);
             Route::get('/fund', [ClubController::class, 'getFund']);
             Route::put('/fund', [ClubController::class, 'updateFund']);
             Route::get('/fund/overview', [ClubWalletController::class, 'getFundOverview']);
@@ -432,7 +433,6 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
             });
 
             Route::prefix('activities')->group(function () {
-                Route::get('/', [ClubActivityController::class, 'index']);
                 Route::post('/', [ClubActivityController::class, 'store']);
                 Route::get('/{activityId}', [ClubActivityController::class, 'show']);
                 Route::match(['put', 'post'], '/{activityId}', [ClubActivityController::class, 'update']);
