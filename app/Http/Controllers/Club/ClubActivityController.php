@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Club;
 
+use App\Enums\ClubActivityParticipantStatus;
+use App\Enums\ClubMemberRole;
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Club\CancelActivityRequest;
@@ -9,6 +11,7 @@ use App\Http\Requests\Club\GetActivitiesRequest;
 use App\Http\Requests\Club\StoreActivityRequest;
 use App\Http\Requests\Club\UpdateActivityRequest;
 use App\Http\Resources\Club\ClubActivityListResource;
+use App\Http\Resources\Club\ClubActivityParticipantResource;
 use App\Http\Resources\Club\ClubActivityResource;
 use App\Http\Resources\Club\ClubMixedContentResource;
 use App\Models\Club\Club;
@@ -390,7 +393,7 @@ class ClubActivityController extends Controller
         // Check permission: chỉ admin, manager, secretary mới được check-in hộ
         $club = $activity->club;
         $member = $club->activeMembers()->where('user_id', $userId)->first();
-        if (!$member || !in_array($member->role, [\App\Enums\ClubMemberRole::Admin, \App\Enums\ClubMemberRole::Manager, \App\Enums\ClubMemberRole::Secretary])) {
+        if (!$member || !in_array($member->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary])) {
             return ResponseHelper::error('Bạn không có quyền đánh dấu check-in', 403);
         }
 
@@ -399,17 +402,16 @@ class ClubActivityController extends Controller
             return ResponseHelper::error('Thành viên không tồn tại trong hoạt động này', 404);
         }
 
-        // Chỉ đánh dấu attended được
-        if ($participant->status === \App\Enums\ClubActivityParticipantStatus::Attended) {
+        if ($participant->status === ClubActivityParticipantStatus::Attended) {
             return ResponseHelper::error('Thành viên đã được đánh dấu check-in rồi', 422);
         }
 
-        if (!in_array($participant->status, [\App\Enums\ClubActivityParticipantStatus::Accepted, \App\Enums\ClubActivityParticipantStatus::Pending])) {
+        if (!in_array($participant->status, [ClubActivityParticipantStatus::Accepted, ClubActivityParticipantStatus::Pending])) {
             return ResponseHelper::error('Không thể đánh dấu check-in cho trạng thái: ' . $participant->status->value, 422);
         }
 
         $participant->update([
-            'status' => \App\Enums\ClubActivityParticipantStatus::Attended,
+            'status' => ClubActivityParticipantStatus::Attended,
             'checked_in_at' => now(),
             'is_absent' => false,
         ]);
@@ -417,7 +419,7 @@ class ClubActivityController extends Controller
         $participant->load('user');
 
         return ResponseHelper::success(
-            new \App\Http\Resources\Club\ClubActivityParticipantResource($participant),
+            new ClubActivityParticipantResource($participant),
             'Đã đánh dấu check-in thành công'
         );
     }

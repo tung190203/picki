@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Club;
 
 use App\Enums\ClubMemberRole;
+use App\Enums\PaymentStatusEnum;
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreMiniTournamentRequest;
 use App\Http\Requests\UpdateMiniTournamentRequest;
+use App\Http\Resources\MiniParticipantResource;
 use App\Http\Resources\MiniTournamentResource;
 use App\Models\Club\Club;
 use App\Models\MiniParticipant;
+use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
 use App\Models\User;
 use App\Notifications\MiniTournamentInvitationNotification;
@@ -145,7 +148,7 @@ class ClubMiniTournamentController extends Controller
     public function markCheckIn(int $clubId, int $miniTournamentId, int $participantId)
     {
         $club = Club::findOrFail($clubId);
-        $miniTournament = \App\Models\MiniTournament::findOrFail($miniTournamentId);
+        $miniTournament = MiniTournament::findOrFail($miniTournamentId);
         $userId = Auth::id();
 
         if (!$userId) {
@@ -176,7 +179,7 @@ class ClubMiniTournamentController extends Controller
         }
 
         // Kiểm tra thanh toán: kèo có phí thì phải CONFIRMED mới check-in được
-        if ($miniTournament->has_fee && $participant->payment_status !== \App\Enums\PaymentStatusEnum::CONFIRMED) {
+        if ($miniTournament->has_fee && $participant->payment_status !== PaymentStatusEnum::CONFIRMED) {
             return ResponseHelper::error('Thành viên chưa thanh toán hoặc chưa được xác nhận thanh toán', 422);
         }
 
@@ -187,7 +190,7 @@ class ClubMiniTournamentController extends Controller
         $participant->load('user');
 
         return ResponseHelper::success(
-            new \App\Http\Resources\MiniParticipantResource($participant),
+            new MiniParticipantResource($participant),
             'Đã đánh dấu check-in thành công'
         );
     }
