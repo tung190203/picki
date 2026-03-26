@@ -271,6 +271,7 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
             Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-check-in', [ClubMiniTournamentController::class, 'markCheckIn']);
+            Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-absent', [ClubMiniTournamentController::class, 'markAbsent']);
         });
     });
 });
@@ -530,6 +531,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
             Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-check-in', [ClubMiniTournamentController::class, 'markCheckIn']);
+            Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-absent', [ClubMiniTournamentController::class, 'markAbsent']);
         });
     });
 
@@ -583,6 +585,8 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::match(['get', 'post'], '/candidates/{miniTournamentId}', [MiniParticipantController::class, 'getCandidates']);
         Route::post('/delete/{participantId}', [MiniParticipantController::class, 'delete']);
         Route::post('/delete-staff/{staffId}', [MiniParticipantController::class, 'deleteStaff']);
+        Route::post('/self/check-in/{miniTournamentId}', [MiniParticipantController::class, 'selfCheckIn']);
+        Route::post('/self/absent/{miniTournamentId}', [MiniParticipantController::class, 'selfMarkAbsent']);
     });
     // Mini Match Routes
     Route::prefix('mini-matches')->group(function (): void {

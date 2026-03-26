@@ -174,7 +174,7 @@ class ClubMiniTournamentController extends Controller
         }
 
         // Kiểm tra đã check-in chưa
-        if ($participant->is_confirmed) {
+        if ($participant->checked_in_at) {
             return ResponseHelper::error('Thành viên đã được đánh dấu check-in rồi', 422);
         }
 
@@ -185,6 +185,7 @@ class ClubMiniTournamentController extends Controller
 
         $participant->update([
             'is_confirmed' => true,
+            'checked_in_at' => now(),
         ]);
 
         $participant->load('user');
@@ -192,6 +193,52 @@ class ClubMiniTournamentController extends Controller
         return ResponseHelper::success(
             new MiniParticipantResource($participant),
             'Đã đánh dấu check-in thành công'
+        );
+    }
+
+    /**
+     * Admin đánh dấu member vắng mặt kèo đấu
+     */
+    public function markAbsent(int $clubId, int $miniTournamentId, int $participantId)
+    {
+        $club = Club::findOrFail($clubId);
+        $miniTournament = MiniTournament::findOrFail($miniTournamentId);
+        $userId = Auth::id();
+
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        if ((int) $miniTournament->club_id !== $club->id) {
+            return ResponseHelper::error('Kèo đấu không thuộc CLB này', 404);
+        }
+
+        $clubMember = $club->activeMembers()->where('user_id', $userId)->first();
+        $isClubStaff = $clubMember && in_array($clubMember->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary], true);
+        $isTournamentOrganizer = $miniTournament->staff->contains(fn($staff) => (int) $staff->pivot->user_id === $userId && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ORGANIZER);
+
+        if (!$isClubStaff && !$isTournamentOrganizer) {
+            return ResponseHelper::error('Bạn không có quyền đánh dấu vắng mặt cho kèo này', 403);
+        }
+
+        $participant = $miniTournament->participants()->where('id', $participantId)->first();
+        if (!$participant) {
+            return ResponseHelper::error('Thành viên không tồn tại trong kèo đấu này', 404);
+        }
+
+        if ($participant->is_absent) {
+            return ResponseHelper::error('Thành viên đã được đánh dấu vắng mặt rồi', 422);
+        }
+
+        $participant->update([
+            'is_absent' => true,
+        ]);
+
+        $participant->load('user');
+
+        return ResponseHelper::success(
+            new MiniParticipantResource($participant),
+            'Đã đánh dấu vắng mặt thành công'
         );
     }
 }
