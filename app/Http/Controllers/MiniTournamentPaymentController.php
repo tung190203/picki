@@ -403,38 +403,37 @@ class MiniTournamentPaymentController extends Controller
      * API: POST /api/mini-tournaments/{id}/payments/{paymentId}/confirm
      * API: POST /api/mini-tournaments/{id}/payments/{paymentId}/reject
      */
-    public function confirm(Request $request, $miniTournamentId, $paymentId)
+    public function confirm(Request $request, $miniTournamentId, $participantId)
     {
-        return $this->processConfirmation($request, $miniTournamentId, $paymentId, true);
+        return $this->processConfirmation($request, $miniTournamentId, $participantId, true);
     }
 
-    public function reject(Request $request, $miniTournamentId, $paymentId)
+    public function reject(Request $request, $miniTournamentId, $participantId)
     {
-        return $this->processConfirmation($request, $miniTournamentId, $paymentId, false);
+        return $this->processConfirmation($request, $miniTournamentId, $participantId, false);
     }
 
-    public function markPaid(Request $request, $miniTournamentId, $paymentId)
+    public function markPaid(Request $request, $miniTournamentId, $participantId)
     {
-        $payment = MiniParticipantPayment::where('id', $paymentId)
+        $participant = MiniParticipant::where('id', $participantId)
+            ->where('mini_tournament_id', $miniTournamentId)
+            ->first();
+        if (!$participant) {
+            return ResponseHelper::error('Không tìm thấy thành viên trong kèo đấu này', 404);
+        }
+
+        $payment = MiniParticipantPayment::where('participant_id', $participantId)
             ->where('mini_tournament_id', $miniTournamentId)
             ->first();
         if (!$payment) {
-            // Debug: kiểm tra xem payment có tồn tại không (bất kể tournament)
-            $paymentExists = MiniParticipantPayment::where('id', $paymentId)->first();
-            if ($paymentExists) {
-                return ResponseHelper::error(
-                    "Thanh toán này không thuộc kèo đấu này. Payment tournament_id: {$paymentExists->mini_tournament_id}, expected: {$miniTournamentId}",
-                    404
-                );
-            }
-            return ResponseHelper::error('Không tìm thấy thanh toán', 404);
+            return ResponseHelper::error('Không tìm thấy thanh toán của thành viên này', 404);
         }
+
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
         if (!$miniTournament->hasOrganizer(Auth::id())) {
             return ResponseHelper::error('Bạn không có quyền đánh dấu thanh toán thành công', 403);
         }
 
-        // Chỉ cho phép đánh dấu từ trạng thái PENDING hoặc REJECTED
         if (!in_array($payment->status, [MiniParticipantPayment::STATUS_PENDING, MiniParticipantPayment::STATUS_REJECTED])) {
             return ResponseHelper::error('Thanh toán đang ở trạng thái không thể đánh dấu', 400);
         }
@@ -448,13 +447,8 @@ class MiniTournamentPaymentController extends Controller
                 'confirmed_by' => Auth::id(),
             ]);
 
-            // Update participant payment_status to confirmed
-            $participant = MiniParticipant::find($payment->participant_id);
-            if ($participant) {
-                $participant->confirmPayment();
-            }
+            $participant->confirmPayment();
 
-            // Gửi notification cho thành viên
             $payment->load('user');
             if ($payment->user) {
                 $payment->user->notify(new PaymentConfirmedNotification($payment));
@@ -469,25 +463,30 @@ class MiniTournamentPaymentController extends Controller
         }
     }
 
-    private function processConfirmation(Request $request, $miniTournamentId, $paymentId, bool $isConfirm)
+    private function processConfirmation(Request $request, $miniTournamentId, $participantId, bool $isConfirm)
     {
+        $participant = MiniParticipant::where('id', $participantId)
+            ->where('mini_tournament_id', $miniTournamentId)
+            ->first();
+        if (!$participant) {
+            return ResponseHelper::error('Không tìm thấy thành viên trong kèo đấu này', 404);
+        }
+
+        $payment = MiniParticipantPayment::where('participant_id', $participantId)
+            ->where('mini_tournament_id', $miniTournamentId)
+            ->first();
+        if (!$payment) {
+            return ResponseHelper::error('Không tìm thấy thanh toán của thành viên này', 404);
+        }
+
         $data = $request->validate([
             'admin_note' => 'nullable|string|max:500',
         ]);
 
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
 
-        // Kiểm tra quyền organizer
         if (!$miniTournament->hasOrganizer(Auth::id())) {
             return ResponseHelper::error('Bạn không có quyền xác nhận thanh toán', 403);
-        }
-
-        $payment = MiniParticipantPayment::where('id', $paymentId)
-            ->where('mini_tournament_id', $miniTournamentId)
-            ->first();
-
-        if (!$payment) {
-            return ResponseHelper::error('Không tìm thấy thanh toán', 404);
         }
 
         if ($payment->status !== MiniParticipantPayment::STATUS_PAID) {
@@ -505,21 +504,15 @@ class MiniTournamentPaymentController extends Controller
                 'confirmed_by' => Auth::id(),
             ]);
 
-            // Update participant payment_status only if confirming
             if ($isConfirm) {
-                $participant = MiniParticipant::find($payment->participant_id);
-                if ($participant) {
-                    $participant->confirmPayment();
-                }
+                $participant->confirmPayment();
 
-                // Update payment_status for all guests in this payment
                 if (!empty($payment->guest_ids)) {
                     MiniParticipant::whereIn('id', $payment->guest_ids)
                         ->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
                 }
             }
 
-            // Gửi notification cho thành viên
             $payment->load('user');
             if ($payment->user) {
                 if ($isConfirm) {

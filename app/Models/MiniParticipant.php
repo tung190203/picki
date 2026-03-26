@@ -24,12 +24,16 @@ class MiniParticipant extends Model
         'guarantor_user_id',
         'estimated_level_min',
         'estimated_level_max',
+        'is_absent',
+        'checked_in_at',
     ];
 
     protected $casts = [
         'is_invited' => 'boolean',
         'payment_status' => PaymentStatusEnum::class,
         'is_guest' => 'boolean',
+        'is_absent' => 'boolean',
+        'checked_in_at' => 'datetime',
     ];
 
     const PER_PAGE = 20;
