@@ -56,6 +56,10 @@ class ListMiniTournamentResource extends JsonResource
                 return MiniMatchResource::collection($this->matches);
             }),
             'all_users' => UserListResource::collection($this->all_users ?? collect()),
+
+            // Club fund integration
+            'use_club_fund' => $this->use_club_fund,
+            'club_fund_collection_id' => $this->club_fund_collection_id,
         ];
 
         // Include game rule fields only if apply_rule is true

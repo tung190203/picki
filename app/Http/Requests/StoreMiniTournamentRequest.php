@@ -51,6 +51,9 @@ class StoreMiniTournamentRequest extends FormRequest
             'fee_amount' => 'nullable|integer|min:0',
             'max_players' => 'required|integer|min:2|max:100',
 
+            // Club fund integration
+            'use_club_fund' => 'boolean',
+
             // Rating
             'min_rating' => 'nullable|numeric|min:1|max:8',
             'max_rating' => 'nullable|numeric|min:1|max:8',
@@ -83,7 +86,10 @@ class StoreMiniTournamentRequest extends FormRequest
         // Custom validation: if has_fee is true, require fee_amount and qr_code_url
         if ($this->has('has_fee') && $this->has_fee) {
             $rules['fee_amount'] = 'required|integer|min:1';
-            $rules['qr_code_url'] = 'required|image|mimes:png,jpg,jpeg,gif|max:5120';
+            // qr_code_url bắt buộc trừ khi use_club_fund = true (admin quản lý quỹ trực tiếp)
+            if (!$this->boolean('use_club_fund')) {
+                $rules['qr_code_url'] = 'required|image|mimes:png,jpg,jpeg,gif|max:5120';
+            }
         }
 
         // Custom validation: if allow_cancellation is true, require cancellation_duration
@@ -112,7 +118,7 @@ class StoreMiniTournamentRequest extends FormRequest
                 $validator->errors()->add('min_rating', 'Trình độ tối thiểu không được lớn hơn trình độ tối đa.');
             }
 
-            if ($this->boolean('has_fee') && !$this->file('qr_code_url') && !$this->filled('payment_account_id')) {
+            if ($this->boolean('has_fee') && !$this->file('qr_code_url') && !$this->filled('payment_account_id') && !$this->boolean('use_club_fund')) {
                 $validator->errors()->add('qr_code_url', 'Kèo thu phí cần có mã QR thanh toán hoặc tài khoản thanh toán.');
             }
 
@@ -131,6 +137,26 @@ class StoreMiniTournamentRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        $nullableKeys = [
+            'min_rating', 'max_rating', 'fee_description', 'description',
+            'payment_account_id', 'end_time',
+            'set_number', 'base_points', 'points_difference', 'max_points',
+            'cancellation_duration',
+        ];
+        $normalized = [];
+        foreach ($nullableKeys as $key) {
+            if (!$this->has($key)) {
+                continue;
+            }
+            $v = $this->input($key);
+            if ($v === '' || $v === null) {
+                $normalized[$key] = null;
+            }
+        }
+        if ($normalized !== []) {
+            $this->merge($normalized);
+        }
+
         // Convert play_mode string to integer
         $playModeMap = [
             'casual' => MiniTournament::PLAY_MODE_CASUAL,

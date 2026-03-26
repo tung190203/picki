@@ -209,6 +209,11 @@ class MiniTournamentController extends Controller
             $posterPath = $request->file('poster')->store('posters', 'public');
             $posterUrl = asset('storage/' . $posterPath);
             $miniTournament->update(['poster' => $posterUrl]);
+        } elseif ($request->filled('poster') && is_string($request->input('poster'))) {
+            $posterStr = trim((string) $request->input('poster'));
+            if ($posterStr !== '' && filter_var($posterStr, FILTER_VALIDATE_URL)) {
+                $miniTournament->update(['poster' => $posterStr]);
+            }
         }
 
         if ($request->hasFile('qr_code_url')) {

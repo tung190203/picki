@@ -52,10 +52,13 @@ class MiniTournament extends Model
         'recurrence_series_id',
         'recurrence_series_cancelled_at',
         'status',
+        'use_club_fund',
+        'club_fund_collection_id',
     ];
 
     protected $casts = [
         'auto_approve' => 'boolean',
+        'use_club_fund' => 'bool',
     ];
 
     const PER_PAGE = 15;
@@ -399,6 +402,16 @@ class MiniTournament extends Model
         return $this->hasMany(MiniParticipantPayment::class)->where('status', MiniParticipantPayment::STATUS_CONFIRMED);
     }
 
+    public function fundCollection()
+    {
+        return $this->belongsTo(\App\Models\Club\ClubFundCollection::class, 'club_fund_collection_id');
+    }
+
+    public function getIncludedInClubFundAttribute(): bool
+    {
+        return $this->use_club_fund ?? false;
+    }
+
     public function getPaymentSummaryAttribute(): array
     {
         $participantCount = $this->participants()->count();
@@ -420,7 +433,7 @@ class MiniTournament extends Model
         return $query->with([
             'sport',
             'competitionLocation',
-            'club',
+            'club.members',
             'recurringSchedule',
             'participants.user.sports.sport',
             'participants.user.sports.scores',
