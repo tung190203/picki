@@ -698,6 +698,83 @@ class MiniParticipantController extends Controller
     }
 
     /**
+     * Thành viên tự check-in vào kèo đấu (self-service)
+     */
+    public function selfCheckIn($tournamentId)
+    {
+        $userId = Auth::id();
+
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        $participant = MiniParticipant::where('mini_tournament_id', $tournamentId)
+            ->where('user_id', $userId)
+            ->with('miniTournament')
+            ->first();
+
+        if (!$participant) {
+            return ResponseHelper::error('Bạn chưa tham gia kèo đấu này', 422);
+        }
+
+        if ($participant->is_confirmed && $participant->checked_in_at) {
+            return ResponseHelper::error('Bạn đã check-in rồi', 422);
+        }
+
+        // Nếu kèo có phí, cần payment_status = CONFIRMED mới check-in được
+        $tournament = $participant->miniTournament;
+        if ($tournament->has_fee && $tournament->auto_split_fee && $participant->payment_status !== PaymentStatusEnum::CONFIRMED) {
+            return ResponseHelper::error('Bạn chưa thanh toán hoặc chưa được xác nhận thanh toán', 422);
+        }
+
+        $participant->update([
+            'is_confirmed' => true,
+            'checked_in_at' => now(),
+            'is_absent' => false,
+        ]);
+
+        return ResponseHelper::success(
+            new MiniParticipantResource($participant->loadFullRelations()),
+            'Check-in thành công'
+        );
+    }
+
+    /**
+     * Thành viên tự báo vắng khỏi kèo đấu (self-service)
+     */
+    public function selfMarkAbsent($tournamentId)
+    {
+        $userId = Auth::id();
+
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        $participant = MiniParticipant::where('mini_tournament_id', $tournamentId)
+            ->where('user_id', $userId)
+            ->with('miniTournament')
+            ->first();
+
+        if (!$participant) {
+            return ResponseHelper::error('Bạn chưa tham gia kèo đấu này', 422);
+        }
+
+        if ($participant->is_absent) {
+            return ResponseHelper::error('Bạn đã báo vắng rồi', 422);
+        }
+
+        $participant->update([
+            'is_absent' => true,
+            'checked_in_at' => null,
+        ]);
+
+        return ResponseHelper::success(
+            new MiniParticipantResource($participant->loadFullRelations()),
+            'Đã báo vắng thành công'
+        );
+    }
+
+    /**
      * =====================
      * Helpers
      * =====================

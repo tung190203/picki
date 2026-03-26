@@ -43,6 +43,8 @@ class MiniParticipantResource extends JsonResource
                     ? ['min' => (float) $this->estimated_level_min, 'max' => (float) $this->estimated_level_max]
                     : null
             ),
+            'is_absent' => (bool) $this->is_absent,
+            'checked_in_at' => $this->checked_in_at?->format('d-m-Y H:i'),
         ];
     }
 }
