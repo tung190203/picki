@@ -98,6 +98,26 @@ class UpdateMiniTournamentRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        $nullableKeys = [
+            'min_rating', 'max_rating', 'fee_description', 'description',
+            'payment_account_id', 'competition_location_id', 'end_time',
+            'set_number', 'base_points', 'points_difference', 'max_points',
+            'cancellation_duration',
+        ];
+        $normalized = [];
+        foreach ($nullableKeys as $key) {
+            if (!$this->has($key)) {
+                continue;
+            }
+            $v = $this->input($key);
+            if ($v === '' || $v === null) {
+                $normalized[$key] = null;
+            }
+        }
+        if ($normalized !== []) {
+            $this->merge($normalized);
+        }
+
         // Convert play_mode string to integer
         $playModeMap = [
             'casual' => MiniTournament::PLAY_MODE_CASUAL,
