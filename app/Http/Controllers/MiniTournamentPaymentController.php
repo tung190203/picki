@@ -6,6 +6,7 @@ use App\Enums\PaymentStatusEnum;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MiniParticipantPaymentResource;
 use App\Http\Resources\MiniTournamentResource;
+use App\Models\Club\ClubFundContribution;
 use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
 use App\Models\MiniTournament;
@@ -422,32 +423,99 @@ class MiniTournamentPaymentController extends Controller
             return ResponseHelper::error('Không tìm thấy thành viên trong kèo đấu này', 404);
         }
 
-        $payment = MiniParticipantPayment::where('participant_id', $participantId)
-            ->where('mini_tournament_id', $miniTournamentId)
-            ->first();
-        if (!$payment) {
-            return ResponseHelper::error('Không tìm thấy thanh toán của thành viên này', 404);
-        }
-
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
         if (!$miniTournament->hasOrganizer(Auth::id())) {
             return ResponseHelper::error('Bạn không có quyền đánh dấu thanh toán thành công', 403);
         }
 
-        if (!in_array($payment->status, [MiniParticipantPayment::STATUS_PENDING, MiniParticipantPayment::STATUS_REJECTED])) {
-            return ResponseHelper::error('Thanh toán đang ở trạng thái không thể đánh dấu', 400);
+        // Chỉ cần payment_status CHƯA CONFIRMED là được. Không cần chờ participant chấp nhận lời mời hay có payment record.
+        if ($participant->payment_status === PaymentStatusEnum::CONFIRMED) {
+            return ResponseHelper::error('Thanh toán đã được xác nhận trước đó', 400);
         }
+
+        $receiptImage = null;
+        if ($request->hasFile('receipt_image')) {
+            $receiptImage = $request->file('receipt_image')->store('receipts', 'public');
+            $receiptImage = asset('storage/' . $receiptImage);
+        }
+
+        $note = $request->input('note');
 
         DB::beginTransaction();
         try {
-            $payment->update([
-                'status' => MiniParticipantPayment::STATUS_CONFIRMED,
-                'paid_at' => now(),
-                'confirmed_at' => now(),
-                'confirmed_by' => Auth::id(),
-            ]);
+            $payment = MiniParticipantPayment::where('participant_id', $participantId)
+                ->where('mini_tournament_id', $miniTournamentId)
+                ->first();
 
+            if ($payment) {
+                // Cập nhật payment record có sẵn
+                if ($payment->status === MiniParticipantPayment::STATUS_CONFIRMED) {
+                    DB::rollBack();
+                    return ResponseHelper::error('Thanh toán đã được xác nhận trước đó', 400);
+                }
+
+                $payment->update([
+                    'status' => MiniParticipantPayment::STATUS_CONFIRMED,
+                    'paid_at' => now(),
+                    'confirmed_at' => now(),
+                    'confirmed_by' => Auth::id(),
+                    'receipt_image' => $receiptImage ?? $payment->receipt_image,
+                    'note' => $note ?? $payment->note,
+                ]);
+            } else {
+                // Chưa có payment record — tạo mới
+                $feePerPerson = 0;
+                if ($miniTournament->has_fee) {
+                    if ($miniTournament->auto_split_fee) {
+                        $feePerPerson = $miniTournament->auto_split_fee
+                            ? ($miniTournament->final_fee_per_person ?? $miniTournament->fee_amount)
+                            : $miniTournament->fee_amount;
+                    } else {
+                        $feePerPerson = $miniTournament->fee_amount;
+                    }
+                }
+
+                $payment = MiniParticipantPayment::create([
+                    'mini_tournament_id' => $miniTournamentId,
+                    'participant_id' => $participantId,
+                    'user_id' => $participant->user_id,
+                    'amount' => $feePerPerson,
+                    'status' => MiniParticipantPayment::STATUS_CONFIRMED,
+                    'receipt_image' => $receiptImage,
+                    'note' => $note,
+                    'paid_at' => now(),
+                    'confirmed_at' => now(),
+                    'confirmed_by' => Auth::id(),
+                ]);
+            }
+
+            // Cập nhật payment_status của participant
             $participant->confirmPayment();
+
+            // Sync ClubFundContribution nếu kèo có club_fund_collection_id
+            if ($miniTournament->club_fund_collection_id && $participant->user_id) {
+                $collection = \App\Models\Club\ClubFundCollection::find($miniTournament->club_fund_collection_id);
+                if ($collection) {
+                    $feePerPersonCalc = $miniTournament->has_fee
+                        ? ($miniTournament->auto_split_fee
+                            ? ($miniTournament->final_fee_per_person ?? $miniTournament->fee_amount)
+                            : $miniTournament->fee_amount)
+                        : 0;
+
+                    ClubFundContribution::updateOrCreate(
+                        [
+                            'club_fund_collection_id' => $collection->id,
+                            'user_id' => $participant->user_id,
+                        ],
+                        [
+                            'amount' => $feePerPersonCalc,
+                            'receipt_url' => $receiptImage,
+                            'note' => $note,
+                            'status' => \App\Enums\ClubFundContributionStatus::Confirmed,
+                        ]
+                    );
+                }
+            }
 
             $payment->load('user');
             if ($payment->user) {
@@ -456,7 +524,10 @@ class MiniTournamentPaymentController extends Controller
 
             DB::commit();
 
-            return ResponseHelper::success(new MiniParticipantPaymentResource($payment->load(['user', 'confirmer'])), 'Đã đánh dấu thanh toán và xác nhận thành công');
+            return ResponseHelper::success(
+                new MiniParticipantPaymentResource($payment->load(['user', 'confirmer'])),
+                'Đã đánh dấu thanh toán và xác nhận thành công'
+            );
         } catch (\Throwable $e) {
             DB::rollBack();
             return ResponseHelper::error($e->getMessage());

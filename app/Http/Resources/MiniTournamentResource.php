@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\Club\ClubFundCollectionResource;
 use App\Models\MiniTournamentStaff;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -94,12 +95,19 @@ class MiniTournamentResource extends JsonResource
                 return MiniMatchResource::collection($this->matches);
             }),
             'all_users' => UserListResource::collection($this->all_users ?? collect()),
+            'fund_collection' => new ClubFundCollectionResource(
+                $this->whenLoaded('fundCollection')
+            ),
 
             // Recurring schedule
             // Same format as clubs: { period, week_days, recurring_date }
             'recurring_schedule' => $this->recurring_schedule,
             'recurrence_series_id' => $this->recurrence_series_id,
             'recurrence_series_cancelled_at' => $this->recurrence_series_cancelled_at,
+
+            // Club fund integration
+            'use_club_fund' => $this->use_club_fund,
+            'club_fund_collection_id' => $this->club_fund_collection_id,
         ];
 
         // Include game rule fields only if apply_rule is true

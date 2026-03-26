@@ -108,6 +108,14 @@ class Club extends Model
         return $this->hasOne(ClubWallet::class);
     }
 
+    /**
+     * Trả về wallet đầu tiên có qr_code_url không null (mã QR chung của CLB).
+     */
+    public function activeQrWallet(): ?ClubWallet
+    {
+        return $this->hasOne(ClubWallet::class)->whereNotNull('qr_code_url')->first();
+    }
+
     public function monthlyFees()
     {
         return $this->hasMany(ClubMonthlyFee::class);
