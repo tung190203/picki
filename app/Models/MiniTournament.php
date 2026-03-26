@@ -16,6 +16,7 @@ class MiniTournament extends Model
     use HasFactory, Notifiable;
     protected $fillable = [
         'poster',
+        'created_by',
         'sport_id',
         'club_id',
         'name',
@@ -302,6 +303,11 @@ class MiniTournament extends Model
     public function sport()
     {
         return $this->belongsTo(Sport::class);
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     public function club()
