@@ -553,9 +553,9 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::get('/{id}/payments', [MiniTournamentPaymentController::class, 'index']);
         Route::post('/{id}/pay', [MiniTournamentPaymentController::class, 'pay']);
         Route::match(['get', 'post'], '/{id}/my-payment', [MiniTournamentPaymentController::class, 'myPayment']);
-        Route::post('/{id}/payments/{paymentId}/mark-paid', [MiniTournamentPaymentController::class, 'markPaid']);
-        Route::post('/{id}/payments/{paymentId}/confirm', [MiniTournamentPaymentController::class, 'confirm']);
-        Route::post('/{id}/payments/{paymentId}/reject', [MiniTournamentPaymentController::class, 'reject']);
+        Route::post('/{id}/payments/{participantId}/mark-paid', [MiniTournamentPaymentController::class, 'markPaid']);
+        Route::post('/{id}/payments/{participantId}/confirm', [MiniTournamentPaymentController::class, 'confirm']);
+        Route::post('/{id}/payments/{participantId}/reject', [MiniTournamentPaymentController::class, 'reject']);
         Route::post('/{id}/payments/remind/{participantId}', [MiniTournamentPaymentController::class, 'remind']);
         Route::post('/{id}/payments/remind-all', [MiniTournamentPaymentController::class, 'remindAll']);
 
