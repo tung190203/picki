@@ -324,12 +324,50 @@
                         <div class="bg-white rounded-2xl shadow-md px-2 py-5">
                             <div class="grid text-center"
                                 :class="filteredClubModules.length === 4 ? 'grid-cols-4' : 'grid-cols-3'">
-                                <div v-for="(module, index) in filteredClubModules" :key="index"
+
+                                <!-- Schedule module: dropdown on hover -->
+                                <div class="flex flex-col items-center gap-2">
+                                    <div class="relative schedule-dropdown-trigger" ref="scheduleDropdownRef">
+                                        <div class="text-[#D72D36] rounded-md bg-[#FBEAEB] p-4 cursor-pointer"
+                                            @mouseenter="showScheduleDropdown = true"
+                                            @click.stop="showScheduleDropdown = !showScheduleDropdown">
+                                            <CalendarIcon class="w-6 h-6" />
+                                        </div>
+                                        <!-- Dropdown -->
+                                        <div v-if="showScheduleDropdown"
+                                            class="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-52 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50 animate-in fade-in zoom-in duration-200">
+                                            <button @click="goToCreateActivity(); showScheduleDropdown = false"
+                                                class="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-3 transition-colors">
+                                                <svg class="w-5 h-5 text-[#D72D36] flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                </svg>
+                                                <div>
+                                                    <p class="font-semibold text-[#3E414C]">Tạo sự kiện</p>
+                                                    <p class="text-[11px] text-[#9EA2B3]">Hoạt động sinh hoạt CLB</p>
+                                                </div>
+                                            </button>
+                                            <div class="border-t border-gray-100 my-1"></div>
+                                            <button @click="goToCreateTournament(); showScheduleDropdown = false"
+                                                class="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-3 transition-colors">
+                                                <svg class="w-5 h-5 text-[#D72D36] flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                </svg>
+                                                <div>
+                                                    <p class="font-semibold text-[#3E414C]">Tạo kèo</p>
+                                                    <p class="text-[11px] text-[#9EA2B3]">Kèo đấu Pickleball</p>
+                                                </div>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="text-sm text-[#3E414C]">Tạo lịch</div>
+                                </div>
+
+                                <!-- Other modules (excluding schedule) -->
+                                <div v-for="(module, index) in filteredClubModules.filter(m => m.key !== 'schedule')" :key="index"
                                     class="flex flex-col items-center gap-2">
                                     <div class="text-[#D72D36] rounded-md bg-[#FBEAEB] p-4 cursor-pointer relative"
                                         @click="handleModuleClick(module)">
                                         <component :is="module.icon" class="w-6 h-6" />
-                                        <!-- Notification Badge -->
                                         <div v-if="module.key === 'notification' && hasUnreadNotifications"
                                             class="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center animate-bounce-subtle shadow-sm">
                                             <div class="w-3.5 h-3.5 bg-[#D72D36] rounded-full"></div>
@@ -337,6 +375,7 @@
                                     </div>
                                     <div class="text-sm text-[#3E414C]">{{ module.label }}</div>
                                 </div>
+
                             </div>
                         </div>
                     </div>
@@ -600,6 +639,7 @@ const clubStats = CLUB_STATS;
 const clubModules = CLUB_MODULES;
 const isMenuOpen = ref(false)
 const isChangeClubOpen = ref(false)
+const showScheduleDropdown = ref(false)
 const isNotificationModalOpen = ref(false)
 const isActivityModalOpen = ref(false)
 const isEditModalOpen = ref(false)
@@ -830,6 +870,7 @@ const toggleChangeClub = () => {
 const closeMenu = () => {
     isMenuOpen.value = false
     isChangeClubOpen.value = false
+    showScheduleDropdown.value = false
 }
 
 const closeChangeClub = () => {
@@ -929,11 +970,7 @@ const openClubChat = () => {
 
 const handleModuleClick = (module) => {
     if (module.key === 'schedule') {
-        if (!hasAnyRole(['admin', 'manager', 'secretary'])) {
-            toast.warning('Bạn không có quyền thực hiện chức năng này')
-            return
-        }
-        router.push({ name: 'club-create-activity', params: { id: clubId.value } })
+        showScheduleDropdown.value = !showScheduleDropdown.value
     } else if (module.key === 'notification') {
         openNotification()
     } else if (module.key === 'chat') {
@@ -941,6 +978,24 @@ const handleModuleClick = (module) => {
     } else if (module.key === 'fund') {
         router.push({ name: 'club-fund', params: { id: clubId.value } })
     }
+}
+
+const goToCreateActivity = () => {
+    if (!hasAnyRole(['admin', 'manager', 'secretary'])) {
+        toast.warning('Bạn không có quyền thực hiện chức năng này')
+        return
+    }
+    showScheduleDropdown.value = false
+    router.push({ name: 'club-create-activity', params: { id: clubId.value } })
+}
+
+const goToCreateTournament = () => {
+    if (!hasAnyRole(['admin', 'manager', 'secretary'])) {
+        toast.warning('Bạn không có quyền thực hiện chức năng này')
+        return
+    }
+    showScheduleDropdown.value = false
+    router.push({ name: 'create-mini-tournament', query: { clubId: clubId.value } })
 }
 
 const handleCreateNotification = async () => {
@@ -1851,10 +1906,20 @@ onMounted(async () => {
     if (route.query.showNotifications) {
         openNotification()
     }
+
+    document.addEventListener('click', handleClickOutside)
 })
+
+const handleClickOutside = (event) => {
+    const scheduleBtn = document.querySelector('.schedule-dropdown-trigger')
+    if (scheduleBtn && !scheduleBtn.contains(event.target)) {
+        showScheduleDropdown.value = false
+    }
+}
 
 onBeforeUnmount(() => {
     if (timeInterval) clearInterval(timeInterval)
+    document.removeEventListener('click', handleClickOutside)
 })
 
 watch(() => route.query.showNotifications, (newVal) => {

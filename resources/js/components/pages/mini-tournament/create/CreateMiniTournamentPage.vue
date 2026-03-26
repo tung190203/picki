@@ -452,6 +452,20 @@
                             </button>
                         </div>
 
+                        <!-- Quỹ CLB chi - chỉ hiện khi tạo từ CLB -->
+                        <div v-if="isFromClub" class="flex items-center justify-between">
+                            <div>
+                                <span class="text-gray-700 font-medium">Quỹ CLB chi</span>
+                                <p class="text-[11px] text-gray-400">Sử dụng quỹ câu lạc bộ để chi trả chi phí</p>
+                            </div>
+                            <button type="button" @click="useClubFund = !useClubFund" :aria-checked="useClubFund"
+                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
+                                :class="useClubFund ? 'bg-[#00B377]' : 'bg-gray-300'">
+                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                    :class="useClubFund ? 'translate-x-6' : 'translate-x-1'" />
+                            </button>
+                        </div>
+
                         <div class="flex items-center justify-between">
                             <span class="text-gray-700">Cho phép hủy kèo</span>
                             <button type="button" @click="allowCancellation = !allowCancellation"
@@ -544,6 +558,10 @@
                             <span class="text-[#6B6F80]">Chi phí:</span>
                             <span class="font-semibold text-[#3E414C]">{{ feeAmount > 0 ? formatCurrency(feeAmount) :
                                 'Miễn phí' }}</span>
+                        </div>
+                        <div v-if="isFromClub && useClubFund" class="flex justify-between">
+                            <span class="text-[#6B6F80]">Quỹ CLB:</span>
+                            <span class="font-semibold text-[#00B377]">Chi từ quỹ</span>
                         </div>
                     </div>
                 </div>
@@ -809,6 +827,7 @@ import { ChevronDownIcon, ChevronRightIcon, XCircleIcon, XMarkIcon } from "@hero
 import { CalendarDaysIcon, ClockIcon, MapPinIcon, UsersIcon, LockClosedIcon, CurrencyDollarIcon, ArrowUpTrayIcon, ArrowPathRoundedSquareIcon } from "@heroicons/vue/24/outline";
 import Toggle from '@/components/atoms/Toggle.vue'
 import * as MiniTournamentService from '@/service/miniTournament'
+import * as ClubService from '@/service/club'
 import * as SportService from '@/service/sport'
 import * as CompetitionLocationService from '@/service/competitionLocation'
 import { toast } from 'vue3-toastify'
@@ -827,8 +846,14 @@ const modules = [FreeMode, Mousewheel]
 const router = useRouter()
 const route = useRoute()
 const miniTournamentId = route.params.id || null
+const clubId = computed(() => route.query.clubId || null)
+const isFromClub = computed(() => !!clubId.value)
 const isEditMode = computed(() => !!miniTournamentId)
-const btnTitle = computed(() => isEditMode.value ? 'Chỉnh sửa kèo đấu' : 'Tạo kèo đấu');
+const btnTitle = computed(() => {
+    if (isEditMode.value) return 'Chỉnh sửa kèo đấu'
+    if (isFromClub.value) return 'Tạo kèo cho CLB'
+    return 'Tạo kèo đấu'
+})
 const getPlayModeIcon = (modeId) => {
     // Return SVG or icon class based on mode
     if (modeId === 1) return 'image.png' // Giải trí
@@ -863,6 +888,7 @@ const paymentNote = ref('')
 const qrCodeImage = ref(null)
 const qrCodePreview = ref(null)
 const qrCodeFile = ref(null) // File object for upload
+const useClubFund = ref(false)
 const isSubmitting = ref(false)
 const qrFileInput = ref(null)
 
@@ -1681,8 +1707,8 @@ const handleSubmit = async () => {
     if (isSubmitting.value) return
     isSubmitting.value = true
     try {
-        // Nếu kèo có thu phí nhưng không có QR mới và cũng không có QR cũ => bắt buộc upload
-        if (hasFee.value && !qrCodeFile.value && !qrCodeImage.value) {
+        // QR bắt buộc chỉ khi thu phí VÀ không dùng quỹ CLB
+        if (hasFee.value && !useClubFund.value && !qrCodeFile.value && !qrCodeImage.value) {
             toast.error('Vui lòng tải ảnh mã QR thanh toán lên')
             return
         }
@@ -1735,6 +1761,7 @@ const handleSubmit = async () => {
             auto_split_fee: autoSplitCourtFee.value,
             fee_description: paymentNote.value || null,
             fee_amount: hasFee.value ? feeAmount.value : null,
+            use_club_fund: useClubFund.value,
 
             min_rating: getNumericLevel(minLevel.value),
             max_rating: getNumericLevel(maxLevel.value),
@@ -1808,18 +1835,62 @@ const updateMiniTournament = async (id, data) => {
 
 const createMiniTournament = async (data) => {
     try {
-        const res = await MiniTournamentService.storeMiniTournament(data)
-        toast.success('Tạo kèo đấu thành công.')
-        resetFormState()
-        if (res && res.id) {
-            setTimeout(() => {
-                router.push({ name: 'mini-tournament-detail', params: { id: res.id } })
-            }, 1000)
+        if (isFromClub.value) {
+            // Build FormData for club API
+            const formData = buildFormData(data)
+            const res = await ClubService.createMiniTournament(clubId.value, formData)
+            toast.success('Tạo kèo cho CLB thành công!')
+            const activityId = res?.data?.id || res?.id
+            if (activityId) {
+                setTimeout(() => {
+                    router.push({ name: 'club-detail-activity', params: { id: clubId.value, activityId } })
+                }, 1000)
+            }
+        } else {
+            // Use existing MiniTournamentService for personal tournaments
+            const payload = qrCodeFile.value
+                ? buildFormDataWithFile(data)
+                : { ...data, qr_code_url: qrCodeImage.value || null }
+            const res = await MiniTournamentService.storeMiniTournament(payload)
+            toast.success('Tạo kèo đấu thành công.')
+            resetFormState()
+            if (res && res.id) {
+                setTimeout(() => {
+                    router.push({ name: 'mini-tournament-detail', params: { id: res.id } })
+                }, 1000)
+            }
         }
     } catch (error) {
         console.error('Error creating mini tournament:', error)
         toast.error(getApiErrorMessage(error, 'Tạo kèo đấu thất bại.'))
     }
+}
+
+const buildFormData = (data) => {
+    const formData = new FormData()
+    Object.entries(data).forEach(([key, value]) => {
+        if (value === null || value === undefined) return
+        if (key === 'recurring_schedule' && typeof value === 'object') {
+            formData.append('recurring_schedule[period]', value.period || '')
+            if (Array.isArray(value.week_days) && value.week_days.length) {
+                value.week_days.forEach((d, i) => formData.append(`recurring_schedule[week_days][${i}]`, d))
+            }
+            if (value.recurring_date) {
+                formData.append('recurring_schedule[recurring_date]', value.recurring_date)
+            }
+        } else if (typeof value === 'boolean') {
+            formData.append(key, value ? '1' : '0')
+        } else {
+            formData.append(key, value)
+        }
+    })
+    if (qrCodeFile.value) {
+        formData.append('qr_code_url', qrCodeFile.value)
+    }
+    if (data.poster_file) {
+        formData.append('poster', data.poster_file)
+    }
+    return formData
 }
 
 const fetchSports = async () => {
