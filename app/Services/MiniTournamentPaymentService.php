@@ -111,7 +111,7 @@ class MiniTournamentPaymentService
                     ]);
 
                     // Gửi notification cho người cần thanh toán (không gửi cho organizer/guest by organizer)
-                    if (!$shouldBeConfirmed) {
+                    if (!$shouldBeConfirmed && $participant->user_id) {
                         $participant->user?->notify(
                             new MiniTournamentPaymentCreatedNotification($tournament, $payment, $finalFeePerPerson)
                         );

@@ -134,15 +134,14 @@ class GuestController extends Controller
 
         // Luôn tạo payment record cho guest khi kèo có thu phí VÀ KHÔNG phải auto_split_fee
         // auto_split_fee = true: KHÔNG tạo payment ở đây, sẽ tạo khi kèo kết thúc
-        // Chỉ tạo payment khi có user_id (tức có guest_phone)
-        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !empty($data['guest_phone'])) {
-            // Tiền cố định mỗi người
+        // user_id có thể null nếu guest không có phone → vẫn tạo payment để theo dõi
+        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
             $feeAmount = $miniTournament->fee_amount;
 
             MiniParticipantPayment::create([
                 'mini_tournament_id' => $miniTournamentId,
                 'participant_id' => $participant->id,
-                'user_id' => $guestUser->id,
+                'user_id' => $participant->user_id,
                 'amount' => $feeAmount,
                 'status' => $paymentStatus,
                 'note' => "Guest {$data['guest_name']}" . ($data['guest_phone'] ? " - {$data['guest_phone']}" : ''),
