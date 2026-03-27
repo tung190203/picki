@@ -34,7 +34,7 @@ class GuestController extends Controller
         $data = $request->validate([
             'guest_name' => 'required|string|max:255',
             'guest_phone' => 'nullable|string|max:20',
-            'guest_avatar' => 'nullable|string|url',
+            'guest_avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120',
             'guarantor_user_id' => 'nullable|integer|exists:users,id',
             'estimated_level_min' => 'nullable|numeric|min:1|max:8',
             'estimated_level_max' => 'nullable|numeric|min:1|max:8',
@@ -92,6 +92,15 @@ class GuestController extends Controller
             }
         }
 
+        // Xử lý guest_avatar: có thể là file (mobile) hoặc URL string (web)
+        $guestAvatarUrl = null;
+        if ($request->hasFile('guest_avatar')) {
+            $guestAvatarPath = $request->file('guest_avatar')->store('guest-avatars', 'public');
+            $guestAvatarUrl = asset('storage/' . $guestAvatarPath);
+        } elseif (!empty($data['guest_avatar']) && is_string($data['guest_avatar'])) {
+            $guestAvatarUrl = $data['guest_avatar'];
+        }
+
         // Tạo participant cho guest
         $participantData = [
             'mini_tournament_id' => $miniTournamentId,
@@ -99,7 +108,7 @@ class GuestController extends Controller
             'is_guest' => true,
             'guest_name' => $data['guest_name'],
             'guest_phone' => $data['guest_phone'] ?? null,
-            'guest_avatar' => $data['guest_avatar'] ?? null,
+            'guest_avatar' => $guestAvatarUrl,
             'guarantor_user_id' => $guarantorUserId,
             'payment_status' => $paymentStatus,
             'estimated_level_min' => $data['estimated_level_min'] ?? null,
@@ -125,15 +134,14 @@ class GuestController extends Controller
 
         // Luôn tạo payment record cho guest khi kèo có thu phí VÀ KHÔNG phải auto_split_fee
         // auto_split_fee = true: KHÔNG tạo payment ở đây, sẽ tạo khi kèo kết thúc
-        // Chỉ tạo payment khi có user_id (tức có guest_phone)
-        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !empty($data['guest_phone'])) {
-            // Tiền cố định mỗi người
+        // user_id có thể null nếu guest không có phone → vẫn tạo payment để theo dõi
+        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
             $feeAmount = $miniTournament->fee_amount;
 
             MiniParticipantPayment::create([
                 'mini_tournament_id' => $miniTournamentId,
                 'participant_id' => $participant->id,
-                'user_id' => $guestUser->id,
+                'user_id' => $participant->user_id,
                 'amount' => $feeAmount,
                 'status' => $paymentStatus,
                 'note' => "Guest {$data['guest_name']}" . ($data['guest_phone'] ? " - {$data['guest_phone']}" : ''),

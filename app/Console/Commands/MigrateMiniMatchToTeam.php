@@ -115,6 +115,9 @@ class MigrateMiniMatchToTeam extends Command
         MiniTeamMember::create([
             'mini_team_id' => $team->id,
             'user_id' => $userId,
+            'is_guest' => \App\Models\MiniParticipant::where('mini_tournament_id', $tournamentId)
+                ->where('user_id', $userId)
+                ->value('is_guest') ?? false,
         ]);
 
         return $team;

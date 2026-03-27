@@ -148,7 +148,10 @@ class MiniMatchController extends Controller
             ]);
 
             foreach ($data['team1'] as $userId) {
-                $team1->members()->create(['user_id' => $userId]);
+                $isGuest = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
+                    ->where('user_id', $userId)
+                    ->value('is_guest') ?? false;
+                $team1->members()->create(['user_id' => $userId, 'is_guest' => $isGuest]);
             }
 
             $team2 = MiniTeam::create([
@@ -157,7 +160,10 @@ class MiniMatchController extends Controller
             ]);
 
             foreach ($data['team2'] as $userId) {
-                $team2->members()->create(['user_id' => $userId]);
+                $isGuest = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
+                    ->where('user_id', $userId)
+                    ->value('is_guest') ?? false;
+                $team2->members()->create(['user_id' => $userId, 'is_guest' => $isGuest]);
             }
             $defaultMatchName = $this->generateMatchName($miniTournament);
 
@@ -288,7 +294,10 @@ class MiniMatchController extends Controller
         $team->members()->delete();
 
         foreach ($userIds as $userId) {
-            $team->members()->create(['user_id' => $userId]);
+            $isGuest = MiniParticipant::where('mini_tournament_id', $team->mini_tournament_id)
+                ->where('user_id', $userId)
+                ->value('is_guest') ?? false;
+            $team->members()->create(['user_id' => $userId, 'is_guest' => $isGuest]);
         }
     }
 
@@ -1082,7 +1091,10 @@ class MiniMatchController extends Controller
                     'name' => $data['team1_name'] ?? 'Team 1',
                 ]);
                 foreach ($data['team1'] as $userId) {
-                    $team1->members()->create(['user_id' => $userId]);
+                    $isGuest = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
+                        ->where('user_id', $userId)
+                        ->value('is_guest') ?? false;
+                    $team1->members()->create(['user_id' => $userId, 'is_guest' => $isGuest]);
                 }
 
                 $team2 = MiniTeam::create([
@@ -1090,7 +1102,10 @@ class MiniMatchController extends Controller
                     'name' => $data['team2_name'] ?? 'Team 2',
                 ]);
                 foreach ($data['team2'] as $userId) {
-                    $team2->members()->create(['user_id' => $userId]);
+                    $isGuest = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
+                        ->where('user_id', $userId)
+                        ->value('is_guest') ?? false;
+                    $team2->members()->create(['user_id' => $userId, 'is_guest' => $isGuest]);
                 }
 
                 $match = MiniMatch::create([
