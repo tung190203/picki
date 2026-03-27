@@ -296,8 +296,21 @@ class MiniTournamentPaymentController extends Controller
                         $existingGuestPayment->load(['user', 'confirmer']);
                         $payments[] = $existingGuestPayment;
                     } else {
-                        DB::rollBack();
-                        return ResponseHelper::error("Không tìm thấy bản ghi thanh toán cho guest {$guest->guest_name}", 400);
+                        // Tạo payment record mới cho guest (user_id có thể null nếu guest không có phone)
+                        $existingGuestPayment = MiniParticipantPayment::create([
+                            'mini_tournament_id' => $miniTournamentId,
+                            'participant_id' => $guest->id,
+                            'user_id' => $guest->user_id,
+                            'amount' => $feePerPerson,
+                            'status' => $paymentStatus,
+                            'receipt_image' => $receiptImage,
+                            'note' => "Guest {$guest->guest_name}" . ($guest->guest_phone ? " - {$guest->guest_phone}" : ''),
+                            'paid_at' => now(),
+                            'confirmed_at' => $miniTournament->auto_approve ? now() : null,
+                            'confirmed_by' => $miniTournament->auto_approve ? $userId : null,
+                        ]);
+                        $existingGuestPayment->load(['user', 'confirmer']);
+                        $payments[] = $existingGuestPayment;
                     }
                 }
 

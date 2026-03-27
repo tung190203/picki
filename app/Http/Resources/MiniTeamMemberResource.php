@@ -17,6 +17,7 @@ class MiniTeamMemberResource extends JsonResource
         return [
             "id"=> $this->id,
             "user" => new UserListResource($this->whenLoaded("user")),
+            "is_guest" => (bool) $this->is_guest,
         ];  
     }
 }

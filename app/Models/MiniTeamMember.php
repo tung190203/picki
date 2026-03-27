@@ -11,6 +11,7 @@ class MiniTeamMember extends Model
     protected $fillable = [
         'mini_team_id',
         'user_id',
+        'is_guest',
     ];
     public function user()
     {
