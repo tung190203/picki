@@ -12,6 +12,17 @@ axiosInstance.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // FormData: để axios tự gắn multipart boundary (tránh Content-Type sai làm mất file)
+    if (config.data instanceof FormData && config.headers) {
+      const h = config.headers;
+      if (typeof h.delete === "function") {
+        h.delete("Content-Type");
+        h.delete("content-type");
+      } else {
+        delete h["Content-Type"];
+        delete h["content-type"];
+      }
+    }
     return config;
   },
   function (error) {

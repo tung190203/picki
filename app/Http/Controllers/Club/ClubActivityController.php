@@ -17,6 +17,7 @@ use App\Http\Resources\Club\ClubMixedContentResource;
 use App\Models\Club\Club;
 use App\Models\Club\ClubActivity;
 use App\Models\MiniTournament;
+use App\Models\MiniTournamentStaff;
 use App\Models\User;
 use App\Services\Club\ClubActivityService;
 use Carbon\Carbon;
@@ -51,7 +52,10 @@ class ClubActivityController extends Controller
         $club = Club::findOrFail($clubId);
         $userId = auth()->id();
         $filters = $request->validated();
+
+        // Chuẩn hóa category để cache key nhất quán bất kể client có truyền hay không
         $category = $filters['category'] ?? 'all';
+        $filters['category'] = $category;
 
         // Client gửi statuses = tab hiện tại
         $clientSentStatuses = $request->has('statuses');
@@ -80,7 +84,8 @@ class ClubActivityController extends Controller
         }
 
         $currentVersion = (int) Cache::get('club_content_version:' . $clubId, 0);
-        $cacheKey = 'club_content:' . $clubId . ':' . md5(json_encode($filters) . ':' . $category . ':' . ($userId ?? 'guest'));
+        // Cache key phải phản ánh TẤT CẢ params ảnh hưởng kết quả, bao gồm cả category
+        $cacheKey = 'club_content:' . $clubId . ':' . md5(json_encode($filters) . ':' . ($userId ?? 'guest'));
 
         $cached = Cache::get($cacheKey);
         if ($cached !== null && ($cached['_v'] ?? 0) === $currentVersion) {
@@ -160,61 +165,60 @@ class ClubActivityController extends Controller
         $query = MiniTournament::withFullRelations()
             ->where('club_id', $club->id);
 
-        // Apply date filters
         $dateFrom = $filters['date_from'] ?? null;
         $dateTo = $filters['date_to'] ?? null;
 
-        if (!empty($dateFrom)) {
-            $query->whereDate('start_time', '>=', $dateFrom);
-        }
-        if (!empty($dateTo)) {
-            $query->whereDate('start_time', '<=', $dateTo);
-        }
-
-        // Apply status filters
         $statuses = $filters['statuses'] ?? [];
         $hasAll = in_array('all', $statuses);
         $isHistoryOnly = !empty($statuses)
             && empty(array_diff($statuses, ['completed', 'cancelled']));
 
-        if (!$hasAll && !empty($statuses)) {
-            $mappedStatuses = [];
-            foreach ($statuses as $status) {
-                $mappedStatuses[] = match ($status) {
-                    'scheduled', 'ongoing' => MiniTournament::STATUS_OPEN,
-                    'completed' => MiniTournament::STATUS_CLOSED,
-                    'cancelled' => MiniTournament::STATUS_CANCELLED,
-                    default => null,
-                };
-            }
-            $mappedStatuses = array_filter($mappedStatuses);
+        // 草稿不受周范围日期限制；且须能匹配 created_by（或服务端曾写入的主办人 staff）
+        $showCreatorDrafts = (bool) $userId && ! $isHistoryOnly;
 
-            if (!empty($mappedStatuses)) {
-                $query->where(function ($q) use ($mappedStatuses, $userId) {
-                    $q->whereIn('status', $mappedStatuses);
-                    // Show draft tournaments only to their creator
-                    if ($userId) {
-                        $q->orWhere(function ($draftQ) use ($userId) {
-                            $draftQ->where('status', MiniTournament::STATUS_DRAFT)
-                                ->where('created_by', $userId);
-                        });
+        $query->where(function ($outer) use ($dateFrom, $dateTo, $statuses, $hasAll, $userId, $showCreatorDrafts) {
+            $outer->where(function ($main) use ($dateFrom, $dateTo, $statuses, $hasAll) {
+                if (! empty($dateFrom)) {
+                    $main->whereDate('start_time', '>=', $dateFrom);
+                }
+                if (! empty($dateTo)) {
+                    $main->whereDate('start_time', '<=', $dateTo);
+                }
+
+                if (! $hasAll && ! empty($statuses)) {
+                    $mappedStatuses = [];
+                    foreach ($statuses as $status) {
+                        $mappedStatuses[] = match ($status) {
+                            'scheduled', 'ongoing' => MiniTournament::STATUS_OPEN,
+                            'completed' => MiniTournament::STATUS_CLOSED,
+                            'cancelled' => MiniTournament::STATUS_CANCELLED,
+                            default => null,
+                        };
                     }
-                });
-            }
-        } elseif (empty($statuses)) {
-            // Default: show ongoing/upcoming, plus drafts for creator
-            $query->where(function ($q) use ($userId) {
-                $q->whereIn('status', [MiniTournament::STATUS_OPEN]);
-                if ($userId) {
-                    $q->orWhere(function ($draftQ) use ($userId) {
-                    $draftQ->where('status', MiniTournament::STATUS_DRAFT)
-                        ->where('created_by', $userId);
-                    });
+                    $mappedStatuses = array_filter($mappedStatuses);
+
+                    if (! empty($mappedStatuses)) {
+                        $main->whereIn('status', $mappedStatuses);
+                    }
+                } elseif (empty($statuses)) {
+                    $main->whereIn('status', [MiniTournament::STATUS_OPEN]);
                 }
             });
-        }
 
-        // Sort
+            if ($showCreatorDrafts) {
+                $outer->orWhere(function ($draftQ) use ($userId) {
+                    $draftQ->where('status', MiniTournament::STATUS_DRAFT)
+                        ->where(function ($who) use ($userId) {
+                            $who->where('mini_tournaments.created_by', $userId)
+                                ->orWhereHas('staff', function ($sq) use ($userId) {
+                                    $sq->where('users.id', $userId)
+                                        ->where('mini_tournament_staff.role', MiniTournamentStaff::ROLE_ORGANIZER);
+                                });
+                        });
+                });
+            }
+        });
+
         $orderDirection = $isHistoryOnly ? 'desc' : 'asc';
         $query->orderBy('start_time', $orderDirection);
 
