@@ -60,7 +60,7 @@ class ClubActivityParticipantController extends Controller
                 ? 'Đã tham gia hoạt động'
                 : 'Đã gửi yêu cầu tham gia, chờ admin duyệt';
 
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
 
             return ResponseHelper::success(
                 new ClubActivityParticipantResource($participant),
@@ -95,7 +95,7 @@ class ClubActivityParticipantController extends Controller
                 'participants' => ClubActivityParticipantResource::collection(collect($result['participants'])),
             ];
 
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
 
             return ResponseHelper::success($data, 'Đã mời thành công');
         } catch (\Exception $e) {
@@ -119,7 +119,7 @@ class ClubActivityParticipantController extends Controller
 
             $participant->load(['user', 'walletTransaction']);
 
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
 
             return ResponseHelper::success(
                 new ClubActivityParticipantResource($participant),
@@ -145,7 +145,7 @@ class ClubActivityParticipantController extends Controller
 
         try {
             $this->participantService->deleteParticipant($participant, $userId);
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
             return ResponseHelper::success('Xóa người tham gia thành công');
         } catch (\Exception $e) {
             return ResponseHelper::error($e->getMessage(), 403);
@@ -170,7 +170,7 @@ class ClubActivityParticipantController extends Controller
             $participant = $this->participantService->approveRequest($participant, $userId);
             $participant->load(['user', 'walletTransaction']);
 
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
 
             return ResponseHelper::success(
                 new ClubActivityParticipantResource($participant),
@@ -200,7 +200,7 @@ class ClubActivityParticipantController extends Controller
             $participant = $this->participantService->rejectRequest($participant, $userId);
             $participant->load(['user', 'walletTransaction']);
 
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
 
             return ResponseHelper::success(
                 new ClubActivityParticipantResource($participant),
@@ -230,7 +230,7 @@ class ClubActivityParticipantController extends Controller
             $participant = $this->participantService->acceptInvite($participant, $userId);
             $participant->load(['user', 'walletTransaction']);
 
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
 
             return ResponseHelper::success(
                 new ClubActivityParticipantResource($participant),
@@ -260,7 +260,7 @@ class ClubActivityParticipantController extends Controller
             $participant = $this->participantService->declineInvite($participant, $userId);
             $participant->load(['user', 'walletTransaction']);
 
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
 
             return ResponseHelper::success(
                 new ClubActivityParticipantResource($participant),
@@ -287,7 +287,7 @@ class ClubActivityParticipantController extends Controller
 
         try {
             $this->participantService->cancelRequest($participant, $userId);
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
             return ResponseHelper::success('Đã hủy yêu cầu tham gia');
         } catch (\Exception $e) {
             $statusCode = str_contains($e->getMessage(), 'pending') ? 422 : 403;
@@ -313,7 +313,7 @@ class ClubActivityParticipantController extends Controller
             $result = $this->participantService->withdraw($participant, $userId);
             $result['participant']->load(['user', 'walletTransaction']);
 
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
 
             return ResponseHelper::success(
                 new ClubActivityParticipantResource($result['participant']),
@@ -348,7 +348,7 @@ class ClubActivityParticipantController extends Controller
             $participant = $this->participantService->manualCheckIn($participant, $userId);
             $participant->load(['user']);
 
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
 
             return ResponseHelper::success(
                 new ClubActivityParticipantResource($participant),
@@ -385,7 +385,7 @@ class ClubActivityParticipantController extends Controller
             $participant = $this->participantService->markAbsent($participant, $userId);
             $participant->load(['user']);
 
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
 
             return ResponseHelper::success(
                 new ClubActivityParticipantResource($participant),
@@ -420,7 +420,7 @@ class ClubActivityParticipantController extends Controller
                 ? 'Bạn đã check-in trước đó'
                 : 'Check-in thành công';
 
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
 
             return ResponseHelper::success(
                 new ClubActivityParticipantResource($participant),
