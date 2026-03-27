@@ -68,7 +68,7 @@ class AutoCompleteActivities extends Command
         $total = $updatedCompleted + $updatedOngoing + $updatedScheduled;
         if ($total > 0) {
             foreach (array_keys($affectedClubIds) as $clubId) {
-                Cache::increment('club_activities_version:' . $clubId);
+                Cache::increment('club_content_version:' . $clubId);
             }
             $this->info("Đã đồng bộ {$total} hoạt động (completed: {$updatedCompleted}, ongoing: {$updatedOngoing}, scheduled: {$updatedScheduled})");
         } else {

@@ -18,6 +18,7 @@ use App\Notifications\MiniTournamentInvitationNotification;
 use App\Services\MiniTournamentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -288,6 +289,10 @@ class MiniTournamentController extends Controller
         DB::transaction(function () use ($miniTournament) {
             $miniTournament->delete();
         });
+
+        if ($miniTournament->club_id) {
+            Cache::increment('club_content_version:' . $miniTournament->club_id);
+        }
 
         if (!empty($memberIds)) {
             $this->pushToUsers(

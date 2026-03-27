@@ -22,6 +22,7 @@ use App\Models\User;
 use App\Notifications\MiniTournamentInvitationNotification;
 use App\Services\MiniTournamentService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 class ClubMiniTournamentController extends Controller
 {
@@ -173,6 +174,7 @@ class ClubMiniTournamentController extends Controller
         }
 
         $miniTournament->loadFullRelations();
+        Cache::increment('club_content_version:' . $club->id);
 
         return ResponseHelper::success(new MiniTournamentResource($miniTournament), 'Tạo kèo cho CLB thành công', 201);
     }
@@ -233,6 +235,7 @@ class ClubMiniTournamentController extends Controller
         }
 
         $miniTournament->loadFullRelations();
+        Cache::increment('club_content_version:' . $club->id);
 
         return ResponseHelper::success(new MiniTournamentResource($miniTournament), 'Cập nhật kèo cho CLB thành công');
     }
