@@ -45,7 +45,9 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'phone',
         'self_score',
         'apple_id',
-        'total_matches'
+        'total_matches',
+        'is_guest',
+        'last_active_at',
     ];
 
     const PER_PAGE = 15;
@@ -181,7 +183,9 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     protected $casts = [
         'email_verified_at' => 'datetime',
         'last_login' => 'datetime',
+        'last_active_at' => 'datetime',
         'password' => 'hashed',
+        'is_guest' => 'boolean',
     ];
     public function setPasswordAttribute($password)
     {
@@ -318,6 +322,27 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     public function scopeLoadFullRelations()
     {
         return $this->load(self::FULL_RELATIONS);
+    }
+
+    /**
+     * Scope: Lọc chỉ guest accounts (is_guest = true)
+     */
+    public function scopeGuests($query)
+    {
+        return $query->where('is_guest', true);
+    }
+
+    /**
+     * Scope: Lọc guest không hoạt động sau N ngày
+     * @param int $days Số ngày không hoạt động
+     */
+    public function scopeInactiveGuests($query, int $days = 7)
+    {
+        return $query->guests()
+            ->where(function ($q) use ($days) {
+                $q->whereNull('last_active_at')
+                    ->orWhere('last_active_at', '<', now()->subDays($days));
+            });
     }
 
     public function isMutualWith(User $other): bool

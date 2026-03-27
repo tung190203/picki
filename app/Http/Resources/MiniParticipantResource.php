@@ -26,7 +26,7 @@ class MiniParticipantResource extends JsonResource
             'is_guest'              => (bool) $this->is_guest,
             'guest_name'            => $this->when($this->is_guest, $this->guest_name),
             'guest_phone'           => $this->when($this->is_guest, $this->guest_phone),
-            'guest_avatar'          => $this->when($this->is_guest, $this->guest_avatar),
+            'avatar_url'            => $this->user?->avatar_url,
             'guarantor'             => new UserListResource($this->whenLoaded('guarantor')),
             'guarantor_user_id'     => $this->when($this->is_guest, $this->guarantor_user_id),
             'guarantor_name'       => $this->when($this->is_guest, fn() => $this->guarantor?->full_name),
