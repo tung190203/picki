@@ -79,10 +79,11 @@ class ClubActivityController extends Controller
             }
         }
 
+        $currentVersion = (int) Cache::get('club_content_version:' . $clubId, 0);
         $cacheKey = 'club_content:' . $clubId . ':' . md5(json_encode($filters) . ':' . $category . ':' . ($userId ?? 'guest'));
 
         $cached = Cache::get($cacheKey);
-        if ($cached !== null) {
+        if ($cached !== null && ($cached['_v'] ?? 0) === $currentVersion) {
             $options = config('app.debug') ? (JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) : JSON_UNESCAPED_UNICODE;
             return response()->json($cached, 200, [], $options);
         }
@@ -145,6 +146,7 @@ class ClubActivityController extends Controller
 
         $response = ResponseHelper::success($data, 'Lấy danh sách nội dung thành công', 200, $meta);
         $responseData = $response->getData(true);
+        $responseData['_v'] = $currentVersion;
         Cache::put($cacheKey, $responseData, self::ACTIVITIES_CACHE_TTL);
 
         return $response;
@@ -231,7 +233,7 @@ class ClubActivityController extends Controller
         try {
             $activity = $this->activityService->createActivity($club, $request->validated(), $userId);
 
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
 
             $activity->load([
                 'creator' => User::FULL_RELATIONS,
@@ -276,7 +278,7 @@ class ClubActivityController extends Controller
         try {
             $activity = $this->activityService->updateActivity($activity, $request->validated(), $userId);
 
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
 
             $activity->load([
                 'creator' => User::FULL_RELATIONS,
@@ -301,7 +303,7 @@ class ClubActivityController extends Controller
 
         try {
             $this->activityService->deleteActivity($activity, $userId);
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
             return ResponseHelper::success('Xóa hoạt động thành công');
         } catch (\Exception $e) {
             $statusCode = str_contains($e->getMessage(), 'scheduled') ? 422 : 403;
@@ -321,7 +323,7 @@ class ClubActivityController extends Controller
         try {
             $activity = $this->activityService->completeActivity($activity, $userId);
 
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
 
             $activity->load([
                 'creator' => User::FULL_RELATIONS,
@@ -352,7 +354,7 @@ class ClubActivityController extends Controller
                 $request->input('cancel_transactions')
             );
 
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
 
             $activity->load([
                 'creator' => User::FULL_RELATIONS,
@@ -383,7 +385,7 @@ class ClubActivityController extends Controller
 
         try {
             $count = $this->activityService->cancelRecurrenceSeries($club, (string) $activityId, $userId);
-            Cache::increment('club_activities_version:' . $clubId);
+            Cache::increment('club_content_version:' . $clubId);
             return ResponseHelper::success(
                 ['cancelled_count' => $count],
                 'Đã hủy toàn bộ chuỗi lặp lại',

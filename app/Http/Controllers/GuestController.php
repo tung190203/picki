@@ -33,7 +33,8 @@ class GuestController extends Controller
     {
         $data = $request->validate([
             'guest_name' => 'required|string|max:255',
-            'guest_phone' => 'required|string|max:20',
+            'guest_phone' => 'nullable|string|max:20',
+            'guest_avatar' => 'nullable|string|url',
             'guarantor_user_id' => 'nullable|integer|exists:users,id',
             'estimated_level_min' => 'nullable|numeric|min:1|max:8',
             'estimated_level_max' => 'nullable|numeric|min:1|max:8',
@@ -91,35 +92,41 @@ class GuestController extends Controller
             }
         }
 
-        // Tạo hoặc tìm user cho guest (theo phone để tránh trùng số điện thoại)
-        $guestUser = User::where('phone', $data['guest_phone'])->first();
-        if (!$guestUser) {
-            $randomPassword = Str::random(12);
-            $guestUser = User::create([
-                'full_name' => $data['guest_name'],
-                'phone' => $data['guest_phone'],
-                'password' => $randomPassword,
-                'visibility' => User::VISIBILITY_PRIVATE,
-            ]);
-        }
-
         // Tạo participant cho guest
-        $participant = MiniParticipant::create([
+        $participantData = [
             'mini_tournament_id' => $miniTournamentId,
-            'user_id' => $guestUser->id,
             'is_confirmed' => true,
             'is_guest' => true,
             'guest_name' => $data['guest_name'],
-            'guest_phone' => $data['guest_phone'],
+            'guest_phone' => $data['guest_phone'] ?? null,
+            'guest_avatar' => $data['guest_avatar'] ?? null,
             'guarantor_user_id' => $guarantorUserId,
             'payment_status' => $paymentStatus,
             'estimated_level_min' => $data['estimated_level_min'] ?? null,
             'estimated_level_max' => $data['estimated_level_max'] ?? null,
-        ]);
+        ];
+
+        // Chỉ gán user_id khi có guest_phone (tìm hoặc tạo user theo phone)
+        if (!empty($data['guest_phone'])) {
+            $guestUser = User::where('phone', $data['guest_phone'])->first();
+            if (!$guestUser) {
+                $randomPassword = Str::random(12);
+                $guestUser = User::create([
+                    'full_name' => $data['guest_name'],
+                    'phone' => $data['guest_phone'],
+                    'password' => $randomPassword,
+                    'visibility' => User::VISIBILITY_PRIVATE,
+                ]);
+            }
+            $participantData['user_id'] = $guestUser->id;
+        }
+
+        $participant = MiniParticipant::create($participantData);
 
         // Luôn tạo payment record cho guest khi kèo có thu phí VÀ KHÔNG phải auto_split_fee
         // auto_split_fee = true: KHÔNG tạo payment ở đây, sẽ tạo khi kèo kết thúc
-        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
+        // Chỉ tạo payment khi có user_id (tức có guest_phone)
+        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !empty($data['guest_phone'])) {
             // Tiền cố định mỗi người
             $feeAmount = $miniTournament->fee_amount;
 
@@ -129,7 +136,7 @@ class GuestController extends Controller
                 'user_id' => $guestUser->id,
                 'amount' => $feeAmount,
                 'status' => $paymentStatus,
-                'note' => "Guest {$data['guest_name']} - {$data['guest_phone']}",
+                'note' => "Guest {$data['guest_name']}" . ($data['guest_phone'] ? " - {$data['guest_phone']}" : ''),
                 'confirmed_at' => $paymentStatus === PaymentStatusEnum::CONFIRMED ? now() : null,
                 'confirmed_by' => $paymentStatus === PaymentStatusEnum::CONFIRMED ? $guarantorUserId : null,
                 'paid_at' => $paymentStatus === PaymentStatusEnum::CONFIRMED ? now() : null,
