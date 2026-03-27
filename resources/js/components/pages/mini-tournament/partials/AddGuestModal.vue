@@ -42,16 +42,72 @@
               <p v-if="errors.guest_name" class="text-red-500 text-xs mt-1">{{ errors.guest_name }}</p>
             </div>
 
+            <!-- Avatar khách mời -->
+            <div>
+              <label class="block text-[13px] font-semibold text-[#6B7280] mb-1.5 uppercase tracking-wide">
+                Ảnh đại diện
+              </label>
+              <div class="flex items-center gap-4">
+                <div class="relative w-16 h-16 rounded-full overflow-hidden flex-shrink-0 border-2 border-gray-200 bg-gray-50">
+                  <img
+                    v-if="avatarPreview || form.guest_avatar"
+                    :src="avatarPreview || form.guest_avatar"
+                    alt="Avatar Preview"
+                    class="w-full h-full object-cover"
+                  />
+                  <div v-else class="w-full h-full flex items-center justify-center text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <div
+                    class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
+                    @click="triggerAvatarInput"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                </div>
+                <div class="flex-1">
+                  <p class="text-[12px] text-[#6B7280] mb-2">Tải lên ảnh đại diện cho khách mời (tùy chọn)</p>
+                  <button
+                    type="button"
+                    @click="triggerAvatarInput"
+                    class="text-[12px] text-[#D72D36] font-medium hover:underline"
+                  >
+                    Chọn ảnh
+                  </button>
+                  <button
+                    v-if="avatarPreview || form.guest_avatar"
+                    type="button"
+                    @click="removeAvatar"
+                    class="ml-3 text-[12px] text-gray-400 hover:text-red-500"
+                  >
+                    Xóa
+                  </button>
+                </div>
+              </div>
+              <input
+                ref="avatarInput"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="handleAvatarChange"
+              />
+            </div>
+
             <!-- Số điện thoại -->
             <div>
               <label for="add-guest-phone" class="block text-[13px] font-semibold text-[#6B7280] mb-1.5 uppercase tracking-wide">
-                Số điện thoại <span class="text-red-500">*</span>
+                Số điện thoại
               </label>
               <input
                 id="add-guest-phone"
                 v-model="form.guest_phone"
                 type="tel"
-                placeholder="Nhập SĐT để định danh khách"
+                placeholder="Nhập SĐT để định danh khách (tùy chọn)"
                 class="w-full bg-[#F9FAFB] border border-gray-200 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
               />
               <p v-if="errors.guest_phone" class="text-red-500 text-xs mt-1">{{ errors.guest_phone }}</p>
@@ -187,11 +243,14 @@ const currentUserId = computed(() => getUser.value?.id ?? null)
 const form = ref({
   guest_name: '',
   guest_phone: '',
+  guest_avatar: null,
   guarantor_user_id: '',
   estimated_level_min: null,
   estimated_level_max: null,
 })
 
+const avatarInput = ref(null)
+const avatarPreview = ref('')
 const errors = ref({})
 const isSubmitting = ref(false)
 const guarantorCandidates = ref([])
@@ -203,12 +262,12 @@ const validateForm = () => {
     errors.value.guest_name = 'Vui lòng nhập tên hiển thị'
   }
 
-  const phoneRegex = /^(0\d{9,10})$/
-  const cleanPhone = form.value.guest_phone?.replaceAll(/\s/g, '') || ''
-  if (!cleanPhone) {
-    errors.value.guest_phone = 'Vui lòng nhập số điện thoại'
-  } else if (!phoneRegex.test(cleanPhone)) {
-    errors.value.guest_phone = 'Số điện thoại không hợp lệ (0xxx xxx xxx)'
+  if (form.value.guest_phone) {
+    const phoneRegex = /^(0\d{9,10})$/
+    const cleanPhone = form.value.guest_phone.replaceAll(/\s/g, '')
+    if (!phoneRegex.test(cleanPhone)) {
+      errors.value.guest_phone = 'Số điện thoại không hợp lệ (0xxx xxx xxx)'
+    }
   }
 
   if (props.miniTournament?.has_fee && !form.value.guarantor_user_id) {
@@ -222,10 +281,12 @@ const resetForm = () => {
   form.value = {
     guest_name: '',
     guest_phone: '',
+    guest_avatar: null,
     guarantor_user_id: '',
     estimated_level_min: null,
     estimated_level_max: null,
   }
+  avatarPreview.value = ''
   errors.value = {}
 }
 
@@ -251,23 +312,58 @@ const fetchGuarantorCandidates = async () => {
   }
 }
 
+const triggerAvatarInput = () => {
+  avatarInput.value?.click()
+}
+
+const handleAvatarChange = (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+
+  if (file.size > 5 * 1024 * 1024) {
+    toast.error('Kích thước ảnh không được quá 5MB')
+    return
+  }
+
+  // Gán file ngay — tránh race khi user bấm gửi trước khi FileReader xong
+  form.value.guest_avatar = file
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    avatarPreview.value = e.target.result
+  }
+  reader.readAsDataURL(file)
+}
+
+const removeAvatar = () => {
+  avatarPreview.value = ''
+  form.value.guest_avatar = null
+  if (avatarInput.value) {
+    avatarInput.value.value = ''
+  }
+}
+
 const handleSubmit = async () => {
   if (!validateForm()) return
 
   try {
     isSubmitting.value = true
-    const payload = {
-      guest_name: form.value.guest_name.trim(),
-      guest_phone: form.value.guest_phone.replaceAll(/\s/g, ''),
+    const payload = new FormData()
+    payload.append('guest_name', form.value.guest_name.trim())
+    if (form.value.guest_phone) {
+      payload.append('guest_phone', form.value.guest_phone.replaceAll(/\s/g, ''))
+    }
+    if (form.value.guest_avatar) {
+      payload.append('guest_avatar', form.value.guest_avatar)
     }
     if (props.miniTournament?.has_fee && form.value.guarantor_user_id) {
-      payload.guarantor_user_id = Number(form.value.guarantor_user_id)
+      payload.append('guarantor_user_id', Number(form.value.guarantor_user_id))
     }
     if (form.value.estimated_level_min != null) {
-      payload.estimated_level_min = Number(form.value.estimated_level_min)
+      payload.append('estimated_level_min', Number(form.value.estimated_level_min))
     }
     if (form.value.estimated_level_max != null) {
-      payload.estimated_level_max = Number(form.value.estimated_level_max)
+      payload.append('estimated_level_max', Number(form.value.estimated_level_max))
     }
 
     const response = await addGuest(props.miniTournament.id, payload)
