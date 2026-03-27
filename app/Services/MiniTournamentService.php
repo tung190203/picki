@@ -26,6 +26,7 @@ class MiniTournamentService
 
         $miniTournament = MiniTournament::create([
             ...$data,
+            'created_by' => $userId,
             'recurrence_series_id' => $seriesId,
             'use_club_fund' => $data['use_club_fund'] ?? false,
             'club_fund_collection_id' => $data['club_fund_collection_id'] ?? null,

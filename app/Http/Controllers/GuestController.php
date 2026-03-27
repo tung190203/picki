@@ -34,7 +34,7 @@ class GuestController extends Controller
         $data = $request->validate([
             'guest_name' => 'required|string|max:255',
             'guest_phone' => 'nullable|string|max:20',
-            'guest_avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120',
+            'guest_avatar' => 'nullable|file|mimes:jpeg,png,jpg,gif,svg,webp|max:5120',
             'guarantor_user_id' => 'nullable|integer|exists:users,id',
             'estimated_level_min' => 'nullable|numeric|min:1|max:8',
             'estimated_level_max' => 'nullable|numeric|min:1|max:8',
@@ -92,22 +92,72 @@ class GuestController extends Controller
             }
         }
 
-        // Xử lý guest_avatar: có thể là file (mobile) hoặc URL string (web)
+        // Xử lý guest_avatar: file upload hoặc URL string (web)
         $guestAvatarUrl = null;
-        if ($request->hasFile('guest_avatar')) {
-            $guestAvatarPath = $request->file('guest_avatar')->store('guest-avatars', 'public');
+        $uploadedFile = $request->file('guest_avatar');
+        if ($uploadedFile && $uploadedFile->isValid()) {
+            $guestAvatarPath = $uploadedFile->store('guest-avatars', 'public');
             $guestAvatarUrl = asset('storage/' . $guestAvatarPath);
         } elseif (!empty($data['guest_avatar']) && is_string($data['guest_avatar'])) {
             $guestAvatarUrl = $data['guest_avatar'];
         }
 
+        // Tạo hoặc tìm user cho guest - LUÔN LUÔN tạo user (có hoặc không có phone)
+        // Nếu có phone: tìm user theo phone hoặc tạo mới is_guest
+        // Nếu không phone: tạo user is_guest không có phone
+        $guestUser = null;
+
+        if (!empty($data['guest_phone'])) {
+            // Tìm user theo phone (kể cả user thường hay guest)
+            $guestUser = User::where('phone', $data['guest_phone'])->first();
+
+            if (!$guestUser) {
+                // Tạo mới user guest với phone
+                $guestUser = User::create([
+                    'full_name' => $data['guest_name'],
+                    'phone' => $data['guest_phone'],
+                    'avatar_url' => $guestAvatarUrl,
+                    'password' => Str::random(12),
+                    'visibility' => User::VISIBILITY_PRIVATE,
+                    'is_guest' => true,
+                    'last_active_at' => now(),
+                ]);
+            } elseif (!$guestUser->is_guest) {
+                // Phone đã tồn tại trong hệ thống (user thật) → không gán is_guest
+                // Cập nhật avatar nếu có
+                if ($guestAvatarUrl) {
+                    $guestUser->updateQuietly(['avatar_url' => $guestAvatarUrl]);
+                }
+                $guestUser->updateQuietly(['last_active_at' => now()]);
+            } else {
+                // Tìm thấy user guest cũ → cập nhật avatar + last_active_at
+                $guestUser->updateQuietly([
+                    'full_name' => $data['guest_name'],
+                    'avatar_url' => $guestAvatarUrl ?: $guestUser->avatar_url,
+                    'last_active_at' => now(),
+                ]);
+            }
+        } else {
+            // Không có phone → tạo user guest mới không có phone
+            $guestUser = User::create([
+                'full_name' => $data['guest_name'],
+                'phone' => null,
+                'avatar_url' => $guestAvatarUrl,
+                'password' => Str::random(12),
+                'visibility' => User::VISIBILITY_PRIVATE,
+                'is_guest' => true,
+                'last_active_at' => now(),
+            ]);
+        }
+
         // Tạo participant cho guest
         $participantData = [
             'mini_tournament_id' => $miniTournamentId,
+            'user_id' => $guestUser->id,
             'is_confirmed' => true,
             'is_guest' => true,
-            'guest_name' => $data['guest_name'],
-            'guest_phone' => $data['guest_phone'] ?? null,
+            'guest_name' => $guestUser->full_name,
+            'guest_phone' => $guestUser->phone,
             'guest_avatar' => $guestAvatarUrl,
             'guarantor_user_id' => $guarantorUserId,
             'payment_status' => $paymentStatus,
@@ -115,26 +165,15 @@ class GuestController extends Controller
             'estimated_level_max' => $data['estimated_level_max'] ?? null,
         ];
 
-        // Chỉ gán user_id khi có guest_phone (tìm hoặc tạo user theo phone)
-        if (!empty($data['guest_phone'])) {
-            $guestUser = User::where('phone', $data['guest_phone'])->first();
-            if (!$guestUser) {
-                $randomPassword = Str::random(12);
-                $guestUser = User::create([
-                    'full_name' => $data['guest_name'],
-                    'phone' => $data['guest_phone'],
-                    'password' => $randomPassword,
-                    'visibility' => User::VISIBILITY_PRIVATE,
-                ]);
-            }
-            $participantData['user_id'] = $guestUser->id;
-        }
-
         $participant = MiniParticipant::create($participantData);
+
+        // Đồng bộ avatar lên bảng users (nested user.avatar_url trong API)
+        if ($guestAvatarUrl) {
+            $guestUser->forceFill(['avatar_url' => $guestAvatarUrl])->saveQuietly();
+        }
 
         // Luôn tạo payment record cho guest khi kèo có thu phí VÀ KHÔNG phải auto_split_fee
         // auto_split_fee = true: KHÔNG tạo payment ở đây, sẽ tạo khi kèo kết thúc
-        // user_id có thể null nếu guest không có phone → vẫn tạo payment để theo dõi
         if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
             $feeAmount = $miniTournament->fee_amount;
 
