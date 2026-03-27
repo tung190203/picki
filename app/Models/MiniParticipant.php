@@ -21,6 +21,7 @@ class MiniParticipant extends Model
         'is_guest',
         'guest_name',
         'guest_phone',
+        'guest_avatar',
         'guarantor_user_id',
         'estimated_level_min',
         'estimated_level_max',
