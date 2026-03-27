@@ -52,7 +52,10 @@ class ClubActivityController extends Controller
         $club = Club::findOrFail($clubId);
         $userId = auth()->id();
         $filters = $request->validated();
+
+        // Chuẩn hóa category để cache key nhất quán bất kể client có truyền hay không
         $category = $filters['category'] ?? 'all';
+        $filters['category'] = $category;
 
         // Client gửi statuses = tab hiện tại
         $clientSentStatuses = $request->has('statuses');
@@ -81,7 +84,8 @@ class ClubActivityController extends Controller
         }
 
         $currentVersion = (int) Cache::get('club_content_version:' . $clubId, 0);
-        $cacheKey = 'club_content:' . $clubId . ':' . md5(json_encode($filters) . ':' . $category . ':' . ($userId ?? 'guest'));
+        // Cache key phải phản ánh TẤT CẢ params ảnh hưởng kết quả, bao gồm cả category
+        $cacheKey = 'club_content:' . $clubId . ':' . md5(json_encode($filters) . ':' . ($userId ?? 'guest'));
 
         $cached = Cache::get($cacheKey);
         if ($cached !== null && ($cached['_v'] ?? 0) === $currentVersion) {
