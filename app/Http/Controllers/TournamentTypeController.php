@@ -411,12 +411,14 @@ const PAIRING_MODE_MANUAL = 'manual';
         $teamCount = count($teams);
         if ($teamCount < 2) return;
 
-        // ✅ FIX: Xử lý config dạng array hoặc object
+        // ✅ FIX: Xử lý config dạng array hoặc object linh hoạt hơn
         $mainConfig = is_array($config) && isset($config[0]) ? $config[0] : $config;
 
         $seedingRules = $mainConfig['seeding_rules'] ?? [];
-        $byeSelectionOrder = filter_var($mainConfig['advanced_to_next_round'] ?? false, FILTER_VALIDATE_BOOLEAN);
-        $hasThirdPlace = filter_var($mainConfig['has_third_place_match'] ?? false, FILTER_VALIDATE_BOOLEAN); // ✅ FIX
+        // Chấp nhận cả string "true", "on", 1 hoặc boolean true
+        $advancedToNext = filter_var($mainConfig['advanced_to_next_round'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $byeSelectionOrder = $advancedToNext; // Alias để đồng bộ
+        $hasThirdPlace = filter_var($mainConfig['has_third_place_match'] ?? false, FILTER_VALIDATE_BOOLEAN); 
 
         // -------------------------------
         // STEP 1: Seeding (giữ nguyên logic cũ)
@@ -513,23 +515,43 @@ const PAIRING_MODE_MANUAL = 'manual';
                 $nextRoundTeams[] = (object)['id' => null, '_from_pair_index' => count($roundPairs) - 1];
             }
 
-            // xử lý đội bye
-            if($byeTeam){
+            // xử lý đội bye (đội lẻ)
+            if ($byeTeam) {
                 $pairMatchIds = [];
                 for ($leg = 1; $leg <= $numLegs; $leg++) {
-                    $match = $type->matches()->create([
+                    $matchData = [
                         'tournament_type_id' => $type->id,
                         'name_of_match' => "Trận đấu số " . ($matchNumber + 1),
-                        'home_team_id' => $byeTeam->id,
+                        'home_team_id' => $byeTeam->id ?? null,
                         'away_team_id' => null,
                         'round' => $round,
                         'leg' => $leg,
-                        'is_bye' => true
-                    ]);
+                    ];
+
+                    if ($byeSelectionOrder && $round > 1) {
+                        // Nếu bật advanced_to_next_round: đây là trận placeholder cho best loser
+                        $matchData['is_bye'] = false;
+                        $matchData['best_loser_source_round'] = $round - 1;
+                    } else {
+                        // Mặc định: đây là trận bye (vào thẳng)
+                        $matchData['is_bye'] = true;
+                        $matchData['status'] = Matches::STATUS_COMPLETED;
+                        $matchData['winner_id'] = $byeTeam->id ?? null;
+                    }
+
+                    $match = $type->matches()->create($matchData);
                     $pairMatchIds[] = $match->id;
                 }
+
                 $roundPairs[] = (object)['match_ids' => $pairMatchIds, 'home' => $byeTeam, 'away' => null];
-                $nextRoundTeams[] = $byeTeam;
+
+                if ($byeSelectionOrder && $round > 1) {
+                    // Nếu là trận placeholder, đội thắng (có thể là best loser) sẽ đi tiếp
+                    $nextRoundTeams[] = (object)['id' => null, '_from_pair_index' => count($roundPairs) - 1];
+                } else {
+                    // Nếu là bye, đội đó mặc định đi tiếp
+                    $nextRoundTeams[] = $byeTeam;
+                }
             }
 
             $matchMap[$round] = $roundPairs;
@@ -554,10 +576,44 @@ const PAIRING_MODE_MANUAL = 'manual';
                     $targetMatchId = $nextPair->match_ids[0];
 
                     foreach ($pair->match_ids as $mId) {
-                        DB::table('matches')->where('id', $mId)->update([
+                        $match = Matches::find($mId);
+                        if (!$match) continue;
+
+                        $match->update([
                             'next_match_id' => $targetMatchId,
                             'next_position' => $nextPos
                         ]);
+
+                        // ✅ Propagate byes recursively
+                        $currentM = $match;
+                        $currentTId = $match->winner_id;
+                        $targetMId = $targetMatchId;
+                        $tPos = $nextPos;
+
+                        while ($currentM && $currentM->status === Matches::STATUS_COMPLETED && $currentTId && $targetMId) {
+                            $targetM = Matches::find($targetMId);
+                            if (!$targetM) break;
+
+                            $targetM->update(["{$tPos}_team_id" => $currentTId]);
+
+                            if ($targetM->is_bye) {
+                                $targetM->update([
+                                    'status' => Matches::STATUS_COMPLETED,
+                                    'winner_id' => $currentTId
+                                ]);
+                                
+                                // Move to the next round's target
+                                if ($targetM->next_match_id) {
+                                    $currentM = $targetM;
+                                    $targetMId = $targetM->next_match_id;
+                                    $tPos = $targetM->next_position;
+                                } else {
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
+                        }
                     }
                 }
             }
@@ -1399,10 +1455,12 @@ const PAIRING_MODE_MANUAL = 'manual';
                             ];
                         })->values();
 
+                        $awayPlaceholder = $first->is_bye ? 'Vào thẳng' : ($first->best_loser_source_round ? 'Best Loser' : null);
+
                         return [
                             'match_id' => $first->id,
                             'home_team' => $this->formatTeam($first->homeTeam),
-                            'away_team' => $this->formatTeam($first->awayTeam),
+                            'away_team' => $this->formatTeam($first->awayTeam, $awayPlaceholder),
                             'is_bye' => $first->is_bye,
                             'is_third_place' => $first->is_third_place ?? false,
                             'is_final' => $isFinal,
@@ -1414,6 +1472,7 @@ const PAIRING_MODE_MANUAL = 'manual';
                             'winner_team_id' => $this->determineWinner($homeTotal, $awayTotal, $homeTeamId, $awayTeamId, $first, $matchGroup),
                             'next_match_id' => $first->next_match_id,
                             'next_position' => $first->next_position,
+                            'best_loser_source_round' => $first->best_loser_source_round,
                         ];
                     })->values(),
                 ];

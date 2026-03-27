@@ -12,6 +12,7 @@ use App\Models\TeamRanking;
 use App\Models\TournamentType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Models\PoolAdvancementRule;
 use App\Models\VnduprHistory;
 use App\Services\TournamentService;
@@ -200,16 +201,24 @@ class MatchesController extends Controller
                 if ($match->next_position === 'home') {
                     $nextMatch->update([
                         'home_team_id' => $winnerTeamId,
-                        'status' => Matches::STATUS_PENDING,
-                        'is_bye' => $nextMatch->away_team_id ? false : $nextMatch->is_bye,
+                        'status' => $nextMatch->is_bye ? Matches::STATUS_COMPLETED : Matches::STATUS_PENDING,
+                        'winner_id' => $nextMatch->is_bye ? $winnerTeamId : $nextMatch->winner_id,
                     ]);
                 } elseif ($match->next_position === 'away') {
                     $nextMatch->update([
                         'away_team_id' => $winnerTeamId,
-                        'status' => Matches::STATUS_PENDING,
-                        'is_bye' => $nextMatch->home_team_id ? false : $nextMatch->is_bye,
+                        'status' => $nextMatch->is_bye ? Matches::STATUS_COMPLETED : Matches::STATUS_PENDING,
+                        'winner_id' => $nextMatch->is_bye ? $winnerTeamId : $nextMatch->winner_id,
                     ]);
                 }
+
+                // ✅ Nếu trận tiếp theo bỗng trở thành "đã xong" (bye), tiếp tục gửi nó lên vòng sau
+                if ($nextMatch->status === Matches::STATUS_COMPLETED && $nextMatch->winner_id) {
+                    $this->advanceWinnerToNextRound($nextMatch, $nextMatch->winner_id);
+                }
+
+                // ✅ Kiểm tra Best Loser nếu round hiện tại đã kết thúc
+                $this->checkAndAssignBestLosersForElimination($match);
             }
         }
 
@@ -2141,6 +2150,107 @@ class MatchesController extends Controller
     {
         foreach ($userIds as $userId) {
             SendPushJob::dispatch($userId, $title, $body, $data);
+        }
+    }
+
+    /**
+     * Logic tìm đội thua có thành tích tốt nhất trong round vừa kết thúc 
+     * và gán vào các trận placeholder ở round kế tiếp.
+     */
+    private function checkAndAssignBestLosersForElimination(Matches $match)
+    {
+        $tournamentTypeId = $match->tournament_type_id;
+        $round = (int)$match->round;
+
+        // 1. Kiểm tra xem tất cả các trận trong round này đã xong chưa
+        $allRoundMatches = Matches::where('tournament_type_id', $tournamentTypeId)
+            ->where('round', $round)
+            ->get();
+        if ($allRoundMatches->isEmpty() || !$allRoundMatches->every(fn($m) => $m->status === Matches::STATUS_COMPLETED)) {
+            return;
+        }
+
+        // 2. Tìm match placeholder ở round tiếp theo
+        // Ưu tiên tìm theo best_loser_source_round nếu có
+        $waitingMatches = Matches::where('tournament_type_id', $tournamentTypeId)
+            ->where('round', $round + 1)
+            ->where('best_loser_source_round', $round)
+            ->get();
+
+        // 🔍 Nếu không thấy, tìm các trận "khuyết" (away_team_id null và không có trận nào trỏ tới nó)
+        if ($waitingMatches->isEmpty()) {
+            $potentialMatches = Matches::where('tournament_type_id', $tournamentTypeId)
+                ->where('round', $round + 1)
+                ->whereNull('away_team_id')
+                ->where('is_bye', 0)
+                ->get();
+
+            foreach ($potentialMatches as $pm) {
+                $hasIncoming = Matches::where('tournament_type_id', $tournamentTypeId)
+                    ->where('round', $round)
+                    ->where('next_match_id', $pm->id)
+                    ->where('next_position', 'away')
+                    ->exists();
+                
+                if (!$hasIncoming) {
+                    $waitingMatches->push($pm);
+                }
+            }
+        }
+
+        if ($waitingMatches->isEmpty()) {
+            return;
+        }
+
+        // 3. Tìm danh sách đội thua trong round này
+        $losers = [];
+        foreach ($allRoundMatches as $rm) {
+            if ($rm->is_bye) continue;
+
+            $loserId = ($rm->winner_id == $rm->home_team_id) ? $rm->away_team_id : $rm->home_team_id;
+            if (!$loserId) continue;
+
+            // Tính toán điểm dựa trên kết quả trận đấu (số set thắng)
+            $loserSetsWon = DB::table('match_results')
+                ->where('match_id', $rm->id)
+                ->where('team_id', $loserId)
+                ->where('won_match', true) // Giả định field này đánh dấu thắng set
+                ->count();
+
+            $loserTotalScore = DB::table('match_results')
+                ->where('match_id', $rm->id)
+                ->where('team_id', $loserId)
+                ->sum('score');
+
+            $losers[] = [
+                'id' => $loserId,
+                'sets_won' => (int)$loserSetsWon,
+                'total_score' => (int)$loserTotalScore,
+            ];
+        }
+
+        // Sắp xếp đội thua: Ưu tiên số set thắng, sau đó là tổng điểm
+        usort($losers, function ($a, $b) {
+            if ($b['sets_won'] !== $a['sets_won']) {
+                return $b['sets_won'] <=> $a['sets_won'];
+            }
+            return $b['total_score'] <=> $a['total_score'];
+        });
+        
+        foreach ($waitingMatches as $index => $wm) {
+            if (isset($losers[$index])) {
+                $bestLoserId = $losers[$index]['id'];
+                $wm->update([
+                    'away_team_id' => $bestLoserId,
+                    'is_bye' => false,
+                ]);
+                Log::info("Assigned Best Loser Team ID {$bestLoserId} to Match ID {$wm->id}");
+
+                // ✅ Tiếp tục đệ quy nếu đây là trận bye (trường hợp hiếm nhưng có thể xảy ra)
+                if ($wm->status === Matches::STATUS_COMPLETED && $wm->winner_id) {
+                    $this->advanceWinnerToNextRound($wm, $wm->winner_id);
+                }
+            }
         }
     }
 }
