@@ -34,7 +34,7 @@ class GuestController extends Controller
         $data = $request->validate([
             'guest_name' => 'required|string|max:255',
             'guest_phone' => 'nullable|string|max:20',
-            'guest_avatar' => 'nullable|string|url',
+            'guest_avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120',
             'guarantor_user_id' => 'nullable|integer|exists:users,id',
             'estimated_level_min' => 'nullable|numeric|min:1|max:8',
             'estimated_level_max' => 'nullable|numeric|min:1|max:8',
@@ -92,6 +92,15 @@ class GuestController extends Controller
             }
         }
 
+        // Xử lý guest_avatar: có thể là file (mobile) hoặc URL string (web)
+        $guestAvatarUrl = null;
+        if ($request->hasFile('guest_avatar')) {
+            $guestAvatarPath = $request->file('guest_avatar')->store('guest-avatars', 'public');
+            $guestAvatarUrl = asset('storage/' . $guestAvatarPath);
+        } elseif (!empty($data['guest_avatar']) && is_string($data['guest_avatar'])) {
+            $guestAvatarUrl = $data['guest_avatar'];
+        }
+
         // Tạo participant cho guest
         $participantData = [
             'mini_tournament_id' => $miniTournamentId,
@@ -99,7 +108,7 @@ class GuestController extends Controller
             'is_guest' => true,
             'guest_name' => $data['guest_name'],
             'guest_phone' => $data['guest_phone'] ?? null,
-            'guest_avatar' => $data['guest_avatar'] ?? null,
+            'guest_avatar' => $guestAvatarUrl,
             'guarantor_user_id' => $guarantorUserId,
             'payment_status' => $paymentStatus,
             'estimated_level_min' => $data['estimated_level_min'] ?? null,
