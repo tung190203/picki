@@ -29,7 +29,9 @@ class Matches extends Model
         'scheduled_at',
         'court',
         'winner_id',
-        'name_of_match'
+        'name_of_match',
+        'best_loser_source_round',
+        'best_loser_rank',
     ];
 
     const PER_PAGE = 15;
