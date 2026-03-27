@@ -208,12 +208,12 @@ class ParticipantController extends Controller
                 if ($organizer->id === Auth::id()) {
                     continue;
                 }
-        
+
                 // 📩 Notification DB
                 $organizer->notify(
                     new TournamentJoinRequestNotification($participant)
                 );
-        
+
                 // 🔔 PUSH
                 $this->pushToUsers(
                     [$organizer->id],
@@ -231,7 +231,7 @@ class ParticipantController extends Controller
                 if ($organizer->id === Auth::id()) {
                     continue;
                 }
-        
+
                 $this->pushToUsers(
                     [$organizer->id],
                     'Người tham gia mới',
@@ -276,38 +276,36 @@ class ParticipantController extends Controller
     public function acceptInvite($participantId)
     {
         $participant = Participant::with('tournament')->findOrFail($participantId);
-        $isOrganizer = $participant->tournament->hasOrganizer(Auth::id());
-        if (!$isOrganizer) {
-            return ResponseHelper::error('Bạn không có quyền xác nhận người tham gia này', 403);
+        if ($participant->user_id !== Auth::id()) {
+            return ResponseHelper::error('Bạn không có quyền xác nhận lời mời tham gia này', 403);
         }
         if ($participant && $participant->is_confirmed) {
-            return ResponseHelper::error('Người tham gia đã được xác nhận', 400);
+            return ResponseHelper::error('Lời mời tham gia đã được chấp nhận', 400);
         }
         $tournament = Tournament::findOrFail($participant->tournament_id);
         if ($tournament->start_date < now()) {
-            return ResponseHelper::error('Thời gian đăng ký đã kết thúc', 400);
+            return ResponseHelper::error('Thời gian tham gia đã kết thúc', 400);
         }
         $participantType = $tournament->participant;
         if ($participantType === 'user') {
             if ($tournament->participants()->where('is_confirmed', true)->count() >= ($tournament->player_per_team * $tournament->max_team)) {
-                return ResponseHelper::error('Số lượng người tham gia đã đạt giới hạn.', 422);
+                return ResponseHelper::error('Số lượng người chơi đã đạt giới hạn.', 422);
             }
         } else {
             if ($tournament->participants()->where('is_confirmed', true)->count() >= ($tournament->max_team * $tournament->player_per_team)) {
-                return ResponseHelper::error('Số lượng người tham gia đã đạt giới hạn.', 422);
+                return ResponseHelper::error('Số lượng người chơi đã đạt giới hạn.', 422);
             }
         }
         $participant->is_confirmed = true;
         $participant->save();
 
-        return ResponseHelper::success(new ParticipantResource($participant), 'Xác nhận lời mời tham gia thành công');
+        return ResponseHelper::success(new ParticipantResource($participant), 'Chấp nhận lời mời tham gia thành công');
     }
 
     public function declineInvite($participantId)
     {
         $participant = Participant::with('tournament')->findOrFail($participantId);
-        $isOrganizer = $participant->tournament->hasOrganizer(Auth::id());
-        if (!$isOrganizer || $participant->user_id !== Auth::id()) {
+        if ($participant->user_id !== Auth::id()) {
             return ResponseHelper::error('Bạn không có quyền từ chối lời mời tham gia này', 403);
         }
         if ($participant->is_confirmed) {
@@ -366,11 +364,11 @@ class ParticipantController extends Controller
                 'updated_at' => now(),
                 'is_invite_by_organizer' => true,
             ];
-        }, $newUserIds);        
+        }, $newUserIds);
 
         $tournament->participants()->insert($insertData);
         $invitedUsers = User::whereIn('id', $newUserIds)->get();
-        
+
         foreach ($invitedUsers as $user) {
             $user->notify(new TournamentInvitationNotification($tournament));
         }
@@ -441,7 +439,7 @@ class ParticipantController extends Controller
             ->where('teams.tournament_id', $tournamentId)
             ->pluck('team_members.user_id')
             ->unique();
-    
+
         $nonTeamParticipants = Participant::withFullRelations()
             ->where('tournament_id', $tournamentId)
             ->where('is_confirmed', 1)
@@ -615,17 +613,17 @@ class ParticipantController extends Controller
             // 3. Giới tính
             $query->tap(fn ($q) => $this->filterByGender($q, $tournament->gender_policy));
         }
-    
+
         // 4. Loại trừ người có ĐỒNG THỜI trong cả participant VÀ staff (áp dụng cho tất cả scope)
         $participantUserIds = $tournament->participants->pluck('user_id')->toArray();
         $staffUserIds = $tournament->tournamentStaffs->pluck('user_id')->toArray();
-        
+
         // Lấy những user có trong CẢ 2 mảng (giao của 2 tập hợp)
         $excludedUserIds = array_intersect($participantUserIds, $staffUserIds);
-        
+
         // Loại trừ những user có trong cả 2 bảng
         $query->whereNotIn('users.id', $excludedUserIds);
-    
+
         // 5. Join để lấy level + filter level (chỉ khi scope !== 'all')
         if ($scope !== 'all') {
             $query->leftJoin('user_sport', function ($join) use ($tournament) {
@@ -688,12 +686,12 @@ class ParticipantController extends Controller
                 'gender' => $u->gender,
                 'gender_text' => $u->gender_text,
                 'play_times' => [],
-        
+
                 'sports' => $u->sports->map(function ($userSport) {
                     $scores = $userSport->scores
                         ->pluck('score_value', 'score_type')
                         ->toArray();
-        
+
                     return [
                         'sport_id' => $userSport->sport_id,
                         'sport_icon' => $userSport->sport?->icon,
