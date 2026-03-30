@@ -148,6 +148,12 @@ class UpdateMiniTournamentRequest extends FormRequest
             if ($this->boolean('has_fee') && !$this->file('qr_code_url') && !$this->filled('payment_account_id') && !$this->boolean('use_club_fund') && !$this->getClubHasQrWallet()) {
                 $validator->errors()->add('qr_code_url', 'Kèo thu phí cần có mã QR thanh toán hoặc CLB cần có ví với mã QR chung.');
             }
+
+            // use_club_fund = true và included_in_club_fund = true loại trừ nhau
+            // use_club_fund = true: CLB chi tiền → không thu từ member → KHÔNG tạo collection
+            if ($this->boolean('use_club_fund') && $this->boolean('included_in_club_fund')) {
+                $validator->errors()->add('included_in_club_fund', 'Không thể chọn đồng thời "Quỹ chi" và "Thu vào quỹ chung CLB". Vui lòng chỉ chọn một trong hai.');
+            }
         });
     }
 
@@ -239,6 +245,10 @@ class UpdateMiniTournamentRequest extends FormRequest
 
         // use_club_fund = true: kèo miễn phí cho member, CLB chi tiền. Không thu phí từ member.
         // has_fee và fee_amount vẫn giữ nguyên (số tiền CLB chi cho kèo đấu).
+        // use_club_fund = true thì included_in_club_fund phải = false (loại trừ nhau)
+        if ($this->boolean('use_club_fund')) {
+            $this->merge(['included_in_club_fund' => false]);
+        }
 
         $startTime = $this->input('start_time');
         $endTime = $this->input('end_time');

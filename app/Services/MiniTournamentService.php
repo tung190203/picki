@@ -47,9 +47,10 @@ class MiniTournamentService
         // Gắn creator vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
         $this->attachUserToMiniTournamentClubFund($miniTournament, $userId);
 
-        // Tạo khoản thu cho chủ kèo nếu kèo có thu phí
-        // Nếu auto_split_fee = true, chỉ tạo payment khi kèo kết thúc (via command)
-        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
+        // Tạo khoản thu cho chủ kèo nếu kèo có thu phí VÀ KHÔNG phải use_club_fund
+        // - use_club_fund = true: CLB chi tiền, không thu phí từ member → KHÔNG tạo payment
+        // - auto_split_fee = true: chỉ tạo payment khi kèo kết thúc (via command) → KHÔNG tạo payment ở đây
+        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
             $feePerPerson = $miniTournament->fee_amount;
 
             MiniParticipantPayment::create([
@@ -263,7 +264,10 @@ class MiniTournamentService
         // Gắn creator vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
         $this->attachUserToMiniTournamentClubFund($target, $userId);
 
-        if ($target->has_fee && !$target->auto_split_fee) {
+        // Tạo khoản thu cho creator nếu kèo có thu phí VÀ KHÔNG phải use_club_fund
+        // - use_club_fund = true: CLB chi tiền → KHÔNG tạo payment
+        // - auto_split_fee = true: chỉ tạo payment khi kèo kết thúc (via command) → KHÔNG tạo payment ở đây
+        if ($target->has_fee && !$target->auto_split_fee && !$target->use_club_fund) {
             MiniParticipantPayment::firstOrCreate(
                 [
                     'mini_tournament_id' => $target->id,

@@ -219,8 +219,11 @@ class MiniParticipantController extends Controller
 
         $isSuperAdmin = SuperAdminDraft::where('user_id', Auth::id())->exists();
 
+        // use_club_fund = true: CLB chi tiền → payment_status = CONFIRMED, không tạo payment
         $paymentStatus = PaymentStatusEnum::CONFIRMED;
-        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
+        if ($miniTournament->use_club_fund) {
+            // CLB chi → CONFIRMED, không cần nộp tiền
+        } elseif ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
             $paymentStatus = PaymentStatusEnum::PENDING;
         }
 
@@ -254,6 +257,25 @@ class MiniParticipantController extends Controller
             ]
         );
 
+        // Tạo khoản thu PENDING nếu kèo thu phí VÀ KHÔNG phải use_club_fund VÀ KHÔNG phải auto_split_fee
+        // use_club_fund = true: CLB chi tiền → KHÔNG tạo payment
+        // auto_split_fee = true: chỉ tạo payment khi kèo kết thúc → KHÔNG tạo payment ở đây
+        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
+            $feePerPerson = $miniTournament->fee_amount;
+
+            MiniParticipantPayment::firstOrCreate(
+                [
+                    'mini_tournament_id' => $miniTournament->id,
+                    'participant_id' => $participant->id,
+                ],
+                [
+                    'user_id' => $participant->user_id,
+                    'amount' => $feePerPerson,
+                    'status' => MiniParticipantPayment::STATUS_PENDING,
+                ]
+            );
+        }
+
         return ResponseHelper::success(
             new MiniParticipantResource($participant->loadFullRelations()),
             'Đã gửi lời mời tham gia kèo đấu',
@@ -281,8 +303,11 @@ class MiniParticipantController extends Controller
 
         $this->checkMaxPlayers($participant->miniTournament);
 
+        // use_club_fund = true: CLB chi tiền → CONFIRMED, không tạo payment
         $paymentStatus = PaymentStatusEnum::CONFIRMED;
-        if ($participant->miniTournament->has_fee && !$participant->miniTournament->auto_split_fee) {
+        if ($participant->miniTournament->use_club_fund) {
+            // CLB chi → CONFIRMED
+        } elseif ($participant->miniTournament->has_fee && !$participant->miniTournament->auto_split_fee) {
             $paymentStatus = PaymentStatusEnum::PENDING;
         }
 
@@ -309,10 +334,10 @@ class MiniParticipantController extends Controller
             ]
         );
 
-        // Gắn thanh toán pending nếu kèo có thu phí VÀ KHÔNG phải auto_split_fee
-        // auto_split_fee = true: KHÔNG tạo payment ở đây, sẽ tạo khi kèo kết thúc
-        if ($participant->miniTournament->has_fee && !$participant->miniTournament->auto_split_fee) {
-            // Tiền cố định mỗi người
+        // Tạo khoản thu PENDING nếu kèo thu phí VÀ KHÔNG phải use_club_fund VÀ KHÔNG phải auto_split_fee
+        // use_club_fund = true: CLB chi tiền → KHÔNG tạo payment
+        // auto_split_fee = true: chỉ tạo payment khi kèo kết thúc → KHÔNG tạo payment ở đây
+        if ($participant->miniTournament->has_fee && !$participant->miniTournament->auto_split_fee && !$participant->miniTournament->use_club_fund) {
             $feePerPerson = $participant->miniTournament->fee_amount;
 
             MiniParticipantPayment::firstOrCreate(
@@ -354,8 +379,11 @@ class MiniParticipantController extends Controller
 
         $this->checkMaxPlayers($participant->miniTournament);
 
+        // use_club_fund = true: CLB chi tiền → CONFIRMED, không tạo payment
         $paymentStatus = PaymentStatusEnum::CONFIRMED;
-        if ($participant->miniTournament->has_fee && !$participant->miniTournament->auto_split_fee) {
+        if ($participant->miniTournament->use_club_fund) {
+            // CLB chi → CONFIRMED
+        } elseif ($participant->miniTournament->has_fee && !$participant->miniTournament->auto_split_fee) {
             $paymentStatus = PaymentStatusEnum::PENDING;
         }
 
@@ -387,10 +415,10 @@ class MiniParticipantController extends Controller
             $organizer->notify(new MiniTournamentMemberJoinedNotification($participant));
         }
 
-        // Gắn thanh toán pending nếu kèo có thu phí VÀ KHÔNG phải auto_split_fee
-        // auto_split_fee = true: KHÔNG tạo payment ở đây, sẽ tạo khi kèo kết thúc
-        if ($participant->miniTournament->has_fee && !$participant->miniTournament->auto_split_fee) {
-            // Tiền cố định mỗi người
+        // Tạo khoản thu PENDING nếu kèo thu phí VÀ KHÔNG phải use_club_fund VÀ KHÔNG phải auto_split_fee
+        // use_club_fund = true: CLB chi tiền → KHÔNG tạo payment
+        // auto_split_fee = true: chỉ tạo payment khi kèo kết thúc → KHÔNG tạo payment ở đây
+        if ($participant->miniTournament->has_fee && !$participant->miniTournament->auto_split_fee && !$participant->miniTournament->use_club_fund) {
             $feePerPerson = $participant->miniTournament->fee_amount;
 
             MiniParticipantPayment::firstOrCreate(
@@ -668,8 +696,11 @@ class MiniParticipantController extends Controller
                 $this->checkMaxPlayers($miniTournament);
 
                 // Determine payment_status based on tournament fee settings
+                // use_club_fund = true: CLB chi tiền → CONFIRMED, không tạo payment
                 $paymentStatus = PaymentStatusEnum::CONFIRMED;
-                if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
+                if ($miniTournament->use_club_fund) {
+                    // CLB chi → CONFIRMED
+                } elseif ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
                     $paymentStatus = PaymentStatusEnum::PENDING;
                 }
 

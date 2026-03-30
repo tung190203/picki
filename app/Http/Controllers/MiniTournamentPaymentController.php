@@ -143,6 +143,11 @@ class MiniTournamentPaymentController extends Controller
             return ResponseHelper::error('Kèo này không thu phí tham gia', 400);
         }
 
+        // Kèo use_club_fund = true: CLB chi tiền, không thu phí từ member
+        if ($miniTournament->use_club_fund) {
+            return ResponseHelper::error('Kèo này CLB chi tiền, bạn không cần thanh toán', 400);
+        }
+
         $userId = Auth::id();
 
         // BE tự động tìm hoặc tạo participant
@@ -756,6 +761,10 @@ class MiniTournamentPaymentController extends Controller
 
             if (!$miniTournament->has_fee) {
                 return ResponseHelper::error('Kèo đấu này không thu phí', 400);
+            }
+
+            if ($miniTournament->use_club_fund) {
+                return ResponseHelper::error('Kèo này CLB chi tiền, bạn không cần thanh toán', 400);
             }
 
             // === Tạo participant nếu chưa tham gia ===
