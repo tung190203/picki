@@ -36,6 +36,23 @@ class MiniMatchController extends Controller
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
         $filter = $request->input('filter', 'matches');
         $perPage = $request->input('per_page', MiniMatch::PER_PAGE);
+        $userId = Auth::id();
+        $isOrganizer = $miniTournament->hasOrganizer($userId);
+
+        // Kèo chưa công bố (status = 1 = STATUS_DRAFT):
+        // - Organizer: thấy tất cả matches
+        // - Người được mời (is_invited=true, is_confirmed=false): thấy trang matches nhưng không có nội dung
+        // - Người khác: không thấy matches
+        if ($miniTournament->status === MiniTournament::STATUS_DRAFT && !$isOrganizer) {
+            return ResponseHelper::success([
+                'matches' => [],
+            ], 'Lấy danh sách trận đấu thành công', 200, [
+                'current_page' => 1,
+                'last_page'    => 1,
+                'per_page'     => $perPage,
+                'total'        => 0,
+            ]);
+        }
 
         $query = MiniMatch::withFullRelations()
             ->where('mini_tournament_id', $miniTournament->id)
@@ -75,6 +92,14 @@ class MiniMatchController extends Controller
     public function show($matchId)
     {
         $match = MiniMatch::withFullRelations()->findOrFail($matchId);
+        $miniTournament = $match->miniTournament;
+        $userId = Auth::id();
+        $isOrganizer = $miniTournament->hasOrganizer($userId);
+
+        // Kèo chưa công bố (status = 1 = STATUS_DRAFT): chỉ organizer mới xem được
+        if ($miniTournament->status === MiniTournament::STATUS_DRAFT && !$isOrganizer) {
+            return ResponseHelper::error('Kèo đấu chưa được công bố', 403);
+        }
 
         return ResponseHelper::success(new MiniMatchResource($match), 'Lấy thông tin trận đấu thành công');
     }
@@ -451,6 +476,15 @@ class MiniMatchController extends Controller
     public function generateQr($matchId)
     {
         $match = MiniMatch::with('miniTournament')->findOrFail($matchId);
+        $miniTournament = $match->miniTournament;
+        $userId = Auth::id();
+        $isOrganizer = $miniTournament->hasOrganizer($userId);
+
+        // Kèo chưa công bố: chỉ organizer mới tạo được QR
+        if ($miniTournament->status === MiniTournament::STATUS_DRAFT && !$isOrganizer) {
+            return ResponseHelper::error('Kèo đấu chưa được công bố', 403);
+        }
+
         $url = url("/api/mini-matches/confirm-result/{$match->id}");
 
         return ResponseHelper::success(['qr_url' => $url], 'Thành công');
@@ -462,6 +496,12 @@ class MiniMatchController extends Controller
     public function confirmResult($matchId)
     {
         $match = MiniMatch::withFullRelations()->findOrFail($matchId);
+        $miniTournament = $match->miniTournament;
+
+        // Kèo chưa công bố (status = 1 = STATUS_DRAFT): chỉ organizer mới thao tác được
+        if ($miniTournament->status === MiniTournament::STATUS_DRAFT && !$miniTournament->hasOrganizer(Auth::id())) {
+            return ResponseHelper::error('Kèo đấu chưa được công bố', 403);
+        }
 
         if (!$match->isEditable()) {
             return ResponseHelper::error('Kết quả trận đấu đã được xác nhận trước đó', 400);
