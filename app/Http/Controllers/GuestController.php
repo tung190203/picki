@@ -82,10 +82,11 @@ class GuestController extends Controller
         }
 
         // Xác định payment_status
+        // use_club_fund = true: CLB chi tiền → CONFIRMED, không cần nộp
         // auto_split_fee = true: luôn CONFIRMED (kèo kết thúc sẽ chia lại tiền)
         $paymentStatus = PaymentStatusEnum::CONFIRMED;
-        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && $guarantorUserId) {
-            // Chỉ set PENDING khi KHÔNG phải auto_split_fee và guarantor không phải organizer
+        if (!$miniTournament->use_club_fund && $miniTournament->has_fee && !$miniTournament->auto_split_fee && $guarantorUserId) {
+            // Chỉ set PENDING khi KHÔNG phải use_club_fund, KHÔNG phải auto_split_fee và có guarantor
             $isGuarantorOrganizer = $miniTournament->hasOrganizer($guarantorUserId);
             if (!$isGuarantorOrganizer) {
                 $paymentStatus = PaymentStatusEnum::PENDING;
@@ -172,9 +173,10 @@ class GuestController extends Controller
             $guestUser->forceFill(['avatar_url' => $guestAvatarUrl])->saveQuietly();
         }
 
-        // Luôn tạo payment record cho guest khi kèo có thu phí VÀ KHÔNG phải auto_split_fee
-        // auto_split_fee = true: KHÔNG tạo payment ở đây, sẽ tạo khi kèo kết thúc
-        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
+        // Luôn tạo payment record cho guest khi kèo thu phí VÀ KHÔNG phải use_club_fund VÀ KHÔNG phải auto_split_fee
+        // use_club_fund = true: CLB chi tiền → KHÔNG tạo payment
+        // auto_split_fee = true: chỉ tạo payment khi kèo kết thúc → KHÔNG tạo payment ở đây
+        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
             $feeAmount = $miniTournament->fee_amount;
 
             MiniParticipantPayment::create([
