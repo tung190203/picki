@@ -8,10 +8,16 @@ use App\Jobs\SendPushJob;
 use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
 use App\Notifications\MiniTournamentPaymentCreatedNotification;
+use App\Services\Club\ClubFundContributionService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class MiniTournamentPaymentService
 {
+    public function __construct(
+        protected ClubFundContributionService $fundContributionService,
+    ) {
+    }
     /**
      * Tạo khoản thu tự động khi kèo bắt đầu (auto_split_fee = true)
      * - Tính final_fee_per_person dựa trên số người tại thời điểm start_time
@@ -54,6 +60,9 @@ class MiniTournamentPaymentService
 
             // Lấy organizers
             $organizers = $tournament->staff()->pluck('users.id')->toArray();
+
+            // Load fundCollection để sync ClubFundContribution + wallet transaction (nếu có)
+            $tournament->load('fundCollection');
 
             // Tạo hoặc cập nhật payment cho tất cả participants
             foreach ($participants as $participant) {
@@ -135,6 +144,11 @@ class MiniTournamentPaymentService
                         ? PaymentStatusEnum::CONFIRMED
                         : PaymentStatusEnum::PENDING,
                 ]);
+
+                // Khi organizer/guest được auto-confirmed → tạo ClubFundContribution + wallet transaction
+                if ($shouldBeConfirmed && $participant->user_id) {
+                    $this->syncClubFundContributionIfNeeded($tournament, $participant->user_id, $participant->user_id);
+                }
             }
 
             DB::commit();
@@ -142,6 +156,34 @@ class MiniTournamentPaymentService
         } catch (\Exception $e) {
             DB::rollBack();
             throw $e;
+        }
+    }
+
+    /**
+     * Sync ClubFundContribution khi organizer/guest được auto-confirmed thanh toán.
+     * Tương tự logic trong MiniTournamentPaymentController::syncClubFundContributionForTournament().
+     * Chỉ sync khi kèo thu phí VÀ có fundCollection đang active.
+     */
+    private function syncClubFundContributionIfNeeded(MiniTournament $tournament, int $userId, int $confirmerId): void
+    {
+        if (!$tournament->has_fee) {
+            return;
+        }
+
+        $collection = $tournament->fundCollection;
+        if (!$collection || !$collection->isActive()) {
+            return;
+        }
+
+        try {
+            $this->fundContributionService->markMemberPaid($collection, $userId, $confirmerId, null);
+        } catch (\Exception $e) {
+            // Log lỗi nhưng không break flow chính
+            Log::warning('MiniTournamentPaymentService: Failed to sync fund contribution', [
+                'tournament_id' => $tournament->id,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 

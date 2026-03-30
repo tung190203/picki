@@ -198,10 +198,18 @@ class ClubFundContributionService
      * Admin đánh dấu thành viên đã đóng mà không cần nộp biên lai.
      * Chỉ áp dụng cho fund-collection có club_activity_id (đợt thu từ sự kiện).
      */
-    public function markMemberPaid(ClubFundCollection $collection, int $memberUserId, int $confirmerId): ClubFundContribution
+    /**
+     * Đánh dấu member đã đóng quỹ (organizer markPaid từ kèo đấu, hoặc admin đánh dấu từ CLB).
+     * Nếu đã có contribution Pending → confirm + copy receipt_url.
+     * Nếu chưa có → tạo mới Confirmed.
+     *
+     * @param  ClubFundCollection  $collection
+     * @param  int  $memberUserId
+     * @param  int  $confirmerId
+     * @param  string|null  $receiptUrl  URL biên lai từ kèo đấu (MiniParticipantPayment.receipt_image)
+     */
+    public function markMemberPaid(ClubFundCollection $collection, int $memberUserId, int $confirmerId, ?string $receiptUrl = null): ClubFundContribution
     {
-        // Cho phép mark-paid cho tất cả fund collection (không chỉ từ activity)
-        
         $assigned = $collection->assignedMembers()->where('user_id', $memberUserId)->first();
         if (!$assigned) {
             throw new \Exception('Thành viên không có trong danh sách thu');
@@ -218,17 +226,21 @@ class ClubFundContributionService
                 return $existing;
             }
             if ($existing->status === ClubFundContributionStatus::Pending) {
+                // Copy receipt_url từ kèo đấu nếu có, rồi confirm
+                if ($receiptUrl && !$existing->receipt_url) {
+                    $existing->update(['receipt_url' => $receiptUrl]);
+                }
                 return $this->confirmContribution($existing, $confirmerId);
             }
             throw new \Exception('Đóng góp đã bị từ chối, không thể đánh dấu đã đóng');
         }
 
-        return DB::transaction(function () use ($collection, $memberUserId, $amountDue, $confirmerId) {
+        return DB::transaction(function () use ($collection, $memberUserId, $amountDue, $confirmerId, $receiptUrl) {
             $contribution = ClubFundContribution::create([
                 'club_fund_collection_id' => $collection->id,
                 'user_id' => $memberUserId,
                 'amount' => $amountDue,
-                'receipt_url' => null,
+                'receipt_url' => $receiptUrl,
                 'note' => 'Admin đánh dấu đã đóng (không cần biên lai)',
                 'status' => ClubFundContributionStatus::Confirmed,
             ]);
@@ -312,6 +324,9 @@ class ClubFundContributionService
     /**
      * Sync MiniParticipantPayment khi user nộp/xác nhận/từ chối contribution qua ClubFundContributionController.
      * Chỉ sync nếu ClubFundCollection có liên kết với MiniTournament.
+     *
+     * @param  ClubFundContribution  $contribution
+     * @param  string  $paymentStatus  'confirmed'|'pending'|'rejected'
      */
     private function syncMiniTournamentPayment(ClubFundContribution $contribution, string $paymentStatus): void
     {
@@ -331,22 +346,33 @@ class ClubFundContributionService
             return;
         }
 
+        // Build common update fields — luôn sync receipt_url từ contribution sang payment
+        $commonUpdate = [];
+        if ($contribution->receipt_url) {
+            $commonUpdate['receipt_image'] = $contribution->receipt_url;
+        }
+
         if ($paymentStatus === 'confirmed') {
             $participant->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
+            $updateFields = array_merge($commonUpdate, [
+                'status' => MiniParticipantPayment::STATUS_CONFIRMED,
+                'confirmed_at' => now(),
+                'confirmed_by' => $contribution->confirmed_by ?? auth()->id(),
+            ]);
             MiniParticipantPayment::where('participant_id', $participant->id)
                 ->where('status', '!=', MiniParticipantPayment::STATUS_CONFIRMED)
-                ->update([
-                    'status' => MiniParticipantPayment::STATUS_CONFIRMED,
-                    'confirmed_at' => now(),
-                    'confirmed_by' => $contribution->confirmed_by ?? auth()->id(),
-                ]);
+                ->update($updateFields);
         } elseif ($paymentStatus === 'pending') {
             $participant->update(['payment_status' => PaymentStatusEnum::PENDING]);
+            MiniParticipantPayment::where('participant_id', $participant->id)
+                ->update($commonUpdate);
         } elseif ($paymentStatus === 'rejected') {
             $participant->update(['payment_status' => PaymentStatusEnum::PENDING]);
             MiniParticipantPayment::where('participant_id', $participant->id)
                 ->where('status', MiniParticipantPayment::STATUS_PAID)
-                ->update(['status' => MiniParticipantPayment::STATUS_REJECTED]);
+                ->update(array_merge($commonUpdate, [
+                    'status' => MiniParticipantPayment::STATUS_REJECTED,
+                ]));
         }
     }
 }
