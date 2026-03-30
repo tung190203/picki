@@ -18,6 +18,7 @@ use App\Notifications\MiniTournamentJoinRequestNotification;
 use App\Notifications\MiniTournamentRemovedNotification;
 use App\Notifications\MiniTournamentInvitationNotification;
 use App\Notifications\MiniTournamentMemberJoinedNotification;
+use App\Services\MiniTournamentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -25,8 +26,14 @@ use Illuminate\Support\Facades\DB;
 
 class MiniParticipantController extends Controller
 {
+    private MiniTournamentService $tournamentService;
+
+    public function __construct(MiniTournamentService $tournamentService)
+    {
+        $this->tournamentService = $tournamentService;
+    }
+
     /**
-     * Danh sách người tham gia 1 mini tournament.
      * - Filter theo is_confirmed (0/1)
      * - Hỗ trợ phân trang
      */
@@ -80,13 +87,16 @@ class MiniParticipantController extends Controller
             return ResponseHelper::error('Bạn đã tham gia kèo đấu này.', 400);
         }
 
-        $paymentStatus = PaymentStatusEnum::CONFIRMED;
-        $isConfirmed = $miniTournament->auto_approve && !$miniTournament->is_private;
-        
-        // Set payment_status based on tournament fee settings
-        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
+        // Set payment_status: miễn phí nếu use_club_fund=true, ngược lại dựa vào fee settings
+        if ($miniTournament->use_club_fund) {
+            $paymentStatus = PaymentStatusEnum::CONFIRMED;
+        } elseif ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
             $paymentStatus = PaymentStatusEnum::PENDING;
+        } else {
+            $paymentStatus = PaymentStatusEnum::CONFIRMED;
         }
+
+        $isConfirmed = $miniTournament->auto_approve && !$miniTournament->is_private;
 
         $participant = MiniParticipant::create([
             'mini_tournament_id' => $tournamentId,
@@ -151,9 +161,10 @@ class MiniParticipantController extends Controller
                 );
             }
 
-            // Gắn thanh toán pending cho người chơi nếu kèo có thu phí VÀ KHÔNG phải auto_split_fee
+            // Gắn thanh toán pending cho người chơi nếu kèo có thu phí VÀ KHÔNG phải auto_split_fee VÀ KHÔNG phải use_club_fund
+            // use_club_fund = true: CLB chi tiền, không thu phí từ member
             // auto_split_fee = true: KHÔNG tạo payment ở đây, sẽ tạo khi kèo kết thúc
-            if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
+            if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
                 // Tiền cố định mỗi người
                 $feePerPerson = $miniTournament->fee_amount;
 
@@ -169,6 +180,9 @@ class MiniParticipantController extends Controller
                     ]
                 );
             }
+
+            // Gắn user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
+            $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, Auth::id(), false);
         }
 
         return ResponseHelper::success(
@@ -217,6 +231,9 @@ class MiniParticipantController extends Controller
             'invited_by' => Auth::id(),
             'payment_status' => $paymentStatus,
         ]);
+
+        // Gắn user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
+        $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $validated['user_id'], false);
 
         $user = User::find($validated['user_id']);
 
@@ -273,6 +290,9 @@ class MiniParticipantController extends Controller
             'is_confirmed' => true,
             'payment_status' => $paymentStatus,
         ]);
+
+        // Gắn user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
+        $this->tournamentService->attachUserToMiniTournamentClubFund($participant->miniTournament, $participant->user_id, false);
 
         $participant->user->notify(
             new MiniTournamentJoinConfirmedNotification($participant, Auth::id())
@@ -343,6 +363,9 @@ class MiniParticipantController extends Controller
             'is_confirmed' => true,
             'payment_status' => $paymentStatus,
         ]);
+
+        // Gắn user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
+        $this->tournamentService->attachUserToMiniTournamentClubFund($participant->miniTournament, Auth::id(), false);
 
         $organizerIds = $participant->miniTournament->staff
             ->where('role', MiniTournamentStaff::ROLE_ORGANIZER)
@@ -658,6 +681,9 @@ class MiniParticipantController extends Controller
                     'invited_by' => Auth::id(),
                     'payment_status' => $paymentStatus,
                 ]);
+
+                // Gắn user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
+                $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $userId, false);
 
                 // Send notification
                 $user = User::find($userId);

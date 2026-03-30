@@ -330,7 +330,7 @@ class MiniTournamentPaymentController extends Controller
                 DB::commit();
 
                 // === Sync ClubFundContribution cho kèo CLB ===
-                $this->syncClubFundContributionForTournament($miniTournament, $participant->user_id, Auth::id());
+                $this->syncClubFundContributionForTournament($miniTournament, $participant->user_id, Auth::id(), $receiptImage);
 
                 $message = $miniTournament->auto_approve
                     ? ($miniTournament->auto_split_fee
@@ -408,7 +408,7 @@ class MiniTournamentPaymentController extends Controller
             DB::commit();
 
                 // === Sync ClubFundContribution cho kèo CLB ===
-                $this->syncClubFundContributionForTournament($miniTournament, $userId, Auth::id());
+                $this->syncClubFundContributionForTournament($miniTournament, $userId, Auth::id(), $receiptImage);
 
             $message = $miniTournament->auto_approve
                 ? 'Thanh toán thành công, đã được xác nhận'
@@ -519,7 +519,8 @@ class MiniTournamentPaymentController extends Controller
             $participant->confirmPayment();
 
             // === Sync ClubFundContribution + tạo ClubWalletTransaction IN cho kèo CLB ===
-            $this->syncClubFundContributionForTournament($miniTournament, $participant->user_id, Auth::id());
+            // Dùng $payment->receipt_image vì đã được update ở trên (dòng 488: $receiptImage ?? $payment->receipt_image)
+            $this->syncClubFundContributionForTournament($miniTournament, $participant->user_id, Auth::id(), $payment->receipt_image);
 
             $payment->load('user');
             if ($payment->user) {
@@ -589,7 +590,7 @@ class MiniTournamentPaymentController extends Controller
 
                 // === Sync ClubFundContribution + tạo ClubWalletTransaction IN cho kèo CLB ===
                 if ($isConfirm) {
-                    $this->syncClubFundContributionForTournament($miniTournament, $participant->user_id, Auth::id());
+                    $this->syncClubFundContributionForTournament($miniTournament, $participant->user_id, Auth::id(), $payment->receipt_image);
                 }
             }
 
@@ -797,6 +798,9 @@ class MiniTournamentPaymentController extends Controller
                         $payment->user->notify(new PaymentConfirmedNotification($payment));
                     }
 
+                    // === Sync ClubFundContribution cho kèo CLB ===
+                    $this->syncClubFundContributionForTournament($miniTournament, $userId, $userId, $payment->receipt_image);
+
                     DB::commit();
 
                     return ResponseHelper::success(
@@ -866,24 +870,32 @@ class MiniTournamentPaymentController extends Controller
     /**
      * Sync ClubFundContribution khi thanh toán kèo CLB.
      * Tạo/update ClubFundContribution CONFIRMED + ClubWalletTransaction IN nếu use_club_fund=true.
+     * Đồng bộ receipt_url từ MiniParticipantPayment sang ClubFundContribution.
+     *
+     * @param  MiniTournament  $tournament
+     * @param  int  $userId
+     * @param  int  $confirmerId
+     * @param  string|null  $receiptUrl
      */
-    private function syncClubFundContributionForTournament(MiniTournament $tournament, ?int $userId, int $confirmerId): void
-    {
-        if (!$userId) {
-            return;
-        }
-
-        if (!$tournament->use_club_fund || !$tournament->has_fee) {
+    private function syncClubFundContributionForTournament(
+        MiniTournament $tournament,
+        int $userId,
+        int $confirmerId,
+        ?string $receiptUrl = null,
+    ): void {
+        // Chỉ sync khi kèo thu phí VÀ có fundCollection được gắn
+        // (collection riêng để thu quỹ cho kèo này)
+        if (!$tournament->has_fee) {
             return;
         }
 
         $collection = $tournament->fundCollection;
-        if (!$collection) {
+        if (!$collection || !$collection->isActive()) {
             return;
         }
 
         try {
-            $this->fundContributionService->markMemberPaid($collection, $userId, $confirmerId);
+            $this->fundContributionService->markMemberPaid($collection, $userId, $confirmerId, $receiptUrl);
         } catch (\Exception $e) {
             report($e);
         }

@@ -55,11 +55,13 @@ class MiniTournament extends Model
         'status',
         'use_club_fund',
         'club_fund_collection_id',
+        'included_in_club_fund',
     ];
 
     protected $casts = [
         'auto_approve' => 'boolean',
         'use_club_fund' => 'bool',
+        'included_in_club_fund' => 'bool',
     ];
 
     const PER_PAGE = 15;
@@ -415,7 +417,7 @@ class MiniTournament extends Model
 
     public function getIncludedInClubFundAttribute(): bool
     {
-        return $this->use_club_fund ?? false;
+        return (bool) ($this->attributes['included_in_club_fund'] ?? false);
     }
 
     public function getPaymentSummaryAttribute(): array

@@ -76,6 +76,11 @@ class ClubFundCollection extends Model
         return $query->where('status', ClubFundCollectionStatus::Active);
     }
 
+    public function isActive(): bool
+    {
+        return $this->status === ClubFundCollectionStatus::Active;
+    }
+
     public function scopePending($query)
     {
         return $query->where('status', ClubFundCollectionStatus::Pending);
@@ -92,11 +97,6 @@ class ClubFundCollection extends Model
             return 0;
         }
         return min(100, ($this->collected_amount / $this->target_amount) * 100);
-    }
-
-    public function isActive()
-    {
-        return $this->status === ClubFundCollectionStatus::Active;
     }
 
     public function isCompleted()
