@@ -15,23 +15,19 @@ class MiniTournamentObserver
 {
     /**
      * Handle the MiniTournament "created" event.
-     * Khi use_club_fund = true: kèo là miễn phí, CLB chi tiền.
-     * - Tạo ClubExpense + ClubWalletTransaction OUT (trừ quỹ CLB)
-     * - Không tạo ClubFundContribution (không ai phải đóng)
+     * Xử lý use_club_fund = true được thực hiện trong ClubMiniTournamentController.
+     * Observer này chỉ xử lý included_in_club_fund (đợt thu quỹ chung CLB).
      */
     public function created(MiniTournament $tournament): void
     {
-        if (!$tournament->use_club_fund) {
-            return;
-        }
-
-        $this->handleTournamentStarted($tournament);
+        // use_club_fund = true → đã xử lý trong ClubMiniTournamentController::createClubExpenseForTournament()
+        // Không làm gì ở đây để tránh duplicate expense khi observer chạy sau controller transaction
     }
 
     /**
      * Handle the MiniTournament "updated" event.
-     * Khi kèo chuyển sang STATUS_OPEN (bắt đầu), tạo chi phí quỹ.
-     * Chỉ tạo 1 lần duy nhất (kiểm tra qua ClubExpense đã tồn tại với mini_tournament_id).
+     * Khi kèo chuyển sang STATUS_OPEN (bắt đầu) mà use_club_fund = true,
+     * tạo expense nếu chưa có (trường hợp kèo được tạo ở endpoint khác ClubMiniTournamentController).
      */
     public function updated(MiniTournament $tournament): void
     {
@@ -47,39 +43,26 @@ class MiniTournamentObserver
             return;
         }
 
-        $this->handleTournamentStarted($tournament);
-    }
-
-    /**
-     * Logic chung: xử lý khi kèo CLB bắt đầu (status = OPEN hoặc tạo ngay khi use_club_fund=true).
-     * use_club_fund = true → kèo miễn phí cho tất cả, CLB chi tiền.
-     * - Tạo ClubExpense + ClubWalletTransaction OUT → Lịch sử thu chi CLB
-     * - Không tạo ClubFundContribution (vì không ai phải đóng)
-     */
-    protected function handleTournamentStarted(MiniTournament $tournament): void
-    {
-        $club = $tournament->club;
-        if (!$club) {
-            return;
-        }
-
-        $this->createTournamentExpenseIfNeeded($tournament, $club);
+        $this->createTournamentExpenseIfNeeded($tournament);
     }
 
     /**
      * Tạo ClubExpense + ClubWalletTransaction OUT nếu chưa tạo.
-     * Số tiền chi = fee_amount (số tiền CLB chi cho kèo đấu).
+     * Dùng cho trường hợp kèo use_club_fund được tạo ngoài ClubMiniTournamentController.
      */
-    protected function createTournamentExpenseIfNeeded(MiniTournament $tournament, $club): void
+    protected function createTournamentExpenseIfNeeded(MiniTournament $tournament): void
     {
-        // Chỉ tạo 1 lần duy nhất - kiểm tra qua ClubExpense đã tồn tại
         if (ClubExpense::where('mini_tournament_id', $tournament->id)->exists()) {
             return;
         }
 
         $totalExpense = (float) ($tournament->fee_amount ?? 0);
-
         if ($totalExpense <= 0) {
+            return;
+        }
+
+        $club = $tournament->club;
+        if (!$club) {
             return;
         }
 
@@ -88,7 +71,7 @@ class MiniTournamentObserver
                 $clubExpense = ClubExpense::create([
                     'club_id' => $club->id,
                     'mini_tournament_id' => $tournament->id,
-                    'title' => "Chi phí kèo: {$tournament->name}",
+                    'title' => $tournament->name,
                     'amount' => $totalExpense,
                     'spent_by' => $tournament->created_by,
                     'spent_at' => now(),
