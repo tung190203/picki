@@ -367,6 +367,15 @@ class ClubService
             $club->setRelation('members', $members);
         }
 
+        // Load membership của user hiện tại để lấy invited_by
+        if ($userId) {
+            $membership = $club->members()
+                ->where('user_id', $userId)
+                ->with('invitedBy')
+                ->first();
+            $club->currentUserMembership = $membership;
+        }
+
         return $club;
     }
 

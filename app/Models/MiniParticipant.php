@@ -17,6 +17,7 @@ class MiniParticipant extends Model
         'team_id',
         'is_confirmed',
         'is_invited',
+        'invited_by',
         'payment_status',
         'is_guest',
         'guest_name',
@@ -59,6 +60,14 @@ class MiniParticipant extends Model
     }
 
     /**
+     * Get the user who invited this participant
+     */
+    public function invitedBy()
+    {
+        return $this->belongsTo(User::class, 'invited_by');
+    }
+
+    /**
      * Scope: Filter only guest participants
      */
     public function scopeGuests($query)
@@ -83,12 +92,12 @@ class MiniParticipant extends Model
     }
 
     public function scopeWithFullRelations($query) {
-        return $query->with('user.sports.scores', 'user.sports.sport');
+        return $query->with('user.sports.scores', 'user.sports.sport', 'invitedBy');
     }
 
     public function scopeLoadFullRelations()
     {
-        return $this->load('user.sports.scores', 'user.sports.sport');
+        return $this->load('user.sports.scores', 'user.sports.sport', 'invitedBy');
     }
 
     /**
