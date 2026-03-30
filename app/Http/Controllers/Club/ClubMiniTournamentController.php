@@ -27,7 +27,7 @@ use Illuminate\Support\Facades\Cache;
 class ClubMiniTournamentController extends Controller
 {
     public function __construct(
-        protected MiniTournamentService $tournamentService
+        protected MiniTournamentService $tournamentService,
     ) {
     }
 
@@ -67,7 +67,7 @@ class ClubMiniTournamentController extends Controller
         $miniTournament = $this->tournamentService->createTournament($data, $userId);
         $miniTournament->staff()->attach($userId, ['role' => MiniTournamentStaff::ROLE_ORGANIZER]);
 
-        // === Xử lý use_club_fund: tạo ClubFundCollection và xác nhận thanh toán ===
+        // === Xử lý use_club_fund: tạo ClubFundCollection + ClubFundContribution ===
         if ($miniTournament->use_club_fund && $miniTournament->has_fee) {
             // Tạo ClubFundCollection
             $collection = ClubFundCollection::create([
@@ -75,9 +75,7 @@ class ClubMiniTournamentController extends Controller
                 'title' => $miniTournament->name,
                 'description' => $miniTournament->fee_description,
                 'target_amount' => $miniTournament->fee_amount,
-                'amount_per_member' => $miniTournament->auto_split_fee
-                    ? $miniTournament->fee_amount
-                    : $miniTournament->fee_amount,
+                'amount_per_member' => $miniTournament->fee_amount,
                 'currency' => 'VND',
                 'start_date' => $miniTournament->start_time,
                 'end_date' => $miniTournament->end_time ?? $miniTournament->start_time,
@@ -94,31 +92,59 @@ class ClubMiniTournamentController extends Controller
             $participantUserIds = $miniTournament->participants()->pluck('user_id')->toArray();
             $commonUserIds = array_intersect($clubMemberUserIds, $participantUserIds);
 
-            if (!empty($commonUserIds)) {
-                $collection->assignedMembers()->attach($commonUserIds, [
-                    'amount_due' => $miniTournament->auto_split_fee
-                        ? $miniTournament->fee_amount
-                        : $miniTournament->fee_amount,
-                ]);
-            }
+            // Lấy organizer IDs
+            $organizerIds = $miniTournament->staff()->pluck('user_id')->toArray();
 
-            // Set payment_status = CONFIRMED cho TẤT CẢ participants (member + guest)
-            $miniTournament->participants()->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
+            // Lấy guest được organizer bảo lãnh
+            $guaranteedGuestIds = $miniTournament->participants()
+                ->where('is_guest', true)
+                ->whereIn('guarantor_user_id', $organizerIds)
+                ->pluck('user_id')
+                ->toArray();
 
-            // Tạo confirmed contribution cho từng participant là member CLB
-            $feePerPerson = $miniTournament->auto_split_fee
-                ? $miniTournament->fee_amount
-                : $miniTournament->fee_amount;
-
+            // === Tạo ClubFundContribution cho member CLB ===
             foreach ($miniTournament->participants as $participant) {
-                if (in_array($participant->user_id, $commonUserIds)) {
+                if (!in_array($participant->user_id, $commonUserIds)) {
+                    continue;
+                }
+
+                $isOrganizer = in_array($participant->user_id, $organizerIds);
+                $isGuaranteedGuest = in_array($participant->user_id, $guaranteedGuestIds);
+
+                if ($isOrganizer || $isGuaranteedGuest) {
+                    // Organizer / guest được organizer bảo lãnh → CONFIRMED
+                    // (wallet IN được tạo khi kèo bắt đầu hoặc khi admin xác nhận thanh toán)
                     ClubFundContribution::create([
                         'club_fund_collection_id' => $collection->id,
                         'user_id' => $participant->user_id,
-                        'amount' => $feePerPerson,
+                        'amount' => $miniTournament->fee_amount,
                         'receipt_url' => null,
-                        'note' => 'Admin đánh dấu đã đóng khi tạo kèo quỹ bao',
+                        'note' => 'Admin tạo kèo CLB - bao phí',
                         'status' => ClubFundContributionStatus::Confirmed,
+                    ]);
+                } else {
+                    // Member thường / guest thường → PENDING (chờ nộp biên lai)
+                    ClubFundContribution::create([
+                        'club_fund_collection_id' => $collection->id,
+                        'user_id' => $participant->user_id,
+                        'amount' => $miniTournament->fee_amount,
+                        'receipt_url' => null,
+                        'note' => 'Khoản thu cố định - vui lòng nộp biên lai',
+                        'status' => ClubFundContributionStatus::Pending,
+                    ]);
+                }
+            }
+
+            // Gán assignedMembers với amount_due
+            if (!empty($commonUserIds)) {
+                if ($miniTournament->auto_split_fee) {
+                    // auto_split_fee=true: chưa biết số tiền, đợi FinalizeCommand tính
+                    $collection->assignedMembers()->attach($commonUserIds, [
+                        'amount_due' => 0,
+                    ]);
+                } else {
+                    $collection->assignedMembers()->attach($commonUserIds, [
+                        'amount_due' => $miniTournament->fee_amount,
                     ]);
                 }
             }

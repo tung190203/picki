@@ -24,10 +24,22 @@ class ClubNotificationService
             return 0;
         }
 
+        $member = $club->members()->where('user_id', $userId)->first();
+        $joinedAt = $member?->joined_at;
+
         return $club->notifications()
             ->where('status', ClubNotificationStatus::Sent)
-            ->whereHas('recipients', function ($q) use ($userId) {
-                $q->where('user_id', $userId)->where('is_read', false);
+            ->where(function ($q) use ($userId, $joinedAt) {
+                $q->whereHas('recipients', function ($rq) use ($userId) {
+                    $rq->where('user_id', $userId)->where('is_read', false);
+                })
+                ->orWhere(function ($broadcast) use ($userId, $joinedAt) {
+                    $broadcast->whereDoesntHave('recipients')
+                        ->where('status', ClubNotificationStatus::Sent);
+                    if ($joinedAt) {
+                        $broadcast->where('sent_at', '>=', $joinedAt);
+                    }
+                });
             })
             ->count();
     }
@@ -37,9 +49,24 @@ class ClubNotificationService
         $query = $club->notifications()->with(['type', 'creator', 'recipients.user']);
 
         if (!$canManage) {
+            $member = $club->members()->where('user_id', $userId)->first();
+            $joinedAt = $member?->joined_at;
+
             $query->where('status', ClubNotificationStatus::Sent)
-                ->whereHas('recipients', function ($q) use ($userId) {
-                    $q->where('user_id', $userId);
+                ->where(function ($q) use ($userId, $joinedAt) {
+                    // Notification user là recipient rõ ràng
+                    $q->whereHas('recipients', function ($rq) use ($userId) {
+                        $rq->where('user_id', $userId);
+                    })
+                    // Hoặc notification gửi đến tất cả (không có recipients rõ ràng)
+                    // và được gửi SAU khi user gia nhập CLB
+                    ->orWhere(function ($broadcast) use ($userId, $joinedAt) {
+                        $broadcast->whereDoesntHave('recipients')
+                            ->where('status', ClubNotificationStatus::Sent);
+                        if ($joinedAt) {
+                            $broadcast->where('sent_at', '>=', $joinedAt);
+                        }
+                    });
                 });
         }
 
@@ -185,20 +212,43 @@ class ClubNotificationService
         }
     }
 
+    /**
+     * Backfill thông báo CLB đã gửi cho thành viên mới (join bằng duyệt request hoặc accept invitation).
+     * Gửi cho user tất cả notification "tất cả thành viên" được gửi TRƯỚC KHI họ gia nhập CLB.
+     */
+    public function backfillNotificationsForNewMember(Club $club, int $userId, \DateTimeInterface $joinedAt): int
+    {
+        $count = 0;
+
+        $club->notifications()
+            ->where('status', ClubNotificationStatus::Sent)
+            ->whereDoesntHave('recipients', fn ($q) => $q->where('user_id', $userId))
+            ->where('sent_at', '<', $joinedAt)
+            ->each(function ($notification) use ($userId, &$count) {
+                $notification->recipients()->firstOrCreate(
+                    ['user_id' => $userId],
+                    ['is_read' => false]
+                );
+                $count++;
+            });
+
+        return $count;
+    }
+
     public function markAsRead(ClubNotification $notification, int $userId, bool $canManage): void
     {
         $recipient = $notification->recipients()->where('user_id', $userId)->first();
 
         if (!$recipient) {
-            if (!$canManage) {
+            // Broadcast notification (gửi tất cả) - tạo recipient record để đánh dấu đã đọc
+            if ($canManage || $notification->status === ClubNotificationStatus::Sent) {
+                $notification->recipients()->firstOrCreate(
+                    ['user_id' => $userId],
+                    ['is_read' => true, 'read_at' => now()]
+                );
+            } else {
                 throw new \Exception('Bạn không có quyền đánh dấu đọc thông báo này');
             }
-
-            $notification->recipients()->create([
-                'user_id' => $userId,
-                'is_read' => true,
-                'read_at' => now(),
-            ]);
         } else {
             $recipient->markAsRead();
         }
@@ -235,7 +285,9 @@ class ClubNotificationService
     public function markAllAsRead(Club $club, int $userId, bool $canManage): string
     {
         return DB::transaction(function () use ($club, $userId, $canManage) {
-            $recipients = 0;
+            $member = $club->members()->where('user_id', $userId)->first();
+            $joinedAt = $member?->joined_at;
+
             if ($canManage) {
                 $notifications = $club->notifications()->get();
 
@@ -243,16 +295,16 @@ class ClubNotificationService
                     $recipient = $notification->recipients()->where('user_id', $userId)->first();
 
                     if (!$recipient) {
-                        $notification->recipients()->create([
-                            'user_id' => $userId,
-                            'is_read' => true,
-                            'read_at' => now(),
-                        ]);
+                        $notification->recipients()->firstOrCreate(
+                            ['user_id' => $userId],
+                            ['is_read' => true, 'read_at' => now()]
+                        );
                     } else {
                         $recipient->markAsRead();
                     }
                 }
             } else {
+                // Mark as read những notification user là recipient rõ ràng
                 $recipients = DB::table('club_notification_recipients')
                     ->join('club_notifications', 'club_notification_recipients.club_notification_id', '=', 'club_notifications.id')
                     ->where('club_notifications.club_id', $club->id)
@@ -262,13 +314,25 @@ class ClubNotificationService
                         'club_notification_recipients.is_read' => true,
                         'club_notification_recipients.read_at' => now(),
                     ]);
+
+                // Mark as read những broadcast notification (gửi tất cả, không có recipients)
+                $club->notifications()
+                    ->where('status', ClubNotificationStatus::Sent)
+                    ->whereDoesntHave('recipients')
+                    ->when($joinedAt, fn ($q) => $q->where('sent_at', '>=', $joinedAt))
+                    ->each(function ($notification) use ($userId) {
+                        $notification->recipients()->firstOrCreate(
+                            ['user_id' => $userId],
+                            ['is_read' => true, 'read_at' => now()]
+                        );
+                    });
             }
 
             $this->syncAllLaravelNotificationsForClub($club->id, $userId);
 
             return $canManage
                 ? 'Đã đánh dấu đọc tất cả thông báo'
-                : ($recipients > 0 ? "Đã đánh dấu đọc {$recipients} thông báo" : 'Không có thông báo chưa đọc');
+                : 'Đã đánh dấu đọc tất cả thông báo';
         });
     }
 
