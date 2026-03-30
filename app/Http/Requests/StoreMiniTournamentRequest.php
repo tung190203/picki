@@ -53,6 +53,7 @@ class StoreMiniTournamentRequest extends FormRequest
 
             // Club fund integration
             'use_club_fund' => 'boolean',
+            'included_in_club_fund' => 'boolean',
 
             // Rating
             'min_rating' => 'nullable|numeric|min:1|max:8',
@@ -217,6 +218,9 @@ class StoreMiniTournamentRequest extends FormRequest
                 'max_points' => null,
             ]);
         }
+
+        // use_club_fund = true: kèo miễn phí cho member, CLB chi tiền. Không thu phí từ member.
+        // has_fee và fee_amount vẫn giữ nguyên (số tiền CLB chi cho kèo đấu).
 
         $startTime = $this->input('start_time');
         $endTime = $this->input('end_time');

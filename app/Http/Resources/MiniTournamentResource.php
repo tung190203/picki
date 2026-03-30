@@ -137,6 +137,7 @@ class MiniTournamentResource extends JsonResource
 
             // Club fund integration
             'use_club_fund' => $this->use_club_fund,
+            'included_in_club_fund' => $this->included_in_club_fund,
             'club_fund_collection_id' => $this->club_fund_collection_id,
         ];
 

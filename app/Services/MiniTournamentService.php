@@ -7,7 +7,10 @@ use App\Models\MiniMatch;
 use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
 use App\Models\MiniTournamentStaff;
+use App\Models\Club\ClubFundCollection;
+use App\Models\Club\ClubFundContribution;
 use App\Enums\PaymentStatusEnum;
+use App\Enums\ClubFundContributionStatus;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -19,16 +22,15 @@ class MiniTournamentService
         $recurringSchedule = $data['recurring_schedule'] ?? null;
         $seriesId = $recurringSchedule ? Str::uuid()->toString() : null;
 
-        // Ensure fee_amount is not null (default to 0)
-        if (!isset($data['fee_amount']) || $data['fee_amount'] === null) {
-            $data['fee_amount'] = 0;
-        }
+        // use_club_fund = true: kèo miễn phí cho member, CLB chi tiền.
+        // has_fee và fee_amount vẫn giữ nguyên (số tiền CLB chi cho kèo đấu).
 
         $miniTournament = MiniTournament::create([
             ...$data,
             'created_by' => $userId,
             'recurrence_series_id' => $seriesId,
-            'use_club_fund' => $data['use_club_fund'] ?? false,
+            'use_club_fund' => filter_var($data['use_club_fund'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'included_in_club_fund' => filter_var($data['included_in_club_fund'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'club_fund_collection_id' => $data['club_fund_collection_id'] ?? null,
         ]);
 
@@ -41,6 +43,9 @@ class MiniTournamentService
             'is_invited' => false,
             'payment_status' => PaymentStatusEnum::CONFIRMED,
         ]);
+
+        // Gắn creator vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
+        $this->attachUserToMiniTournamentClubFund($miniTournament, $userId, true);
 
         // Tạo khoản thu cho chủ kèo nếu kèo có thu phí
         // Nếu auto_split_fee = true, chỉ tạo payment khi kèo kết thúc (via command)
@@ -255,6 +260,9 @@ class MiniTournamentService
             ]
         );
 
+        // Gắn creator vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
+        $this->attachUserToMiniTournamentClubFund($target, $userId, true);
+
         if ($target->has_fee && !$target->auto_split_fee) {
             MiniParticipantPayment::firstOrCreate(
                 [
@@ -401,5 +409,54 @@ class MiniTournamentService
 
             return $allTournaments->first()->fresh();
         });
+    }
+
+    /**
+     * Gắn user vào ClubFundCollection của mini-tournament nếu tournament thuộc quỹ chung CLB.
+     * - Organizer / guest được bảo lãnh: CONFIRMED (miễn phí)
+     * - Member thường: PENDING (chờ nộp biên lai)
+     * Gắn user vào pivot assignedMembers của collection.
+     */
+    public function attachUserToMiniTournamentClubFund(MiniTournament $tournament, int $userId, bool $isOrganizer = false): void
+    {
+        if (!$tournament->club_fund_collection_id) {
+            return;
+        }
+
+        $collection = $tournament->fundCollection;
+        if (!$collection || !$collection->isActive()) {
+            return;
+        }
+
+        $alreadyContributed = ClubFundContribution::where('club_fund_collection_id', $collection->id)
+            ->where('user_id', $userId)
+            ->exists();
+
+        if ($alreadyContributed) {
+            return;
+        }
+
+        $feeAmount = $tournament->fee_amount ?? 0;
+
+        $status = $isOrganizer
+            ? ClubFundContributionStatus::Confirmed
+            : ClubFundContributionStatus::Pending;
+
+        $note = $isOrganizer
+            ? 'Admin tạo kèo CLB - bao phí'
+            : 'Khoản thu cố định - vui lòng nộp biên lai';
+
+        ClubFundContribution::create([
+            'club_fund_collection_id' => $collection->id,
+            'user_id' => $userId,
+            'amount' => $feeAmount,
+            'receipt_url' => null,
+            'note' => $note,
+            'status' => $status,
+        ]);
+
+        $collection->assignedMembers()->syncWithoutDetaching([
+            $userId => ['amount_due' => $feeAmount],
+        ]);
     }
 }
