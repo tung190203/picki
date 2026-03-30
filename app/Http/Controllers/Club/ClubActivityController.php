@@ -173,10 +173,10 @@ class ClubActivityController extends Controller
         $isHistoryOnly = !empty($statuses)
             && empty(array_diff($statuses, ['completed', 'cancelled']));
 
-        // 草稿不受周范围日期限制；且须能匹配 created_by（或服务端曾写入的主办人 staff）
-        $showCreatorDrafts = (bool) $userId && ! $isHistoryOnly;
+        // Cho phép xem draft: creator/staff HOẶC participant (kể cả invited chưa confirm)
+        $showDrafts = (bool) $userId && !$isHistoryOnly;
 
-        $query->where(function ($outer) use ($dateFrom, $dateTo, $statuses, $hasAll, $userId, $showCreatorDrafts) {
+        $query->where(function ($outer) use ($dateFrom, $dateTo, $statuses, $hasAll, $userId, $showDrafts) {
             $outer->where(function ($main) use ($dateFrom, $dateTo, $statuses, $hasAll) {
                 if (! empty($dateFrom)) {
                     $main->whereDate('start_time', '>=', $dateFrom);
@@ -205,15 +205,21 @@ class ClubActivityController extends Controller
                 }
             });
 
-            if ($showCreatorDrafts) {
+            // Hiển thị kèo draft cho: creator/staff HOẶC participant
+            if ($showDrafts) {
                 $outer->orWhere(function ($draftQ) use ($userId) {
                     $draftQ->where('status', MiniTournament::STATUS_DRAFT)
                         ->where(function ($who) use ($userId) {
+                            // Creator/staff
                             $who->where('mini_tournaments.created_by', $userId)
                                 ->orWhereHas('staff', function ($sq) use ($userId) {
                                     $sq->where('users.id', $userId)
                                         ->where('mini_tournament_staff.role', MiniTournamentStaff::ROLE_ORGANIZER);
                                 });
+                            // Participant (kể cả invited chưa confirm)
+                            $who->orWhereHas('participants', function ($pq) use ($userId) {
+                                $pq->where('user_id', $userId);
+                            });
                         });
                 });
             }

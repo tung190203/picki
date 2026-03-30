@@ -122,8 +122,28 @@ class MiniTournamentController extends Controller
         $query->whereDate('start_time', '>=', $nowVN);
         $userId = auth()->id();
         $query->where(function ($q) use ($userId) {
-            $q->where('is_private', 0)
-                ->orWhereHas('participants', fn($sub) => $sub->where('user_id', $userId));
+            // Kèo công khai, không private, không ở trạng thái draft/cancelled/closed
+            $q->where(function ($publicSub) {
+                $publicSub->where('is_private', '!=', 1)
+                    ->whereNotIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_CLOSED, MiniTournament::STATUS_CANCELLED]);
+            });
+
+            if ($userId) {
+                // Organizer: thấy tất cả kèo mình tổ chức (kể cả draft)
+                $q->orWhere(function ($staffSub) use ($userId) {
+                    $staffSub->whereHas('miniTournamentStaffs', function ($staffQuery) use ($userId) {
+                        $staffQuery->where('user_id', $userId)
+                            ->where('role', MiniTournamentStaff::ROLE_ORGANIZER);
+                    });
+                });
+
+                // Participant: thấy tất cả kèo mình tham gia (kể cả draft)
+                $q->orWhere(function ($partSub) use ($userId) {
+                    $partSub->whereHas('participants', function ($partQuery) use ($userId) {
+                        $partQuery->where('user_id', $userId);
+                    });
+                });
+            }
         });
 
         $miniTournaments = $query->paginate($validated['per_page'] ?? MiniTournament::PER_PAGE);
@@ -146,7 +166,28 @@ class MiniTournamentController extends Controller
      */
     public function show($id)
     {
-        $miniTournament = MiniTournament::withFullRelations()->findOrFail($id);
+        $miniTournament = MiniTournament::withFullRelations()
+            ->with('participants.invitedBy')
+            ->findOrFail($id);
+
+        $userId = Auth::id();
+        $isOrganizer = $miniTournament->hasOrganizer($userId);
+
+        // Kèo chưa công bố (status = 1 = STATUS_DRAFT):
+        // - Organizer: thấy tất cả (bao gồm matches)
+        // - Người được mời (is_invited=true, is_confirmed=false): thấy kèo nhưng ẩn matches
+        // - Người khác: không thấy matches
+        if ($miniTournament->status === MiniTournament::STATUS_DRAFT) {
+            $isInvited = $miniTournament->participants->contains(fn($p) =>
+                (int) $p->user_id === (int) $userId
+                && (bool) $p->is_invited === true
+                && (bool) $p->is_confirmed === false
+            );
+
+            if (!$isOrganizer && !$isInvited) {
+                $miniTournament->setRelation('matches', collect());
+            }
+        }
 
         return ResponseHelper::success(new MiniTournamentResource($miniTournament), 'Lấy thông tin chi tiết kèo đấu thành công');
     }
