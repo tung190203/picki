@@ -20,14 +20,17 @@ use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
 use App\Models\User;
 use App\Notifications\MiniTournamentInvitationNotification;
+use App\Services\Club\ClubFundContributionService;
 use App\Services\MiniTournamentService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 
 class ClubMiniTournamentController extends Controller
 {
     public function __construct(
         protected MiniTournamentService $tournamentService,
+        protected ClubFundContributionService $fundContributionService,
     ) {
     }
 
@@ -104,10 +107,38 @@ class ClubMiniTournamentController extends Controller
                 ->pluck('user_id')
                 ->toArray();
 
-            // === Tạo ClubFundContribution cho tất cả participant CLB ===
+            // Bước 1: Tạo assignedMembers trước (để markOrganizerExempt có thể check)
+            // Organizer/guest exempt → amount_due = 0, Member thường → amount_due = fee_amount
+            $allContributorUserIds = [];
+            $exemptUserIds = [];
             foreach ($miniTournament->participants as $participant) {
-                // Guest thường (không phải club member): vẫn cần tạo contribution PENDING
-                // để hiển thị trong danh sách chờ thanh toán
+                if (!in_array($participant->user_id, $commonUserIds) && !$participant->is_guest) {
+                    continue;
+                }
+
+                $isOrganizer = in_array($participant->user_id, $organizerIds);
+                $isGuaranteedGuest = in_array($participant->user_id, $guaranteedGuestIds);
+                $allContributorUserIds[] = $participant->user_id;
+
+                if ($isOrganizer || $isGuaranteedGuest) {
+                    $exemptUserIds[] = $participant->user_id;
+                }
+            }
+
+            if (!empty($allContributorUserIds)) {
+                $pivotData = [];
+                foreach ($allContributorUserIds as $uid) {
+                    $pivotData[$uid] = [
+                        'amount_due' => in_array($uid, $exemptUserIds) ? 0 : $miniTournament->fee_amount,
+                    ];
+                }
+                $collection->assignedMembers()->attach($pivotData);
+            }
+
+            // Bước 2: Tạo ClubFundContribution
+            // - Organizer/guest exempt → dùng markOrganizerExempt() → Confirmed + wallet tx
+            // - Member thường → tạo PENDING (chờ nộp biên lai)
+            foreach ($miniTournament->participants as $participant) {
                 if (!in_array($participant->user_id, $commonUserIds) && !$participant->is_guest) {
                     continue;
                 }
@@ -116,15 +147,21 @@ class ClubMiniTournamentController extends Controller
                 $isGuaranteedGuest = in_array($participant->user_id, $guaranteedGuestIds);
 
                 if ($isOrganizer || $isGuaranteedGuest) {
-                    // Organizer / guest được organizer bảo lãnh → CONFIRMED
-                    ClubFundContribution::create([
-                        'club_fund_collection_id' => $collection->id,
-                        'user_id' => $participant->user_id,
-                        'amount' => $miniTournament->fee_amount,
-                        'receipt_url' => null,
-                        'note' => 'Admin tạo kèo CLB - bao phí',
-                        'status' => ClubFundContributionStatus::Confirmed,
-                    ]);
+                    // Organizer / guest được organizer bảo lãnh → Confirmed + wallet tx
+                    try {
+                        $this->fundContributionService->markOrganizerExempt(
+                            $collection,
+                            $participant->user_id,
+                            $userId,
+                            (float) $miniTournament->fee_amount
+                        );
+                    } catch (\Exception $e) {
+                        Log::warning('ClubMiniTournamentController: Failed to create organizer exempt contribution', [
+                            'tournament_id' => $miniTournament->id,
+                            'user_id' => $participant->user_id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
                 } else {
                     // Member thường / guest thường → PENDING (chờ nộp biên lai)
                     ClubFundContribution::create([
@@ -134,24 +171,6 @@ class ClubMiniTournamentController extends Controller
                         'receipt_url' => null,
                         'note' => 'Khoản thu cố định - vui lòng nộp biên lai',
                         'status' => ClubFundContributionStatus::Pending,
-                    ]);
-                }
-            }
-
-            // Gán assignedMembers với amount_due: tất cả user có ClubFundContribution (đã bao gồm organizer/guest)
-            // Lấy tất cả user_id đã được tạo contribution
-            $contributionUserIds = ClubFundContribution::where('club_fund_collection_id', $collection->id)
-                ->pluck('user_id')
-                ->toArray();
-
-            if (!empty($contributionUserIds)) {
-                if ($miniTournament->auto_split_fee) {
-                    $collection->assignedMembers()->attach($contributionUserIds, [
-                        'amount_due' => 0,
-                    ]);
-                } else {
-                    $collection->assignedMembers()->attach($contributionUserIds, [
-                        'amount_due' => $miniTournament->fee_amount,
                     ]);
                 }
             }
