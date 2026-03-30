@@ -174,7 +174,7 @@ class ClubMiniTournamentController extends Controller
                 ]);
 
                 // Gắn invited user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
-                $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $invitedUserId, false);
+                $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $invitedUserId);
 
                 $user = User::find($invitedUserId);
                 if ($user) {

@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Enums\ClubFundContributionStatus;
 use App\Enums\PaymentStatusEnum;
+use App\Models\Club\ClubFundContribution;
 use App\Models\MiniTournament;
 use App\Jobs\SendPushJob;
 use App\Models\MiniParticipant;
@@ -145,9 +147,14 @@ class MiniTournamentPaymentService
                         : PaymentStatusEnum::PENDING,
                 ]);
 
-                // Khi organizer/guest được auto-confirmed → tạo ClubFundContribution + wallet transaction
+                // Khi organizer/guest được auto-confirmed → tạo ClubFundContribution
                 if ($shouldBeConfirmed && $participant->user_id) {
-                    $this->syncClubFundContributionIfNeeded($tournament, $participant->user_id, $participant->user_id);
+                    $this->syncClubFundContributionIfNeeded(
+                        $tournament,
+                        $participant->user_id,
+                        $participant->user_id,
+                        $finalFeePerPerson
+                    );
                 }
             }
 
@@ -164,7 +171,7 @@ class MiniTournamentPaymentService
      * Tương tự logic trong MiniTournamentPaymentController::syncClubFundContributionForTournament().
      * Chỉ sync khi kèo thu phí VÀ có fundCollection đang active.
      */
-    private function syncClubFundContributionIfNeeded(MiniTournament $tournament, int $userId, int $confirmerId): void
+    private function syncClubFundContributionIfNeeded(MiniTournament $tournament, int $userId, int $confirmerId, ?float $amount = null): void
     {
         if (!$tournament->has_fee) {
             return;
@@ -175,10 +182,30 @@ class MiniTournamentPaymentService
             return;
         }
 
+        $feeAmount = $amount ?? $tournament->fee_amount;
+
         try {
-            $this->fundContributionService->markMemberPaid($collection, $userId, $confirmerId, null);
+            $existing = ClubFundContribution::where('club_fund_collection_id', $collection->id)
+                ->where('user_id', $userId)
+                ->first();
+
+            if ($existing && $existing->status === ClubFundContributionStatus::Pending) {
+                // Có PENDING → xác nhận (tạo wallet tx)
+                $this->fundContributionService->confirmContribution($existing, $confirmerId);
+            } elseif (!$existing) {
+                // Chưa có contribution → tạo mới PENDING (user nộp biên lai, chờ duyệt)
+                // KHÔNG tạo wallet tx ở đây → chờ organizer confirm
+                ClubFundContribution::create([
+                    'club_fund_collection_id' => $collection->id,
+                    'user_id' => $userId,
+                    'amount' => $feeAmount,
+                    'receipt_url' => null,
+                    'note' => 'Chủ kèo/guest được bao phí - tự động xác nhận',
+                    'status' => ClubFundContributionStatus::Pending,
+                ]);
+            }
+            // Nếu đã Confirmed → không làm gì
         } catch (\Exception $e) {
-            // Log lỗi nhưng không break flow chính
             Log::warning('MiniTournamentPaymentService: Failed to sync fund contribution', [
                 'tournament_id' => $tournament->id,
                 'user_id' => $userId,
