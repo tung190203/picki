@@ -182,7 +182,7 @@ class MiniParticipantController extends Controller
             }
 
             // Gắn user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
-            $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, Auth::id(), false);
+            $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, Auth::id());
         }
 
         return ResponseHelper::success(
@@ -233,7 +233,7 @@ class MiniParticipantController extends Controller
         ]);
 
         // Gắn user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
-        $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $validated['user_id'], false);
+        $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $validated['user_id']);
 
         $user = User::find($validated['user_id']);
 
@@ -292,7 +292,7 @@ class MiniParticipantController extends Controller
         ]);
 
         // Gắn user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
-        $this->tournamentService->attachUserToMiniTournamentClubFund($participant->miniTournament, $participant->user_id, false);
+        $this->tournamentService->attachUserToMiniTournamentClubFund($participant->miniTournament, $participant->user_id);
 
         $participant->user->notify(
             new MiniTournamentJoinConfirmedNotification($participant, Auth::id())
@@ -365,7 +365,7 @@ class MiniParticipantController extends Controller
         ]);
 
         // Gắn user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
-        $this->tournamentService->attachUserToMiniTournamentClubFund($participant->miniTournament, Auth::id(), false);
+        $this->tournamentService->attachUserToMiniTournamentClubFund($participant->miniTournament, Auth::id());
 
         $organizerIds = $participant->miniTournament->staff
             ->where('role', MiniTournamentStaff::ROLE_ORGANIZER)
@@ -683,7 +683,7 @@ class MiniParticipantController extends Controller
                 ]);
 
                 // Gắn user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
-                $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $userId, false);
+                $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $userId);
 
                 // Send notification
                 $user = User::find($userId);
