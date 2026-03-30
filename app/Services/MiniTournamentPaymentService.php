@@ -2,13 +2,21 @@
 
 namespace App\Services;
 
+use App\Enums\ClubFundContributionStatus;
+use App\Enums\ClubWalletTransactionDirection;
+use App\Enums\ClubWalletTransactionSourceType;
+use App\Enums\ClubWalletTransactionStatus;
+use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatusEnum;
+use App\Models\Club\ClubFundCollection;
+use App\Models\Club\ClubFundContribution;
 use App\Models\MiniTournament;
 use App\Jobs\SendPushJob;
 use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
 use App\Notifications\MiniTournamentPaymentCreatedNotification;
 use App\Services\Club\ClubFundContributionService;
+use App\Services\Club\ClubWalletService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -16,6 +24,7 @@ class MiniTournamentPaymentService
 {
     public function __construct(
         protected ClubFundContributionService $fundContributionService,
+        protected ClubWalletService $walletService,
     ) {
     }
     /**
@@ -145,9 +154,14 @@ class MiniTournamentPaymentService
                         : PaymentStatusEnum::PENDING,
                 ]);
 
-                // Khi organizer/guest được auto-confirmed → tạo ClubFundContribution + wallet transaction
+                // Khi organizer/guest được auto-confirmed → tạo ClubFundContribution Confirmed + wallet tx
                 if ($shouldBeConfirmed && $participant->user_id) {
-                    $this->syncClubFundContributionIfNeeded($tournament, $participant->user_id, $participant->user_id);
+                    $this->fundContributionService->createOrganizerConfirmedContribution(
+                        $tournament->fundCollection,
+                        $participant->user_id,
+                        $participant->user_id,
+                        (float) $finalFeePerPerson
+                    );
                 }
             }
 
@@ -160,31 +174,71 @@ class MiniTournamentPaymentService
     }
 
     /**
-     * Sync ClubFundContribution khi organizer/guest được auto-confirmed thanh toán.
-     * Tương tự logic trong MiniTournamentPaymentController::syncClubFundContributionForTournament().
-     * Chỉ sync khi kèo thu phí VÀ có fundCollection đang active.
+     * Tạo ClubFundContribution Confirmed cho organizer exempt (auto_confirmed).
+     * Tương tự markOrganizerExempt nhưng không cần user đã trong assignedMembers.
+     * LUÔN tạo wallet transaction IN để hiển thị trong lịch sử thu chi CLB.
      */
-    private function syncClubFundContributionIfNeeded(MiniTournament $tournament, int $userId, int $confirmerId): void
+    public function createOrganizerConfirmedContribution(
+        ClubFundCollection $collection,
+        int $userId,
+        int $confirmerId,
+        float $feeAmount
+    ): ?ClubFundContribution {
+        $existing = $collection->contributions()->where('user_id', $userId)->first();
+        if ($existing) {
+            if ($existing->status === ClubFundContributionStatus::Confirmed) {
+                return $existing;
+            }
+            if ($existing->status === ClubFundContributionStatus::Pending) {
+                return $this->fundContributionService->confirmContribution($existing, $confirmerId);
+            }
+        }
+
+        $contribution = ClubFundContribution::create([
+            'club_fund_collection_id' => $collection->id,
+            'user_id' => $userId,
+            'amount' => $feeAmount,
+            'receipt_url' => null,
+            'note' => 'Chủ kèo/guest được bao phí - tự động xác nhận',
+            'status' => ClubFundContributionStatus::Confirmed,
+        ]);
+
+        $this->fundContributionService->syncMiniTournamentPayment($contribution, 'confirmed');
+
+        if ($collection->included_in_club_fund ?? true) {
+            $club = $collection->club;
+            if ($club) {
+                $mainWallet = $club->mainWallet;
+                if (!$mainWallet) {
+                    $mainWallet = $this->walletService->createWallet($club, ['currency' => 'VND']);
+                }
+
+                $description = $collection->title ?: $collection->description ?: 'Đợt thu quỹ';
+                $transaction = $mainWallet->transactions()->create([
+                    'direction' => ClubWalletTransactionDirection::In,
+                    'amount' => $feeAmount,
+                    'source_type' => ClubWalletTransactionSourceType::FundCollection,
+                    'source_id' => $contribution->id,
+                    'payment_method' => PaymentMethod::Other,
+                    'status' => ClubWalletTransactionStatus::Confirmed,
+                    'description' => $description,
+                    'created_by' => $userId,
+                    'confirmed_by' => $confirmerId,
+                    'confirmed_at' => now(),
+                    'included_in_club_fund' => true,
+                ]);
+                $contribution->update(['wallet_transaction_id' => $transaction->id]);
+            }
+        }
+
+        $collection->updateCollectedAmount();
+
+        return $contribution;
+    }
+
+    public function rejectContribution(ClubFundContribution $contribution, ?string $rejectionReason = null): ClubFundContribution
     {
-        if (!$tournament->has_fee) {
-            return;
-        }
-
-        $collection = $tournament->fundCollection;
-        if (!$collection || !$collection->isActive()) {
-            return;
-        }
-
-        try {
-            $this->fundContributionService->markMemberPaid($collection, $userId, $confirmerId, null);
-        } catch (\Exception $e) {
-            // Log lỗi nhưng không break flow chính
-            Log::warning('MiniTournamentPaymentService: Failed to sync fund contribution', [
-                'tournament_id' => $tournament->id,
-                'user_id' => $userId,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        return $this->fundContributionService->rejectContribution($contribution, $rejectionReason);
     }
 
     /**

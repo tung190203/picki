@@ -45,7 +45,7 @@ class MiniTournamentService
         ]);
 
         // Gắn creator vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
-        $this->attachUserToMiniTournamentClubFund($miniTournament, $userId, true);
+        $this->attachUserToMiniTournamentClubFund($miniTournament, $userId);
 
         // Tạo khoản thu cho chủ kèo nếu kèo có thu phí
         // Nếu auto_split_fee = true, chỉ tạo payment khi kèo kết thúc (via command)
@@ -261,7 +261,7 @@ class MiniTournamentService
         );
 
         // Gắn creator vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
-        $this->attachUserToMiniTournamentClubFund($target, $userId, true);
+        $this->attachUserToMiniTournamentClubFund($target, $userId);
 
         if ($target->has_fee && !$target->auto_split_fee) {
             MiniParticipantPayment::firstOrCreate(
@@ -413,11 +413,11 @@ class MiniTournamentService
 
     /**
      * Gắn user vào ClubFundCollection của mini-tournament nếu tournament thuộc quỹ chung CLB.
-     * - Organizer / guest được bảo lãnh: CONFIRMED (miễn phí)
-     * - Member thường: PENDING (chờ nộp biên lai)
-     * Gắn user vào pivot assignedMembers của collection.
+     * Chỉ thêm vào pivot assignedMembers (danh sách ai phải đóng).
+     * KHÔNG tạo ClubFundContribution ở đây.
+     * User nộp biên lai → tạo ClubFundContribution PENDING → Organizer confirm → wallet tx IN.
      */
-    public function attachUserToMiniTournamentClubFund(MiniTournament $tournament, int $userId, bool $isOrganizer = false): void
+    public function attachUserToMiniTournamentClubFund(MiniTournament $tournament, int $userId): void
     {
         if (!$tournament->club_fund_collection_id) {
             return;
@@ -428,33 +428,11 @@ class MiniTournamentService
             return;
         }
 
-        $alreadyContributed = ClubFundContribution::where('club_fund_collection_id', $collection->id)
-            ->where('user_id', $userId)
-            ->exists();
-
-        if ($alreadyContributed) {
-            return;
-        }
-
         $feeAmount = $tournament->fee_amount ?? 0;
 
-        $status = $isOrganizer
-            ? ClubFundContributionStatus::Confirmed
-            : ClubFundContributionStatus::Pending;
-
-        $note = $isOrganizer
-            ? 'Admin tạo kèo CLB - bao phí'
-            : 'Khoản thu cố định - vui lòng nộp biên lai';
-
-        ClubFundContribution::create([
-            'club_fund_collection_id' => $collection->id,
-            'user_id' => $userId,
-            'amount' => $feeAmount,
-            'receipt_url' => null,
-            'note' => $note,
-            'status' => $status,
-        ]);
-
+        // Chỉ thêm vào pivot assignedMembers (danh sách ai phải đóng)
+        // KHÔNG tạo ClubFundContribution ở đây
+        // User nộp biên lai → tạo ClubFundContribution PENDING → Organizer confirm → wallet tx IN
         $collection->assignedMembers()->syncWithoutDetaching([
             $userId => ['amount_due' => $feeAmount],
         ]);
