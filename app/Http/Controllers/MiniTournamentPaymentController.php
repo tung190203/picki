@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ClubFundContributionStatus;
 use App\Enums\PaymentStatusEnum;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MiniParticipantPaymentResource;
@@ -15,6 +16,7 @@ use App\Models\MiniTournamentStaff;
 use App\Notifications\PaymentConfirmedNotification;
 use App\Notifications\PaymentRejectedNotification;
 use App\Notifications\PaymentReminderNotification;
+use App\Services\Club\ClubFundContributionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +24,11 @@ use Illuminate\Support\Facades\Storage;
 
 class MiniTournamentPaymentController extends Controller
 {
+    public function __construct(
+        protected ClubFundContributionService $fundContributionService,
+    ) {
+    }
+
     /**
      * Lấy chi tiết khoản thu phí của kèo
      * API: GET /api/mini-tournaments/{id}/payments
@@ -322,6 +329,9 @@ class MiniTournamentPaymentController extends Controller
 
                 DB::commit();
 
+                // === Sync ClubFundContribution cho kèo CLB ===
+                $this->syncClubFundContributionForTournament($miniTournament, $participant->user_id, Auth::id());
+
                 $message = $miniTournament->auto_approve
                     ? ($miniTournament->auto_split_fee
                         ? 'Thanh toán cho bản thân và guest thành công, đã được xác nhận'
@@ -393,9 +403,12 @@ class MiniTournamentPaymentController extends Controller
                     ]);
                     $payment->user?->notify(new PaymentConfirmedNotification($payment));
                 }
-            }
+                }
 
             DB::commit();
+
+                // === Sync ClubFundContribution cho kèo CLB ===
+                $this->syncClubFundContributionForTournament($miniTournament, $userId, Auth::id());
 
             $message = $miniTournament->auto_approve
                 ? 'Thanh toán thành công, đã được xác nhận'
@@ -505,30 +518,8 @@ class MiniTournamentPaymentController extends Controller
             // Cập nhật payment_status của participant
             $participant->confirmPayment();
 
-            // Sync ClubFundContribution nếu kèo có club_fund_collection_id
-            if ($miniTournament->club_fund_collection_id && $participant->user_id) {
-                $collection = \App\Models\Club\ClubFundCollection::find($miniTournament->club_fund_collection_id);
-                if ($collection) {
-                    $feePerPersonCalc = $miniTournament->has_fee
-                        ? ($miniTournament->auto_split_fee
-                            ? ($miniTournament->final_fee_per_person ?? $miniTournament->fee_amount)
-                            : $miniTournament->fee_amount)
-                        : 0;
-
-                    ClubFundContribution::updateOrCreate(
-                        [
-                            'club_fund_collection_id' => $collection->id,
-                            'user_id' => $participant->user_id,
-                        ],
-                        [
-                            'amount' => $feePerPersonCalc,
-                            'receipt_url' => $receiptImage,
-                            'note' => $note,
-                            'status' => \App\Enums\ClubFundContributionStatus::Confirmed,
-                        ]
-                    );
-                }
-            }
+            // === Sync ClubFundContribution + tạo ClubWalletTransaction IN cho kèo CLB ===
+            $this->syncClubFundContributionForTournament($miniTournament, $participant->user_id, Auth::id());
 
             $payment->load('user');
             if ($payment->user) {
@@ -594,6 +585,11 @@ class MiniTournamentPaymentController extends Controller
                 if (!empty($payment->guest_ids)) {
                     MiniParticipant::whereIn('id', $payment->guest_ids)
                         ->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
+                }
+
+                // === Sync ClubFundContribution + tạo ClubWalletTransaction IN cho kèo CLB ===
+                if ($isConfirm) {
+                    $this->syncClubFundContributionForTournament($miniTournament, $participant->user_id, Auth::id());
                 }
             }
 
@@ -865,5 +861,31 @@ class MiniTournamentPaymentController extends Controller
         ], $paymentData);
 
         return ResponseHelper::success($data, 'Lấy thông tin thanh toán thành công');
+    }
+
+    /**
+     * Sync ClubFundContribution khi thanh toán kèo CLB.
+     * Tạo/update ClubFundContribution CONFIRMED + ClubWalletTransaction IN nếu use_club_fund=true.
+     */
+    private function syncClubFundContributionForTournament(MiniTournament $tournament, ?int $userId, int $confirmerId): void
+    {
+        if (!$userId) {
+            return;
+        }
+
+        if (!$tournament->use_club_fund || !$tournament->has_fee) {
+            return;
+        }
+
+        $collection = $tournament->fundCollection;
+        if (!$collection) {
+            return;
+        }
+
+        try {
+            $this->fundContributionService->markMemberPaid($collection, $userId, $confirmerId);
+        } catch (\Exception $e) {
+            report($e);
+        }
     }
 }

@@ -11,11 +11,15 @@ use App\Enums\ClubWalletTransactionDirection;
 use App\Enums\ClubWalletTransactionSourceType;
 use App\Enums\ClubWalletTransactionStatus;
 use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatusEnum;
 use App\Jobs\SendPushJob;
 use App\Models\Club\Club;
 use App\Models\Club\ClubFundCollection;
 use App\Models\Club\ClubFundContribution;
 use App\Models\Club\ClubMember;
+use App\Models\MiniParticipant;
+use App\Models\MiniParticipantPayment;
+use App\Models\MiniTournament;
 use App\Models\User;
 use App\Notifications\ClubFundContributionApprovedNotification;
 use App\Notifications\ClubFundContributionRejectedNotification;
@@ -91,6 +95,9 @@ class ClubFundContributionService
             'status' => ClubFundContributionStatus::Pending,
         ]);
 
+        // Sync MiniParticipantPayment nếu collection có liên kết MiniTournament
+        $this->syncMiniTournamentPayment($contribution, 'pending');
+
         $club = $collection->club;
         $submitter = User::find($userId);
         $financeManagerUserIds = ClubMember::where('club_id', $club->id)
@@ -131,6 +138,9 @@ class ClubFundContributionService
 
         $contribution = DB::transaction(function () use ($contribution, $confirmerId) {
             $contribution->confirm();
+
+            // Sync MiniParticipantPayment nếu collection có liên kết MiniTournament
+            $this->syncMiniTournamentPayment($contribution, 'confirmed');
 
             $collection = $contribution->fundCollection;
             $includedInClubFund = $collection->included_in_club_fund ?? true;
@@ -223,6 +233,9 @@ class ClubFundContributionService
                 'status' => ClubFundContributionStatus::Confirmed,
             ]);
 
+            // Sync MiniParticipantPayment nếu collection có liên kết MiniTournament
+            $this->syncMiniTournamentPayment($contribution, 'confirmed');
+
             $club = $collection->club;
             $includedInClubFund = $collection->included_in_club_fund ?? true;
 
@@ -272,6 +285,9 @@ class ClubFundContributionService
     {
         $contribution->reject();
 
+        // Sync MiniParticipantPayment nếu collection có liên kết MiniTournament
+        $this->syncMiniTournamentPayment($contribution, 'rejected');
+
         $user = $contribution->user;
         $collection = $contribution->fundCollection;
         $club = $collection->club;
@@ -291,5 +307,46 @@ class ClubFundContributionService
         }
 
         return $contribution;
+    }
+
+    /**
+     * Sync MiniParticipantPayment khi user nộp/xác nhận/từ chối contribution qua ClubFundContributionController.
+     * Chỉ sync nếu ClubFundCollection có liên kết với MiniTournament.
+     */
+    private function syncMiniTournamentPayment(ClubFundContribution $contribution, string $paymentStatus): void
+    {
+        // Tìm MiniTournament liên kết qua club_fund_collection_id
+        $tournament = MiniTournament::where('club_fund_collection_id', $contribution->club_fund_collection_id)->first();
+        if (!$tournament) {
+            return;
+        }
+
+        $userId = $contribution->user_id;
+        if (!$userId) {
+            return;
+        }
+
+        $participant = $tournament->participants()->where('user_id', $userId)->first();
+        if (!$participant) {
+            return;
+        }
+
+        if ($paymentStatus === 'confirmed') {
+            $participant->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
+            MiniParticipantPayment::where('participant_id', $participant->id)
+                ->where('status', '!=', MiniParticipantPayment::STATUS_CONFIRMED)
+                ->update([
+                    'status' => MiniParticipantPayment::STATUS_CONFIRMED,
+                    'confirmed_at' => now(),
+                    'confirmed_by' => $contribution->confirmed_by ?? auth()->id(),
+                ]);
+        } elseif ($paymentStatus === 'pending') {
+            $participant->update(['payment_status' => PaymentStatusEnum::PENDING]);
+        } elseif ($paymentStatus === 'rejected') {
+            $participant->update(['payment_status' => PaymentStatusEnum::PENDING]);
+            MiniParticipantPayment::where('participant_id', $participant->id)
+                ->where('status', MiniParticipantPayment::STATUS_PAID)
+                ->update(['status' => MiniParticipantPayment::STATUS_REJECTED]);
+        }
     }
 }
