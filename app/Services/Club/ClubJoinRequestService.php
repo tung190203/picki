@@ -5,6 +5,7 @@ namespace App\Services\Club;
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
+use App\Enums\ClubNotificationStatus;
 use App\Models\Club\Club;
 use App\Models\Club\ClubMember;
 use App\Models\User;
@@ -18,6 +19,10 @@ use Illuminate\Support\Facades\DB;
 
 class ClubJoinRequestService
 {
+    public function __construct(
+        private readonly \App\Services\Club\ClubNotificationService $notificationService,
+    ) {}
+
     public function getJoinRequests(Club $club, array $filters): LengthAwarePaginator
     {
         $status = $filters['status'] ?? 'pending';
@@ -168,6 +173,9 @@ class ClubJoinRequestService
                 'type' => 'CLUB_JOIN_APPROVED',
                 'club_id' => (string) $club->id,
             ]);
+
+            // Backfill thông báo CLB đã gửi trước khi user gia nhập
+            $this->notificationService->backfillNotificationsForNewMember($club, $user->id, now());
         }
 
         return $member;
@@ -230,6 +238,12 @@ class ClubJoinRequestService
             'joined_at' => now(),
             'reviewed_at' => now(),
         ]);
+
+        // Backfill thông báo CLB đã gửi trước khi user accept lời mời
+        $club = $member->club;
+        if ($club) {
+            $this->notificationService->backfillNotificationsForNewMember($club, $userId, now());
+        }
 
         return $member;
     }
