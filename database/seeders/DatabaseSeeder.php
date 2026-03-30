@@ -38,6 +38,7 @@ class DatabaseSeeder extends Seeder
             MiniTournamentFullSeeder::class,
             FollowSeeder::class,
             SystemNotificationSeeder::class,
+            DinkhausPickleballClubSeeder::class,
         ]);
     }
 }
