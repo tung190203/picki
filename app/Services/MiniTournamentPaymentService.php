@@ -36,8 +36,9 @@ class MiniTournamentPaymentService
      */
     public function createAutoPaymentsWhenTournamentEnds(MiniTournament $tournament): bool
     {
-        // Chỉ xử lý kèo có thu phí và chia tiền tự động
-        if (!$tournament->has_fee || !$tournament->auto_split_fee) {
+        // Chỉ xử lý kèo có thu phí và chia tiền tự động VÀ KHÔNG phải use_club_fund
+        // use_club_fund = true: CLB chi tiền → KHÔNG tạo payment cho member
+        if (!$tournament->has_fee || !$tournament->auto_split_fee || $tournament->use_club_fund) {
             return false;
         }
 
