@@ -84,12 +84,17 @@ class StoreMiniTournamentRequest extends FormRequest
             'invite_user.*' => 'distinct|exists:users,id',
         ];
 
-        // Custom validation: if has_fee is true, require fee_amount and qr_code_url
+            // Custom validation: if has_fee is true, require fee_amount and qr_code_url
         if ($this->has('has_fee') && $this->has_fee) {
             $rules['fee_amount'] = 'required|integer|min:1';
-            // qr_code_url bắt buộc trừ khi use_club_fund = true (admin quản lý quỹ trực tiếp)
+            // qr_code_url bắt buộc trừ khi:
+            // - use_club_fund = true (admin quản lý quỹ trực tiếp)
+            // - hoặc CLB đã có ví với qr_code_url chung
             if (!$this->boolean('use_club_fund')) {
-                $rules['qr_code_url'] = 'required|image|mimes:png,jpg,jpeg,gif|max:5120';
+                $clubHasQrWallet = $this->getClubHasQrWallet();
+                if (!$clubHasQrWallet) {
+                    $rules['qr_code_url'] = 'required|image|mimes:png,jpg,jpeg,gif|max:5120';
+                }
             }
         }
 
@@ -119,8 +124,8 @@ class StoreMiniTournamentRequest extends FormRequest
                 $validator->errors()->add('min_rating', 'Trình độ tối thiểu không được lớn hơn trình độ tối đa.');
             }
 
-            if ($this->boolean('has_fee') && !$this->file('qr_code_url') && !$this->filled('payment_account_id') && !$this->boolean('use_club_fund')) {
-                $validator->errors()->add('qr_code_url', 'Kèo thu phí cần có mã QR thanh toán hoặc tài khoản thanh toán.');
+            if ($this->boolean('has_fee') && !$this->file('qr_code_url') && !$this->filled('payment_account_id') && !$this->boolean('use_club_fund') && !$this->getClubHasQrWallet()) {
+                $validator->errors()->add('qr_code_url', 'Kèo thu phí cần có mã QR thanh toán hoặc CLB cần có ví với mã QR chung.');
             }
 
             if ($this->boolean('apply_rule')) {
@@ -250,6 +255,16 @@ class StoreMiniTournamentRequest extends FormRequest
                 }
             }
         }
+    }
+
+    public function getClubHasQrWallet(): bool
+    {
+        $clubId = $this->input('club_id');
+        if (!$clubId) {
+            return false;
+        }
+
+        return \App\Models\Club\Club::find($clubId)?->activeQrWallet() !== null;
     }
 
     public function messages(): array
