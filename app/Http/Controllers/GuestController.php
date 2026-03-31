@@ -86,33 +86,35 @@ class GuestController extends Controller
             }
         }
 
-        $isConfirmed = false;
-        $isPendingConfirmation = false;
+        // ─────────────────────────────────────────────────────────────────────────
+        // Xác định is_confirmed & is_pending_confirmation
+        //
+        // Ưu tiên role BAN TỔ CHỨC (ORGANIZER) cao nhất:
+        //   - User vừa là BTC vừa là VĐV (đã tham gia kèo) → hasOrganizer = true → guest được xác nhận ngay
+        //   - Chỉ là VĐV (participant đã xác nhận & đã đóng tiền) → chờ BTC duyệt
+        //   - Không có guarantor → guest được xác nhận ngay
+        // ─────────────────────────────────────────────────────────────────────────
+        $isGuarantorOrganizer = $guarantorUserId
+            ? $miniTournament->hasOrganizer($guarantorUserId)
+            : false;
 
-        if ($guarantorUserId) {
-            $isGuarantorOrganizer = $miniTournament->hasOrganizer($guarantorUserId);
-            if ($isGuarantorOrganizer) {
-                $isConfirmed = true;
-                $isPendingConfirmation = false;
-            } else {
-                $isConfirmed = false;
-                $isPendingConfirmation = true;
-            }
-        } else {
-            $isConfirmed = true;
-            $isPendingConfirmation = false;
-        }
+        $isConfirmed = $isGuarantorOrganizer || !$guarantorUserId;
+        $isPendingConfirmation = $guarantorUserId && !$isGuarantorOrganizer;
 
+        // ─────────────────────────────────────────────────────────────────────────
         // Xác định payment_status
         // use_club_fund = true: CLB chi tiền → CONFIRMED, không cần nộp
         // auto_split_fee = true: luôn CONFIRMED (kèo kết thúc sẽ chia lại tiền)
+        // ─────────────────────────────────────────────────────────────────────────
         $paymentStatus = PaymentStatusEnum::CONFIRMED;
-        if (!$miniTournament->use_club_fund && $miniTournament->has_fee && !$miniTournament->auto_split_fee && $guarantorUserId) {
-            // Chỉ set PENDING khi KHÔNG phải use_club_fund, KHÔNG phải auto_split_fee và có guarantor
-            $isGuarantorOrganizer = $miniTournament->hasOrganizer($guarantorUserId);
-            if (!$isGuarantorOrganizer) {
-                $paymentStatus = PaymentStatusEnum::PENDING;
-            }
+        if (
+            !$miniTournament->use_club_fund
+            && $miniTournament->has_fee
+            && !$miniTournament->auto_split_fee
+            && $guarantorUserId
+            && !$isGuarantorOrganizer
+        ) {
+            $paymentStatus = PaymentStatusEnum::PENDING;
         }
 
         // Xử lý guest_avatar: file upload hoặc URL string (web)
