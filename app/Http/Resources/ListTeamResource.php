@@ -21,12 +21,17 @@ class ListTeamResource extends JsonResource
             'tournament_type_id' => $this->tournament_type_id,
             'avatar' => $this->avatar,
             'members' => $this->members->map(function ($member) {
+                /** @var \App\Models\Participant|null $p */
+                $p = $member->relationLoaded('tournamentParticipant')
+                    ? $member->tournamentParticipant
+                    : null;
+
                 return [
                     'id' => $member->id,
                     'full_name' => $member->full_name,
                     'avatar' => $member->avatar_url,
-                    'is_confirmed' => true,
                     'sports' => UserSportResource::collection($member->sports ?? []),
+                    'tournament_participant' => $p ? new ParticipantResource($p) : null,
                 ];
             }),
         ];
