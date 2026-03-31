@@ -13,7 +13,20 @@ class Participant extends Model
         'tournament_id',
         'user_id',
         'is_confirmed',
-        'is_invite_by_organizer'
+        'is_invite_by_organizer',
+        'is_guest',
+        'guest_name',
+        'guest_phone',
+        'guest_avatar',
+        'guarantor_user_id',
+        'estimated_level',
+        'is_pending_confirmation',
+    ];
+
+    protected $casts = [
+        'is_guest' => 'boolean',
+        'is_pending_confirmation' => 'boolean',
+        'estimated_level' => 'decimal:1',
     ];
 
     const PER_PAGE = 15;
@@ -28,8 +41,23 @@ class Participant extends Model
         return $this->belongsTo(Tournament::class, 'tournament_id');
     }
 
+    public function guarantor()
+    {
+        return $this->belongsTo(User::class, 'guarantor_user_id');
+    }
+
     public static function scopeWithFullRelations($query)
     {
-        return $query->with('user', 'tournament', 'user.sports.scores');
+        return $query->with('user', 'tournament', 'user.sports.scores', 'guarantor');
+    }
+
+    public function scopeGuests($query)
+    {
+        return $query->where('is_guest', true);
+    }
+
+    public function scopePendingConfirmation($query)
+    {
+        return $query->where('is_guest', true)->where('is_pending_confirmation', true);
     }
 }

@@ -2,11 +2,17 @@
 
 namespace App\Services\Club;
 
+use App\Enums\ClubFundContributionStatus;
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
+use App\Enums\ClubNotificationStatus;
+use App\Enums\PaymentStatusEnum;
 use App\Models\Club\Club;
+use App\Models\Club\ClubFundCollection;
+use App\Models\Club\ClubFundContribution;
 use App\Models\Club\ClubMember;
+use App\Models\MiniTournament;
 use App\Models\User;
 use App\Jobs\SendPushJob;
 use App\Notifications\ClubInvitationDeclinedNotification;
@@ -18,6 +24,11 @@ use Illuminate\Support\Facades\DB;
 
 class ClubJoinRequestService
 {
+    public function __construct(
+        private readonly \App\Services\Club\ClubNotificationService $notificationService,
+        private readonly \App\Services\Club\ClubFundContributionService $fundContributionService,
+    ) {}
+
     public function getJoinRequests(Club $club, array $filters): LengthAwarePaginator
     {
         $status = $filters['status'] ?? 'pending';
@@ -168,6 +179,10 @@ class ClubJoinRequestService
                 'type' => 'CLUB_JOIN_APPROVED',
                 'club_id' => (string) $club->id,
             ]);
+
+            // Backfill thông báo CLB đã gửi trước khi user gia nhập
+            $this->notificationService->backfillNotificationsForNewMember($club, $user->id, now());
+            $this->attachUserToClubFundCollections($club, $user->id);
         }
 
         return $member;
@@ -231,6 +246,13 @@ class ClubJoinRequestService
             'reviewed_at' => now(),
         ]);
 
+        // Backfill thông báo CLB đã gửi trước khi user accept lời mời
+        $club = $member->club;
+        if ($club) {
+            $this->notificationService->backfillNotificationsForNewMember($club, $userId, now());
+            $this->attachUserToClubFundCollections($club, $userId);
+        }
+
         return $member;
     }
 
@@ -265,5 +287,82 @@ class ClubJoinRequestService
         }
 
         $member->delete();
+    }
+
+    /**
+     * Khi user được duyệt hoặc accept lời mời tham gia CLB:
+     * - Thêm vào ClubFundCollection đang active của CLB (tính vào quỹ)
+     * - Bao gồm: collection từ kèo CLB (club_activity_id=null, link qua MiniTournament.club_fund_collection_id)
+     *   VÀ collection từ ClubFundCollectionController (club_activity_id set)
+     * - Với mỗi collection: tạo contribution CONFIRMED, cập nhật collected_amount
+     * - Cập nhật payment_status = CONFIRMED cho MiniParticipant tương ứng (nếu có)
+     */
+    private function attachUserToClubFundCollections(Club $club, int $userId): void
+    {
+        // === Collection từ kèo CLB (ClubMiniTournamentController::store) ===
+        // club_activity_id = null, liên kết qua MiniTournament.club_fund_collection_id
+        $miniTournaments = MiniTournament::where('club_id', $club->id)
+            ->where('use_club_fund', true)
+            ->where('has_fee', true)
+            ->whereNotNull('club_fund_collection_id')
+            ->with('fundCollection')
+            ->get();
+
+        foreach ($miniTournaments as $miniTournament) {
+            $collection = $miniTournament->fundCollection;
+            if (!$collection || !$collection->isActive()) {
+                continue;
+            }
+            $this->attachUserToSingleFundCollection($collection, $userId, $miniTournament);
+        }
+
+        // === Collection từ ClubFundCollectionController (club_activity_id set) ===
+        $activityCollections = $club->fundCollections()
+            ->activeAndNotExpired()
+            ->where('included_in_club_fund', true)
+            ->whereNotNull('club_activity_id')
+            ->with('activity.miniTournament')
+            ->get();
+
+        foreach ($activityCollections as $collection) {
+            $miniTournament = $collection->activity?->miniTournament;
+            $this->attachUserToSingleFundCollection($collection, $userId, $miniTournament);
+        }
+    }
+
+    /**
+     * Gắn user vào 1 ClubFundCollection cụ thể nếu chưa có.
+     * Tạo ClubFundContribution CONFIRMED + ClubWalletTransaction IN nếu amount > 0.
+     */
+    private function attachUserToSingleFundCollection(ClubFundCollection $collection, int $userId, ?MiniTournament $miniTournament = null): void
+    {
+        // Kiểm tra user đã có trong collection chưa
+        if ($collection->assignedMembers()->where('user_id', $userId)->exists()) {
+            return;
+        }
+
+        // Xác định số tiền cần đóng
+        $amountDue = (float) ($collection->amount_per_member ?? 0);
+
+        // Thêm user vào danh sách cần đóng
+        $collection->assignedMembers()->attach($userId, [
+            'amount_due' => $amountDue,
+        ]);
+
+        // Tạo ClubFundContribution CONFIRMED + ClubWalletTransaction IN để hiện trong my-collections
+        if ($amountDue > 0) {
+            try {
+                $this->fundContributionService->markMemberPaid($collection, $userId, $userId);
+            } catch (\Exception $e) {
+                report($e);
+            }
+        }
+
+        // Cập nhật payment_status = CONFIRMED cho MiniParticipant (nếu có kèo liên kết)
+        if ($miniTournament) {
+            $miniTournament->participants()
+                ->where('user_id', $userId)
+                ->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
+        }
     }
 }

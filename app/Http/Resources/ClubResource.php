@@ -79,6 +79,7 @@ class ClubResource extends JsonResource
                     ->exists(),
                 false
             ),
+            'invited_by' => auth()->check() ? $this->getInvitedByInfo() : null,
             'can_edit_footer' => $this->when(auth()->check(), fn () => $this->resource->canEditFooter(auth()->id()), false),
             'profile' => $this->whenLoaded('profile', fn () => static::formatProfile($this->profile), static::getDefaultProfile()),
             'fund_qr' => $this->whenLoaded('mainWallet', fn () => [
@@ -126,6 +127,7 @@ class ClubResource extends JsonResource
                 ->where('membership_status', ClubMembershipStatus::Pending)
                 ->whereNotNull('invited_by')
                 ->exists(),
+            'invited_by' => auth()->check() ? $this->getInvitedByInfo() : null,
             'profile' => [
                 'id' => $profile?->id,
                 'description' => $profile?->description,
@@ -215,5 +217,23 @@ class ClubResource extends JsonResource
             }
         }
         return $score;
+    }
+
+    protected function getInvitedByInfo(): ?array
+    {
+        $membership = ClubMember::where('club_id', $this->id)
+            ->where('user_id', auth()->id())
+            ->with('invitedBy')
+            ->first();
+
+        if (!$membership || !$membership->invitedBy) {
+            return null;
+        }
+
+        return [
+            'id' => $membership->invitedBy->id,
+            'full_name' => $membership->invitedBy->full_name,
+            'avatar_url' => $membership->invitedBy->avatar_url,
+        ];
     }
 }

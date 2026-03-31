@@ -17,6 +17,7 @@ class MiniParticipant extends Model
         'team_id',
         'is_confirmed',
         'is_invited',
+        'invited_by',
         'payment_status',
         'is_guest',
         'guest_name',
@@ -27,6 +28,7 @@ class MiniParticipant extends Model
         'estimated_level_max',
         'is_absent',
         'checked_in_at',
+        'is_pending_confirmation',
     ];
 
     protected $casts = [
@@ -35,6 +37,7 @@ class MiniParticipant extends Model
         'is_guest' => 'boolean',
         'is_absent' => 'boolean',
         'checked_in_at' => 'datetime',
+        'is_pending_confirmation' => 'boolean',
     ];
 
     const PER_PAGE = 20;
@@ -56,6 +59,14 @@ class MiniParticipant extends Model
     public function guarantor()
     {
         return $this->belongsTo(User::class, 'guarantor_user_id');
+    }
+
+    /**
+     * Get the user who invited this participant
+     */
+    public function invitedBy()
+    {
+        return $this->belongsTo(User::class, 'invited_by');
     }
 
     /**
@@ -82,13 +93,21 @@ class MiniParticipant extends Model
         return $query->where('is_guest', true)->where('payment_status', PaymentStatusEnum::PENDING);
     }
 
+    /**
+     * Scope: Filter guests pending confirmation (guaranteed by VDV, awaiting BTC approval)
+     */
+    public function scopePendingConfirmation($query)
+    {
+        return $query->where('is_guest', true)->where('is_pending_confirmation', true);
+    }
+
     public function scopeWithFullRelations($query) {
-        return $query->with('user.sports.scores', 'user.sports.sport');
+        return $query->with('user.sports.scores', 'user.sports.sport', 'invitedBy');
     }
 
     public function scopeLoadFullRelations()
     {
-        return $this->load('user.sports.scores', 'user.sports.sport');
+        return $this->load('user.sports.scores', 'user.sports.sport', 'invitedBy');
     }
 
     /**

@@ -11,11 +11,15 @@ use App\Enums\ClubWalletTransactionDirection;
 use App\Enums\ClubWalletTransactionSourceType;
 use App\Enums\ClubWalletTransactionStatus;
 use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatusEnum;
 use App\Jobs\SendPushJob;
 use App\Models\Club\Club;
 use App\Models\Club\ClubFundCollection;
 use App\Models\Club\ClubFundContribution;
 use App\Models\Club\ClubMember;
+use App\Models\MiniParticipant;
+use App\Models\MiniParticipantPayment;
+use App\Models\MiniTournament;
 use App\Models\User;
 use App\Notifications\ClubFundContributionApprovedNotification;
 use App\Notifications\ClubFundContributionRejectedNotification;
@@ -91,6 +95,9 @@ class ClubFundContributionService
             'status' => ClubFundContributionStatus::Pending,
         ]);
 
+        // Sync MiniParticipantPayment nếu collection có liên kết MiniTournament
+        $this->syncMiniTournamentPayment($contribution, 'pending');
+
         $club = $collection->club;
         $submitter = User::find($userId);
         $financeManagerUserIds = ClubMember::where('club_id', $club->id)
@@ -131,6 +138,9 @@ class ClubFundContributionService
 
         $contribution = DB::transaction(function () use ($contribution, $confirmerId) {
             $contribution->confirm();
+
+            // Sync MiniParticipantPayment nếu collection có liên kết MiniTournament
+            $this->syncMiniTournamentPayment($contribution, 'confirmed');
 
             $collection = $contribution->fundCollection;
             $includedInClubFund = $collection->included_in_club_fund ?? true;
@@ -188,10 +198,18 @@ class ClubFundContributionService
      * Admin đánh dấu thành viên đã đóng mà không cần nộp biên lai.
      * Chỉ áp dụng cho fund-collection có club_activity_id (đợt thu từ sự kiện).
      */
-    public function markMemberPaid(ClubFundCollection $collection, int $memberUserId, int $confirmerId): ClubFundContribution
+    /**
+     * Đánh dấu member đã đóng quỹ (organizer markPaid từ kèo đấu, hoặc admin đánh dấu từ CLB).
+     * Nếu đã có contribution Pending → confirm + copy receipt_url.
+     * Nếu chưa có → tạo mới Confirmed.
+     *
+     * @param  ClubFundCollection  $collection
+     * @param  int  $memberUserId
+     * @param  int  $confirmerId
+     * @param  string|null  $receiptUrl  URL biên lai từ kèo đấu (MiniParticipantPayment.receipt_image)
+     */
+    public function markMemberPaid(ClubFundCollection $collection, int $memberUserId, int $confirmerId, ?string $receiptUrl = null): ClubFundContribution
     {
-        // Cho phép mark-paid cho tất cả fund collection (không chỉ từ activity)
-        
         $assigned = $collection->assignedMembers()->where('user_id', $memberUserId)->first();
         if (!$assigned) {
             throw new \Exception('Thành viên không có trong danh sách thu');
@@ -208,20 +226,27 @@ class ClubFundContributionService
                 return $existing;
             }
             if ($existing->status === ClubFundContributionStatus::Pending) {
+                // Copy receipt_url từ kèo đấu nếu có, rồi confirm
+                if ($receiptUrl && !$existing->receipt_url) {
+                    $existing->update(['receipt_url' => $receiptUrl]);
+                }
                 return $this->confirmContribution($existing, $confirmerId);
             }
             throw new \Exception('Đóng góp đã bị từ chối, không thể đánh dấu đã đóng');
         }
 
-        return DB::transaction(function () use ($collection, $memberUserId, $amountDue, $confirmerId) {
+        return DB::transaction(function () use ($collection, $memberUserId, $amountDue, $confirmerId, $receiptUrl) {
             $contribution = ClubFundContribution::create([
                 'club_fund_collection_id' => $collection->id,
                 'user_id' => $memberUserId,
                 'amount' => $amountDue,
-                'receipt_url' => null,
+                'receipt_url' => $receiptUrl,
                 'note' => 'Admin đánh dấu đã đóng (không cần biên lai)',
                 'status' => ClubFundContributionStatus::Confirmed,
             ]);
+
+            // Sync MiniParticipantPayment nếu collection có liên kết MiniTournament
+            $this->syncMiniTournamentPayment($contribution, 'confirmed');
 
             $club = $collection->club;
             $includedInClubFund = $collection->included_in_club_fund ?? true;
@@ -268,9 +293,134 @@ class ClubFundContributionService
         });
     }
 
+    /**
+     * Tạo ClubFundContribution Confirmed cho organizer/guest được miễn phí (exempt).
+     * KHÔNG check amount_due vì organizer có amount_due = 0.
+     * LUÔN tạo wallet transaction IN để hiển thị trong lịch sử thu chi CLB.
+     */
+    public function markOrganizerExempt(ClubFundCollection $collection, int $memberUserId, int $confirmerId, float $feeAmount): ClubFundContribution
+    {
+        $existing = $collection->contributions()->where('user_id', $memberUserId)->first();
+        if ($existing) {
+            if ($existing->status === ClubFundContributionStatus::Confirmed) {
+                return $existing;
+            }
+            if ($existing->status === ClubFundContributionStatus::Pending) {
+                return $this->confirmContribution($existing, $confirmerId);
+            }
+        }
+
+        return DB::transaction(function () use ($collection, $memberUserId, $confirmerId, $feeAmount) {
+            $contribution = ClubFundContribution::create([
+                'club_fund_collection_id' => $collection->id,
+                'user_id' => $memberUserId,
+                'amount' => $feeAmount,
+                'receipt_url' => null,
+                'note' => 'Admin tạo kèo CLB - bao phí',
+                'status' => ClubFundContributionStatus::Confirmed,
+            ]);
+
+            $this->syncMiniTournamentPayment($contribution, 'confirmed');
+
+            $club = $collection->club;
+            if ($club) {
+                $mainWallet = $club->mainWallet;
+                if (!$mainWallet) {
+                    $mainWallet = $this->walletService->createWallet($club, ['currency' => 'VND']);
+                }
+
+                $description = $collection->title ?: $collection->description ?: 'Đợt thu quỹ';
+                $transaction = $mainWallet->transactions()->create([
+                    'direction' => ClubWalletTransactionDirection::In,
+                    'amount' => $feeAmount,
+                    'source_type' => ClubWalletTransactionSourceType::FundCollection,
+                    'source_id' => $contribution->id,
+                    'payment_method' => PaymentMethod::Other,
+                    'status' => ClubWalletTransactionStatus::Confirmed,
+                    'description' => $description,
+                    'created_by' => $memberUserId,
+                    'confirmed_by' => $confirmerId,
+                    'confirmed_at' => now(),
+                    'included_in_club_fund' => true,
+                ]);
+                $contribution->update(['wallet_transaction_id' => $transaction->id]);
+            }
+
+            $collection->updateCollectedAmount();
+
+            return $contribution->load(['user', 'walletTransaction']);
+        });
+    }
+
+    /**
+     * Tạo ClubFundContribution Confirmed cho organizer exempt (auto_confirmed).
+     * Tương tự markOrganizerExempt nhưng không cần user đã trong assignedMembers.
+     * LUÔN tạo wallet transaction IN để hiển thị trong lịch sử thu chi CLB.
+     */
+    public function createOrganizerConfirmedContribution(
+        ClubFundCollection $collection,
+        int $userId,
+        int $confirmerId,
+        float $feeAmount
+    ): ?ClubFundContribution {
+        $existing = $collection->contributions()->where('user_id', $userId)->first();
+        if ($existing) {
+            if ($existing->status === ClubFundContributionStatus::Confirmed) {
+                return $existing;
+            }
+            if ($existing->status === ClubFundContributionStatus::Pending) {
+                return $this->confirmContribution($existing, $confirmerId);
+            }
+        }
+
+        $contribution = ClubFundContribution::create([
+            'club_fund_collection_id' => $collection->id,
+            'user_id' => $userId,
+            'amount' => $feeAmount,
+            'receipt_url' => null,
+            'note' => 'Chủ kèo/guest được bao phí - tự động xác nhận',
+            'status' => ClubFundContributionStatus::Confirmed,
+        ]);
+
+        $this->syncMiniTournamentPayment($contribution, 'confirmed');
+
+        if ($collection->included_in_club_fund ?? true) {
+            $club = $collection->club;
+            if ($club) {
+                $mainWallet = $club->mainWallet;
+                if (!$mainWallet) {
+                    $mainWallet = $this->walletService->createWallet($club, ['currency' => 'VND']);
+                }
+
+                $description = $collection->title ?: $collection->description ?: 'Đợt thu quỹ';
+                $transaction = $mainWallet->transactions()->create([
+                    'direction' => ClubWalletTransactionDirection::In,
+                    'amount' => $feeAmount,
+                    'source_type' => ClubWalletTransactionSourceType::FundCollection,
+                    'source_id' => $contribution->id,
+                    'payment_method' => PaymentMethod::Other,
+                    'status' => ClubWalletTransactionStatus::Confirmed,
+                    'description' => $description,
+                    'created_by' => $userId,
+                    'confirmed_by' => $confirmerId,
+                    'confirmed_at' => now(),
+                    'included_in_club_fund' => true,
+                ]);
+                $contribution->update(['wallet_transaction_id' => $transaction->id]);
+            }
+        }
+
+        $collection->updateCollectedAmount();
+
+        return $contribution;
+    }
+
     public function rejectContribution(ClubFundContribution $contribution, ?string $rejectionReason = null): ClubFundContribution
     {
         $contribution->reject();
+
+        // Sync MiniParticipantPayment nếu collection có liên kết MiniTournament
+        $this->syncMiniTournamentPayment($contribution, 'rejected');
 
         $user = $contribution->user;
         $collection = $contribution->fundCollection;
@@ -291,5 +441,60 @@ class ClubFundContributionService
         }
 
         return $contribution;
+    }
+
+    /**
+     * Sync MiniParticipantPayment khi user nộp/xác nhận/từ chối contribution qua ClubFundContributionController.
+     * Chỉ sync nếu ClubFundCollection có liên kết với MiniTournament.
+     *
+     * @param  ClubFundContribution  $contribution
+     * @param  string  $paymentStatus  'confirmed'|'pending'|'rejected'
+     */
+    public function syncMiniTournamentPayment(ClubFundContribution $contribution, string $paymentStatus): void
+    {
+        // Tìm MiniTournament liên kết qua club_fund_collection_id
+        $tournament = MiniTournament::where('club_fund_collection_id', $contribution->club_fund_collection_id)->first();
+        if (!$tournament) {
+            return;
+        }
+
+        $userId = $contribution->user_id;
+        if (!$userId) {
+            return;
+        }
+
+        $participant = $tournament->participants()->where('user_id', $userId)->first();
+        if (!$participant) {
+            return;
+        }
+
+        // Build common update fields — luôn sync receipt_url từ contribution sang payment
+        $commonUpdate = [];
+        if ($contribution->receipt_url) {
+            $commonUpdate['receipt_image'] = $contribution->receipt_url;
+        }
+
+        if ($paymentStatus === 'confirmed') {
+            $participant->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
+            $updateFields = array_merge($commonUpdate, [
+                'status' => MiniParticipantPayment::STATUS_CONFIRMED,
+                'confirmed_at' => now(),
+                'confirmed_by' => $contribution->confirmed_by ?? auth()->id(),
+            ]);
+            MiniParticipantPayment::where('participant_id', $participant->id)
+                ->where('status', '!=', MiniParticipantPayment::STATUS_CONFIRMED)
+                ->update($updateFields);
+        } elseif ($paymentStatus === 'pending') {
+            $participant->update(['payment_status' => PaymentStatusEnum::PENDING]);
+            MiniParticipantPayment::where('participant_id', $participant->id)
+                ->update($commonUpdate);
+        } elseif ($paymentStatus === 'rejected') {
+            $participant->update(['payment_status' => PaymentStatusEnum::PENDING]);
+            MiniParticipantPayment::where('participant_id', $participant->id)
+                ->where('status', MiniParticipantPayment::STATUS_PAID)
+                ->update(array_merge($commonUpdate, [
+                    'status' => MiniParticipantPayment::STATUS_REJECTED,
+                ]));
+        }
     }
 }

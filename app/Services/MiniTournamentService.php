@@ -7,28 +7,35 @@ use App\Models\MiniMatch;
 use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
 use App\Models\MiniTournamentStaff;
+use App\Models\Club\ClubFundCollection;
+use App\Models\Club\ClubFundContribution;
+use App\Services\Club\ClubFundContributionService;
 use App\Enums\PaymentStatusEnum;
+use App\Enums\ClubFundContributionStatus;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class MiniTournamentService
 {
+    public function __construct(
+        protected ClubFundContributionService $fundContributionService,
+    ) {
+    }
     public function createTournament(array $data, int $userId): MiniTournament
     {
         $recurringSchedule = $data['recurring_schedule'] ?? null;
         $seriesId = $recurringSchedule ? Str::uuid()->toString() : null;
 
-        // Ensure fee_amount is not null (default to 0)
-        if (!isset($data['fee_amount']) || $data['fee_amount'] === null) {
-            $data['fee_amount'] = 0;
-        }
+        // use_club_fund = true: kèo miễn phí cho member, CLB chi tiền.
+        // has_fee và fee_amount vẫn giữ nguyên (số tiền CLB chi cho kèo đấu).
 
         $miniTournament = MiniTournament::create([
             ...$data,
             'created_by' => $userId,
             'recurrence_series_id' => $seriesId,
-            'use_club_fund' => $data['use_club_fund'] ?? false,
+            'use_club_fund' => filter_var($data['use_club_fund'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'included_in_club_fund' => filter_var($data['included_in_club_fund'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'club_fund_collection_id' => $data['club_fund_collection_id'] ?? null,
         ]);
 
@@ -42,9 +49,13 @@ class MiniTournamentService
             'payment_status' => PaymentStatusEnum::CONFIRMED,
         ]);
 
-        // Tạo khoản thu cho chủ kèo nếu kèo có thu phí
-        // Nếu auto_split_fee = true, chỉ tạo payment khi kèo kết thúc (via command)
-        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
+        // Gắn creator vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
+        $this->attachUserToMiniTournamentClubFund($miniTournament, $userId);
+
+        // Tạo khoản thu cho chủ kèo nếu kèo có thu phí VÀ KHÔNG phải use_club_fund
+        // - use_club_fund = true: CLB chi tiền, không thu phí từ member → KHÔNG tạo payment
+        // - auto_split_fee = true: chỉ tạo payment khi kèo kết thúc (via command) → KHÔNG tạo payment ở đây
+        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
             $feePerPerson = $miniTournament->fee_amount;
 
             MiniParticipantPayment::create([
@@ -255,7 +266,13 @@ class MiniTournamentService
             ]
         );
 
-        if ($target->has_fee && !$target->auto_split_fee) {
+        // Gắn creator vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
+        $this->attachUserToMiniTournamentClubFund($target, $userId);
+
+        // Tạo khoản thu cho creator nếu kèo có thu phí VÀ KHÔNG phải use_club_fund
+        // - use_club_fund = true: CLB chi tiền → KHÔNG tạo payment
+        // - auto_split_fee = true: chỉ tạo payment khi kèo kết thúc (via command) → KHÔNG tạo payment ở đây
+        if ($target->has_fee && !$target->auto_split_fee && !$target->use_club_fund) {
             MiniParticipantPayment::firstOrCreate(
                 [
                     'mini_tournament_id' => $target->id,
@@ -401,5 +418,93 @@ class MiniTournamentService
 
             return $allTournaments->first()->fresh();
         });
+    }
+
+    /**
+     * Gắn user vào ClubFundCollection của mini-tournament nếu tournament thuộc quỹ chung CLB.
+     * Chỉ thêm vào pivot assignedMembers (danh sách ai phải đóng).
+     * KHÔNG tạo ClubFundContribution ở đây.
+     * User nộp biên lai → tạo ClubFundContribution PENDING → Organizer confirm → wallet tx IN.
+     */
+    public function attachUserToMiniTournamentClubFund(MiniTournament $tournament, int $userId): void
+    {
+        if (!$tournament->club_fund_collection_id) {
+            return;
+        }
+
+        $collection = $tournament->fundCollection;
+        if (!$collection || !$collection->isActive()) {
+            return;
+        }
+
+        $feeAmount = $tournament->fee_amount ?? 0;
+
+        // Chỉ thêm vào pivot assignedMembers (danh sách ai phải đóng)
+        // KHÔNG tạo ClubFundContribution ở đây
+        // User nộp biên lai → tạo ClubFundContribution PENDING → Organizer confirm → wallet tx IN
+        $collection->assignedMembers()->syncWithoutDetaching([
+            $userId => ['amount_due' => $feeAmount],
+        ]);
+    }
+
+    /**
+     * Sync guest vào ClubFundContribution khi guest được thêm vào kèo CLB sau khi kèo đã tạo.
+     *
+     * Logic:
+     * - Guest được organizer bảo lãnh → exempt (Confirmed + wallet tx)
+     * - Guest được member bảo lãnh → PENDING (chờ nộp biên lai)
+     * - Guest không ai bảo lãnh → PENDING
+     */
+    public function syncGuestToClubFund(
+        MiniParticipant $participant,
+        int $creatorId
+    ): void {
+        $tournament = $participant->miniTournament;
+
+        if (!$participant->is_guest || !$tournament->club_fund_collection_id) {
+            return;
+        }
+
+        $collection = $tournament->fundCollection;
+        if (!$collection || !$collection->isActive()) {
+            return;
+        }
+
+        // Kiểm tra đã có contribution chưa
+        $existing = ClubFundContribution::where('club_fund_collection_id', $collection->id)
+            ->where('user_id', $participant->user_id)
+            ->first();
+        if ($existing) {
+            return;
+        }
+
+        $feeAmount = (float) ($tournament->fee_amount ?? 0);
+        $isOrganizerGuarantor = $tournament->hasOrganizer($participant->guarantor_user_id);
+
+        // Thêm vào assignedMembers trước
+        $collection->assignedMembers()->syncWithoutDetaching([
+            $participant->user_id => ['amount_due' => $isOrganizerGuarantor ? 0 : $feeAmount],
+        ]);
+
+        // Guest được organizer bảo lãnh → exempt (Confirmed + wallet tx)
+        if ($isOrganizerGuarantor) {
+            $this->fundContributionService->markOrganizerExempt(
+                $collection,
+                $participant->user_id,
+                $creatorId,
+                $feeAmount
+            );
+            return;
+        }
+
+        // Guest được member bảo lãnh hoặc không ai bảo lãnh → PENDING (chờ nộp biên lai)
+        ClubFundContribution::create([
+            'club_fund_collection_id' => $collection->id,
+            'user_id' => $participant->user_id,
+            'amount' => $feeAmount,
+            'receipt_url' => null,
+            'note' => 'Guest ' . ($participant->guest_name ?? '') . ' - chờ nộp biên lai',
+            'status' => ClubFundContributionStatus::Pending,
+        ]);
     }
 }

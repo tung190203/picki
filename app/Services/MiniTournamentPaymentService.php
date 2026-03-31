@@ -2,16 +2,31 @@
 
 namespace App\Services;
 
+use App\Enums\ClubFundContributionStatus;
+use App\Enums\ClubWalletTransactionDirection;
+use App\Enums\ClubWalletTransactionSourceType;
+use App\Enums\ClubWalletTransactionStatus;
+use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatusEnum;
+use App\Models\Club\ClubFundCollection;
+use App\Models\Club\ClubFundContribution;
 use App\Models\MiniTournament;
 use App\Jobs\SendPushJob;
 use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
 use App\Notifications\MiniTournamentPaymentCreatedNotification;
+use App\Services\Club\ClubFundContributionService;
+use App\Services\Club\ClubWalletService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class MiniTournamentPaymentService
 {
+    public function __construct(
+        protected ClubFundContributionService $fundContributionService,
+        protected ClubWalletService $walletService,
+    ) {
+    }
     /**
      * Tạo khoản thu tự động khi kèo bắt đầu (auto_split_fee = true)
      * - Tính final_fee_per_person dựa trên số người tại thời điểm start_time
@@ -21,8 +36,9 @@ class MiniTournamentPaymentService
      */
     public function createAutoPaymentsWhenTournamentEnds(MiniTournament $tournament): bool
     {
-        // Chỉ xử lý kèo có thu phí và chia tiền tự động
-        if (!$tournament->has_fee || !$tournament->auto_split_fee) {
+        // Chỉ xử lý kèo có thu phí và chia tiền tự động VÀ KHÔNG phải use_club_fund
+        // use_club_fund = true: CLB chi tiền → KHÔNG tạo payment cho member
+        if (!$tournament->has_fee || !$tournament->auto_split_fee || $tournament->use_club_fund) {
             return false;
         }
 
@@ -54,6 +70,9 @@ class MiniTournamentPaymentService
 
             // Lấy organizers
             $organizers = $tournament->staff()->pluck('users.id')->toArray();
+
+            // Load fundCollection để sync ClubFundContribution + wallet transaction (nếu có)
+            $tournament->load('fundCollection');
 
             // Tạo hoặc cập nhật payment cho tất cả participants
             foreach ($participants as $participant) {
@@ -135,6 +154,16 @@ class MiniTournamentPaymentService
                         ? PaymentStatusEnum::CONFIRMED
                         : PaymentStatusEnum::PENDING,
                 ]);
+
+                // Khi organizer/guest được auto-confirmed → tạo ClubFundContribution Confirmed + wallet tx
+                if ($shouldBeConfirmed && $participant->user_id) {
+                    $this->fundContributionService->createOrganizerConfirmedContribution(
+                        $tournament->fundCollection,
+                        $participant->user_id,
+                        $participant->user_id,
+                        (float) $finalFeePerPerson
+                    );
+                }
             }
 
             DB::commit();
@@ -143,6 +172,74 @@ class MiniTournamentPaymentService
             DB::rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Tạo ClubFundContribution Confirmed cho organizer exempt (auto_confirmed).
+     * Tương tự markOrganizerExempt nhưng không cần user đã trong assignedMembers.
+     * LUÔN tạo wallet transaction IN để hiển thị trong lịch sử thu chi CLB.
+     */
+    public function createOrganizerConfirmedContribution(
+        ClubFundCollection $collection,
+        int $userId,
+        int $confirmerId,
+        float $feeAmount
+    ): ?ClubFundContribution {
+        $existing = $collection->contributions()->where('user_id', $userId)->first();
+        if ($existing) {
+            if ($existing->status === ClubFundContributionStatus::Confirmed) {
+                return $existing;
+            }
+            if ($existing->status === ClubFundContributionStatus::Pending) {
+                return $this->fundContributionService->confirmContribution($existing, $confirmerId);
+            }
+        }
+
+        $contribution = ClubFundContribution::create([
+            'club_fund_collection_id' => $collection->id,
+            'user_id' => $userId,
+            'amount' => $feeAmount,
+            'receipt_url' => null,
+            'note' => 'Chủ kèo/guest được bao phí - tự động xác nhận',
+            'status' => ClubFundContributionStatus::Confirmed,
+        ]);
+
+        $this->fundContributionService->syncMiniTournamentPayment($contribution, 'confirmed');
+
+        if ($collection->included_in_club_fund ?? true) {
+            $club = $collection->club;
+            if ($club) {
+                $mainWallet = $club->mainWallet;
+                if (!$mainWallet) {
+                    $mainWallet = $this->walletService->createWallet($club, ['currency' => 'VND']);
+                }
+
+                $description = $collection->title ?: $collection->description ?: 'Đợt thu quỹ';
+                $transaction = $mainWallet->transactions()->create([
+                    'direction' => ClubWalletTransactionDirection::In,
+                    'amount' => $feeAmount,
+                    'source_type' => ClubWalletTransactionSourceType::FundCollection,
+                    'source_id' => $contribution->id,
+                    'payment_method' => PaymentMethod::Other,
+                    'status' => ClubWalletTransactionStatus::Confirmed,
+                    'description' => $description,
+                    'created_by' => $userId,
+                    'confirmed_by' => $confirmerId,
+                    'confirmed_at' => now(),
+                    'included_in_club_fund' => true,
+                ]);
+                $contribution->update(['wallet_transaction_id' => $transaction->id]);
+            }
+        }
+
+        $collection->updateCollectedAmount();
+
+        return $contribution;
+    }
+
+    public function rejectContribution(ClubFundContribution $contribution, ?string $rejectionReason = null): ClubFundContribution
+    {
+        return $this->fundContributionService->rejectContribution($contribution, $rejectionReason);
     }
 
     /**

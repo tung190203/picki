@@ -18,6 +18,8 @@ class MiniParticipantResource extends JsonResource
             'id'                    => $this->id,
             'is_confirmed'          => (bool) $this->is_confirmed,
             'is_invited'            => (bool) $this->is_invited,
+            'invited_by'            => $this->invited_by,
+            'invited_by_user'       => new UserListResource($this->whenLoaded('invitedBy')),
             'payment_status'        => $this->payment_status?->value,
             'payment_status_label'  => $this->payment_status?->label(),
             'joined_at'             => $this->created_at->format('d-m-Y'),
@@ -44,6 +46,7 @@ class MiniParticipantResource extends JsonResource
                     ? ['min' => (float) $this->estimated_level_min, 'max' => (float) $this->estimated_level_max]
                     : null
             ),
+            'is_pending_confirmation' => $this->when($this->is_guest, (bool) $this->is_pending_confirmation),
             'is_absent' => (bool) $this->is_absent,
             'checked_in_at' => $this->checked_in_at?->format('d-m-Y H:i'),
         ];
