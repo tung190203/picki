@@ -11,12 +11,17 @@ use App\Models\MiniParticipantPayment;
 use App\Models\MiniTournamentStaff;
 use App\Models\User;
 use App\Notifications\GuestAddedNotification;
+use App\Services\MiniTournamentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class GuestController extends Controller
 {
+    public function __construct(
+        protected MiniTournamentService $tournamentService,
+    ) {
+    }
     /**
      * Thêm guest vào mini tournament
      * API: POST /api/mini-tournaments/{id}/guests
@@ -210,6 +215,9 @@ class GuestController extends Controller
             ]);
         }
 
+        // Sync guest vào ClubFundContribution cho kèo CLB
+        $this->tournamentService->syncGuestToClubFund($participant, auth()->id());
+
         // Load relations for response
         $participant->load(['user', 'guarantor']);
 
@@ -388,16 +396,34 @@ class GuestController extends Controller
             return ResponseHelper::error('Guest này không cần xác nhận', 400);
         }
 
-        $participant->update([
-            'is_confirmed' => true,
-            'is_pending_confirmation' => false,
-        ]);
+        DB::beginTransaction();
+        try {
+            $participant->update([
+                'is_confirmed' => true,
+                'is_pending_confirmation' => false,
+            ]);
 
-        if ($participant->guarantor_user_id) {
-            $guarantor = User::find($participant->guarantor_user_id);
-            if ($guarantor) {
-                $guarantor->notify(new GuestAddedNotification($miniTournament, $participant));
+            // Guest được organizer bảo lãnh → chuyển PENDING → CONFIRMED (exempt)
+            // Guest được member bảo lãnh → giữ PENDING (member sẽ đóng tiền giúp)
+            if ($miniTournament->hasOrganizer($participant->guarantor_user_id)) {
+                try {
+                    $this->tournamentService->syncGuestToClubFund($participant, auth()->id());
+                } catch (\Exception $e) {
+                    // Log nhưng không break transaction
+                }
             }
+
+            if ($participant->guarantor_user_id) {
+                $guarantor = User::find($participant->guarantor_user_id);
+                if ($guarantor) {
+                    $guarantor->notify(new GuestAddedNotification($miniTournament, $participant));
+                }
+            }
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return ResponseHelper::error($e->getMessage());
         }
 
         $participant->load(['user', 'guarantor']);
