@@ -22,9 +22,10 @@ class TournamentGuestController extends Controller
      *
      * Chỉ organizer mới có quyền thêm guest.
      *
-     * Logic xác nhận:
-     * - Organizer bảo lãnh → is_confirmed = true
+     * Logic xác nhận (ƯU TIÊN BAN TỔ CHỨC):
+     * - Organizer bảo lãnh (kể cả user vừa là BTC vừa là VĐV) → is_confirmed = true, KHÔNG chờ duyệt
      * - VĐV đã xác nhận bảo lãnh → is_confirmed = false, is_pending_confirmation = true (chờ BTC duyệt)
+     * - Không có guarantor → is_confirmed = true
      */
     public function store(Request $request, $tournamentId)
     {
@@ -56,19 +57,20 @@ class TournamentGuestController extends Controller
             }
         }
 
-        $isConfirmed = false;
-        $isPendingConfirmation = false;
+        // ─────────────────────────────────────────────────────────────────────────
+        // Xác định is_confirmed & is_pending_confirmation
+        //
+        // Ưu tiên role BAN TỔ CHỨC (ORGANIZER) cao nhất:
+        //   - User vừa là BTC vừa là VĐV → hasOrganizer = true → guest được xác nhận ngay
+        //   - Chỉ là VĐV (participant đã xác nhận) → chờ BTC duyệt
+        //   - Không có guarantor → guest được xác nhận ngay
+        // ─────────────────────────────────────────────────────────────────────────
+        $isGuarantorOrganizer = $guarantorUserId
+            ? $tournament->hasOrganizer($guarantorUserId)
+            : false;
 
-        if ($guarantorUserId) {
-            $isGuarantorOrganizer = $tournament->hasOrganizer($guarantorUserId);
-            if ($isGuarantorOrganizer) {
-                $isConfirmed = true;
-                $isPendingConfirmation = false;
-            } else {
-                $isConfirmed = false;
-                $isPendingConfirmation = true;
-            }
-        }
+        $isConfirmed = $isGuarantorOrganizer || !$guarantorUserId;
+        $isPendingConfirmation = $guarantorUserId && !$isGuarantorOrganizer;
 
         $guestAvatarUrl = null;
         $uploadedFile = $request->file('guest_avatar');
