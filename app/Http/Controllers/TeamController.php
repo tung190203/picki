@@ -29,14 +29,16 @@ class TeamController extends Controller
         ]);
     
         $perPage = $validated['per_page'] ?? Team::PER_PAGE;
-    
+
         $teams = Team::where('tournament_id', $tournamentId)
-        ->with([
-            'members.sports.sport',   // Load sport relationship
-            'members.sports.scores'   // Load scores relationship
-        ])
+            ->with([
+                'members.sports.sport',
+                'members.sports.scores',
+            ])
             ->paginate($perPage);
-    
+
+        $this->hydrateTeamMembersWithParticipants($teams->getCollection(), (int) $tournamentId);
+
         $data = [
             'teams' => ListTeamResource::collection($teams),
         ];
@@ -49,7 +51,27 @@ class TeamController extends Controller
         ];
     
         return ResponseHelper::success($data, 'Lấy danh sách đội thành công', 200, $meta);
-    }    
+    }
+
+    /**
+     * Team.members là User; thông tin giải (guest, bảo lãnh, v.v.) nằm ở Participant cùng tournament.
+     */
+    private function hydrateTeamMembersWithParticipants(\Illuminate\Support\Collection $teams, int $tournamentId): void
+    {
+        $participantByUserId = Participant::where('tournament_id', $tournamentId)
+            ->with('guarantor')
+            ->get()
+            ->keyBy('user_id');
+
+        $teams->each(function (Team $team) use ($participantByUserId) {
+            foreach ($team->members as $member) {
+                $member->setRelation(
+                    'tournamentParticipant',
+                    $participantByUserId->get($member->id)
+                );
+            }
+        });
+    }
 
     public function createTeam(Request $request, $tournamentId)
     {
@@ -248,9 +270,13 @@ class TeamController extends Controller
                             ->where('tournament_id', $tournamentId)
                             ->where('is_confirmed', true);
                     });
-                }
+                },
+                'members.sports.sport',
+                'members.sports.scores',
             ])
             ->get();
+
+        $this->hydrateTeamMembersWithParticipants($teamsWithMembers, (int) $tournamentId);
 
         return ResponseHelper::success(
             ListTeamResource::collection($teamsWithMembers),
