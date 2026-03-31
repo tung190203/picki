@@ -12,6 +12,7 @@ use App\Models\Tournament;
 use App\Models\TournamentStaff;
 use App\Models\User;
 use App\Notifications\TournamentInvitationNotification;
+use App\Notifications\TournamentGuestAddedNotification;
 use App\Notifications\TournamentJoinConfirmedNotification;
 use App\Notifications\TournamentJoinRequestNotification;
 use App\Notifications\TournamentRemovedNotification;
@@ -253,21 +254,50 @@ class ParticipantController extends Controller
         $participant = Participant::with('tournament')->findOrFail($participantId);
         $tournamentWithStaff = $participant->tournament->load('staff');
         $isOrganizer = $tournamentWithStaff->hasOrganizer(Auth::id());
+
+        // Guest đang chờ BTC duyệt (VĐV bảo lãnh)
+        if ($participant->is_guest && $participant->is_pending_confirmation) {
+            if (!$isOrganizer) {
+                return ResponseHelper::error('Bạn không có quyền xác nhận guest này', 403);
+            }
+            if ($participant->is_confirmed) {
+                return ResponseHelper::error('Guest đã được xác nhận', 400);
+            }
+
+            $participant->update([
+                'is_confirmed' => true,
+                'is_pending_confirmation' => false,
+            ]);
+
+            if ($participant->guarantor_user_id) {
+                User::find($participant->guarantor_user_id)?->notify(
+                    new TournamentGuestAddedNotification($participant->tournament, $participant)
+                );
+            }
+
+            $participant->load(['user', 'guarantor']);
+            return ResponseHelper::success(
+                new ParticipantResource($participant),
+                'Xác nhận guest thành công'
+            );
+        }
+
+        // VĐV bình thường (luồng hiện tại)
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền xác nhận người tham gia này', 403);
         }
-        if($participant->is_invite_by_organizer == 1) {
+        if ($participant->is_invite_by_organizer == 1) {
             return ResponseHelper::error('Chỉ người được mời mới có thể xác nhận yêu cầu này', 403);
         }
         if ($participant->is_confirmed) {
             return ResponseHelper::error('Người tham gia đã được xác nhận', 400);
         }
-        if($participant->tournament->participants()->where('is_confirmed', true)->count() >= ($participant->tournament->max_team * $participant->tournament->player_per_team)){
+        if ($participant->tournament->participants()->where('is_confirmed', true)->count()
+            >= ($participant->tournament->max_team * $participant->tournament->player_per_team)) {
             return ResponseHelper::error('Số lượng người tham gia đã đạt giới hạn.', 422);
         }
-        $participant->is_confirmed = true;
-        $participant->save();
 
+        $participant->update(['is_confirmed' => true]);
         $participant->user->notify(new TournamentJoinConfirmedNotification($participant));
 
         return ResponseHelper::success(new ParticipantResource($participant), 'Xác nhận người tham gia thành công');
