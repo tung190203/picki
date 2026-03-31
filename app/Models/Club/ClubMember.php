@@ -66,6 +66,12 @@ class ClubMember extends Model
         return $this->belongsTo(User::class, 'invited_by');
     }
 
+    /** Alias của inviter — người đã mời user vào CLB. */
+    public function invitedBy()
+    {
+        return $this->belongsTo(User::class, 'invited_by');
+    }
+
     /** Là lời mời từ admin (chờ user đồng ý). */
     public function isInvitation(): bool
     {

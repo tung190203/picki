@@ -55,11 +55,13 @@ class MiniTournament extends Model
         'status',
         'use_club_fund',
         'club_fund_collection_id',
+        'included_in_club_fund',
     ];
 
     protected $casts = [
         'auto_approve' => 'boolean',
         'use_club_fund' => 'bool',
+        'included_in_club_fund' => 'bool',
     ];
 
     const PER_PAGE = 15;
@@ -415,7 +417,7 @@ class MiniTournament extends Model
 
     public function getIncludedInClubFundAttribute(): bool
     {
-        return $this->use_club_fund ?? false;
+        return (bool) ($this->attributes['included_in_club_fund'] ?? false);
     }
 
     public function getPaymentSummaryAttribute(): array
@@ -444,6 +446,7 @@ class MiniTournament extends Model
             'participants.user.sports.sport',
             'participants.user.sports.scores',
             'participants.guarantor',
+            'participants.invitedBy',
             'miniTournamentStaffs.user',
             'staff',
             'matches',
@@ -618,19 +621,26 @@ class MiniTournament extends Model
                 $userId = auth()->id();
 
                 $q->where(function ($sub) use ($userId) {
-                    $sub->where('is_private', '!=', 1)
-                        ->whereNotIn('status', [1, 3, 4]);
+                    // Kèo công khai, không private, không ở trạng thái draft/cancelled/closed
+                    $sub->where(function ($publicSub) {
+                        $publicSub->where('is_private', '!=', 1)
+                            ->whereNotIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_CLOSED, MiniTournament::STATUS_CANCELLED]);
+                    });
 
                     if ($userId) {
-                        $sub->orWhere(function ($visible) use ($userId) {
-                            $visible
-                                ->orWhereHas('miniTournamentStaffs', function ($staffQuery) use ($userId) {
-                                    $staffQuery->where('user_id', $userId)
-                                        ->where('role', MiniTournamentStaff::ROLE_ORGANIZER);
-                                })
-                                ->orWhereHas('participants', function ($partQuery) use ($userId) {
-                                    $partQuery->where('user_id', $userId);
-                                });
+                        // Organizer: thấy tất cả kèo mình tổ chức (kể cả draft)
+                        $sub->orWhere(function ($staffSub) use ($userId) {
+                            $staffSub->whereHas('miniTournamentStaffs', function ($staffQuery) use ($userId) {
+                                $staffQuery->where('user_id', $userId)
+                                    ->where('role', MiniTournamentStaff::ROLE_ORGANIZER);
+                            });
+                        });
+
+                        // Participant: thấy tất cả kèo mình tham gia (kể cả draft)
+                        $sub->orWhere(function ($partSub) use ($userId) {
+                            $partSub->whereHas('participants', function ($partQuery) use ($userId) {
+                                $partQuery->where('user_id', $userId);
+                            });
                         });
                     }
                 });

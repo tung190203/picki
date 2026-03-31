@@ -18,6 +18,8 @@ class MiniParticipantResource extends JsonResource
             'id'                    => $this->id,
             'is_confirmed'          => (bool) $this->is_confirmed,
             'is_invited'            => (bool) $this->is_invited,
+            'invited_by'            => $this->invited_by,
+            'invited_by_user'       => new UserListResource($this->whenLoaded('invitedBy')),
             'payment_status'        => $this->payment_status?->value,
             'payment_status_label'  => $this->payment_status?->label(),
             'joined_at'             => $this->created_at->format('d-m-Y'),

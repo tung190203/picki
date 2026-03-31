@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Http\Resources\Club\ClubFundCollectionResource;
 use App\Models\MiniTournamentStaff;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -29,6 +30,31 @@ class MiniTournamentResource extends JsonResource
         $posterUrl = $this->poster;
         if ($posterUrl && !str_starts_with($posterUrl, 'http')) {
             $posterUrl = asset('storage/' . ltrim($posterUrl, '/'));
+        }
+
+        $currentUserId = $request->user()?->id;
+
+        // Tính has_invitation: user hiện tại có lời mời đang chờ (is_invited=true, is_confirmed=false)
+        $hasInvitation = false;
+        $invitedBy = null;
+        if ($currentUserId) {
+            $myParticipant = $participants->first(fn($p) =>
+                (int) $p->user_id === (int) $currentUserId
+                && (bool) $p->is_invited === true
+                && (bool) $p->is_confirmed === false
+            );
+            if ($myParticipant) {
+                $hasInvitation = true;
+                // Load invitedBy relation nếu chưa loaded
+                if ($myParticipant->relationLoaded('invitedBy') && $myParticipant->invitedBy) {
+                    $invitedBy = new UserListResource($myParticipant->invitedBy);
+                } elseif ($myParticipant->invited_by) {
+                    $inviter = User::find($myParticipant->invited_by);
+                    if ($inviter) {
+                        $invitedBy = new UserListResource($inviter);
+                    }
+                }
+            }
         }
 
         $data = [
@@ -85,6 +111,10 @@ class MiniTournamentResource extends JsonResource
             'status' => $this->status,
             'status_text' => $this->status_text,
 
+            // Invitation info for current user
+            'has_invitation' => $hasInvitation,
+            'invited_by' => $invitedBy,
+
             'staff' => $this->whenLoaded('staff', function () {
                 return $this->staff
                     ->groupBy(fn($staff) => MiniTournamentStaff::getRoleText( $staff->pivot->role))
@@ -107,6 +137,7 @@ class MiniTournamentResource extends JsonResource
 
             // Club fund integration
             'use_club_fund' => $this->use_club_fund,
+            'included_in_club_fund' => $this->included_in_club_fund,
             'club_fund_collection_id' => $this->club_fund_collection_id,
         ];
 
