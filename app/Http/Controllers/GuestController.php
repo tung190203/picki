@@ -81,6 +81,23 @@ class GuestController extends Controller
             }
         }
 
+        $isConfirmed = false;
+        $isPendingConfirmation = false;
+
+        if ($guarantorUserId) {
+            $isGuarantorOrganizer = $miniTournament->hasOrganizer($guarantorUserId);
+            if ($isGuarantorOrganizer) {
+                $isConfirmed = true;
+                $isPendingConfirmation = false;
+            } else {
+                $isConfirmed = false;
+                $isPendingConfirmation = true;
+            }
+        } else {
+            $isConfirmed = true;
+            $isPendingConfirmation = false;
+        }
+
         // Xác định payment_status
         // use_club_fund = true: CLB chi tiền → CONFIRMED, không cần nộp
         // auto_split_fee = true: luôn CONFIRMED (kèo kết thúc sẽ chia lại tiền)
@@ -155,7 +172,7 @@ class GuestController extends Controller
         $participantData = [
             'mini_tournament_id' => $miniTournamentId,
             'user_id' => $guestUser->id,
-            'is_confirmed' => true,
+            'is_confirmed' => $isConfirmed,
             'is_guest' => true,
             'guest_name' => $guestUser->full_name,
             'guest_phone' => $guestUser->phone,
@@ -164,6 +181,7 @@ class GuestController extends Controller
             'payment_status' => $paymentStatus,
             'estimated_level_min' => $data['estimated_level_min'] ?? null,
             'estimated_level_max' => $data['estimated_level_max'] ?? null,
+            'is_pending_confirmation' => $isPendingConfirmation,
         ];
 
         $participant = MiniParticipant::create($participantData);
@@ -200,6 +218,18 @@ class GuestController extends Controller
             $guarantor = User::find($guarantorUserId);
             if ($guarantor) {
                 $guarantor->notify(new GuestAddedNotification($miniTournament, $participant));
+            }
+        }
+
+        // Nếu là VĐV bảo lãnh (chờ BTC duyệt), thông báo cho tất cả organizers
+        if ($isPendingConfirmation) {
+            $organizers = $miniTournament->staff()
+                ->where('mini_tournament_staff.role', MiniTournamentStaff::ROLE_ORGANIZER)
+                ->where('users.id', '!=', auth()->id())
+                ->get();
+
+            foreach ($organizers as $organizer) {
+                $organizer->notify(new GuestAddedNotification($miniTournament, $participant));
             }
         }
 
@@ -330,6 +360,51 @@ class GuestController extends Controller
         return ResponseHelper::success(
             MiniParticipantResource::collection($guests),
             'Lấy danh sách guest thành công'
+        );
+    }
+
+    /**
+     * BTC duyệt guest khi VĐV bảo lãnh
+     * API: POST /api/mini-tournaments/{id}/guests/confirm/{participantId}
+     */
+    public function confirmGuest($miniTournamentId, $participantId)
+    {
+        $miniTournament = MiniTournament::with('staff')->findOrFail($miniTournamentId);
+
+        if (!$miniTournament->hasOrganizer(auth()->id())) {
+            return ResponseHelper::error('Bạn không có quyền xác nhận guest này', 403);
+        }
+
+        $participant = MiniParticipant::where('mini_tournament_id', $miniTournamentId)
+            ->where('id', $participantId)
+            ->where('is_guest', true)
+            ->first();
+
+        if (!$participant) {
+            return ResponseHelper::error('Guest không tồn tại trong kèo này', 404);
+        }
+
+        if (!$participant->is_pending_confirmation) {
+            return ResponseHelper::error('Guest này không cần xác nhận', 400);
+        }
+
+        $participant->update([
+            'is_confirmed' => true,
+            'is_pending_confirmation' => false,
+        ]);
+
+        if ($participant->guarantor_user_id) {
+            $guarantor = User::find($participant->guarantor_user_id);
+            if ($guarantor) {
+                $guarantor->notify(new GuestAddedNotification($miniTournament, $participant));
+            }
+        }
+
+        $participant->load(['user', 'guarantor']);
+
+        return ResponseHelper::success(
+            new MiniParticipantResource($participant),
+            'Xác nhận guest thành công'
         );
     }
 }
