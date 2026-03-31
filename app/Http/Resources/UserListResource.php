@@ -31,6 +31,7 @@ class UserListResource extends JsonResource
             ),
             'is_anchor' => (bool) $this->is_anchor,
             'is_verify' => (bool) ($this->total_matches_has_anchor >= 10),
+            'is_guest'  => (bool) $this->is_guest,
         ];
     }
 }

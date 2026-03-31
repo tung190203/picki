@@ -15,9 +15,9 @@ class MiniTeamMemberResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            "id"=> $this->id,
-            "user" => new UserListResource($this->whenLoaded("user")),
-            "is_guest" => (bool) $this->is_guest,
-        ];  
+            'id'       => $this->id,
+            'user'     => new UserListResource($this->whenLoaded('user')),
+            'is_guest' => (bool) $this->is_guest,
+        ];
     }
 }

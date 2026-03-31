@@ -493,7 +493,10 @@ class UserMatchStatsController extends Controller
             )
             ->get()
             ->groupBy('mini_team_id')
-            ->map(fn($rows) => $rows->pluck('user_id')->all());
+            ->map(fn($rows) => $rows->keyBy('user_id')->map(fn($row) => [
+                'user_id'  => $row->user_id,
+                'is_guest' => (bool) $row->is_guest,
+            ])->values()->all());
 
         // Lấy team members
         $allTeamIds = $matches->pluck('home_team_id')
@@ -503,9 +506,16 @@ class UserMatchStatsController extends Controller
 
         $teamMembersByTeam = collect();
         if ($allTeamIds->isNotEmpty()) {
-            $members = DB::table('team_members')->whereIn('team_id', $allTeamIds)->get();
+            $members = DB::table('team_members')
+                ->join('users', 'team_members.user_id', '=', 'users.id')
+                ->whereIn('team_id', $allTeamIds)
+                ->select('team_members.team_id', 'team_members.user_id', 'users.is_guest')
+                ->get();
             $teamMembersByTeam = $members->groupBy('team_id')
-                ->map(fn($rows) => $rows->pluck('user_id')->all());
+                ->map(fn($rows) => $rows->keyBy('user_id')->map(fn($row) => [
+                    'user_id'  => $row->user_id,
+                    'is_guest' => (bool) $row->is_guest,
+                ])->values()->all());
         }
 
         // Merge matches và mini matches với thông tin đầy đủ
@@ -520,9 +530,12 @@ class UserMatchStatsController extends Controller
             $homeMembers = $teamMembersByTeam[$match->home_team_id] ?? [];
             $awayMembers = $teamMembersByTeam[$match->away_team_id] ?? [];
 
+            $homeUserIds = array_column($homeMembers, 'user_id');
+            $awayUserIds = array_column($awayMembers, 'user_id');
+
             // Xác định user thuộc team nào
-            $userIsInHomeTeam = in_array($userId, $homeMembers);
-            $userIsInAwayTeam = in_array($userId, $awayMembers);
+            $userIsInHomeTeam = in_array($userId, $homeUserIds);
+            $userIsInAwayTeam = in_array($userId, $awayUserIds);
 
             // Bỏ qua nếu user không thuộc team nào (edge case)
             if (!$userIsInHomeTeam && !$userIsInAwayTeam) {
@@ -601,9 +614,12 @@ class UserMatchStatsController extends Controller
             $team1Members = $miniTeamMembersByTeam[$mini->team1_id] ?? [];
             $team2Members = $miniTeamMembersByTeam[$mini->team2_id] ?? [];
 
+            $team1UserIds = array_column($team1Members, 'user_id');
+            $team2UserIds = array_column($team2Members, 'user_id');
+
             // Xác định user thuộc team nào
-            $userIsInTeam1 = in_array($userId, $team1Members);
-            $userIsInTeam2 = in_array($userId, $team2Members);
+            $userIsInTeam1 = in_array($userId, $team1UserIds);
+            $userIsInTeam2 = in_array($userId, $team2UserIds);
 
             // Bỏ qua nếu user không thuộc team nào
             if (!$userIsInTeam1 && !$userIsInTeam2) {
