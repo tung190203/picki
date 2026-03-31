@@ -154,6 +154,7 @@ class Tournament extends Model
             'tournamentStaffs.user.sports.scores',
             'participants',
             'participants.user.sports.scores',
+            'participants.guarantor',
             'competitionLocation'
         ]);
     }
