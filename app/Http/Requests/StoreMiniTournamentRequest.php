@@ -143,7 +143,11 @@ class StoreMiniTournamentRequest extends FormRequest
                 $validator->errors()->add('min_rating', 'Trình độ tối thiểu không được lớn hơn trình độ tối đa.');
             }
 
-            if ($this->boolean('has_fee') && !$this->boolean('use_club_fund') && !$this->getClubHasQrWallet()) {
+            // Only validate QR when user explicitly chose has_fee=true AND use_club_fund=false.
+            // If use_club_fund was not sent in the request at all, skip this check — the club
+            // may have a shared QR wallet that will be used by the controller/service.
+            // If use_club_fund=true, QR is not needed (club fund handles it).
+            if ($this->boolean('has_fee') && $this->has('use_club_fund') && !$this->boolean('use_club_fund') && !$this->getClubHasQrWallet()) {
                 $qrValue = $this->input('qr_code_url');
                 $qrFile = $this->file('qr_code_url');
                 $hasQrInput = $qrFile !== null || ($qrValue !== null && $qrValue !== '');
