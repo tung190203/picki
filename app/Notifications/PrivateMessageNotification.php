@@ -23,13 +23,13 @@ class PrivateMessageNotification extends Notification implements ShouldQueue
         return ['database', 'broadcast'];
     }
 
-    public function toArray($notifiable)
+    public function toDatabase($notifiable): array
     {
         return [
             'message_id' => $this->message->id,
             'sender_id' => $this->message->sender_id,
             'sender_name' => $this->message->sender->full_name,
-            'message' => $this->message->message,
+            'content' => $this->message->message,
             'attachment_url' => $this->message->attachment_url,
             'attachment_type' => $this->message->attachment_type,
         ];
@@ -38,7 +38,12 @@ class PrivateMessageNotification extends Notification implements ShouldQueue
     public function toBroadcast($notifiable)
     {
         return new BroadcastMessage([
-            'data' => $this->toArray($notifiable)
+            'data' => $this->toDatabase($notifiable)
         ]);
+    }
+
+    public function toArray($notifiable): array
+    {
+        return $this->toDatabase($notifiable);
     }
 }

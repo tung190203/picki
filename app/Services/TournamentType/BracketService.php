@@ -149,9 +149,9 @@ class BracketService
     /**
      * Format team data cho response
      */
-    public function formatTeam($team, ?string $placeholderText = null): ?array
+    public function formatTeam($team, ?string $placeholderText = null, ?int $tournamentId = null): ?array
     {
-        return TournamentService::formatTeam($team, $placeholderText);
+        return TournamentService::formatTeam($team, $placeholderText, $tournamentId);
     }
 
     /**

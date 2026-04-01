@@ -1203,13 +1203,14 @@ const PAIRING_MODE_MANUAL = 'manual';
      */
     private function getRoundRobinSchedule(TournamentType $type)
     {
+        $tournamentId = $type->tournament_id;
         $allMatches = $type->matches()
             ->with(['homeTeam.members', 'awayTeam.members', 'results'])
             ->get();
         $totalRounds = $allMatches->max('round') ?? 1;
 
         // 1. Nhóm theo Round trước để tạo cấu trúc giống Bracket của Elimination
-        $rounds = $allMatches->groupBy('round')->map(function ($roundMatches, $round) use ($type, $totalRounds) {
+        $rounds = $allMatches->groupBy('round')->map(function ($roundMatches, $round) use ($type, $totalRounds, $tournamentId) {
 
             // 2. Trong mỗi Round, nhóm các Leg thành 1 cặp đấu
             $groupedMatches = $roundMatches->groupBy(function ($match) {
@@ -1221,7 +1222,7 @@ const PAIRING_MODE_MANUAL = 'manual';
             return [
                 'round' => $round,
                 'round_name' => "Vòng " . $round, // Hoặc dùng hàm getRoundName nếu muốn
-                'matches' => $groupedMatches->map(function ($legs) use($round, $totalRounds) {
+                'matches' => $groupedMatches->map(function ($legs) use($round, $totalRounds, $tournamentId) {
                     $leg1 = $legs->firstWhere('leg', 1) ?? $legs->first();
                     $baseHomeId = $leg1->home_team_id;
                     $baseAwayId = $leg1->away_team_id;
@@ -1270,8 +1271,8 @@ const PAIRING_MODE_MANUAL = 'manual';
 
                     return [
                         'match_id' => $leg1->id,
-                        'home_team' => $this->formatTeam($leg1->homeTeam),
-                        'away_team' => $this->formatTeam($leg1->awayTeam),
+                        'home_team' => $this->formatTeam($leg1->homeTeam, null, $tournamentId),
+                        'away_team' => $this->formatTeam($leg1->awayTeam, null, $tournamentId),
                         'is_bye' => $leg1->is_bye,
                         'is_final' => $isFinal,
                         'legs' => $formattedLegs,
@@ -1361,6 +1362,7 @@ const PAIRING_MODE_MANUAL = 'manual';
             ];
         };
 
+        $tournamentId = $type->tournament_id;
         $matches = $type->matches()
             ->with(['homeTeam.members', 'awayTeam.members', 'results'])
             ->orderBy('round')
@@ -1374,7 +1376,7 @@ const PAIRING_MODE_MANUAL = 'manual';
 
         $bracket = $matches
             ->groupBy('round')
-            ->map(function ($roundMatches, $round) use ($calculateLegDetails, $type, $finalRound) {
+            ->map(function ($roundMatches, $round) use ($calculateLegDetails, $type, $finalRound, $tournamentId) {
 
                 // ✅ SỬA: Group 2 leg thành 1 match - Dùng match_pair_id hoặc logic ổn định
                 $grouped = $roundMatches->groupBy(function ($match) {
@@ -1459,8 +1461,8 @@ const PAIRING_MODE_MANUAL = 'manual';
 
                         return [
                             'match_id' => $first->id,
-                            'home_team' => $this->formatTeam($first->homeTeam),
-                            'away_team' => $this->formatTeam($first->awayTeam, $awayPlaceholder),
+                            'home_team' => $this->formatTeam($first->homeTeam, null, $tournamentId),
+                            'away_team' => $this->formatTeam($first->awayTeam, $awayPlaceholder, $tournamentId),
                             'is_bye' => $first->is_bye,
                             'is_third_place' => $first->is_third_place ?? false,
                             'is_final' => $isFinal,
@@ -1488,6 +1490,7 @@ const PAIRING_MODE_MANUAL = 'manual';
 
     private function getMixedBracket(TournamentType $type)
     {
+        $tournamentId = $type->tournament_id;
         $calculateLegDetails = function ($leg) {
             $homeTeamId = $leg->home_team_id;
             $awayTeamId = $leg->away_team_id;
@@ -1602,8 +1605,8 @@ const PAIRING_MODE_MANUAL = 'manual';
 
                     return [
                         'match_id' => $first->id,
-                        'home_team' => $this->formatTeam($first->homeTeam),
-                        'away_team' => $this->formatTeam($first->awayTeam),
+                        'home_team' => $this->formatTeam($first->homeTeam, null, $tournamentId),
+                        'away_team' => $this->formatTeam($first->awayTeam, null, $tournamentId),
                         'is_bye' => $first->is_bye,
                         'is_final' => false, // ✅ Pool stage không có final
                         'legs' => $legs,
@@ -1733,8 +1736,8 @@ const PAIRING_MODE_MANUAL = 'manual';
 
                     return [
                         'match_id' => $first->id,
-                        'home_team' => $this->formatTeam($first->homeTeam, $homePlaceholder),
-                        'away_team' => $this->formatTeam($first->awayTeam, $awayPlaceholder),
+                        'home_team' => $this->formatTeam($first->homeTeam, $homePlaceholder, $tournamentId),
+                        'away_team' => $this->formatTeam($first->awayTeam, $awayPlaceholder, $tournamentId),
                         'is_bye' => $first->is_bye,
                         'is_third_place' => $first->is_third_place ?? false,
                         'is_final' => $isFinal, // ✅ FIXED
@@ -1770,11 +1773,11 @@ const PAIRING_MODE_MANUAL = 'manual';
     }
 
     /**
-     * Format team data
+     * Format team data cho response
      */
-    private function formatTeam($team, $placeholderText = null)
+    public function formatTeam($team, ?string $placeholderText = null, ?int $tournamentId = null): ?array
     {
-        return $this->bracketService->formatTeam($team, $placeholderText);
+        return $this->bracketService->formatTeam($team, $placeholderText, $tournamentId);
     }
 
 
@@ -1804,6 +1807,7 @@ const PAIRING_MODE_MANUAL = 'manual';
      */
     private function getMixedBracketNew(TournamentType $type)
     {
+        $tournamentId = $type->tournament_id;
         $calculateLegDetails = function ($leg) {
             $homeTeamId = $leg->home_team_id;
             $awayTeamId = $leg->away_team_id;
@@ -1864,7 +1868,7 @@ const PAIRING_MODE_MANUAL = 'manual';
             ->orderBy('leg')
             ->get();
 
-        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches, $groupId) use ($calculateLegDetails) {
+        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches, $groupId) use ($calculateLegDetails, $tournamentId) {
             $group = $groupMatches->first()->group;
 
             $grouped = $groupMatches->groupBy(function ($match) {
@@ -1874,7 +1878,7 @@ const PAIRING_MODE_MANUAL = 'manual';
                 return collect([$match->home_team_id, $match->away_team_id])->sort()->implode('_');
             })->values();
 
-            $matchesData = $grouped->map(function ($matchGroup) use ($calculateLegDetails) {
+            $matchesData = $grouped->map(function ($matchGroup) use ($calculateLegDetails, $tournamentId) {
                 $first = $matchGroup->first();
                 $homeTeamId = $first->home_team_id;
                 $awayTeamId = $first->away_team_id;
@@ -1900,8 +1904,8 @@ const PAIRING_MODE_MANUAL = 'manual';
 
                 return [
                     'match_id' => $first->id,
-                    'home_team' => $this->formatTeam($first->homeTeam),
-                    'away_team' => $this->formatTeam($first->awayTeam),
+                    'home_team' => $this->formatTeam($first->homeTeam, null, $tournamentId),
+                    'away_team' => $this->formatTeam($first->awayTeam, null, $tournamentId),
                     'home_score' => $homeTotal,
                     'away_score' => $awayTotal,
                     'status' => $status,
@@ -1933,7 +1937,7 @@ const PAIRING_MODE_MANUAL = 'manual';
             ->filter(fn($m) => !($m->is_third_place ?? false))
             ->max('round') ?? 2;
 
-        $allKnockoutRounds = $knockoutMatches->groupBy('round')->map(function ($roundMatches, $round) use ($calculateLegDetails, $type, $finalKnockoutRound) {
+        $allKnockoutRounds = $knockoutMatches->groupBy('round')->map(function ($roundMatches, $round) use ($calculateLegDetails, $type, $finalKnockoutRound, $tournamentId) {
             $numLegs = (int) ($type->num_legs ?? 1);
             $sortedMatches = $roundMatches->sortBy('id')->values();
             $matchGroups = $sortedMatches->chunk($numLegs);
@@ -1943,7 +1947,7 @@ const PAIRING_MODE_MANUAL = 'manual';
                 $roundName = 'Tranh hạng Ba';
             }
 
-            $matchesData = $matchGroups->map(function ($matchGroup) use ($calculateLegDetails, $round, $finalKnockoutRound) {
+            $matchesData = $matchGroups->map(function ($matchGroup) use ($calculateLegDetails, $round, $finalKnockoutRound, $tournamentId) {
                 $first = $matchGroup->first();
                 $homeTeamId = $first->home_team_id;
                 $awayTeamId = $first->away_team_id;
@@ -1965,8 +1969,8 @@ const PAIRING_MODE_MANUAL = 'manual';
 
                 return [
                     'match_id' => $first->id,
-                    'home_team' => $this->formatTeam($first->homeTeam),
-                    'away_team' => $this->formatTeam($first->awayTeam),
+                    'home_team' => $this->formatTeam($first->homeTeam, null, $tournamentId),
+                    'away_team' => $this->formatTeam($first->awayTeam, null, $tournamentId),
                     'home_score' => $homeTotal,
                     'away_score' => $awayTotal,
                     'status' => $status,
