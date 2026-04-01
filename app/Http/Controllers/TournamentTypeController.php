@@ -1416,7 +1416,7 @@ const PAIRING_MODE_MANUAL = 'manual';
                 return [
                     'round' => $round,
                     'round_name' => $roundName,
-                    'matches' => $grouped->map(function ($matchGroup) use ($calculateLegDetails, $round, $finalRound) {
+                    'matches' => $grouped->map(function ($matchGroup) use ($calculateLegDetails, $round, $finalRound, $tournamentId) {
 
                         $first = $matchGroup->first();
                         $homeTeamId = $first->home_team_id;
