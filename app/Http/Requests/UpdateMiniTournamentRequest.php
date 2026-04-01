@@ -73,7 +73,36 @@ class UpdateMiniTournamentRequest extends FormRequest
             'has_fee' => 'boolean',
             'auto_split_fee' => 'boolean',
             'fee_description' => 'nullable|string|max:500',
-            'qr_code_url' => 'nullable',
+            'qr_code_url' => [
+                'nullable',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    // Cho phép null/empty: nghĩa là không thay đổi QR (giữ nguyên ảnh cũ)
+                    if ($value === null || $value === '') {
+                        return;
+                    }
+                    // File upload mới: kiểm tra định dạng và kích thước
+                    $file = $value instanceof UploadedFile ? $value : $this->file('qr_code_url');
+                    if ($file instanceof UploadedFile) {
+                        if (!$file->isValid()) {
+                            $fail('Mã QR phải là một file ảnh hợp lệ.');
+                            return;
+                        }
+                        $allowedMimes = ['png', 'jpg', 'jpeg', 'gif'];
+                        if (!in_array(strtolower($file->getClientOriginalExtension()), $allowedMimes, true)) {
+                            $fail('Mã QR phải là định dạng png, jpg, jpeg hoặc gif.');
+                            return;
+                        }
+                        if ($file->getSize() > 5 * 1024 * 1024) {
+                            $fail('Mã QR không được vượt quá 5MB.');
+                        }
+                        return;
+                    }
+                    // String URL: cho phép (giữ nguyên ảnh cũ khi update)
+                    if (!is_string($value)) {
+                        $fail('Mã QR phải là file ảnh hoặc URL hợp lệ.');
+                    }
+                },
+            ],
             'payment_account_id' => 'nullable|exists:club_wallets,id',
             'fee_amount' => 'nullable|integer|min:0',
             'max_players' => 'nullable|integer|min:2|max:100',
@@ -118,12 +147,7 @@ class UpdateMiniTournamentRequest extends FormRequest
             // qr_code_url bắt buộc trừ khi:
             // - use_club_fund = true (admin quản lý quỹ trực tiếp)
             // - hoặc CLB đã có ví với qr_code_url chung
-            if (!$this->boolean('use_club_fund')) {
-                $clubHasQrWallet = $this->getClubHasQrWallet();
-                if (!$clubHasQrWallet) {
-                    $rules['qr_code_url'] = 'required|image|mimes:png,jpg,jpeg,gif|max:5120';
-                }
-            }
+            // Note: qr_code_url check done in withValidator to access DB state
         }
 
         // Custom validation: if allow_cancellation is true, require cancellation_duration
@@ -152,8 +176,25 @@ class UpdateMiniTournamentRequest extends FormRequest
                 $validator->errors()->add('min_rating', 'Trình độ tối thiểu không được lớn hơn trình độ tối đa.');
             }
 
-            if ($this->boolean('has_fee') && !$this->file('qr_code_url') && !$this->filled('payment_account_id') && !$this->boolean('use_club_fund') && !$this->getClubHasQrWallet()) {
-                $validator->errors()->add('qr_code_url', 'Kèo thu phí cần có mã QR thanh toán hoặc CLB cần có ví với mã QR chung.');
+            // qr_code_url validation for paid tournaments:
+            // - pass if: file uploaded OR string URL sent OR club already has QR wallet
+            // - pass if: tournament already has qr_code_url in DB AND nothing new sent (keep old)
+            // - fail if: no QR at all and no payment account and no club wallet
+            // Only validate QR when user explicitly chose has_fee=true AND use_club_fund=false.
+            // If use_club_fund was not sent, skip — the club may have a shared QR wallet.
+            // If use_club_fund=true, QR is not needed (club fund handles it).
+            if ($this->boolean('has_fee') && $this->has('use_club_fund') && !$this->boolean('use_club_fund') && !$this->getClubHasQrWallet()) {
+                $qrValue = $this->input('qr_code_url');
+                $qrFile = $this->file('qr_code_url');
+                $hasQrInput = $qrFile !== null || ($qrValue !== null && $qrValue !== '');
+                if (!$hasQrInput && !$this->filled('payment_account_id')) {
+                    $miniTournamentId = $this->route('miniTournamentId') ?? $this->route('mini_tournament');
+                    $miniTournament = $miniTournamentId ? \App\Models\MiniTournament::find($miniTournamentId) : null;
+                    $existingQr = $miniTournament?->qr_code_url;
+                    if (!$existingQr) {
+                        $validator->errors()->add('qr_code_url', 'Kèo thu phí cần có mã QR thanh toán hoặc CLB cần có ví với mã QR chung.');
+                    }
+                }
             }
 
             // use_club_fund = true và included_in_club_fund = true loại trừ nhau
@@ -174,7 +215,10 @@ class UpdateMiniTournamentRequest extends FormRequest
 
     public function getClubHasQrWallet(): bool
     {
-        $miniTournament = $this->route('mini_tournament');
+        $miniTournamentId = $this->route('miniTournamentId') ?? $this->route('mini_tournament');
+        $miniTournament = $miniTournamentId
+            ? \App\Models\MiniTournament::find($miniTournamentId)
+            : null;
         $clubId = $this->input('club_id') ?? $miniTournament?->club_id;
         if (!$clubId) {
             return false;
