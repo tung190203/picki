@@ -113,7 +113,13 @@ class TournamentService
     /**
      * Format team data
      */
-    public static function formatTeam($team, $placeholderText = null): array
+    /**
+     * Format team data cho response
+     * @param mixed $team
+     * @param string|null $placeholderText
+     * @param int|null $tournamentId Nếu truyền vào, sẽ fetch tournamentParticipant cho mỗi member
+     */
+    public static function formatTeam($team, ?string $placeholderText = null, ?int $tournamentId = null): ?array
     {
         if (!$team) {
             return [
@@ -124,17 +130,31 @@ class TournamentService
             ];
         }
 
+        $members = $team->members->map(function ($user) use ($tournamentId) {
+            $data = [
+                'id' => $user->id,
+                'name' => $user->name,
+                'avatar' => $user->avatar ?? null,
+            ];
+
+            if ($tournamentId) {
+                $participant = \App\Models\Participant::where('tournament_id', $tournamentId)
+                    ->where('user_id', $user->id)
+                    ->with('guarantor')
+                    ->first();
+                if ($participant) {
+                    $data['tournament_participant'] = new \App\Http\Resources\ParticipantResource($participant);
+                }
+            }
+
+            return $data;
+        });
+
         return [
             'id' => $team->id,
             'name' => $team->name,
             'team_avatar' => $team->avatar,
-            'members' => $team->members->map(function ($user) {
-                return [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'avatar' => $user->avatar ?? null,
-                ];
-            }),
+            'members' => $members,
         ];
     }
 }

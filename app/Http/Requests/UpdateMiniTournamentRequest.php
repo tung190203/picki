@@ -76,7 +76,7 @@ class UpdateMiniTournamentRequest extends FormRequest
             'qr_code_url' => 'nullable',
             'payment_account_id' => 'nullable|exists:club_wallets,id',
             'fee_amount' => 'nullable|integer|min:0',
-            'max_players' => 'nullable|integer|min:1',
+            'max_players' => 'nullable|integer|min:2|max:100',
 
             // Club fund integration
             'use_club_fund' => 'boolean',
@@ -109,7 +109,7 @@ class UpdateMiniTournamentRequest extends FormRequest
             'status' => 'sometimes|integer|in:' . implode(',', MiniTournament::STATUS),
 
             'invite_user' => 'nullable|array',
-            'invite_user.*' => 'exists:users,id',
+            'invite_user.*' => 'distinct|exists:users,id',
         ];
 
         // Custom validation: if has_fee is true, require fee_amount
@@ -145,6 +145,13 @@ class UpdateMiniTournamentRequest extends FormRequest
     public function withValidator(\Illuminate\Validation\Validator $validator): void
     {
         $validator->after(function (\Illuminate\Validation\Validator $validator) {
+            $minRating = $this->input('min_rating');
+            $maxRating = $this->input('max_rating');
+
+            if ($minRating !== null && $maxRating !== null && (float) $minRating > (float) $maxRating) {
+                $validator->errors()->add('min_rating', 'Trình độ tối thiểu không được lớn hơn trình độ tối đa.');
+            }
+
             if ($this->boolean('has_fee') && !$this->file('qr_code_url') && !$this->filled('payment_account_id') && !$this->boolean('use_club_fund') && !$this->getClubHasQrWallet()) {
                 $validator->errors()->add('qr_code_url', 'Kèo thu phí cần có mã QR thanh toán hoặc CLB cần có ví với mã QR chung.');
             }
@@ -153,6 +160,14 @@ class UpdateMiniTournamentRequest extends FormRequest
             // use_club_fund = true: CLB chi tiền → không thu từ member → KHÔNG tạo collection
             if ($this->boolean('use_club_fund') && $this->boolean('included_in_club_fund')) {
                 $validator->errors()->add('included_in_club_fund', 'Không thể chọn đồng thời "Quỹ chi" và "Thu vào quỹ chung CLB". Vui lòng chỉ chọn một trong hai.');
+            }
+
+            if ($this->boolean('apply_rule')) {
+                $basePoints = $this->input('base_points');
+                $maxPoints = $this->input('max_points');
+                if ($basePoints !== null && $maxPoints !== null && (int) $maxPoints < (int) $basePoints) {
+                    $validator->errors()->add('max_points', 'Điểm tối đa phải lớn hơn hoặc bằng điểm cơ bản.');
+                }
             }
         });
     }
@@ -173,6 +188,7 @@ class UpdateMiniTournamentRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        // Normalize empty strings to null for nullable fields
         $nullableKeys = [
             'min_rating', 'max_rating', 'fee_description', 'description',
             'payment_account_id', 'competition_location_id', 'end_time',
@@ -191,6 +207,29 @@ class UpdateMiniTournamentRequest extends FormRequest
         }
         if ($normalized !== []) {
             $this->merge($normalized);
+        }
+
+        // Normalize string boolean values to actual booleans
+        $boolKeys = [
+            'is_private', 'has_fee', 'auto_split_fee',
+            'apply_rule', 'allow_cancellation', 'auto_approve',
+            'allow_participant_add_friends',
+            'use_club_fund', 'included_in_club_fund',
+        ];
+        $boolNormalized = [];
+        foreach ($boolKeys as $key) {
+            if ($this->has($key)) {
+                $val = $this->input($key);
+                if (is_string($val)) {
+                    $normalizedBool = filter_var($val, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                    if ($normalizedBool !== null) {
+                        $boolNormalized[$key] = $normalizedBool;
+                    }
+                }
+            }
+        }
+        if ($boolNormalized !== []) {
+            $this->merge($boolNormalized);
         }
 
         // Convert play_mode string to integer

@@ -9,6 +9,7 @@ use App\Models\MiniParticipantPayment;
 use App\Models\MiniTournamentStaff;
 use App\Models\Club\ClubFundCollection;
 use App\Models\Club\ClubFundContribution;
+use App\Services\Club\ClubFundContributionService;
 use App\Enums\PaymentStatusEnum;
 use App\Enums\ClubFundContributionStatus;
 use Carbon\Carbon;
@@ -17,6 +18,10 @@ use Illuminate\Support\Str;
 
 class MiniTournamentService
 {
+    public function __construct(
+        protected ClubFundContributionService $fundContributionService,
+    ) {
+    }
     public function createTournament(array $data, int $userId): MiniTournament
     {
         $recurringSchedule = $data['recurring_schedule'] ?? null;
@@ -25,13 +30,26 @@ class MiniTournamentService
         // use_club_fund = true: kèo miễn phí cho member, CLB chi tiền.
         // has_fee và fee_amount vẫn giữ nguyên (số tiền CLB chi cho kèo đấu).
 
+        $isClubFund = filter_var($data['use_club_fund'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $isIncludedInClubFund = filter_var($data['included_in_club_fund'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $hasFee = filter_var($data['has_fee'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        // fee_amount must be non-null: 0 when free, otherwise the sent amount
+        $feeAmount = $hasFee ? (int) ($data['fee_amount'] ?? 0) : 0;
+
+        // Exclude fee fields from spread — we'll set them explicitly
+        $dataForCreate = collect($data)->except([
+            'use_club_fund', 'included_in_club_fund', 'club_fund_collection_id', 'fee_amount',
+        ])->toArray();
+
         $miniTournament = MiniTournament::create([
-            ...$data,
+            ...$dataForCreate,
             'created_by' => $userId,
             'recurrence_series_id' => $seriesId,
-            'use_club_fund' => filter_var($data['use_club_fund'] ?? false, FILTER_VALIDATE_BOOLEAN),
-            'included_in_club_fund' => filter_var($data['included_in_club_fund'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'use_club_fund' => $isClubFund,
+            'included_in_club_fund' => $isIncludedInClubFund,
             'club_fund_collection_id' => $data['club_fund_collection_id'] ?? null,
+            'fee_amount' => $feeAmount,
         ]);
 
         // Creator always participates by default with confirmed payment status
@@ -439,6 +457,67 @@ class MiniTournamentService
         // User nộp biên lai → tạo ClubFundContribution PENDING → Organizer confirm → wallet tx IN
         $collection->assignedMembers()->syncWithoutDetaching([
             $userId => ['amount_due' => $feeAmount],
+        ]);
+    }
+
+    /**
+     * Sync guest vào ClubFundContribution khi guest được thêm vào kèo CLB sau khi kèo đã tạo.
+     *
+     * Logic:
+     * - Guest được organizer bảo lãnh → exempt (Confirmed + wallet tx)
+     * - Guest được member bảo lãnh → PENDING (chờ nộp biên lai)
+     * - Guest không ai bảo lãnh → PENDING
+     */
+    public function syncGuestToClubFund(
+        MiniParticipant $participant,
+        int $creatorId
+    ): void {
+        $tournament = $participant->miniTournament;
+
+        if (!$participant->is_guest || !$tournament->club_fund_collection_id) {
+            return;
+        }
+
+        $collection = $tournament->fundCollection;
+        if (!$collection || !$collection->isActive()) {
+            return;
+        }
+
+        // Kiểm tra đã có contribution chưa
+        $existing = ClubFundContribution::where('club_fund_collection_id', $collection->id)
+            ->where('user_id', $participant->user_id)
+            ->first();
+        if ($existing) {
+            return;
+        }
+
+        $feeAmount = (float) ($tournament->fee_amount ?? 0);
+        $isOrganizerGuarantor = $tournament->hasOrganizer($participant->guarantor_user_id);
+
+        // Thêm vào assignedMembers trước
+        $collection->assignedMembers()->syncWithoutDetaching([
+            $participant->user_id => ['amount_due' => $isOrganizerGuarantor ? 0 : $feeAmount],
+        ]);
+
+        // Guest được organizer bảo lãnh → exempt (Confirmed + wallet tx)
+        if ($isOrganizerGuarantor) {
+            $this->fundContributionService->markOrganizerExempt(
+                $collection,
+                $participant->user_id,
+                $creatorId,
+                $feeAmount
+            );
+            return;
+        }
+
+        // Guest được member bảo lãnh hoặc không ai bảo lãnh → PENDING (chờ nộp biên lai)
+        ClubFundContribution::create([
+            'club_fund_collection_id' => $collection->id,
+            'user_id' => $participant->user_id,
+            'amount' => $feeAmount,
+            'receipt_url' => null,
+            'note' => 'Guest ' . ($participant->guest_name ?? '') . ' - chờ nộp biên lai',
+            'status' => ClubFundContributionStatus::Pending,
         ]);
     }
 }

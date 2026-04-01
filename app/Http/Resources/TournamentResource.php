@@ -67,20 +67,7 @@ class TournamentResource extends JsonResource
             }),
             'tournament_staff' => TournamentStaffResource::collection($this->whenLoaded('tournamentStaffs')),
             'tournament_participants' => $this->whenLoaded('participants', function() {
-                return $this->participants->map(function($participant) {
-                    return [
-                        'id' => $participant->id,
-                        'user' =>  $participant->user ? [
-                            'id' => $participant->user->id,
-                            'name' => $participant->user->full_name,
-                        ] : null,
-                        'avatar' => $participant->user?->avatar_url,
-                        'sports' => UserSportResource::collection($participant->user?->sports ?? []),
-                        'is_confirmed' => $participant->is_confirmed,
-                        'registered_at' => $participant->created_at,
-                        'is_invite_by_organizer' => $participant->is_invite_by_organizer
-                    ];
-                });
+                return ParticipantResource::collection($this->participants);
             }),
             'tournament_types' => TournamentTypeResource::collection($this->whenLoaded('tournamentTypes')) ?? [],
             'is_joined' => $this->participants
