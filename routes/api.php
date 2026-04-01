@@ -14,6 +14,7 @@ use App\Http\Controllers\MiniTournamentNotificationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ParticipantController;
 use App\Http\Controllers\TournamentController;
+use App\Http\Controllers\TournamentGuestController;
 use App\Http\Controllers\TournamentTypeController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VerificationController;
@@ -303,6 +304,13 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/update/{id}', [TournamentController::class, 'update']);
         Route::post('/delete', [TournamentController::class, 'destroy']);
         Route::get('/{id}/bracket', [TournamentController::class, 'getBracket']);
+
+        // Guest Routes
+        Route::get('/{id}/guests', [TournamentGuestController::class, 'index']);
+        Route::post('/{id}/guests', [TournamentGuestController::class, 'store']);
+        Route::get('/{id}/guaranteed-guests', [TournamentGuestController::class, 'guaranteedGuests']);
+        Route::get('/{id}/guarantor-candidates', [TournamentGuestController::class, 'guarantorCandidates']);
+        Route::get('/{id}/guarantor-guests/{userId}', [TournamentGuestController::class, 'guarantorGuests']);
     });
 
     Route::prefix('tournament-staff')->group(function () {
@@ -565,6 +573,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::get('/{id}/guaranteed-guests', [GuestController::class, 'guaranteedGuests']);
         Route::get('/{id}/guarantor-candidates', [GuestController::class, 'guarantorCandidates']);
         Route::get('/{id}/guarantor-guests/{userId}', [GuestController::class, 'guarantorGuests']);
+        Route::post('/{id}/guests/confirm/{participantId}', [GuestController::class, 'confirmGuest']);
     });
     // Mini Tournament Templates
     Route::prefix('mini-tournament-templates')->group(function (): void {

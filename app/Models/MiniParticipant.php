@@ -28,6 +28,7 @@ class MiniParticipant extends Model
         'estimated_level_max',
         'is_absent',
         'checked_in_at',
+        'is_pending_confirmation',
     ];
 
     protected $casts = [
@@ -36,6 +37,7 @@ class MiniParticipant extends Model
         'is_guest' => 'boolean',
         'is_absent' => 'boolean',
         'checked_in_at' => 'datetime',
+        'is_pending_confirmation' => 'boolean',
     ];
 
     const PER_PAGE = 20;
@@ -89,6 +91,14 @@ class MiniParticipant extends Model
     public function scopeGuestPendingPayment($query)
     {
         return $query->where('is_guest', true)->where('payment_status', PaymentStatusEnum::PENDING);
+    }
+
+    /**
+     * Scope: Filter guests pending confirmation (guaranteed by VDV, awaiting BTC approval)
+     */
+    public function scopePendingConfirmation($query)
+    {
+        return $query->where('is_guest', true)->where('is_pending_confirmation', true);
     }
 
     public function scopeWithFullRelations($query) {
