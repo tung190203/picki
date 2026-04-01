@@ -180,7 +180,10 @@ class UpdateMiniTournamentRequest extends FormRequest
             // - pass if: file uploaded OR string URL sent OR club already has QR wallet
             // - pass if: tournament already has qr_code_url in DB AND nothing new sent (keep old)
             // - fail if: no QR at all and no payment account and no club wallet
-            if ($this->boolean('has_fee') && !$this->boolean('use_club_fund') && !$this->getClubHasQrWallet()) {
+            // Only validate QR when user explicitly chose has_fee=true AND use_club_fund=false.
+            // If use_club_fund was not sent, skip — the club may have a shared QR wallet.
+            // If use_club_fund=true, QR is not needed (club fund handles it).
+            if ($this->boolean('has_fee') && $this->has('use_club_fund') && !$this->boolean('use_club_fund') && !$this->getClubHasQrWallet()) {
                 $qrValue = $this->input('qr_code_url');
                 $qrFile = $this->file('qr_code_url');
                 $hasQrInput = $qrFile !== null || ($qrValue !== null && $qrValue !== '');
