@@ -152,7 +152,7 @@ class StoreMiniTournamentRequest extends FormRequest
                 $qrFile = $this->file('qr_code_url');
                 $hasQrInput = $qrFile !== null || ($qrValue !== null && $qrValue !== '');
                 if (!$hasQrInput && !$this->filled('payment_account_id')) {
-                    $validator->errors()->add('qr_code_url', 'Kèo thu phí cần có mã QR thanh toán hoặc CLB cần có ví với mã QR chung.');
+                    $validator->errors()->add('qr_code_url', 'Kèo thu phí cần tải ảnh QR thanh toán. Nếu dùng quỹ CLB, vui lòng chọn CLB có ví với mã QR chung.');
                 }
             }
 
