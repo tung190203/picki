@@ -141,7 +141,7 @@ class GuestController extends Controller
                 $guestUser = User::create([
                     'full_name' => $data['guest_name'],
                     'phone' => $data['guest_phone'],
-                    'avatar_url' => $guestAvatarUrl,
+                    'avatar_url' => $guestAvatarUrl ?: User::GUEST_AVATAR_DEFAULT,
                     'password' => Str::random(12),
                     'visibility' => User::VISIBILITY_PRIVATE,
                     'is_guest' => true,
@@ -158,7 +158,7 @@ class GuestController extends Controller
                 // Tìm thấy user guest cũ → cập nhật avatar + last_active_at
                 $guestUser->updateQuietly([
                     'full_name' => $data['guest_name'],
-                    'avatar_url' => $guestAvatarUrl ?: $guestUser->avatar_url,
+                    'avatar_url' => $guestAvatarUrl ?: User::GUEST_AVATAR_DEFAULT,
                     'last_active_at' => now(),
                 ]);
             }
@@ -167,7 +167,7 @@ class GuestController extends Controller
             $guestUser = User::create([
                 'full_name' => $data['guest_name'],
                 'phone' => null,
-                'avatar_url' => $guestAvatarUrl,
+                'avatar_url' => $guestAvatarUrl ?: User::GUEST_AVATAR_DEFAULT,
                 'password' => Str::random(12),
                 'visibility' => User::VISIBILITY_PRIVATE,
                 'is_guest' => true,
