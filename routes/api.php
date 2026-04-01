@@ -271,8 +271,6 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
 
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
-            Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-check-in', [ClubMiniTournamentController::class, 'markCheckIn']);
-            Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-absent', [ClubMiniTournamentController::class, 'markAbsent']);
         });
     });
 });
@@ -304,6 +302,14 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/update/{id}', [TournamentController::class, 'update']);
         Route::post('/delete', [TournamentController::class, 'destroy']);
         Route::get('/{id}/bracket', [TournamentController::class, 'getBracket']);
+
+        // Participant check-in / absent (organizer / club staff)
+        Route::post('/{id}/participants/{participantId}/mark-check-in', [TournamentController::class, 'markParticipantCheckIn']);
+        Route::post('/{id}/participants/{participantId}/mark-absent', [TournamentController::class, 'markParticipantAbsent']);
+
+        // Self-service (user tự check-in / báo vắng)
+        Route::post('/{id}/self/check-in', [TournamentController::class, 'selfCheckIn']);
+        Route::post('/{id}/self/absent', [TournamentController::class, 'selfMarkAbsent']);
 
         // Guest Routes
         Route::get('/{id}/guests', [TournamentGuestController::class, 'index']);
@@ -538,8 +544,6 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
 
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
-            Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-check-in', [ClubMiniTournamentController::class, 'markCheckIn']);
-            Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-absent', [ClubMiniTournamentController::class, 'markAbsent']);
         });
     });
 
@@ -556,6 +560,8 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/update/{id}', [MiniTournamentController::class, 'update']);
         Route::post('/delete/{id}', [MiniTournamentController::class,'destroy']);
         Route::post('/{tournamentId}/recurrence-series/cancel', [MiniTournamentController::class, 'cancelRecurrenceSeries']);
+        Route::post('/{miniTournamentId}/participants/{participantId}/mark-check-in', [MiniTournamentController::class, 'markParticipantCheckIn']);
+        Route::post('/{miniTournamentId}/participants/{participantId}/mark-absent', [MiniTournamentController::class, 'markParticipantAbsent']);
 
         // Mini Tournament Payment Routes
         Route::get('/{id}/payments', [MiniTournamentPaymentController::class, 'index']);

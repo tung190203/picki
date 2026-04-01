@@ -52,6 +52,8 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     const PER_PAGE = 15;
 
+    const GUEST_AVATAR_DEFAULT = 'https://picki.vn/images/default-avatar.png';
+
     const PLAYER = 'player';
     const ADMIN = 'admin';
 
@@ -190,6 +192,11 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     public function setPasswordAttribute($password)
     {
         $this->attributes['password'] = bcrypt($password);
+    }
+
+    public function getAvatarUrlAttribute($value): ?string
+    {
+        return $value ?: self::GUEST_AVATAR_DEFAULT;
     }
 
     public function isOnline(int $minutesThreshold = 15): bool
