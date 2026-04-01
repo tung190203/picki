@@ -43,7 +43,7 @@ class StoreMiniTournamentRequest extends FormRequest
             'is_private' => 'boolean',
 
             // Fee fields (updated naming)
-            'has_fee' => 'boolean',
+            'has_fee' => 'nullable|boolean',
             'auto_split_fee' => 'boolean',
             'fee_description' => 'nullable|string|max:500',
             'qr_code_url' => 'nullable|image|mimes:png,jpg,jpeg,gif|max:5120',
@@ -149,6 +149,7 @@ class StoreMiniTournamentRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        // Normalize empty strings to null for nullable fields
         $nullableKeys = [
             'min_rating', 'max_rating', 'fee_description', 'description',
             'payment_account_id', 'end_time',
@@ -167,6 +168,29 @@ class StoreMiniTournamentRequest extends FormRequest
         }
         if ($normalized !== []) {
             $this->merge($normalized);
+        }
+
+        // Normalize string boolean values to actual booleans
+        $boolKeys = [
+            'is_private', 'has_fee', 'auto_split_fee',
+            'apply_rule', 'allow_cancellation', 'auto_approve',
+            'allow_participant_add_friends',
+            'use_club_fund', 'included_in_club_fund',
+        ];
+        $boolNormalized = [];
+        foreach ($boolKeys as $key) {
+            if ($this->has($key)) {
+                $val = $this->input($key);
+                if (is_string($val)) {
+                    $normalizedBool = filter_var($val, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                    if ($normalizedBool !== null) {
+                        $boolNormalized[$key] = $normalizedBool;
+                    }
+                }
+            }
+        }
+        if ($boolNormalized !== []) {
+            $this->merge($boolNormalized);
         }
 
         // Convert play_mode string to integer
