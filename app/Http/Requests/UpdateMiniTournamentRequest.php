@@ -192,7 +192,7 @@ class UpdateMiniTournamentRequest extends FormRequest
                     $miniTournament = $miniTournamentId ? \App\Models\MiniTournament::find($miniTournamentId) : null;
                     $existingQr = $miniTournament?->qr_code_url;
                     if (!$existingQr) {
-                        $validator->errors()->add('qr_code_url', 'Kèo thu phí cần có mã QR thanh toán hoặc CLB cần có ví với mã QR chung.');
+                        $validator->errors()->add('qr_code_url', 'Kèo thu phí cần tải ảnh QR thanh toán. Nếu dùng quỹ CLB, vui lòng chọn CLB có ví với mã QR chung.');
                     }
                 }
             }

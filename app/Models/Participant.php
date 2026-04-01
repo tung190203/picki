@@ -21,12 +21,16 @@ class Participant extends Model
         'guarantor_user_id',
         'estimated_level',
         'is_pending_confirmation',
+        'checked_in_at',
+        'is_absent',
     ];
 
     protected $casts = [
         'is_guest' => 'boolean',
         'is_pending_confirmation' => 'boolean',
         'estimated_level' => 'decimal:1',
+        'checked_in_at' => 'datetime',
+        'is_absent' => 'boolean',
     ];
 
     const PER_PAGE = 15;
