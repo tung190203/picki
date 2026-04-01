@@ -271,8 +271,6 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
 
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
-            Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-check-in', [ClubMiniTournamentController::class, 'markCheckIn']);
-            Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-absent', [ClubMiniTournamentController::class, 'markAbsent']);
         });
     });
 });
@@ -538,8 +536,6 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
 
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
-            Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-check-in', [ClubMiniTournamentController::class, 'markCheckIn']);
-            Route::post('/mini-tournaments/{miniTournamentId}/participants/{participantId}/mark-absent', [ClubMiniTournamentController::class, 'markAbsent']);
         });
     });
 
@@ -556,6 +552,8 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/update/{id}', [MiniTournamentController::class, 'update']);
         Route::post('/delete/{id}', [MiniTournamentController::class,'destroy']);
         Route::post('/{tournamentId}/recurrence-series/cancel', [MiniTournamentController::class, 'cancelRecurrenceSeries']);
+        Route::post('/{miniTournamentId}/participants/{participantId}/mark-check-in', [MiniTournamentController::class, 'markParticipantCheckIn']);
+        Route::post('/{miniTournamentId}/participants/{participantId}/mark-absent', [MiniTournamentController::class, 'markParticipantAbsent']);
 
         // Mini Tournament Payment Routes
         Route::get('/{id}/payments', [MiniTournamentPaymentController::class, 'index']);
