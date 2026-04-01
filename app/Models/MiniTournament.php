@@ -62,6 +62,7 @@ class MiniTournament extends Model
         'auto_approve' => 'boolean',
         'use_club_fund' => 'bool',
         'included_in_club_fund' => 'bool',
+        'fee_amount' => 'integer',
     ];
 
     const PER_PAGE = 15;
