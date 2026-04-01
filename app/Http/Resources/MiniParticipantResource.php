@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -28,7 +29,8 @@ class MiniParticipantResource extends JsonResource
             'is_guest'              => (bool) $this->is_guest,
             'guest_name'            => $this->when($this->is_guest, $this->guest_name),
             'guest_phone'           => $this->when($this->is_guest, $this->guest_phone),
-            'avatar_url'            => $this->user?->avatar_url,
+            'avatar_url'            => $this->user?->avatar_url ?: User::GUEST_AVATAR_DEFAULT,
+            'guest_avatar'          => $this->when($this->is_guest, $this->guest_avatar ?: User::GUEST_AVATAR_DEFAULT),
             'guarantor'             => new UserListResource($this->whenLoaded('guarantor')),
             'guarantor_user_id'     => $this->when($this->is_guest, $this->guarantor_user_id),
             'guarantor_name'       => $this->when($this->is_guest, fn() => $this->guarantor?->full_name),
