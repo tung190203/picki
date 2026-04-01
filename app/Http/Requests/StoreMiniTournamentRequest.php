@@ -293,7 +293,7 @@ class StoreMiniTournamentRequest extends FormRequest
 
     public function getClubHasQrWallet(): bool
     {
-        $clubId = $this->input('club_id');
+        $clubId = $this->route('clubId') ?? $this->input('club_id');
         if (!$clubId) {
             return false;
         }

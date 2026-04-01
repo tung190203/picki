@@ -174,7 +174,10 @@ class UpdateMiniTournamentRequest extends FormRequest
 
     public function getClubHasQrWallet(): bool
     {
-        $miniTournament = $this->route('mini_tournament');
+        $miniTournamentId = $this->route('miniTournamentId') ?? $this->route('mini_tournament');
+        $miniTournament = $miniTournamentId
+            ? \App\Models\MiniTournament::find($miniTournamentId)
+            : null;
         $clubId = $this->input('club_id') ?? $miniTournament?->club_id;
         if (!$clubId) {
             return false;
