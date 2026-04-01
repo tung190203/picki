@@ -50,6 +50,7 @@ class MiniTournamentService
             'included_in_club_fund' => $isIncludedInClubFund,
             'club_fund_collection_id' => $data['club_fund_collection_id'] ?? null,
             'fee_amount' => $feeAmount,
+            'club_id' => $data['club_id'] ?? null,
         ]);
 
         // Creator always participates by default with confirmed payment status
