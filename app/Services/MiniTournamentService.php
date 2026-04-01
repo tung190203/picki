@@ -30,13 +30,26 @@ class MiniTournamentService
         // use_club_fund = true: kèo miễn phí cho member, CLB chi tiền.
         // has_fee và fee_amount vẫn giữ nguyên (số tiền CLB chi cho kèo đấu).
 
+        $isClubFund = filter_var($data['use_club_fund'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $isIncludedInClubFund = filter_var($data['included_in_club_fund'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $hasFee = filter_var($data['has_fee'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        // fee_amount must be non-null: 0 when free, otherwise the sent amount
+        $feeAmount = $hasFee ? (int) ($data['fee_amount'] ?? 0) : 0;
+
+        // Exclude fee fields from spread — we'll set them explicitly
+        $dataForCreate = collect($data)->except([
+            'use_club_fund', 'included_in_club_fund', 'club_fund_collection_id', 'fee_amount',
+        ])->toArray();
+
         $miniTournament = MiniTournament::create([
-            ...$data,
+            ...$dataForCreate,
             'created_by' => $userId,
             'recurrence_series_id' => $seriesId,
-            'use_club_fund' => filter_var($data['use_club_fund'] ?? false, FILTER_VALIDATE_BOOLEAN),
-            'included_in_club_fund' => filter_var($data['included_in_club_fund'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'use_club_fund' => $isClubFund,
+            'included_in_club_fund' => $isIncludedInClubFund,
             'club_fund_collection_id' => $data['club_fund_collection_id'] ?? null,
+            'fee_amount' => $feeAmount,
         ]);
 
         // Creator always participates by default with confirmed payment status

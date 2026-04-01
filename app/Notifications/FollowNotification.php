@@ -24,7 +24,7 @@ class FollowNotification extends Notification implements ShouldQueue
         return ['database', 'broadcast']; // lưu DB + realtime
     }
 
-    public function toArray($notifiable)
+    public function toDatabase($notifiable): array
     {
         return [
             'follower_id' => $this->follower->id,
@@ -39,7 +39,12 @@ class FollowNotification extends Notification implements ShouldQueue
     public function toBroadcast($notifiable)
     {
         return new BroadcastMessage([
-            'data' => $this->toArray($notifiable),
+            'data' => $this->toDatabase($notifiable),
         ]);
+    }
+
+    public function toArray($notifiable): array
+    {
+        return $this->toDatabase($notifiable);
     }
 }
