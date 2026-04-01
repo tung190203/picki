@@ -303,6 +303,14 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/delete', [TournamentController::class, 'destroy']);
         Route::get('/{id}/bracket', [TournamentController::class, 'getBracket']);
 
+        // Participant check-in / absent (organizer / club staff)
+        Route::post('/{id}/participants/{participantId}/mark-check-in', [TournamentController::class, 'markParticipantCheckIn']);
+        Route::post('/{id}/participants/{participantId}/mark-absent', [TournamentController::class, 'markParticipantAbsent']);
+
+        // Self-service (user tự check-in / báo vắng)
+        Route::post('/{id}/self/check-in', [TournamentController::class, 'selfCheckIn']);
+        Route::post('/{id}/self/absent', [TournamentController::class, 'selfMarkAbsent']);
+
         // Guest Routes
         Route::get('/{id}/guests', [TournamentGuestController::class, 'index']);
         Route::post('/{id}/guests', [TournamentGuestController::class, 'store']);

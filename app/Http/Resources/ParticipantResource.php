@@ -30,6 +30,8 @@ class ParticipantResource extends JsonResource
             'guarantor_name' => $this->when($this->is_guest, fn() => $this->guarantor?->full_name),
             'estimated_level' => $this->when($this->is_guest, (float) $this->estimated_level),
             'is_pending_confirmation' => $this->when($this->is_guest, (bool) $this->is_pending_confirmation),
+            'checked_in_at' => $this->checked_in_at,
+            'is_absent' => (bool) $this->is_absent,
         ];
     }
 }
