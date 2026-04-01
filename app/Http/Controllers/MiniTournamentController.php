@@ -44,8 +44,11 @@ class MiniTournamentController extends Controller
             $inviteUsers = $request->input('invite_user', []);
 
             // Calculate payment_status for invited users
+            // - use_club_fund = true: CLB chi → invited users = CONFIRMED
+            // - auto_split_fee = true: chia đều → CONFIRMED (chờ command tính)
+            // - has_fee + auto_split_fee off: phí cố định → PENDING
             $paymentStatus = \App\Enums\PaymentStatusEnum::CONFIRMED;
-            if ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
+            if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
                 $paymentStatus = \App\Enums\PaymentStatusEnum::PENDING;
             }
 
