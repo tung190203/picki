@@ -418,7 +418,7 @@ const PAIRING_MODE_MANUAL = 'manual';
         // Chấp nhận cả string "true", "on", 1 hoặc boolean true
         $advancedToNext = filter_var($mainConfig['advanced_to_next_round'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $byeSelectionOrder = $advancedToNext; // Alias để đồng bộ
-        $hasThirdPlace = filter_var($mainConfig['has_third_place_match'] ?? false, FILTER_VALIDATE_BOOLEAN); 
+        $hasThirdPlace = filter_var($mainConfig['has_third_place_match'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         // -------------------------------
         // STEP 1: Seeding (giữ nguyên logic cũ)
@@ -601,7 +601,7 @@ const PAIRING_MODE_MANUAL = 'manual';
                                     'status' => Matches::STATUS_COMPLETED,
                                     'winner_id' => $currentTId
                                 ]);
-                                
+
                                 // Move to the next round's target
                                 if ($targetM->next_match_id) {
                                     $currentM = $targetM;
@@ -1551,7 +1551,7 @@ const PAIRING_MODE_MANUAL = 'manual';
             ->orderBy('leg')
             ->get();
 
-        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches, $groupId) use ($calculateLegDetails) {
+        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches, $groupId) use ($calculateLegDetails, $tournamentId) {
             $group = $groupMatches->first()->group;
 
             $grouped = $groupMatches->groupBy(function ($match) {
@@ -1568,7 +1568,7 @@ const PAIRING_MODE_MANUAL = 'manual';
             return [
                 'group_id' => $groupId,
                 'group_name' => $group?->name ?? 'Bye',
-                'matches' => $grouped->map(function ($matchGroup) use ($calculateLegDetails) {
+                'matches' => $grouped->map(function ($matchGroup) use ($calculateLegDetails, $tournamentId) {
                     $first = $matchGroup->first();
                     $homeTeamId = $first->home_team_id;
                     $awayTeamId = $first->away_team_id;
@@ -1647,7 +1647,8 @@ const PAIRING_MODE_MANUAL = 'manual';
             $calculateLegDetails,
             $type,
             $advancementRules,
-            $finalKnockoutRound
+            $finalKnockoutRound,
+            $tournamentId
         ) {
             $numLegs = (int) ($type->num_legs ?? 1);
             $sortedMatches = $roundMatches->sortBy('id')->values();
@@ -1666,7 +1667,8 @@ const PAIRING_MODE_MANUAL = 'manual';
                     $calculateLegDetails,
                     $advancementRules,
                     $round,
-                    $finalKnockoutRound
+                    $finalKnockoutRound,
+                    $tournamentId
                 ) {
                     $first = $matchGroup->first();
 
@@ -2440,7 +2442,7 @@ const PAIRING_MODE_MANUAL = 'manual';
 
         return $this->calculateStatsFromMatches($matches, $teamId);
     }
-    
+
     /**
      * So sánh đối đầu phục vụ getRank (dùng local matches truyền vào)
      * Return: -1 nếu team A thắng, 1 nếu team B thắng, 0 nếu hòa hoặc chưa gặp
