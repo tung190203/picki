@@ -3,16 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\ResponseHelper;
-use App\Http\Resources\ListParticipantResource;
 use App\Http\Resources\ParticipantResource;
+use App\Http\Resources\TournamentParticipantResource;
 use App\Jobs\SendPushJob;
 use App\Models\Participant;
 use App\Models\SuperAdminDraft;
 use App\Models\Tournament;
 use App\Models\TournamentStaff;
 use App\Models\User;
-use App\Notifications\TournamentInvitationNotification;
 use App\Notifications\TournamentGuestAddedNotification;
+use App\Notifications\TournamentInvitationNotification;
 use App\Notifications\TournamentJoinConfirmedNotification;
 use App\Notifications\TournamentJoinRequestNotification;
 use App\Notifications\TournamentRemovedNotification;
@@ -477,7 +477,7 @@ class ParticipantController extends Controller
             ->paginate($validated['per_page'] ?? Participant::PER_PAGE);
 
         $data = [
-            'participants' => ListParticipantResource::collection($nonTeamParticipants->items()),
+            'participants' => TournamentParticipantResource::collection($nonTeamParticipants->items()),
         ];
 
         $meta = [
