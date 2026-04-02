@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ClubMemberRole;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\ParticipantResource;
 use App\Http\Resources\UserListResource;
+use App\Models\Club;
 use App\Models\Participant;
 use App\Models\Tournament;
 use App\Models\TournamentStaff;
@@ -269,6 +271,126 @@ class TournamentGuestController extends Controller
         return ResponseHelper::success(
             ParticipantResource::collection($guests),
             'Lấy danh sách guest thành công'
+        );
+    }
+
+    /**
+     * Người bảo lãnh check-in cho guest.
+     * API: POST /api/tournaments/{id}/guests/{participantId}/guarantor-check-in
+     */
+    public function guarantorCheckIn($tournamentId, $participantId)
+    {
+        $userId = Auth::id();
+
+        $participant = Participant::where('tournament_id', $tournamentId)
+            ->where('id', $participantId)
+            ->where('is_guest', true)
+            ->where('guarantor_user_id', $userId)
+            ->first();
+
+        if (!$participant) {
+            return ResponseHelper::error('Guest không tồn tại hoặc bạn không phải người bảo lãnh', 404);
+        }
+
+        if ($participant->checked_in_at) {
+            return ResponseHelper::error('Guest đã check-in rồi', 422);
+        }
+
+        if ($participant->is_absent) {
+            $participant->update([
+                'checked_in_at' => now(),
+                'is_absent' => false,
+            ]);
+        } else {
+            $participant->update([
+                'checked_in_at' => now(),
+            ]);
+        }
+
+        $participant->load(['user', 'guarantor']);
+
+        return ResponseHelper::success(
+            new ParticipantResource($participant),
+            'Đã check-in guest thành công'
+        );
+    }
+
+    /**
+     * Organizer/admin đánh dấu check-in cho guest.
+     * API: POST /api/tournaments/{id}/guests/{participantId}/mark-check-in
+     */
+    public function markGuestCheckIn(Request $request, $tournamentId, $participantId)
+    {
+        $userId = Auth::id();
+        $tournament = Tournament::findOrFail($tournamentId);
+
+        // === Giải đấu thuộc CLB: kiểm tra club_id và quyền staff ===
+        if ($tournament->club_id) {
+            $clubId = $request->input('club_id');
+
+            if (!$clubId) {
+                return ResponseHelper::error('Giải đấu thuộc CLB. Vui lòng truyền club_id trong body.', 422);
+            }
+
+            if ((int) $tournament->club_id !== (int) $clubId) {
+                return ResponseHelper::error('Giải đấu không thuộc CLB này', 403);
+            }
+
+            $club = Club::find($clubId);
+            if (!$club) {
+                return ResponseHelper::error('CLB không tồn tại', 404);
+            }
+
+            $clubMember = $club->activeMembers()->where('user_id', $userId)->first();
+            $isClubStaff = $clubMember && in_array(
+                $clubMember->role,
+                [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary],
+                true
+            );
+            $isTournamentOrganizer = $tournament->hasOrganizer($userId);
+
+            if (!$isClubStaff && !$isTournamentOrganizer) {
+                return ResponseHelper::error('Bạn không có quyền đánh dấu check-in cho giải này', 403);
+            }
+        } else {
+            if ($request->filled('club_id')) {
+                return ResponseHelper::error('Giải đấu không thuộc CLB. Không cần truyền club_id.', 422);
+            }
+
+            if (!$tournament->hasOrganizer($userId)) {
+                return ResponseHelper::error('Bạn không có quyền đánh dấu check-in cho guest này', 403);
+            }
+        }
+
+        $participant = Participant::where('tournament_id', $tournamentId)
+            ->where('id', $participantId)
+            ->where('is_guest', true)
+            ->first();
+
+        if (!$participant) {
+            return ResponseHelper::error('Guest không tồn tại trong giải này', 404);
+        }
+
+        if ($participant->checked_in_at) {
+            return ResponseHelper::error('Guest đã check-in rồi. Không thể check-in lại.', 422);
+        }
+
+        if ($participant->is_absent) {
+            $participant->update([
+                'checked_in_at' => now(),
+                'is_absent' => false,
+            ]);
+        } else {
+            $participant->update([
+                'checked_in_at' => now(),
+            ]);
+        }
+
+        $participant->load(['user', 'guarantor']);
+
+        return ResponseHelper::success(
+            new ParticipantResource($participant),
+            'Đã đánh dấu check-in guest thành công'
         );
     }
 
