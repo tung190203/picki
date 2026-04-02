@@ -33,13 +33,16 @@ class TeamResource extends JsonResource
             'members' => $this->members->map(function ($user) use ($participantMap) {
                 /** @var \App\Models\Participant|null $p */
                 $p = $participantMap->get($user->id);
-                $isGuest = $p?->is_guest;
 
                 return [
                     'id' => $user->id,
-                    'full_name' => $isGuest ? ($p->guest_name ?? $user->full_name) : $user->full_name,
-                    'avatar_url' => $isGuest ? ($p->guest_avatar ?? $user->avatar_url) : $user->avatar_url,
-                    'is_guest' => $isGuest,
+                    'tournament_participant' => [
+                        'is_guest' => (bool) $p?->is_guest,
+                        'user' => [
+                            'full_name' => $p?->is_guest ? ($p->guest_name ?? $user->full_name) : $user->full_name,
+                            'avatar_url' => $p?->is_guest ? ($p->guest_avatar ?? $user->avatar_url) : $user->avatar_url,
+                        ],
+                    ],
                 ];
             }),
         ];
