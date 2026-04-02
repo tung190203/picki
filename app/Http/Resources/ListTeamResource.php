@@ -7,11 +7,6 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class ListTeamResource extends JsonResource
 {
-    /**
-     * Transform the resource into an array.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(Request $request): array
     {
         return [
@@ -26,15 +21,17 @@ class ListTeamResource extends JsonResource
                     ? $member->tournamentParticipant
                     : null;
 
-                $isGuest = $p?->is_guest;
+                $isGuest = (bool) $p?->is_guest;
 
                 return [
                     'id' => $member->id,
-                    'full_name' => $isGuest ? ($p->guest_name ?? $member->full_name) : $member->full_name,
-                    'avatar_url' => $isGuest ? ($p->guest_avatar ?? $member->avatar_url) : $member->avatar_url,
-                    'is_guest' => $isGuest,
-                    'sports' => UserSportResource::collection($member->sports ?? []),
-                    'tournament_participant' => $p ? new ParticipantResource($p) : null,
+                    'tournament_participant' => [
+                        'is_guest' => $isGuest,
+                        'user' => [
+                            'full_name' => $isGuest ? ($p->guest_name ?? $member->full_name) : $member->full_name,
+                            'avatar_url' => $isGuest ? ($p->guest_avatar ?? $member->avatar_url) : $member->avatar_url,
+                        ],
+                    ],
                 ];
             }),
         ];
