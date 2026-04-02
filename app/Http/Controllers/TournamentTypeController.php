@@ -3020,9 +3020,9 @@ const PAIRING_MODE_MANUAL = 'manual';
                     'team_avatar' => $t->avatar,
                     'vndupr_avg' => $this->calculateTeamVnduprAvg($t, $sportId), // ✅ THÊM VNDUPR
                     'members' => $t->members->map(fn($m) => [
-                        'user_id' => $m->user_id ?? $m->id ?? null,
-                        'full_name' => $m->full_name ?? $m->user->full_name ?? 'Unknown',
-                        'avatar_url' => $m->avatar_url ?? $m->user->avatar_url ?? null,
+                        'user_id' => $m->id,
+                        'full_name' => $m->full_name,
+                        'avatar_url' => $m->avatar_url,
                     ]),
                 ]),
             ]),
@@ -3032,9 +3032,9 @@ const PAIRING_MODE_MANUAL = 'manual';
                 'team_avatar' => $t->avatar,
                 'vndupr_avg' => $this->calculateTeamVnduprAvg($t, $sportId), // ✅ THÊM VNDUPR
                 'members' => $t->members->map(fn($m) => [
-                    'user_id' => $m->user_id ?? $m->id ?? null,
-                    'full_name' => $m->full_name ?? $m->user->full_name ?? 'Unknown',
-                    'avatar_url' => $m->avatar_url ?? $m->user->avatar_url ?? null,
+                    'user_id' => $m->id,
+                    'full_name' => $m->full_name,
+                    'avatar_url' => $m->avatar_url,
                 ]),
             ]),
             'config' => [

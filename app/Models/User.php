@@ -197,7 +197,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     public function getAvatarUrlAttribute($value): ?string
     {
-        return $value ?: self::GUEST_AVATAR_DEFAULT;
+        return $value;
     }
 
     public function isOnline(int $minutesThreshold = 15): bool
