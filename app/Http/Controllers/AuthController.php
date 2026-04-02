@@ -108,7 +108,7 @@ class AuthController extends Controller
 
         $user = User::create([
             $loginField => $request->login,
-            'avatar_url' => asset('images/default-avatar.png'),
+            'avatar_url' => null,
             'full_name' => 'PickiUser' . Str::random(5),
         ]);
 
@@ -275,7 +275,7 @@ class AuthController extends Controller
                 if (!$user->google_id) {
                     $user->google_id = $googleUser->getId();
                 }
-                if (!$user->avatar_url || $user->avatar_url === asset('images/default-avatar.png')) {
+                if (!$user->avatar_url) {
                     $avatarContent = file_get_contents($googleUser->getAvatar());
                     $avatarName = 'avatars/' . uniqid() . '.jpg';
                     Storage::disk('public')->put($avatarName, $avatarContent);
@@ -359,7 +359,7 @@ class AuthController extends Controller
                 $user->google_id = $payload['sub'];
             }
 
-            if (!$user->avatar_url || $user->avatar_url === asset('images/default-avatar.png')) {
+            if (!$user->avatar_url) {
                 $user->avatar_url = $payload['picture'] ?? null;
             }
 
@@ -431,7 +431,7 @@ class AuthController extends Controller
                 }
 
                 $avatarUrl = $fbResponse['picture']['data']['url'] ?? null;
-                if ($avatarUrl && (!$user->avatar_url || $user->avatar_url === asset('images/default-avatar.png'))) {
+                if ($avatarUrl && !$user->avatar_url) {
                     $avatarContent = file_get_contents($avatarUrl);
                     $avatarName = 'avatars/' . uniqid() . '.jpg';
                     Storage::disk('public')->put($avatarName, $avatarContent);
@@ -496,7 +496,7 @@ class AuthController extends Controller
                     $user->facebook_id = $fbUser->getId();
                 }
 
-                if (!$user->avatar_url || $user->avatar_url === asset('images/default-avatar.png')) {
+                if (!$user->avatar_url) {
                     $avatarContent = file_get_contents($fbUser->getAvatar());
                     $avatarName = 'avatars/' . uniqid() . '.jpg';
                     Storage::disk('public')->put($avatarName, $avatarContent);
