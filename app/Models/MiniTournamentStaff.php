@@ -13,6 +13,8 @@ class MiniTournamentStaff extends Model
         'mini_tournament_id',
         'user_id',
         'role',
+        'checked_in_at',
+        'is_absent',
     ];
 
     const ROLE_ORGANIZER = 1;
@@ -22,6 +24,11 @@ class MiniTournamentStaff extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+    protected $casts = [
+        'is_absent' => 'boolean',
+        'checked_in_at' => 'datetime',
+    ];
+
     public static function getRoleText($role)
     {
         return match ($role) {
