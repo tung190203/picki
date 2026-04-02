@@ -31,10 +31,7 @@ class TeamController extends Controller
         $perPage = $validated['per_page'] ?? Team::PER_PAGE;
 
         $teams = Team::where('tournament_id', $tournamentId)
-            ->with([
-                'members.sports.sport',
-                'members.sports.scores',
-            ])
+            ->with('members')
             ->paginate($perPage);
 
         $this->hydrateTeamMembersWithParticipants($teams->getCollection(), (int) $tournamentId);
@@ -114,8 +111,10 @@ class TeamController extends Controller
             'avatar' => $avatarPath,
         ]);
 
+        $team->load('members');
+        $this->hydrateTeamMembersWithParticipants(collect([$team]), $tournament->id);
 
-        return ResponseHelper::success(new TeamResource($team->load('members')), 'Tạo đội thành công');
+        return ResponseHelper::success(new TeamResource($team), 'Tạo đội thành công');
     }
 
     public function updateTeam(Request $request) {
@@ -158,9 +157,12 @@ class TeamController extends Controller
         }
 
         $team->save();
-    
+
+        $team->load('members');
+        $this->hydrateTeamMembersWithParticipants(collect([$team]), $team->tournament_id);
+
         return ResponseHelper::success(
-            new TeamResource($team->load('members')),
+            new TeamResource($team),
             'Cập nhật đội thành công'
         );
     }
@@ -205,7 +207,10 @@ class TeamController extends Controller
 
         $team->members()->attach($request->user_id);
 
-        return ResponseHelper::success($team->load('members'), 'Thêm thành viên vào đội thành công');
+        $team->load('members');
+        $this->hydrateTeamMembersWithParticipants(collect([$team]), $tournament->id);
+
+        return ResponseHelper::success(new TeamResource($team), 'Thêm thành viên vào đội thành công');
     }
 
     public function autoAssignTeams($tournamentId)
@@ -262,18 +267,7 @@ class TeamController extends Controller
 
         // load lại danh sách teams + members nhưng chỉ lấy user có participant.confirmed
         $teamsWithMembers = Team::where('tournament_id', $tournamentId)
-            ->with([
-                'members' => function ($q) use ($tournamentId) {
-                    $q->whereIn('users.id', function ($sub) use ($tournamentId) {
-                        $sub->select('user_id')
-                            ->from('participants')
-                            ->where('tournament_id', $tournamentId)
-                            ->where('is_confirmed', true);
-                    });
-                },
-                'members.sports.sport',
-                'members.sports.scores',
-            ])
+            ->with(['members'])
             ->get();
 
         $this->hydrateTeamMembersWithParticipants($teamsWithMembers, (int) $tournamentId);
@@ -307,7 +301,10 @@ class TeamController extends Controller
         $team = Team::findOrFail($teamId);
         $team->members()->detach($request->user_id);
 
-        return ResponseHelper::success($team->load('members'), 'Xóa thành viên khỏi đội thành công');
+        $team->load('members');
+        $this->hydrateTeamMembersWithParticipants(collect([$team]), $team->tournament_id);
+
+        return ResponseHelper::success(new TeamResource($team), 'Xóa thành viên khỏi đội thành công');
     }
 
     public function deleteTeam($teamId)

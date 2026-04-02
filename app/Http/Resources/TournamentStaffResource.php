@@ -15,18 +15,22 @@ class TournamentStaffResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
-            'staff' => $this->whenLoaded('user', function () {
+            'id'                       => $this->id,
+            'user_id'                   => (int) $this->user_id,
+            'staff'                     => $this->whenLoaded('user', function () {
                 return [
-                    'id' => $this->user->id,
-                    'name' => $this->user->full_name,
-                    'avatar' => $this->user->avatar_url,
-                    'sports' => UserSportResource::collection($this->user?->sports ?? []),
-                    'is_confirmed' => true
+                    'id'       => $this->user->id,
+                    'name'     => $this->user->full_name,
+                    'avatar'   => $this->user->avatar_url,
+                    'sports'   => UserSportResource::collection($this->user?->sports ?? []),
+                    'is_confirmed' => true,
                 ];
             }),
-            'role' => $this->role,
-            'role_text' => $this->role_text,
+            'role'                     => (int) $this->role,
+            'role_text'                 => $this->role_text,
+            'is_invite_by_organizer'    => (bool) $this->is_invite_by_organizer,
+            'checked_in_at'            => $this->checked_in_at?->format('d-m-Y H:i'),
+            'is_absent'                => (bool) $this->is_absent,
         ];
     }
 }
