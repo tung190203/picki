@@ -210,7 +210,7 @@ class GuestController extends Controller
                 'user_id' => $participant->user_id,
                 'amount' => $feeAmount,
                 'status' => $paymentStatus,
-                'note' => "Guest {$data['guest_name']}" . ($data['guest_phone'] ? " - {$data['guest_phone']}" : ''),
+                'note' => "Guest {$data['guest_name']}" . ($data['guest_phone'] ?? null ? " - {$data['guest_phone']}" : ''),
                 'confirmed_at' => $paymentStatus === PaymentStatusEnum::CONFIRMED ? now() : null,
                 'confirmed_by' => $paymentStatus === PaymentStatusEnum::CONFIRMED ? $guarantorUserId : null,
                 'paid_at' => $paymentStatus === PaymentStatusEnum::CONFIRMED ? now() : null,
