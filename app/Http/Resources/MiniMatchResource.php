@@ -33,8 +33,8 @@ class MiniMatchResource extends JsonResource
             'club' => ($this->relationLoaded('miniTournament') && $this->miniTournament?->relationLoaded('club') && $this->miniTournament?->club && $this->miniTournament?->club->is_public !== false)
                 ? new \App\Http\Resources\ClubResource($this->miniTournament->club)
                 : null,
-            'team1' => new MiniTeamResource($this->whenLoaded('team1')),
-            'team2' => new MiniTeamResource($this->whenLoaded('team2')),
+            'team1' => (new MiniTeamResource($this->whenLoaded('team1')))->forMiniTournament($this->mini_tournament_id),
+            'team2' => (new MiniTeamResource($this->whenLoaded('team2')))->forMiniTournament($this->mini_tournament_id),
             'status' => $this->status,
             'team_win_id' => $this->team_win_id,
             'results_by_sets' => $groupedResults,

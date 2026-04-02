@@ -13,7 +13,9 @@ class TournamentStaff extends Model
         'tournament_id',
         'user_id',
         'role',
-        'is_invite_by_organizer'
+        'is_invite_by_organizer',
+        'checked_in_at',
+        'is_absent',
     ];
     const ROLE_ORGANIZER = 1;
     const ROLE_STAFF = 2;
@@ -34,6 +36,11 @@ class TournamentStaff extends Model
     {
         return $this->belongsTo(Tournament::class);
     }
+
+    protected $casts = [
+        'is_absent' => 'boolean',
+        'checked_in_at' => 'datetime',
+    ];
 
     public function getRoleTextAttribute()
     {

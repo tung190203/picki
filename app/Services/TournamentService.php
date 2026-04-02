@@ -133,8 +133,8 @@ class TournamentService
         $members = $team->members->map(function ($user) use ($tournamentId) {
             $data = [
                 'id' => $user->id,
-                'name' => $user->name,
-                'avatar' => $user->avatar ?? null,
+                'full_name' => $user->full_name,
+                'avatar_url' => $user->avatar_url,
             ];
 
             if ($tournamentId) {
@@ -143,7 +143,7 @@ class TournamentService
                     ->with('guarantor')
                     ->first();
                 if ($participant) {
-                    $data['tournament_participant'] = new \App\Http\Resources\ParticipantResource($participant);
+                    $data['tournament_participant'] = new \App\Http\Resources\TournamentParticipantResource($participant);
                 }
             }
 

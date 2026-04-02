@@ -90,7 +90,7 @@ class TournamentGuestController extends Controller
                 $guestUser = User::create([
                     'full_name' => $data['guest_name'],
                     'phone' => $data['guest_phone'],
-                    'avatar_url' => $guestAvatarUrl ?: User::GUEST_AVATAR_DEFAULT,
+                    'avatar_url' => $guestAvatarUrl,
                     'password' => Str::random(12),
                     'visibility' => User::VISIBILITY_PRIVATE,
                     'is_guest' => true,
@@ -104,7 +104,7 @@ class TournamentGuestController extends Controller
             } else {
                 $guestUser->updateQuietly([
                     'full_name' => $data['guest_name'],
-                    'avatar_url' => $guestAvatarUrl ?: User::GUEST_AVATAR_DEFAULT,
+                    'avatar_url' => $guestAvatarUrl,
                     'last_active_at' => now(),
                 ]);
             }
@@ -112,7 +112,7 @@ class TournamentGuestController extends Controller
             $guestUser = User::create([
                 'full_name' => $data['guest_name'],
                 'phone' => null,
-                'avatar_url' => $guestAvatarUrl ?: User::GUEST_AVATAR_DEFAULT,
+                    'avatar_url' => $guestAvatarUrl,
                 'password' => Str::random(12),
                 'visibility' => User::VISIBILITY_PRIVATE,
                 'is_guest' => true,

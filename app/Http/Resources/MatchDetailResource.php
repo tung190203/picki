@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Traits\FormatsTeamMembers;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Models\Matches;
@@ -9,6 +10,7 @@ use App\Models\TournamentType;
 
 class MatchDetailResource extends JsonResource
 {
+    use FormatsTeamMembers;
     public function toArray(Request $request): array
     {
         $homeTeam = $this->homeTeam;
@@ -113,21 +115,23 @@ class MatchDetailResource extends JsonResource
             'home_team' => $homeTeam ? [
                 'id' => $homeTeam->id,
                 'name' => $homeTeam->name,
-                'members' => $homeTeam->members->map(fn ($m) => [
-                    'id' => $m->id,
-                    'name' => $m->full_name,
-                    'avatar' => $m->avatar_url,
-                ]),
+                'members' => self::formatMembers(
+                    $homeTeam->members,
+                    $tournamentType?->tournament_id,
+                    null,
+                    'tournament'
+                ),
             ] : null,
 
             'away_team' => $awayTeam ? [
                 'id' => $awayTeam->id,
                 'name' => $awayTeam->name,
-                'members' => $awayTeam->members->map(fn ($m) => [
-                    'id' => $m->id,
-                    'name' => $m->full_name,
-                    'avatar' => $m->avatar_url,
-                ]),
+                'members' => self::formatMembers(
+                    $awayTeam->members,
+                    $tournamentType?->tournament_id,
+                    null,
+                    'tournament'
+                ),
             ] : null,
 
             // ✅ QUAN TRỌNG NHẤT

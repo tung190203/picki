@@ -2,11 +2,13 @@
 
 namespace App\Http\Resources;
 
+use App\Traits\FormatsTeamMembers;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class MatchesResource extends JsonResource
 {
+    use FormatsTeamMembers;
     /**
      * Transform the resource into an array.
      *
@@ -29,26 +31,24 @@ class MatchesResource extends JsonResource
                 return [
                     'id' => $this->homeTeam->id,
                     'name' => $this->homeTeam->name,
-                    'members' => $this->homeTeam->members->map(function ($member) {
-                        return [
-                            'id' => $member->id,
-                            'name' => $member->full_name,
-                            'avatar' => $member->avatar_url,
-                        ];
-                    }),
+                    'members' => self::formatMembers(
+                        $this->homeTeam->members,
+                        $this->tournamentType?->tournament_id,
+                        null,
+                        'tournament'
+                    ),
                 ];
             }),
             'away_team' => $this->whenLoaded('awayTeam', function () {
                 return [
                     'id' => $this->awayTeam->id,
                     'name' => $this->awayTeam->name,
-                    'members' => $this->awayTeam->members->map(function ($member) {
-                        return [
-                            'id' => $member->id,
-                            'name' => $member->full_name,
-                            'avatar' => $member->avatar_url,
-                        ];
-                    }),
+                    'members' => self::formatMembers(
+                        $this->awayTeam->members,
+                        $this->tournamentType?->tournament_id,
+                        null,
+                        'tournament'
+                    ),
                 ];
             }),
             'leg' => $this->leg,
