@@ -1149,7 +1149,7 @@ class MatchesController extends Controller
         }        
 
         return ResponseHelper::success(
-            new MatchesResource($match->fresh('results')),
+            new MatchesResource($match->fresh(['results', 'tournamentType.tournament', 'homeTeam.members', 'awayTeam.members'])),
             'Xác nhận kết quả thành công'
         );
     }

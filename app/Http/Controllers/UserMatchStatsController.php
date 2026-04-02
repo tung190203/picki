@@ -594,8 +594,8 @@ class UserMatchStatsController extends Controller
                 'tournament_id' => $match->tournamentType->tournament->id ?? null,
                 'tournament_name' => $match->tournamentType->tournament->name ?? null,
                 'match_name' => $match->name_of_match,
-                'my_team' => new TeamResource($myTeam),           // User team (HOME position)
-                'opponent_team' => new TeamResource($opponentTeam), // Opponent team (AWAY position)
+                'my_team' => (new TeamResource($myTeam))->forTournament($match->tournamentType->tournament->id ?? null),
+                'opponent_team' => (new TeamResource($opponentTeam))->forTournament($match->tournamentType->tournament->id ?? null),
                 'my_team_id' => $myTeamId,
                 'opponent_team_id' => $opponentTeamId,
                 'scores' => $scores,
@@ -678,8 +678,8 @@ class UserMatchStatsController extends Controller
                 'mini_tournament_id' => $mini->miniTournament->id ?? null,
                 'mini_tournament_name' => $mini->miniTournament->name ?? null,
                 'match_name' => $mini->name,
-                'my_team' => new MiniTeamResource($myTeam),        // User team (TEAM1/HOME position)
-                'opponent_team' => new MiniTeamResource($opponentTeam), // Opponent team (TEAM2/AWAY position)
+                'my_team' => (new MiniTeamResource($myTeam))->forMiniTournament($mini->miniTournament->id ?? null),
+                'opponent_team' => (new MiniTeamResource($opponentTeam))->forMiniTournament($mini->miniTournament->id ?? null),
                 'my_team_id' => $myTeamId,
                 'opponent_team_id' => $opponentTeamId,
                 'scores' => $scores,

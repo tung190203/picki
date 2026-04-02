@@ -26,10 +26,13 @@ class ListTeamResource extends JsonResource
                     ? $member->tournamentParticipant
                     : null;
 
+                $isGuest = $p?->is_guest;
+
                 return [
                     'id' => $member->id,
-                    'full_name' => $member->full_name,
-                    'avatar' => $member->avatar_url,
+                    'full_name' => $isGuest ? ($p->guest_name ?? $member->full_name) : $member->full_name,
+                    'avatar_url' => $isGuest ? ($p->guest_avatar ?? $member->avatar_url) : $member->avatar_url,
+                    'is_guest' => $isGuest,
                     'sports' => UserSportResource::collection($member->sports ?? []),
                     'tournament_participant' => $p ? new ParticipantResource($p) : null,
                 ];
