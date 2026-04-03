@@ -52,8 +52,6 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     const PER_PAGE = 15;
 
-    const GUEST_AVATAR_DEFAULT = 'https://picki.vn/images/default-avatar.png';
-
     const PLAYER = 'player';
     const ADMIN = 'admin';
 

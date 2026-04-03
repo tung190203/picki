@@ -117,7 +117,7 @@ class TournamentService
      * Format team data cho response
      * @param mixed $team
      * @param string|null $placeholderText
-     * @param int|null $tournamentId Nếu truyền vào, sẽ fetch tournamentParticipant cho mỗi member
+     * @param int|null $tournamentId Nếu truyền vào, hydrate tournamentParticipant + trả đầy đủ fields (id, full_name, avatar, sports, tournament_participant)
      */
     public static function formatTeam($team, ?string $placeholderText = null, ?int $tournamentId = null): ?array
     {
@@ -130,25 +130,25 @@ class TournamentService
             ];
         }
 
-        $members = $team->members->map(function ($user) use ($tournamentId) {
-            $data = [
-                'id' => $user->id,
-                'full_name' => $user->full_name,
-                'avatar_url' => $user->avatar_url,
-            ];
-
-            if ($tournamentId) {
-                $participant = \App\Models\Participant::where('tournament_id', $tournamentId)
-                    ->where('user_id', $user->id)
-                    ->with('guarantor')
-                    ->first();
-                if ($participant) {
-                    $data['tournament_participant'] = new \App\Http\Resources\TournamentParticipantResource($participant);
-                }
-            }
-
-            return $data;
-        });
+        // Nếu có tournamentId: hydrate members để TeamMemberResource trả đầy đủ contract
+        if ($tournamentId) {
+            $team->load(['members.sports.scores', 'members.sports.sport']);
+            \App\Support\TournamentTeamMemberHydrator::hydrateTeam($team, $tournamentId);
+            $members = $team->members->map(function ($m) {
+                return (new \App\Http\Resources\TeamMemberResource($m))->resolve(request());
+            })->values();
+        } else {
+            // Không có tournamentId: trả đơn giản (backward compat)
+            $members = $team->members->map(function ($user) {
+                return [
+                    'id' => $user->id,
+                    'full_name' => $user->full_name,
+                    'avatar_url' => $user->avatar_url,
+                    'name' => $user->full_name,
+                    'avatar' => $user->avatar_url,
+                ];
+            })->values();
+        }
 
         return [
             'id' => $team->id,

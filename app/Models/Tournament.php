@@ -286,7 +286,7 @@ class Tournament extends Model
             ->when(!empty($filters['rating']), function ($q) use ($filters) {
                 $minRating = (int) min($filters['rating']);
                 $maxRating = (int) max($filters['rating']);
-            
+
                 $q->where(function ($rq) use ($minRating, $maxRating) {
                     $rq->where(function ($c) use ($minRating) {
                         $c->whereNull('max_level')
@@ -345,24 +345,24 @@ class Tournament extends Model
                             if($slotStatus === 'one_slot') {
                                 $subQuery->orWhereRaw('(
                                     COALESCE(max_player, 0) - (
-                                        SELECT COUNT(*) 
-                                        FROM participants 
+                                        SELECT COUNT(*)
+                                        FROM participants
                                         WHERE participants.tournament_id = tournaments.id
                                     )
                                 ) >= 1');
                             } elseif($slotStatus === 'two_slot') {
                                 $subQuery->orWhereRaw('(
                                     COALESCE(max_player, 0) - (
-                                        SELECT COUNT(*) 
-                                        FROM participants 
+                                        SELECT COUNT(*)
+                                        FROM participants
                                         WHERE participants.tournament_id = tournaments.id
                                     )
                                 ) >= 2');
                             } elseif($slotStatus === 'full_slot') {
                                 $subQuery->orWhereRaw('(
                                     COALESCE(max_player, 0) - (
-                                        SELECT COUNT(*) 
-                                        FROM participants 
+                                        SELECT COUNT(*)
+                                        FROM participants
                                         WHERE participants.tournament_id = tournaments.id
                                     )
                                 ) = 0');
@@ -403,13 +403,13 @@ class Tournament extends Model
     public function scopeNearBy($query, $lat, $lng, $radius)
     {
         $haversine = "(6371 * acos(
-            cos(radians(?)) 
-            * cos(radians(competition_locations.latitude)) 
-            * cos(radians(competition_locations.longitude) - radians(?)) 
-            + sin(radians(?)) 
+            cos(radians(?))
+            * cos(radians(competition_locations.latitude))
+            * cos(radians(competition_locations.longitude) - radians(?))
+            + sin(radians(?))
             * sin(radians(competition_locations.latitude))
         ))";
-    
+
         return $query->whereHas('competitionLocation', function ($q) use ($haversine, $lat, $lng, $radius) {
             $q->whereRaw("$haversine < ?", [
                 $lat,
