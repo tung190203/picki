@@ -6,6 +6,7 @@ use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MiniTeamResource;
 use App\Http\Resources\TeamResource;
+use App\Support\TournamentTeamMemberHydrator;
 use Illuminate\Http\Request;
 use App\Models\VnduprHistory;
 use App\Models\Matches;
@@ -594,8 +595,14 @@ class UserMatchStatsController extends Controller
                 'tournament_id' => $match->tournamentType->tournament->id ?? null,
                 'tournament_name' => $match->tournamentType->tournament->name ?? null,
                 'match_name' => $match->name_of_match,
-                'my_team' => (new TeamResource($myTeam))->forTournament($match->tournamentType->tournament->id ?? null),
-                'opponent_team' => (new TeamResource($opponentTeam))->forTournament($match->tournamentType->tournament->id ?? null),
+                'my_team' => $this->teamResourceWithTournamentHydrated(
+                    $myTeam,
+                    $match->tournamentType->tournament->id ?? null
+                ),
+                'opponent_team' => $this->teamResourceWithTournamentHydrated(
+                    $opponentTeam,
+                    $match->tournamentType->tournament->id ?? null
+                ),
                 'my_team_id' => $myTeamId,
                 'opponent_team_id' => $opponentTeamId,
                 'scores' => $scores,
@@ -713,5 +720,19 @@ class UserMatchStatsController extends Controller
         ];
 
         return ResponseHelper::success($matches, 'Lấy danh sách trận đấu thành công', 200,  $meta);
+    }
+
+    /**
+     * Hydrate members (participant + sports) rồi bọc TeamResource.
+     * Không dùng TeamResource::forTournament() để API chạy được cả khi server chưa deploy method đó.
+     */
+    private function teamResourceWithTournamentHydrated($team, ?int $tournamentId): TeamResource
+    {
+        if ($team && $tournamentId) {
+            $team->loadMissing(['members.sports.scores', 'members.sports.sport']);
+            TournamentTeamMemberHydrator::hydrateTeam($team, (int) $tournamentId);
+        }
+
+        return new TeamResource($team);
     }
 }
