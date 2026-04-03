@@ -749,7 +749,13 @@ const getMyClubs = async () => {
   }
 };
 
-const handleRemoveUser = async (participantId) => {
+const handleRemoveUser = async (data) => {
+  // Support both old format (id only) and new format (object from UserCard)
+  const participantId = typeof data === 'object' ? data.id : data;
+  if (!participantId) {
+    toast.error('Không tìm thấy ID người tham gia');
+    return;
+  }
   try {
     await ParticipantService.deleteParticipant(participantId);
     toast.success('Đã xóa người chơi khỏi giải đấu');
@@ -760,7 +766,13 @@ const handleRemoveUser = async (participantId) => {
   }
 };
 
-const handleRemoveStaff = async (staffId) => {
+const handleRemoveStaff = async (data) => {
+  // Support both old format (id only) and new format (object from UserCard)
+  const staffId = typeof data === 'object' ? data.id : data;
+  if (!staffId) {
+    toast.error('Không tìm thấy ID nhân viên');
+    return;
+  }
   try {
     await ParticipantService.deleteStaff(staffId);
     toast.success('Đã xóa người tổ chức khỏi giải đấu');
@@ -802,7 +814,13 @@ const openInviteModalStaff = async () => {
   showInviteModal.value = true
 }
 
-const handleRemoveMember = async (memberId, teamId) => {
+const handleRemoveMember = async (data, teamId) => {
+  // Support both old format (id only) and new format (object from UserCard)
+  const memberId = typeof data === 'object' ? data.id : data;
+  if (!memberId) {
+    toast.error('Không tìm thấy ID thành viên');
+    return;
+  }
   try {
     await TeamService.removeMember(memberId, teamId);
     toast.success('Đã xóa thành viên khỏi đội');
