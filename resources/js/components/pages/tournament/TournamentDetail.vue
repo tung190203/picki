@@ -262,6 +262,16 @@
                     <span class="text-[#207AD5] text-xs font-semibold cursor-pointer" v-if="isCreator"
                       @click="openInviteModalWithFriends">Mời bạn
                       bè</span>
+                    <button
+                      v-if="isCreator && tournament?.tournament_participants?.length < (tournament.max_team * tournament.player_per_team)"
+                      @click="showAddGuestModal = true"
+                      class="flex items-center gap-1 text-[#D72D36] text-xs font-semibold hover:underline"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                      </svg>
+                      Thêm Guest
+                    </button>
                   </div>
                   <div v-if="tournament?.tournament_participants?.length">
                     <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
@@ -583,6 +593,11 @@
       :isLoading="isFetchingNonTeamUsers" />
     <PlayerActionModal v-model="showActionModal" :user="selectedUser" @view-profile="viewProfile"
       @confirm="confirmUser" />
+    <AddTournamentGuestModal
+      v-model:isOpen="showAddGuestModal"
+      :tournament="tournament"
+      @success="detailTournament(id)"
+    />
   </div>
 </template>
 
@@ -631,6 +646,7 @@ import AddMemberModal from '@/components/molecules/AddMemberModal.vue'
 import ScheduleTab from '@/components/molecules/ScheduleTab.vue'
 import ChatForm from '@/components/organisms/ChatForm.vue'
 import PlayerActionModal from '@/components/molecules/PlayerActionModal.vue'
+import AddTournamentGuestModal from '@/components/pages/tournament/partials/AddTournamentGuestModal.vue'
 import TableChartIcon from '@/assets/images/table_chart.svg';
 import ScheduleIcon from '@/assets/images/branch.svg';
 
@@ -651,7 +667,7 @@ const listTabs = LIST_TABS
 const id = route.params.id
 const tournament = ref([])
 const activeTab = ref('detail')
-const listActiveTab = ref('staffs')
+const listActiveTab = ref('paticipants')
 const autoApprove = ref(false)
 const publicBracket = ref(false)
 const showInviteModal = ref(false)
@@ -702,6 +718,7 @@ const setupDescription = () => {
 };
 const showActionModal = ref(false)
 const selectedUser = ref(null)
+const showAddGuestModal = ref(false)
 
 function openActionModal(user) {
   selectedUser.value = user
