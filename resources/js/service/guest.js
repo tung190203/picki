@@ -2,6 +2,7 @@ import axiosInstance from "@/utils/httpRequest.js";
 import {API_ENDPOINT} from "@/constants/index.js";
 
 const miniTournamentEndpoint = API_ENDPOINT.MINI_TOURNAMENT;
+const tournamentEndpoint = API_ENDPOINT.TOURNAMENT;
 
 /**
  * Thêm guest vào mini tournament
@@ -37,5 +38,33 @@ export const getGuaranteedGuests = async (miniTournamentId) => {
  */
 export const getGuarantorCandidates = async (miniTournamentId) => {
     return axiosInstance.get(`${miniTournamentEndpoint}/${miniTournamentId}/guarantor-candidates`)
+        .then((response) => response.data.data);
+};
+
+/**
+ * Thêm guest vào tournament (không phải mini-tournament)
+ * @param {number} tournamentId
+ * @param {object} data - { guest_name, guest_phone, guest_avatar?, guarantor_user_id?, estimated_level? }
+ */
+export const addTournamentGuest = async (tournamentId, data) => {
+    return axiosInstance.post(`${tournamentEndpoint}/${tournamentId}/guests`, data)
+        .then((response) => response.data);
+};
+
+/**
+ * Lấy danh sách guest của một tournament
+ * @param {number} tournamentId
+ */
+export const getTournamentGuests = async (tournamentId) => {
+    return axiosInstance.get(`${tournamentEndpoint}/${tournamentId}/guests`)
+        .then((response) => response.data.data);
+};
+
+/**
+ * Lấy danh sách người có thể làm guarantor cho tournament
+ * @param {number} tournamentId
+ */
+export const getTournamentGuarantorCandidates = async (tournamentId) => {
+    return axiosInstance.get(`${tournamentEndpoint}/${tournamentId}/guarantor-candidates`)
         .then((response) => response.data.data);
 };
