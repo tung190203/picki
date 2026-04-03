@@ -276,7 +276,9 @@
                   <div v-if="tournament?.tournament_participants?.length">
                     <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
                       <UserCard v-for="(item, index) in tournament.tournament_participants" :key="index" :id="item.id"
-                        :name="item.user.name" :avatar="item.avatar" :rating="getUserScore(item)"
+                        :name="getParticipantDisplayName(item)"
+                        :avatar="getParticipantAvatar(item)"
+                        :rating="getUserScore(item)"
                         :status="item.is_confirmed == true ? 'approved' : 'pending'" @removeUser="handleRemoveUser"
                         @click="openActionModal(item)" />
                       <UserCard
@@ -1237,19 +1239,45 @@ const handleInviteUser = async (user) => {
   await detailTournament(id);
 }
 
+/** Tab VĐV: ParticipantResource có name/avatar root + user.full_name; sports nằm trong user.sports */
+function getParticipantDisplayName(p) {
+  if (!p) return ''
+  if (p.is_guest && p.guest_name) return p.guest_name
+  return p.user?.full_name ?? p.name ?? ''
+}
+
+function getParticipantAvatar(p) {
+  if (!p) return ''
+  if (p.is_guest && p.guest_avatar) return p.guest_avatar
+  return p.avatar ?? p.user?.avatar_url ?? ''
+}
+
 const getUserScore = (user) => {
-  if (!user || !user.sports || user.sports.length === 0 || !tournament?.value?.sport_id) {
-    return '0';
-  }
-  const requiredSportId = tournament.value.sport_id;
-
-  const matchedSport = user.sports.find(s => s.sport_id === requiredSportId);
-  if (!matchedSport) {
+  if (!user) {
     return '0';
   }
 
-  if (matchedSport.scores.vndupr_score) {
-    const score = parseFloat(matchedSport.scores.vndupr_score);
+  // Guest: estimated_level ở root participant
+  if (user.is_guest && user.estimated_level != null && user.estimated_level !== '') {
+    const score = parseFloat(user.estimated_level);
+    return isNaN(score) ? '0' : score.toFixed(1);
+  }
+
+  // Staff: sports ở root. Participant tab: sports trong user.sports. Team member: sports ở root.
+  const sportsData = user.sports ?? user.user?.sports;
+  if (!sportsData || sportsData.length === 0 || !tournament?.value?.sport_id) {
+    return '0';
+  }
+
+  const requiredSportId = Number(tournament.value.sport_id);
+  const matchedSport = sportsData.find((s) => Number(s.sport_id) === requiredSportId);
+  if (!matchedSport || !matchedSport.scores) {
+    return '0';
+  }
+
+  const rawScore = matchedSport.scores.vndupr_score ?? matchedSport.scores.vndupr;
+  if (rawScore != null && rawScore !== '') {
+    const score = parseFloat(String(rawScore).replace(/,/g, ''));
     return isNaN(score) ? '0' : score.toFixed(1);
   }
 
