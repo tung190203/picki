@@ -28,7 +28,11 @@ class GuestController extends Controller
      * Thêm guest vào mini tournament
      * API: POST /api/mini-tournaments/{id}/guests
      *
-     * Chỉ chủ kèo hoặc staff (organizer) mới có quyền thêm guest.
+     * Quyền: organizer (BTC/staff) HOẶC VĐV đã xác nhận tham gia (không phải guest).
+     *
+     * Xác nhận guest theo người gọi API:
+     * - Admin/BTC/staff thêm → guest is_confirmed = true ngay
+     * - VĐV đã confirm thêm → guest chờ BTC duyệt (is_pending_confirmation = true)
      *
      * Logic thanh toán:
      * - Kèo miễn phí (has_fee=false) → payment_status = confirmed
@@ -49,8 +53,15 @@ class GuestController extends Controller
 
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
 
-        // Chỉ chủ kèo hoặc staff (organizer) mới được thêm guest
-        if (!$miniTournament->hasOrganizer(auth()->id())) {
+        $callerId = auth()->id();
+        $callerIsOrganizer = $miniTournament->hasOrganizer($callerId);
+        $callerIsConfirmedParticipant = MiniParticipant::where('mini_tournament_id', $miniTournamentId)
+            ->where('user_id', $callerId)
+            ->where('is_confirmed', true)
+            ->where('is_guest', false)
+            ->exists();
+
+        if (!$callerIsOrganizer && !$callerIsConfirmedParticipant) {
             return ResponseHelper::error('Bạn không có quyền thêm guest cho kèo này', 403);
         }
 
@@ -88,20 +99,18 @@ class GuestController extends Controller
             }
         }
 
-        // ─────────────────────────────────────────────────────────────────────────
-        // Xác định is_confirmed & is_pending_confirmation
-        //
-        // Ưu tiên role BAN TỔ CHỨC (ORGANIZER) cao nhất:
-        //   - User vừa là BTC vừa là VĐV (đã tham gia kèo) → hasOrganizer = true → guest được xác nhận ngay
-        //   - Chỉ là VĐV (participant đã xác nhận & đã đóng tiền) → chờ BTC duyệt
-        //   - Không có guarantor → guest được xác nhận ngay
-        // ─────────────────────────────────────────────────────────────────────────
+        // Theo người thực hiện thêm guest (thanh toán vẫn theo guarantor)
         $isGuarantorOrganizer = $guarantorUserId
             ? $miniTournament->hasOrganizer($guarantorUserId)
             : false;
 
-        $isConfirmed = $isGuarantorOrganizer || !$guarantorUserId;
-        $isPendingConfirmation = $guarantorUserId && !$isGuarantorOrganizer;
+        if ($callerIsOrganizer) {
+            $isConfirmed = true;
+            $isPendingConfirmation = false;
+        } else {
+            $isConfirmed = false;
+            $isPendingConfirmation = true;
+        }
 
         // ─────────────────────────────────────────────────────────────────────────
         // Xác định payment_status

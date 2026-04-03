@@ -317,6 +317,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::get('/{id}/guaranteed-guests', [TournamentGuestController::class, 'guaranteedGuests']);
         Route::get('/{id}/guarantor-candidates', [TournamentGuestController::class, 'guarantorCandidates']);
         Route::get('/{id}/guarantor-guests/{userId}', [TournamentGuestController::class, 'guarantorGuests']);
+        Route::post('/{id}/guests/confirm/{participantId}', [TournamentGuestController::class, 'confirmGuest']);
         Route::post('/{id}/guests/{participantId}/guarantor-check-in', [TournamentGuestController::class, 'guarantorCheckIn']);
         Route::post('/{id}/guests/{participantId}/mark-check-in', [TournamentGuestController::class, 'markGuestCheckIn']);
     });
