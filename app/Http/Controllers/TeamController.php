@@ -11,6 +11,7 @@ use App\Models\Participant;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Services\ImageOptimizationService;
+use App\Support\TournamentTeamMemberHydrator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -22,52 +23,41 @@ class TeamController extends Controller
     {
         $this->imageService = $imageService;
     }
+
+    /**
+     * Eager-load relations cần thiết cho team members trước hydrate.
+     */
+    private function withMembersRelations(): array
+    {
+        return ['members.sports.scores', 'members.sports.sport'];
+    }
+
     public function listTeams(Request $request, $tournamentId)
     {
         $validated = $request->validate([
             'per_page' => 'nullable|integer|min:1|max:200',
         ]);
-    
+
         $perPage = $validated['per_page'] ?? Team::PER_PAGE;
 
         $teams = Team::where('tournament_id', $tournamentId)
-            ->with('members')
+            ->with($this->withMembersRelations())
             ->paginate($perPage);
 
-        $this->hydrateTeamMembersWithParticipants($teams->getCollection(), (int) $tournamentId);
+        TournamentTeamMemberHydrator::hydrateCollection($teams->getCollection(), (int) $tournamentId);
 
         $data = [
             'teams' => ListTeamResource::collection($teams),
         ];
-    
+
         $meta = [
             'current_page' => $teams->currentPage(),
             'last_page'    => $teams->lastPage(),
             'per_page'     => $teams->perPage(),
             'total'        => $teams->total(),
         ];
-    
+
         return ResponseHelper::success($data, 'Lấy danh sách đội thành công', 200, $meta);
-    }
-
-    /**
-     * Team.members là User; thông tin giải (guest, bảo lãnh, v.v.) nằm ở Participant cùng tournament.
-     */
-    private function hydrateTeamMembersWithParticipants(\Illuminate\Support\Collection $teams, int $tournamentId): void
-    {
-        $participantByUserId = Participant::where('tournament_id', $tournamentId)
-            ->with('guarantor')
-            ->get()
-            ->keyBy('user_id');
-
-        $teams->each(function (Team $team) use ($participantByUserId) {
-            foreach ($team->members as $member) {
-                $member->setRelation(
-                    'tournamentParticipant',
-                    $participantByUserId->get($member->id)
-                );
-            }
-        });
     }
 
     public function createTeam(Request $request, $tournamentId)
@@ -111,13 +101,14 @@ class TeamController extends Controller
             'avatar' => $avatarPath,
         ]);
 
-        $team->load('members');
-        $this->hydrateTeamMembersWithParticipants(collect([$team]), $tournament->id);
+        $team->load($this->withMembersRelations());
+        TournamentTeamMemberHydrator::hydrateTeam($team, $tournament->id);
 
         return ResponseHelper::success(new TeamResource($team), 'Tạo đội thành công');
     }
 
-    public function updateTeam(Request $request) {
+    public function updateTeam(Request $request)
+    {
         $validated = $request->validate(
             [
                 'name' => 'sometimes|required|string|max:255',
@@ -142,7 +133,7 @@ class TeamController extends Controller
 
         if ($request->hasFile('avatar')) {
             $this->imageService->deleteOldImage($team->avatar);
-    
+
             $path = $this->imageService->optimize(
                 $request->file('avatar'),
                 'team_avatar'
@@ -158,8 +149,8 @@ class TeamController extends Controller
 
         $team->save();
 
-        $team->load('members');
-        $this->hydrateTeamMembersWithParticipants(collect([$team]), $team->tournament_id);
+        $team->load($this->withMembersRelations());
+        TournamentTeamMemberHydrator::hydrateTeam($team, $team->tournament_id);
 
         return ResponseHelper::success(
             new TeamResource($team),
@@ -207,8 +198,8 @@ class TeamController extends Controller
 
         $team->members()->attach($request->user_id);
 
-        $team->load('members');
-        $this->hydrateTeamMembersWithParticipants(collect([$team]), $tournament->id);
+        $team->load($this->withMembersRelations());
+        TournamentTeamMemberHydrator::hydrateTeam($team, $tournament->id);
 
         return ResponseHelper::success(new TeamResource($team), 'Thêm thành viên vào đội thành công');
     }
@@ -224,7 +215,7 @@ class TeamController extends Controller
         $participants = Participant::where('tournament_id', $tournamentId)
             ->where('is_confirmed', true)
             ->get()
-            ->shuffle(); // random danh sách người
+            ->shuffle();
 
         if ($participants->isEmpty()) {
             return ResponseHelper::error('Cần ít nhất 1 người chơi để tiến hành phân chia đội', 400);
@@ -260,17 +251,17 @@ class TeamController extends Controller
             if ($teamMemberCount[$teamIndex] >= $maxPlayers) {
                 $teamIndex++;
                 if ($teamIndex >= $maxTeams) {
-                    break; // hết đội
+                    break;
                 }
             }
         }
 
-        // load lại danh sách teams + members nhưng chỉ lấy user có participant.confirmed
+        // load lại danh sách teams + members
         $teamsWithMembers = Team::where('tournament_id', $tournamentId)
-            ->with(['members'])
+            ->with($this->withMembersRelations())
             ->get();
 
-        $this->hydrateTeamMembersWithParticipants($teamsWithMembers, (int) $tournamentId);
+        TournamentTeamMemberHydrator::hydrateCollection($teamsWithMembers, (int) $tournamentId);
 
         return ResponseHelper::success(
             ListTeamResource::collection($teamsWithMembers),
@@ -301,8 +292,8 @@ class TeamController extends Controller
         $team = Team::findOrFail($teamId);
         $team->members()->detach($request->user_id);
 
-        $team->load('members');
-        $this->hydrateTeamMembersWithParticipants(collect([$team]), $team->tournament_id);
+        $team->load($this->withMembersRelations());
+        TournamentTeamMemberHydrator::hydrateTeam($team, $team->tournament_id);
 
         return ResponseHelper::success(new TeamResource($team), 'Xóa thành viên khỏi đội thành công');
     }
@@ -337,11 +328,12 @@ class TeamController extends Controller
         }
         return $this->forceDeleteTeam($team);
     }
+
     private function forceDeleteTeam(Team $team)
     {
         $team->members()->detach();
         $team->delete();
-    
+
         return ResponseHelper::success(null, 'Xoá đội thành công');
     }
 }

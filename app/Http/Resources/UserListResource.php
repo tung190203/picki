@@ -10,6 +10,19 @@ class UserListResource extends JsonResource
     private ?int $tournamentId = null;
     private ?int $miniTournamentId = null;
 
+    private bool $includeSports = true;
+
+    /**
+     * Bỏ key sports (dùng khi member đã có sports ở cấp ngoài, ví dụ trong tournament_participant lồng trong TeamMember).
+     */
+    public function withoutSports(): static
+    {
+        $clone = clone $this;
+        $clone->includeSports = false;
+
+        return $clone;
+    }
+
     public function forTournament(?int $tournamentId): static
     {
         $this->tournamentId = $tournamentId;
@@ -60,7 +73,10 @@ class UserListResource extends JsonResource
             'gender' => $this->gender,
             'gender_text' => $this->gender_text,
             'play_times' => UserPlayTimeResource::collection($this->whenLoaded('playTimes')),
-            'sports' => UserSportResource::collection($this->whenLoaded('sports')) ?? [],
+            'sports' => $this->when(
+                $this->includeSports,
+                fn () => UserSportResource::collection($this->whenLoaded('sports')) ?? []
+            ),
             'is_manager' => $this->whenPivotLoaded('club_members', fn() => (bool)$this->pivot->is_manager, false),
             'rank_in_club' => $this->whenPivotLoaded(
                 'club_members',

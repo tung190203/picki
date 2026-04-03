@@ -7,6 +7,19 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class ParticipantResource extends JsonResource
 {
+    private bool $omitNestedUserSports = false;
+
+    /**
+     * Không trả sports trong nested user (member đã có sports ở root — TeamMemberResource).
+     */
+    public function withoutNestedUserSports(): static
+    {
+        $clone = clone $this;
+        $clone->omitNestedUserSports = true;
+
+        return $clone;
+    }
+
     /**
      * Transform the resource into an array.
      *
@@ -21,7 +34,9 @@ class ParticipantResource extends JsonResource
             'is_confirmed' => (bool) $this->is_confirmed,
             'is_invite_by_organizer' => $this->is_invite_by_organizer,
             'is_guest' => (bool) $this->is_guest,
-            'user' => new UserListResource($this->whenLoaded('user')),
+            'user' => $this->omitNestedUserSports
+                ? (new UserListResource($this->whenLoaded('user')))->withoutSports()
+                : new UserListResource($this->whenLoaded('user')),
             'guest_name' => $this->when($this->is_guest, $this->guest_name),
             'guest_phone' => $this->when($this->is_guest, $this->guest_phone),
             'guest_avatar' => $this->when($this->is_guest, $this->guest_avatar),

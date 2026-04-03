@@ -2990,9 +2990,10 @@ const PAIRING_MODE_MANUAL = 'manual';
             return ResponseHelper::error('Chỉ áp dụng cho format Mixed', 400);
         }
 
+        $tournamentId = $tournamentType->tournament_id;
+
         $groups = $tournamentType->groups()->with('teams.members')->get();
 
-        // ✅ NẾU CHƯA CÓ BẢNG -> TẠO MỚI
         if ($groups->isEmpty()) {
             $this->createEmptyGroups($tournamentType);
             $groups = $tournamentType->groups()->with('teams.members')->get();
@@ -3007,7 +3008,10 @@ const PAIRING_MODE_MANUAL = 'manual';
             })
             ->get();
 
-        // ✅ LẤY SPORT_ID TỪ TOURNAMENT
+        // Hydrate tất cả teams (groups + available) trong 1 lần
+        $allTeams = $groups->pluck('teams')->flatten()->merge($availableTeams)->unique('id');
+        \App\Support\TournamentTeamMemberHydrator::hydrateCollection($allTeams, $tournamentId);
+
         $sportId = $tournamentType->tournament->sport_id ?? null;
 
         return ResponseHelper::success([
@@ -3018,24 +3022,16 @@ const PAIRING_MODE_MANUAL = 'manual';
                     'team_id' => $t->id,
                     'team_name' => $t->name,
                     'team_avatar' => $t->avatar,
-                    'vndupr_avg' => $this->calculateTeamVnduprAvg($t, $sportId), // ✅ THÊM VNDUPR
-                    'members' => $t->members->map(fn($m) => [
-                        'user_id' => $m->id,
-                        'full_name' => $m->full_name,
-                        'avatar_url' => $m->avatar_url,
-                    ]),
+                    'vndupr_avg' => $this->calculateTeamVnduprAvg($t, $sportId),
+                    'members' => \App\Http\Resources\TeamMemberResource::collection($t->members),
                 ]),
             ]),
             'available_teams' => $availableTeams->map(fn($t) => [
                 'team_id' => $t->id,
                 'team_name' => $t->name,
                 'team_avatar' => $t->avatar,
-                'vndupr_avg' => $this->calculateTeamVnduprAvg($t, $sportId), // ✅ THÊM VNDUPR
-                'members' => $t->members->map(fn($m) => [
-                    'user_id' => $m->id,
-                    'full_name' => $m->full_name,
-                    'avatar_url' => $m->avatar_url,
-                ]),
+                'vndupr_avg' => $this->calculateTeamVnduprAvg($t, $sportId),
+                'members' => \App\Http\Resources\TeamMemberResource::collection($t->members),
             ]),
             'config' => [
                 'num_groups' => $groups->count(),
