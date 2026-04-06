@@ -342,8 +342,8 @@ class MiniMatchController extends Controller
         $match = MiniMatch::withFullRelations()->findOrFail($matchId);
         $tournament = $match->miniTournament->load('staff');
 
-        // Kiểm tra quyền
-        if (!$tournament->hasOrganizer(Auth::id())) {
+        // Kiểm tra quyền scoring
+        if (!$tournament->hasScoringPermission(Auth::id())) {
             return ResponseHelper::error(
                 'Người dùng không có quyền thêm kết quả trận đấu trong kèo đấu này',
                 403
@@ -419,6 +419,7 @@ class MiniMatchController extends Controller
     {
         $match = MiniMatch::with('miniTournament')->findOrFail($matchId);
         $tournament = $match->miniTournament->load('staff');
+        // Kiểm tra quyền xoá kết quả (chỉ organizer được xoá)
         if (!$tournament->hasOrganizer(Auth::id())) {
             return ResponseHelper::error('Người dùng không có quyền xoá kết quả trận đấu trong kèo đấu này', 403);
         }

@@ -43,7 +43,8 @@ class Tournament extends Model
         'description',
         'status',
         'is_public_branch',
-        'is_own_score'
+        'is_own_score',
+        'creator_join'
     ];
 
     protected $appends = ['poster_url'];
@@ -242,6 +243,24 @@ class Tournament extends Model
             fn($staff) =>
             (int) $staff->pivot->user_id === $userId
             && (int) $staff->pivot->role === TournamentStaff::ROLE_ORGANIZER
+        );
+    }
+
+    public function hasOrganizerOrStaff(int $userId): bool
+    {
+        return $this->staff->contains(
+            fn($staff) =>
+            (int) $staff->pivot->user_id === $userId
+            && in_array((int) $staff->pivot->role, [TournamentStaff::ROLE_ORGANIZER, TournamentStaff::ROLE_STAFF])
+        );
+    }
+
+    public function hasScoringPermission(int $userId): bool
+    {
+        return $this->staff->contains(
+            fn($staff) =>
+            (int) $staff->pivot->user_id === $userId
+            && in_array((int) $staff->pivot->role, [TournamentStaff::ROLE_ORGANIZER, TournamentStaff::ROLE_STAFF, TournamentStaff::ROLE_REFEREE])
         );
     }
 

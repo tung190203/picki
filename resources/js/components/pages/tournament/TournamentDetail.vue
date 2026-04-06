@@ -235,19 +235,52 @@
                 </button>
               </div>
               <template v-if="listActiveTab === 'staffs'">
+                <!-- Organizers Section -->
                 <div class="border border-[#BBBFCC] rounded-lg my-4 p-4">
                   <div class="flex items-center justify-between mb-3">
                     <h4 class="font-semibold text-[#6B6F80] uppercase text-sm">
-                      NGƯỜI TỔ CHỨC • {{ tournament?.tournament_staff?.length || 0 }}
+                      NGƯỜI TỔ CHỨC • {{ organizersList.length }}
                     </h4>
+                    <button
+                      v-if="isCreator"
+                      @click="openInviteModalStaff('organizer')"
+                      class="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      + Mời vào ban tổ chức
+                    </button>
                   </div>
-                  <div v-if="tournament?.tournament_staff?.length">
+                  <div v-if="organizersList.length">
                     <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
-                      <UserCard v-for="(item, index) in tournament.tournament_staff" :key="index" :id="item.id"
-                        :name="item.staff.name" :avatar="item.staff.avatar" :rating="getUserScore(item.staff)"
-                        status="approved" @removeUser="handleRemoveStaff" />
-                      <UserCard :empty="true" @clickEmpty="openInviteModalStaff" v-if="isCreator" />
+                      <UserCard v-for="(item, index) in organizersList" :key="'org-' + index" :id="item.id"
+                        :userId="item.staff.id" :name="item.staff.name" :avatar="item.staff.avatar"
+                        :rating="getUserScore(item.staff)" status="approved" @removeUser="handleRemoveStaff" />
                     </div>
+                  </div>
+                </div>
+
+                <!-- Referees Section -->
+                <div class="border border-[#BBBFCC] rounded-lg my-4 p-4">
+                  <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-semibold text-[#6B6F80] uppercase text-sm">
+                      TRỌNG TÀI • {{ refereesList.length }}
+                    </h4>
+                    <button
+                      v-if="isCreator"
+                      @click="openInviteModalStaff('referee')"
+                      class="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      + Mời Trọng tài
+                    </button>
+                  </div>
+                  <div v-if="refereesList.length">
+                    <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
+                      <UserCard v-for="(item, index) in refereesList" :key="'ref-' + index" :id="item.id"
+                        :userId="item.staff.id" :name="item.staff.name" :avatar="item.staff.avatar"
+                        :rating="getUserScore(item.staff)" status="approved" @removeUser="handleRemoveStaff" />
+                    </div>
+                  </div>
+                  <div v-else class="text-center text-gray-400 py-4">
+                    Chưa có trọng tài nào
                   </div>
                 </div>
               </template>
@@ -571,6 +604,8 @@
   :current-club-id="selectedClub"
   :is-loading-more="isLoadingMoreInvite"
   :has-more="hasMoreInvite"
+  :invite-type="inviteType"
+  :selected-staff-role="selectedStaffRole"
   @update:searchQuery="onSearchChange"
   @change-scope="onScopeChange"
   @change-club="onClubChange"
@@ -653,8 +688,9 @@ import TableChartIcon from '@/assets/images/table_chart.svg';
 import ScheduleIcon from '@/assets/images/branch.svg';
 
 const inviteType = ref('participant')
+const selectedStaffRole = ref('organizer')
 const userStore = useUserStore()
-const { getUser } = storeToRefs(userStore)
+const { getUser, getRole } = storeToRefs(userStore)
 const { formatDateTime } = useFormatDate()
 const route = useRoute()
 const router = useRouter()
@@ -664,7 +700,19 @@ const fileInput = ref(null);
 const fileToUpload = ref(null);
 const currentConfig = ref({});
 const showFormatType = ref(false);
-const tabs = TABS
+const tabs = computed(() => {
+  const baseTabs = [
+    { name: 'detail', label: 'Chi tiết' },
+    { name: 'list', label: 'Danh sách' },
+    { name: 'type', label: 'Thể thức' },
+    { name: 'schedule', label: 'Lịch thi đấu' },
+    { name: 'discuss', label: 'Thảo luận' }
+  ]
+  if (getRole.value === 'referee') {
+    return baseTabs.filter(tab => ['detail', 'schedule'].includes(tab.name))
+  }
+  return baseTabs
+})
 const listTabs = LIST_TABS
 const id = route.params.id
 const tournament = ref([])
@@ -713,6 +761,17 @@ const isCreator = computed(() => {
   return tournament.value?.tournament_staff?.some(
     staff => staff.role === 1 && staff.staff?.id === getUser.value.id
   )
+})
+const isScorer = computed(() => {
+  return tournament.value?.tournament_staff?.some(
+    staff => [1, 2, 3].includes(staff.role) && staff.staff?.id === getUser.value.id
+  )
+})
+const organizersList = computed(() => {
+  return tournament.value?.tournament_staff?.filter(staff => staff.role === 1) || []
+})
+const refereesList = computed(() => {
+  return tournament.value?.tournament_staff?.filter(staff => staff.role === 3) || []
 })
 const setupDescription = () => {
   descriptionModel.value = tournament.value.description || '';
@@ -769,25 +828,25 @@ const handleRemoveUser = async (data) => {
 };
 
 const handleRemoveStaff = async (data) => {
-  // Support both old format (id only) and new format (object from UserCard)
-  const staffId = typeof data === 'object' ? data.id : data;
-  if (!staffId) {
-    toast.error('Không tìm thấy ID nhân viên');
+  // data.id = tournament_staff.id, data.userId = user.id
+  const tournamentStaffId = data.id;
+  if (!tournamentStaffId) {
+    toast.error('Không tìm thấy ID thành viên ban tổ chức');
     return;
   }
   try {
-    await ParticipantService.deleteStaff(staffId);
-    toast.success('Đã xóa người tổ chức khỏi giải đấu');
+    const response = await TournamentStaffService.removeTournamentStaff(id, tournamentStaffId);
+    toast.success(response.message);
     await detailTournament(id);
   } catch (error) {
-    toast.error(error.response?.data?.message || 'Xóa người tổ chức thất bại');
+    toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi xóa người trong ban tổ chức');
   }
 };
 
 // Hàm xử lý thống nhất
 const handleInviteAction = async (user) => {
   if (inviteType.value === 'staff') {
-    await inviteStaff(user.id);
+    await inviteStaff(user.id, user.role);
   } else {
     await invite(user.id);
   }
@@ -809,8 +868,9 @@ const openInviteModalDefault = async () => {
   showInviteModal.value = true
 }
 
-const openInviteModalStaff = async () => {
-  inviteType.value = 'staff' // hoặc 'participant' tuỳ ngữ cảnh
+const openInviteModalStaff = async (role = 'organizer') => {
+  inviteType.value = 'staff'
+  selectedStaffRole.value = role
   activeScope.value = 'all'
   await getInviteGroupData()
   showInviteModal.value = true
@@ -1457,12 +1517,17 @@ const invite = async (friendId) => {
   }
 };
 
-const inviteStaff = async (userId) => {
+const inviteStaff = async (userId, role = 'organizer') => {
   try {
-    await TournamentStaffService.addTournamentStaff(id, userId);
-    toast.success('Thêm thành công');
+    let response;
+    if (role === 'referee') {
+      response = await TournamentStaffService.addReferee(id, userId);
+    } else {
+      response = await TournamentStaffService.addTournamentStaff(id, userId);
+    }
+    toast.success(response.message);
   } catch (error) {
-    toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi thêm.');
+    toast.error(error.response?.data?.message || 'Đã xảy ra lỗi');
   }
 };
 
