@@ -8,3 +8,9 @@ export const addTournamentStaff = async (tournamentId, staffId) => {
     staff_id: staffId,
   }).then((response) => response.data.data)
 }
+
+export const addReferee = async (tournamentId, userId) => {
+  return axiosInstance.post(`${tournamentStaffEndpoint}/add-referee/${tournamentId}`, {
+    user_id: userId,
+  }).then((response) => response.data.data)
+}

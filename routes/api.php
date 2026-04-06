@@ -324,6 +324,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
 
     Route::prefix('tournament-staff')->group(function () {
         Route::post('/add/{tournamentId}', [TournamentStaffController::class, 'addStaff']);
+        Route::post('/add-referee/{tournamentId}', [TournamentStaffController::class, 'addReferee']);
     });
 
     Route::prefix('mini-tournament-staff')->group(function () {

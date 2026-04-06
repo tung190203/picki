@@ -245,6 +245,24 @@ class Tournament extends Model
         );
     }
 
+    public function hasOrganizerOrStaff(int $userId): bool
+    {
+        return $this->staff->contains(
+            fn($staff) =>
+            (int) $staff->pivot->user_id === $userId
+            && in_array((int) $staff->pivot->role, [TournamentStaff::ROLE_ORGANIZER, TournamentStaff::ROLE_STAFF])
+        );
+    }
+
+    public function hasScoringPermission(int $userId): bool
+    {
+        return $this->staff->contains(
+            fn($staff) =>
+            (int) $staff->pivot->user_id === $userId
+            && in_array((int) $staff->pivot->role, [TournamentStaff::ROLE_ORGANIZER, TournamentStaff::ROLE_STAFF, TournamentStaff::ROLE_REFEREE])
+        );
+    }
+
     public function scopeFilter($query, $filters)
     {
         return $query

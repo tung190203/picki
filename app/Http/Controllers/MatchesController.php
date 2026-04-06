@@ -68,9 +68,9 @@ class MatchesController extends Controller
             return ResponseHelper::error('Không tìm thấy trận đấu.', 404);
         }
         $tournament = $match->tournamentType->tournament->load('staff');
-        $isOrganizer = $tournament->hasOrganizer(Auth::id());
+        $canScore = $tournament->hasScoringPermission(Auth::id());
 
-        if (!$isOrganizer) {
+        if (!$canScore) {
             return ResponseHelper::error('Bạn không có quyền thực hiện hành động này', 400);
         }
 
