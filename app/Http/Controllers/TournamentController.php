@@ -60,6 +60,7 @@ class TournamentController extends Controller
             'auto_approve' => 'nullable|boolean',
             'description' => 'nullable|string',
             'club_id' => 'nullable|exists:clubs,id',
+            'creator_join' => 'nullable|boolean',
         ]);
 
         $tournament = null;
@@ -79,6 +80,15 @@ class TournamentController extends Controller
                 'user_id' => auth()->id(),
                 'role' => TournamentStaff::ROLE_ORGANIZER,
             ]);
+
+            // Nếu creator_join = true, tạo participant cho người tạo giải đấu
+            if (!empty($validated['creator_join'])) {
+                Participant::create([
+                    'tournament_id' => $tournament->id,
+                    'user_id' => auth()->id(),
+                    'is_confirmed' => true,
+                ]);
+            }
         });
 
         if ($tournament) {

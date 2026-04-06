@@ -43,7 +43,8 @@ class Tournament extends Model
         'description',
         'status',
         'is_public_branch',
-        'is_own_score'
+        'is_own_score',
+        'creator_join'
     ];
 
     protected $appends = ['poster_url'];
