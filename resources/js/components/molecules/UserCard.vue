@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col items-center gap-2" :style="{ maxWidth: `${maxWidth}px` }">
-    <div class="relative group">
+    <div class="relative group mb-5">
       <div v-if="empty" @click="handleClick"
         :class="[
           `w-${computedSize} h-${computedSize}`,
@@ -32,6 +32,20 @@
         {{ rating }}
       </div>
 
+      <div v-if="!empty && showActions && status === 'pending' && !is_invite_by_organizer"
+        class="absolute -bottom-7 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+        <button @click.stop="$emit('confirm')"
+          class="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center hover:bg-green-600 transition-colors shadow"
+          v-tooltip="'Xác nhận'">
+          <CheckIcon class="w-3 h-3" />
+        </button>
+        <button @click.stop="$emit('reject')"
+          class="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow"
+          v-tooltip="'Từ chối'">
+          <XMarkIcon class="w-3 h-3" />
+        </button>
+      </div>
+
       <div v-if="!empty && status"
         :class="[
           `absolute -bottom-1 -right-1 w-${badgeSize} h-${badgeSize} rounded-full flex items-center justify-center border-2 border-white`,
@@ -39,7 +53,7 @@
         ]">
         <CheckIcon v-if="status === 'approved'" :class="`w-${iconInnerSize} h-${iconInnerSize} text-white`" />
         <QuestionMarkCircleIcon v-else-if="status === 'pending'" :class="`w-${iconInnerSize} h-${iconInnerSize} text-white`" />
-        <XMarkIcon v-else-if="status === 'rejected'" :class="`w-${iconInnerSize} h-${iconInnerSize} text-white`" />
+        <XMarkIcon v-else-if="status === 'rejected' || status === 'absent'" :class="`w-${iconInnerSize} h-${iconInnerSize} text-white`" />
       </div>
 
       <button v-if="empty" @click="handleClick"
@@ -138,9 +152,17 @@ const props = defineProps({
         type: Boolean,
         default: true,
     },
+    showActions: {
+        type: Boolean,
+        default: false,
+    },
+    is_invite_by_organizer: {
+        type: Boolean,
+        default: false,
+    },
 })
 
-const emit = defineEmits(['clickEmpty', 'removeUser'])
+const emit = defineEmits(['clickEmpty', 'removeUser', 'confirm', 'reject'])
 
 const showModal = ref(false)
 
@@ -165,6 +187,7 @@ const statusColor = computed(() => {
   if (props.status === 'approved') return 'bg-green-500'
   if (props.status === 'pending') return 'bg-yellow-400'
   if (props.status === 'rejected') return 'bg-red-500'
+  if (props.status === 'absent') return 'bg-gray-500'
   return 'bg-gray-400'
 })
 </script>

@@ -285,41 +285,129 @@
                 </div>
               </template>
               <template v-else-if="listActiveTab === 'paticipants'">
-                <div class="border border-[#BBBFCC] rounded-lg my-4 p-4">
-                  <div class="flex items-center justify-between mb-3">
-                    <h4 class="font-semibold text-[#6B6F80] uppercase text-sm">
-                      NGƯỜI THAM GIA • {{ tournament?.tournament_participants?.length || 0 }} / {{
-                        tournament.max_team * tournament.player_per_team
-                      }}
-                    </h4>
-                    <span class="text-[#207AD5] text-xs font-semibold cursor-pointer" v-if="isCreator"
-                      @click="openInviteModalWithFriends">Mời bạn
-                      bè</span>
-                    <button
-                      v-if="isCreator && tournament?.tournament_participants?.length < (tournament.max_team * tournament.player_per_team)"
-                      @click="showAddGuestModal = true"
-                      class="flex items-center gap-1 text-[#D72D36] text-xs font-semibold hover:underline"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                      </svg>
-                      Thêm Guest
-                    </button>
+                <div class="space-y-4 my-4">
+                  <!-- Header with stats and actions -->
+                  <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-4">
+                      <span class="font-semibold text-gray-900">
+                        {{ allParticipants.length }} / {{ tournament.max_team * tournament.player_per_team }} người
+                      </span>
+                      <div class="flex items-center gap-2 text-xs">
+                        <span class="flex items-center gap-1">
+                          <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+                          Chờ {{ waitingConfirmationParticipants.length }}
+                        </span>
+                        <span class="flex items-center gap-1">
+                          <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                          Xác nhận {{ confirmedParticipants.length }}
+                        </span>
+                        <span class="flex items-center gap-1">
+                          <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                          Checkin {{ checkedInParticipants.length }}
+                        </span>
+                        <span class="flex items-center gap-1">
+                          <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                          Vắng {{ absentParticipants.length }}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                      <span class="text-[#207AD5] text-xs font-semibold cursor-pointer" v-if="isCreator"
+                        @click="openInviteModalWithFriends">Mời bạn bè</span>
+                      <span v-if="isCreator && allParticipants.length < (tournament.max_team * tournament.player_per_team)" class="text-gray-300">|</span>
+                      <button
+                        v-if="isCreator && allParticipants.length < (tournament.max_team * tournament.player_per_team)"
+                        @click="showAddGuestModal = true"
+                        class="flex items-center gap-1 text-[#D72D36] text-xs font-semibold hover:underline">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                        </svg>
+                        Thêm Guest
+                      </button>
+                    </div>
                   </div>
-                  <div v-if="tournament?.tournament_participants?.length">
-                    <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
-                      <UserCard v-for="(item, index) in tournament.tournament_participants" :key="index" :id="item.id"
+
+                  <!-- Section: Chờ xác nhận -->
+                  <div class="border border-[#BBBFCC] rounded-lg p-4">
+                    <h4 class="font-semibold text-yellow-600 uppercase text-sm mb-3 flex items-center gap-2">
+                      <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+                      Chờ xác nhận • {{ waitingConfirmationParticipants.length }}
+                    </h4>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+                      <UserCard v-for="(item, index) in waitingConfirmationParticipants" :key="'waiting-' + index" :id="item.id"
                         :name="getParticipantDisplayName(item)"
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
-                        :status="item.is_confirmed == true ? 'approved' : 'pending'" @removeUser="handleRemoveUser"
-                        @click="openActionModal(item)" />
-                      <UserCard
-                        v-if="tournament?.tournament_participants?.length < (tournament.max_team * tournament.player_per_team) && isCreator"
+                        status="pending"
+                        :showActions="true"
+                        :is_invite_by_organizer="item.is_invite_by_organizer"
+                        @removeUser="handleRemoveUser"
+                        @click="openActionModal(item)"
+                        @confirm="handleConfirmUser(item)"
+                        @reject="handleRejectUser(item)" />
+                      <UserCardPending v-for="(item, index) in guestPendingParticipants" :key="'guest-pending-' + index" :id="item.id"
+                        :name="getParticipantDisplayName(item)"
+                        :avatar="getParticipantAvatar(item)"
+                        :showActions="true"
+                        @confirm="handleConfirmUser(item)"
+                        @reject="handleRejectUser(item)" />
+                      <UserCard v-if="isCreator"
                         :empty="true" @clickEmpty="openInviteModalWithFriends" />
                     </div>
                   </div>
-                  <div v-else>
+
+                  <!-- Section: Chưa checkin -->
+                  <div class="border border-[#BBBFCC] rounded-lg p-4">
+                    <h4 class="font-semibold text-green-600 uppercase text-sm mb-3 flex items-center gap-2">
+                      <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                      Chưa checkin • {{ confirmedParticipants.length }}
+                    </h4>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+                      <UserCard v-for="(item, index) in confirmedParticipants" :key="'confirmed-' + index" :id="item.id"
+                        :name="getParticipantDisplayName(item)"
+                        :avatar="getParticipantAvatar(item)"
+                        :rating="getUserScore(item)"
+                        status="approved" @removeUser="handleRemoveUser"
+                        @click="openActionModal(item)" />
+                      <UserCard v-if="isCreator"
+                        :empty="true" @clickEmpty="openInviteModalWithFriends" />
+                    </div>
+                  </div>
+
+                  <!-- Section: Đã checkin -->
+                  <div v-if="checkedInParticipants.length > 0" class="border border-[#BBBFCC] rounded-lg p-4">
+                    <h4 class="font-semibold text-blue-600 uppercase text-sm mb-3 flex items-center gap-2">
+                      <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                      Đã checkin • {{ checkedInParticipants.length }}
+                    </h4>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+                      <UserCard v-for="(item, index) in checkedInParticipants" :key="'checkedin-' + index" :id="item.id"
+                        :name="getParticipantDisplayName(item)"
+                        :avatar="getParticipantAvatar(item)"
+                        :rating="getUserScore(item)"
+                        status="approved" @removeUser="handleRemoveUser"
+                        @click="openActionModal(item)" />
+                    </div>
+                  </div>
+
+                  <!-- Section: Đã báo vắng -->
+                  <div v-if="absentParticipants.length > 0" class="border border-[#BBBFCC] rounded-lg p-4">
+                    <h4 class="font-semibold text-red-600 uppercase text-sm mb-3 flex items-center gap-2">
+                      <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                      Đã báo vắng • {{ absentParticipants.length }}
+                    </h4>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+                      <UserCard v-for="(item, index) in absentParticipants" :key="'absent-' + index" :id="item.id"
+                        :name="getParticipantDisplayName(item)"
+                        :avatar="getParticipantAvatar(item)"
+                        :rating="getUserScore(item)"
+                        status="absent" @removeUser="handleRemoveUser"
+                        @click="openActionModal(item)" />
+                    </div>
+                  </div>
+
+                  <!-- Empty state -->
+                  <div v-if="!allParticipants.length" class="border border-[#BBBFCC] rounded-lg p-4">
                     <div class="flex flex-col justify-center items-center gap-6 p-7">
                       <div class="flex items-center justify-center my-4 rounded-full bg-[#FFF5F5] w-20 h-20 mx-auto">
                         <UserMultiple class="w-10 h-10 text-[#D72D36]" />
@@ -329,6 +417,7 @@
                       </p>
                     </div>
                   </div>
+
                 </div>
               </template>
               <template v-else-if="listActiveTab === 'split'">
@@ -650,9 +739,11 @@ import {
   XCircleIcon,
   UserGroupIcon as UserMultiple,
   UsersIcon,
-  ClipboardDocumentCheckIcon
+  ClipboardDocumentCheckIcon,
+  CheckIcon
 } from '@heroicons/vue/24/outline'
 import UserCard from '@/components/molecules/UserCard.vue'
+import UserCardPending from '@/components/molecules/UserCardPending.vue'
 import QRcodeModal from '@/components/molecules/QRcodeModal.vue'
 import InviteGroup from '@/components/molecules/InviteGroup.vue'
 import * as TournamentService from '@/service/tournament.js'
@@ -677,6 +768,7 @@ import CreateTeamModal from '@/components/molecules/CreateTeamModal.vue'
 import debounce from 'lodash.debounce'
 import MaleIcon from '@/assets/images/male.svg';
 import FemaleIcon from '@/assets/images/female.svg';
+import guestDefaultAvatar from '@/assets/images/guest-default-avatar.svg';
 import { useUserStore } from '@/store/auth'
 import { storeToRefs } from 'pinia'
 import AddMemberModal from '@/components/molecules/AddMemberModal.vue'
@@ -773,6 +865,30 @@ const organizersList = computed(() => {
 const refereesList = computed(() => {
   return tournament.value?.tournament_staff?.filter(staff => staff.role === 3) || []
 })
+
+// Computed properties for VDV tab - filter participants by status
+const allParticipants = computed(() => tournament.value?.tournament_participants || [])
+
+const waitingConfirmationParticipants = computed(() => {
+  return allParticipants.value.filter(p => !p.is_confirmed && !p.is_guest)
+})
+
+const guestPendingParticipants = computed(() => {
+  return allParticipants.value.filter(p => !p.is_confirmed && p.is_guest)
+})
+
+const confirmedParticipants = computed(() => {
+  return allParticipants.value.filter(p => p.is_confirmed && !p.checked_in_at && !p.is_absent)
+})
+
+const checkedInParticipants = computed(() => {
+  return allParticipants.value.filter(p => p.is_confirmed && p.checked_in_at && !p.is_absent)
+})
+
+const absentParticipants = computed(() => {
+  return allParticipants.value.filter(p => p.is_absent)
+})
+
 const setupDescription = () => {
   descriptionModel.value = tournament.value.description || '';
   isEditingDescription.value = true;
@@ -792,6 +908,26 @@ function viewProfile() {
 
 function confirmUser() {
   confirm(selectedUser.value.id)
+}
+
+const handleConfirmUser = async (item) => {
+  try {
+    await ParticipantService.confirmParticipants(item.id)
+    toast.success('Đã xác nhận thành viên tham gia giải đấu!')
+    await detailTournament(id)
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi xác nhận thành viên.')
+  }
+}
+
+const handleRejectUser = async (item) => {
+  try {
+    await ParticipantService.rejectParticipant(item.id)
+    toast.success('Đã từ chối thành viên tham gia giải đấu!')
+    await detailTournament(id)
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi từ chối thành viên.')
+  }
 }
 
 const getMyClubs = async () => {
@@ -1308,7 +1444,10 @@ function getParticipantDisplayName(p) {
 
 function getParticipantAvatar(p) {
   if (!p) return ''
-  if (p.is_guest && p.guest_avatar) return p.guest_avatar
+  if (p.is_guest) {
+    if (p.guest_avatar) return p.guest_avatar
+    return guestDefaultAvatar
+  }
   return p.avatar ?? p.user?.avatar_url ?? ''
 }
 

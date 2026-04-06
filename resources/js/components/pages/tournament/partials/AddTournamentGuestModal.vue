@@ -25,40 +25,19 @@
           </div>
 
           <div class="space-y-4 flex-1">
-            <div>
-              <label for="guest-display-name" class="block text-[13px] font-semibold text-[#6B7280] mb-1.5 uppercase tracking-wide">
-                Tên hiển thị <span class="text-red-500">*</span>
-              </label>
-              <input
-                id="guest-display-name"
-                v-model="form.guest_name"
-                type="text"
-                placeholder="Ví dụ: Tuấn Nguyễn, Văn Khải,..."
-                class="w-full bg-[#F9FAFB] border border-gray-200 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
-              />
-              <p v-if="errors.guest_name" class="text-red-500 text-xs mt-1">{{ errors.guest_name }}</p>
-            </div>
-
-            <div>
-              <label class="block text-[13px] font-semibold text-[#6B7280] mb-1.5 uppercase tracking-wide">
-                Ảnh đại diện
-              </label>
-              <div class="flex items-center gap-4">
-                <div class="relative w-16 h-16 rounded-full overflow-hidden flex-shrink-0 border-2 border-gray-200 bg-gray-50">
+            <!-- Avatar + Tên hiển thị trên cùng 1 hàng -->
+            <div class="flex gap-4 items-center">
+              <div class="flex-shrink-0">
+                <div class="relative w-16 h-16 rounded-full overflow-hidden border-2 border-gray-200 bg-gray-50 cursor-pointer hover:border-[#D72D36] transition-colors" @click="triggerAvatarInput">
                   <img
                     v-if="avatarPreview || form.guest_avatar"
                     :src="avatarPreview || form.guest_avatar"
                     alt="Avatar Preview"
                     class="w-full h-full object-cover"
                   />
-                  <div v-else class="w-full h-full flex items-center justify-center text-gray-400">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
+                  <div v-else class="w-full h-full flex items-center justify-center bg-[#D72D36] text-white text-[11px] font-bold">GUEST</div>
                   <div
-                    class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
-                    @click="triggerAvatarInput"
+                    class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -66,32 +45,27 @@
                     </svg>
                   </div>
                 </div>
-                <div class="flex-1">
-                  <p class="text-[12px] text-[#6B7280] mb-2">Tải lên ảnh đại diện cho khách mời (tùy chọn)</p>
-                  <button
-                    type="button"
-                    @click="triggerAvatarInput"
-                    class="text-[12px] text-[#D72D36] font-medium hover:underline"
-                  >
-                    Chọn ảnh
-                  </button>
-                  <button
-                    v-if="avatarPreview || form.guest_avatar"
-                    type="button"
-                    @click="removeAvatar"
-                    class="ml-3 text-[12px] text-gray-400 hover:text-red-500"
-                  >
-                    Xóa
-                  </button>
-                </div>
+                <input
+                  ref="avatarInput"
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="handleAvatarChange"
+                />
               </div>
-              <input
-                ref="avatarInput"
-                type="file"
-                accept="image/*"
-                class="hidden"
-                @change="handleAvatarChange"
-              />
+              <div class="flex-1">
+                <label for="guest-display-name" class="block text-[13px] font-semibold text-[#6B7280] mb-1.5 uppercase tracking-wide">
+                  Tên hiển thị <span class="text-red-500">*</span>
+                </label>
+                <input
+                  id="guest-display-name"
+                  v-model="form.guest_name"
+                  type="text"
+                  placeholder="Ví dụ: Tuấn Nguyễn, Văn Khải,..."
+                  class="w-full bg-[#F9FAFB] border border-gray-200 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
+                />
+                <p v-if="errors.guest_name" class="text-red-500 text-xs mt-1">{{ errors.guest_name }}</p>
+              </div>
             </div>
 
             <div>
@@ -109,20 +83,25 @@
             </div>
 
             <div>
-              <label for="guest-estimated-level" class="block text-[13px] font-semibold text-[#6B7280] mb-1.5 uppercase tracking-wide">
+              <label class="block text-[13px] font-semibold text-[#6B7280] mb-1.5 uppercase tracking-wide">
                 Trình độ ước tính
               </label>
-              <input
-                id="guest-estimated-level"
-                v-model.number="form.estimated_level"
-                type="number"
-                min="1"
-                max="8"
-                step="0.5"
-                placeholder="1.0 - 8.0"
-                class="w-full bg-[#F9FAFB] border border-gray-200 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
-              />
-              <p class="text-[11px] text-[#9CA3AF] mt-1">Trình độ ước tính từ 1.0 đến 8.0</p>
+              <div class="bg-[#F9FAFB] border border-gray-200 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-[12px] text-gray-500">1.0</span>
+                  <span class="text-[16px] font-bold text-[#D72D36]">{{ form.estimated_level != null ? Number(form.estimated_level).toFixed(1) : '—' }}</span>
+                  <span class="text-[12px] text-gray-500">2.5</span>
+                </div>
+                <input
+                  v-model.number="form.estimated_level"
+                  type="range"
+                  min="1"
+                  max="2.5"
+                  step="0.1"
+                  class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#D72D36]"
+                />
+              </div>
+              <p class="text-[11px] text-[#9CA3AF] mt-1">Kéo để chọn trình độ từ 1.0 đến 2.5</p>
             </div>
 
             <div>
@@ -144,7 +123,7 @@
                 </option>
               </select>
               <p class="text-[11px] text-[#6B7280] mt-1.5">
-                *Người bảo lãnh là Host hoặc người đã tham gia và đã đóng phí kèo đấu (trong trường hợp kèo có phí). Người bảo lãnh có trách nhiệm thu tiền từ Guest và thanh toán chi phí (nếu có) của kèo đấu.
+                *Người bảo lãnh là người nằm trong ban tổ chức hoặc là vận động viên đã xác nhận tham gia giải đấu.
               </p>
               <p v-if="errors.guarantor_user_id" class="text-red-500 text-xs mt-1">{{ errors.guarantor_user_id }}</p>
             </div>
@@ -182,7 +161,7 @@
                 </svg>
                 Đang xử lý...
               </template>
-              <template v-else>Thêm vào kèo</template>
+              <template v-else>Thêm vào giải</template>
             </button>
           </div>
         </div>

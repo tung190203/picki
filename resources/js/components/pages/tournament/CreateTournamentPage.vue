@@ -394,14 +394,18 @@
                 </div>
 
                 <div class="bg-white rounded-[8px] shadow p-5">
-                    <label class="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" v-model="creatorJoin"
-                            class="w-5 h-5 rounded border-gray-300 text-[#D72D36] focus:ring-[#D72D36]" />
+                    <div class="flex items-center justify-between">
                         <div>
                             <span class="font-semibold text-gray-900">Tôi tham gia giải đấu</span>
                             <p class="text-xs text-gray-500">Đăng ký tham gia với tư cách vận động viên</p>
                         </div>
-                    </label>
+                        <button @click="toggleCreatorJoin"
+                            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                            :class="creatorJoin ? 'bg-[#D72D36]' : 'bg-gray-300'">
+                            <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                :class="creatorJoin ? 'translate-x-6' : 'translate-x-1'" />
+                        </button>
+                    </div>
                 </div>
 
                 <div class="flex items-center justify-start gap-4">
@@ -699,6 +703,10 @@ const toggleDUPR = () => {
 
 const toggleVNDUPR = () => {
     vnduprEnabled.value = !vnduprEnabled.value
+}
+
+const toggleCreatorJoin = () => {
+    creatorJoin.value = !creatorJoin.value
 }
 
 // Player Limit Toggles
