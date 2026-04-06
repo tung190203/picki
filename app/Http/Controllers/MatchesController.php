@@ -9,6 +9,7 @@ use App\Jobs\SendPushJob;
 use App\Models\Matches;
 use App\Models\Team;
 use App\Models\TeamRanking;
+use App\Models\TournamentStaff;
 use App\Models\TournamentType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -1004,6 +1005,10 @@ class MatchesController extends Controller
 
         $tournament = $match->tournamentType->tournament->load('staff');
         $isOrganizer = $tournament->hasOrganizer(Auth::id());
+        $isReferee = $tournament->staff()
+            ->wherePivot('user_id', Auth::id())
+            ->wherePivot('role', TournamentStaff::ROLE_REFEREE)
+            ->exists();
         $teamIds = [$match->home_team_id, $match->away_team_id];
         $userTeam = Team::whereIn('id', $teamIds)
             ->whereHas('members', function ($query) {
@@ -1012,7 +1017,7 @@ class MatchesController extends Controller
             ->first();
 
         // Kiểm tra quyền
-        if (!$userTeam && !$isOrganizer) {
+        if (!$userTeam && !$isOrganizer && !$isReferee) {
             return ResponseHelper::error('Bạn không có quyền xác nhận kết quả trận đấu này', 403);
         }
 
