@@ -7,6 +7,7 @@ use App\Helpers\ResponseHelper;
 use App\Http\Controllers\TournamentTypeController;
 use App\Http\Resources\ParticipantResource;
 use App\Http\Resources\TournamentResource;
+use App\Http\Resources\TournamentStaffResource;
 use App\Models\Club\Club;
 use App\Models\Matches;
 use App\Models\Participant;
@@ -23,6 +24,50 @@ class TournamentController extends Controller
 {
     protected $imageService;
     protected $tournamentTypeController;
+
+    /**
+     * Quyền đánh dấu check-in / vắng: host và staff BTC
+     */
+    protected function authorizeMarkParticipantAttendance(Request $request, Tournament $tournament, int $userId): ?\Illuminate\Http\JsonResponse
+    {
+        if ($tournament->club_id) {
+            $clubId = $request->input('club_id');
+
+            if (!$clubId) {
+                return ResponseHelper::error('Giải đấu thuộc CLB. Vui lòng truyền club_id trong body.', 422);
+            }
+
+            if ((int) $tournament->club_id !== (int) $clubId) {
+                return ResponseHelper::error('Giải đấu không thuộc CLB này', 403);
+            }
+
+            $club = Club::find($clubId);
+            if (!$club) {
+                return ResponseHelper::error('CLB không tồn tại', 404);
+            }
+
+            $clubMember = $club->activeMembers()->where('user_id', $userId)->first();
+            $isClubStaff = $clubMember && in_array(
+                $clubMember->role,
+                [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary],
+                true
+            );
+
+            if (!$isClubStaff && !$tournament->hasAttendancePermission($userId)) {
+                return ResponseHelper::error('Bạn không có quyền thực hiện thao tác này với giải đấu', 403);
+            }
+        } else {
+            if ($request->filled('club_id')) {
+                return ResponseHelper::error('Giải đấu không thuộc CLB. Không cần truyền club_id.', 422);
+            }
+
+            if (!$tournament->hasAttendancePermission($userId)) {
+                return ResponseHelper::error('Bạn không có quyền thực hiện thao tác này với giải đấu', 403);
+            }
+        }
+
+        return null;
+    }
 
     public function __construct(
         ImageOptimizationService $imageService,
@@ -274,11 +319,9 @@ class TournamentController extends Controller
     }
 
     /**
-     * Organizer / Club staff đánh dấu member check-in giải đấu.
-     * - Kèo CLB: cần truyền club_id trong body, chỉ admin/manager/secretary hoặc organizer mới được phép.
-     * - Kèo thường: không cần club_id, chỉ organizer mới được phép.
-     * - Đã check-in: không thể check-in lại.
-     * - Đã vắng: cho phép check-in lại (đổi is_absent = false).
+     * BTC / staff / trọng tài / staff CLB đánh dấu check-in.
+     * - `participantId` trong URL: ưu tiên là participants.id (VĐV); nếu không có thì coi là tournament_staff.id (BTC).
+     * - Kèo CLB: body cần club_id khi giải thuộc CLB.
      */
     public function markParticipantCheckIn(Request $request, int $tournamentId, int $participantId)
     {
@@ -288,91 +331,73 @@ class TournamentController extends Controller
             return ResponseHelper::error('Bạn cần đăng nhập', 401);
         }
 
-        $tournament = Tournament::findOrFail($tournamentId);
+        $tournament = Tournament::with('staff')->findOrFail($tournamentId);
 
-        // === Giải đấu thuộc CLB: kiểm tra club_id và quyền staff ===
-        if ($tournament->club_id) {
-            $clubId = $request->input('club_id');
-
-            if (!$clubId) {
-                return ResponseHelper::error('Giải đấu thuộc CLB. Vui lòng truyền club_id trong body.', 422);
-            }
-
-            if ((int) $tournament->club_id !== (int) $clubId) {
-                return ResponseHelper::error('Giải đấu không thuộc CLB này', 403);
-            }
-
-            $club = Club::find($clubId);
-            if (!$club) {
-                return ResponseHelper::error('CLB không tồn tại', 404);
-            }
-
-            $clubMember = $club->activeMembers()->where('user_id', $userId)->first();
-            $isClubStaff = $clubMember && in_array(
-                $clubMember->role,
-                [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary],
-                true
-            );
-            $isTournamentOrganizer = $tournament->staff->contains(
-                fn ($staff) => (int) $staff->pivot->user_id === $userId
-                && (int) $staff->pivot->role === TournamentStaff::ROLE_ORGANIZER
-            );
-
-            if (!$isClubStaff && !$isTournamentOrganizer) {
-                return ResponseHelper::error('Bạn không có quyền đánh dấu check-in cho giải đấu này', 403);
-            }
-        } else {
-            // === Giải đấu thường: chỉ organizer ===
-            if ($request->filled('club_id')) {
-                return ResponseHelper::error('Giải đấu không thuộc CLB. Không cần truyền club_id.', 422);
-            }
-
-            $isOrganizer = $tournament->staff->contains(
-                fn ($staff) => (int) $staff->pivot->user_id === $userId
-                && (int) $staff->pivot->role === TournamentStaff::ROLE_ORGANIZER
-            );
-
-            if (!$isOrganizer) {
-                return ResponseHelper::error('Chỉ organizer giải đấu mới có quyền đánh dấu check-in', 403);
-            }
+        if ($err = $this->authorizeMarkParticipantAttendance($request, $tournament, $userId)) {
+            return $err;
         }
 
         $participant = $tournament->participants()->where('id', $participantId)->first();
-        if (!$participant) {
-            return ResponseHelper::error('Thành viên không tồn tại trong giải đấu này', 404);
+        if ($participant) {
+            if ($participant->checked_in_at) {
+                return ResponseHelper::error('Thành viên đã check-in rồi. Không thể check-in lại.', 422);
+            }
+
+            if ($participant->is_absent) {
+                $participant->update([
+                    'is_confirmed' => true,
+                    'checked_in_at' => now(),
+                    'is_absent' => false,
+                ]);
+            } else {
+                $participant->update([
+                    'is_confirmed' => true,
+                    'checked_in_at' => now(),
+                ]);
+            }
+
+            $participant->load('user');
+
+            return ResponseHelper::success(
+                new ParticipantResource($participant),
+                'Đã đánh dấu check-in thành công'
+            );
         }
 
-        if ($participant->checked_in_at) {
-            return ResponseHelper::error('Thành viên đã check-in rồi. Không thể check-in lại.', 422);
+        $tournamentStaff = TournamentStaff::where('tournament_id', $tournamentId)
+            ->where('id', $participantId)
+            ->first();
+
+        if (!$tournamentStaff) {
+            return ResponseHelper::error('Thành viên hoặc thành viên ban tổ chức không tồn tại trong giải đấu này', 404);
         }
 
-        if ($participant->is_absent) {
-            $participant->update([
-                'is_confirmed' => true,
+        if ($tournamentStaff->checked_in_at) {
+            return ResponseHelper::error('Thành viên ban tổ chức đã check-in rồi. Không thể check-in lại.', 422);
+        }
+
+        if ($tournamentStaff->is_absent) {
+            $tournamentStaff->update([
                 'checked_in_at' => now(),
                 'is_absent' => false,
             ]);
         } else {
-            $participant->update([
-                'is_confirmed' => true,
+            $tournamentStaff->update([
                 'checked_in_at' => now(),
             ]);
         }
 
-        $participant->load('user');
+        $tournamentStaff->load('user');
 
         return ResponseHelper::success(
-            new ParticipantResource($participant),
+            new TournamentStaffResource($tournamentStaff),
             'Đã đánh dấu check-in thành công'
         );
     }
 
     /**
-     * Organizer / Club staff đánh dấu member vắng mặt giải đấu.
-     * - Kèo CLB: cần truyền club_id trong body, chỉ admin/manager/secretary hoặc organizer mới được phép.
-     * - Kèo thường: không cần club_id, chỉ organizer mới được phép.
-     * - Đã check-in: không thể đánh dấu vắng mặt.
-     * - Đã vắng: không thể đánh dấu vắng mặt lại.
+     * BTC / staff / trọng tài / staff CLB đánh dấu vắng.
+     * - `participantId`: participants.id trước, không có thì tournament_staff.id.
      */
     public function markParticipantAbsent(Request $request, int $tournamentId, int $participantId)
     {
@@ -382,76 +407,58 @@ class TournamentController extends Controller
             return ResponseHelper::error('Bạn cần đăng nhập', 401);
         }
 
-        $tournament = Tournament::findOrFail($tournamentId);
+        $tournament = Tournament::with('staff')->findOrFail($tournamentId);
 
-        // === Giải đấu thuộc CLB: kiểm tra club_id và quyền staff ===
-        if ($tournament->club_id) {
-            $clubId = $request->input('club_id');
-
-            if (!$clubId) {
-                return ResponseHelper::error('Giải đấu thuộc CLB. Vui lòng truyền club_id trong body.', 422);
-            }
-
-            if ((int) $tournament->club_id !== (int) $clubId) {
-                return ResponseHelper::error('Giải đấu không thuộc CLB này', 403);
-            }
-
-            $club = Club::find($clubId);
-            if (!$club) {
-                return ResponseHelper::error('CLB không tồn tại', 404);
-            }
-
-            $clubMember = $club->activeMembers()->where('user_id', $userId)->first();
-            $isClubStaff = $clubMember && in_array(
-                $clubMember->role,
-                [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary],
-                true
-            );
-            $isTournamentOrganizer = $tournament->staff->contains(
-                fn ($staff) => (int) $staff->pivot->user_id === $userId
-                && (int) $staff->pivot->role === TournamentStaff::ROLE_ORGANIZER
-            );
-
-            if (!$isClubStaff && !$isTournamentOrganizer) {
-                return ResponseHelper::error('Bạn không có quyền đánh dấu vắng mặt cho giải đấu này', 403);
-            }
-        } else {
-            // === Giải đấu thường: chỉ organizer ===
-            if ($request->filled('club_id')) {
-                return ResponseHelper::error('Giải đấu không thuộc CLB. Không cần truyền club_id.', 422);
-            }
-
-            $isOrganizer = $tournament->staff->contains(
-                fn ($staff) => (int) $staff->pivot->user_id === $userId
-                && (int) $staff->pivot->role === TournamentStaff::ROLE_ORGANIZER
-            );
-
-            if (!$isOrganizer) {
-                return ResponseHelper::error('Chỉ organizer giải đấu mới có quyền đánh dấu vắng mặt', 403);
-            }
+        if ($err = $this->authorizeMarkParticipantAttendance($request, $tournament, $userId)) {
+            return $err;
         }
 
         $participant = $tournament->participants()->where('id', $participantId)->first();
-        if (!$participant) {
-            return ResponseHelper::error('Thành viên không tồn tại trong giải đấu này', 404);
+        if ($participant) {
+            if ($participant->is_absent) {
+                return ResponseHelper::error('Thành viên đã được đánh dấu vắng mặt rồi', 422);
+            }
+
+            if ($participant->checked_in_at) {
+                return ResponseHelper::error('Thành viên đã check-in. Không thể đánh dấu vắng mặt.', 422);
+            }
+
+            $participant->update([
+                'is_absent' => true,
+            ]);
+
+            $participant->load('user');
+
+            return ResponseHelper::success(
+                new ParticipantResource($participant),
+                'Đã đánh dấu vắng mặt thành công'
+            );
         }
 
-        if ($participant->is_absent) {
-            return ResponseHelper::error('Thành viên đã được đánh dấu vắng mặt rồi', 422);
+        $tournamentStaff = TournamentStaff::where('tournament_id', $tournamentId)
+            ->where('id', $participantId)
+            ->first();
+
+        if (!$tournamentStaff) {
+            return ResponseHelper::error('Thành viên hoặc thành viên ban tổ chức không tồn tại trong giải đấu này', 404);
         }
 
-        if ($participant->checked_in_at) {
-            return ResponseHelper::error('Thành viên đã check-in. Không thể đánh dấu vắng mặt.', 422);
+        if ($tournamentStaff->is_absent) {
+            return ResponseHelper::error('Thành viên ban tổ chức đã được đánh dấu vắng mặt rồi', 422);
         }
 
-        $participant->update([
+        if ($tournamentStaff->checked_in_at) {
+            return ResponseHelper::error('Thành viên ban tổ chức đã check-in. Không thể đánh dấu vắng mặt.', 422);
+        }
+
+        $tournamentStaff->update([
             'is_absent' => true,
         ]);
 
-        $participant->load('user');
+        $tournamentStaff->load('user');
 
         return ResponseHelper::success(
-            new ParticipantResource($participant),
+            new TournamentStaffResource($tournamentStaff),
             'Đã đánh dấu vắng mặt thành công'
         );
     }
@@ -480,31 +487,59 @@ class TournamentController extends Controller
             ->where('user_id', $userId)
             ->first();
 
-        if (!$participant) {
+        if ($participant) {
+            if ($participant->checked_in_at) {
+                return ResponseHelper::error('Bạn đã check-in rồi. Không thể check-in lại.', 422);
+            }
+
+            if ($participant->is_absent) {
+                $participant->update([
+                    'is_confirmed' => true,
+                    'checked_in_at' => now(),
+                    'is_absent' => false,
+                ]);
+            } else {
+                $participant->update([
+                    'is_confirmed' => true,
+                    'checked_in_at' => now(),
+                ]);
+            }
+
+            $participant->load('user');
+
+            return ResponseHelper::success(
+                new ParticipantResource($participant),
+                'Check-in thành công'
+            );
+        }
+
+        $tournamentStaff = TournamentStaff::where('tournament_id', $tournamentId)
+            ->where('user_id', $userId)
+            ->first();
+
+        if (!$tournamentStaff) {
             return ResponseHelper::error('Bạn chưa tham gia giải đấu này', 422);
         }
 
-        if ($participant->checked_in_at) {
+        if ($tournamentStaff->checked_in_at) {
             return ResponseHelper::error('Bạn đã check-in rồi. Không thể check-in lại.', 422);
         }
 
-        if ($participant->is_absent) {
-            $participant->update([
-                'is_confirmed' => true,
+        if ($tournamentStaff->is_absent) {
+            $tournamentStaff->update([
                 'checked_in_at' => now(),
                 'is_absent' => false,
             ]);
         } else {
-            $participant->update([
-                'is_confirmed' => true,
+            $tournamentStaff->update([
                 'checked_in_at' => now(),
             ]);
         }
 
-        $participant->load('user');
+        $tournamentStaff->load('user');
 
         return ResponseHelper::success(
-            new ParticipantResource($participant),
+            new TournamentStaffResource($tournamentStaff),
             'Check-in thành công'
         );
     }
@@ -533,26 +568,51 @@ class TournamentController extends Controller
             ->where('user_id', $userId)
             ->first();
 
-        if (!$participant) {
+        if ($participant) {
+            if ($participant->is_absent) {
+                return ResponseHelper::error('Bạn đã báo vắng rồi. Không thể báo vắng lại.', 422);
+            }
+
+            if ($participant->checked_in_at) {
+                return ResponseHelper::error('Bạn đã check-in rồi. Không thể báo vắng.', 422);
+            }
+
+            $participant->update([
+                'is_absent' => true,
+            ]);
+
+            $participant->load('user');
+
+            return ResponseHelper::success(
+                new ParticipantResource($participant),
+                'Đã báo vắng thành công'
+            );
+        }
+
+        $tournamentStaff = TournamentStaff::where('tournament_id', $tournamentId)
+            ->where('user_id', $userId)
+            ->first();
+
+        if (!$tournamentStaff) {
             return ResponseHelper::error('Bạn chưa tham gia giải đấu này', 422);
         }
 
-        if ($participant->is_absent) {
+        if ($tournamentStaff->is_absent) {
             return ResponseHelper::error('Bạn đã báo vắng rồi. Không thể báo vắng lại.', 422);
         }
 
-        if ($participant->checked_in_at) {
+        if ($tournamentStaff->checked_in_at) {
             return ResponseHelper::error('Bạn đã check-in rồi. Không thể báo vắng.', 422);
         }
 
-        $participant->update([
+        $tournamentStaff->update([
             'is_absent' => true,
         ]);
 
-        $participant->load('user');
+        $tournamentStaff->load('user');
 
         return ResponseHelper::success(
-            new ParticipantResource($participant),
+            new TournamentStaffResource($tournamentStaff),
             'Đã báo vắng thành công'
         );
     }
