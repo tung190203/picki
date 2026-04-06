@@ -10,7 +10,17 @@
 
                     <!-- Header -->
                     <div class="flex items-center justify-between p-6">
-                        <h2 class="text-xl font-semibold text-gray-800">{{ title }}</h2>
+                        <div class="flex items-center gap-3">
+                            <h2 class="text-xl font-semibold text-gray-800">{{ title }}</h2>
+                            <select
+                                v-if="inviteType === 'staff'"
+                                v-model="selectedRole"
+                                class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="organizer">Organizer</option>
+                                <option value="referee">Trọng tài</option>
+                            </select>
+                        </div>
                         <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
                             <XMarkIcon class="w-6 h-6" />
                         </button>
@@ -200,6 +210,14 @@ const props = defineProps({
     title: {
         type: String,
         default: 'Mời nhóm'
+    },
+    inviteType: {
+        type: String,
+        default: 'participant'
+    },
+    selectedStaffRole: {
+        type: String,
+        default: 'organizer'
     }
 })
 
@@ -232,11 +250,20 @@ const localSearchQuery = ref(props.searchQuery || '')
 const localRadius = ref(props.currentRadius || 10)
 const scrollContainer = ref(null)
 const activeTab = ref('all')
+const selectedRole = ref('organizer')
 
 watch(
   () => props.activeScope,
   (val) => {
     if (val) activeTab.value = val
+  },
+  { immediate: true }
+)
+
+watch(
+  () => props.selectedStaffRole,
+  (val) => {
+    if (val) selectedRole.value = val
   },
   { immediate: true }
 )
@@ -265,7 +292,7 @@ const inviteUser = id => {
     const user = props.data.result.find(u => u.id === id)
     if (user) {
         user.invited = true
-        emit('invite', user)
+        emit('invite', { ...user, role: selectedRole.value })
     }
 }
 

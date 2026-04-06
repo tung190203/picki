@@ -392,6 +392,18 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="bg-white rounded-[8px] shadow p-5">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" v-model="creatorJoin"
+                            class="w-5 h-5 rounded border-gray-300 text-[#D72D36] focus:ring-[#D72D36]" />
+                        <div>
+                            <span class="font-semibold text-gray-900">Tôi tham gia giải đấu</span>
+                            <p class="text-xs text-gray-500">Đăng ký tham gia với tư cách vận động viên</p>
+                        </div>
+                    </label>
+                </div>
+
                 <div class="flex items-center justify-start gap-4">
                     <button @click="handleSubmit"
                         class="w-full max-w-[228px] py-3 bg-[#D72D36] text-white rounded font-semibold hover:bg-red-700 transition-colors">
@@ -551,6 +563,7 @@ const formattedFeeAmount = computed(() => {
 // REFS CHO PHẦN QUYỀN RIÊNG TƯ
 // =================================================================================
 const isPrivate = ref(false) // false: Công khai, true: Giải riêng tư
+const creatorJoin = ref(false)
 
 // =================================================================================
 // New Refs and Consts for Tournament Advanced Settings
@@ -579,6 +592,7 @@ const initialStates = {
     registrationOpenAt: null, earlyRegistrationDeadline: null, registrationClosedAt: null, duration: durationOptions[durationOptions.length - 1].value,
     feeType: 'pair', standardFeeAmount: 100000, feeAmountInput: 100000,
     isPrivate: false,
+    creatorJoin: false,
 };
 
 const resetFormState = () => {
@@ -617,6 +631,7 @@ const resetFormState = () => {
 
     // Privacy
     isPrivate.value = initialStates.isPrivate;
+    creatorJoin.value = initialStates.creatorJoin;
 
     // Reset Sport Selection
     if (sports.value.length > 0) {
@@ -837,6 +852,7 @@ const handleSubmit = async () => {
         fee: feeType.value,
         standard_fee_amount: feeType.value === 'free' ? 0 : standardFeeAmount.value,
         is_private: isPrivate.value,
+        creator_join: creatorJoin.value,
         description: tournamentNote.value || null,
     }
 
@@ -987,6 +1003,9 @@ const prefillForm = (data) => {
 
     // Quyền riêng tư
     isPrivate.value = !!data.is_private ?? false;
+
+    // Creator join
+    creatorJoin.value = !!data.creator_join ?? false;
 };
 
 const detailTournament = async (id) => {

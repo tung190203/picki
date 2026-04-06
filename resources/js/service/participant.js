@@ -39,11 +39,6 @@ export const deleteParticipant = async(participantId) => {
   .then((response) => response?.data?.data);
 }
 
-export const deleteStaff = async(staffId) => {
-  return axiosInstance.post(`${participantEndpoint}/delete-staff/${staffId}`)
-  .then((response) => response?.data?.data);
-}
-
 export const joinTournament = async(id) => {
   return axiosInstance.post(`${participantEndpoint}/join/${id}`).then((response) => response?.data?.data);
 }
