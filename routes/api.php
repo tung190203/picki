@@ -325,6 +325,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     Route::prefix('tournament-staff')->group(function () {
         Route::post('/add/{tournamentId}', [TournamentStaffController::class, 'addStaff']);
         Route::post('/add-referee/{tournamentId}', [TournamentStaffController::class, 'addReferee']);
+        Route::delete('/{tournamentId}', [TournamentStaffController::class, 'removeStaff']);
     });
 
     Route::prefix('mini-tournament-staff')->group(function () {
@@ -365,7 +366,6 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/decline/{participantId}', [ParticipantController::class, 'declineInvite']);
         Route::post('/invite-user/{tournamentId}', [ParticipantController::class, 'inviteUsers']);
         Route::post('/delete/{participantId}', [ParticipantController::class, 'delete']);
-        Route::post('/delete-staff/{staffId}', [ParticipantController::class, 'deleteStaff']);
         Route::match(['get', 'post'], '/list-invite/{tournamentId}', [ParticipantController::class, 'listInvite']);
         Route::match(['get', 'post'], '/list-member/{tournamentId}', [ParticipantController::class, 'getParticipantsNonTeam']);
         Route::post('/candidates/{tournamentId}', [ParticipantController::class, 'getCandidates']);

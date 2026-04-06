@@ -437,28 +437,6 @@ class ParticipantController extends Controller
         return ResponseHelper::success(null, 'Xoá người tham gia thành công', 200);
     }
 
-    public function deleteStaff($staffId)
-    {
-        $tournamentStaff = DB::table('tournament_staff')->where('id', $staffId)->first();
-        if (!$tournamentStaff) {
-            return ResponseHelper::error('Nhân viên không tồn tại', 404);
-        }
-        $tournament = Tournament::with('staff')->findOrFail($tournamentStaff->tournament_id);
-        $isOrganizer = $tournament->hasOrganizer(Auth::id());
-        if (!$isOrganizer) {
-            return ResponseHelper::error('Bạn không có quyền xoá nhân viên này', 403);
-        }
-        if( $tournamentStaff->role === 'organizer') {
-            return ResponseHelper::error('Không thể xoá nhân viên với vai trò tổ chức', 400);
-        }
-        if ($tournamentStaff->user_id === Auth::id()) {
-            return ResponseHelper::error('Bạn không thể tự xoá chính mình', 400);
-        }
-        DB::table('tournament_staff')->where('id', $staffId)->delete();
-
-        return ResponseHelper::success(null, 'Xoá nhân viên thành công', 200);
-    }
-
     public function getParticipantsNonTeam(Request $request, $tournamentId)
     {
         $validated = $request->validate([

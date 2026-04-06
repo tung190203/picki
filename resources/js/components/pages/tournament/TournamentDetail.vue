@@ -252,8 +252,8 @@
                   <div v-if="organizersList.length">
                     <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
                       <UserCard v-for="(item, index) in organizersList" :key="'org-' + index" :id="item.id"
-                        :name="item.staff.name" :avatar="item.staff.avatar" :rating="getUserScore(item.staff)"
-                        status="approved" @removeUser="handleRemoveStaff" />
+                        :userId="item.staff.id" :name="item.staff.name" :avatar="item.staff.avatar"
+                        :rating="getUserScore(item.staff)" status="approved" @removeUser="handleRemoveStaff" />
                     </div>
                   </div>
                 </div>
@@ -275,8 +275,8 @@
                   <div v-if="refereesList.length">
                     <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
                       <UserCard v-for="(item, index) in refereesList" :key="'ref-' + index" :id="item.id"
-                        :name="item.staff.name" :avatar="item.staff.avatar" :rating="getUserScore(item.staff)"
-                        status="approved" @removeUser="handleRemoveStaff" />
+                        :userId="item.staff.id" :name="item.staff.name" :avatar="item.staff.avatar"
+                        :rating="getUserScore(item.staff)" status="approved" @removeUser="handleRemoveStaff" />
                     </div>
                   </div>
                   <div v-else class="text-center text-gray-400 py-4">
@@ -828,18 +828,18 @@ const handleRemoveUser = async (data) => {
 };
 
 const handleRemoveStaff = async (data) => {
-  // Support both old format (id only) and new format (object from UserCard)
-  const staffId = typeof data === 'object' ? data.id : data;
-  if (!staffId) {
-    toast.error('Không tìm thấy ID nhân viên');
+  // data.id = tournament_staff.id, data.userId = user.id
+  const tournamentStaffId = data.id;
+  if (!tournamentStaffId) {
+    toast.error('Không tìm thấy ID thành viên ban tổ chức');
     return;
   }
   try {
-    await ParticipantService.deleteStaff(staffId);
-    toast.success('Đã xóa người tổ chức khỏi giải đấu');
+    const response = await TournamentStaffService.removeTournamentStaff(id, tournamentStaffId);
+    toast.success(response.message);
     await detailTournament(id);
   } catch (error) {
-    toast.error(error.response?.data?.message || 'Xóa người tổ chức thất bại');
+    toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi xóa người trong ban tổ chức');
   }
 };
 
@@ -1519,15 +1519,15 @@ const invite = async (friendId) => {
 
 const inviteStaff = async (userId, role = 'organizer') => {
   try {
+    let response;
     if (role === 'referee') {
-      await TournamentStaffService.addReferee(id, userId);
-      toast.success('Mời trọng tài thành công');
+      response = await TournamentStaffService.addReferee(id, userId);
     } else {
-      await TournamentStaffService.addTournamentStaff(id, userId);
-      toast.success('Thêm thành công');
+      response = await TournamentStaffService.addTournamentStaff(id, userId);
     }
+    toast.success(response.message);
   } catch (error) {
-    toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi thêm.');
+    toast.error(error.response?.data?.message || 'Đã xảy ra lỗi');
   }
 };
 

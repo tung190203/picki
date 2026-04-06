@@ -13,28 +13,27 @@ class TournamentStaffController extends Controller
     public function addStaff(Request $request, $tournamentId)
     {
         $validatedData = $request->validate([
-            'staff_id' => 'required|integer|exists:users,id',
+            'user_id' => 'required|integer|exists:users,id',
         ]);
 
         $tournament = Tournament::findOrFail($tournamentId);
         $isOrganizer = $tournament->hasOrganizer(Auth::id());
 
         if (!$isOrganizer) {
-            return ResponseHelper::error('Bạn không có quyền thêm người tổ chức', 403);
-        }
-        $staffId = $validatedData['staff_id'];
-        if ($tournament->staff()->where('user_id', $staffId)->exists()) {
-            return response()->json([
-                'message' => 'Người dùng này đã là người tổ chức của giải đấu.'
-            ], 409);
+            return ResponseHelper::error('Bạn không có quyền thêm người vào ban tổ chức', 403);
         }
 
-        $tournament->staff()->attach($staffId, [
+        $userId = $validatedData['user_id'];
+        if ($tournament->staff()->where('user_id', $userId)->exists()) {
+            return ResponseHelper::error('Người dùng này đã là thành viên ban tổ chức của giải đấu', 409);
+        }
+
+        $tournament->staff()->attach($userId, [
             'role' => TournamentStaff::ROLE_ORGANIZER,
             'is_invite_by_organizer' => true
         ]);
 
-        return response()->json(['message' => 'Thêm người tổ chức thành công'], 201);
+        return ResponseHelper::success(null, 'Thêm người vào ban tổ chức thành công', 201);
     }
 
     public function addReferee(Request $request, $tournamentId)
@@ -47,13 +46,11 @@ class TournamentStaffController extends Controller
         $isOrganizer = $tournament->hasOrganizer(Auth::id());
 
         if (!$isOrganizer) {
-            return ResponseHelper::error('Bạn không có quyền mời trọng tài', 403);
+            return ResponseHelper::error('Bạn không có quyền thêm trọng tài', 403);
         }
 
         $userId = $validatedData['user_id'];
-        $existingStaff = $tournament->staff()->where('user_id', $userId)->first();
-
-        if ($existingStaff) {
+        if ($tournament->staff()->where('user_id', $userId)->exists()) {
             return ResponseHelper::error('Người dùng này đã là thành viên ban tổ chức của giải đấu', 409);
         }
 
@@ -62,6 +59,30 @@ class TournamentStaffController extends Controller
             'is_invite_by_organizer' => true
         ]);
 
-        return ResponseHelper::success(null, 'Mời trọng tài thành công', 201);
+        return ResponseHelper::success(null, 'Thêm trọng tài thành công', 201);
+    }
+
+    public function removeStaff(Request $request, $tournamentId)
+    {
+        $validatedData = $request->validate([
+            'tournament_staff_id' => 'required|integer|exists:tournament_staff,id',
+        ]);
+
+        $tournament = Tournament::findOrFail($tournamentId);
+        if (!$tournament->hasOrganizer(Auth::id())) {
+            return ResponseHelper::error('Bạn không có quyền xóa người trong ban tổ chức', 403);
+        }
+
+        $tournamentStaff = TournamentStaff::where('id', $validatedData['tournament_staff_id'])
+            ->where('tournament_id', $tournamentId)
+            ->first();
+
+        if (!$tournamentStaff) {
+            return ResponseHelper::error('Không tìm thấy thành viên ban tổ chức', 404);
+        }
+
+        $tournamentStaff->delete();
+
+        return response()->noContent();
     }
 }
