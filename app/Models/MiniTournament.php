@@ -484,6 +484,20 @@ class MiniTournament extends Model
         );
     }
 
+    public function hasOrganizerOrStaff(int $userId): bool
+    {
+        return $this->hasOrganizer($userId);
+    }
+
+    public function hasScoringPermission(int $userId): bool
+    {
+        return $this->staff->contains(
+            fn($staff) =>
+            (int) $staff->pivot->user_id === $userId
+                && in_array((int) $staff->pivot->role, [MiniTournamentStaff::ROLE_ORGANIZER, MiniTournamentStaff::ROLE_REFEREE])
+        );
+    }
+
     public function scopeFilter($query, $filter)
     {
         return $query

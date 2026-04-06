@@ -169,7 +169,7 @@
                                 class="px-12 py-3 bg-red-500 text-white rounded font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                                 {{ isSaving && !canConfirmMatch ? 'Đang lưu...' : 'Lưu' }}
                             </button>
-                            <button v-if="isCreator" @click="confirmMatchResult"
+                            <button v-if="isCreator || isReferee" @click="confirmMatchResult"
                                 :disabled="isSaving || !canConfirmMatch || currentLeg.status === 'completed'"
                                 class="flex items-center justify-center gap-2 px-12 py-3 bg-green-500 text-white rounded font-medium hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                                 <template v-if="currentLeg.status === 'completed'">
@@ -245,6 +245,12 @@ const { getUser } = storeToRefs(userStore)
 const isCreator = computed(() => {
     return props.tournament?.tournament_staff?.some(
         staff => staff.role === 1 && staff.staff?.id === getUser.value.id
+    )
+})
+
+const isReferee = computed(() => {
+    return props.tournament?.tournament_staff?.some(
+        staff => staff.role === 3 && staff.staff?.id === getUser.value.id
     )
 })
 
