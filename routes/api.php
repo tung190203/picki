@@ -311,6 +311,10 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{id}/self/check-in', [TournamentController::class, 'selfCheckIn']);
         Route::post('/{id}/self/absent', [TournamentController::class, 'selfMarkAbsent']);
 
+        // Staff / trọng tài: check-in / vắng (tournament_staff.id trong URL)
+        Route::post('/{id}/tournament-staff/{staffId}/mark-check-in', [TournamentStaffController::class, 'markStaffCheckIn']);
+        Route::post('/{id}/tournament-staff/{staffId}/mark-absent', [TournamentStaffController::class, 'markStaffAbsent']);
+
         // Guest Routes
         Route::get('/{id}/guests', [TournamentGuestController::class, 'index']);
         Route::post('/{id}/guests', [TournamentGuestController::class, 'store']);

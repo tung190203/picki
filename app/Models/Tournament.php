@@ -264,6 +264,18 @@ class Tournament extends Model
         );
     }
 
+    /**
+     * Kiểm tra user có quyền check-in / đánh dấu vắng (chỉ host và staff, không có referee).
+     */
+    public function hasAttendancePermission(int $userId): bool
+    {
+        return $this->staff->contains(
+            fn($staff) =>
+            (int) $staff->pivot->user_id === $userId
+            && in_array((int) $staff->pivot->role, [TournamentStaff::ROLE_ORGANIZER, TournamentStaff::ROLE_STAFF])
+        );
+    }
+
     public function scopeFilter($query, $filters)
     {
         return $query
