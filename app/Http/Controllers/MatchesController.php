@@ -156,14 +156,25 @@ class MatchesController extends Controller
             return;
         }
     
-        // Tìm đội thắng nhiều set nhất
+        // Tìm đội thắng nhiều set nhất; hòa → phá bằng tổng điểm ghi được
         $maxWins = max($setWins);
-        $winnerTeamId = null;
-        foreach ($setWins as $teamId => $wins) {
-            if ($wins === $maxWins) {
-                $winnerTeamId = $teamId;
-                break;
+        $tiedTeams = array_keys(array_filter($setWins, fn($w) => $w === $maxWins));
+
+        if (count($tiedTeams) === 1) {
+            $winnerTeamId = $tiedTeams[0];
+        } else {
+            // phá hòa bằng tổng điểm ghi được qua tất cả set
+            $totals = array_fill_keys($teamIds, 0);
+            foreach ($match->results as $r) {
+                $tid = $r->team_id;
+                if (isset($totals[$tid])) {
+                    $totals[$tid] += (int) $r->score;
+                }
             }
+            $tieTotals = array_intersect_key($totals, array_flip($tiedTeams));
+            $maxPts = max($tieTotals);
+            $byPts = array_keys(array_filter($tieTotals, fn($p) => $p === $maxPts));
+            $winnerTeamId = count($byPts) === 1 ? $byPts[0] : null;
         }
 
         // Cập nhật match
@@ -1044,22 +1055,32 @@ class MatchesController extends Controller
         // ===================================
         // XÁC ĐỊNH WINNER CỦA LEG (chỉ tính set thắng thực tế)
         // ===================================
+        // reload để lấy won_match vừa được cập nhật bởi validateAllMatchSets
+        $match->load('results');
+
         $sets = $match->results->groupBy('set_number');
         $wins = [];
-    
+        $pointTotals = []; // điểm tổng mỗi đội ghi được qua tất cả set (dùng phá hòa)
+
         foreach ($sets as $setNumber => $setResults) {
             // mỗi set phải có đủ kết quả của 2 đội
             if ($setResults->count() < 2) {
                 continue;
             }
 
+            // cộng điểm mỗi đội vào tổng (tất cả set, kể cả hòa điểm)
+            foreach ($setResults as $r) {
+                $tid = (int) $r->team_id;
+                $pointTotals[$tid] = ($pointTotals[$tid] ?? 0) + (int) $r->score;
+            }
+
             $sorted = $setResults->sortByDesc('score')->values();
 
-            // nếu hoà điểm → bỏ qua set này
+            // hòa điểm → không tính set thắng, điểm vẫn giữ trong pointTotals
             if ($sorted[0]->score === $sorted[1]->score) {
                 continue;
             }
-    
+
             $winnerTeamId = $sorted[0]->team_id;
             $wins[$winnerTeamId] = ($wins[$winnerTeamId] ?? 0) + 1;
         }
@@ -1075,7 +1096,7 @@ class MatchesController extends Controller
         }
 
         /**
-         * Tìm đội thắng nhiều set nhất
+         * Tìm đội thắng nhiều set nhất; hòa → phá bằng tổng điểm ghi được
          */
         $maxWins = max($wins);
         $winnerTeamIds = array_keys(
@@ -1083,12 +1104,23 @@ class MatchesController extends Controller
         );
 
         if (count($winnerTeamIds) > 1) {
-            return ResponseHelper::error(
-                "Hai đội đang hoà số set thắng trong các lượt, chưa xác định được đội thắng",
-                400
-            );
+            // so sánh tổng điểm ghi được
+            $totals = [];
+            foreach ($winnerTeamIds as $tid) {
+                $totals[$tid] = $pointTotals[(int) $tid] ?? 0;
+            }
+            $maxPts = max($totals);
+            $byPts = array_keys(array_filter($totals, fn($p) => $p === $maxPts));
+            if (count($byPts) === 1) {
+                $winnerTeamIds = $byPts; // phá hòa bằng điểm thành công
+            } else {
+                return ResponseHelper::error(
+                    "Hai đội hoà số set thắng và bằng điểm, chưa xác định được đội thắng",
+                    400
+                );
+            }
         }
-    
+
         $legWinnerId = $winnerTeamIds[0];
     
         // ===================================

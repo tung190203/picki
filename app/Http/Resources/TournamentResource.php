@@ -47,6 +47,7 @@ class TournamentResource extends JsonResource
             'fee' => $this->fee,
             'standard_fee_amount' => $this->standard_fee_amount,
             'is_private' => $this->is_private,
+            'creator_join' => $this->creator_join,
             'is_public_branch' => $this->is_public_branch,
             'is_own_score' => $this->is_own_score,
             'auto_approve' => $this->auto_approve,

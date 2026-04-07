@@ -1232,33 +1232,24 @@ const PAIRING_MODE_MANUAL = 'manual';
 
                     $isFinal = ($round == $totalRounds) && ($legs->count() > 0);
 
-                    // 3. Format Legs giống hệt Elimination
+                    // 3. Format Legs — dùng BracketService (hòa set → phá bằng tổng điểm)
                     $formattedLegs = $legs->map(function ($leg) use ($baseHomeId, $baseAwayId, &$homeTotal, &$awayTotal) {
-                        $res = $this->calculateSingleMatchWins($leg); // Hàm tính set thắng 2-1, 2-0...
-
-                        $homeLegScore = 0;
-                        $awayLegScore = 0;
-
-                        // Logic tính điểm thắng (3đ cho thắng trận, 0đ cho thua) giống Elimination
-                        if ($leg->home_team_id == $baseHomeId) {
-                            $homeLegScore = ($res['home'] > $res['away']) ? 3 : 0;
-                            $awayLegScore = ($res['away'] > $res['home']) ? 3 : 0;
-                        } else {
-                            $homeLegScore = ($res['away'] > $res['home']) ? 3 : 0;
-                            $awayLegScore = ($res['home'] > $res['away']) ? 3 : 0;
-                        }
+                        $details = $this->bracketService->calculateLegDetails($leg);
 
                         if ($leg->status === 'completed') {
-                            $homeTotal += $homeLegScore;
-                            $awayTotal += $awayLegScore;
+                            if ($details['winner_team_id'] === $baseHomeId) {
+                                $homeTotal += 3;
+                            } elseif ($details['winner_team_id'] === $baseAwayId) {
+                                $awayTotal += 3;
+                            }
                         }
 
                         return [
                             'id' => $leg->id,
                             'leg' => $leg->leg,
                             'court' => $leg->court,
-                            'home_score' => $homeLegScore,
-                            'away_score' => $awayLegScore,
+                            'home_score' => $details['home_score_calculated'],
+                            'away_score' => $details['away_score_calculated'],
                             'status' => $leg->status,
                             'scheduled_at' => $leg->scheduled_at,
                             'is_completed' => $leg->status === 'completed',
@@ -1280,6 +1271,7 @@ const PAIRING_MODE_MANUAL = 'manual';
                             'home' => $homeTotal,
                             'away' => $awayTotal,
                         ],
+                        'winner_team_id' => $homeTotal > $awayTotal ? $baseHomeId : ($awayTotal > $homeTotal ? $baseAwayId : null),
                         'status' => $legs->every(fn($l) => $l->status === 'completed') ? 'completed' : 'pending',
                     ];
                 })->values()
@@ -1304,64 +1296,6 @@ const PAIRING_MODE_MANUAL = 'manual';
      */
     private function getEliminationBracket(TournamentType $type)
     {
-        // Closure tính điểm và định dạng sets
-        $calculateLegDetails = function ($leg) {
-            $homeTeamId = $leg->home_team_id;
-            $awayTeamId = $leg->away_team_id;
-
-            $sets = [];
-            $homeSetWins = 0;
-            $awaySetWins = 0;
-
-            $groupedSets = $leg->results->groupBy('set_number');
-
-            foreach ($groupedSets as $setNumber => $setGroup) {
-                $home = $setGroup->firstWhere('team_id', $homeTeamId);
-                $away = $setGroup->firstWhere('team_id', $awayTeamId);
-
-                $homeScore = (int) ($home->score ?? 0);
-                $awayScore = (int) ($away->score ?? 0);
-
-                if ($homeScore > $awayScore) {
-                    $homeSetWins++;
-                } elseif ($awayScore > $homeScore) {
-                    $awaySetWins++;
-                }
-
-                $sets['set_' . $setNumber] = [
-                    ['team_id' => $homeTeamId, 'score' => $homeScore],
-                    ['team_id' => $awayTeamId, 'score' => $awayScore],
-                ];
-            }
-
-            // 👉 QUYẾT ĐỊNH THẮNG LEG
-            if ($homeSetWins > $awaySetWins) {
-                return [
-                    'sets' => $sets,
-                    'home_score_calculated' => 3,
-                    'away_score_calculated' => 0,
-                    'winner_team_id' => $homeTeamId,
-                ];
-            }
-
-            if ($awaySetWins > $homeSetWins) {
-                return [
-                    'sets' => $sets,
-                    'home_score_calculated' => 0,
-                    'away_score_calculated' => 3,
-                    'winner_team_id' => $awayTeamId,
-                ];
-            }
-
-            // Không đủ dữ liệu → chưa xác định
-            return [
-                'sets' => $sets,
-                'home_score_calculated' => 0,
-                'away_score_calculated' => 0,
-                'winner_team_id' => null,
-            ];
-        };
-
         $tournamentId = $type->tournament_id;
         $matches = $type->matches()
             ->with(['homeTeam.members', 'awayTeam.members', 'results'])
@@ -1376,7 +1310,7 @@ const PAIRING_MODE_MANUAL = 'manual';
 
         $bracket = $matches
             ->groupBy('round')
-            ->map(function ($roundMatches, $round) use ($calculateLegDetails, $type, $finalRound, $tournamentId) {
+            ->map(function ($roundMatches, $round) use ($type, $finalRound, $tournamentId) {
 
                 // ✅ SỬA: Group 2 leg thành 1 match - Dùng match_pair_id hoặc logic ổn định
                 $grouped = $roundMatches->groupBy(function ($match) {
@@ -1416,7 +1350,7 @@ const PAIRING_MODE_MANUAL = 'manual';
                 return [
                     'round' => $round,
                     'round_name' => $roundName,
-                    'matches' => $grouped->map(function ($matchGroup) use ($calculateLegDetails, $round, $finalRound, $tournamentId) {
+                    'matches' => $grouped->map(function ($matchGroup) use ($round, $finalRound, $tournamentId) {
 
                         $first = $matchGroup->first();
                         $homeTeamId = $first->home_team_id;
@@ -1429,13 +1363,12 @@ const PAIRING_MODE_MANUAL = 'manual';
                         $isFinal = ($round == $finalRound) && !($first->is_third_place ?? false);
 
                         $legs = $matchGroup->map(function ($leg) use (
-                            $calculateLegDetails,
                             &$homeTotal,
                             &$awayTotal,
                             $homeTeamId,
                             $awayTeamId
                         ) {
-                            $details = $calculateLegDetails($leg);
+                            $details = $this->bracketService->calculateLegDetails($leg);
                             if ($leg->status === 'completed') {
                                 if ($details['winner_team_id'] === $homeTeamId) {
                                     $homeTotal += 3;
@@ -1491,57 +1424,6 @@ const PAIRING_MODE_MANUAL = 'manual';
     private function getMixedBracket(TournamentType $type)
     {
         $tournamentId = $type->tournament_id;
-        $calculateLegDetails = function ($leg) {
-            $homeTeamId = $leg->home_team_id;
-            $awayTeamId = $leg->away_team_id;
-
-            $sets = [];
-            $homeSetWins = 0;
-            $awaySetWins = 0;
-
-            $groupedSets = $leg->results->groupBy('set_number');
-
-            foreach ($groupedSets as $setNumber => $setGroup) {
-                $home = $setGroup->firstWhere('team_id', $homeTeamId);
-                $away = $setGroup->firstWhere('team_id', $awayTeamId);
-
-                $homeScore = (int) ($home->score ?? 0);
-                $awayScore = (int) ($away->score ?? 0);
-
-                if ($homeScore > $awayScore) $homeSetWins++;
-                elseif ($awayScore > $homeScore) $awaySetWins++;
-
-                $sets['set_' . $setNumber] = [
-                    ['team_id' => $homeTeamId, 'score' => $homeScore],
-                    ['team_id' => $awayTeamId, 'score' => $awayScore],
-                ];
-            }
-
-            if ($homeSetWins > $awaySetWins) {
-                return [
-                    'sets' => $sets,
-                    'home_score_calculated' => 3,
-                    'away_score_calculated' => 0,
-                    'winner_team_id' => $homeTeamId,
-                ];
-            }
-
-            if ($awaySetWins > $homeSetWins) {
-                return [
-                    'sets' => $sets,
-                    'home_score_calculated' => 0,
-                    'away_score_calculated' => 3,
-                    'winner_team_id' => $awayTeamId,
-                ];
-            }
-
-            return [
-                'sets' => $sets,
-                'home_score_calculated' => 0,
-                'away_score_calculated' => 0,
-                'winner_team_id' => null,
-            ];
-        };
 
         // ===== POOL STAGE =====
         $poolMatches = $type->matches()
@@ -1551,7 +1433,7 @@ const PAIRING_MODE_MANUAL = 'manual';
             ->orderBy('leg')
             ->get();
 
-        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches, $groupId) use ($calculateLegDetails, $tournamentId) {
+        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches, $groupId) use ($tournamentId) {
             $group = $groupMatches->first()->group;
 
             $grouped = $groupMatches->groupBy(function ($match) {
@@ -1568,7 +1450,7 @@ const PAIRING_MODE_MANUAL = 'manual';
             return [
                 'group_id' => $groupId,
                 'group_name' => $group?->name ?? 'Bye',
-                'matches' => $grouped->map(function ($matchGroup) use ($calculateLegDetails, $tournamentId) {
+                'matches' => $grouped->map(function ($matchGroup) use ($tournamentId) {
                     $first = $matchGroup->first();
                     $homeTeamId = $first->home_team_id;
                     $awayTeamId = $first->away_team_id;
@@ -1577,13 +1459,12 @@ const PAIRING_MODE_MANUAL = 'manual';
                     $awayTotal = 0;
 
                     $legs = $matchGroup->map(function ($leg) use (
-                        $calculateLegDetails,
                         &$homeTotal,
                         &$awayTotal,
                         $homeTeamId,
                         $awayTeamId
                     ) {
-                        $details = $calculateLegDetails($leg);
+                        $details = $this->bracketService->calculateLegDetails($leg);
 
                         if ($leg->status === 'completed') {
                             if ($details['winner_team_id'] === $homeTeamId) $homeTotal += 3;
@@ -1644,7 +1525,6 @@ const PAIRING_MODE_MANUAL = 'manual';
             ->max('round') ?? 2;
 
         $knockoutStage = $knockoutMatches->groupBy('round')->map(function ($roundMatches, $round) use (
-            $calculateLegDetails,
             $type,
             $advancementRules,
             $finalKnockoutRound,
@@ -1664,7 +1544,6 @@ const PAIRING_MODE_MANUAL = 'manual';
                 'round' => $round,
                 'round_name' => $roundName,
                 'matches' => $matchGroups->map(function ($matchGroup) use (
-                    $calculateLegDetails,
                     $advancementRules,
                     $round,
                     $finalKnockoutRound,
@@ -1710,13 +1589,12 @@ const PAIRING_MODE_MANUAL = 'manual';
                     $isFinal = ($round == $finalKnockoutRound) && !($first->is_third_place ?? false);
 
                     $legs = $matchGroup->map(function ($leg) use (
-                        $calculateLegDetails,
                         &$homeTotal,
                         &$awayTotal,
                         $homeTeamId,
                         $awayTeamId
                     ) {
-                        $details = $calculateLegDetails($leg);
+                        $details = $this->bracketService->calculateLegDetails($leg);
 
                         if ($leg->status === 'completed') {
                             if ($details['winner_team_id'] === $homeTeamId) $homeTotal += 3;
@@ -1810,57 +1688,6 @@ const PAIRING_MODE_MANUAL = 'manual';
     private function getMixedBracketNew(TournamentType $type)
     {
         $tournamentId = $type->tournament_id;
-        $calculateLegDetails = function ($leg) {
-            $homeTeamId = $leg->home_team_id;
-            $awayTeamId = $leg->away_team_id;
-
-            $sets = [];
-            $homeSetWins = 0;
-            $awaySetWins = 0;
-
-            $groupedSets = $leg->results->groupBy('set_number');
-
-            foreach ($groupedSets as $setNumber => $setGroup) {
-                $home = $setGroup->firstWhere('team_id', $homeTeamId);
-                $away = $setGroup->firstWhere('team_id', $awayTeamId);
-
-                $homeScore = (int) ($home->score ?? 0);
-                $awayScore = (int) ($away->score ?? 0);
-
-                if ($homeScore > $awayScore) $homeSetWins++;
-                elseif ($awayScore > $homeScore) $awaySetWins++;
-
-                $sets['set_' . $setNumber] = [
-                    ['team_id' => $homeTeamId, 'score' => $homeScore],
-                    ['team_id' => $awayTeamId, 'score' => $awayScore],
-                ];
-            }
-
-            if ($homeSetWins > $awaySetWins) {
-                return [
-                    'sets' => $sets,
-                    'home_score_calculated' => 3,
-                    'away_score_calculated' => 0,
-                    'winner_team_id' => $homeTeamId,
-                ];
-            }
-
-            if ($awaySetWins > $homeSetWins) {
-                return [
-                    'sets' => $sets,
-                    'home_score_calculated' => 0,
-                    'away_score_calculated' => 3,
-                    'winner_team_id' => $awayTeamId,
-                ];
-            }
-
-            return [
-                'sets' => $sets,
-                'home_score_calculated' => 0,
-                'away_score_calculated' => 0,
-                'winner_team_id' => null,
-            ];
-        };
 
         // ===== POOL STAGE (Round 1) =====
         $poolMatches = $type->matches()
@@ -1870,7 +1697,7 @@ const PAIRING_MODE_MANUAL = 'manual';
             ->orderBy('leg')
             ->get();
 
-        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches, $groupId) use ($calculateLegDetails, $tournamentId) {
+        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches, $groupId) use ($tournamentId) {
             $group = $groupMatches->first()->group;
 
             $grouped = $groupMatches->groupBy(function ($match) {
@@ -1880,7 +1707,7 @@ const PAIRING_MODE_MANUAL = 'manual';
                 return collect([$match->home_team_id, $match->away_team_id])->sort()->implode('_');
             })->values();
 
-            $matchesData = $grouped->map(function ($matchGroup) use ($calculateLegDetails, $tournamentId) {
+            $matchesData = $grouped->map(function ($matchGroup) use ($tournamentId) {
                 $first = $matchGroup->first();
                 $homeTeamId = $first->home_team_id;
                 $awayTeamId = $first->away_team_id;
@@ -1896,8 +1723,8 @@ const PAIRING_MODE_MANUAL = 'manual';
                          ($matchGroup->some(fn($l) => $l->status === 'pending') ? 'pending' : 'cancelled');
 
                 // Tính tổng score từ các legs
-                $matchGroup->each(function ($leg) use ($calculateLegDetails, &$homeTotal, &$awayTotal, $homeTeamId, $awayTeamId) {
-                    $details = $calculateLegDetails($leg);
+                $matchGroup->each(function ($leg) use (&$homeTotal, &$awayTotal, $homeTeamId, $awayTeamId) {
+                    $details = $this->bracketService->calculateLegDetails($leg);
                     if ($leg->status === 'completed') {
                         if ($details['winner_team_id'] === $homeTeamId) $homeTotal += 3;
                         elseif ($details['winner_team_id'] === $awayTeamId) $awayTotal += 3;
@@ -1939,7 +1766,7 @@ const PAIRING_MODE_MANUAL = 'manual';
             ->filter(fn($m) => !($m->is_third_place ?? false))
             ->max('round') ?? 2;
 
-        $allKnockoutRounds = $knockoutMatches->groupBy('round')->map(function ($roundMatches, $round) use ($calculateLegDetails, $type, $finalKnockoutRound, $tournamentId) {
+        $allKnockoutRounds = $knockoutMatches->groupBy('round')->map(function ($roundMatches, $round) use ($type, $finalKnockoutRound, $tournamentId) {
             $numLegs = (int) ($type->num_legs ?? 1);
             $sortedMatches = $roundMatches->sortBy('id')->values();
             $matchGroups = $sortedMatches->chunk($numLegs);
@@ -1949,7 +1776,7 @@ const PAIRING_MODE_MANUAL = 'manual';
                 $roundName = 'Tranh hạng Ba';
             }
 
-            $matchesData = $matchGroups->map(function ($matchGroup) use ($calculateLegDetails, $round, $finalKnockoutRound, $tournamentId) {
+            $matchesData = $matchGroups->map(function ($matchGroup) use ($round, $finalKnockoutRound, $tournamentId) {
                 $first = $matchGroup->first();
                 $homeTeamId = $first->home_team_id;
                 $awayTeamId = $first->away_team_id;
@@ -1961,8 +1788,8 @@ const PAIRING_MODE_MANUAL = 'manual';
                 $status = $matchGroup->every(fn($l) => $l->status === 'completed') ? 'completed' :
                          ($matchGroup->some(fn($l) => $l->status === 'pending') ? 'pending' : 'cancelled');
 
-                $matchGroup->each(function ($leg) use ($calculateLegDetails, &$homeTotal, &$awayTotal, $homeTeamId, $awayTeamId) {
-                    $details = $calculateLegDetails($leg);
+                $matchGroup->each(function ($leg) use (&$homeTotal, &$awayTotal, $homeTeamId, $awayTeamId) {
+                    $details = $this->bracketService->calculateLegDetails($leg);
                     if ($leg->status === 'completed') {
                         if ($details['winner_team_id'] === $homeTeamId) $homeTotal += 3;
                         elseif ($details['winner_team_id'] === $awayTeamId) $awayTotal += 3;
