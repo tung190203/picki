@@ -294,6 +294,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/change-email', [UserController::class, 'changeEmail']);
         Route::post('/verify-change-email', [UserController::class, 'verifyChangeEmail']);
         Route::post('/resend-change-email-otp', [UserController::class, 'resendChangeEmailOtp']);
+        Route::match(['get', 'post'], '/tournaments/list', [UserController::class, 'tournamentsList']);
     });
     Route::prefix('tournaments')->group(function () {
         Route::get('/index', [TournamentController::class, 'index']);
@@ -564,12 +565,13 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     Route::prefix('mini-tournaments')->group(function (): void {
         Route::match(['get', 'post'], '/index', [MiniTournamentController::class, 'index']);
         Route::post('/store', [MiniTournamentController::class, 'store']);
-        Route::get('/{id}', [MiniTournamentController::class, 'show']);
-        Route::post('/update/{id}', [MiniTournamentController::class, 'update']);
-        Route::post('/delete/{id}', [MiniTournamentController::class,'destroy']);
+        // Các route có nhiều segment phải khai báo trước GET /{id} để tránh match nhầm / 405 Method Not Allowed
         Route::post('/{tournamentId}/recurrence-series/cancel', [MiniTournamentController::class, 'cancelRecurrenceSeries']);
         Route::post('/{miniTournamentId}/participants/{participantId}/mark-check-in', [MiniTournamentController::class, 'markParticipantCheckIn']);
         Route::post('/{miniTournamentId}/participants/{participantId}/mark-absent', [MiniTournamentController::class, 'markParticipantAbsent']);
+        Route::get('/{id}', [MiniTournamentController::class, 'show'])->whereNumber('id');
+        Route::post('/update/{id}', [MiniTournamentController::class, 'update']);
+        Route::post('/delete/{id}', [MiniTournamentController::class,'destroy']);
 
         // Mini Tournament Payment Routes
         Route::get('/{id}/payments', [MiniTournamentPaymentController::class, 'index']);
@@ -590,6 +592,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{id}/guests/confirm/{participantId}', [GuestController::class, 'confirmGuest']);
         Route::post('/{id}/guests/{participantId}/guarantor-check-in', [GuestController::class, 'guarantorCheckIn']);
         Route::post('/{id}/guests/{participantId}/mark-check-in', [GuestController::class, 'markGuestCheckIn']);
+        Route::post('/{id}/guests/{participantId}/mark-absent', [GuestController::class, 'markGuestAbsent']);
     });
     // Mini Tournament Templates
     Route::prefix('mini-tournament-templates')->group(function (): void {

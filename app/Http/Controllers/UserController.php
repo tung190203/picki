@@ -458,4 +458,56 @@ class UserController extends Controller
             'status_code' => 'OTP_SENT'
         ], 'Mã OTP mới đã được gửi');
     }
+
+    /**
+     * Lấy lịch sử giải đấu của user
+     * GET/POST /api/user/tournaments/list
+     * params: user_id, sport_id, page, per_page
+     * sort: ongoing tournaments first, then upcoming, then finished
+     */
+    public function tournamentsList(Request $request)
+    {
+        $validated = $request->validate([
+            'user_id'   => 'required|exists:users,id',
+            'sport_id'  => 'nullable|exists:sports,id',
+            'per_page'  => 'nullable|integer|min:1|max:200',
+            'page'      => 'nullable|integer|min:1',
+        ]);
+
+        $userId = $validated['user_id'];
+        $sportId = $validated['sport_id'] ?? null;
+        $perPage = $validated['per_page'] ?? Tournament::PER_PAGE;
+
+        $query = Tournament::query()
+            ->withBasicRelations()
+            ->where(function ($q) use ($userId) {
+                $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId))
+                  ->orWhereHas('tournamentStaffs', fn($sq) => $sq->where('user_id', $userId));
+            })
+            ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
+            ->selectRaw("
+                CASE
+                    WHEN start_date <= NOW() AND end_date >= NOW() THEN 0
+                    WHEN start_date > NOW() THEN 1
+                    ELSE 2
+                END AS ongoing_order
+            ")
+            ->orderByRaw('ongoing_order ASC')
+            ->orderBy('start_date', 'desc');
+
+        $tournaments = $query->paginate($perPage);
+
+        $data = [
+            'tournaments' => TournamentResource::collection($tournaments),
+        ];
+
+        $meta = [
+            'current_page' => $tournaments->currentPage(),
+            'last_page'    => $tournaments->lastPage(),
+            'per_page'     => $tournaments->perPage(),
+            'total'        => $tournaments->total(),
+        ];
+
+        return ResponseHelper::success($data, 'Lấy lịch sử giải đấu thành công', 200, $meta);
+    }
 }
