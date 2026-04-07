@@ -64,7 +64,29 @@ class BracketService
             ];
         }
 
-        // Hòa hoặc chưa có kết quả
+        // Hòa số set thắng → phá bằng tổng điểm ghi được (khớp luật xác nhận trận)
+        $homeTotalPts = (int) $leg->results->where('team_id', $homeTeamId)->sum('score');
+        $awayTotalPts = (int) $leg->results->where('team_id', $awayTeamId)->sum('score');
+
+        if ($homeTotalPts > $awayTotalPts) {
+            return [
+                'sets' => $sets,
+                'home_score_calculated' => 3,
+                'away_score_calculated' => 0,
+                'winner_team_id' => $homeTeamId,
+            ];
+        }
+
+        if ($awayTotalPts > $homeTotalPts) {
+            return [
+                'sets' => $sets,
+                'home_score_calculated' => 0,
+                'away_score_calculated' => 3,
+                'winner_team_id' => $awayTeamId,
+            ];
+        }
+
+        // Chưa có dữ liệu hoặc hòa hoàn toàn
         return [
             'sets' => $sets,
             'home_score_calculated' => 0,

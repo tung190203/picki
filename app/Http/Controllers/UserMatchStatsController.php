@@ -6,6 +6,7 @@ use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MiniTeamResource;
 use App\Http\Resources\TeamResource;
+use App\Support\MiniTournamentTeamMemberHydrator;
 use App\Support\TournamentTeamMemberHydrator;
 use Illuminate\Http\Request;
 use App\Models\VnduprHistory;
@@ -614,6 +615,15 @@ class UserMatchStatsController extends Controller
         }
 
         // ========== XỬ LÝ MINI MATCHES - TEAM-BASED, SWAP ĐỂ USER LUÔN Ở TEAM1 ==========
+        // Hydrate miniTournamentParticipant vào mỗi member TRƯỚC vòng lặp (1 lần duy nhất)
+        if ($minis->isNotEmpty()) {
+            $miniTournamentId = $minis->first()->miniTournament->id;
+            $teamsToHydrate = $minis->pluck('team1')->merge($minis->pluck('team2'))->filter()->unique('id');
+            foreach ($teamsToHydrate as $team) {
+                MiniTournamentTeamMemberHydrator::hydrateTeam($team, (int) $miniTournamentId);
+            }
+        }
+
         foreach ($minis as $mini) {
             $history = $histories->where('mini_match_id', $mini->id)->first();
             if (!$history) continue;
@@ -674,7 +684,6 @@ class UserMatchStatsController extends Controller
                     ];
                 }
 
-                // ✅ is_win dựa vào myTeamId (đã swap)
                 $is_win = ($mini->team_win_id == $myTeamId);
             }
 

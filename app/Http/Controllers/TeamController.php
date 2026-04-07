@@ -212,6 +212,13 @@ class TeamController extends Controller
             return ResponseHelper::error('Bạn không có quyền tự động chia đội', 400);
         }
 
+        if ($tournament->hasMatchesWithResults()) {
+            return ResponseHelper::error(
+                'Không thể chia lại đội. Đội đã có trận đấu đang diễn ra/hoàn thành',
+                400
+            );
+        }
+
         $participants = Participant::where('tournament_id', $tournamentId)
             ->where('is_confirmed', true)
             ->get()
@@ -285,11 +292,24 @@ class TeamController extends Controller
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền xoá thành viên khỏi đội', 400);
         }
-        // if ($tournament->tournamentTypes()->exists()) {
-        //     return ResponseHelper::error('Không thể xoá thành viên khỏi đội khi giải đấu đã có loại hình thi đấu', 400);
-        // }
+
+        if ($tournament->hasMatchesWithResults()) {
+            return ResponseHelper::error(
+                'Không thể xoá thành viên khỏi đội. Đội đã có trận đấu đang diễn ra/hoàn thành',
+                400
+            );
+        }
 
         $team = Team::findOrFail($teamId);
+        $matches = Matches::where('home_team_id', $teamId)
+            ->orWhere('away_team_id', $teamId)
+            ->get();
+        if ($matches->isNotEmpty() && MatchResult::whereIn('match_id', $matches->pluck('id'))->exists()) {
+            return ResponseHelper::error(
+                'Không thể xoá thành viên khỏi đội. Đội đã có trận đấu đang diễn ra/hoàn thành',
+                400
+            );
+        }
         $team->members()->detach($request->user_id);
 
         $team->load($this->withMembersRelations());
@@ -306,6 +326,14 @@ class TeamController extends Controller
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền xoá đội', 400);
         }
+
+        if ($tournament->hasMatchesWithResults()) {
+            return ResponseHelper::error(
+                'Không thể xoá đội. Đội đã có trận đấu đang diễn ra/hoàn thành',
+                400
+            );
+        }
+
         $tournamentTypeIds = $tournament->tournamentTypes()->pluck('id');
         // if ($tournament->tournamentTypes()->exists()) {
         //     return ResponseHelper::error('Không thể xoá đội khi giải đấu đã có loại hình thi đấu', 400);
