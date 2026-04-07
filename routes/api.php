@@ -294,6 +294,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/change-email', [UserController::class, 'changeEmail']);
         Route::post('/verify-change-email', [UserController::class, 'verifyChangeEmail']);
         Route::post('/resend-change-email-otp', [UserController::class, 'resendChangeEmailOtp']);
+        Route::match(['get', 'post'], '/tournaments/list', [UserController::class, 'tournamentsList']);
     });
     Route::prefix('tournaments')->group(function () {
         Route::get('/index', [TournamentController::class, 'index']);
