@@ -472,4 +472,17 @@ class Tournament extends Model
             ->orderByRaw('competition_locations.latitude IS NULL OR competition_locations.longitude IS NULL')
             ->orderBy('distance', 'asc');
     }
+
+    /**
+     * Kiểm tra tournament có trận đấu đã lưu/xác nhận kết quả hay không.
+     * @return bool
+     */
+    public function hasMatchesWithResults(): bool
+    {
+        return $this->tournamentTypes()
+            ->whereHas('groups.matches', function ($q) {
+                $q->whereHas('results');
+            })
+            ->exists();
+    }
 }
