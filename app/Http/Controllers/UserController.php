@@ -480,8 +480,14 @@ class UserController extends Controller
         $sportId = $validated['sport_id'] ?? null;
         $perPage = $validated['per_page'] ?? Tournament::PER_PAGE;
 
+        // Lấy user đang request (auth)
+        $authUserId = auth()->id();
+
+        // Kiểm tra có phải đang xem chính mình không
+        $isOwnProfile = ($authUserId && $authUserId == $userId);
+
         // Chỉ lấy giải đã bắt đầu (start_date <= now)
-        // Đang diễn ra (end_date >= now) xếp trước, sau đó đến đã kết thúc (status = CLOSED = 3)
+        // Sort: đang diễn ra (end_date >= now) lên trên, sau đó đã kết thúc (status = CLOSED = 3)
         $query = Tournament::query()
             ->with(['createdBy', 'club', 'sport', 'tournamentStaffs', 'competitionLocation', 'teams', 'participants'])
             ->where('start_date', '<=', now())
@@ -490,6 +496,10 @@ class UserController extends Controller
                   ->orWhereHas('tournamentStaffs', fn($sq) => $sq->where('user_id', $userId));
             })
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
+            // Nếu xem profile người khác → chỉ lấy giải public (is_private = false)
+            ->when(!$isOwnProfile, function ($q) {
+                $q->where('is_private', false);
+            })
             ->selectRaw("
                 CASE
                     WHEN status = 3 THEN 1
