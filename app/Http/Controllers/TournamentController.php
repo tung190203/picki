@@ -69,6 +69,83 @@ class TournamentController extends Controller
         return null;
     }
 
+    /**
+     * Khi người dùng đồng thời là VĐV (participants) và BTC (tournament_staff),
+     * sau khi cập nhật bản ghi participants thì gọi method này để đồng thời
+     * cập nhật bản ghi tournament_staff cùng user_id — nếu chưa có trạng thái.
+     */
+    protected function syncStaffAttendanceFromParticipant(Participant $participant): void
+    {
+        $staff = TournamentStaff::where('tournament_id', $participant->tournament_id)
+            ->where('user_id', $participant->user_id)
+            ->first();
+
+        if (!$staff || $staff->checked_in_at || $staff->is_absent) {
+            return;
+        }
+
+        $staff->update([
+            'checked_in_at' => $participant->checked_in_at,
+            'is_absent' => false,
+        ]);
+    }
+
+    /**
+     * Khi người dùng đồng thời là VĐV (participants) và BTC (tournament_staff),
+     * sau khi cập nhật bản ghi tournament_staff thì gọi method này để đồng thời
+     * cập nhật bản ghi participants cùng user_id — nếu chưa có trạng thái.
+     */
+    protected function syncParticipantAttendanceFromStaff(TournamentStaff $staff): void
+    {
+        $participant = Participant::where('tournament_id', $staff->tournament_id)
+            ->where('user_id', $staff->user_id)
+            ->first();
+
+        if (!$participant || $participant->checked_in_at || $participant->is_absent) {
+            return;
+        }
+
+        $participant->update([
+            'is_confirmed' => true,
+            'checked_in_at' => $staff->checked_in_at,
+            'is_absent' => false,
+        ]);
+    }
+
+    /**
+     * Khi người dùng đồng thời là VĐV và BTC, sau khi báo vắng ở bảng participants
+     * thì đồng thời báo vắng ở bảng tournament_staff cùng user_id — nếu chưa có trạng thái.
+     */
+    protected function syncStaffAbsentFromParticipant(Participant $participant): void
+    {
+        $staff = TournamentStaff::where('tournament_id', $participant->tournament_id)
+            ->where('user_id', $participant->user_id)
+            ->first();
+
+        if (!$staff || $staff->checked_in_at || $staff->is_absent) {
+            return;
+        }
+
+        $staff->update(['is_absent' => true]);
+    }
+
+    /**
+     * Khi người dùng đồng thời là VĐV và BTC, sau khi báo vắng ở bảng tournament_staff
+     * thì đồng thời báo vắng ở bảng participants cùng user_id — nếu chưa có trạng thái.
+     */
+    protected function syncParticipantAbsentFromStaff(TournamentStaff $staff): void
+    {
+        $participant = Participant::where('tournament_id', $staff->tournament_id)
+            ->where('user_id', $staff->user_id)
+            ->first();
+
+        if (!$participant || $participant->checked_in_at || $participant->is_absent) {
+            return;
+        }
+
+        $participant->update(['is_absent' => true]);
+    }
+
     public function __construct(
         ImageOptimizationService $imageService,
         TournamentTypeController $tournamentTypeController
@@ -240,8 +317,14 @@ class TournamentController extends Controller
                 unset($validated['poster']);
             }
             unset($validated['remove_poster']);
+            $oldStatus = $tournament->status;
+            $newStatus = $validated['status'] ?? $oldStatus;
             $tournament->fill($validated);
             $tournament->save();
+
+            if ($newStatus == Tournament::CLOSED && $oldStatus != Tournament::CLOSED) {
+                $this->updateParticipantsRatingStats($tournament);
+            }
         });
 
         $tournament = Tournament::withBasicRelations()->find($tournament->id);
@@ -358,6 +441,8 @@ class TournamentController extends Controller
 
             $participant->load('user');
 
+            $this->syncStaffAttendanceFromParticipant($participant);
+
             return ResponseHelper::success(
                 new ParticipantResource($participant),
                 'Đã đánh dấu check-in thành công'
@@ -388,6 +473,8 @@ class TournamentController extends Controller
         }
 
         $tournamentStaff->load('user');
+
+        $this->syncParticipantAttendanceFromStaff($tournamentStaff);
 
         return ResponseHelper::success(
             new TournamentStaffResource($tournamentStaff),
@@ -429,6 +516,8 @@ class TournamentController extends Controller
 
             $participant->load('user');
 
+            $this->syncStaffAttendanceFromParticipant($participant);
+
             return ResponseHelper::success(
                 new ParticipantResource($participant),
                 'Đã đánh dấu vắng mặt thành công'
@@ -456,6 +545,8 @@ class TournamentController extends Controller
         ]);
 
         $tournamentStaff->load('user');
+
+        $this->syncParticipantAttendanceFromStaff($tournamentStaff);
 
         return ResponseHelper::success(
             new TournamentStaffResource($tournamentStaff),
@@ -507,6 +598,8 @@ class TournamentController extends Controller
 
             $participant->load('user');
 
+            $this->syncStaffAttendanceFromParticipant($participant);
+
             return ResponseHelper::success(
                 new ParticipantResource($participant),
                 'Check-in thành công'
@@ -537,6 +630,8 @@ class TournamentController extends Controller
         }
 
         $tournamentStaff->load('user');
+
+        $this->syncParticipantAttendanceFromStaff($tournamentStaff);
 
         return ResponseHelper::success(
             new TournamentStaffResource($tournamentStaff),
@@ -583,6 +678,8 @@ class TournamentController extends Controller
 
             $participant->load('user');
 
+            $this->syncStaffAbsentFromParticipant($participant);
+
             return ResponseHelper::success(
                 new ParticipantResource($participant),
                 'Đã báo vắng thành công'
@@ -611,9 +708,52 @@ class TournamentController extends Controller
 
         $tournamentStaff->load('user');
 
+        $this->syncParticipantAbsentFromStaff($tournamentStaff);
+
         return ResponseHelper::success(
             new TournamentStaffResource($tournamentStaff),
             'Đã báo vắng thành công'
         );
+    }
+
+    /**
+     * Cập nhật rating và rank cho tất cả participants khi giải đấu kết thúc
+     */
+    private function updateParticipantsRatingStats(Tournament $tournament): void
+    {
+        $participants = $tournament->participants()
+            ->whereNotNull('user_id')
+            ->with('user')
+            ->get();
+
+        foreach ($participants as $participant) {
+            $user = $participant->user;
+            if (!$user) {
+                continue;
+            }
+
+            // Lấy rating hiện tại (mới nhất sau giải)
+            $userSport = $user->sports()
+                ->where('sport_id', $tournament->sport_id)
+                ->first();
+            $currentScore = $userSport
+                ? $userSport->scores()->where('score_type', 'vndupr_score')->value('score_value')
+                : null;
+
+            // Lấy rank hiện tại
+            $currentRank = $user->getVNRank($tournament->sport_id);
+
+            $updateData = [
+                'rating_after' => $currentScore,
+                'rank_after' => $currentRank,
+            ];
+
+            // Tính rank_change
+            if ($participant->rank_before && $currentRank) {
+                $updateData['rank_change'] = $participant->rank_before - $currentRank;
+            }
+
+            $participant->update($updateData);
+        }
     }
 }

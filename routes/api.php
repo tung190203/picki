@@ -100,6 +100,13 @@ Route::post('/resend-email', [VerificationController::class, 'resend']);
 // Public route - không cần accessToken
 Route::get('/tournament-detail/{id}/bracket', [TournamentController::class, 'getBracket']);
 
+// Tournament Public Routes - Landing Page (không cần đăng nhập)
+Route::prefix('tournaments')->group(function () {
+    Route::get('/index', [TournamentController::class, 'index']);
+    Route::get('/{id}', [TournamentController::class, 'show']);
+    Route::get('/{id}/bracket', [TournamentController::class, 'getBracket']);
+});
+
 // Clubs API: không throttle để mobile gọi nhiều không bị lỗi 429
 Route::middleware(['auth:api', 'update.last_login'])->group(function () {
     Route::prefix('clubs')->group(function () {
@@ -297,12 +304,8 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::match(['get', 'post'], '/tournaments/list', [UserController::class, 'tournamentsList']);
     });
     Route::prefix('tournaments')->group(function () {
-        Route::get('/index', [TournamentController::class, 'index']);
+        // GET routes đã chuyển ra nhóm public ở trên
         Route::post('/store', [TournamentController::class, 'store']);
-        Route::get('/{id}', [TournamentController::class, 'show']);
-        Route::post('/update/{id}', [TournamentController::class, 'update']);
-        Route::post('/delete', [TournamentController::class, 'destroy']);
-        Route::get('/{id}/bracket', [TournamentController::class, 'getBracket']);
 
         // Participant check-in / absent (organizer / club staff)
         Route::post('/{id}/participants/{participantId}/mark-check-in', [TournamentController::class, 'markParticipantCheckIn']);

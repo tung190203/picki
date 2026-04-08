@@ -197,10 +197,14 @@ class ParticipantController extends Controller
             return response()->json(['message' => 'Bạn đã tham gia giải này.'], 422);
         }
 
+        $rank = $user->getVNRank($tournament->sport_id);
+
         $participant = Participant::create([
             'tournament_id' => $tournamentId,
             'user_id' => $user->id,
             'is_confirmed' => $tournament->auto_approve && !$tournament->is_private,
+            'rating_before' => $score,
+            'rank_before' => $rank,
         ]);
 
         $organizers = $tournament->staff()->wherePivot('role', TournamentStaff::ROLE_ORGANIZER)->get();

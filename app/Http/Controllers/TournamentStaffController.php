@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\TournamentStaffResource;
+use App\Models\Participant;
 use App\Models\Tournament;
 use App\Models\TournamentStaff;
 use Illuminate\Http\Request;
@@ -117,6 +118,8 @@ class TournamentStaffController extends Controller
 
         $tournamentStaff->load('user');
 
+        $this->syncParticipantAttendanceFromStaff($tournamentStaff);
+
         return ResponseHelper::success(
             new TournamentStaffResource($tournamentStaff),
             'Đã đánh dấu check-in thành công'
@@ -156,9 +159,49 @@ class TournamentStaffController extends Controller
 
         $tournamentStaff->load('user');
 
+        $this->syncParticipantAbsentFromStaff($tournamentStaff);
+
         return ResponseHelper::success(
             new TournamentStaffResource($tournamentStaff),
             'Đã đánh dấu vắng mặt thành công'
         );
+    }
+
+    /**
+     * Sau khi cập nhật check-in ở tournament_staff, đồng thời cập nhật
+     * bản ghi participants cùng user_id — nếu chưa có trạng thái.
+     */
+    private function syncParticipantAttendanceFromStaff(TournamentStaff $staff): void
+    {
+        $participant = Participant::where('tournament_id', $staff->tournament_id)
+            ->where('user_id', $staff->user_id)
+            ->first();
+
+        if (!$participant || $participant->checked_in_at || $participant->is_absent) {
+            return;
+        }
+
+        $participant->update([
+            'is_confirmed' => true,
+            'checked_in_at' => $staff->checked_in_at,
+            'is_absent' => false,
+        ]);
+    }
+
+    /**
+     * Sau khi báo vắng ở tournament_staff, đồng thời báo vắng ở
+     * bảng participants cùng user_id — nếu chưa có trạng thái.
+     */
+    private function syncParticipantAbsentFromStaff(TournamentStaff $staff): void
+    {
+        $participant = Participant::where('tournament_id', $staff->tournament_id)
+            ->where('user_id', $staff->user_id)
+            ->first();
+
+        if (!$participant || $participant->checked_in_at || $participant->is_absent) {
+            return;
+        }
+
+        $participant->update(['is_absent' => true]);
     }
 }

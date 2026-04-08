@@ -47,3 +47,23 @@ export const confirmMiniParticipant = async (miniParticipantId) => {
     return axiosInstance.post(`${miniParticipantEndpoint}/confirm/${miniParticipantId}`).then((response) => response?.data?.data);
 }
 
+// Mini-Tournament check-in / absent
+export const markMiniParticipantCheckIn = async (miniTournamentId, participantId) => {
+    return axiosInstance.post(`/mini-tournaments/${miniTournamentId}/participants/${participantId}/mark-check-in`)
+        .then(r => r.data);
+};
+
+export const markMiniParticipantAbsent = async (miniTournamentId, participantId) => {
+    return axiosInstance.post(`/mini-tournaments/${miniTournamentId}/participants/${participantId}/mark-absent`)
+        .then(r => r.data);
+};
+
+export const selfCheckInMini = async (miniTournamentId) => {
+    return axiosInstance.post(`/mini-participants/self/check-in/${miniTournamentId}`)
+        .then(r => r.data);
+};
+
+export const selfMarkAbsentMini = async (miniTournamentId) => {
+    return axiosInstance.post(`/mini-participants/self/absent/${miniTournamentId}`)
+        .then(r => r.data);
+};
