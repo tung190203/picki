@@ -49,12 +49,12 @@
                             <!-- Organizer actions: Check-in / Báo vắng cho VĐV -->
                             <template v-if="isOrganizer">
                                 <button v-if="canCheckIn" @click="handleCheckIn"
-                                    class="w-full py-2.5 px-4 rounded-lg bg-green-600 text-white hover:bg-green-700 transition flex items-center justify-center gap-2 font-medium text-sm">
+                                    class="w-full py-2.5 px-4 rounded-lg bg-[#D72D36] text-white hover:bg-red-700 transition flex items-center justify-center gap-2 font-medium text-sm">
                                     <CheckIcon class="w-5 h-5" />
                                     Check-in
                                 </button>
                                 <button v-if="canMarkAbsent" @click="handleAbsent"
-                                    class="w-full py-2.5 px-4 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition flex items-center justify-center gap-2 font-medium text-sm">
+                                    class="w-full py-2.5 px-4 rounded-lg bg-gray-400 text-white hover:bg-gray-500 transition flex items-center justify-center gap-2 font-medium text-sm">
                                     <XMarkIcon class="w-5 h-5" />
                                     Báo vắng
                                 </button>
@@ -63,12 +63,12 @@
                             <!-- Participant actions: Tự check-in / Tự báo vắng (chỉ khi chính mình) -->
                             <template v-if="isSelfParticipant">
                                 <button v-if="canSelfCheckIn" @click="handleSelfCheckIn"
-                                    class="w-full py-2.5 px-4 rounded-lg bg-green-600 text-white hover:bg-green-700 transition flex items-center justify-center gap-2 font-medium text-sm">
+                                    class="w-full py-2.5 px-4 rounded-lg bg-[#D72D36] text-white hover:bg-red-700 transition flex items-center justify-center gap-2 font-medium text-sm">
                                     <CheckIcon class="w-5 h-5" />
                                     Tự check-in
                                 </button>
                                 <button v-if="canSelfMarkAbsent" @click="handleSelfAbsent"
-                                    class="w-full py-2.5 px-4 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition flex items-center justify-center gap-2 font-medium text-sm">
+                                    class="w-full py-2.5 px-4 rounded-lg bg-gray-400 text-white hover:bg-gray-500 transition flex items-center justify-center gap-2 font-medium text-sm">
                                     <XMarkIcon class="w-5 h-5" />
                                     Tự báo vắng
                                 </button>
@@ -130,20 +130,22 @@ const memberRating = computed(() => {
 
 const memberStatus = computed(() => {
     if (!props.member) return 'normal'
-    if (props.member.checked_in_at && !props.member.is_absent) return 'checked_in'
     if (props.member.is_absent) return 'absent'
+    if (props.member.checked_in_at) return 'checked_in'
     if (props.member.is_confirmed) return 'confirmed'
-    return 'pending'
+    if (props.member.is_pending_confirmation) return 'pending'
+    return 'unchecked'
 })
 
 const statusText = computed(() => {
     const map = {
         checked_in: 'Đã check-in',
-        absent: 'Vắng mặt',
+        absent: 'Đã báo vắng',
         confirmed: 'Đã xác nhận',
         pending: 'Chờ xác nhận',
+        unchecked: 'Chưa check-in',
     }
-    return map[memberStatus.value] || ''
+    return map[memberStatus.value] || 'Chưa check-in'
 })
 
 const statusTextClass = computed(() => {
@@ -151,7 +153,8 @@ const statusTextClass = computed(() => {
         checked_in: 'bg-green-100 text-green-700',
         absent: 'bg-red-100 text-red-700',
         confirmed: 'bg-blue-100 text-blue-700',
-        pending: 'bg-gray-100 text-gray-500',
+        pending: 'bg-yellow-100 text-yellow-700',
+        unchecked: 'bg-gray-100 text-gray-500',
     }
     return map[memberStatus.value] || 'bg-gray-100 text-gray-500'
 })
