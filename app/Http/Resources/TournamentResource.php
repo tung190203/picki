@@ -71,12 +71,28 @@ class TournamentResource extends JsonResource
                 return ParticipantResource::collection($this->participants);
             }),
             'tournament_types' => TournamentTypeResource::collection($this->whenLoaded('tournamentTypes')) ?? [],
-            'is_joined' => $this->participants
-                ? $this->participants->contains('user_id', auth()->id())
-                : false,
-            'is_confirmed_by_organizer' =>
-                (bool) $this->participants?->firstWhere('user_id', auth()->id())?->is_confirmed,
-            'is_invite_by_organizer' => (bool) $this->participants?->firstWhere('user_id', auth()->id())?->is_invite_by_organizer
+            'is_joined' => auth()->check()
+                ? ($this->participants ? $this->participants->contains('user_id', auth()->id()) : false)
+                : null,
+            'is_confirmed_by_organizer' => auth()->check()
+                ? (bool) $this->participants?->firstWhere('user_id', auth()->id())?->is_confirmed
+                : null,
+            'is_invite_by_organizer' => auth()->check()
+                ? (bool) $this->participants?->firstWhere('user_id', auth()->id())?->is_invite_by_organizer
+                : null,
+            'my_tournament_stats' => auth()->check() ? function () {
+                $participant = $this->participants?->firstWhere('user_id', auth()->id());
+                if (!$participant) {
+                    return null;
+                }
+                return [
+                    'rating_before' => $participant->rating_before ? (float) $participant->rating_before : null,
+                    'rating_after' => $participant->rating_after ? (float) $participant->rating_after : null,
+                    'rank_before' => $participant->rank_before,
+                    'rank_after' => $participant->rank_after,
+                    'rank_change' => $participant->rank_change,
+                ];
+            } : null,
         ];
     }
 }

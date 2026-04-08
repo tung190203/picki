@@ -342,7 +342,7 @@
                         :showActions="true"
                         :is_invite_by_organizer="item.is_invite_by_organizer"
                         @removeUser="handleRemoveUser"
-                        @click="openActionModal(item)"
+                        @click="openMemberActionModal($event)"
                         @confirm="handleConfirmUser(item)"
                         @reject="handleRejectUser(item)" />
                       <UserCardPending v-for="(item, index) in guestPendingParticipants" :key="'guest-pending-' + index" :id="item.id"
@@ -368,7 +368,7 @@
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
                         status="approved" @removeUser="handleRemoveUser"
-                        @click="openActionModal(item)" />
+                        @click="openMemberActionModal($event)" />
                       <UserCard v-if="isCreator"
                         :empty="true" @clickEmpty="openInviteModalWithFriends" />
                     </div>
@@ -386,7 +386,7 @@
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
                         status="approved" @removeUser="handleRemoveUser"
-                        @click="openActionModal(item)" />
+                        @click="openMemberActionModal($event)" />
                     </div>
                   </div>
 
@@ -402,7 +402,7 @@
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
                         status="absent" @removeUser="handleRemoveUser"
-                        @click="openActionModal(item)" />
+                        @click="openMemberActionModal($event)" />
                     </div>
                   </div>
 
@@ -719,6 +719,19 @@
       :isLoading="isFetchingNonTeamUsers" />
     <PlayerActionModal v-model="showActionModal" :user="selectedUser" @view-profile="viewProfile"
       @confirm="confirmUser" />
+    <MemberActionModal
+      v-model="showMemberActionModal"
+      :member="selectedMember"
+      :current-user="getUser"
+      tournament-type="tournament"
+      :is-current-user-organizer="isScorer"
+      :is-current-user-participant="isCurrentUserParticipant"
+      @view-profile="handleMemberViewProfile"
+      @check-in="handleMemberCheckIn"
+      @absent="handleMemberAbsent"
+      @self-check-in="handleMemberSelfCheckIn"
+      @self-absent="handleMemberSelfAbsent"
+    />
     <AddTournamentGuestModal
       v-model:isOpen="showAddGuestModal"
       :tournament="tournament"
@@ -750,6 +763,12 @@ import * as TournamentService from '@/service/tournament.js'
 import * as TournamentTypeService from '@/service/tournamentType.js'
 import * as TeamService from '@/service/team.js'
 import * as ParticipantService from '@/service/participant.js'
+import {
+  markParticipantCheckIn,
+  markParticipantAbsent,
+  selfCheckInTournament,
+  selfMarkAbsentTournament,
+} from '@/service/participant.js'
 import * as TournamentStaffService from '@/service/tournamentStaff.js'
 import * as ClubService from '@/service/club.js'
 import { useRoute, useRouter } from 'vue-router'
@@ -776,6 +795,7 @@ import ScheduleTab from '@/components/molecules/ScheduleTab.vue'
 import ChatForm from '@/components/organisms/ChatForm.vue'
 import PlayerActionModal from '@/components/molecules/PlayerActionModal.vue'
 import AddTournamentGuestModal from '@/components/pages/tournament/partials/AddTournamentGuestModal.vue'
+import MemberActionModal from '@/components/molecules/MemberActionModal.vue'
 import TableChartIcon from '@/assets/images/table_chart.svg';
 import ScheduleIcon from '@/assets/images/branch.svg';
 
@@ -859,6 +879,12 @@ const isScorer = computed(() => {
     staff => [1, 2, 3].includes(staff.role) && staff.staff?.id === getUser.value.id
   )
 })
+
+const isCurrentUserParticipant = computed(() => {
+  return tournament.value?.tournament_participants?.some(
+    p => p.user?.id === getUser.value?.id
+  )
+})
 const organizersList = computed(() => {
   return tournament.value?.tournament_staff?.filter(staff => staff.role === 1) || []
 })
@@ -896,6 +922,8 @@ const setupDescription = () => {
 const showActionModal = ref(false)
 const selectedUser = ref(null)
 const showAddGuestModal = ref(false)
+const showMemberActionModal = ref(false)
+const selectedMember = ref(null)
 
 function openActionModal(user) {
   selectedUser.value = user
@@ -904,6 +932,69 @@ function openActionModal(user) {
 
 function viewProfile() {
   router.push(`/profile/${selectedUser.value.user.id}`)
+}
+
+function openMemberActionModal(param) {
+  // param có thể là props object (từ UserCard click event) hoặc participant item (từ @click.stop)
+  if (param && param.id !== undefined && !param.user && !param.checked_in_at) {
+    // Đây là UserCard props — construct participant object từ props
+    selectedMember.value = {
+      id: param.userId || param.id,
+      participant_id: param.id,
+      name: param.name,
+      avatar: param.avatar,
+      rating: param.rating,
+      user: { id: param.userId || param.id, full_name: param.name, avatar_url: param.avatar }
+    }
+  } else {
+    // Đây là participant item — đảm bảo có participant_id
+    selectedMember.value = { ...param, participant_id: param.id }
+  }
+  showMemberActionModal.value = true
+}
+
+function handleMemberViewProfile(member) {
+  router.push(`/profile/${member.user?.id}`)
+}
+
+async function handleMemberCheckIn(member) {
+  try {
+    await markParticipantCheckIn(id, member.id)
+    toast.success('Đã đánh dấu check-in thành công!')
+    await detailTournament(id)
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi đánh dấu check-in.')
+  }
+}
+
+async function handleMemberAbsent(member) {
+  try {
+    await markParticipantAbsent(id, member.id)
+    toast.success('Đã đánh dấu vắng mặt thành công!')
+    await detailTournament(id)
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi đánh dấu vắng mặt.')
+  }
+}
+
+async function handleMemberSelfCheckIn(member) {
+  try {
+    await selfCheckInTournament(id)
+    toast.success('Check-in thành công!')
+    await detailTournament(id)
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi check-in.')
+  }
+}
+
+async function handleMemberSelfAbsent(member) {
+  try {
+    await selfMarkAbsentTournament(id)
+    toast.success('Đã báo vắng thành công!')
+    await detailTournament(id)
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi báo vắng.')
+  }
 }
 
 function confirmUser() {

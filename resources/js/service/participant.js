@@ -51,3 +51,24 @@ export const rejectParticipant = async (participantId) => {
   return axiosInstance.post(`${participantEndpoint}/delete/${participantId}`)
     .then((response) => response?.data?.data);
 }
+
+// Tournament check-in / absent
+export const markParticipantCheckIn = async (tournamentId, participantId) => {
+    return axiosInstance.post(`/tournaments/${tournamentId}/participants/${participantId}/mark-check-in`)
+        .then(r => r.data);
+};
+
+export const markParticipantAbsent = async (tournamentId, participantId) => {
+    return axiosInstance.post(`/tournaments/${tournamentId}/participants/${participantId}/mark-absent`)
+        .then(r => r.data);
+};
+
+export const selfCheckInTournament = async (tournamentId) => {
+    return axiosInstance.post(`/tournaments/${tournamentId}/self/check-in`)
+        .then(r => r.data);
+};
+
+export const selfMarkAbsentTournament = async (tournamentId) => {
+    return axiosInstance.post(`/tournaments/${tournamentId}/self/absent`)
+        .then(r => r.data);
+};
