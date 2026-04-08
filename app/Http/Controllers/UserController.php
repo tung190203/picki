@@ -489,7 +489,14 @@ class UserController extends Controller
         // Chỉ lấy giải đã bắt đầu (start_date <= now)
         // Sort: đang diễn ra (end_date >= now) lên trên, sau đó đã kết thúc (status = CLOSED = 3)
         $query = Tournament::query()
-            ->with(['createdBy', 'club', 'sport', 'tournamentStaffs', 'competitionLocation', 'teams', 'participants'])
+            ->with([
+                'createdBy', 'club', 'sport',
+                'tournamentStaffs', 'competitionLocation',
+                'teams', 'participants',
+                'tournamentTypes.groups.matches.homeTeam',
+                'tournamentTypes.groups.matches.awayTeam',
+                'tournamentTypes.groups.matches.results',
+            ])
             ->where('start_date', '<=', now())
             ->where(function ($q) use ($userId) {
                 $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId))
@@ -500,6 +507,7 @@ class UserController extends Controller
             ->when(!$isOwnProfile, function ($q) {
                 $q->where('is_private', false);
             })
+            ->select('tournaments.*')
             ->selectRaw("
                 CASE
                     WHEN status = 3 THEN 1

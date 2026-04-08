@@ -37,7 +37,7 @@ class UserTournamentResource extends JsonResource
             'end_date' => $this->end_date,
             'is_completed' => $isCompleted,
             'player_per_team' => $this->player_per_team,
-            'gender' => $this->gender_policy,
+            'gender_policy' => (int) $this->gender_policy,
             'max_team' => $this->max_team,
             'status' => $this->status,
 
