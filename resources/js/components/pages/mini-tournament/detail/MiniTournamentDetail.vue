@@ -15,7 +15,9 @@ import {
     CreditCardIcon,
     ClipboardDocumentCheckIcon,
     FaceSmileIcon,
-    MegaphoneIcon
+    MegaphoneIcon,
+    CheckIcon,
+    XMarkIcon
 } from '@heroicons/vue/24/outline'
 import UserCard from '@/components/molecules/UserCard.vue'
 import InviteGroup from '@/components/molecules/InviteGroup.vue'
@@ -271,14 +273,27 @@ export default {
             )
         })
 
-        const confirmedParticipants = computed(() => {
+        // Tất cả người tham gia (confirmed, chưa checkin, chưa vắng) - base cho các section
+        const allParticipants = computed(() => {
             if (!mini.value?.participants) return []
-            return mini.value.participants.filter(p => p.payment_status === 'confirmed')
+            return mini.value.participants.filter(p => p.is_confirmed && !p.checked_in_at && !p.is_absent)
         })
 
-        // Người tham gia: tất cả user + guest đã thanh toán (payment_status = confirmed)
+        // Đã check-in (confirmed + checked_in + not absent)
+        const checkedInParticipants = computed(() => {
+            if (!mini.value?.participants) return []
+            return mini.value.participants.filter(p => p.is_confirmed && p.checked_in_at && !p.is_absent)
+        })
+
+        // Đã báo vắng (is_absent = true)
+        const absentParticipants = computed(() => {
+            if (!mini.value?.participants) return []
+            return mini.value.participants.filter(p => p.is_absent)
+        })
+
+        // Người tham gia: tất cả user + guest đã thanh toán (payment_status = confirmed) - dùng cho hiển thị
         const displayedParticipants = computed(() => {
-            return confirmedParticipants.value
+            return allParticipants.value
         })
 
         // Chưa thanh toán: user và guest đã tham gia (is_confirmed) nhưng chưa thanh toán
@@ -305,9 +320,9 @@ export default {
             return [...pendingParticipants.value, ...invitedParticipants.value]
         })
 
-        // Guest section đầy khi: confirmed (user + guest) >= max_players
+        // Guest section đầy khi: allParticipants >= max_players
         const isGuestSectionFull = computed(() => {
-            return confirmedParticipants.value.length >= (mini.value?.max_players || 0)
+            return allParticipants.value.length >= (mini.value?.max_players || 0)
         })
 
         const isAutoSplitPaymentReady = computed(() => {
@@ -924,7 +939,9 @@ export default {
             handleConfirmDeleteStaff,
             handlePaymentButtonClick,
             toast,
-            confirmedParticipants,
+            allParticipants,
+            checkedInParticipants,
+            absentParticipants,
             displayedParticipants,
             pendingParticipants,
             invitedParticipants,
