@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\ClubResource;
 use App\Http\Resources\UserResource;
+use App\Http\Resources\UserTournamentResource;
 use App\Mail\VerifyNewEmailMail;
 use App\Models\Sport;
+use App\Models\Tournament;
 use App\Models\User;
 use App\Services\GeocodingService;
 use App\Services\ImageOptimizationService;
@@ -478,8 +480,11 @@ class UserController extends Controller
         $sportId = $validated['sport_id'] ?? null;
         $perPage = $validated['per_page'] ?? Tournament::PER_PAGE;
 
+        // Chỉ lấy giải đã bắt đầu (start_date <= now)
+        // Đang diễn ra (end_date >= now) xếp trước, sau đó đến đã kết thúc (status = CLOSED = 3)
         $query = Tournament::query()
-            ->withBasicRelations()
+            ->with(['createdBy', 'club', 'sport', 'tournamentStaffs', 'competitionLocation', 'teams', 'participants'])
+            ->where('start_date', '<=', now())
             ->where(function ($q) use ($userId) {
                 $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId))
                   ->orWhereHas('tournamentStaffs', fn($sq) => $sq->where('user_id', $userId));
@@ -487,8 +492,8 @@ class UserController extends Controller
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
             ->selectRaw("
                 CASE
+                    WHEN status = 3 THEN 1
                     WHEN start_date <= NOW() AND end_date >= NOW() THEN 0
-                    WHEN start_date > NOW() THEN 1
                     ELSE 2
                 END AS ongoing_order
             ")
@@ -498,7 +503,7 @@ class UserController extends Controller
         $tournaments = $query->paginate($perPage);
 
         $data = [
-            'tournaments' => TournamentResource::collection($tournaments),
+            'tournaments' => UserTournamentResource::collection($tournaments),
         ];
 
         $meta = [

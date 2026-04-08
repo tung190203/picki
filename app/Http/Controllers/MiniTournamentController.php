@@ -34,6 +34,43 @@ class MiniTournamentController extends Controller
     }
 
     /**
+     * Sau khi cập nhật check-in ở mini_participants, đồng thời cập nhật
+     * bản ghi mini_tournament_staff cùng user_id — nếu chưa có trạng thái.
+     */
+    private function syncMiniStaffAttendanceFromParticipant(MiniParticipant $participant): void
+    {
+        $staff = MiniTournamentStaff::where('mini_tournament_id', $participant->mini_tournament_id)
+            ->where('user_id', $participant->user_id)
+            ->first();
+
+        if (!$staff || $staff->checked_in_at || $staff->is_absent) {
+            return;
+        }
+
+        $staff->update([
+            'checked_in_at' => $participant->checked_in_at,
+            'is_absent' => false,
+        ]);
+    }
+
+    /**
+     * Sau khi báo vắng ở mini_participants, đồng thời báo vắng ở
+     * mini_tournament_staff cùng user_id — nếu chưa có trạng thái.
+     */
+    private function syncMiniStaffAbsentFromParticipant(MiniParticipant $participant): void
+    {
+        $staff = MiniTournamentStaff::where('mini_tournament_id', $participant->mini_tournament_id)
+            ->where('user_id', $participant->user_id)
+            ->first();
+
+        if (!$staff || $staff->checked_in_at || $staff->is_absent) {
+            return;
+        }
+
+        $staff->update(['is_absent' => true]);
+    }
+
+    /**
      * tạo mini tournament
      */
     public function store(StoreMiniTournamentRequest $request)
@@ -569,6 +606,8 @@ class MiniTournamentController extends Controller
 
         $participant->load('user');
 
+        $this->syncMiniStaffAttendanceFromParticipant($participant);
+
         return ResponseHelper::success(
             new MiniParticipantResource($participant),
             'Đã đánh dấu check-in thành công'
@@ -655,6 +694,8 @@ class MiniTournamentController extends Controller
         ]);
 
         $participant->load('user');
+
+        $this->syncMiniStaffAbsentFromParticipant($participant);
 
         return ResponseHelper::success(
             new MiniParticipantResource($participant),

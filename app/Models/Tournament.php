@@ -178,6 +178,11 @@ class Tournament extends Model
         return $query->where('end_date', '<', now());
     }
 
+    public function scopeStarted($query)
+    {
+        return $query->where('start_date', '<=', now());
+    }
+
     public function scopeSearch($query, $keyword)
     {
         return $query->where('name', 'like', '%' . $keyword . '%');

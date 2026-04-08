@@ -41,6 +41,13 @@ import MiniTournamentPaymentModal from '@/components/pages/mini-tournament/parti
 import MiniTournamentSubmitReceiptModal from '@/components/pages/mini-tournament/partials/MiniTournamentSubmitReceiptModal.vue'
 import AddGuestModal from '@/components/pages/mini-tournament/partials/AddGuestModal.vue'
 import DeleteStaffModal from '@/components/molecules/DeleteStaffModal.vue'
+import MemberActionModal from '@/components/molecules/MemberActionModal.vue'
+import {
+    markMiniParticipantCheckIn,
+    markMiniParticipantAbsent,
+    selfCheckInMini,
+    selfMarkAbsentMini,
+} from '@/service/miniParticipant.js'
 
 export default {
     name: 'MiniTournamentDetail',
@@ -76,7 +83,8 @@ export default {
         MiniTournamentPaymentModal,
         MiniTournamentSubmitReceiptModal,
         AddGuestModal,
-        MegaphoneIcon
+        MegaphoneIcon,
+        MemberActionModal
     },
 
     setup() {
@@ -328,6 +336,90 @@ export default {
             if (!mini.value?.auto_split_fee) return true
             return isAutoSplitPaymentReady.value
         })
+
+        const isCurrentUserParticipant = computed(() => {
+            return mini.value?.participants?.some(
+                p => p.user?.id === getUser.value?.id
+            )
+        })
+
+        const showMemberActionModal = ref(false)
+        const selectedMember = ref(null)
+
+        const openMemberActionModal = (param) => {
+            // param có thể là props object (từ UserCard click event) hoặc participant item
+            // UserCard emit 'click' với props object: { id, name, avatar, rating, userId, ... }
+            if (param && typeof param === 'object') {
+                // Nếu param là Event (có target), lấy thông tin từ target
+                if (param.target && param.currentTarget) {
+                    // Đây là Event object - không làm gì
+                    return
+                }
+                // UserCard props object: có id=participant_id, userId=user_id, name, avatar, rating
+                if (param.id !== undefined && !param.user && !param.checked_in_at) {
+                    const participantId = param.id
+                    const userId = param.userId || param.id
+                    selectedMember.value = {
+                        id: participantId,
+                        participant_id: participantId,
+                        name: param.name,
+                        avatar: param.avatar,
+                        rating: param.rating,
+                        user: { id: userId, full_name: param.name, avatar_url: param.avatar }
+                    }
+                } else {
+                    selectedMember.value = param
+                }
+            } else {
+                // Fallback: param là primitive value (id)
+                selectedMember.value = { id: param, participant_id: param }
+            }
+            showMemberActionModal.value = true
+        }
+
+        const handleMemberViewProfile = (member) => {
+            router.push(`/profile/${member.user?.id}`)
+        }
+
+        const handleMemberCheckIn = async (member) => {
+            try {
+                await markMiniParticipantCheckIn(id, member.id)
+                toast.success('Đã đánh dấu check-in thành công!')
+                await detailMiniTournament(id)
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi đánh dấu check-in.')
+            }
+        }
+
+        const handleMemberAbsent = async (member) => {
+            try {
+                await markMiniParticipantAbsent(id, member.id)
+                toast.success('Đã đánh dấu vắng mặt thành công!')
+                await detailMiniTournament(id)
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi đánh dấu vắng mặt.')
+            }
+        }
+
+        const handleMemberSelfCheckIn = async (member) => {
+            try {
+                await selfCheckInMini(id)
+                toast.success('Check-in thành công!')
+                await detailMiniTournament(id)
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi check-in.')
+            }
+        }
+
+        const handleMemberSelfAbsent = async (member) => {
+            try {
+                await selfMarkAbsentMini(id)
+                toast.success('Đã báo vắng thành công!')
+                await detailMiniTournament(id)
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi báo vắng.')
+            }
+        }
 
         const openPromotionModal = () => {
             isPromotionModalOpen.value = true;
@@ -799,6 +891,7 @@ export default {
             currentParticipant,
             handleInvite,
             getUserScore,
+            getUser,
             copyLink,
             goToEditPage,
             openInviteModalDefault,
@@ -846,7 +939,16 @@ export default {
             canManagePayments,
             handleApproveParticipant,
             handleRejectParticipant,
-            handleCancelRequest
+            handleCancelRequest,
+            showMemberActionModal,
+            selectedMember,
+            openMemberActionModal,
+            handleMemberViewProfile,
+            handleMemberCheckIn,
+            handleMemberAbsent,
+            handleMemberSelfCheckIn,
+            handleMemberSelfAbsent,
+            isCurrentUserParticipant
         }
     }
 }
