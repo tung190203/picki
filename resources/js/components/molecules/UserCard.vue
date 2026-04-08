@@ -11,7 +11,8 @@
 
       <div v-else :class="`w-${computedSize} h-${computedSize} rounded-full overflow-hidden`">
         <img :src="avatar || defaultImage" :alt="name" @error="event.target.src=defaultImage"
-          class="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform duration-300" />
+          class="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform duration-300"
+          @click.stop="$emit('click', props)" />
       </div>
 
       <button
@@ -162,7 +163,7 @@ const props = defineProps({
     },
 })
 
-const emit = defineEmits(['clickEmpty', 'removeUser', 'confirm', 'reject'])
+const emit = defineEmits(['clickEmpty', 'removeUser', 'confirm', 'reject', 'click'])
 
 const showModal = ref(false)
 

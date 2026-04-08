@@ -231,7 +231,8 @@
                                                   :name="item.user?.full_name || item.guest_name || 'Guest'"
                                                   :avatar="item.user?.avatar_url"
                                                   :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
-                                                  :status="'approved'" />
+                                                  :status="'approved'"
+                                                  @click="openMemberActionModal($event)" />
                                         <div v-if="item.is_guest" class="text-[10px] text-[#6B7280] text-center mt-1">
                                             <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
                                         </div>
@@ -258,7 +259,8 @@
                                               :name="item.user?.full_name || item.guest_name || 'Guest'"
                                               :avatar="item.user?.avatar_url"
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
-                                              :status="'approved'" />
+                                              :status="'approved'"
+                                              @click="openMemberActionModal($event)" />
                                     <div v-if="item.is_guest" class="text-[10px] text-[#6B7280] text-center mt-1">
                                         <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
                                     </div>
@@ -278,7 +280,8 @@
                                     <UserCard :id="item.id"
                                               :name="item.user?.full_name || item.guest_name" :avatar="item.user?.avatar_url"
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
-                                              :status="'pending'" />
+                                              :status="'pending'"
+                                              @click="openMemberActionModal($event)" />
                                     <span v-if="item.is_invited" class="text-[10px] text-[#207AD5]">Được mời</span>
                                     <span v-else class="text-[10px] text-gray-500">Xin tham gia</span>
                                     <!-- Chủ kèo: duyệt/từ chối người tự xin -->
@@ -358,12 +361,25 @@
            :miniTournament="mini"
            @success="handleAddGuestSuccess"
        />
-       <DeleteStaffModal
-           v-model="showDeleteStaffModal"
-           :staffId="deleteStaffData.staffId"
-           :guarantor="deleteStaffData.guarantor"
-           :guests="deleteStaffData.guests"
-           :candidates="deleteStaffData.candidates"
-           @confirm="handleConfirmDeleteStaff"
-       />
+      <DeleteStaffModal
+          v-model="showDeleteStaffModal"
+          :staffId="deleteStaffData.staffId"
+          :guarantor="deleteStaffData.guarantor"
+          :guests="deleteStaffData.guests"
+          :candidates="deleteStaffData.candidates"
+          @confirm="handleConfirmDeleteStaff"
+      />
+      <MemberActionModal
+          v-model="showMemberActionModal"
+          :member="selectedMember"
+          :current-user="getUser"
+          tournament-type="mini_tournament"
+          :is-current-user-organizer="isCreator"
+          :is-current-user-participant="isCurrentUserParticipant"
+          @view-profile="handleMemberViewProfile"
+          @check-in="handleMemberCheckIn"
+          @absent="handleMemberAbsent"
+          @self-check-in="handleMemberSelfCheckIn"
+          @self-absent="handleMemberSelfAbsent"
+      />
 </div>

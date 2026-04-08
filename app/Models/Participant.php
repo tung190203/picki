@@ -23,6 +23,11 @@ class Participant extends Model
         'is_pending_confirmation',
         'checked_in_at',
         'is_absent',
+        'rating_before',
+        'rating_after',
+        'rank_before',
+        'rank_after',
+        'rank_change',
     ];
 
     protected $casts = [
@@ -31,6 +36,11 @@ class Participant extends Model
         'estimated_level' => 'decimal:1',
         'checked_in_at' => 'datetime',
         'is_absent' => 'boolean',
+        'rating_before' => 'decimal:2',
+        'rating_after' => 'decimal:2',
+        'rank_before' => 'integer',
+        'rank_after' => 'integer',
+        'rank_change' => 'integer',
     ];
 
     const PER_PAGE = 15;
