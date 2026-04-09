@@ -108,6 +108,56 @@
                     </div>
                 </Section>
 
+                <Section title="Ghép cặp đấu vòng loại trực tiếp">
+                    <div class="space-y-2">
+                        <p class="text-sm text-gray-500 mb-3">Chọn cách ghép cặp đội từ vòng bảng vào vòng loại trực tiếp</p>
+                        <div class="grid grid-cols-3 gap-3">
+                            <button v-for="option in PAIRING_MODE_OPTIONS.slice(0, 2)" :key="option.id"
+                                @click="selectPairingMode(option.id)" :class="[
+                                    'p-3 rounded-lg border-2 text-center transition-all',
+                                    pairingMode === option.id
+                                        ? 'border-[#D72D36] bg-red-50'
+                                        : 'border-gray-200 hover:border-gray-300'
+                                ]">
+                                <div class="font-medium text-sm" :class="pairingMode === option.id ? 'text-[#D72D36]' : 'text-gray-700'">
+                                    {{ option.label }}
+                                </div>
+                                <div class="text-xs text-gray-400 mt-1">{{ option.subtitle }}</div>
+                            </button>
+                            <button @click="openManualPairingModal"
+                                :class="[
+                                    'p-3 rounded-lg border-2 text-center transition-all',
+                                    pairingMode === 'manual'
+                                        ? 'border-[#D72D36] bg-red-50'
+                                        : 'border-gray-200 hover:border-gray-300'
+                                ]">
+                                <div class="font-medium text-sm" :class="pairingMode === 'manual' ? 'text-[#D72D36]' : 'text-gray-700'">
+                                    Tự chọn
+                                </div>
+                                <div class="text-xs text-gray-400 mt-1">Tự thiết kế cặp đấu</div>
+                            </button>
+                        </div>
+
+                        <!-- Preview when manual is configured -->
+                        <div v-if="pairingMode === 'manual' && manualPairings.length > 0" class="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                            <div class="text-xs text-gray-500 mb-2 font-medium">
+                                Đã cấu hình {{ manualPairings.length / 2 }} cặp đấu
+                            </div>
+                            <div class="grid grid-cols-4 gap-2">
+                                <div v-for="(pairing, idx) in manualPairings.filter((_, i) => i % 2 === 0)" :key="idx"
+                                    class="text-xs text-center bg-white border border-gray-200 rounded px-2 py-1">
+                                    {{ getGroupName(pairing.group_id) }}{{ pairing.rank === 1 ? '1' : '2' }}
+                                    <span class="text-gray-400">vs</span>
+                                    {{ getGroupName(manualPairings[idx * 2 + 1]?.group_id) }}{{ manualPairings[idx * 2 + 1]?.rank === 1 ? '1' : '2' }}
+                                </div>
+                            </div>
+                            <button @click="openManualPairingModal" class="mt-2 text-xs text-[#D72D36] hover:underline font-medium">
+                                Chỉnh sửa ghép cặp
+                            </button>
+                        </div>
+                    </div>
+                </Section>
+
                 <Section title="Luật thi đấu">
                     <div class="relative">
                         <SettingItem label="Số set đấu" :value="`${setsPerMatch} Set`"
@@ -475,6 +525,14 @@
             </div>
         </div>
     </div>
+
+    <!-- Manual Pairing Modal -->
+    <ManualPairingModal
+        v-model="showManualPairingModal"
+        :num-groups="tables"
+        :existing-pairings="manualPairings"
+        @apply="handleManualPairingApply"
+    />
 </template>
 
 <script setup>
@@ -484,6 +542,7 @@ import Section from '@/components/atoms/Section.vue';
 import SettingItem from '@/components/atoms/SettingItem.vue';
 import Counter from '@/components/atoms/Counter.vue';
 import Toggle from '@/components/atoms/Toggle.vue';
+import ManualPairingModal from '@/components/molecules/ManualPairingModal.vue';
 import MixedIcon from '@/assets/images/mixed.svg';
 import DirectIcon from '@/assets/images/direct.svg';
 import RoundRobinIcon from '@/assets/images/round-robin.svg';
@@ -537,6 +596,17 @@ const maxPoints = ref(11);
 const serveChangeInterval = ref(0);
 const seedingRules = ref([1, 2, 3]);
 const calculationMethods = ref([1, 2, 3]);
+
+// Pairing mode for mixed format (knockout stage)
+const pairingMode = ref('sequential');
+const manualPairings = ref([]);
+const showManualPairingModal = ref(false);
+
+const PAIRING_MODE_OPTIONS = [
+    { id: 'sequential', label: 'Tuần tự', subtitle: 'A-B, B-A, C-D, D-C...' },
+    { id: 'symmetric', label: 'Đối xứng', subtitle: 'A-H, B-G, C-F, D-E...' },
+    { id: 'manual', label: 'Tự chọn', subtitle: 'Tự thiết kế cặp đấu' },
+];
 
 const rulesFilePath = ref('');
 const rulesFileName = ref('');
@@ -725,6 +795,12 @@ const tournamentConfigJson = computed(() => {
                 number_competing_teams: tables.value,
                 num_advancing_teams: teamsToKnockout.value
             };
+            specificConfig.knockout_stage = {
+                pairing_mode: pairingMode.value
+            };
+            if (pairingMode.value === 'manual' && manualPairings.value.length > 0) {
+                specificConfig.knockout_stage.manual_pairings = manualPairings.value;
+            }
         }
     } else if (activeTab.value === 'roundRobin') {
         specificConfig = {
@@ -781,6 +857,26 @@ const handleSubmit = () => {
 const goBack = () => {
     emit('back');
 };
+
+const selectPairingMode = (mode) => {
+    pairingMode.value = mode;
+};
+
+const openManualPairingModal = () => {
+    showManualPairingModal.value = true;
+};
+
+const handleManualPairingApply = (pairings) => {
+    manualPairings.value = pairings;
+    pairingMode.value = 'manual';
+};
+
+const getGroupName = (groupId) => {
+    if (!groupId) return '?';
+    const groupNames = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    return groupNames[groupId - 1] || groupId;
+};
+
 const isRankingRuleDisabled = (currentIndex, ruleId) => {
     const usedRules = calculationMethods.value.filter((_, i) => i !== currentIndex);
     return usedRules.includes(Number(ruleId));
