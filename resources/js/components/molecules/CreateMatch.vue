@@ -138,9 +138,15 @@
                                 </div>
 
                                 <button @click="addSet"
-                                    class="w-full flex justify-center items-center gap-2 border p-3 rounded-lg text-[#838799] hover:bg-gray-100 transition-colors mb-6">
+                                    class="w-full flex justify-center items-center gap-2 border p-3 rounded-lg text-[#838799] hover:bg-gray-100 transition-colors mb-4">
                                     <PlusIcon class="w-5 h-5" />
                                     <span class="text-sm font-semibold">Thêm set</span>
+                                </button>
+
+                                <button @click="openRefereeScreen" v-if="isCreator || isReferee"
+                                    class="w-full flex justify-center items-center gap-2 border-2 border-red-400 p-3 rounded-lg text-red-500 hover:bg-red-50 transition-colors font-semibold mb-6">
+                                    <ClipboardIcon class="w-5 h-5" />
+                                    <span class="text-sm font-semibold">Nhập điểm trọng tài</span>
                                 </button>
 
                                 <!-- Nút tiến vào vòng trong -->
@@ -189,7 +195,7 @@
                 </div>
 
                 <!-- Confirmation Modal -->
-                <div v-if="showConfirmClose" 
+                <div v-if="showConfirmClose"
                     class="absolute inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50"
                     @click.self="handleCancelClose">
                     <div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 transform transition-all">
@@ -218,6 +224,17 @@
             </div>
         </Transition>
     </Teleport>
+
+    <!-- Referee Scoring Screen -->
+    <RefereeScoringScreen
+        v-if="showRefereeScreen"
+        :team1="team1ForReferee"
+        :team2="team2ForReferee"
+        :miniTournament="tournamentRulesForReferee"
+        :initialScores="scores"
+        @done="onRefereeDone"
+        @back="onRefereeBack"
+    />
 </template>
 
 <script setup>
@@ -231,6 +248,7 @@ import { toast } from 'vue3-toastify'
 import * as MatchesServices from '@/service/match.js'
 import { useUserStore } from '@/store/auth'
 import { storeToRefs } from 'pinia'
+import RefereeScoringScreen from '@/components/molecules/referee-scoring/RefereeScoringScreen.vue'
 
 /* ===================== PROPS ===================== */
 const props = defineProps({
@@ -263,6 +281,7 @@ const isOpen = computed({
 
 const isSaving = ref(false)
 const isAdvancing = ref(false)
+const showRefereeScreen = ref(false)
 
 /* ===================== LEG LOGIC ===================== */
 const selectedLegIndex = ref(0)
@@ -439,6 +458,43 @@ const addSet = () => {
 const removeSet = (idx) => {
     if (scores.value.length > 1) scores.value.splice(idx, 1)
 }
+
+/* ===================== REFEREE SCORING ===================== */
+const openRefereeScreen = () => {
+    showRefereeScreen.value = true
+}
+
+const onRefereeDone = (refereeScores) => {
+    scores.value = refereeScores.map(s => ({
+        teamA: s.team1,
+        teamB: s.team2
+    }))
+    showRefereeScreen.value = false
+}
+
+const onRefereeBack = () => {
+    showRefereeScreen.value = false
+}
+
+const team1ForReferee = computed(() => ({
+    name: props.data.home_team?.name || 'Team A',
+    members: (props.data.home_team?.members || [])
+}))
+
+const team2ForReferee = computed(() => ({
+    name: props.data.away_team?.name || 'Team B',
+    members: (props.data.away_team?.members || [])
+}))
+
+// Format tournament data to match RefereeScoringScreen expectations
+const tournamentRulesForReferee = computed(() => ({
+    name: props.tournament?.name || '',
+    base_points: props.tournament?.tournament_types?.[0]?.match_rules?.[0]?.base_points || 11,
+    points_difference: props.tournament?.tournament_types?.[0]?.match_rules?.[0]?.points_difference || 2,
+    max_points: props.tournament?.tournament_types?.[0]?.match_rules?.[0]?.max_points || 15,
+    set_number: props.tournament?.tournament_types?.[0]?.match_rules?.[0]?.set_number || 3,
+    player_per_team: props.tournament?.player_per_team || 1,
+}))
 
 /* ===================== FORMAT API ===================== */
 const formatResultsForAPI = () => {
