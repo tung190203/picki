@@ -15,6 +15,7 @@ use App\Models\Tournament;
 use App\Models\TournamentStaff;
 use App\Models\TournamentType;
 use App\Services\ImageOptimizationService;
+use App\Services\TournamentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -148,10 +149,12 @@ class TournamentController extends Controller
 
     public function __construct(
         ImageOptimizationService $imageService,
-        TournamentTypeController $tournamentTypeController
+        TournamentTypeController $tournamentTypeController,
+        TournamentService $tournamentService
     ) {
         $this->imageService = $imageService;
         $this->tournamentTypeController = $tournamentTypeController;
+        $this->tournamentService = $tournamentService;
     }
     public function store(Request $request)
     {
@@ -202,6 +205,9 @@ class TournamentController extends Controller
                 'user_id' => auth()->id(),
                 'role' => TournamentStaff::ROLE_ORGANIZER,
             ]);
+
+            // Tính end_date từ start_date + duration
+            $this->tournamentService->calculateEndDate($tournament);
 
             // Nếu creator_join = true, tạo participant cho người tạo giải đấu
             if (!empty($validated['creator_join'])) {
@@ -321,6 +327,9 @@ class TournamentController extends Controller
             $newStatus = $validated['status'] ?? $oldStatus;
             $tournament->fill($validated);
             $tournament->save();
+
+            // Tính lại end_date nếu start_date hoặc duration thay đổi
+            $this->tournamentService->calculateEndDate($tournament);
 
             if ($newStatus == Tournament::CLOSED && $oldStatus != Tournament::CLOSED) {
                 $this->updateParticipantsRatingStats($tournament);
@@ -721,39 +730,6 @@ class TournamentController extends Controller
      */
     private function updateParticipantsRatingStats(Tournament $tournament): void
     {
-        $participants = $tournament->participants()
-            ->whereNotNull('user_id')
-            ->with('user')
-            ->get();
-
-        foreach ($participants as $participant) {
-            $user = $participant->user;
-            if (!$user) {
-                continue;
-            }
-
-            // Lấy rating hiện tại (mới nhất sau giải)
-            $userSport = $user->sports()
-                ->where('sport_id', $tournament->sport_id)
-                ->first();
-            $currentScore = $userSport
-                ? $userSport->scores()->where('score_type', 'vndupr_score')->value('score_value')
-                : null;
-
-            // Lấy rank hiện tại
-            $currentRank = $user->getVNRank($tournament->sport_id);
-
-            $updateData = [
-                'rating_after' => $currentScore,
-                'rank_after' => $currentRank,
-            ];
-
-            // Tính rank_change
-            if ($participant->rank_before && $currentRank) {
-                $updateData['rank_change'] = $participant->rank_before - $currentRank;
-            }
-
-            $participant->update($updateData);
-        }
+        $this->tournamentService->updateParticipantsRatingStats($tournament);
     }
 }

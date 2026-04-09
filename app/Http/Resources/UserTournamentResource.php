@@ -17,6 +17,29 @@ class UserTournamentResource extends JsonResource
     protected ?int $targetUserId = null;
 
     /**
+     * Mapping round number -> tên vòng hiển thị.
+     */
+    protected const ROUND_NAMES = [
+        0 => 'Vòng bảng',
+        1 => 'Vòng 1/8',
+        2 => 'Tứ kết',
+        3 => 'Bán kết',
+        4 => 'Chung kết',
+        5 => 'Tranh hạng 3',
+    ];
+
+    /**
+     * Chuyển round number -> tên vòng. Không có thì trả số.
+     */
+    protected function roundName(?int $round): ?string
+    {
+        if ($round === null || !array_key_exists($round, self::ROUND_NAMES)) {
+            return $round !== null ? "Vòng {$round}" : null;
+        }
+        return self::ROUND_NAMES[$round];
+    }
+
+    /**
      * Transform the resource into an array.
      *
      * @return array<string, mixed>
@@ -172,7 +195,7 @@ class UserTournamentResource extends JsonResource
      * Vòng đấu hiện tại đang diễn ra.
      * Lấy max round có match chưa hoàn tất (status != 'completed').
      */
-    protected function getCurrentRound(): ?int
+    protected function getCurrentRound(): ?string
     {
         $maxRound = $this->tournamentTypes()
             ->whereHas('groups.matches', fn($q) => $q->where('status', '!=', 'completed'))
@@ -182,7 +205,7 @@ class UserTournamentResource extends JsonResource
             ->where('status', '!=', 'completed')
             ->max('round');
 
-        return $maxRound ?: null;
+        return $this->roundName($maxRound ?: null);
     }
 
     /**
@@ -256,7 +279,7 @@ class UserTournamentResource extends JsonResource
     /**
      * Vòng cuối cùng mà team tham gia trong giải (final round user participated).
      */
-    protected function getFinalRound(int $teamId): ?int
+    protected function getFinalRound(int $teamId): ?string
     {
         $maxRound = $this->tournamentTypes()
             ->with('groups.matches')
@@ -269,7 +292,7 @@ class UserTournamentResource extends JsonResource
             )
             ->max('round');
 
-        return $maxRound ?: null;
+        return $this->roundName($maxRound ?: null);
     }
 
     /**
