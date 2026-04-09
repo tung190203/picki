@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Tournament;
 use Illuminate\Support\Collection;
 
 class TournamentService
@@ -156,5 +157,75 @@ class TournamentService
             'team_avatar' => $team->avatar,
             'members' => $members,
         ];
+    }
+
+    /**
+     * Cập nhật rating, rank cho tất cả participants khi giải đấu kết thúc.
+     */
+    public function updateParticipantsRatingStats(Tournament $tournament): void
+    {
+        $participants = $tournament->participants()
+            ->whereNotNull('user_id')
+            ->with('user')
+            ->get();
+
+        foreach ($participants as $participant) {
+            $user = $participant->user;
+            if (!$user) {
+                continue;
+            }
+
+            $userSport = $user->sports()
+                ->where('sport_id', $tournament->sport_id)
+                ->first();
+            $currentScore = $userSport
+                ? $userSport->scores()->where('score_type', 'vndupr_score')->value('score_value')
+                : null;
+
+            $currentRank = $user->getVNRank($tournament->sport_id);
+
+            $updateData = [
+                'rating_after' => $currentScore,
+                'rank_after' => $currentRank,
+            ];
+
+            if ($participant->rank_before && $currentRank) {
+                $updateData['rank_change'] = $participant->rank_before - $currentRank;
+            }
+
+            $participant->update($updateData);
+        }
+    }
+
+    /**
+     * Đóng giải đấu: đổi status = CLOSED và cập nhật stats cho participants.
+     */
+    public function closeTournament(Tournament $tournament): void
+    {
+        if ($tournament->status === Tournament::CLOSED) {
+            return;
+        }
+
+        $tournament->update(['status' => Tournament::CLOSED]);
+        $this->updateParticipantsRatingStats($tournament);
+    }
+
+    /**
+     * Tính và lưu end_date = start_date + duration (phút).
+     * Gọi khi tạo hoặc cập nhật giải đấu có start_date hoặc duration thay đổi.
+     */
+    public function calculateEndDate(Tournament $tournament): void
+    {
+        if (!$tournament->start_date || !$tournament->duration) {
+            return;
+        }
+
+        $startDate = $tournament->start_date instanceof \Carbon\Carbon
+            ? $tournament->start_date
+            : \Carbon\Carbon::parse($tournament->start_date);
+
+        $endDate = $startDate->copy()->addMinutes($tournament->duration);
+        $tournament->end_date = $endDate;
+        $tournament->save();
     }
 }
