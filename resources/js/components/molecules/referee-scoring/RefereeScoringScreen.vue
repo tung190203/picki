@@ -5,19 +5,19 @@
                 class="fixed inset-0 bg-black backdrop-blur-[1px] bg-opacity-50 flex items-center justify-center z-[60] p-4"
                 @click.self="goBack"
             >
-                <div class="bg-white w-full max-w-md h-[95vh] max-h-[95vh] flex flex-col shadow-xl rounded-2xl overflow-hidden">
+                <div class="bg-white w-full max-w-2xl lg:max-w-3xl h-[96vh] max-h-[96vh] flex flex-col shadow-2xl rounded-2xl overflow-hidden">
                     <!-- Header -->
-                    <div class="flex items-center justify-between px-4 py-4 border-b border-gray-100">
-                        <button @click="goBack" class="text-gray-600 hover:text-gray-900 transition-colors">
+                    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+                        <button @click="goBack" class="text-gray-600 hover:text-gray-900 transition-colors p-2 rounded-lg hover:bg-gray-100">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                             </svg>
                         </button>
-                        <div class="flex-1 text-center px-2">
-                            <h2 class="text-base font-bold text-gray-900 leading-6">Nhập điểm trọng tài</h2>
-                            <p class="text-xs text-gray-500 truncate uppercase">TỨ KẾT: {{ tournamentLabel }}</p>
+                        <div class="flex-1 text-center px-4">
+                            <h2 class="text-lg font-bold text-gray-900 leading-7">Nhập điểm trọng tài</h2>
+                            <p class="text-xs text-gray-500 truncate uppercase font-medium tracking-wide">TỨ KẾT: {{ tournamentLabel }}</p>
                         </div>
-                        <button @click="handleTimeout" class="text-gray-600 hover:text-gray-900 transition-colors p-1" title="Chia sẻ">
+                        <button @click="handleTimeout" class="text-gray-600 hover:text-gray-900 transition-colors p-2 rounded-lg hover:bg-gray-100" title="Chia sẻ">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 11.342A3 3 0 109 12c0-.23-.026-.454-.075-.67M15 8a3 3 0 10-2.316-4.9M15 16a3 3 0 10-2.316 4.9M8.684 12.658l6.632 3.684M15.316 7.658L8.684 11.342"/>
                             </svg>
@@ -27,33 +27,35 @@
                     <!-- Body -->
                     <div class="flex-1 overflow-y-auto bg-gray-50">
                         <!-- Rules / info -->
-                        <div class="px-4 pt-3 pb-2 bg-white">
-                            <div class="flex items-center justify-center gap-4 text-[11px] text-gray-500">
-                                <div class="flex items-center gap-1 whitespace-nowrap">
-                                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <div class="px-6 pt-4 pb-3 bg-white">
+                            <div class="flex items-center justify-center gap-6 text-xs text-gray-500">
+                                <div class="flex items-center gap-1.5 whitespace-nowrap">
+                                    <svg class="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20l9-5-9-5-9 5 9 5z"/>
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 12l9-5-9-5-9 5 9 5z"/>
                                     </svg>
-                                    <span>{{ basePoints }} Điểm</span>
+                                    <span class="font-medium">{{ basePoints }} Điểm</span>
                                 </div>
-                                <div class="flex items-center gap-1 whitespace-nowrap">
-                                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <div class="w-px h-4 bg-gray-200"></div>
+                                <div class="flex items-center gap-1.5 whitespace-nowrap">
+                                    <svg class="w-4 h-4 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c1.657 0 3-1.343 3-3S13.657 2 12 2 9 3.343 9 5s1.343 3 3 3z"/>
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
                                     </svg>
-                                    <span>Cách {{ pointsDifference }}</span>
+                                    <span class="font-medium">Cách {{ pointsDifference }}</span>
                                 </div>
-                                <div class="flex items-center gap-1 whitespace-nowrap">
-                                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <div class="w-px h-4 bg-gray-200"></div>
+                                <div class="flex items-center gap-1.5 whitespace-nowrap">
+                                    <svg class="w-4 h-4 text-purple-500" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h10M7 16h10M5 6h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z"/>
                                     </svg>
-                                    <span>{{ setNumber }} Sets</span>
+                                    <span class="font-medium">{{ setNumber }} Sets</span>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Set Tabs -->
-                        <div class="flex items-center gap-2 px-4 py-2 bg-white border-b border-gray-100 overflow-x-auto">
+                        <div class="flex items-center gap-2 px-6 py-2.5 bg-white border-b border-gray-100 overflow-x-auto">
                             <div
                                 v-for="(set, idx) in completedSets"
                                 :key="'completed-' + idx"
@@ -64,13 +66,13 @@
                             <div class="px-3 py-1 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-800 whitespace-nowrap">
                                 SET {{ currentSetIndex + 1 }}: {{ team1Score }}-{{ team2Score }}
                             </div>
-                            <div class="px-3 py-1 rounded-md text-[11px] font-bold bg-red-500 text-white flex items-center gap-1 whitespace-nowrap">
+                            <div class="px-3 py-1 rounded-md text-[11px] font-bold bg-red-500 text-white flex items-center gap-1.5 whitespace-nowrap">
                                 <span class="inline-block w-2 h-2 bg-white rounded-full animate-pulse"></span>
                                 LIVE
                             </div>
                             <button
                                 type="button"
-                                class="ml-auto w-8 h-8 rounded-md bg-red-500 text-white font-bold shadow-sm hover:bg-red-600 active:bg-red-700 transition-colors flex items-center justify-center"
+                                class="ml-auto w-9 h-9 rounded-lg bg-red-500 text-white font-bold shadow-sm hover:bg-red-600 active:bg-red-700 transition-colors flex items-center justify-center text-lg"
                                 title="Thao tác nhanh"
                                 @click="handleTimeout"
                             >
@@ -79,22 +81,22 @@
                         </div>
 
                         <!-- Scoreboard -->
-                        <div class="px-4 pt-4 pb-3 bg-white">
-                            <div class="flex items-center justify-center gap-3">
-                                <div class="flex-1 rounded-xl bg-blue-50 border border-blue-100 p-4 text-center">
-                                    <div class="text-5xl font-extrabold text-blue-600 leading-none">
+                        <div class="px-6 pt-5 pb-4 bg-white">
+                            <div class="flex items-center justify-center gap-4">
+                                <div class="flex-1 rounded-2xl bg-blue-50 border-2 border-blue-100 p-5 text-center">
+                                    <div class="text-6xl font-black text-blue-600 leading-none tracking-tight">
                                         {{ team1Score }}
                                     </div>
-                                    <div class="text-[11px] font-semibold text-gray-500 mt-2 uppercase">
+                                    <div class="text-xs font-semibold text-gray-500 mt-3 uppercase tracking-wide">
                                         {{ team1.name || 'TEAM A' }}
                                     </div>
                                 </div>
-                                <div class="text-xs font-bold text-gray-400">VS</div>
-                                <div class="flex-1 rounded-xl bg-red-50 border border-red-100 p-4 text-center">
-                                    <div class="text-5xl font-extrabold text-red-600 leading-none">
+                                <div class="text-sm font-bold text-gray-400 px-1">VS</div>
+                                <div class="flex-1 rounded-2xl bg-red-50 border-2 border-red-100 p-5 text-center">
+                                    <div class="text-6xl font-black text-red-600 leading-none tracking-tight">
                                         {{ team2Score }}
                                     </div>
-                                    <div class="text-[11px] font-semibold text-gray-500 mt-2 uppercase">
+                                    <div class="text-xs font-semibold text-gray-500 mt-3 uppercase tracking-wide">
                                         {{ team2.name || 'TEAM B' }}
                                     </div>
                                 </div>
@@ -102,32 +104,36 @@
                         </div>
 
                         <!-- Court -->
-                        <div class="px-4 py-4 flex flex-col items-center justify-center">
-                            <div class="w-full max-w-[360px]">
-                                <div class="relative w-full rounded-2xl bg-white shadow-sm border border-gray-200 overflow-hidden" style="aspect-ratio: 9/11;">
+                        <div class="px-6 py-5 flex flex-col items-center justify-center">
+                            <div class="w-full max-w-[420px]">
+                                <div class="relative w-full rounded-2xl bg-white shadow-md border border-gray-200 overflow-hidden" style="aspect-ratio: 9/11;">
                                     <!-- court lines -->
                                     <div class="absolute inset-0 pointer-events-none">
-                                        <div class="absolute inset-4 border border-gray-200 rounded-xl"></div>
-                                        <div class="absolute left-1/2 top-4 bottom-4 w-px bg-gray-200"></div>
-                                        <!-- net (2 lines) -->
-                                        <div class="absolute top-1/2 left-4 right-4 h-px bg-gray-200"></div>
-                                        <div class="absolute top-[calc(50%+4px)] left-4 right-4 h-px bg-gray-200 opacity-70"></div>
-                                        <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full border border-gray-300 bg-white"></div>
-                                        <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-gray-300"></div>
+                                        <!-- Outer border -->
+                                        <div class="absolute inset-3 border-2 border-gray-300 rounded-xl"></div>
+                                        <!-- Center line -->
+                                        <div class="absolute left-1/2 top-3 bottom-3 w-px bg-gray-200"></div>
+                                        <!-- Net (thick line) -->
+                                        <div class="absolute top-1/2 left-3 right-3 h-0.5 bg-gray-400"></div>
+                                        <!-- Net shadow (second line) -->
+                                        <div class="absolute top-[calc(50%+3px)] left-3 right-3 h-px bg-gray-300 opacity-50"></div>
+                                        <!-- Center circle -->
+                                        <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-full border-2 border-gray-300 bg-white"></div>
+                                        <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-gray-300"></div>
                                     </div>
 
-                                    <!-- players -->
-                                    <div class="absolute inset-0 p-4">
-                                        <!-- Team1: left -->
+                                    <!-- players - using grid layout for precise centering -->
+                                    <div class="absolute inset-0 grid" :class="isDoubles ? 'grid-cols-2 grid-rows-2' : 'grid-cols-2 grid-rows-1'">
+                                        <!-- Team1 Left Side -->
                                         <div
-                                            class="absolute left-4 w-[calc(50%-1.25rem)] flex flex-col items-center justify-center"
-                                            :class="isDoubles ? 'top-4' : 'top-1/2 -translate-y-1/2'"
+                                            class="relative flex flex-col items-center justify-center p-2"
+                                            :class="isDoubles ? '' : 'row-span-2'"
                                         >
-                                            <div class="relative">
-                                                <span class="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-blue-50 border border-blue-200 text-blue-600 text-xs font-bold flex items-center justify-center">1</span>
+                                            <div class="relative flex flex-col items-center">
+                                                <span class="absolute -top-1.5 -left-1.5 w-6 h-6 rounded-full bg-blue-50 border-2 border-blue-300 text-blue-600 text-xs font-bold flex items-center justify-center shadow-sm">1</span>
                                                 <span
                                                     v-if="isServingPosition('team1', 0)"
-                                                    class="absolute -bottom-2 -right-2 w-7 h-7 rounded-full text-white text-sm font-bold flex items-center justify-center shadow"
+                                                    class="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-full text-white text-sm font-bold flex items-center justify-center shadow-lg z-10"
                                                     :class="matchStarted ? 'bg-blue-600' : 'bg-gray-900'"
                                                     :title="matchStarted ? 'Đang giao bóng' : 'Đã chọn người giao bóng'"
                                                 >
@@ -137,53 +143,28 @@
                                                     v-if="courtPositions.team1[0]"
                                                     :src="courtPositions.team1[0].avatar_url || '/images/default-avatar.png'"
                                                     :alt="courtPositions.team1[0].full_name"
-                                                    class="w-14 h-14 rounded-full border-2 shadow-sm"
-                                                    :class="isServingPosition('team1', 0) ? 'border-blue-500' : 'border-gray-200'"
+                                                    class="w-16 h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 rounded-full border-3 shadow-md object-cover"
+                                                    :class="isServingPosition('team1', 0) ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200'"
                                                 />
-                                                <div v-else class="w-14 h-14 rounded-full bg-gray-100 border border-gray-200"></div>
+                                                <div v-else class="w-16 h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 rounded-full bg-gray-100 border-2 border-gray-200 flex items-center justify-center">
+                                                    <span class="text-gray-400 text-xs">—</span>
+                                                </div>
                                             </div>
-                                            <div class="mt-2 text-xs font-medium text-gray-700 truncate max-w-[120px]">
+                                            <div class="mt-2 text-xs md:text-sm font-semibold text-gray-700 truncate max-w-[100px] md:max-w-[130px] text-center leading-tight">
                                                 {{ courtPositions.team1[0]?.full_name || '—' }}
                                             </div>
                                         </div>
-                                        <div
-                                            v-if="isDoubles"
-                                            class="absolute left-4 bottom-4 w-[calc(50%-1.25rem)] flex flex-col items-center justify-center"
-                                        >
-                                            <div class="relative">
-                                                <span class="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-blue-50 border border-blue-200 text-blue-600 text-xs font-bold flex items-center justify-center">2</span>
-                                                <span
-                                                    v-if="isServingPosition('team1', 1)"
-                                                    class="absolute -bottom-2 -right-2 w-7 h-7 rounded-full text-white text-sm font-bold flex items-center justify-center shadow"
-                                                    :class="matchStarted ? 'bg-blue-600' : 'bg-gray-900'"
-                                                    :title="matchStarted ? 'Đang giao bóng' : 'Đã chọn người giao bóng'"
-                                                >
-                                                    🏐
-                                                </span>
-                                                <img
-                                                    v-if="courtPositions.team1[1]"
-                                                    :src="courtPositions.team1[1].avatar_url || '/images/default-avatar.png'"
-                                                    :alt="courtPositions.team1[1].full_name"
-                                                    class="w-14 h-14 rounded-full border-2 shadow-sm"
-                                                    :class="isServingPosition('team1', 1) ? 'border-blue-500' : 'border-gray-200'"
-                                                />
-                                                <div v-else class="w-14 h-14 rounded-full bg-gray-100 border border-gray-200"></div>
-                                            </div>
-                                            <div class="mt-2 text-xs font-medium text-gray-700 truncate max-w-[120px]">
-                                                {{ courtPositions.team1[1]?.full_name || '—' }}
-                                            </div>
-                                        </div>
 
-                                        <!-- Team2: right -->
+                                        <!-- Team2 Right Side -->
                                         <div
-                                            class="absolute right-4 w-[calc(50%-1.25rem)] flex flex-col items-center justify-center"
-                                            :class="isDoubles ? 'top-4' : 'top-1/2 -translate-y-1/2'"
+                                            class="relative flex flex-col items-center justify-center p-2"
+                                            :class="isDoubles ? '' : 'row-span-2'"
                                         >
-                                            <div class="relative">
-                                                <span class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-50 border border-red-200 text-red-600 text-xs font-bold flex items-center justify-center">1</span>
+                                            <div class="relative flex flex-col items-center">
+                                                <span class="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-red-50 border-2 border-red-300 text-red-600 text-xs font-bold flex items-center justify-center shadow-sm">1</span>
                                                 <span
                                                     v-if="isServingPosition('team2', 0)"
-                                                    class="absolute -bottom-2 -left-2 w-7 h-7 rounded-full text-white text-sm font-bold flex items-center justify-center shadow"
+                                                    class="absolute -bottom-1.5 -left-1.5 w-8 h-8 rounded-full text-white text-sm font-bold flex items-center justify-center shadow-lg z-10"
                                                     :class="matchStarted ? 'bg-blue-600' : 'bg-gray-900'"
                                                     :title="matchStarted ? 'Đang giao bóng' : 'Đã chọn người giao bóng'"
                                                 >
@@ -193,24 +174,59 @@
                                                     v-if="courtPositions.team2[0]"
                                                     :src="courtPositions.team2[0].avatar_url || '/images/default-avatar.png'"
                                                     :alt="courtPositions.team2[0].full_name"
-                                                    class="w-14 h-14 rounded-full border-2 shadow-sm"
-                                                    :class="isServingPosition('team2', 0) ? 'border-red-500' : 'border-gray-200'"
+                                                    class="w-16 h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 rounded-full border-3 shadow-md object-cover"
+                                                    :class="isServingPosition('team2', 0) ? 'border-red-500 ring-2 ring-red-200' : 'border-gray-200'"
                                                 />
-                                                <div v-else class="w-14 h-14 rounded-full bg-gray-100 border border-gray-200"></div>
+                                                <div v-else class="w-16 h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 rounded-full bg-gray-100 border-2 border-gray-200 flex items-center justify-center">
+                                                    <span class="text-gray-400 text-xs">—</span>
+                                                </div>
                                             </div>
-                                            <div class="mt-2 text-xs font-medium text-gray-700 truncate max-w-[120px]">
+                                            <div class="mt-2 text-xs md:text-sm font-semibold text-gray-700 truncate max-w-[100px] md:max-w-[130px] text-center leading-tight">
                                                 {{ courtPositions.team2[0]?.full_name || '—' }}
                                             </div>
                                         </div>
+
+                                        <!-- Team1 Player 2 (Doubles only) -->
                                         <div
                                             v-if="isDoubles"
-                                            class="absolute right-4 bottom-4 w-[calc(50%-1.25rem)] flex flex-col items-center justify-center"
+                                            class="relative flex flex-col items-center justify-center p-2"
                                         >
-                                            <div class="relative">
-                                                <span class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-50 border border-red-200 text-red-600 text-xs font-bold flex items-center justify-center">2</span>
+                                            <div class="relative flex flex-col items-center">
+                                                <span class="absolute -top-1.5 -left-1.5 w-6 h-6 rounded-full bg-blue-50 border-2 border-blue-300 text-blue-600 text-xs font-bold flex items-center justify-center shadow-sm">2</span>
+                                                <span
+                                                    v-if="isServingPosition('team1', 1)"
+                                                    class="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-full text-white text-sm font-bold flex items-center justify-center shadow-lg z-10"
+                                                    :class="matchStarted ? 'bg-blue-600' : 'bg-gray-900'"
+                                                    :title="matchStarted ? 'Đang giao bóng' : 'Đã chọn người giao bóng'"
+                                                >
+                                                    🏐
+                                                </span>
+                                                <img
+                                                    v-if="courtPositions.team1[1]"
+                                                    :src="courtPositions.team1[1].avatar_url || '/images/default-avatar.png'"
+                                                    :alt="courtPositions.team1[1].full_name"
+                                                    class="w-16 h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 rounded-full border-3 shadow-md object-cover"
+                                                    :class="isServingPosition('team1', 1) ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200'"
+                                                />
+                                                <div v-else class="w-16 h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 rounded-full bg-gray-100 border-2 border-gray-200 flex items-center justify-center">
+                                                    <span class="text-gray-400 text-xs">—</span>
+                                                </div>
+                                            </div>
+                                            <div class="mt-2 text-xs md:text-sm font-semibold text-gray-700 truncate max-w-[100px] md:max-w-[130px] text-center leading-tight">
+                                                {{ courtPositions.team1[1]?.full_name || '—' }}
+                                            </div>
+                                        </div>
+
+                                        <!-- Team2 Player 2 (Doubles only) -->
+                                        <div
+                                            v-if="isDoubles"
+                                            class="relative flex flex-col items-center justify-center p-2"
+                                        >
+                                            <div class="relative flex flex-col items-center">
+                                                <span class="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-red-50 border-2 border-red-300 text-red-600 text-xs font-bold flex items-center justify-center shadow-sm">2</span>
                                                 <span
                                                     v-if="isServingPosition('team2', 1)"
-                                                    class="absolute -bottom-2 -left-2 w-7 h-7 rounded-full text-white text-sm font-bold flex items-center justify-center shadow"
+                                                    class="absolute -bottom-1.5 -left-1.5 w-8 h-8 rounded-full text-white text-sm font-bold flex items-center justify-center shadow-lg z-10"
                                                     :class="matchStarted ? 'bg-blue-600' : 'bg-gray-900'"
                                                     :title="matchStarted ? 'Đang giao bóng' : 'Đã chọn người giao bóng'"
                                                 >
@@ -220,12 +236,14 @@
                                                     v-if="courtPositions.team2[1]"
                                                     :src="courtPositions.team2[1].avatar_url || '/images/default-avatar.png'"
                                                     :alt="courtPositions.team2[1].full_name"
-                                                    class="w-14 h-14 rounded-full border-2 shadow-sm"
-                                                    :class="isServingPosition('team2', 1) ? 'border-red-500' : 'border-gray-200'"
+                                                    class="w-16 h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 rounded-full border-3 shadow-md object-cover"
+                                                    :class="isServingPosition('team2', 1) ? 'border-red-500 ring-2 ring-red-200' : 'border-gray-200'"
                                                 />
-                                                <div v-else class="w-14 h-14 rounded-full bg-gray-100 border border-gray-200"></div>
+                                                <div v-else class="w-16 h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 rounded-full bg-gray-100 border-2 border-gray-200 flex items-center justify-center">
+                                                    <span class="text-gray-400 text-xs">—</span>
+                                                </div>
                                             </div>
-                                            <div class="mt-2 text-xs font-medium text-gray-700 truncate max-w-[120px]">
+                                            <div class="mt-2 text-xs md:text-sm font-semibold text-gray-700 truncate max-w-[100px] md:max-w-[130px] text-center leading-tight">
                                                 {{ courtPositions.team2[1]?.full_name || '—' }}
                                             </div>
                                         </div>
@@ -236,11 +254,11 @@
                                         v-if="isDoubles"
                                         class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-auto"
                                     >
-                                        <div class="flex items-center gap-2">
-                                            <div class="flex items-center gap-2">
+                                        <div class="flex items-center gap-3">
+                                            <div class="flex flex-col items-center gap-2">
                                                 <button
                                                     type="button"
-                                                    class="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 text-gray-800 shadow-sm"
+                                                    class="w-10 h-10 rounded-full bg-gray-100 border-2 border-gray-200 text-gray-800 shadow-sm hover:bg-gray-200 hover:border-gray-300 transition-all"
                                                     title="Timeout"
                                                     @click="handleTimeout"
                                                 >
@@ -249,7 +267,7 @@
                                                 <button
                                                     v-if="!matchStarted"
                                                     type="button"
-                                                    class="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 text-gray-800 shadow-sm"
+                                                    class="w-10 h-10 rounded-full bg-gray-100 border-2 border-gray-200 text-gray-800 shadow-sm hover:bg-gray-200 hover:border-gray-300 transition-all"
                                                     title="Đổi vị trí đội trái"
                                                     @click="swapPositions('team1')"
                                                 >
@@ -261,7 +279,7 @@
                                                 <button
                                                     v-if="!matchStarted"
                                                     type="button"
-                                                    class="absolute -top-12 w-10 h-10 rounded-full bg-gray-900 text-white shadow-md flex items-center justify-center"
+                                                    class="absolute -top-14 w-11 h-11 rounded-full bg-gray-900 text-white shadow-lg flex items-center justify-center hover:bg-gray-800 transition-colors"
                                                     title="Chọn người giao bóng đầu tiên"
                                                     @click="toggleSelectingServer"
                                                 >
@@ -270,18 +288,18 @@
                                                 <button
                                                     type="button"
                                                     @click="swapTeams"
-                                                    class="w-11 h-11 rounded-full bg-white border border-gray-300 text-gray-900 shadow-md"
+                                                    class="w-12 h-12 rounded-full bg-white border-2 border-gray-300 text-gray-900 shadow-md hover:bg-gray-50 hover:border-gray-400 transition-all"
                                                     title="Đổi bên hai đội"
                                                 >
                                                     ⇄
                                                 </button>
                                             </div>
 
-                                            <div class="flex items-center gap-2">
+                                            <div class="flex flex-col items-center gap-2">
                                                 <button
                                                     v-if="!matchStarted"
                                                     type="button"
-                                                    class="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 text-gray-800 shadow-sm"
+                                                    class="w-10 h-10 rounded-full bg-gray-100 border-2 border-gray-200 text-gray-800 shadow-sm hover:bg-gray-200 hover:border-gray-300 transition-all"
                                                     title="Đổi vị trí đội phải"
                                                     @click="swapPositions('team2')"
                                                 >
@@ -289,7 +307,7 @@
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    class="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 text-gray-800 shadow-sm"
+                                                    class="w-10 h-10 rounded-full bg-gray-100 border-2 border-gray-200 text-gray-800 shadow-sm hover:bg-gray-200 hover:border-gray-300 transition-all"
                                                     title="Timeout"
                                                     @click="handleTimeout"
                                                 >
@@ -302,51 +320,51 @@
                                     <!-- selecting server overlay (setup only) -->
                                     <div
                                         v-if="!matchStarted && selectingServer"
-                                        class="absolute inset-0 bg-white/70 backdrop-blur-[1px] z-20 flex items-center justify-center"
+                                        class="absolute inset-0 bg-white/80 backdrop-blur-[2px] z-20 flex items-center justify-center"
                                     >
-                                        <div class="w-full h-full p-4">
+                                        <div class="w-full h-full p-5">
                                             <button
                                                 type="button"
-                                                class="absolute top-3 right-3 w-8 h-8 rounded-full bg-white border border-gray-200 shadow text-gray-700"
+                                                class="absolute top-4 right-4 w-9 h-9 rounded-full bg-white border-2 border-gray-200 shadow-lg text-gray-700 hover:bg-gray-100 hover:border-gray-300 transition-all"
                                                 title="Đóng"
                                                 @click="toggleSelectingServer"
                                             >
                                                 ✕
                                             </button>
-                                            <div class="w-full h-full grid grid-cols-2 gap-2" :class="isDoubles ? 'grid-rows-2' : 'grid-rows-1'">
+                                            <div class="w-full h-full grid" :class="isDoubles ? 'grid-cols-2 grid-rows-2 gap-3' : 'grid-cols-2 gap-3'">
                                                 <button
                                                     type="button"
-                                                    class="rounded-xl border border-gray-200 bg-white shadow-sm flex flex-col items-center justify-center"
+                                                    class="rounded-2xl border-2 border-gray-200 bg-white shadow-md hover:border-blue-300 hover:bg-blue-50 transition-all flex flex-col items-center justify-center"
                                                     @click="setInitialServer('team1', 0)"
                                                 >
-                                                    <div class="w-10 h-10 rounded-full bg-gray-900 text-white flex items-center justify-center">🏐</div>
-                                                    <div class="mt-2 text-xs font-semibold text-gray-700 truncate max-w-[120px]">{{ courtPositions.team1[0]?.full_name || 'Team A - 1' }}</div>
+                                                    <div class="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-sm">🏐</div>
+                                                    <div class="mt-2 text-xs md:text-sm font-semibold text-gray-700 truncate max-w-[140px] text-center">{{ courtPositions.team1[0]?.full_name || 'Team A - 1' }}</div>
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    class="rounded-xl border border-gray-200 bg-white shadow-sm flex flex-col items-center justify-center"
+                                                    class="rounded-2xl border-2 border-gray-200 bg-white shadow-md hover:border-red-300 hover:bg-red-50 transition-all flex flex-col items-center justify-center"
                                                     @click="setInitialServer('team2', 0)"
                                                 >
-                                                    <div class="w-10 h-10 rounded-full bg-gray-900 text-white flex items-center justify-center">🏐</div>
-                                                    <div class="mt-2 text-xs font-semibold text-gray-700 truncate max-w-[120px]">{{ courtPositions.team2[0]?.full_name || 'Team B - 1' }}</div>
+                                                    <div class="w-12 h-12 rounded-full bg-red-600 text-white flex items-center justify-center shadow-sm">🏐</div>
+                                                    <div class="mt-2 text-xs md:text-sm font-semibold text-gray-700 truncate max-w-[140px] text-center">{{ courtPositions.team2[0]?.full_name || 'Team B - 1' }}</div>
                                                 </button>
                                                 <button
                                                     v-if="isDoubles"
                                                     type="button"
-                                                    class="rounded-xl border border-gray-200 bg-white shadow-sm flex flex-col items-center justify-center"
+                                                    class="rounded-2xl border-2 border-gray-200 bg-white shadow-md hover:border-blue-300 hover:bg-blue-50 transition-all flex flex-col items-center justify-center"
                                                     @click="setInitialServer('team1', 1)"
                                                 >
-                                                    <div class="w-10 h-10 rounded-full bg-gray-900 text-white flex items-center justify-center">🏐</div>
-                                                    <div class="mt-2 text-xs font-semibold text-gray-700 truncate max-w-[120px]">{{ courtPositions.team1[1]?.full_name || 'Team A - 2' }}</div>
+                                                    <div class="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-sm">🏐</div>
+                                                    <div class="mt-2 text-xs md:text-sm font-semibold text-gray-700 truncate max-w-[140px] text-center">{{ courtPositions.team1[1]?.full_name || 'Team A - 2' }}</div>
                                                 </button>
                                                 <button
                                                     v-if="isDoubles"
                                                     type="button"
-                                                    class="rounded-xl border border-gray-200 bg-white shadow-sm flex flex-col items-center justify-center"
+                                                    class="rounded-2xl border-2 border-gray-200 bg-white shadow-md hover:border-red-300 hover:bg-red-50 transition-all flex flex-col items-center justify-center"
                                                     @click="setInitialServer('team2', 1)"
                                                 >
-                                                    <div class="w-10 h-10 rounded-full bg-gray-900 text-white flex items-center justify-center">🏐</div>
-                                                    <div class="mt-2 text-xs font-semibold text-gray-700 truncate max-w-[120px]">{{ courtPositions.team2[1]?.full_name || 'Team B - 2' }}</div>
+                                                    <div class="w-12 h-12 rounded-full bg-red-600 text-white flex items-center justify-center shadow-sm">🏐</div>
+                                                    <div class="mt-2 text-xs md:text-sm font-semibold text-gray-700 truncate max-w-[140px] text-center">{{ courtPositions.team2[1]?.full_name || 'Team B - 2' }}</div>
                                                 </button>
                                             </div>
                                         </div>
@@ -356,11 +374,11 @@
                                 <!-- Singles: actions row below court -->
                                 <div
                                     v-if="!isDoubles"
-                                    class="mt-3 flex items-center justify-center gap-3"
+                                    class="mt-4 flex items-center justify-center gap-4"
                                 >
                                     <button
                                         type="button"
-                                        class="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 text-gray-800 shadow-sm"
+                                        class="w-11 h-11 rounded-full bg-gray-100 border-2 border-gray-200 text-gray-800 shadow-sm hover:bg-gray-200 hover:border-gray-300 transition-all"
                                         title="Timeout"
                                         @click="handleTimeout"
                                     >
@@ -369,7 +387,7 @@
                                     <button
                                         v-if="!matchStarted"
                                         type="button"
-                                        class="w-10 h-10 rounded-full bg-gray-900 text-white shadow-md flex items-center justify-center"
+                                        class="w-11 h-11 rounded-full bg-gray-900 text-white shadow-lg flex items-center justify-center hover:bg-gray-800 transition-colors"
                                         title="Chọn người giao bóng đầu tiên"
                                         @click="toggleSelectingServer"
                                     >
@@ -378,20 +396,20 @@
                                     <button
                                         type="button"
                                         @click="swapTeams"
-                                        class="w-11 h-11 rounded-full bg-white border border-gray-300 text-gray-900 shadow-md"
+                                        class="w-12 h-12 rounded-full bg-white border-2 border-gray-300 text-gray-900 shadow-md hover:bg-gray-50 hover:border-gray-400 transition-all"
                                         title="Đổi bên hai đội"
                                     >
                                         ⇄
                                     </button>
                                 </div>
 
-                                <div class="mt-3 text-center text-xs text-gray-500">
+                                <div class="mt-4 text-center text-sm text-gray-600">
                                     <template v-if="matchStarted">
-                                        Giao bóng: <span class="font-semibold" :class="servingTeam === 'team1' ? 'text-blue-600' : 'text-red-600'">{{ currentServerName }}</span>
-                                        <span class="ml-2 text-gray-400">(Tay {{ isFirstServe ? '1*' : serverNumber }})</span>
+                                        Giao bóng: <span class="font-bold" :class="servingTeam === 'team1' ? 'text-blue-600' : 'text-red-600'">{{ currentServerName }}</span>
+                                        <span class="ml-2 text-gray-400 text-xs">(Tay {{ isFirstServe ? '1*' : serverNumber }})</span>
                                     </template>
                                     <template v-else>
-                                        <span class="text-gray-600">Bấm <span class="font-semibold">POINT +1</span> để bắt đầu trận</span>
+                                        <span>Bấm <span class="font-bold">POINT +1</span> để bắt đầu trận</span>
                                     </template>
                                 </div>
                             </div>
@@ -399,27 +417,27 @@
                     </div>
 
                     <!-- Action Buttons -->
-                    <div class="bg-white px-4 py-4 border-t border-gray-100 space-y-3">
+                    <div class="bg-white px-6 py-4 border-t border-gray-100 flex-shrink-0 space-y-3">
                         <div class="grid grid-cols-2 gap-3">
                             <button
                                 type="button"
                                 @click="handleSideOut"
                                 :disabled="!canStartMatch"
-                                class="py-4 rounded-xl font-extrabold text-base transition-colors disabled:opacity-40"
-                                :class="canStartMatch ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-red-100 text-red-300'"
+                                class="py-4 rounded-xl font-bold text-base transition-all disabled:opacity-40 shadow-sm"
+                                :class="canStartMatch ? 'bg-red-600 hover:bg-red-700 active:bg-red-800 text-white' : 'bg-red-100 text-red-300'"
                             >
                                 SIDE OUT
-                                <span class="block text-xs font-normal opacity-80">ĐỔI GIAO BÓNG</span>
+                                <span class="block text-xs font-normal opacity-80 mt-0.5">ĐỔI GIAO BÓNG</span>
                             </button>
                             <button
                                 type="button"
                                 @click="handlePoint"
                                 :disabled="!canStartMatch"
-                                class="py-4 rounded-xl font-extrabold text-base transition-colors disabled:opacity-40"
-                                :class="canStartMatch ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-100 text-green-300'"
+                                class="py-4 rounded-xl font-bold text-base transition-all disabled:opacity-40 shadow-sm"
+                                :class="canStartMatch ? 'bg-green-600 hover:bg-green-700 active:bg-green-800 text-white' : 'bg-green-100 text-green-300'"
                             >
                                 POINT +1
-                                <span class="block text-xs font-normal opacity-80">GHI ĐIỂM</span>
+                                <span class="block text-xs font-normal opacity-80 mt-0.5">GHI ĐIỂM</span>
                             </button>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
@@ -427,15 +445,15 @@
                                 type="button"
                                 @click="handleUndo"
                                 :disabled="actionHistory.length === 0"
-                                class="py-3 rounded-xl font-medium text-sm transition-colors disabled:opacity-50"
-                                :class="actionHistory.length > 0 ? 'bg-gray-100 hover:bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-400'"
+                                class="py-3.5 rounded-xl font-medium text-sm transition-all disabled:opacity-50 border-2"
+                                :class="actionHistory.length > 0 ? 'bg-gray-50 hover:bg-gray-100 text-gray-800 border-gray-200 hover:border-gray-300' : 'bg-gray-50 text-gray-400 border-gray-100'"
                             >
                                 ↩ Hoàn tác
                             </button>
                             <button
                                 type="button"
                                 @click="handleFinishSet"
-                                class="py-3 bg-white hover:bg-gray-50 text-gray-800 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50 border border-gray-200"
+                                class="py-3.5 bg-white hover:bg-gray-50 text-gray-800 rounded-xl font-semibold text-sm transition-all disabled:opacity-50 border-2 border-gray-200 hover:border-gray-300"
                                 :disabled="!matchStarted"
                             >
                                 ✓ Xong Set
