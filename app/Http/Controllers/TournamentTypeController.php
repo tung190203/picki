@@ -120,13 +120,9 @@ const PAIRING_MODE_MANUAL = 'manual';
 
     public function autoGenerateMatches(TournamentType $tournamentType)
     {
-        $completedMatches = $tournamentType->matches()
-            ->where('status', 'completed')
-            ->exists();
-
-        if ($completedMatches) {
+        if ($this->hasLockedMatches($tournamentType)) {
             return ResponseHelper::error(
-                'Không thể sắp xếp lại. Đã có trận đấu hoàn thành.',
+                'Không thể sắp xếp lại. Đã có trận đấu hoàn thành và có kết quả được xác nhận.',
                 400
             );
         }
@@ -211,6 +207,31 @@ const PAIRING_MODE_MANUAL = 'manual';
             if($setPerMatch > 0 && $winningRule > 0) {
                 if($winningRule > $setPerMatch) {
                     return ResponseHelper::error('Quy tắc thắng phải nhỏ hơn số set trong trận', 422);
+                }
+            }
+        }
+
+        // ✅ KIỂM TRA THAY ĐỔI PAIRING MODE
+        if (!empty($validated['format_specific_config'])) {
+            $mainConfig = is_array($validated['format_specific_config']) && isset($validated['format_specific_config'][0])
+                ? $validated['format_specific_config'][0]
+                : $validated['format_specific_config'];
+            $knockoutConfig = $mainConfig['knockout_stage'] ?? [];
+            $newPairingMode = $knockoutConfig['pairing_mode'] ?? null;
+
+            if ($newPairingMode) {
+                $oldConfig = $tournamentType->format_specific_config ?? [];
+                $oldMainConfig = is_array($oldConfig) && isset($oldConfig[0]) ? $oldConfig[0] : $oldConfig;
+                $oldKnockoutConfig = $oldMainConfig['knockout_stage'] ?? [];
+                $oldPairingMode = $oldKnockoutConfig['pairing_mode'] ?? null;
+
+                if ($oldPairingMode && $oldPairingMode !== $newPairingMode) {
+                    if ($this->hasLockedMatches($tournamentType)) {
+                        return ResponseHelper::error(
+                            'Không thể thay đổi pairing mode. Đã có trận đấu hoàn thành và có kết quả được xác nhận.',
+                            400
+                        );
+                    }
                 }
             }
         }
@@ -303,13 +324,9 @@ const PAIRING_MODE_MANUAL = 'manual';
      */
     public function destroy(TournamentType $tournamentType)
     {
-        $completedMatches = $tournamentType->matches()
-        ->where('status', 'completed')
-        ->exists();
-
-        if ($completedMatches) {
+        if ($this->hasLockedMatches($tournamentType)) {
             return ResponseHelper::error(
-                'Không thể chia lại cặp đấu. Đã có trận đấu hoàn thành thuộc thể thức này.',
+                'Không thể xoá thể thức. Đã có trận đấu hoàn thành và có kết quả được xác nhận.',
                 400
             );
         }
@@ -2419,13 +2436,9 @@ const PAIRING_MODE_MANUAL = 'manual';
 
         $validated = $request->validate($rules);
         if (!$isDraft) {
-            $completedMatches = $tournamentType->matches()
-                ->where('status', 'completed')
-                ->exists();
-
-            if ($completedMatches) {
+            if ($this->hasLockedMatches($tournamentType)) {
                 return ResponseHelper::error(
-                    'Không thể sắp xếp lại. Đã có trận đấu hoàn thành.',
+                    'Không thể sắp xếp lại. Đã có trận đấu hoàn thành và có kết quả được xác nhận.',
                     400
                 );
             }
@@ -2944,5 +2957,20 @@ const PAIRING_MODE_MANUAL = 'manual';
         }
 
         return null;
+    }
+
+    /**
+     * ============================================================================
+     * HELPER - Kiểm tra trạng thái locked không cho regenerate
+     * ============================================================================
+     */
+    private function hasLockedMatches(TournamentType $tournamentType): bool
+    {
+        return $tournamentType->matches()
+            ->where('status', Matches::STATUS_COMPLETED)
+            ->whereHas('results', function ($q) {
+                $q->where('confirmed', true);
+            })
+            ->exists();
     }
 }
