@@ -300,6 +300,7 @@ class TournamentController extends Controller
             'is_public_branch' => 'nullable|boolean',
             'is_own_score' => 'nullable|boolean',
             'status' => 'nullable|in:' . implode(',', Tournament::STATUS),
+            'creator_join' => 'nullable|boolean',
         ]);
 
         $tournament = Tournament::findOrFail($id);
@@ -308,7 +309,9 @@ class TournamentController extends Controller
             return ResponseHelper::error('Bạn không có quyền thay đổi giải đấu', 400);
         }
 
-        DB::transaction(function () use ($validated, $tournament, $request) {
+        $oldCreatorJoin = $tournament->creator_join;
+
+        DB::transaction(function () use ($validated, $tournament, $request, &$oldCreatorJoin) {
             if ($request->hasFile('poster')) {
                 $this->imageService->deleteOldImage($tournament->poster);
                 $path = $this->imageService->optimize(
@@ -333,6 +336,29 @@ class TournamentController extends Controller
 
             if ($newStatus == Tournament::CLOSED && $oldStatus != Tournament::CLOSED) {
                 $this->updateParticipantsRatingStats($tournament);
+            }
+
+            // Xử lý creator_join: tạo hoặc xóa participant khi giá trị thay đổi
+            if (array_key_exists('creator_join', $validated)) {
+                $newCreatorJoin = !empty($validated['creator_join']);
+
+                // 0 → 1: tạo participant cho host
+                if ($newCreatorJoin && !$oldCreatorJoin) {
+                    Participant::firstOrCreate([
+                        'tournament_id' => $tournament->id,
+                        'user_id' => Auth::id(),
+                    ], [
+                        'is_confirmed' => true,
+                    ]);
+                }
+
+                // 1 → 0: xóa participant của host (nếu chưa check-in)
+                if (!$newCreatorJoin && $oldCreatorJoin) {
+                    Participant::where('tournament_id', $tournament->id)
+                        ->where('user_id', Auth::id())
+                        ->whereNull('checked_in_at')
+                        ->delete();
+                }
             }
         });
 
