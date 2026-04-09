@@ -513,11 +513,20 @@ export default {
         })
 
         const initCourt = () => {
-            const t1Members = (props.team1?.members || []).map(m => m?.user ?? m).filter(Boolean)
-            const t2Members = (props.team2?.members || []).map(m => m?.user ?? m).filter(Boolean)
+            const normalize = (members) => {
+                return (members || []).map(m => {
+                    if (!m) return null
+                    const user = m?.user ?? m
+                    return {
+                        id: user?.id ?? m?.id,
+                        full_name: user?.full_name ?? m?.full_name ?? 'N/A',
+                        avatar_url: user?.avatar_url ?? m?.avatar_url ?? '',
+                    }
+                }).filter(Boolean)
+            }
             courtPositions.value = {
-                team1: [...t1Members],
-                team2: [...t2Members]
+                team1: normalize(props.team1?.members),
+                team2: normalize(props.team2?.members)
             }
         }
 
