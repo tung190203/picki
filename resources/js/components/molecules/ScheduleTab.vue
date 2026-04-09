@@ -398,6 +398,7 @@ const mixedStages = [
 const props = defineProps({
     isCreator: { type: Boolean, default: false },
     toggle: { type: Boolean, required: true },
+    activeTab: { type: String, default: '' },
     rank: { type: Object, required: true },
     data: { type: Object, required: true },
 });
@@ -824,11 +825,31 @@ const normalizeMatchForCard = (match) => {
 };
 
 watch(
+    () => props.activeTab,
+    async (tab) => {
+        if (tab === 'schedule' && props.data?.id) {
+            await getMatches(props.data.id);
+        }
+    },
+);
+
+watch(
     () => props.data?.id,
     async (newTournamentId) => {
-        if (newTournamentId) await getMatches(newTournamentId);
+        if (newTournamentId && props.activeTab === 'schedule') {
+            await getMatches(newTournamentId);
+        }
     },
-    { immediate: true, deep: true },
+);
+
+watch(
+    () => props.data?.tournament_types,
+    async (types) => {
+        if (types && types.length > 0 && props.activeTab === 'schedule' && props.data?.id) {
+            await getMatches(props.data.id);
+        }
+    },
+    { deep: true },
 );
 </script>
 

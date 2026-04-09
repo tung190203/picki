@@ -665,7 +665,7 @@
 
             <div v-else-if="activeTab === 'schedule'" key="schedule" class="flex flex-col min-h-[70vh]">
               <ScheduleTab :isCreator="isCreator" :toggle="isHandleOwnScore" @handle-toggle="handleUpdateOwnScore"
-                :rank="ranks" :data="tournament" />
+                :rank="ranks" :data="tournament" :activeTab="activeTab" />
             </div>
             <div v-else-if="activeTab === 'discuss'" key="discuss" class="flex flex-col h-[70vh]">
               <ChatForm :tournamentId="tournament.id" />
