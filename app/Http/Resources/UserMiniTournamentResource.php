@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\MiniMatch;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\DB;
 
 class UserMiniTournamentResource extends JsonResource
 {
@@ -97,28 +98,45 @@ class UserMiniTournamentResource extends JsonResource
     protected function buildStats(bool $isCompleted, ?\App\Models\MiniParticipant $participant): array
     {
         $sportId = $this->sport_id;
-        $userId = $this->targetUserId;
 
+        if ($isCompleted) {
+            return $this->buildFinishedStats($participant, $sportId);
+        }
+
+        return $this->buildOngoingStats($participant, $sportId);
+    }
+
+    protected function buildOngoingStats(?\App\Models\MiniParticipant $participant, ?int $sportId): array
+    {
+        $userId = $this->targetUserId;
         [$totalMatches, $totalWin, $totalLose] = $this->getMatchStats($userId);
 
         return [
-            // Match stats
             'total_matches' => $totalMatches,
             'total_win' => $totalWin,
             'total_lose' => $totalLose,
+            'current_rating' => $this->getUserRating($sportId, $userId),
+            'current_rank' => $this->getUserRank($sportId, $userId),
+            'role' => $this->getUserRole($userId),
+        ];
+    }
 
-            // Rating & Rank from participant (sau khi kèo kết thúc)
+    protected function buildFinishedStats(?\App\Models\MiniParticipant $participant, ?int $sportId): array
+    {
+        $userId = $this->targetUserId;
+        [$totalMatches, $totalWin, $totalLose] = $this->getMatchStats($userId);
+
+        return [
+            'total_matches' => $totalMatches,
+            'total_win' => $totalWin,
+            'total_lose' => $totalLose,
             'rating_before' => $participant?->rating_before,
             'rating_after' => $participant?->rating_after,
             'rank_before' => $participant?->rank_before,
             'rank_after' => $participant?->rank_after,
             'rank_change' => $participant?->rank_change,
-
-            // Current rating & rank của user
             'current_rating' => $this->getUserRating($sportId, $userId),
             'current_rank' => $this->getUserRank($sportId, $userId),
-
-            // Role của user trong mini tournament
             'role' => $this->getUserRole($userId),
         ];
     }
@@ -127,13 +145,50 @@ class UserMiniTournamentResource extends JsonResource
     {
         $matches = $this->matches ?? collect();
 
+        // Get user's team IDs from mini_team_members table (đấu đôi)
+        $userTeamIds = DB::table('mini_team_members')
+            ->join('mini_teams', 'mini_team_members.mini_team_id', '=', 'mini_teams.id')
+            ->where('mini_teams.mini_tournament_id', $this->id)
+            ->where('mini_team_members.user_id', $userId)
+            ->pluck('mini_team_id')
+            ->toArray();
+
+        // Get user's participant IDs from mini_participants table (đấu đơn)
+        $userParticipantIds = DB::table('mini_participants')
+            ->where('mini_tournament_id', $this->id)
+            ->where('user_id', $userId)
+            ->pluck('id')
+            ->toArray();
+
         $totalMatches = 0;
         $totalWin = 0;
         $totalLose = 0;
 
         foreach ($matches as $match) {
-            $isUserParticipant = $match->participant1_id === $userId
-                || $match->participant2_id === $userId;
+            $isUserParticipant = false;
+            $isWinner = false;
+
+            // Check double match (đấu đôi) - qua team IDs
+            if (!empty($userTeamIds)) {
+                if (in_array($match->team1_id, $userTeamIds) || in_array($match->team2_id, $userTeamIds)) {
+                    $isUserParticipant = true;
+                    // Kiểm tra thắng/thua qua team_win_id
+                    if ($match->team_win_id && in_array($match->team_win_id, $userTeamIds)) {
+                        $isWinner = true;
+                    }
+                }
+            }
+
+            // Check single match (đấu đơn) - qua participant IDs
+            if (!empty($userParticipantIds)) {
+                if (in_array($match->participant1_id, $userParticipantIds) || in_array($match->participant2_id, $userParticipantIds)) {
+                    $isUserParticipant = true;
+                    // Kiểm tra thắng/thua qua participant_win_id
+                    if ($match->participant_win_id && in_array($match->participant_win_id, $userParticipantIds)) {
+                        $isWinner = true;
+                    }
+                }
+            }
 
             if (!$isUserParticipant) {
                 continue;
@@ -141,9 +196,10 @@ class UserMiniTournamentResource extends JsonResource
 
             $totalMatches++;
 
-            if ($match->participant_win_id === $userId) {
+            if ($isWinner) {
                 $totalWin++;
-            } elseif ($match->status === 'completed' && $match->participant_win_id !== null) {
+            } elseif ($match->status === 'completed' && ($match->team_win_id || $match->participant_win_id)) {
+                // Chỉ tính thua khi trận đấu đã hoàn thành VÀ có người thắng
                 $totalLose++;
             }
         }

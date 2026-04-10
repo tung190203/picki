@@ -562,7 +562,7 @@ class UserController extends Controller
                 'sport',
                 'club',
                 'competitionLocation',
-                'participants',
+                'participants.team.members',
                 'matches',
                 'miniTournamentStaffs',
             ])

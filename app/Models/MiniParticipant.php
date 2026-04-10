@@ -63,6 +63,12 @@ class MiniParticipant extends Model
         return $this->belongsTo(User::class);
     }
 
+    // Team (khi tham gia đấu đôi)
+    public function team()
+    {
+        return $this->belongsTo(MiniTeam::class, 'team_id');
+    }
+
     /**
      * Get the guarantor (người bảo lãnh) for guest participants
      */
