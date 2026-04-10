@@ -212,6 +212,17 @@
                   </button>
                 </div>
               </template>
+
+              <!-- Landing Page Button -->
+              <div class="mt-3">
+                <a
+                  :href="`/tournament-landing/${tournament.id}`"
+                  target="_blank"
+                  class="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium transition">
+                  <ExternalLinkIcon class="w-4 h-4" />
+                  Xem Landing Page
+                </a>
+              </div>
             </div>
 
             <div v-else-if="activeTab === 'list'" key="list">
@@ -753,7 +764,8 @@ import {
   UserGroupIcon as UserMultiple,
   UsersIcon,
   ClipboardDocumentCheckIcon,
-  CheckIcon
+  CheckIcon,
+  ArrowTopRightOnSquareIcon as ExternalLinkIcon
 } from '@heroicons/vue/24/outline'
 import UserCard from '@/components/molecules/UserCard.vue'
 import UserCardPending from '@/components/molecules/UserCardPending.vue'

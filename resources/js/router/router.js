@@ -36,6 +36,7 @@ import UnderConstructionPage from '@/components/pages/common/error/UnderConstruc
 import TournamentBracketPage from '@/components/pages/tournament/TournamentBracketPage.vue'
 import GroupSortView from '@/components/pages/tournament/GroupSortView.vue'
 import MatchVerifyPage from '@/components/pages/tournament/MatchVerifyPage.vue'
+import TournamentLandingPage from '@/components/pages/tournament/TournamentLandingPage.vue'
 import MiniMatchVerifyPage from '@/components/pages/mini-tournament/MiniMatchVerifyPage.vue'
 import NotificationsPage from '@/components/pages/notifications/NotificationsPage.vue'
 import SettingsPage from '@/components/pages/profile/SettingsPage.vue'
@@ -399,6 +400,12 @@ export const route = [
     path: '/privacy-policy',
     name: 'privacy-policy',
     component: PrivacyPolicyPage
+  },
+  // --- PUBLIC LANDING PAGES ---
+  {
+    path: '/tournament-landing/:id',
+    name: 'tournament-landing',
+    component: TournamentLandingPage
   },
   {
     path: '/under-construction',
