@@ -27,6 +27,11 @@ class MiniParticipant extends Model
         'estimated_level_min',
         'estimated_level_max',
         'is_absent',
+        'rating_before',
+        'rating_after',
+        'rank_before',
+        'rank_after',
+        'rank_change',
         'checked_in_at',
         'is_pending_confirmation',
     ];
@@ -36,6 +41,11 @@ class MiniParticipant extends Model
         'payment_status' => PaymentStatusEnum::class,
         'is_guest' => 'boolean',
         'is_absent' => 'boolean',
+        'rating_before' => 'decimal:2',
+        'rating_after' => 'decimal:2',
+        'rank_before' => 'integer',
+        'rank_after' => 'integer',
+        'rank_change' => 'integer',
         'checked_in_at' => 'datetime',
         'is_pending_confirmation' => 'boolean',
     ];
