@@ -20,6 +20,7 @@ class Kernel extends ConsoleKernel
 
         $schedule->command('activities:auto-complete')->everyTwoMinutes();
         $schedule->command('tournaments:auto-close')->everyMinute();
+        $schedule->command('mini-tournaments:auto-close')->everyMinute();
         $schedule->command('mini-tournaments:rollover-recurrence')->daily();
         $schedule->command('mini-tournaments:create-auto-payments')->everyMinute();
         $schedule->command('guests:cleanup-inactive')->daily();

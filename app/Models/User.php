@@ -697,4 +697,178 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     {
         return User::where('id', $userId)->where('role', self::ADMIN)->exists();
     }
+
+    public function getTotalTournamentsAttribute(): int
+    {
+        $participantIds = DB::table('participants')
+            ->where('user_id', $this->id)
+            ->pluck('tournament_id');
+
+        $staffTournamentIds = DB::table('tournament_staff')
+            ->where('user_id', $this->id)
+            ->pluck('tournament_id');
+
+        $allIds = $participantIds->merge($staffTournamentIds)->unique();
+
+        return $allIds->count();
+    }
+
+    public function getTotalMiniTournamentsAttribute(): int
+    {
+        $participantIds = DB::table('mini_participants')
+            ->where('user_id', $this->id)
+            ->pluck('mini_tournament_id');
+
+        $staffMiniTournamentIds = DB::table('mini_tournament_staff')
+            ->where('user_id', $this->id)
+            ->pluck('mini_tournament_id');
+
+        $allIds = $participantIds->merge($staffMiniTournamentIds)->unique();
+
+        return $allIds->count();
+    }
+
+    /**
+     * Tính thống kê sport (total_matches, total_tournaments, win_rate, performance)
+     * cho một user + sport_id cụ thể.
+     */
+    public static function getSportStats(int $userId, int $sportId): array
+    {
+        // total_matches: trận đã hoàn tất - dùng team_members thay vì participants.team_id
+        $matchCount = DB::table('matches as m')
+            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
+            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
+            ->join('team_members as tm', function ($join) {
+                $join->on('tm.team_id', '=', 'm.home_team_id');
+            })
+            ->where('tm.user_id', $userId)
+            ->where('t.sport_id', $sportId)
+            ->where('m.status', 'completed')
+            ->count(DB::raw('DISTINCT m.id'));
+
+        $awayMatchCount = DB::table('matches as m')
+            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
+            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
+            ->join('team_members as tm', function ($join) {
+                $join->on('tm.team_id', '=', 'm.away_team_id');
+            })
+            ->where('tm.user_id', $userId)
+            ->where('t.sport_id', $sportId)
+            ->where('m.status', 'completed')
+            ->count(DB::raw('DISTINCT m.id'));
+
+        $matchCount = $matchCount + $awayMatchCount;
+
+        $miniMatchCount = DB::table('mini_matches as mm')
+            ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
+            ->join('mini_team_members as mtm', function ($join) {
+                $join->on('mtm.mini_team_id', '=', 'mm.team1_id');
+            })
+            ->where('mtm.user_id', $userId)
+            ->where('mnt.sport_id', $sportId)
+            ->where('mm.status', 'completed')
+            ->count(DB::raw('DISTINCT mm.id'));
+
+        $awayMiniMatchCount = DB::table('mini_matches as mm')
+            ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
+            ->join('mini_team_members as mtm', function ($join) {
+                $join->on('mtm.mini_team_id', '=', 'mm.team2_id');
+            })
+            ->where('mtm.user_id', $userId)
+            ->where('mnt.sport_id', $sportId)
+            ->where('mm.status', 'completed')
+            ->count(DB::raw('DISTINCT mm.id'));
+
+        $miniMatchCount = $miniMatchCount + $awayMiniMatchCount;
+
+        $totalMatches = $matchCount + $miniMatchCount;
+
+        // total_tournaments: distinct tournament mà user tham gia (chỉ participant)
+        $participantTournamentIds = DB::table('participants')
+            ->where('user_id', $userId)
+            ->pluck('tournament_id');
+
+        $totalTournaments = DB::table('tournaments')
+            ->whereIn('id', $participantTournamentIds)
+            ->where('sport_id', $sportId)
+            ->count();
+
+        // total_mini_tournaments (chỉ participant)
+        $participantMiniTournamentIds = DB::table('mini_participants')
+            ->where('user_id', $userId)
+            ->pluck('mini_tournament_id');
+
+        $totalMiniTournaments = DB::table('mini_tournaments')
+            ->whereIn('id', $participantMiniTournamentIds)
+            ->where('sport_id', $sportId)
+            ->count();
+
+        // win_rate
+        $totalWin = 0;
+        if ($totalMatches > 0) {
+            $wins = DB::table('matches as m')
+                ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
+                ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
+                ->join('team_members as tm', function ($join) use ($userId) {
+                    $join->on('tm.team_id', '=', 'm.winner_id')
+                        ->where('tm.user_id', $userId);
+                })
+                ->where('t.sport_id', $sportId)
+                ->where('m.status', 'completed')
+                ->whereNotNull('m.winner_id')
+                ->count(DB::raw('DISTINCT m.id'));
+
+            $miniWins = DB::table('mini_matches as mm')
+                ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
+                ->join('mini_team_members as mtm', function ($join) use ($userId) {
+                    $join->on('mtm.mini_team_id', '=', 'mm.team_win_id')
+                        ->where('mtm.user_id', $userId);
+                })
+                ->where('mnt.sport_id', $sportId)
+                ->where('mm.status', 'completed')
+                ->whereNotNull('mm.team_win_id')
+                ->count(DB::raw('DISTINCT mm.id'));
+
+            $totalWin = $wins + $miniWins;
+        }
+
+        $winRate = $totalMatches > 0 ? round(($totalWin / $totalMatches) * 100, 2) : 0;
+
+        // performance: thắng trong 10 trận gần nhất
+        $performance = DB::table('matches as m')
+            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
+            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
+            ->join('team_members as tm', function ($join) use ($userId) {
+                $join->on('tm.team_id', '=', 'm.winner_id')
+                    ->where('tm.user_id', $userId);
+            })
+            ->where('t.sport_id', $sportId)
+            ->where('m.status', 'completed')
+            ->whereNotNull('m.winner_id')
+            ->orderByDesc('m.scheduled_at')
+            ->limit(10)
+            ->count(DB::raw('DISTINCT m.id'));
+
+        $miniPerformance = DB::table('mini_matches as mm')
+            ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
+            ->join('mini_team_members as mtm', function ($join) use ($userId) {
+                $join->on('mtm.mini_team_id', '=', 'mm.team_win_id')
+                    ->where('mtm.user_id', $userId);
+            })
+            ->where('mnt.sport_id', $sportId)
+            ->where('mm.status', 'completed')
+            ->whereNotNull('mm.team_win_id')
+            ->orderByDesc('mm.scheduled_at')
+            ->limit(10)
+            ->count(DB::raw('DISTINCT mm.id'));
+
+        return [
+            'total_matches' => $totalMatches,
+            'total_tournaments' => $totalTournaments,
+            'total_mini_tournaments' => $totalMiniTournaments,
+            'total_prizes' => 0,
+            'win_rate' => $winRate,
+            'performance' => $performance + $miniPerformance,
+        ];
+    }
 }
