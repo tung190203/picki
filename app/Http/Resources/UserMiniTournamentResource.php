@@ -31,6 +31,7 @@ class UserMiniTournamentResource extends JsonResource
             'end_time' => $this->end_time,
             'status' => $this->status,
             'status_text' => $this->status_text,
+            'is_completed' => $isCompleted,
 
             // Sport info
             'sport' => new SportResource($this->whenLoaded('sport')),
@@ -61,7 +62,17 @@ class UserMiniTournamentResource extends JsonResource
 
     protected function isCompleted(): bool
     {
-        return $this->status === 3;
+        if ($this->status === 3) {
+            return true;
+        }
+
+        if ($this->end_time && now()->greaterThan($this->end_time)) {
+            $totalMatches = $this->matches?->count() ?? 0;
+            $completedMatches = $this->matches?->where('status', 'completed')->count() ?? 0;
+            return $totalMatches > 0 && $totalMatches === $completedMatches;
+        }
+
+        return false;
     }
 
     protected function getTargetParticipant(): ?\App\Models\MiniParticipant
