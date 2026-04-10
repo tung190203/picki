@@ -307,7 +307,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         // GET routes đã chuyển ra nhóm public ở trên
         Route::post('/store', [TournamentController::class, 'store']);
         Route::post('/update/{id}', [TournamentController::class, 'update']);
-
+        Route::post('/delete', [TournamentController::class, 'destroy']);
         // Participant check-in / absent (organizer / club staff)
         Route::post('/{id}/participants/{participantId}/mark-check-in', [TournamentController::class, 'markParticipantCheckIn']);
         Route::post('/{id}/participants/{participantId}/mark-absent', [TournamentController::class, 'markParticipantAbsent']);
