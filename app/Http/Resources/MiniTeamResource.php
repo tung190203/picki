@@ -27,11 +27,38 @@ class MiniTeamResource extends JsonResource
                     : null;
                 $isGuest = (bool) ($p?->is_guest);
 
+                $user = $member->relationLoaded('user') ? $member->user : null;
+
                 return [
                     'id' => $member->user_id,
-                    'full_name' => $isGuest ? ($p->guest_name ?? $member->user?->full_name) : ($member->user?->full_name ?? ''),
-                    'avatar_url' => $isGuest ? ($p->guest_avatar ?? $member->user?->avatar_url) : ($member->user?->avatar_url ?? ''),
+                    'team_id' => $this->id,
+                    'full_name' => $isGuest
+                        ? ($p->guest_name ?? $user?->full_name)
+                        : ($user?->full_name ?? ''),
+                    'avatar_url' => $isGuest
+                        ? ($p->guest_avatar ?? $user?->avatar_url)
+                        : ($user?->avatar_url ?? ''),
                     'is_guest' => $isGuest,
+                    'visibility' => $user?->visibility,
+                    'user' => $this->when($user !== null, function () use ($user) {
+                        return [
+                            'id' => $user->id,
+                            'full_name' => $user->full_name,
+                            'avatar_url' => $user->avatar_url,
+                            'visibility' => $user->visibility,
+                            'sports' => $user->relationLoaded('sports')
+                                ? $user->sports->map(fn ($s) => [
+                                    'sport_id' => $s->sport_id,
+                                    'scores' => $s->relationLoaded('scores')
+                                        ? $s->scores->map(fn ($sc) => [
+                                            'score_type' => $sc->score_type,
+                                            'score_value' => $sc->score_value,
+                                        ])->toArray()
+                                        : [],
+                                ])->toArray()
+                                : [],
+                        ];
+                    }),
                 ];
             }),
         ];

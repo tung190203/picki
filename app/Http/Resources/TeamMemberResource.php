@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
+use App\Models\User;
 
 class TeamMemberResource extends JsonResource
 {
@@ -36,7 +37,7 @@ class TeamMemberResource extends JsonResource
             ? $this->sports
             : collect();
 
-        $sportsArray = [];
+            $sportsArray = [];
         foreach ($sportsLoaded as $sport) {
             $scores = $sport->relationLoaded('scores') ? $sport->scores : collect();
             $types = ['personal_score', 'dupr_score', 'vndupr_score'];
@@ -47,36 +48,7 @@ class TeamMemberResource extends JsonResource
                 $formattedScores[$type] = number_format($scoreValue, 3);
             }
 
-            $totalMatches = DB::table('vndupr_history')
-                    ->join('matches', 'vndupr_history.match_id', '=', 'matches.id')
-                    ->join('tournament_types', 'matches.tournament_type_id', '=', 'tournament_types.id')
-                    ->join('tournaments', 'tournament_types.tournament_id', '=', 'tournaments.id')
-                    ->where('vndupr_history.user_id', $this->id)
-                    ->where('tournaments.sport_id', $sport->sport_id)
-                    ->count()
-                + DB::table('vndupr_history')
-                    ->join('mini_matches', 'vndupr_history.mini_match_id', '=', 'mini_matches.id')
-                    ->join('mini_tournaments', 'mini_matches.mini_tournament_id', '=', 'mini_tournaments.id')
-                    ->where('vndupr_history.user_id', $this->id)
-                    ->where('mini_tournaments.sport_id', $sport->sport_id)
-                    ->count();
-
-            $matchIds = DB::table('vndupr_history')
-                ->where('user_id', $this->id)
-                ->whereNotNull('match_id')
-                ->pluck('match_id')
-                ->toArray();
-
-            $tournamentsCount = 0;
-            if (!empty($matchIds)) {
-                $tournamentsCount = DB::table('matches as m')
-                    ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
-                    ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
-                    ->whereIn('m.id', $matchIds)
-                    ->where('t.sport_id', $sport->sport_id)
-                    ->distinct()
-                    ->count('t.id');
-            }
+            $stats = User::getSportStats($this->id, $sport->sport_id);
 
             $vnduprScore = $isGuest
                 ? number_format((float) ($participant?->estimated_level ?? 0), 3)
@@ -87,11 +59,12 @@ class TeamMemberResource extends JsonResource
                 'sport_icon' => $sport->relationLoaded('sport') ? optional($sport->sport)->icon : null,
                 'sport_name' => $sport->relationLoaded('sport') ? optional($sport->sport)->name : null,
                 'scores'     => array_merge($formattedScores, ['vndupr_score' => $vnduprScore]),
-                'total_matches'     => $totalMatches,
-                'total_tournaments' => $tournamentsCount,
-                'total_prizes' => 0,
-                'win_rate'    => $sport->getAttribute('win_rate') ?? 0,
-                'performance' => $sport->getAttribute('performance') ?? 0,
+                'total_matches'     => $stats['total_matches'],
+                'total_tournaments' => $stats['total_tournaments'],
+                'total_mini_tournaments' => $stats['total_mini_tournaments'],
+                'total_prizes' => $stats['total_prizes'],
+                'win_rate'    => $stats['win_rate'],
+                'performance' => $stats['performance'],
             ];
         }
 

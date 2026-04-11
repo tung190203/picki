@@ -61,6 +61,8 @@ class UserResource extends JsonResource
             'vn_rank' => $vnRank ?? null,
             'last_login' => $this->last_login?->toISOString(),
             'is_online' => $this->isOnline(),
+            'total_tournaments' => (int) $this->total_tournaments,
+            'total_mini_tournaments' => (int) $this->total_mini_tournaments,
         ];
     }
 }

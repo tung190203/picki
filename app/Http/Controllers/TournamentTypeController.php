@@ -299,8 +299,9 @@ const PAIRING_MODE_MANUAL = 'manual';
                 // Tạo lại groups
                 $this->createEmptyGroups($tournamentType);
             } else {
-                // ✅ NẾU KHÔNG THAY ĐỔI SỐ BẢNG -> CHỈ REGENERATE MATCHES
-                $this->generateMatchesForType($tournamentType);
+                // ✅ NẾU KHÔNG THAY ĐỔI SỐ BẢNG
+                // → Chỉ regenerate pool stage, GIỮ NGUYÊN knockout đã tạo
+                $this->generateMatchesForType($tournamentType, onlyPoolStage: true);
             }
 
             DB::commit();
@@ -336,9 +337,14 @@ const PAIRING_MODE_MANUAL = 'manual';
         return ResponseHelper::success('Xoá thể thức thành công');
     }
 
-    protected function generateMatchesForType(TournamentType $type)
+    protected function generateMatchesForType(TournamentType $type, bool $onlyPoolStage = false)
     {
-        $type->matches()->delete();
+        // Chỉ xóa pool stage nếu flag được set và format là MIXED, giữ nguyên knockout
+        if ($onlyPoolStage && $type->format === TournamentType::FORMAT_MIXED) {
+            $type->matches()->where('round', 1)->delete();
+        } else {
+            $type->matches()->delete();
+        }
         $teams = $type->tournament->teams()->with('members')->get();
         if (count($teams) < 2) {
             return;
@@ -359,7 +365,7 @@ const PAIRING_MODE_MANUAL = 'manual';
 
             case TournamentType::FORMAT_MIXED:
             default:
-                $this->generateMixed($type, $teams, $config, $numLegs);
+                $this->generateMixed($type, $teams, $config, $numLegs, $onlyPoolStage);
                 break;
         }
     }
@@ -683,8 +689,18 @@ const PAIRING_MODE_MANUAL = 'manual';
             }
         }
     }
-    private function generateMixed(TournamentType $type, $teams, $config, $numLegs)
+    private function generateMixed(TournamentType $type, $teams, $config, $numLegs, bool $preserveKnockout = false)
     {
+        // Kiểm tra knockout stage đã tồn tại chưa
+        $existingKnockoutMatches = $type->matches()->where('round', '>', 1)->exists();
+
+        // Nếu đã có knockout và flag preserveKnockout = true → chỉ tạo pool matches mới, giữ nguyên knockout
+        if ($existingKnockoutMatches && $preserveKnockout) {
+            // Chỉ tạo pool matches (round = 1) - knockout đã có sẵn sẽ được giữ lại
+            $this->generateMixedPoolOnly($type, $teams, $config, $numLegs);
+            return;
+        }
+
         $matchNumber = 0;
 
         $mainConfig = is_array($config) && isset($config[0]) ? $config[0] : [];
@@ -878,6 +894,139 @@ const PAIRING_MODE_MANUAL = 'manual';
 
         // ===== PHASE 5: TẠO POOL ADVANCEMENT RULES =====
         $this->createPoolAdvancementRules($type, $knockoutRounds, $advancing, $groupObjects);
+    }
+
+    /**
+     * Chỉ tạo pool matches cho Mixed format (dùng khi preserveKnockout = true)
+     */
+    private function generateMixedPoolOnly(TournamentType $type, $teams, $config, $numLegs)
+    {
+        $matchNumber = 0;
+
+        $mainConfig = is_array($config) && isset($config[0]) ? $config[0] : [];
+        $poolConfig = $mainConfig['pool_stage'] ?? [];
+
+        $numAdvancing = max(1, (int)($poolConfig['num_advancing_teams'] ?? 1));
+
+        // Lấy groups và teams đã assigned
+        $groups = $type->groups()->with('teams.members')->get();
+        $hasAssignedTeams = $groups->isNotEmpty() && $groups->some(fn($g) => $g->teams->isNotEmpty());
+
+        if ($hasAssignedTeams) {
+            $chunks = $groups->map(fn($g) => $g->teams)->filter(fn($chunk) => $chunk->count() > 0)->values();
+        } else {
+            $teamCount = $teams->count();
+            if ($teamCount < 2) return;
+
+            $numGroups = max(1, (int)($poolConfig['number_competing_teams'] ?? 2));
+            $baseTeamsPerGroup = floor($teamCount / $numGroups);
+            $remainder = $teamCount % $numGroups;
+
+            $chunks = collect();
+            $offset = 0;
+            for ($i = 0; $i < $numGroups; $i++) {
+                $groupSize = $baseTeamsPerGroup + ($i < $remainder ? 1 : 0);
+                if ($groupSize > 0) {
+                    $groupTeams = $teams->slice($offset, $groupSize)->values();
+                    $chunks->push($groupTeams);
+                    $group = $groups->get($i);
+                    if ($group) {
+                        $syncData = [];
+                        foreach ($groupTeams as $order => $team) {
+                            $syncData[$team->id] = ['order' => $order];
+                        }
+                        $group->teams()->sync($syncData);
+                    }
+                    $offset += $groupSize;
+                }
+            }
+            $chunks = $chunks->filter(fn($chunk) => $chunk->count() > 0)->values();
+        }
+
+        // Đếm số pool matches hiện có để tiếp tục numbering
+        $matchNumber = $type->matches()->where('round', 1)->count();
+
+        // ===== TẠO VÒNG BẢNG (ROUND ROBIN) =====
+        foreach ($chunks as $index => $chunk) {
+            $chunk = $chunk->values();
+            $count = $chunk->count();
+
+            // Nếu chỉ có 1 đội trong group -> tạo bye match
+            if ($count === 1) {
+                $matchNumber++;
+                $group = $type->groups()->get($index);
+                if (!$group) {
+                    $group = $type->groups()->create(['name' => 'Bảng ' . chr(65 + $index)]);
+                }
+
+                $type->matches()->create([
+                    'tournament_type_id' => $type->id,
+                    'home_team_id' => $chunk[0]->id,
+                    'away_team_id' => null,
+                    'round' => 1,
+                    'leg' => 1,
+                    'is_bye' => true,
+                    'status' => 'pending',
+                    'name_of_match' => "Trận đấu số {$matchNumber}",
+                ]);
+                continue;
+            }
+
+            $group = $groups->get($index);
+            if (!$group) {
+                continue;
+            }
+
+            // Thuật toán Round Robin (Circle Method)
+            $scheduleTeams = $chunk->pluck('id')->toArray();
+            $isOdd = $count % 2 !== 0;
+            if ($isOdd) {
+                $scheduleTeams[] = 'BYE';
+                $count++;
+            }
+            $totalRounds = $count - 1;
+
+            for ($leg = 1; $leg <= $numLegs; $leg++) {
+                $currentSchedule = $scheduleTeams;
+
+                for ($round = 1; $round <= $totalRounds; $round++) {
+                    $halfSize = $count / 2;
+                    $homeTeams = array_slice($currentSchedule, 0, $halfSize);
+                    $awayTeams = array_reverse(array_slice($currentSchedule, $halfSize));
+
+                    for ($i = 0; $i < $halfSize; $i++) {
+                        $homeId = $homeTeams[$i];
+                        $awayId = $awayTeams[$i];
+
+                        if ($homeId === 'BYE' || $awayId === 'BYE') {
+                            continue;
+                        }
+
+                        $matchNumber++;
+
+                        $isReturnLeg = ($leg % 2 === 0);
+                        $finalHomeId = $isReturnLeg ? $awayId : $homeId;
+                        $finalAwayId = $isReturnLeg ? $homeId : $awayId;
+
+                        $type->matches()->create([
+                            'group_id' => $group->id,
+                            'tournament_type_id' => $type->id,
+                            'home_team_id' => $finalHomeId,
+                            'away_team_id' => $finalAwayId,
+                            'round' => 1,
+                            'leg' => $leg,
+                            'is_bye' => false,
+                            'status' => 'pending',
+                            'name_of_match' => "Trận đấu số {$matchNumber}",
+                        ]);
+                    }
+
+                    $firstTeam = array_shift($currentSchedule);
+                    $lastTeam = array_pop($currentSchedule);
+                    array_unshift($currentSchedule, $firstTeam, $lastTeam);
+                }
+            }
+        }
     }
 
     private function generateKnockoutStage(TournamentType $type, $teams, $hasThirdPlace, $advancedToNext = false, $numLegs = 1, &$matchNumber = 0)

@@ -1046,10 +1046,12 @@ class MiniParticipantController extends Controller
                 'gender_text' => $u->gender_text,
                 'play_times' => [],
 
-                'sports' => $u->sports->map(function ($userSport) {
+                'sports' => $u->sports->map(function ($userSport) use ($u) {
                     $scores = $userSport->scores
                         ->pluck('score_value', 'score_type')
                         ->toArray();
+
+                    $stats = User::getSportStats($u->id, $userSport->sport_id);
 
                     return [
                         'sport_id' => $userSport->sport_id,
@@ -1060,9 +1062,12 @@ class MiniParticipantController extends Controller
                             'dupr_score'     => $scores['dupr_score'] ?? '0.000',
                             'vndupr_score'   => $scores['vndupr_score'] ?? '0.000',
                         ],
-                        'total_matches'     => $userSport->total_matches ?? 0,
-                        'total_tournaments' => $userSport->total_tournaments ?? 0,
-                        'total_prizes'      => $userSport->total_prizes ?? 0,
+                        'total_matches'     => $stats['total_matches'],
+                        'total_tournaments' => $stats['total_tournaments'],
+                        'total_mini_tournaments' => $stats['total_mini_tournaments'],
+                        'total_prizes'      => $stats['total_prizes'],
+                        'win_rate'          => $stats['win_rate'],
+                        'performance'       => $stats['performance'],
                     ];
                 }),
                 'is_friend' => $user && $u && $user->isFriendWith($u),
