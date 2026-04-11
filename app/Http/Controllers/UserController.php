@@ -6,8 +6,9 @@ use App\Helpers\ResponseHelper;
 use App\Http\Resources\ClubResource;
 use App\Http\Resources\UserResource;
 use App\Http\Resources\UserTournamentResource;
+use App\Http\Resources\UserMiniTournamentResource;
 use App\Mail\VerifyNewEmailMail;
-use App\Models\Sport;
+use App\Models\MiniTournament;
 use App\Models\Tournament;
 use App\Models\User;
 use App\Services\GeocodingService;
@@ -486,22 +487,19 @@ class UserController extends Controller
         // Kiểm tra có phải đang xem chính mình không
         $isOwnProfile = ($authUserId && $authUserId == $userId);
 
-        // Chỉ lấy giải đã bắt đầu (start_date <= now)
-        // Sort: đang diễn ra (end_date >= now) lên trên, sau đó đã kết thúc (status = CLOSED = 3)
-        $query = Tournament::query()
-            ->with([
-                'createdBy', 'club', 'sport',
-                'tournamentStaffs', 'competitionLocation',
-                'teams', 'participants',
-                'tournamentTypes.groups.matches.homeTeam',
-                'tournamentTypes.groups.matches.awayTeam',
-                'tournamentTypes.groups.matches.results',
-            ])
-            ->where('start_date', '<=', now())
-            ->where(function ($q) use ($userId) {
-                $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId))
-                  ->orWhereHas('tournamentStaffs', fn($sq) => $sq->where('user_id', $userId));
-            })
+            // Chỉ lấy giải đã bắt đầu (start_date <= now)
+            // Sort: đang diễn ra (end_date >= now) lên trên, sau đó đã kết thúc (status = CLOSED = 3)
+            $query = Tournament::query()
+                ->with([
+                    'createdBy', 'club', 'sport',
+                    'tournamentStaffs', 'competitionLocation',
+                    'teams', 'participants',
+                    'tournamentTypes.groups.matches.homeTeam',
+                    'tournamentTypes.groups.matches.awayTeam',
+                    'tournamentTypes.groups.matches.results',
+                ])
+                ->where('start_date', '<=', now())
+                ->whereHas('participants', fn($pq) => $pq->where('user_id', $userId))
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
             // Nếu xem profile người khác → chỉ lấy giải public (is_private = false)
             ->when(!$isOwnProfile, function ($q) {
@@ -532,5 +530,68 @@ class UserController extends Controller
         ];
 
         return ResponseHelper::success($data, 'Lấy lịch sử giải đấu thành công', 200, $meta);
+    }
+
+    /**
+     * Lấy lịch sử mini tournament của user
+     * GET/POST /api/user/mini-tournaments/list
+     * params: user_id, sport_id, page, per_page
+     * sort: ongoing → upcoming → finished
+     */
+    public function miniTournamentsList(Request $request)
+    {
+        $validated = $request->validate([
+            'user_id'  => 'required|exists:users,id',
+            'sport_id' => 'nullable|exists:sports,id',
+            'per_page' => 'nullable|integer|min:1|max:200',
+            'page'     => 'nullable|integer|min:1',
+        ]);
+
+        $userId = $validated['user_id'];
+        $sportId = $validated['sport_id'] ?? null;
+        $perPage = $validated['per_page'] ?? MiniTournament::PER_PAGE;
+
+        $authUserId = auth()->id();
+        $isOwnProfile = ($authUserId && $authUserId == $userId);
+
+        $query = MiniTournament::query()
+            ->with([
+                'sport',
+                'club',
+                'competitionLocation',
+                'participants.team.members',
+                'matches',
+                'miniTournamentStaffs',
+            ])
+            ->whereHas('participants', fn($pq) => $pq->where('user_id', $userId))
+            ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
+            ->when(!$isOwnProfile, function ($q) {
+                $q->where('is_private', false);
+            })
+            ->select('mini_tournaments.*')
+            ->selectRaw("
+                CASE
+                    WHEN status = 3 THEN 1
+                    WHEN start_time <= NOW() AND end_time >= NOW() THEN 0
+                    ELSE 2
+                END AS ongoing_order
+            ")
+            ->orderByRaw('ongoing_order ASC')
+            ->orderBy('start_time', 'desc');
+
+        $miniTournaments = $query->paginate($perPage);
+
+        $data = [
+            'mini_tournaments' => UserMiniTournamentResource::collection($miniTournaments),
+        ];
+
+        $meta = [
+            'current_page' => $miniTournaments->currentPage(),
+            'last_page'    => $miniTournaments->lastPage(),
+            'per_page'     => $miniTournaments->perPage(),
+            'total'        => $miniTournaments->total(),
+        ];
+
+        return ResponseHelper::success($data, 'Lấy lịch sử mini tournament thành công', 200, $meta);
     }
 }

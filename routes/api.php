@@ -302,6 +302,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/verify-change-email', [UserController::class, 'verifyChangeEmail']);
         Route::post('/resend-change-email-otp', [UserController::class, 'resendChangeEmailOtp']);
         Route::match(['get', 'post'], '/tournaments/list', [UserController::class, 'tournamentsList']);
+        Route::match(['get', 'post'], '/mini-tournaments/list', [UserController::class, 'miniTournamentsList']);
     });
     Route::prefix('tournaments')->group(function () {
         // GET routes đã chuyển ra nhóm public ở trên

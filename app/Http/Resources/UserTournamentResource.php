@@ -102,21 +102,37 @@ class UserTournamentResource extends JsonResource
 
     /**
      * Lấy team của target user trong tournament này.
+     * User có thể thuộc nhiều team, lấy team đầu tiên.
      */
     protected function getTargetTeam(): ?\App\Models\Team
     {
-        if (!$this->relationLoaded('participants')) {
+        if (!$this->targetUserId) {
             return null;
         }
 
-        $participant = $this->getTargetParticipant();
-        if (!$participant || !$participant->team_id) {
+        if (!$this->teams) {
             return null;
         }
 
-        return $this->teams
-            ? $this->teams->firstWhere('id', $participant->team_id)
-            : null;
+        foreach ($this->teams as $team) {
+            // Ưu tiên kiểm tra qua relation đã load sẵn
+            if ($team->relationLoaded('members') && $team->members->contains('id', $this->targetUserId)) {
+                return $team;
+            }
+        }
+
+        // Nếu relation chưa load, query trực tiếp từ DB cho từng team
+        foreach ($this->teams as $team) {
+            $hasMember = DB::table('team_members')
+                ->where('team_id', $team->id)
+                ->where('user_id', $this->targetUserId)
+                ->exists();
+            if ($hasMember) {
+                return $team;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -225,37 +241,51 @@ class UserTournamentResource extends JsonResource
     }
 
     /**
-     * Số trận thắng của team trong giải.
+     * Số trận thắng của user trong giải.
+     * Win = trận completed mà team chứa user là winner.
      */
     protected function getTeamWinCount(int $teamId): int
     {
-        return $this->tournamentTypes()
-            ->with('groups.matches.results')
-            ->get()
-            ->flatMap(fn($type) => $type->groups)
-            ->flatMap(fn($group) => $group->matches)
+        $typeIds = $this->tournamentTypes()->pluck('id')->toArray();
+
+        if (empty($typeIds)) {
+            return 0;
+        }
+
+        return DB::table('matches')
+            ->where('tournament_type_id', $typeIds)
+            ->where('status', 'completed')
             ->where('winner_id', $teamId)
+            ->where(function ($q) use ($teamId) {
+                $q->where('home_team_id', $teamId)
+                  ->orWhere('away_team_id', $teamId);
+            })
             ->count();
     }
 
     /**
-     * Số trận thua của team trong giải.
+     * Số trận thua của user trong giải.
+     * Lose = tổng trận completed mà team tham gia - số trận thắng.
      */
     protected function getTeamLoseCount(int $teamId): int
     {
-        $totalMatches = $this->tournamentTypes()
-            ->with('groups.matches.results')
-            ->get()
-            ->flatMap(fn($type) => $type->groups)
-            ->flatMap(fn($group) => $group->matches)
-            ->filter(fn($match) =>
-                $match->home_team_id === $teamId || $match->away_team_id === $teamId
-            )
+        $typeIds = $this->tournamentTypes()->pluck('id')->toArray();
+
+        if (empty($typeIds)) {
+            return 0;
+        }
+
+        $totalCompleted = DB::table('matches')
+            ->where('tournament_type_id', $typeIds)
+            ->where('status', 'completed')
+            ->whereNotNull('winner_id')
+            ->where(function ($q) use ($teamId) {
+                $q->where('home_team_id', $teamId)
+                  ->orWhere('away_team_id', $teamId);
+            })
             ->count();
 
-        $wins = $this->getTeamWinCount($teamId);
-
-        return max(0, $totalMatches - $wins);
+        return $totalCompleted - $this->getTeamWinCount($teamId);
     }
 
     /**

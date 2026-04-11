@@ -19,20 +19,20 @@
                :miniMatchType="match.match_type"
                :teamWinId="match.team_win_id"
                :team1="match.team1.members.map(m => ({
-                    id: m.user.id,
                     team_id: match.team1.id,
-                    name: m.user.full_name,
-                    avatar: m.user.avatar_url,
-                    rating: getUserRatingBySport(m.user, props.sportId),
-                    status: m.user.visibility
+                    id: m.id,
+                    name: m.full_name,
+                    avatar: m.avatar_url,
+                    rating: getUserRatingBySport(m, props.sportId),
+                    status: m.visibility
                }))"
                :team2="match.team2.members.map(m => ({
                     team_id: match.team2.id,
-                    id: m.user.id,
-                    name: m.user.full_name,
-                    avatar: m.user.avatar_url,
-                    rating: getUserRatingBySport(m.user, props.sportId),
-                    status: m.user.visibility
+                    id: m.id,
+                    name: m.full_name,
+                    avatar: m.avatar_url,
+                    rating: getUserRatingBySport(m, props.sportId),
+                    status: m.visibility
                }))"
                :sets="buildSets(match)"
                :selected="selectedMiniMatches.includes(match.id)"
@@ -110,18 +110,20 @@
                :miniMatchType="miniMatch.match_type"
                :teamWinId="miniMatch.team_win_id"
                :team1="miniMatch.team1.members.map(m => ({
-                  id: m.user.id,
-                    name: m.user.full_name,
-                    avatar: m.user.avatar_url,
-                    rating: getUserRatingBySport(m.user, props.sportId),
-                    status: m.user.visibility
+                    team_id: miniMatch.team1.id,
+                    id: m.id,
+                    name: m.full_name,
+                    avatar: m.avatar_url,
+                    rating: getUserRatingBySport(m, props.sportId),
+                    status: m.visibility
                }))"
                :team2="miniMatch.team2.members.map(m => ({
-                    id: m.user.id,
-                    name: m.user.full_name,
-                    avatar: m.user.avatar_url,
-                    rating: getUserRatingBySport(m.user, props.sportId),
-                    status: m.user.visibility
+                    team_id: miniMatch.team2.id,
+                    id: m.id,
+                    name: m.full_name,
+                    avatar: m.avatar_url,
+                    rating: getUserRatingBySport(m, props.sportId),
+                    status: m.visibility
                }))"
                :sets="buildSets(miniMatch)"
                :selected="selectedMiniMatches.includes(miniMatch.id)"
