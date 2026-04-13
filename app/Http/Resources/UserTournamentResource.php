@@ -51,6 +51,8 @@ class UserTournamentResource extends JsonResource
         $isCompleted = $this->isCompleted();
         $participant = $this->getTargetParticipant();
         $team = $this->getTargetTeam();
+        $isParticipant = $participant !== null;
+        $role = $this->getTargetRole();
 
         return [
             // Tournament info - chỉ những field cơ bản
@@ -64,8 +66,12 @@ class UserTournamentResource extends JsonResource
             'max_team' => $this->max_team,
             'status' => $this->status,
 
+            // Participant flag & role
+            'is_participant' => $isParticipant,
+            'role' => $role,
+
             // Stats - khác nhau tùy trạng thái
-            'stats' => $this->buildStats($isCompleted, $participant, $team),
+            'stats' => $this->buildStats($isCompleted, $participant, $team, $isParticipant),
         ];
     }
 
@@ -136,11 +142,50 @@ class UserTournamentResource extends JsonResource
     }
 
     /**
+     * Lấy role của target user trong tournament (staff/organizer).
+     */
+    protected function getTargetRole(): ?string
+    {
+        if (!$this->targetUserId) {
+            return null;
+        }
+
+        if ($this->relationLoaded('tournamentStaffs') && $this->tournamentStaffs) {
+            $staff = $this->tournamentStaffs->firstWhere('user_id', $this->targetUserId);
+            if ($staff) {
+                return match ((int) $staff->role) {
+                    1 => 'organizer',
+                    2 => 'staff',
+                    default => null,
+                };
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Xây dựng stats theo trạng thái giải đấu.
      */
-    protected function buildStats(bool $isCompleted, ?\App\Models\Participant $participant, ?\App\Models\Team $team): array
+    protected function buildStats(bool $isCompleted, ?\App\Models\Participant $participant, ?\App\Models\Team $team, bool $isParticipant): array
     {
         $sportId = $this->sport_id;
+        $role = $this->getTargetRole();
+
+        if (!$isParticipant) {
+            return [
+                'current_round'      => null,
+                'total_matches_left'=> null,
+                'total_win'         => null,
+                'total_lose'        => null,
+                'tournament_rank'    => null,
+                'final_round'       => null,
+                'current_rating'    => null,
+                'current_rank'      => null,
+                'rank_change'       => null,
+                'role'              => $role,
+            ];
+        }
 
         if ($isCompleted) {
             return $this->buildFinishedStats($participant, $team, $sportId);
@@ -157,23 +202,13 @@ class UserTournamentResource extends JsonResource
         $teamId = $team?->id;
 
         return [
-            // current_round: vòng đấu đang diễn ra (max round có pending match)
+            'role' => 'participant',
             'current_round' => $this->getCurrentRound(),
-
-            // total_matches_left: tổng số trận còn lại (pending + bye chưa xử lý)
             'total_matches_left' => $this->getTotalMatchesLeft(),
-
-            // Win/Lose tính từ match results
             'total_win' => $teamId ? $this->getTeamWinCount($teamId) : 0,
             'total_lose' => $teamId ? $this->getTeamLoseCount($teamId) : 0,
-
-            // tournament_rank: xếp hạng trong giải
             'tournament_rank' => $teamId ? $this->getTournamentRank($teamId) : null,
-
-            // current_rating: điểm VN DUPR hiện tại của user
             'current_rating' => $this->getUserRating($sportId),
-
-            // current_rank: hạng trong hệ thống VN
             'current_rank' => $this->getUserRank($sportId),
         ];
     }
@@ -186,23 +221,13 @@ class UserTournamentResource extends JsonResource
         $teamId = $team?->id;
 
         return [
-            // tournament_rank: xếp hạng trong giải (lấy từ rank_change field)
+            'role' => 'participant',
             'tournament_rank' => $teamId ? $this->getTournamentRank($teamId) : null,
-
-            // total_win/lose
             'total_win' => $teamId ? $this->getTeamWinCount($teamId) : 0,
             'total_lose' => $teamId ? $this->getTeamLoseCount($teamId) : 0,
-
-            // final_round: vòng cuối cùng user tham gia
             'final_round' => $teamId ? $this->getFinalRound($teamId) : null,
-
-            // current_rating: điểm VN DUPR hiện tại
             'current_rating' => $this->getUserRating($sportId),
-
-            // current_rank: hạng trong hệ thống VN
             'current_rank' => $this->getUserRank($sportId),
-
-            // rank_change: thay đổi hạng (participant đã được update khi giải kết thúc)
             'rank_change' => $participant?->rank_change,
         ];
     }

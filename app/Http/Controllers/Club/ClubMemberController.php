@@ -256,7 +256,7 @@ class ClubMemberController extends Controller
                 'gender' => $u->gender,
                 'gender_text' => $u->gender_text,
                 'sports' => $u->sports->map(function ($userSport) {
-                    $scores = $userSport->scores
+                    $scores = $userSport->scores()
                         ->pluck('score_value', 'score_type')
                         ->toArray();
 

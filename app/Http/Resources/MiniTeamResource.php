@@ -54,7 +54,10 @@ class MiniTeamResource extends JsonResource
                                             'score_type' => $sc->score_type,
                                             'score_value' => $sc->score_value,
                                         ])->toArray()
-                                        : [],
+                                        : $s->scores()->get()->map(fn ($sc) => [
+                                            'score_type' => $sc->score_type,
+                                            'score_value' => $sc->score_value,
+                                        ])->toArray(),
                                 ])->toArray()
                                 : [],
                         ];

@@ -60,7 +60,7 @@ class ClubLeaderboardService
                 if ($userHistories->isNotEmpty()) {
                     $totalScore += $userHistories->last()->score_after;
                 } else {
-                    $vnduprScore = $member->user?->sports->flatMap(fn($sport) => $sport->scores)
+                    $vnduprScore = $member->user?->sports->flatMap(fn($sport) => $sport->scores()->get())
                         ->where('score_type', 'vndupr_score')
                         ->sortByDesc('created_at')
                         ->first();
@@ -141,7 +141,7 @@ class ClubLeaderboardService
         if ($userHistories->isNotEmpty()) {
             $finalScore = $userHistories->last()->score_after;
         } else {
-            $vnduprScore = $member->user?->sports->flatMap(fn($sport) => $sport->scores)
+            $vnduprScore = $member->user?->sports->flatMap(fn($sport) => $sport->scores()->get())
                 ->where('score_type', 'vndupr_score')
                 ->sortByDesc('created_at')
                 ->first();

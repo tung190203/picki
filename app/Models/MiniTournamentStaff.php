@@ -24,6 +24,12 @@ class MiniTournamentStaff extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
+    public function miniTournament()
+    {
+        return $this->belongsTo(MiniTournament::class, 'mini_tournament_id');
+    }
+
     protected $casts = [
         'is_absent' => 'boolean',
         'checked_in_at' => 'datetime',
