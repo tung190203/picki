@@ -77,7 +77,7 @@ export const clubNotification = async (clubId, params = {}) => {
 }
 
 export const getClubActivities = async (clubId, params = {}) => {
-  const { data } = await axiosInstance.get(`${API_ENDPOINT.CLUB}/${clubId}/activities`, { params })
+  const { data } = await axiosInstance.get(`${API_ENDPOINT.CLUB}/${clubId}/content`, { params })
   return data
 }
 

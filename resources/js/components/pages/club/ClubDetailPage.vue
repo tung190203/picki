@@ -411,8 +411,8 @@
                 :upcoming-activities="upcomingActivities" :history-activities="historyActivities"
                 :next-match="nextMatch" :countdown="countdownText"
                 :is-loading-upcoming="isLoadingMoreUpcoming" :is-loading-history="isLoadingMoreHistory"
-                :has-more-upcoming="currentUpcomingPage < upcomingMeta.last_page"
-                :has-more-history="currentHistoryPage < historyMeta.last_page"
+                :has-more-upcoming="currentUpcomingPage < (upcomingMeta?.last_page ?? 1)"
+                :has-more-history="currentHistoryPage < (historyMeta?.last_page ?? 1)"
                 @close="closeActivityModal"
                 @edit="handleEditActivity" @click-card="goToActivityDetail" @register="handleRegisterActivity"
                 @cancel-join="handleCancelJoinActivity" @self-absent="handleSelfAbsentActivity" @check-in="handleSelfCheckInActivity"
@@ -1252,7 +1252,7 @@ const getClubNotification = async (append = false) => {
 }
 
 const loadMoreNotifications = async () => {
-    if (currentNotificationPage.value < notificationMeta.value.last_page) {
+    if (currentNotificationPage.value < (notificationMeta.value?.last_page ?? 1)) {
         currentNotificationPage.value++
         await getClubNotification(true)
     }
@@ -1378,9 +1378,8 @@ const getClubActivities = async () => {
             per_page: activityPerPage.value,
             statuses: ['scheduled', 'ongoing'],
         })
-        const activitiesData = response.data?.activities
-        const activitiesList = Array.isArray(activitiesData) ? activitiesData : (activitiesData?.data || [])
-        const allActivities = activitiesList.map(formatActivity)
+        const activitiesList = response.data?.items || []
+        const allActivities = activitiesList.map(item => formatActivity(item.data))
         activities.value = allActivities.slice(0, 5)
     } catch (error) {
         toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi lấy thông tin hoạt động')
@@ -1399,9 +1398,8 @@ const getMoreUpcomingActivities = async (append = false) => {
             per_page: activityPerPage.value,
             statuses: ['scheduled', 'ongoing']
         })
-        const activitiesData = response.data?.activities
-        const activitiesList = Array.isArray(activitiesData) ? activitiesData : (activitiesData?.data || [])
-        const formatted = activitiesList.map(formatActivity)
+        const activitiesList = response.data?.items || []
+        const formatted = activitiesList.map(item => formatActivity(item.data))
         if (append) {
             upcomingActivities.value = [...upcomingActivities.value, ...formatted]
         } else {
@@ -1427,9 +1425,8 @@ const getMoreHistoryActivities = async (append = false) => {
             per_page: activityPerPage.value,
             statuses: ['completed', 'cancelled']
         })
-        const activitiesData = response.data?.activities
-        const activitiesList = Array.isArray(activitiesData) ? activitiesData : (activitiesData?.data || [])
-        const formatted = activitiesList.map(formatActivity)
+        const activitiesList = response.data?.items || []
+        const formatted = activitiesList.map(item => formatActivity(item.data))
         if (append) {
             historyActivities.value = [...historyActivities.value, ...formatted]
         } else {
@@ -1444,14 +1441,14 @@ const getMoreHistoryActivities = async (append = false) => {
 }
 
 const handleLoadMoreUpcoming = async () => {
-    if (currentUpcomingPage.value < upcomingMeta.value.last_page) {
+    if (currentUpcomingPage.value < (upcomingMeta.value?.last_page ?? 1)) {
         currentUpcomingPage.value++
         await getMoreUpcomingActivities(true)
     }
 }
 
 const handleLoadMoreHistory = async () => {
-    if (currentHistoryPage.value < historyMeta.value.last_page) {
+    if (currentHistoryPage.value < (historyMeta.value?.last_page ?? 1)) {
         currentHistoryPage.value++
         await getMoreHistoryActivities(true)
     }
