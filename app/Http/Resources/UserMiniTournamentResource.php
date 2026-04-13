@@ -18,6 +18,8 @@ class UserMiniTournamentResource extends JsonResource
 
         $isCompleted = $this->isCompleted();
         $participant = $this->getTargetParticipant();
+        $isParticipant = $participant !== null;
+        $role = $this->getTargetRole();
 
         $posterUrl = $this->poster
             ? asset('storage/' . $this->poster)
@@ -47,8 +49,12 @@ class UserMiniTournamentResource extends JsonResource
                 $this->whenLoaded('competitionLocation')
             ),
 
+            // Participant flag & role
+            'is_participant' => $isParticipant,
+            'role' => $role,
+
             // Stats
-            'stats' => $this->buildStats($isCompleted, $participant),
+            'stats' => $this->buildStats($isCompleted, $participant, $isParticipant),
 
             // Metadata
             'has_fee' => $this->has_fee,
@@ -95,9 +101,25 @@ class UserMiniTournamentResource extends JsonResource
         return $participant;
     }
 
-    protected function buildStats(bool $isCompleted, ?\App\Models\MiniParticipant $participant): array
+    protected function buildStats(bool $isCompleted, ?\App\Models\MiniParticipant $participant, bool $isParticipant): array
     {
         $sportId = $this->sport_id;
+
+        if (!$isParticipant) {
+            return [
+                'total_matches' => null,
+                'total_win' => null,
+                'total_lose' => null,
+                'rating_before' => null,
+                'rating_after' => null,
+                'rank_before' => null,
+                'rank_after' => null,
+                'rank_change' => null,
+                'current_rating' => null,
+                'current_rank' => null,
+                'role' => null,
+            ];
+        }
 
         if ($isCompleted) {
             return $this->buildFinishedStats($participant, $sportId);
@@ -117,7 +139,7 @@ class UserMiniTournamentResource extends JsonResource
             'total_lose' => $totalLose,
             'current_rating' => $this->getUserRating($sportId, $userId),
             'current_rank' => $this->getUserRank($sportId, $userId),
-            'role' => $this->getUserRole($userId),
+            'role' => 'participant',
         ];
     }
 
@@ -137,7 +159,7 @@ class UserMiniTournamentResource extends JsonResource
             'rank_change' => $participant?->rank_change,
             'current_rating' => $this->getUserRating($sportId, $userId),
             'current_rank' => $this->getUserRank($sportId, $userId),
-            'role' => $this->getUserRole($userId),
+            'role' => 'participant',
         ];
     }
 
@@ -207,26 +229,32 @@ class UserMiniTournamentResource extends JsonResource
         return [$totalMatches, $totalWin, $totalLose];
     }
 
-    protected function getUserRole(?int $userId): ?string
+    /**
+     * Lấy role của target user trong mini tournament.
+     */
+    protected function getTargetRole(): ?string
     {
-        if (!$userId) {
+        if (!$this->targetUserId) {
             return null;
         }
 
-        // Kiểm tra participant
+        // Kiểm tra participant trước
         if ($this->getTargetParticipant()) {
             return 'participant';
         }
 
         // Kiểm tra staff
         if ($this->relationLoaded('miniTournamentStaffs')) {
-            $isStaff = $this->miniTournamentStaffs
-                ? $this->miniTournamentStaffs->contains('user_id', $userId)
-                : false;
+            $staff = $this->miniTournamentStaffs
+                ? $this->miniTournamentStaffs->firstWhere('user_id', $this->targetUserId)
+                : null;
 
-            if ($isStaff) {
-                $staff = $this->miniTournamentStaffs->firstWhere('user_id', $userId);
-                return $staff?->role === 'organizer' ? 'organizer' : 'staff';
+            if ($staff) {
+                return match ((int) $staff->role) {
+                    \App\Models\MiniTournamentStaff::ROLE_ORGANIZER => 'organizer',
+                    \App\Models\MiniTournamentStaff::ROLE_REFEREE => 'staff',
+                    default => null,
+                };
             }
         }
 

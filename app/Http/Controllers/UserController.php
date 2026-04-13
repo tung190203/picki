@@ -241,7 +241,7 @@ class UserController extends Controller
                     $hasDupr = $userSport->scores()
                         ->where('score_type', 'vndupr_score')
                         ->exists();
-        
+
                     if (!$hasDupr) {
                         $userSport->scores()->create([
                             'score_type' => 'vndupr_score',
@@ -330,7 +330,7 @@ class UserController extends Controller
         if ($user->id !== auth()->id()) {
             return ResponseHelper::error('Bạn không có quyền thay đổi email người dùng này', 403);
         }
-        
+
         if (!Hash::check($request->password, $user->password)) {
             return ResponseHelper::error('Mật khẩu không đúng', 401, [
                 'status_code' => 'INVALID_PASSWORD'
@@ -421,7 +421,7 @@ class UserController extends Controller
     public function resendChangeEmailOtp(Request $request)
     {
         $request->validate(['new_email' => 'required|email']);
-        
+
         $user = $request->user();
         if ($user->id !== auth()->id()) {
             return ResponseHelper::error('Bạn không có quyền thay đổi email người dùng này', 403);
@@ -507,7 +507,10 @@ class UserController extends Controller
                     'tournamentTypes.groups.matches.results',
                 ])
                 ->where('start_date', '<=', now())
-                ->whereHas('participants', fn($pq) => $pq->where('user_id', $userId))
+                ->where(function ($q) use ($userId) {
+                    $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId))
+                      ->orWhereHas('tournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1, 2]));
+                })
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
             // Nếu xem profile người khác → chỉ lấy giải public (is_private = false)
             ->when(!$isOwnProfile, function ($q) {
@@ -581,7 +584,10 @@ class UserController extends Controller
                 'matches',
                 'miniTournamentStaffs',
             ])
-            ->whereHas('participants', fn($pq) => $pq->where('user_id', $userId))
+            ->where(function ($q) use ($userId) {
+                $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId))
+                  ->orWhereHas('miniTournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1]));
+            })
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
             ->when(!$isOwnProfile, function ($q) {
                 $q->where('is_private', false);
