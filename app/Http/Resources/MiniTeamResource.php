@@ -40,26 +40,36 @@ class MiniTeamResource extends JsonResource
                         : ($user?->avatar_url ?? ''),
                     'is_guest' => $isGuest,
                     'visibility' => $user?->visibility,
-                    'user' => $this->when($user !== null, function () use ($user) {
+                    'user' => $this->when($user !== null, function () use ($user, $isGuest, $p) {
+                        // Format scores như key-value object (đúng format)
+                        $sportsArray = [];
+                        if ($user->relationLoaded('sports')) {
+                            foreach ($user->sports as $sport) {
+                                $scores = $sport->relationLoaded('scores') ? $sport->scores : collect();
+                                $types = ['personal_score', 'dupr_score', 'vndupr_score'];
+                                $formattedScores = [];
+                                foreach ($types as $type) {
+                                    $latestScore = $scores->where('score_type', $type)->sortByDesc('created_at')->first();
+                                    $scoreValue = $latestScore ? $latestScore->score_value : 0;
+                                    $formattedScores[$type] = number_format($scoreValue, 3);
+                                }
+                                // Guest override vndupr_score
+                                if ($isGuest) {
+                                    $formattedScores['vndupr_score'] = number_format((float) ($p?->estimated_level ?? 0), 3);
+                                }
+                                $sportsArray[] = [
+                                    'sport_id' => $sport->sport_id,
+                                    'scores' => $formattedScores,
+                                ];
+                            }
+                        }
+
                         return [
                             'id' => $user->id,
                             'full_name' => $user->full_name,
                             'avatar_url' => $user->avatar_url,
                             'visibility' => $user->visibility,
-                            'sports' => $user->relationLoaded('sports')
-                                ? $user->sports->map(fn ($s) => [
-                                    'sport_id' => $s->sport_id,
-                                    'scores' => $s->relationLoaded('scores')
-                                        ? $s->scores->map(fn ($sc) => [
-                                            'score_type' => $sc->score_type,
-                                            'score_value' => $sc->score_value,
-                                        ])->toArray()
-                                        : $s->scores()->get()->map(fn ($sc) => [
-                                            'score_type' => $sc->score_type,
-                                            'score_value' => $sc->score_value,
-                                        ])->toArray(),
-                                ])->toArray()
-                                : [],
+                            'sports' => $sportsArray,
                         ];
                     }),
                 ];

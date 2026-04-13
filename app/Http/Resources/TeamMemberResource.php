@@ -37,7 +37,7 @@ class TeamMemberResource extends JsonResource
             ? $this->sports
             : collect();
 
-            $sportsArray = [];
+        $sportsArray = [];
         foreach ($sportsLoaded as $sport) {
             $scores = $sport->relationLoaded('scores') ? $sport->scores : collect();
             $types = ['personal_score', 'dupr_score', 'vndupr_score'];
@@ -50,15 +50,16 @@ class TeamMemberResource extends JsonResource
 
             $stats = User::getSportStats($this->id, $sport->sport_id);
 
-            $vnduprScore = $isGuest
-                ? number_format((float) ($participant?->estimated_level ?? 0), 3)
-                : $formattedScores['vndupr_score'];
+            // Guest override vndupr_score, user giữ nguyên từ scores
+            if ($isGuest) {
+                $formattedScores['vndupr_score'] = number_format((float) ($participant?->estimated_level ?? 0), 3);
+            }
 
             $sportsArray[] = [
                 'sport_id'   => $sport->sport_id,
                 'sport_icon' => $sport->relationLoaded('sport') ? optional($sport->sport)->icon : null,
                 'sport_name' => $sport->relationLoaded('sport') ? optional($sport->sport)->name : null,
-                'scores'     => array_merge($formattedScores, ['vndupr_score' => $vnduprScore]),
+                'scores'     => $formattedScores,
                 'total_matches'     => $stats['total_matches'],
                 'total_tournaments' => $stats['total_tournaments'],
                 'total_mini_tournaments' => $stats['total_mini_tournaments'],
