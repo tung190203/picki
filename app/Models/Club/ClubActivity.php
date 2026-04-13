@@ -260,7 +260,7 @@ class ClubActivity extends Model
         foreach ($formats as $format) {
             try {
                 $date = Carbon::createFromFormat($format, $dateString);
-                if ($date) {
+                if ($date && $date->format($format) === $dateString) {
                     return [
                         'day' => $date->day,
                         'month' => $date->month,
@@ -341,6 +341,11 @@ class ClubActivity extends Model
         return $fromDate->copy()->addDays($daysToAdd)->setTimeFromTimeString($timeString);
     }
 
+    /**
+     * Tính occurrence tiếp theo cho lịch hàng tháng.
+     * Nếu targetDay lớn hơn số ngày trong tháng (vd: ngày 31 mà tháng 2 chỉ có 28 ngày),
+     * occurrence sẽ rơi vào ngày cuối cùng của tháng đó. Đây là intended behavior.
+     */
     private function calculateNextMonthlyOccurrence(Carbon $fromDate, ?string $dateString): ?Carbon
     {
         if (!$dateString) {
@@ -387,7 +392,7 @@ class ClubActivity extends Model
         $currentYear = $fromDate->year;
         $currentMonth = $fromDate->month;
 
-        foreach ([$currentYear, $currentYear + 1] as $year) {
+        foreach ([$currentYear, $currentYear + 1, $currentYear + 2, $currentYear + 3] as $year) {
             foreach ($targetMonths as $m) {
                 $nextDate = Carbon::create($year, $m, 1);
                 $effectiveDay = min($targetDay, $nextDate->daysInMonth);

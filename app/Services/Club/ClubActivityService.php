@@ -154,7 +154,7 @@ class ClubActivityService
         if ($includeNextOccurrence && !empty($dateFrom) && !empty($dateTo)) {
             $seriesCountDoneThisWeek = ClubActivity::where('club_id', $club->id)
                 ->whereNotNull('recurrence_series_id')
-                ->whereIn('status', [ClubActivityStatus::Completed, ClubActivityStatus::Cancelled])
+                ->where('status', ClubActivityStatus::Completed)
                 ->whereDate('start_time', '>=', $dateFrom)
                 ->whereDate('start_time', '<=', $dateTo)
                 ->selectRaw('recurrence_series_id, COUNT(*) as cnt')
@@ -252,10 +252,20 @@ class ClubActivityService
         }
 
         if ($shouldCollapseRecurring) {
-            $query->where(function ($q) use ($periodExpr, $firstOccurrenceIdsMonthlyQuarterlyYearly) {
+            $periodExprWeekly = $driver === 'mysql'
+                ? "JSON_UNQUOTE(JSON_EXTRACT(club_activities.recurring_schedule, '$.period'))"
+                : "json_extract(club_activities.recurring_schedule, '$.period')";
+
+            $query->where(function ($q) use ($periodExpr, $periodExprWeekly, $firstOccurrenceIdsMonthlyQuarterlyYearly, $dateFrom, $dateTo) {
                 $q->whereNull('club_activities.recurring_schedule')
                     ->orWhereNotIn('club_activities.status', [ClubActivityStatus::Scheduled, ClubActivityStatus::Ongoing])
-                    ->orWhereRaw("({$periodExpr} = 'weekly')")
+                    ->orWhere(function ($q2) use ($periodExprWeekly, $dateFrom, $dateTo) {
+                        $q2->whereRaw("({$periodExprWeekly} = 'weekly')");
+                        if (!empty($dateFrom)) {
+                            $fourWeeksFromNow = Carbon::parse($dateFrom)->addWeeks(4)->endOfDay()->format('Y-m-d H:i:s');
+                            $q2->where('club_activities.start_time', '<=', $fourWeeksFromNow);
+                        }
+                    })
                     ->orWhereIn('club_activities.id', $firstOccurrenceIdsMonthlyQuarterlyYearly ?: [0]);
             });
         }
@@ -428,13 +438,15 @@ class ClubActivityService
         if ($period === 'quarterly') {
             $monthPositionInQuarter = (($month - 1) % 3) + 1;
             $targetMonths = [$monthPositionInQuarter, $monthPositionInQuarter + 3, $monthPositionInQuarter + 6, $monthPositionInQuarter + 9];
-            $year = $start->year;
-            foreach ($targetMonths as $m) {
-                $base = Carbon::create($year, $m, 1);
-                $effectiveDay = min($day, $base->daysInMonth);
-                $occurrence = Carbon::create($year, $m, $effectiveDay)->setTimeFromTimeString($timeString);
-                if ($occurrence->gte($start)) {
-                    $list[] = $occurrence;
+            for ($yOffset = 0; $yOffset < 3; $yOffset++) {
+                $year = $start->year + $yOffset;
+                foreach ($targetMonths as $m) {
+                    $base = Carbon::create($year, $m, 1);
+                    $effectiveDay = min($day, $base->daysInMonth);
+                    $occurrence = Carbon::create($year, $m, $effectiveDay)->setTimeFromTimeString($timeString);
+                    if ($occurrence->gte($start)) {
+                        $list[] = $occurrence;
+                    }
                 }
             }
             return $list;
@@ -464,10 +476,10 @@ class ClubActivityService
         }
 
         $startTimes = $this->generateOccurrenceStartTimesForPeriod($firstActivity);
-        $firstStart = $firstActivity->start_time ? $firstActivity->start_time->copy()->startOfMinute() : null;
+        $firstStart = $firstActivity->start_time ? $firstActivity->start_time->copy()->startOfSecond() : null;
 
         foreach ($startTimes as $nextStartTime) {
-            $nextStart = $nextStartTime->copy()->startOfMinute();
+            $nextStart = $nextStartTime->copy()->startOfSecond();
             if ($firstStart && $nextStart->eq($firstStart)) {
                 continue;
             }
@@ -815,7 +827,10 @@ class ClubActivityService
         if ($seriesId) {
             $existingQuery->where('recurrence_series_id', $seriesId);
         } else {
-            $rawSchedule = $completedActivity->attributes['recurring_schedule'] ?? null;
+            $rawSchedule = $completedActivity->getRecurringScheduleRaw();
+            if ($rawSchedule) {
+                $rawSchedule = json_encode($rawSchedule);
+            }
             $existingQuery->where('title', $completedActivity->title)
                 ->where('recurring_schedule', $rawSchedule);
         }
@@ -849,7 +864,10 @@ class ClubActivityService
                 continue;
             }
 
-            $rawSchedule = $activity->attributes['recurring_schedule'] ?? null;
+            $rawSchedule = $activity->getRecurringScheduleRaw();
+            if ($rawSchedule) {
+                $rawSchedule = json_encode($rawSchedule);
+            }
             $existing = ClubActivity::where('club_id', $activity->club_id)
                 ->where('title', $activity->title)
                 ->where('recurring_schedule', $rawSchedule)
@@ -1077,11 +1095,8 @@ class ClubActivityService
                     'status' => ClubActivityStatus::Cancelled,
                     'cancellation_reason' => 'Hủy cả chuỗi lặp lại',
                     'cancelled_by' => $userId,
+                    'recurrence_series_cancelled_at' => $now,
                 ]);
-
-            ClubActivity::where('club_id', $club->id)
-                ->where('recurrence_series_id', $seriesId)
-                ->update(['recurrence_series_cancelled_at' => $now]);
         });
 
         return $count;
