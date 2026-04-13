@@ -495,8 +495,7 @@ class UserController extends Controller
         // Tính overview TRƯỚC khi filter theo thời gian (overview luôn tính cho toàn bộ lịch sử)
         $overview = $this->getUserTournamentOverview($userId);
 
-            // Chỉ lấy giải đã bắt đầu (start_date <= now)
-            // Sort: đang diễn ra (end_date >= now) lên trên, sau đó đã kết thúc (status = CLOSED = 3)
+            // Sort: 2=open → ongoing → 3=closed → 4=canceled
             $query = Tournament::query()
                 ->with([
                     'createdBy', 'club', 'sport',
@@ -506,7 +505,6 @@ class UserController extends Controller
                     'tournamentTypes.groups.matches.awayTeam',
                     'tournamentTypes.groups.matches.results',
                 ])
-                ->where('start_date', '<=', now())
                 ->where(function ($q) use ($userId) {
                     $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId))
                       ->orWhereHas('tournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1, 2]));
@@ -521,12 +519,14 @@ class UserController extends Controller
             ->select('tournaments.*')
             ->selectRaw("
                 CASE
-                    WHEN status = 3 THEN 1
-                    WHEN start_date <= NOW() AND end_date >= NOW() THEN 0
-                    ELSE 2
-                END AS ongoing_order
+                    WHEN status = 2 THEN 0
+                    WHEN status = 0 AND start_date <= NOW() AND end_date >= NOW() THEN 1
+                    WHEN status = 3 THEN 2
+                    WHEN status = 4 THEN 3
+                    ELSE 4
+                END AS sort_order
             ")
-            ->orderByRaw('ongoing_order ASC')
+            ->orderByRaw('sort_order ASC')
             ->orderBy('start_date', 'desc');
 
         $tournaments = $query->paginate($perPage);
@@ -597,12 +597,14 @@ class UserController extends Controller
             ->select('mini_tournaments.*')
             ->selectRaw("
                 CASE
-                    WHEN status = 3 THEN 1
-                    WHEN start_time <= NOW() AND end_time >= NOW() THEN 0
-                    ELSE 2
-                END AS ongoing_order
+                    WHEN status = 2 THEN 0
+                    WHEN status = 0 AND start_time <= NOW() AND end_time >= NOW() THEN 1
+                    WHEN status = 3 THEN 2
+                    WHEN status = 4 THEN 3
+                    ELSE 4
+                END AS sort_order
             ")
-            ->orderByRaw('ongoing_order ASC')
+            ->orderByRaw('sort_order ASC')
             ->orderBy('start_time', 'desc');
 
         $miniTournaments = $query->paginate($perPage);
