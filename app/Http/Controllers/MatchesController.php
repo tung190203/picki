@@ -652,9 +652,14 @@ class MatchesController extends Controller
 
             if ($winner && $loser && isset($stats[$winner]) && isset($stats[$loser])) {
                 $stats[$winner]['wins']++;
-                $stats[$winner]['points'] += 3; // Hoặc tùy chỉnh điểm số của bạn
+                $stats[$winner]['points'] += 3;
                 $stats[$loser]['losses']++;
+            } elseif (!$winner && $home && $away && isset($stats[$home]) && isset($stats[$away])) {
+                // Trận hòa: mỗi đội được 1 điểm
+                $stats[$home]['points'] += 1;
+                $stats[$away]['points'] += 1;
             }
+            // Trận bye (is_bye=true): không cộng điểm, vẫn tính vào played ở trên
 
             foreach ($match->results as $r) {
                 if (isset($stats[$r->team_id])) {

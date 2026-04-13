@@ -227,6 +227,12 @@ class TeamController extends Controller
         if ($participants->isEmpty()) {
             return ResponseHelper::error('Cần ít nhất 1 người chơi để tiến hành phân chia đội', 400);
         }
+
+        // Kiểm tra đủ người để tạo ít nhất 1 team hoàn chỉnh
+        $maxPlayers = $tournament->player_per_team ?? 1;
+        if ($maxPlayers > 0 && $participants->count() < $maxPlayers) {
+            return ResponseHelper::error("Cần ít nhất {$maxPlayers} người chơi để tạo 1 đội.", 400);
+        }
         // if ($tournament->tournamentTypes()->exists()) {
         //     return ResponseHelper::error('Không thể tự động chia lại đội khi giải đấu đã có loại hình thi đấu', 400);
         // }

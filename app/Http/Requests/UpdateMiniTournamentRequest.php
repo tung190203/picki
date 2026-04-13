@@ -62,7 +62,7 @@ class UpdateMiniTournamentRequest extends FormRequest
             'format' => 'nullable|in:single,double,mens_doubles,womens_doubles,mixed,' . implode(',', MiniTournament::FORMAT),
 
             // Time fields
-            'start_time' => 'nullable|date',
+            'start_time' => 'nullable|date|after_or_equal:now',
             'end_time' => 'nullable|date|after:start_time',
             'duration' => 'nullable|integer|min:1',
             'competition_location_id' => 'nullable|exists:competition_locations,id',
@@ -367,6 +367,7 @@ class UpdateMiniTournamentRequest extends FormRequest
     {
         return [
             'start_time.date' => 'Thời gian bắt đầu không hợp lệ',
+            'start_time.after_or_equal' => 'Thời gian bắt đầu phải từ thời điểm hiện tại trở đi',
             'end_time.after' => 'Thời gian kết thúc phải sau thời gian bắt đầu',
             'fee_amount.required' => 'Vui lòng nhập phí tham gia',
             'fee_amount.min' => 'Phí tham gia phải lớn hơn 0',
