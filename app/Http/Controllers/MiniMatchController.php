@@ -802,9 +802,9 @@ class MiniMatchController extends Controller
         // =====================================================
         $calcAvgRating = function ($team) use ($sportId) {
             $ratings = $team->members->map(function ($member) use ($sportId) {
-                $userSport = $member->user->sports->where('sport_id', $sportId)->first();
+                $userSport = $member->user->sports()->where('sport_id', $sportId)->first();
                 if (!$userSport) return 0;
-                $scoreRecord = $userSport->scores->where('score_type', 'vndupr_score')->first();
+                $scoreRecord = $userSport->scores()->where('score_type', 'vndupr_score')->first();
                 return $scoreRecord ? (float)$scoreRecord->score_value : 0;
             });
             return $ratings->count() > 0 ? $ratings->avg() : 0;
@@ -832,10 +832,10 @@ class MiniMatchController extends Controller
                 $user->increment('total_matches');
 
                 // 2. Lấy R_old từ relation
-                $userSport = $user->sports->where('sport_id', $sportId)->first();
+                $userSport = $user->sports()->where('sport_id', $sportId)->first();
                 $R_old = 0;
                 if ($userSport) {
-                    $scoreRecord = $userSport->scores->where('score_type', 'vndupr_score')->first();
+                    $scoreRecord = $userSport->scores()->where('score_type', 'vndupr_score')->first();
                     $R_old = $scoreRecord ? (float)$scoreRecord->score_value : 0;
                 }
 
