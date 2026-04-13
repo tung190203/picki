@@ -783,23 +783,33 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
         $totalMatches = $matchCount + $miniMatchCount;
 
-        // total_tournaments: distinct tournament mà user tham gia (chỉ participant)
+        // total_tournaments: distinct tournament mà user tham gia (participant + staff/organizer)
         $participantTournamentIds = DB::table('participants')
             ->where('user_id', $userId)
             ->pluck('tournament_id');
 
+        $staffTournamentIds = DB::table('tournament_staff')
+            ->where('user_id', $userId)
+            ->whereIn('role', [1, 2])
+            ->pluck('tournament_id');
+
         $totalTournaments = DB::table('tournaments')
-            ->whereIn('id', $participantTournamentIds)
+            ->whereIn('id', $participantTournamentIds->merge($staffTournamentIds)->unique())
             ->where('sport_id', $sportId)
             ->count();
 
-        // total_mini_tournaments (chỉ participant)
+        // total_mini_tournaments (participant + staff/organizer)
         $participantMiniTournamentIds = DB::table('mini_participants')
             ->where('user_id', $userId)
             ->pluck('mini_tournament_id');
 
+        $staffMiniTournamentIds = DB::table('mini_tournament_staff')
+            ->where('user_id', $userId)
+            ->whereIn('role', [1])
+            ->pluck('mini_tournament_id');
+
         $totalMiniTournaments = DB::table('mini_tournaments')
-            ->whereIn('id', $participantMiniTournamentIds)
+            ->whereIn('id', $participantMiniTournamentIds->merge($staffMiniTournamentIds)->unique())
             ->where('sport_id', $sportId)
             ->count();
 

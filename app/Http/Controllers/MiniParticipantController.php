@@ -1047,7 +1047,7 @@ class MiniParticipantController extends Controller
                 'play_times' => [],
 
                 'sports' => $u->sports->map(function ($userSport) use ($u) {
-                    $scores = $userSport->scores
+                    $scores = $userSport->scores()
                         ->pluck('score_value', 'score_type')
                         ->toArray();
 

@@ -12,7 +12,10 @@ class UserSportResource extends JsonResource
     public function toArray(Request $request): array
     {
         $types = ['personal_score', 'dupr_score', 'vndupr_score'];
-        $scores = $this->relationLoaded('scores') ? $this->scores : collect();
+
+        $scores = $this->relationLoaded('scores')
+            ? $this->scores
+            : $this->scores()->get();
 
         $formattedScores = [];
         foreach ($types as $type) {
