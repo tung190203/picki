@@ -33,13 +33,13 @@ const formatTimeRange = (start, duration_minutes) => {
   if (!start || !duration_minutes) return '';
   const startTime = new Date(start);
   const endTime = new Date(startTime.getTime() + duration_minutes * 60000);
-  
+
   const formatTime = (date) => {
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
     return `${hours}:${minutes}`;
   };
-  
+
   return `${formatTime(startTime)} - ${formatTime(endTime)}`;
 };
 
@@ -94,7 +94,7 @@ export function useMap() {
       markerClusterGroup.clearLayers();
       markers = {};
     }
-  };  
+  };
 
   const updateMarkers = (newMarkersArray) => {
     if (!map || !markerClusterGroup) return;
@@ -261,7 +261,7 @@ export function useMap() {
   const initMap = (initialLoadCallback, onMapMoveCallback) => {
     onMounted(() => {
       // Base Layers
-      const defaults = L.tileLayer('https://api.maptiler.com/maps/outdoor-v2/{z}/{x}/{y}.png?key=cVxgYKHPCe98W6oTrqUQ');
+      const defaults = L.tileLayer('https://api.maptiler.com/maps/outdoor-v2/{z}/{x}/{y}.png?key=8cBUtiYp86dx1jzzYd5J');
       const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
       const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
       const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png');
@@ -320,7 +320,7 @@ export function useMap() {
         isUserInteraction = true;
         isFocusing = false;
       });
-      
+
       map.on('zoomstart', () => {
         // Chỉ set isUserInteraction = true nếu không đang focus
         if (!isFocusing) {
@@ -390,15 +390,15 @@ export function useMap() {
           <h3 style="margin: 0 0 10px 0; font-weight: 600; font-size: 16px; color: #1f2937;">${escapeHtml(c.name)}</h3>
           <div style="display: flex; flex-direction: column; gap: 6px;">
             <p style="margin: 0;display:flex; justify-content:start; align-items:center; gap:6px; font-size: 14px; color: #4b5563;">
-              <span style="color: #4392E0; font-weight: 500;">${clockIcon}</span> 
+              <span style="color: #4392E0; font-weight: 500;">${clockIcon}</span>
               Giờ Mở cửa: ${toHourMinute(c.opening_time)} - ${toHourMinute(c.closing_time)}
             </p>
             <p style="margin: 0;display:flex; justify-content:start; align-items:center; gap:6px; font-size: 14px; color: #4b5563;">
-              <span style="color: #4392E0; font-weight: 500;">${phoneIcon}</span> 
+              <span style="color: #4392E0; font-weight: 500;">${phoneIcon}</span>
               ${escapeHtml(c.phone)}
             </p>
             <p style="margin: 0;display:flex; justify-content:start; align-items:baseline; gap:6px; font-size: 14px; color: #4b5563; line-height: 1.4;">
-              <span style="color: #4392E0; font-weight: 500;">${mapPinIcon}</span> 
+              <span style="color: #4392E0; font-weight: 500;">${mapPinIcon}</span>
               ${escapeHtml(c.address)}
             </p>
           </div>
@@ -452,13 +452,13 @@ export function useMap() {
 
       return `
         <span style="
-          padding: 2px 8px; 
-          border-radius: 4px; 
-          font-size: 10px; 
-          font-weight: 500; 
-          text-transform: capitalize; 
-          white-space: nowrap; 
-          background-color: ${style.bg}; 
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-size: 10px;
+          font-weight: 500;
+          text-transform: capitalize;
+          white-space: nowrap;
+          background-color: ${style.bg};
           color: ${style.text};
         ">
           ${escapeHtml(getVisibilityText(visibility))}
@@ -480,33 +480,33 @@ export function useMap() {
           min-width: 250px; max-width: 300px; font-family: system-ui; padding: 0; margin: 0; cursor: pointer;
         ">
           <div class="popup-header" style="
-            display: flex; 
-            align-items: center; 
-            padding: 15px; 
+            display: flex;
+            align-items: center;
+            padding: 15px;
             border-bottom: 1px solid #e0e0e0;
             border-radius: 6px 6px 0 0;
           ">
             <div style="position: relative; flex-shrink: 0; margin-right: 15px;">
               <img src="${user.avatar_url || defaultImage}" alt="Avatar" style="
-                width: 60px; 
-                height: 60px; 
-                object-fit: cover; 
+                width: 60px;
+                height: 60px;
+                object-fit: cover;
                 border-radius: 50%;
-                border: 2px solid #ffffff; 
-                box-shadow: 0 0 0 2px #4392E0; 
+                border: 2px solid #ffffff;
+                box-shadow: 0 0 0 2px #4392E0;
               " onerror="this.onerror=null;this.src='${defaultImage}'" />
               <div style="
-                position: absolute; 
-                bottom: -3px; 
-                right: -3px; 
-                background-color: #f59e0b; 
-                color: white; 
-                border-radius: 10px; 
+                position: absolute;
+                bottom: -3px;
+                right: -3px;
+                background-color: #f59e0b;
+                color: white;
+                border-radius: 10px;
                 padding: 2px 6px;
-                font-size: 11px; 
+                font-size: 11px;
                 line-height: 14px;
-                display: flex; 
-                align-items: center; 
+                display: flex;
+                align-items: center;
                 justify-content: center;
                 font-weight: 700;
                 box-shadow: 0 1px 4px rgba(0,0,0,0.4);
@@ -516,7 +516,7 @@ export function useMap() {
                 ${rating}
               </div>
             </div>
-            
+
             <div style="flex: 1; min-width: 0;">
               <div style="display: flex; align-items: center; gap: 6px;">
                 <h3 style="margin: 0; font-weight: 700; font-size: 16px; color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(user.full_name)}">
@@ -538,7 +538,7 @@ export function useMap() {
               </div>
               <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; color: #4b5563;">
                 <span style="color: #4392E0; flex-shrink: 0; width: 20px; height: 20px;">
-                  ${mapPinIcon} 
+                  ${mapPinIcon}
                 </span>
                 <p style="margin: 0; line-height: 1.4; color: #374151;" title="${escapeHtml(user.address)}">
                   ${escapeHtml(user.address)}
@@ -575,7 +575,7 @@ export function useMap() {
   const addMatchMarkers = (matchesData, router, onMarkerClick, shouldUpdate = false, defaultImage = '') => {
     const dataToAdd = shouldUpdate ? updateMarkers(matchesData) : matchesData;
     const batchMarkers = [];
-    
+
     dataToAdd.forEach(match => {
       // Handle both direct lat/lng and nested in competition_location
       const lat = match.competition_location?.latitude || match.latitude;
@@ -585,18 +585,18 @@ export function useMap() {
 
       const locationName = match.competition_location?.name || match.competition_location?.address || '';
       const matchImage = match.poster || defaultImage;
-      
+
       let popupContent = '';
 
       // Tournament Layout
       if (match.type === 'tournament') {
         const dateText = formatDateText(match.start_date || match.starts_at);
         const description = match.description || match.rules || '';
-        
+
         popupContent = `
           <div id="match-popup-${match.id}" style="
-            overflow: hidden; 
-            background: white; 
+            overflow: hidden;
+            background: white;
             cursor: pointer;
             font-family: system-ui, -apple-system, sans-serif;
             min-width: 280px;
@@ -604,15 +604,15 @@ export function useMap() {
           ">
             <div style="display: flex; align-items: flex-start; padding: 12px; gap: 12px;">
               <div style="
-                width: 112px; 
-                height: 112px; 
-                flex-shrink: 0; 
-                background: #f3f4f6; 
-                border-radius: 6px; 
-                overflow: hidden; 
+                width: 112px;
+                height: 112px;
+                flex-shrink: 0;
+                background: #f3f4f6;
+                border-radius: 6px;
+                overflow: hidden;
                 border: 1px solid #f3f4f6;
               ">
-                <img src="${matchImage}" 
+                <img src="${matchImage}"
                   onerror="this.onerror=null;this.src='${defaultImage}'"
                   style="width: 100%; height: 100%; object-fit: cover;" />
               </div>
@@ -620,10 +620,10 @@ export function useMap() {
               <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 80px;">
                 <div>
                   <h4 style="
-                    font-weight: 700; 
-                    color: #111827; 
-                    font-size: 14px; 
-                    line-height: 1.25; 
+                    font-weight: 700;
+                    color: #111827;
+                    font-size: 14px;
+                    line-height: 1.25;
                     margin: 0 0 4px 0;
                     display: -webkit-box;
                     -webkit-line-clamp: 2;
@@ -652,9 +652,9 @@ export function useMap() {
 
                   ${description ? `
                     <p style="
-                      font-size: 12px; 
-                      color: #6b7280; 
-                      font-weight: 500; 
+                      font-size: 12px;
+                      color: #6b7280;
+                      font-weight: 500;
                       margin: 4px 0 0 0;
                       display: -webkit-box;
                       -webkit-line-clamp: 2;
@@ -667,7 +667,7 @@ export function useMap() {
             </div>
           </div>
         `;
-      } 
+      }
       // Mini Layout
       else {
         const dateText = formatDateText(match.starts_at);
@@ -677,21 +677,21 @@ export function useMap() {
         const organizerAvatar = organizer?.avatar_url || organizer?.avatar || defaultImage;
         const participants = match.participants || [];
         const joinedCount = match.joined_count || 0;
-        
+
         // Build badges HTML
         let badgesHtml = '';
         if (match.is_private !== undefined) {
           badgesHtml += `
             <span style="
-              display: inline-flex; 
-              align-items: center; 
-              border-radius: 9999px; 
-              padding: 2px 8px; 
-              gap: 4px; 
-              font-size: 10px; 
-              font-weight: 500; 
-              color: white; 
-              background: #1f2937; 
+              display: inline-flex;
+              align-items: center;
+              border-radius: 9999px;
+              padding: 2px 8px;
+              gap: 4px;
+              font-size: 10px;
+              font-weight: 500;
+              color: white;
+              background: #1f2937;
               white-space: nowrap;
               margin-right: 8px;
             ">
@@ -703,15 +703,15 @@ export function useMap() {
         if (match.min_rating !== null || match.max_rating !== null) {
           badgesHtml += `
             <span style="
-              display: inline-flex; 
-              align-items: center; 
-              gap: 4px; 
-              border-radius: 9999px; 
-              background: #1f2937; 
-              padding: 2px 8px; 
-              font-size: 10px; 
-              font-weight: 500; 
-              color: white; 
+              display: inline-flex;
+              align-items: center;
+              gap: 4px;
+              border-radius: 9999px;
+              background: #1f2937;
+              padding: 2px 8px;
+              font-size: 10px;
+              font-weight: 500;
+              color: white;
               white-space: nowrap;
               margin-right: 8px;
             ">
@@ -723,15 +723,15 @@ export function useMap() {
         if (match.is_dupr) {
           badgesHtml += `
             <span style="
-              display: inline-flex; 
-              align-items: center; 
-              gap: 4px; 
-              border-radius: 9999px; 
-              background: #1f2937; 
-              padding: 2px 8px; 
-              font-size: 10px; 
-              font-weight: 500; 
-              color: white; 
+              display: inline-flex;
+              align-items: center;
+              gap: 4px;
+              border-radius: 9999px;
+              background: #1f2937;
+              padding: 2px 8px;
+              font-size: 10px;
+              font-weight: 500;
+              color: white;
               white-space: nowrap;
               margin-right: 8px;
             ">
@@ -743,15 +743,15 @@ export function useMap() {
         if (match.max_players) {
           badgesHtml += `
             <span style="
-              display: inline-flex; 
-              align-items: center; 
-              gap: 4px; 
-              border-radius: 9999px; 
-              background: #1f2937; 
-              padding: 2px 8px; 
-              font-size: 10px; 
-              font-weight: 500; 
-              color: white; 
+              display: inline-flex;
+              align-items: center;
+              gap: 4px;
+              border-radius: 9999px;
+              background: #1f2937;
+              padding: 2px 8px;
+              font-size: 10px;
+              font-weight: 500;
+              color: white;
               white-space: nowrap;
               margin-right: 8px;
             ">
@@ -760,7 +760,7 @@ export function useMap() {
             </span>
           `;
         }
-        
+
         // Build participants avatars HTML
         let participantsHtml = '';
         if (participants.length > 0) {
@@ -768,29 +768,29 @@ export function useMap() {
           participantsHtml = `
             <div style="display: flex; overflow: hidden; padding: 4px 0;">
               ${displayParticipants.map((p, idx) => `
-                <img src="${p.user?.avatar_url || defaultImage}" 
+                <img src="${p.user?.avatar_url || defaultImage}"
                   onerror="this.onerror=null;this.src='${defaultImage}'"
                   style="
-                    width: 40px; 
-                    height: 40px; 
-                    border-radius: 50%; 
-                    border: 2px solid white; 
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 50%;
+                    border: 2px solid white;
                     object-fit: cover;
                     ${idx > 0 ? 'margin-left: -8px;' : ''}
                   " />
               `).join('')}
               ${participants.length > 3 ? `
                 <div style="
-                  display: flex; 
-                  align-items: center; 
-                  justify-content: center; 
-                  width: 32px; 
-                  height: 32px; 
-                  border-radius: 50%; 
-                  border: 2px solid white; 
-                  background: #fef2f2; 
-                  color: #D72D36; 
-                  font-size: 12px; 
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  width: 32px;
+                  height: 32px;
+                  border-radius: 50%;
+                  border: 2px solid white;
+                  background: #fef2f2;
+                  color: #D72D36;
+                  font-size: 12px;
                   font-weight: 700;
                   margin-left: -8px;
                 ">
@@ -802,15 +802,15 @@ export function useMap() {
         } else if (joinedCount > 0) {
           participantsHtml = `
             <div style="
-              display: flex; 
-              align-items: center; 
-              justify-content: center; 
-              width: 32px; 
-              height: 32px; 
-              border-radius: 50%; 
-              background: #fef2f2; 
-              color: #D72D36; 
-              font-size: 12px; 
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              width: 32px;
+              height: 32px;
+              border-radius: 50%;
+              background: #fef2f2;
+              color: #D72D36;
+              font-size: 12px;
               font-weight: 700;
               border: 1px solid #fee2e2;
             ">
@@ -818,11 +818,11 @@ export function useMap() {
             </div>
           `;
         }
-        
+
         popupContent = `
           <div id="match-popup-${match.id}" style="
-            overflow: hidden; 
-            background: white; 
+            overflow: hidden;
+            background: white;
             cursor: pointer;
             font-family: system-ui, -apple-system, sans-serif;
             min-width: 280px;
@@ -834,10 +834,10 @@ export function useMap() {
                 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
                   <div>
                     <h3 style="
-                      font-weight: 700; 
-                      color: #111827; 
-                      font-size: 16px; 
-                      line-height: 1.375; 
+                      font-weight: 700;
+                      color: #111827;
+                      font-size: 16px;
+                      line-height: 1.375;
                       margin: 0;
                       display: -webkit-box;
                       -webkit-line-clamp: 2;
@@ -877,26 +877,26 @@ export function useMap() {
                   </div>
                 ` : ''}
               </div>
-              
+
               <!-- Creator & Badges Footer -->
               <div style="display: flex; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f3f4f6; height: 40px;">
                 <div style="display: flex; align-items: center; gap: 8px; padding-right: 8px; height: 100%; overflow: hidden;">
                   ${organizerName ? `
-                    <img src="${organizerAvatar}" 
+                    <img src="${organizerAvatar}"
                       onerror="this.onerror=null;this.src='${defaultImage}'"
                       style="
-                        width: 24px; 
-                        height: 24px; 
-                        border-radius: 50%; 
-                        object-fit: cover; 
+                        width: 24px;
+                        height: 24px;
+                        border-radius: 50%;
+                        object-fit: cover;
                         border: 1px solid #e5e7eb;
                       " />
                     <span style="
-                      font-size: 12px; 
-                      color: #374151; 
-                      font-weight: 500; 
-                      white-space: nowrap; 
-                      overflow: hidden; 
+                      font-size: 12px;
+                      color: #374151;
+                      font-weight: 500;
+                      white-space: nowrap;
+                      overflow: hidden;
                       text-overflow: ellipsis;
                     ">${escapeHtml(organizerName)}</span>
                   ` : ''}

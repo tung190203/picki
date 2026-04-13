@@ -9,6 +9,7 @@ use App\Http\Resources\UserTournamentResource;
 use App\Http\Resources\UserMiniTournamentResource;
 use App\Mail\VerifyNewEmailMail;
 use App\Models\MiniTournament;
+use App\Models\Sport;
 use App\Models\Tournament;
 use App\Models\User;
 use App\Services\GeocodingService;
@@ -475,17 +476,24 @@ class UserController extends Controller
             'sport_id'  => 'nullable|exists:sports,id',
             'per_page'  => 'nullable|integer|min:1|max:200',
             'page'      => 'nullable|integer|min:1',
+            'date_from' => 'nullable|date',
+            'date_to'   => 'nullable|date|after_or_equal:date_from',
         ]);
 
         $userId = $validated['user_id'];
-        $sportId = $validated['sport_id'] ?? null;
+        $sportId = 1; // Luôn luôn dùng sport_id = 1
         $perPage = $validated['per_page'] ?? Tournament::PER_PAGE;
+        $dateFrom = $validated['date_from'] ?? null;
+        $dateTo   = $validated['date_to'] ?? null;
 
         // Lấy user đang request (auth)
         $authUserId = auth()->id();
 
         // Kiểm tra có phải đang xem chính mình không
         $isOwnProfile = ($authUserId && $authUserId == $userId);
+
+        // Tính overview TRƯỚC khi filter theo thời gian (overview luôn tính cho toàn bộ lịch sử)
+        $overview = $this->getUserTournamentOverview($userId);
 
             // Chỉ lấy giải đã bắt đầu (start_date <= now)
             // Sort: đang diễn ra (end_date >= now) lên trên, sau đó đã kết thúc (status = CLOSED = 3)
@@ -505,6 +513,8 @@ class UserController extends Controller
             ->when(!$isOwnProfile, function ($q) {
                 $q->where('is_private', false);
             })
+            ->when($dateFrom, fn($q) => $q->where('start_date', '>=', $dateFrom))
+            ->when($dateTo, fn($q) => $q->where('end_date', '<=', $dateTo))
             ->select('tournaments.*')
             ->selectRaw("
                 CASE
@@ -519,6 +529,7 @@ class UserController extends Controller
         $tournaments = $query->paginate($perPage);
 
         $data = [
+            'overview'    => $overview,
             'tournaments' => UserTournamentResource::collection($tournaments),
         ];
 
@@ -545,14 +556,21 @@ class UserController extends Controller
             'sport_id' => 'nullable|exists:sports,id',
             'per_page' => 'nullable|integer|min:1|max:200',
             'page'     => 'nullable|integer|min:1',
+            'date_from' => 'nullable|date',
+            'date_to'   => 'nullable|date|after_or_equal:date_from',
         ]);
 
         $userId = $validated['user_id'];
-        $sportId = $validated['sport_id'] ?? null;
+        $sportId = 1; // Luôn luôn dùng sport_id = 1
         $perPage = $validated['per_page'] ?? MiniTournament::PER_PAGE;
+        $dateFrom = $validated['date_from'] ?? null;
+        $dateTo   = $validated['date_to'] ?? null;
 
         $authUserId = auth()->id();
         $isOwnProfile = ($authUserId && $authUserId == $userId);
+
+        // Tính overview TRƯỚC khi filter theo thời gian
+        $overview = $this->getUserMiniTournamentOverview($userId);
 
         $query = MiniTournament::query()
             ->with([
@@ -568,6 +586,8 @@ class UserController extends Controller
             ->when(!$isOwnProfile, function ($q) {
                 $q->where('is_private', false);
             })
+            ->when($dateFrom, fn($q) => $q->where('start_time', '>=', $dateFrom))
+            ->when($dateTo, fn($q) => $q->where('end_time', '<=', $dateTo))
             ->select('mini_tournaments.*')
             ->selectRaw("
                 CASE
@@ -582,6 +602,7 @@ class UserController extends Controller
         $miniTournaments = $query->paginate($perPage);
 
         $data = [
+            'overview'         => $overview,
             'mini_tournaments' => UserMiniTournamentResource::collection($miniTournaments),
         ];
 
@@ -593,5 +614,123 @@ class UserController extends Controller
         ];
 
         return ResponseHelper::success($data, 'Lấy lịch sử mini tournament thành công', 200, $meta);
+    }
+
+    private function getUserTournamentOverview(int $userId): array
+    {
+        $totalJoined = \App\Models\Participant::where('user_id', $userId)
+            ->whereHas('tournament', fn($t) => $t->where('sport_id', 1))
+            ->count();
+
+        $totalCreated = \App\Models\TournamentStaff::where('user_id', $userId)
+            ->whereIn('role', [\App\Models\TournamentStaff::ROLE_ORGANIZER, \App\Models\TournamentStaff::ROLE_STAFF])
+            ->whereHas('tournament', fn($t) => $t->where('sport_id', 1))
+            ->count();
+
+        $matchIds = DB::table('vndupr_history')
+            ->where('user_id', $userId)
+            ->whereNotNull('match_id')
+            ->pluck('match_id')
+            ->unique();
+
+        $totalWin = 0;
+        $totalLose = 0;
+
+        if ($matchIds->isNotEmpty()) {
+            $userTeamIds = DB::table('team_members')
+                ->where('user_id', $userId)
+                ->pluck('team_id');
+
+            if ($userTeamIds->isNotEmpty()) {
+                $totalWin = DB::table('matches')
+                    ->join('tournament_types', 'matches.tournament_type_id', '=', 'tournament_types.id')
+                    ->join('tournaments', 'tournament_types.tournament_id', '=', 'tournaments.id')
+                    ->whereIn('matches.winner_id', $userTeamIds)
+                    ->where('matches.status', 'completed')
+                    ->whereIn('matches.id', $matchIds)
+                    ->where('tournaments.sport_id', 1)
+                    ->count();
+
+                $totalMatches = DB::table('matches')
+                    ->join('tournament_types', 'matches.tournament_type_id', '=', 'tournament_types.id')
+                    ->join('tournaments', 'tournament_types.tournament_id', '=', 'tournaments.id')
+                    ->where(function ($q) use ($userTeamIds) {
+                        $q->whereIn('matches.home_team_id', $userTeamIds)
+                          ->orWhereIn('matches.away_team_id', $userTeamIds);
+                    })
+                    ->where('matches.status', 'completed')
+                    ->whereIn('matches.id', $matchIds)
+                    ->where('tournaments.sport_id', 1)
+                    ->count();
+
+                $totalLose = $totalMatches - $totalWin;
+            }
+        }
+
+        return [
+            'total_joined'   => $totalJoined,
+            'total_created'  => $totalCreated,
+            'total_matches'  => $totalWin + $totalLose,
+            'total_win'      => $totalWin,
+            'total_lose'     => $totalLose,
+        ];
+    }
+
+    private function getUserMiniTournamentOverview(int $userId): array
+    {
+        $totalJoined = \App\Models\MiniParticipant::where('user_id', $userId)
+            ->whereHas('miniTournament', fn($t) => $t->where('sport_id', 1))
+            ->count();
+
+        $totalCreated = \App\Models\MiniTournamentStaff::where('user_id', $userId)
+            ->whereIn('role', [\App\Models\MiniTournamentStaff::ROLE_ORGANIZER])
+            ->whereHas('miniTournament', fn($t) => $t->where('sport_id', 1))
+            ->count();
+
+        $miniMatchIds = DB::table('vndupr_history')
+            ->where('user_id', $userId)
+            ->whereNotNull('mini_match_id')
+            ->pluck('mini_match_id')
+            ->unique();
+
+        $totalWin = 0;
+        $totalLose = 0;
+
+        if ($miniMatchIds->isNotEmpty()) {
+            $userMiniTeamIds = DB::table('mini_team_members')
+                ->where('user_id', $userId)
+                ->pluck('mini_team_id');
+
+            if ($userMiniTeamIds->isNotEmpty()) {
+                $totalWin = DB::table('mini_matches')
+                    ->join('mini_tournaments', 'mini_matches.mini_tournament_id', '=', 'mini_tournaments.id')
+                    ->whereIn('mini_matches.team_win_id', $userMiniTeamIds)
+                    ->where('mini_matches.status', 'completed')
+                    ->whereIn('mini_matches.id', $miniMatchIds)
+                    ->where('mini_tournaments.sport_id', 1)
+                    ->count();
+
+                $totalMatches = DB::table('mini_matches')
+                    ->join('mini_tournaments', 'mini_matches.mini_tournament_id', '=', 'mini_tournaments.id')
+                    ->where(function ($q) use ($userMiniTeamIds) {
+                        $q->whereIn('mini_matches.team1_id', $userMiniTeamIds)
+                          ->orWhereIn('mini_matches.team2_id', $userMiniTeamIds);
+                    })
+                    ->where('mini_matches.status', 'completed')
+                    ->whereIn('mini_matches.id', $miniMatchIds)
+                    ->where('mini_tournaments.sport_id', 1)
+                    ->count();
+
+                $totalLose = $totalMatches - $totalWin;
+            }
+        }
+
+        return [
+            'total_joined'   => $totalJoined,
+            'total_created'  => $totalCreated,
+            'total_matches'  => $totalWin + $totalLose,
+            'total_win'      => $totalWin,
+            'total_lose'     => $totalLose,
+        ];
     }
 }
