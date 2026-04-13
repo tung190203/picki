@@ -1,5 +1,5 @@
 <template>
-  <div v-if="meta.last_page > 1" class="flex justify-center items-center gap-2 mt-8">
+  <div v-if="meta?.last_page > 1" class="flex justify-center items-center gap-2 mt-8">
     <button @click="changePage(meta.current_page - 1)" :disabled="meta.current_page === 1"
       class="p-2 rounded-lg border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors">
       <ChevronLeftIcon class="w-5 h-5 text-gray-600" />
@@ -46,8 +46,8 @@ const props = defineProps({
 const emit = defineEmits(['page-change'])
 
 const visiblePages = computed(() => {
-  const current = props.meta.current_page
-  const last = props.meta.last_page
+  const current = props.meta?.current_page ?? 1
+  const last = props.meta?.last_page ?? 1
   const delta = props.delta
   const range = []
   const rangeWithDots = []
@@ -77,7 +77,7 @@ const visiblePages = computed(() => {
 })
 
 const changePage = (page) => {
-  if (page >= 1 && page <= props.meta.last_page) {
+  if (page >= 1 && page <= (props.meta?.last_page ?? 1)) {
     emit('page-change', page)
   }
 }
