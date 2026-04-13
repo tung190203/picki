@@ -314,7 +314,7 @@ class UserMatchStatsController extends Controller
                             foreach ($setResults as $r) {
 
                                 // ✅ FIX: Dùng team_id thay vì team_id
-                                if (isset($r->team_id)) {
+                                if ($r->team_id !== null && $r->team_id > 0) {
                                     if ($r->team_id == $myTeamId) {
                                         $my_set_score += $r->score;
                                     } elseif ($r->team_id == $opponentTeamId) {
@@ -436,12 +436,8 @@ class UserMatchStatsController extends Controller
     public function matchesBySportId(Request $request)
     {
         $userId = $request->query('user_id', auth()->id());
-        $sportId = $request->query('sport_id');
-        $perPage = $request->query('per_page', 15); // Mặc định 15 items/page
-
-        if (!$sportId) {
-            return ResponseHelper::error('Có lỗi xảy ra trong quá trình thực thi', 400);
-        }
+        $sportId = 1; // Luôn luôn dùng sport_id = 1
+        $perPage = $request->query('per_page', 15);
 
         // Lấy tất cả VnduprHistory của user
         $histories = VnduprHistory::where('user_id', $userId)
@@ -571,10 +567,12 @@ class UserMatchStatsController extends Controller
                     $opponentScore = 0;
 
                     foreach ($setResults as $r) {
-                        if ($r->team_id == $myTeamId) {
-                            $myScore += $r->score;
-                        } elseif ($r->team_id == $opponentTeamId) {
-                            $opponentScore += $r->score;
+                        if ($r->team_id !== null && $r->team_id > 0) {
+                            if ($r->team_id == $myTeamId) {
+                                $myScore += $r->score;
+                            } elseif ($r->team_id == $opponentTeamId) {
+                                $opponentScore += $r->score;
+                            }
                         }
                     }
 
@@ -614,13 +612,19 @@ class UserMatchStatsController extends Controller
             ]);
         }
 
-        // ========== XỬ LÝ MINI MATCHES - TEAM-BASED, SWAP ĐỂ USER LUÔN Ở TEAM1 ==========
-        // Hydrate miniTournamentParticipant vào mỗi member TRƯỚC vòng lặp (1 lần duy nhất)
+        // ========== XỬ LÝ MINI MATCHES - GROUP THEO MINI_TOURNAMENT ĐỂ HYDRATE ĐÚNG ==========
         if ($minis->isNotEmpty()) {
-            $miniTournamentId = $minis->first()->miniTournament->id;
-            $teamsToHydrate = $minis->pluck('team1')->merge($minis->pluck('team2'))->filter()->unique('id');
-            foreach ($teamsToHydrate as $team) {
-                MiniTournamentTeamMemberHydrator::hydrateTeam($team, (int) $miniTournamentId);
+            // Group matches theo mini_tournament_id để hydrate đúng participant
+            $byTournament = $minis->groupBy(fn($m) => $m->mini_tournament_id);
+            foreach ($byTournament as $miniTournamentId => $tournamentMatches) {
+                $teamsToHydrate = $tournamentMatches
+                    ->map(fn($m) => $m->team1)
+                    ->merge($tournamentMatches->map(fn($m) => $m->team2))
+                    ->filter()
+                    ->unique('id');
+                foreach ($teamsToHydrate as $team) {
+                    MiniTournamentTeamMemberHydrator::hydrateTeam($team, (int) $miniTournamentId);
+                }
             }
         }
 
@@ -633,6 +637,10 @@ class UserMatchStatsController extends Controller
 
             $team1UserIds = array_column($team1Members, 'user_id');
             $team2UserIds = array_column($team2Members, 'user_id');
+
+            if ($mini->team1_id === null || $mini->team2_id === null) {
+                continue;
+            }
 
             // Xác định user thuộc team nào
             $userIsInTeam1 = in_array($userId, $team1UserIds);
@@ -670,10 +678,12 @@ class UserMatchStatsController extends Controller
                     $opponentScore = 0;
 
                     foreach ($setResults as $r) {
-                        if ($r->team_id == $myTeamId) {
-                            $myScore += $r->score;
-                        } elseif ($r->team_id == $opponentTeamId) {
-                            $opponentScore += $r->score;
+                        if ($r->team_id !== null && $r->team_id > 0) {
+                            if ($r->team_id == $myTeamId) {
+                                $myScore += $r->score;
+                            } elseif ($r->team_id == $opponentTeamId) {
+                                $opponentScore += $r->score;
+                            }
                         }
                     }
 
