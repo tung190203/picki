@@ -139,9 +139,11 @@ const PAIRING_MODE_MANUAL = 'manual';
             });
             if ($tournamentType->format == TournamentType::FORMAT_MIXED) {
                 $tournamentType->advancementRules()->delete();
+                // Xóa groups cũ và tạo lại groups trống dựa trên config hiện tại
+                $this->createEmptyGroups($tournamentType);
             }
 
-            // ✅ GỌI HÀM GENERATE CŨ (TỰ ĐỘNG CHIA ĐỘI)
+            // ✅ GỌI HÀM GENERATE (TỰ ĐỘNG CHIA ĐỘI VÀO BẢNG)
             $this->generateMatchesForType($tournamentType);
 
             DB::commit();
@@ -765,7 +767,10 @@ const PAIRING_MODE_MANUAL = 'manual';
             // Nếu chỉ có 1 đội trong group -> tạo bye match
             if ($count === 1) {
                 $matchNumber++;
+                $group = $groups->get($index);
+                if (!$group) {
                     $group = $type->groups()->create(['name' => 'Bảng ' . chr(65 + $index)]);
+                }
 
                 $byeMatch = $type->matches()->create([
                     'tournament_type_id' => $type->id,
@@ -954,7 +959,7 @@ const PAIRING_MODE_MANUAL = 'manual';
             // Nếu chỉ có 1 đội trong group -> tạo bye match
             if ($count === 1) {
                 $matchNumber++;
-                $group = $type->groups()->get($index);
+                $group = $groups->get($index);
                 if (!$group) {
                     $group = $type->groups()->create(['name' => 'Bảng ' . chr(65 + $index)]);
                 }

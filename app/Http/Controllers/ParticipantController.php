@@ -167,7 +167,16 @@ class ParticipantController extends Controller
                 }
                 break;
         }
-        if ($user->gender != null) {
+        if ($user->gender === null) {
+            switch ($tournament->gender_policy) {
+                case Tournament::MALE:
+                    return ResponseHelper::error('Giải này chỉ dành cho Nam. Bạn chưa có thông tin giới tính trong hồ sơ.', 422);
+                case Tournament::FEMALE:
+                    return ResponseHelper::error('Giải này chỉ dành cho Nữ. Bạn chưa có thông tin giới tính trong hồ sơ.', 422);
+                case Tournament::MIXED:
+                    break;
+            }
+        } else {
             switch ($tournament->gender_policy) {
                 case Tournament::MALE:
                     if ($user->gender != Tournament::MALE) {
@@ -257,6 +266,15 @@ class ParticipantController extends Controller
     {
         $participant = Participant::with('tournament')->findOrFail($participantId);
         $tournamentWithStaff = $participant->tournament->load('staff');
+
+        // BUG-01: Kiểm tra giải đấu còn mở không
+        if ($tournamentWithStaff->start_date < now()) {
+            return ResponseHelper::error('Giải đấu đã bắt đầu hoặc đã kết thúc. Không thể duyệt VĐV.', 400);
+        }
+        if (in_array($tournamentWithStaff->status, ['closed', 'cancelled'])) {
+            return ResponseHelper::error('Giải đấu đã đóng hoặc bị hủy. Không thể duyệt VĐV.', 400);
+        }
+
         $isOrganizer = $tournamentWithStaff->hasOrganizer(Auth::id());
 
         // Guest đang chờ BTC duyệt (VĐV bảo lãnh)
@@ -376,12 +394,14 @@ class ParticipantController extends Controller
             }
         }
 
-        $existingUserIds = Participant::where('tournament_id', $tournament->id)
+        // Chỉ check user đã có participant là member (không phải guest)
+        $existingMemberIds = Participant::where('tournament_id', $tournament->id)
+            ->where('is_guest', false)
             ->whereIn('user_id', $validated['user_ids'])
             ->pluck('user_id')
             ->toArray();
 
-        $newUserIds = array_diff($validated['user_ids'], $existingUserIds);
+        $newUserIds = array_diff($validated['user_ids'], $existingMemberIds);
 
         if (empty($newUserIds)) {
             return ResponseHelper::error('Tất cả người chơi đã được mời hoặc đã tham gia.', 422);
@@ -427,13 +447,34 @@ class ParticipantController extends Controller
             return ResponseHelper::error('Bạn không có quyền xoá người tham gia này', 403);
         }
         $userNeedRemove = $participant->user_id;
+
+        // BUG-11: Kiểm tra user có thuộc team đã có match có kết quả không
         $teamIdsInTournament = DB::table('teams')
-        ->where('tournament_id', $tournamentId)
-        ->pluck('id');
+            ->where('tournament_id', $tournamentId)
+            ->pluck('id');
+        $userTeamIds = DB::table('team_members')
+            ->where('user_id', $userNeedRemove)
+            ->whereIn('team_id', $teamIdsInTournament)
+            ->pluck('team_id');
+
+        if ($userTeamIds->isNotEmpty()) {
+            $matchesWithResults = DB::table('matches')
+                ->whereIn('home_team_id', $userTeamIds)
+                ->orWhereIn('away_team_id', $userTeamIds)
+                ->where('status', 'completed')
+                ->exists();
+            if ($matchesWithResults) {
+                return ResponseHelper::error(
+                    'Không thể xóa người tham gia. Đội đã có trận đấu hoàn thành.',
+                    400
+                );
+            }
+        }
+
         DB::table('team_members')
-        ->where('user_id', $userNeedRemove)
-        ->whereIn('team_id', $teamIdsInTournament)
-        ->delete();
+            ->where('user_id', $userNeedRemove)
+            ->whereIn('team_id', $teamIdsInTournament)
+            ->delete();
         $participant->delete();
 
         $participant->user?->notify(new TournamentRemovedNotification($participant));
