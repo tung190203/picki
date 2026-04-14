@@ -524,9 +524,19 @@ class UserController extends Controller
                     WHEN status = 3 THEN 2
                     WHEN status = 4 THEN 3
                     ELSE 4
-                END AS sort_order
+                END AS sort_order,
+                COALESCE(
+                    CASE WHEN status IN (2, 0) THEN start_date END,
+                    CASE WHEN status = 3 THEN end_date END,
+                    CASE WHEN status = 4 THEN start_date END
+                ) AS sort_date,
+                CASE
+                    WHEN status IN (2, 0) THEN 0
+                    ELSE 1
+                END AS date_sort_dir
             ")
             ->orderByRaw('sort_order ASC')
+            ->orderByRaw('date_sort_dir ASC, IF(date_sort_dir = 0, sort_date, NULL) ASC, IF(date_sort_dir = 1, sort_date, NULL) DESC')
             ->orderBy('start_date', 'desc');
 
         $tournaments = $query->paginate($perPage);
@@ -603,9 +613,19 @@ class UserController extends Controller
                     WHEN status = 3 THEN 2
                     WHEN status = 4 THEN 3
                     ELSE 4
-                END AS sort_order
+                END AS sort_order,
+                COALESCE(
+                    CASE WHEN status IN (2, 0) THEN start_time END,
+                    CASE WHEN status = 3 THEN end_time END,
+                    CASE WHEN status = 4 THEN start_time END
+                ) AS sort_date,
+                CASE
+                    WHEN status IN (2, 0) THEN 0
+                    ELSE 1
+                END AS date_sort_dir
             ")
             ->orderByRaw('sort_order ASC')
+            ->orderByRaw('date_sort_dir ASC, IF(date_sort_dir = 0, sort_date, NULL) ASC, IF(date_sort_dir = 1, sort_date, NULL) DESC')
             ->orderBy('start_time', 'desc');
 
         $miniTournaments = $query->paginate($perPage);
