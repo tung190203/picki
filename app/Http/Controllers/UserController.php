@@ -647,28 +647,24 @@ class UserController extends Controller
 
     private function getUserTournamentOverview(int $userId): array
     {
-        // Lấy tournament IDs user tham gia với vai trò VDV
+        // Lấy tournament IDs user tham gia với vai trò VDV (sport_id = 1)
         $tournamentIdsAsParticipant = DB::table('participants')
             ->where('user_id', $userId)
-            ->whereHas('tournament', fn($t) => $t->where('sport_id', 1))
+            ->whereRaw(' EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = participants.tournament_id AND tournaments.sport_id = 1)')
             ->pluck('tournament_id');
 
-        // Lấy tournament IDs user tham gia với vai trò BTC/staff
+        // Lấy tournament IDs user tham gia với vai trò BTC/staff (sport_id = 1)
         $tournamentIdsAsStaff = DB::table('tournament_staff')
             ->where('user_id', $userId)
             ->whereIn('role', [1, 2])
-            ->whereHas('tournament', fn($t) => $t->where('sport_id', 1))
+            ->whereRaw(' EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = tournament_staff.tournament_id AND tournaments.sport_id = 1)')
             ->pluck('tournament_id');
 
-        // union: tất cả giải user tham gia (VDV hoặc BTC), không trùng
-        $allTournamentIds = $tournamentIdsAsParticipant->merge($tournamentIdsAsStaff)->unique();
+        // total_joined = đếm giải user tham gia với vai trò VDV
+        $totalJoined = $tournamentIdsAsParticipant->count();
 
-        // total_joined = tất cả giải user tham gia (VDV + BTC)
-        $totalJoined = $allTournamentIds->count();
-
-        // total_created = giải user chỉ là BTC (không có participant record)
-        $staffOnlyIds = $tournamentIdsAsStaff->diff($tournamentIdsAsParticipant);
-        $totalCreated = $staffOnlyIds->count();
+        // total_created = đếm giải user tham gia với vai trò BTC
+        $totalCreated = $tournamentIdsAsStaff->count();
 
         // Stats: chỉ tính khi user là VDV (có participant record)
         $totalWin = null;
@@ -717,28 +713,24 @@ class UserController extends Controller
 
     private function getUserMiniTournamentOverview(int $userId): array
     {
-        // Lấy mini tournament IDs user tham gia với vai trò VDV
+        // Lấy mini tournament IDs user tham gia với vai trò VDV (sport_id = 1)
         $miniTournamentIdsAsParticipant = DB::table('mini_participants')
             ->where('user_id', $userId)
-            ->whereHas('miniTournament', fn($t) => $t->where('sport_id', 1))
+            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_participants.mini_tournament_id AND mini_tournaments.sport_id = 1)')
             ->pluck('mini_tournament_id');
 
-        // Lấy mini tournament IDs user tham gia với vai trò BTC (role = 1 = organizer)
+        // Lấy mini tournament IDs user tham gia với vai trò BTC (role = 1 = organizer, sport_id = 1)
         $miniTournamentIdsAsStaff = DB::table('mini_tournament_staff')
             ->where('user_id', $userId)
             ->whereIn('role', [1])
-            ->whereHas('miniTournament', fn($t) => $t->where('sport_id', 1))
+            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_tournament_staff.mini_tournament_id AND mini_tournaments.sport_id = 1)')
             ->pluck('mini_tournament_id');
 
-        // union: tất cả giải user tham gia (VDV hoặc BTC), không trùng
-        $allMiniTournamentIds = $miniTournamentIdsAsParticipant->merge($miniTournamentIdsAsStaff)->unique();
+        // total_joined = đếm giải user tham gia với vai trò VDV
+        $totalJoined = $miniTournamentIdsAsParticipant->count();
 
-        // total_joined = tất cả giải user tham gia (VDV + BTC)
-        $totalJoined = $allMiniTournamentIds->count();
-
-        // total_created = giải user chỉ là BTC (không có participant record)
-        $staffOnlyIds = $miniTournamentIdsAsStaff->diff($miniTournamentIdsAsParticipant);
-        $totalCreated = $staffOnlyIds->count();
+        // total_created = đếm giải user tham gia với vai trò BTC
+        $totalCreated = $miniTournamentIdsAsStaff->count();
 
         // Stats: chỉ tính khi user là VDV (có participant record)
         $totalWin = null;
