@@ -65,6 +65,7 @@ class UserTournamentResource extends JsonResource
             'gender_policy' => (int) $this->gender_policy,
             'max_team' => $this->max_team,
             'status' => $this->status,
+            'is_creator' => (int) $this->created_by === $this->targetUserId,
 
             // Participant flag & role
             'is_participant' => $isParticipant,
