@@ -287,7 +287,7 @@
           <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
             <a
               v-if="isLoggedIn"
-              href="#"
+              :href="registerLink"
               class="px-8 py-3 bg-white text-[#D72D36] rounded-lg font-bold hover:bg-gray-100 transition shadow-lg"
               @click.prevent="handleRegister"
             >
@@ -295,13 +295,13 @@
             </a>
             <a
               v-else
-              href="/login"
+              :href="loginLink"
               class="px-8 py-3 bg-white text-[#D72D36] rounded-lg font-bold hover:bg-gray-100 transition shadow-lg"
             >
               Đăng nhập để đăng ký
             </a>
             <a
-              href="/register"
+              :href="registerLink"
               class="px-8 py-3 bg-transparent border-2 border-white text-white rounded-lg font-bold hover:bg-white/10 transition"
             >
               Tạo tài khoản mới
@@ -351,6 +351,25 @@ const error = ref(false)
 const activeTab = ref('overview')
 const countdown = ref([])
 let countdownInterval = null
+
+const tournamentId = computed(() => route.params.id)
+
+const isMobile = computed(() =>
+  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+)
+
+const deeplinkBase = 'vpick://tournament-detail'
+const webBase = 'https://picki.vn/tournament-detail'
+
+const registerLink = computed(() => {
+  const base = isMobile.value ? deeplinkBase : webBase
+  return `${base}/${tournamentId.value}?ref=register`
+})
+
+const loginLink = computed(() => {
+  const base = isMobile.value ? deeplinkBase : webBase
+  return `${base}/${tournamentId.value}?ref=login`
+})
 
 const tabs = [
   { id: 'overview', label: 'Tổng quan' },
