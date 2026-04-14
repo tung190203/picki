@@ -35,6 +35,7 @@ class UserMiniTournamentResource extends JsonResource
             'status' => $this->status,
             'status_text' => $this->status_text,
             'is_completed' => $isCompleted,
+            'is_creator' => (int) $this->created_by === $this->targetUserId,
 
             // Sport info
             'sport' => new SportResource($this->whenLoaded('sport')),
@@ -48,6 +49,21 @@ class UserMiniTournamentResource extends JsonResource
             'competition_location' => new CompetitionLocationResource(
                 $this->whenLoaded('competitionLocation')
             ),
+
+            // Participants list (app tự filter: is_confirmed=true && payment_status=confirmed)
+            'participants' => $this->relationLoaded('participants')
+                ? $this->participants->map(fn($p) => [
+                    'id' => $p->id,
+                    'user_id' => $p->user_id,
+                    'user' => $p->user ? [
+                        'id' => $p->user->id,
+                        'full_name' => $p->user->full_name,
+                        'avatar_url' => $p->user->avatar_url,
+                    ] : null,
+                    'is_confirmed' => (bool) $p->is_confirmed,
+                    'payment_status' => $p->payment_status?->value ?? null,
+                ])->toArray()
+                : [],
 
             // Participant flag & role
             'is_participant' => $isParticipant,
