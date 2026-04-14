@@ -39,6 +39,13 @@
           >
             <ChevronLeftIcon class="w-6 h-6" />
           </button>
+          <!-- Share Button -->
+          <button
+            @click="showShareModal = true"
+            class="absolute top-4 right-4 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white rounded-full p-2 transition"
+          >
+            <ShareIcon class="w-6 h-6" />
+          </button>
         </div>
 
         <!-- Hero Content -->
@@ -316,12 +323,19 @@
           <p class="text-gray-400 text-sm">© 2024 PICKI. Nền tảng quản lý giải đấu Pickleball.</p>
         </div>
       </footer>
+
+      <!-- Share Card Modal -->
+      <ShareCard
+        :is-visible="showShareModal"
+        :tournament="tournament"
+        @close="showShareModal = false"
+      />
     </template>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ChevronLeftIcon,
@@ -336,10 +350,12 @@ import {
   UserIcon,
   AdjustmentsVerticalIcon,
   LockClosedIcon,
+  ShareIcon,
 } from '@heroicons/vue/24/outline'
 import * as TournamentService from '@/service/tournament.js'
 import { useFormatDate, formatEventDate } from '@/composables/formatDatetime.js'
 import { LOCAL_STORAGE_KEY } from '@/constants/index.js'
+import ShareCard from './shared/ShareCard.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -351,6 +367,7 @@ const error = ref(false)
 const activeTab = ref('overview')
 const countdown = ref([])
 let countdownInterval = null
+const showShareModal = ref(false)
 
 const tournamentId = computed(() => route.params.id)
 
@@ -366,9 +383,9 @@ const registerLink = computed(() => {
   return `${base}/${tournamentId.value}?ref=register`
 })
 
-const loginLink = computed(() => {
+const shareLink = computed(() => {
   const base = isMobile.value ? deeplinkBase : webBase
-  return `${base}/${tournamentId.value}?ref=login`
+  return `${base}/${tournamentId.value}?ref=share`
 })
 
 const tabs = [
@@ -396,6 +413,46 @@ const registrationStatus = computed(() => {
   if (close && now > close) return 'Đã đóng'
   return 'Đang mở'
 })
+
+watch(tournament, () => {
+  if (!tournament.value) return
+  const t = tournament.value
+  const ogImage = t.poster || ''
+  const shareUrl = `${webBase}/${tournamentId.value}`
+
+  document.title = `${t.name} | PICKI`
+  updateMeta('og:title', t.name)
+  updateMeta('og:description', t.description || `Đăng ký tham gia giải đấu Pickleball ${t.name}`)
+  updateMeta('og:type', 'website')
+  updateMeta('og:url', shareUrl)
+  updateMeta('og:image', ogImage)
+  updateMeta('og:site_name', 'PICKI')
+  updateMeta('twitter:card', 'summary_large_image')
+  updateMeta('twitter:title', t.name)
+  updateMeta('twitter:description', t.description || '')
+  updateMeta('twitter:image', ogImage)
+  updateCanonical(shareUrl)
+}, { immediate: true })
+
+function updateMeta(name, content) {
+  let el = document.querySelector(`meta[property="${name}"], meta[name="${name}"]`)
+  if (!el) {
+    el = document.createElement('meta')
+    el.setAttribute(name.startsWith('og:') ? 'property' : 'name', name)
+    document.head.appendChild(el)
+  }
+  el.setAttribute('content', content)
+}
+
+function updateCanonical(url) {
+  let el = document.querySelector('link[rel="canonical"]')
+  if (!el) {
+    el = document.createElement('link')
+    el.setAttribute('rel', 'canonical')
+    document.head.appendChild(el)
+  }
+  el.setAttribute('href', url)
+}
 
 const tournamentFormat = computed(() => {
   const types = tournament.value?.tournament_types
