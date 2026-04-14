@@ -627,25 +627,35 @@ class UserController extends Controller
 
     private function getUserTournamentOverview(int $userId): array
     {
-        $totalJoined = \App\Models\Participant::where('user_id', $userId)
-            ->whereHas('tournament', fn($t) => $t->where('sport_id', 1))
-            ->count();
-
-        $totalCreated = \App\Models\TournamentStaff::where('user_id', $userId)
-            ->whereIn('role', [\App\Models\TournamentStaff::ROLE_ORGANIZER, \App\Models\TournamentStaff::ROLE_STAFF])
-            ->whereHas('tournament', fn($t) => $t->where('sport_id', 1))
-            ->count();
-
-        $matchIds = DB::table('vndupr_history')
+        // Lấy tournament IDs user tham gia với vai trò VDV
+        $tournamentIdsAsParticipant = DB::table('participants')
             ->where('user_id', $userId)
-            ->whereNotNull('match_id')
-            ->pluck('match_id')
-            ->unique();
+            ->whereHas('tournament', fn($t) => $t->where('sport_id', 1))
+            ->pluck('tournament_id');
 
-        $totalWin = 0;
-        $totalLose = 0;
+        // Lấy tournament IDs user tham gia với vai trò BTC/staff
+        $tournamentIdsAsStaff = DB::table('tournament_staff')
+            ->where('user_id', $userId)
+            ->whereIn('role', [1, 2])
+            ->whereHas('tournament', fn($t) => $t->where('sport_id', 1))
+            ->pluck('tournament_id');
 
-        if ($matchIds->isNotEmpty()) {
+        // union: tất cả giải user tham gia (VDV hoặc BTC), không trùng
+        $allTournamentIds = $tournamentIdsAsParticipant->merge($tournamentIdsAsStaff)->unique();
+
+        // total_joined = tất cả giải user tham gia (VDV + BTC)
+        $totalJoined = $allTournamentIds->count();
+
+        // total_created = giải user chỉ là BTC (không có participant record)
+        $staffOnlyIds = $tournamentIdsAsStaff->diff($tournamentIdsAsParticipant);
+        $totalCreated = $staffOnlyIds->count();
+
+        // Stats: chỉ tính khi user là VDV (có participant record)
+        $totalWin = null;
+        $totalMatches = null;
+        $totalLose = null;
+
+        if ($tournamentIdsAsParticipant->isNotEmpty()) {
             $userTeamIds = DB::table('team_members')
                 ->where('user_id', $userId)
                 ->pluck('team_id');
@@ -656,7 +666,7 @@ class UserController extends Controller
                     ->join('tournaments', 'tournament_types.tournament_id', '=', 'tournaments.id')
                     ->whereIn('matches.winner_id', $userTeamIds)
                     ->where('matches.status', 'completed')
-                    ->whereIn('matches.id', $matchIds)
+                    ->whereIn('tournaments.id', $tournamentIdsAsParticipant)
                     ->where('tournaments.sport_id', 1)
                     ->count();
 
@@ -668,7 +678,7 @@ class UserController extends Controller
                           ->orWhereIn('matches.away_team_id', $userTeamIds);
                     })
                     ->where('matches.status', 'completed')
-                    ->whereIn('matches.id', $matchIds)
+                    ->whereIn('tournaments.id', $tournamentIdsAsParticipant)
                     ->where('tournaments.sport_id', 1)
                     ->count();
 
@@ -679,7 +689,7 @@ class UserController extends Controller
         return [
             'total_joined'   => $totalJoined,
             'total_created'  => $totalCreated,
-            'total_matches'  => $totalWin + $totalLose,
+            'total_matches'  => $totalMatches,
             'total_win'      => $totalWin,
             'total_lose'     => $totalLose,
         ];
@@ -687,25 +697,35 @@ class UserController extends Controller
 
     private function getUserMiniTournamentOverview(int $userId): array
     {
-        $totalJoined = \App\Models\MiniParticipant::where('user_id', $userId)
-            ->whereHas('miniTournament', fn($t) => $t->where('sport_id', 1))
-            ->count();
-
-        $totalCreated = \App\Models\MiniTournamentStaff::where('user_id', $userId)
-            ->whereIn('role', [\App\Models\MiniTournamentStaff::ROLE_ORGANIZER])
-            ->whereHas('miniTournament', fn($t) => $t->where('sport_id', 1))
-            ->count();
-
-        $miniMatchIds = DB::table('vndupr_history')
+        // Lấy mini tournament IDs user tham gia với vai trò VDV
+        $miniTournamentIdsAsParticipant = DB::table('mini_participants')
             ->where('user_id', $userId)
-            ->whereNotNull('mini_match_id')
-            ->pluck('mini_match_id')
-            ->unique();
+            ->whereHas('miniTournament', fn($t) => $t->where('sport_id', 1))
+            ->pluck('mini_tournament_id');
 
-        $totalWin = 0;
-        $totalLose = 0;
+        // Lấy mini tournament IDs user tham gia với vai trò BTC (role = 1 = organizer)
+        $miniTournamentIdsAsStaff = DB::table('mini_tournament_staff')
+            ->where('user_id', $userId)
+            ->whereIn('role', [1])
+            ->whereHas('miniTournament', fn($t) => $t->where('sport_id', 1))
+            ->pluck('mini_tournament_id');
 
-        if ($miniMatchIds->isNotEmpty()) {
+        // union: tất cả giải user tham gia (VDV hoặc BTC), không trùng
+        $allMiniTournamentIds = $miniTournamentIdsAsParticipant->merge($miniTournamentIdsAsStaff)->unique();
+
+        // total_joined = tất cả giải user tham gia (VDV + BTC)
+        $totalJoined = $allMiniTournamentIds->count();
+
+        // total_created = giải user chỉ là BTC (không có participant record)
+        $staffOnlyIds = $miniTournamentIdsAsStaff->diff($miniTournamentIdsAsParticipant);
+        $totalCreated = $staffOnlyIds->count();
+
+        // Stats: chỉ tính khi user là VDV (có participant record)
+        $totalWin = null;
+        $totalMatches = null;
+        $totalLose = null;
+
+        if ($miniTournamentIdsAsParticipant->isNotEmpty()) {
             $userMiniTeamIds = DB::table('mini_team_members')
                 ->where('user_id', $userId)
                 ->pluck('mini_team_id');
@@ -715,7 +735,7 @@ class UserController extends Controller
                     ->join('mini_tournaments', 'mini_matches.mini_tournament_id', '=', 'mini_tournaments.id')
                     ->whereIn('mini_matches.team_win_id', $userMiniTeamIds)
                     ->where('mini_matches.status', 'completed')
-                    ->whereIn('mini_matches.id', $miniMatchIds)
+                    ->whereIn('mini_tournaments.id', $miniTournamentIdsAsParticipant)
                     ->where('mini_tournaments.sport_id', 1)
                     ->count();
 
@@ -726,7 +746,7 @@ class UserController extends Controller
                           ->orWhereIn('mini_matches.team2_id', $userMiniTeamIds);
                     })
                     ->where('mini_matches.status', 'completed')
-                    ->whereIn('mini_matches.id', $miniMatchIds)
+                    ->whereIn('mini_tournaments.id', $miniTournamentIdsAsParticipant)
                     ->where('mini_tournaments.sport_id', 1)
                     ->count();
 
@@ -737,7 +757,7 @@ class UserController extends Controller
         return [
             'total_joined'   => $totalJoined,
             'total_created'  => $totalCreated,
-            'total_matches'  => $totalWin + $totalLose,
+            'total_matches'  => $totalMatches,
             'total_win'      => $totalWin,
             'total_lose'     => $totalLose,
         ];
