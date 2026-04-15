@@ -62,6 +62,7 @@ class UserMiniTournamentResource extends JsonResource
                     ] : null,
                     'is_confirmed' => (bool) $p->is_confirmed,
                     'payment_status' => $p->payment_status?->value ?? null,
+                    'is_guest' => (bool) $p->is_guest,
                 ])->toArray()
                 : [],
 

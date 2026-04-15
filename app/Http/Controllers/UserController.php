@@ -495,7 +495,7 @@ class UserController extends Controller
         // Tính overview TRƯỚC khi filter theo thời gian (overview luôn tính cho toàn bộ lịch sử)
         $overview = $this->getUserTournamentOverview($userId);
 
-            // Sort: 2=open → ongoing → 3=closed → 4=canceled
+            // Sort: open → upcoming → finished → canceled (ongoing tách riêng)
             $query = Tournament::query()
                 ->with([
                     'createdBy', 'club', 'sport',
@@ -510,17 +510,20 @@ class UserController extends Controller
                       ->orWhereHas('tournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1, 2]));
                 })
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
-            // Nếu xem profile người khác → chỉ lấy giải public (is_private = false)
             ->when(!$isOwnProfile, function ($q) {
                 $q->where('is_private', false);
             })
             ->when($dateFrom, fn($q) => $q->where('start_date', '>=', $dateFrom))
             ->when($dateTo, fn($q) => $q->where('end_date', '<=', $dateTo))
+            // Ongoing: tách riêng, không hiển thị trong danh sách
+            ->where(function ($q) {
+                $q->whereRaw('NOT (status = 0 AND start_date <= NOW() AND end_date >= NOW())');
+            })
             ->select('tournaments.*')
             ->selectRaw("
                 CASE
                     WHEN status = 2 THEN 0
-                    WHEN status = 0 AND start_date <= NOW() AND end_date >= NOW() THEN 1
+                    WHEN status = 0 AND start_date > NOW() THEN 1
                     WHEN status = 3 THEN 2
                     WHEN status = 4 THEN 3
                     ELSE 4
@@ -536,14 +539,34 @@ class UserController extends Controller
                 END AS date_sort_dir
             ")
             ->orderByRaw('sort_order ASC')
-            ->orderByRaw('date_sort_dir ASC, IF(date_sort_dir = 0, sort_date, NULL) ASC, IF(date_sort_dir = 1, sort_date, NULL) DESC')
+            ->orderByRaw('date_sort_dir ASC, sort_date DESC')
             ->orderBy('start_date', 'desc');
+
+        // Tách 1 giải ongoing gần nhất
+        $ongoingTournament = Tournament::query()
+            ->with([
+                'createdBy', 'club', 'sport',
+                'tournamentStaffs', 'competitionLocation',
+                'teams', 'participants',
+                'tournamentTypes.groups.matches.homeTeam',
+                'tournamentTypes.groups.matches.awayTeam',
+                'tournamentTypes.groups.matches.results',
+            ])
+            ->where(function ($q) use ($userId) {
+                $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId))
+                  ->orWhereHas('tournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1, 2]));
+            })
+            ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
+            ->whereRaw('status = 0 AND start_date <= NOW() AND end_date >= NOW()')
+            ->orderBy('start_date', 'ASC')
+            ->first();
 
         $tournaments = $query->paginate($perPage);
 
         $data = [
-            'overview'    => $overview,
-            'tournaments' => UserTournamentResource::collection($tournaments),
+            'overview'            => $overview,
+            'current_tournament' => $ongoingTournament ? new UserTournamentResource($ongoingTournament) : null,
+            'tournaments'        => UserTournamentResource::collection($tournaments),
         ];
 
         $meta = [
@@ -585,6 +608,7 @@ class UserController extends Controller
         // Tính overview TRƯỚC khi filter theo thời gian
         $overview = $this->getUserMiniTournamentOverview($userId);
 
+        // Sort: open → upcoming → finished → canceled (ongoing tách riêng)
         $query = MiniTournament::query()
             ->with([
                 'sport',
@@ -605,11 +629,15 @@ class UserController extends Controller
             })
             ->when($dateFrom, fn($q) => $q->where('start_time', '>=', $dateFrom))
             ->when($dateTo, fn($q) => $q->where('end_time', '<=', $dateTo))
+            // Ongoing: tách riêng, không hiển thị trong danh sách
+            ->where(function ($q) {
+                $q->whereRaw('NOT (status = 0 AND start_time <= NOW() AND end_time >= NOW())');
+            })
             ->select('mini_tournaments.*')
             ->selectRaw("
                 CASE
                     WHEN status = 2 THEN 0
-                    WHEN status = 0 AND start_time <= NOW() AND end_time >= NOW() THEN 1
+                    WHEN status = 0 AND start_time > NOW() THEN 1
                     WHEN status = 3 THEN 2
                     WHEN status = 4 THEN 3
                     ELSE 4
@@ -625,14 +653,35 @@ class UserController extends Controller
                 END AS date_sort_dir
             ")
             ->orderByRaw('sort_order ASC')
-            ->orderByRaw('date_sort_dir ASC, IF(date_sort_dir = 0, sort_date, NULL) ASC, IF(date_sort_dir = 1, sort_date, NULL) DESC')
+            ->orderByRaw('date_sort_dir ASC, sort_date DESC')
             ->orderBy('start_time', 'desc');
+
+        // Tách 1 giải ongoing gần nhất
+        $ongoingMiniTournament = MiniTournament::query()
+            ->with([
+                'sport',
+                'club',
+                'competitionLocation',
+                'participants.user',
+                'participants.team.members',
+                'matches',
+                'miniTournamentStaffs',
+            ])
+            ->where(function ($q) use ($userId) {
+                $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId))
+                  ->orWhereHas('miniTournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1]));
+            })
+            ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
+            ->whereRaw('status = 0 AND start_time <= NOW() AND end_time >= NOW()')
+            ->orderBy('start_time', 'ASC')
+            ->first();
 
         $miniTournaments = $query->paginate($perPage);
 
         $data = [
-            'overview'         => $overview,
-            'mini_tournaments' => UserMiniTournamentResource::collection($miniTournaments),
+            'overview'              => $overview,
+            'current_mini_tournament' => $ongoingMiniTournament ? new UserMiniTournamentResource($ongoingMiniTournament) : null,
+            'mini_tournaments'     => UserMiniTournamentResource::collection($miniTournaments),
         ];
 
         $meta = [
@@ -647,21 +696,24 @@ class UserController extends Controller
 
     private function getUserTournamentOverview(int $userId): array
     {
-        // Lấy tournament IDs user tham gia với vai trò VDV (sport_id = 1)
+        // Lấy tournament IDs user tham gia với vai trò VDV (sport_id = 1, đã bắt đầu)
         $tournamentIdsAsParticipant = DB::table('participants')
             ->where('user_id', $userId)
-            ->whereRaw(' EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = participants.tournament_id AND tournaments.sport_id = 1)')
+            ->whereRaw('EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = participants.tournament_id AND tournaments.sport_id = 1 AND tournaments.start_date <= NOW())')
             ->pluck('tournament_id');
 
-        // Lấy tournament IDs user tham gia với vai trò BTC/staff (sport_id = 1)
+        // Lấy tournament IDs user tham gia với vai trò BTC/staff (sport_id = 1, đã bắt đầu)
         $tournamentIdsAsStaff = DB::table('tournament_staff')
             ->where('user_id', $userId)
             ->whereIn('role', [1, 2])
-            ->whereRaw(' EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = tournament_staff.tournament_id AND tournaments.sport_id = 1)')
+            ->whereRaw('EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = tournament_staff.tournament_id AND tournaments.sport_id = 1 AND tournaments.start_date <= NOW())')
             ->pluck('tournament_id');
 
-        // total_joined = đếm giải user tham gia với vai trò VDV
-        $totalJoined = $tournamentIdsAsParticipant->count();
+        // total_joined = distinct tournament (participant + staff/organizer)
+        $allTournamentIds = $tournamentIdsAsParticipant
+            ->merge($tournamentIdsAsStaff)
+            ->unique();
+        $totalJoined = $allTournamentIds->count();
 
         // total_created = đếm giải user tham gia với vai trò BTC
         $totalCreated = $tournamentIdsAsStaff->count();
@@ -713,21 +765,24 @@ class UserController extends Controller
 
     private function getUserMiniTournamentOverview(int $userId): array
     {
-        // Lấy mini tournament IDs user tham gia với vai trò VDV (sport_id = 1)
+        // Lấy mini tournament IDs user tham gia với vai trò VDV (sport_id = 1, đã bắt đầu)
         $miniTournamentIdsAsParticipant = DB::table('mini_participants')
             ->where('user_id', $userId)
-            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_participants.mini_tournament_id AND mini_tournaments.sport_id = 1)')
+            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_participants.mini_tournament_id AND mini_tournaments.sport_id = 1 AND mini_tournaments.start_time <= NOW())')
             ->pluck('mini_tournament_id');
 
-        // Lấy mini tournament IDs user tham gia với vai trò BTC (role = 1 = organizer, sport_id = 1)
+        // Lấy mini tournament IDs user tham gia với vai trò BTC (role = 1 = organizer, sport_id = 1, đã bắt đầu)
         $miniTournamentIdsAsStaff = DB::table('mini_tournament_staff')
             ->where('user_id', $userId)
             ->whereIn('role', [1])
-            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_tournament_staff.mini_tournament_id AND mini_tournaments.sport_id = 1)')
+            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_tournament_staff.mini_tournament_id AND mini_tournaments.sport_id = 1 AND mini_tournaments.start_time <= NOW())')
             ->pluck('mini_tournament_id');
 
-        // total_joined = đếm giải user tham gia với vai trò VDV
-        $totalJoined = $miniTournamentIdsAsParticipant->count();
+        // total_joined = distinct mini_tournament (participant + staff/organizer)
+        $allMiniTournamentIds = $miniTournamentIdsAsParticipant
+            ->merge($miniTournamentIdsAsStaff)
+            ->unique();
+        $totalJoined = $allMiniTournamentIds->count();
 
         // total_created = đếm giải user tham gia với vai trò BTC
         $totalCreated = $miniTournamentIdsAsStaff->count();
