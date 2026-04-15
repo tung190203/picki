@@ -252,17 +252,20 @@ const PAIRING_MODE_MANUAL = 'manual';
                 $newNumGroups = max(1, (int)($poolConfig['number_competing_teams'] ?? 2));
             }
 
-            // Xoá toàn bộ cấu hình cũ trước khi cập nhật
-            $tournamentType->match_rules = [];
-            $tournamentType->format_specific_config = [];
-
-            // Ghi đè hoàn toàn config mới (nếu có)
-            if (!empty($validated['match_rules'])) {
+            // ✅ CẬP NHẬT từng phần, GIỮ NGUYÊN dữ liệu cũ nếu không gửi lên
+            if (array_key_exists('match_rules', $validated)) {
                 $tournamentType->match_rules = $validated['match_rules'];
             }
 
-            if (!empty($validated['format_specific_config'])) {
-                $tournamentType->format_specific_config = $validated['format_specific_config'];
+            if (array_key_exists('format_specific_config', $validated)) {
+                // Merge với config cũ thay vì ghi đè hoàn toàn
+                $oldConfig = $tournamentType->format_specific_config ?? [];
+                $oldMainConfig = is_array($oldConfig) && isset($oldConfig[0]) ? $oldConfig[0] : $oldConfig;
+                $newMainConfig = is_array($validated['format_specific_config']) && isset($validated['format_specific_config'][0])
+                    ? $validated['format_specific_config'][0]
+                    : $validated['format_specific_config'];
+                // Dùng array_replace_recursive để thay thế từng key, giữ nguyên những key không có trong request
+                $tournamentType->format_specific_config = array_replace_recursive($oldMainConfig, $newMainConfig);
             }
 
             // Ghi đè rules và file path
