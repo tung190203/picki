@@ -45,7 +45,7 @@ const PAIRING_MODE_MANUAL = 'manual';
             'tournament_id' => 'required|integer|exists:tournaments,id',
             'format' => 'required|integer|in:' . implode(',', TournamentType::FORMATS),
             'num_legs' => 'integer|nullable|in:' . implode(',', TournamentType::NUM_LEGS_OPTIONS),
-            'match_rules' => 'array|nullable',
+            'match_rules' => 'required|array',
             'format_specific_config' => 'array|nullable',
             'rules' => 'string|nullable',
             'rules_file_path' => 'string|nullable',
@@ -185,7 +185,7 @@ const PAIRING_MODE_MANUAL = 'manual';
     public function update(Request $request, TournamentType $tournamentType)
     {
         $validated = $request->validate([
-            'match_rules' => 'array|nullable',
+            'match_rules' => 'required|array',
             'format_specific_config' => 'array|nullable',
             'rules' => 'string|nullable',
             'rules_file_path' => 'string|nullable',

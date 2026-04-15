@@ -32,13 +32,6 @@
           </div>
           <!-- Gradient Overlay -->
           <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
-          <!-- Back Button -->
-          <button
-            @click="$router.back()"
-            class="absolute top-4 left-4 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white rounded-full p-2 transition"
-          >
-            <ChevronLeftIcon class="w-6 h-6" />
-          </button>
           <!-- Share Button -->
           <button
             @click="showShareModal = true"
@@ -52,7 +45,6 @@
         <div class="absolute bottom-0 left-0 right-0 px-4 md:px-8 pb-6">
           <!-- Sport Badge -->
           <div v-if="tournament.sport" class="flex items-center gap-2 mb-2">
-            <img v-if="tournament.sport.icon" :src="tournament.sport.icon" class="w-5 h-5" :alt="tournament.sport.name" />
             <span class="bg-white/20 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full font-medium">
               {{ tournament.sport.name }}
             </span>
