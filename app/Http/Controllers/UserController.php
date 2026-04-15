@@ -660,8 +660,11 @@ class UserController extends Controller
             ->whereRaw(' EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = tournament_staff.tournament_id AND tournaments.sport_id = 1)')
             ->pluck('tournament_id');
 
-        // total_joined = đếm giải user tham gia với vai trò VDV
-        $totalJoined = $tournamentIdsAsParticipant->count();
+        // total_joined = distinct tournament (participant + staff/organizer)
+        $allTournamentIds = $tournamentIdsAsParticipant
+            ->merge($tournamentIdsAsStaff)
+            ->unique();
+        $totalJoined = $allTournamentIds->count();
 
         // total_created = đếm giải user tham gia với vai trò BTC
         $totalCreated = $tournamentIdsAsStaff->count();
@@ -726,8 +729,11 @@ class UserController extends Controller
             ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_tournament_staff.mini_tournament_id AND mini_tournaments.sport_id = 1)')
             ->pluck('mini_tournament_id');
 
-        // total_joined = đếm giải user tham gia với vai trò VDV
-        $totalJoined = $miniTournamentIdsAsParticipant->count();
+        // total_joined = distinct mini_tournament (participant + staff/organizer)
+        $allMiniTournamentIds = $miniTournamentIdsAsParticipant
+            ->merge($miniTournamentIdsAsStaff)
+            ->unique();
+        $totalJoined = $allMiniTournamentIds->count();
 
         // total_created = đếm giải user tham gia với vai trò BTC
         $totalCreated = $miniTournamentIdsAsStaff->count();
