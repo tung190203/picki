@@ -185,7 +185,7 @@ const PAIRING_MODE_MANUAL = 'manual';
     public function update(Request $request, TournamentType $tournamentType)
     {
         $validated = $request->validate([
-            'match_rules' => 'required|array',
+            'match_rules' => 'sometimes|array',
             'format_specific_config' => 'array|nullable',
             'rules' => 'string|nullable',
             'rules_file_path' => 'string|nullable',
