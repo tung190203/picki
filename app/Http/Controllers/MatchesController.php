@@ -56,7 +56,7 @@ class MatchesController extends Controller
     {
         $validated = $request->validate([
             'court' => 'nullable|integer',
-            'results' => 'nullable|array',
+            'results' => 'nullable|array|min:1',
             'results.*.id' => 'sometimes|exists:match_results,id',
             'results.*.set_number' => 'required|integer|min:1',
             'results.*.team_id' => 'required|integer|exists:teams,id',
@@ -1042,17 +1042,20 @@ class MatchesController extends Controller
         }
 
         $rules = $match->tournamentType->match_rules ?? null;
-        if (!$rules) {
+        if (empty($rules)) {
             return ResponseHelper::error('Thể thức này chưa có luật thi đấu (match_rules).', 400);
         }
-    
-        $setsPerMatch = $rules[0]['sets_per_match'] ?? 3;
+
+        // $rules là array có cấu trúc như: ['sets_per_match' => 1, 'points_to_win_set' => 11, ...]
+        // Một số config cũ có dạng: [['sets_per_match' => 1, ...]] - array bọc ngoài
+        $rulesConfig = is_array($rules[0] ?? null) ? $rules[0] : $rules;
+        $setsPerMatch = $rulesConfig['sets_per_match'] ?? 3;
         $numLegs = $match->tournamentType->num_legs ?? 1;
     
         // ===================================
         // VALIDATE TOÀN BỘ KẾT QUẢ CÁC SET
         // ===================================
-        $validationError = $this->validateAllMatchSets($match, $rules[0]);
+        $validationError = $this->validateAllMatchSets($match, $rulesConfig);
         if ($validationError) {
             return ResponseHelper::error($validationError, 400);
         }
