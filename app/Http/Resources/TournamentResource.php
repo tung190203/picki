@@ -26,6 +26,7 @@ class TournamentResource extends JsonResource
                 ];
             }),
             'name' => $this->name,
+            'competition_location_id' => $this->competition_location_id,
             'competition_location' => new CompetitionLocationResource($this->whenLoaded('competitionLocation')),
             'start_date' => $this->start_date,
             // 'end_date' => $this->end_date,
