@@ -371,7 +371,7 @@ export default {
                     return
                 }
                 // UserCard props object: có id=participant_id, userId=user_id, name, avatar, rating
-                if (param.id !== undefined && !param.user && !param.checked_in_at) {
+                if (param.id !== undefined && !param.user) {
                     const participantId = param.id
                     const userId = param.userId || param.id
                     selectedMember.value = {
@@ -380,6 +380,9 @@ export default {
                         name: param.name,
                         avatar: param.avatar,
                         rating: param.rating,
+                        checked_in_at: param.checked_in_at || null,
+                        is_absent: param.is_absent || false,
+                        is_guest: param.is_guest || false,
                         user: { id: userId, full_name: param.name, avatar_url: param.avatar }
                     }
                 } else {

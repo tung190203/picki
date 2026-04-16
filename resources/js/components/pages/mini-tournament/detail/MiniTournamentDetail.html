@@ -233,6 +233,7 @@
                                               :avatar="item.user?.avatar_url"
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
                                               :status="'approved'"
+                                              :checkedInAt="item.checked_in_at"
                                               @click="openMemberActionModal($event)" />
                                     <div v-if="item.is_guest" class="text-[10px] text-[#6B7280] text-center mt-1">
                                         <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
@@ -269,6 +270,7 @@
                                               :avatar="item.user?.avatar_url"
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
                                               :status="'approved'"
+                                              :checkedInAt="item.checked_in_at"
                                               @click="openMemberActionModal($event)" />
                                     <div v-if="item.is_guest" class="text-[10px] text-[#6B7280] text-center mt-1">
                                         <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
@@ -301,6 +303,7 @@
                                               :avatar="item.user?.avatar_url"
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
                                               :status="'absent'"
+                                              :checkedInAt="item.checked_in_at"
                                               @click="openMemberActionModal($event)" />
                                     <div v-if="item.is_guest" class="text-[10px] text-[#6B7280] text-center mt-1">
                                         <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
@@ -333,6 +336,7 @@
                                               :avatar="item.user?.avatar_url"
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
                                               :status="'approved'"
+                                              :checkedInAt="item.checked_in_at"
                                               @click="openMemberActionModal($event)" />
                                     <div v-if="item.is_guest" class="text-[10px] text-[#6B7280] text-center mt-1">
                                         <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
@@ -342,11 +346,11 @@
                         </div>
 
                         <!-- Section: Chờ xác nhận (người tự xin + người được mời) -->
-                        <div class="border border-[#BBBFCC] rounded-lg my-4 p-4" v-if="waitingConfirmationParticipants?.length">
+                        <div class="border border-[#BBBFCC] rounded-lg my-4 p-4" v-if="waitingConfirmationParticipants?.length > 0">
                             <div class="flex items-center justify-between mb-3">
                                 <h4 class="font-semibold text-[#6B6F80] uppercase text-sm flex items-center gap-2">
                                     <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
-                                    CHỜ XÁC NHẬN • {{ waitingConfirmationParticipants?.length || 0 }}
+                                    CHỜ XÁC NHẬN • {{ waitingConfirmationParticipants?.length }}
                                 </h4>
                                 <span class="flex items-center gap-2">
                                     <span class="text-[#207AD5] text-xs font-semibold cursor-pointer" v-if="isCreator"
@@ -364,6 +368,7 @@
                                               :name="item.user?.full_name || item.guest_name" :avatar="item.user?.avatar_url"
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
                                               :status="'pending'"
+                                              :checkedInAt="item.checked_in_at"
                                               @click="openMemberActionModal($event)" />
                                     <!-- Nút xác nhận/từ chối cho người tự xin (chỉ hiện khi is_invited = false) -->
                                     <div v-if="!item.is_invited && isCreator" class="flex gap-2 mt-1">

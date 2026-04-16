@@ -339,7 +339,7 @@
                   </div>
 
                   <!-- Section: Chờ xác nhận -->
-                  <div class="border border-[#BBBFCC] rounded-lg p-4">
+                  <div v-if="waitingConfirmationParticipants.length > 0" class="border border-[#BBBFCC] rounded-lg p-4">
                     <h4 class="font-semibold text-yellow-600 uppercase text-sm mb-3 flex items-center gap-2">
                       <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
                       Chờ xác nhận • {{ waitingConfirmationParticipants.length }}
