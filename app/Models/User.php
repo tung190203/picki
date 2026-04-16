@@ -702,13 +702,13 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     {
         $participantIds = DB::table('participants as p')
             ->where('p.user_id', $this->id)
-            ->whereRaw('EXISTS (SELECT 1 FROM tournaments t WHERE t.id = p.tournament_id AND t.start_date <= NOW())')
+            ->whereRaw('EXISTS (SELECT 1 FROM tournaments t WHERE t.id = p.tournament_id AND t.status != 1 AND t.start_date <= NOW())')
             ->pluck('p.tournament_id');
 
         $staffTournamentIds = DB::table('tournament_staff as ts')
             ->where('ts.user_id', $this->id)
             ->whereIn('ts.role', [1, 2])
-            ->whereRaw('EXISTS (SELECT 1 FROM tournaments t WHERE t.id = ts.tournament_id AND t.start_date <= NOW())')
+            ->whereRaw('EXISTS (SELECT 1 FROM tournaments t WHERE t.id = ts.tournament_id AND t.status != 1 AND t.start_date <= NOW())')
             ->pluck('ts.tournament_id');
 
         $allIds = $participantIds->merge($staffTournamentIds)->unique();
@@ -720,13 +720,13 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     {
         $participantIds = DB::table('mini_participants as mp')
             ->where('mp.user_id', $this->id)
-            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments mt WHERE mt.id = mp.mini_tournament_id AND mt.start_time <= NOW())')
+            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments mt WHERE mt.id = mp.mini_tournament_id AND mt.status != 1 AND mt.start_time <= NOW())')
             ->pluck('mp.mini_tournament_id');
 
         $staffMiniTournamentIds = DB::table('mini_tournament_staff as mts')
             ->where('mts.user_id', $this->id)
             ->whereIn('mts.role', [1])
-            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments mt WHERE mt.id = mts.mini_tournament_id AND mt.start_time <= NOW())')
+            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments mt WHERE mt.id = mts.mini_tournament_id AND mt.status != 1 AND mt.start_time <= NOW())')
             ->pluck('mts.mini_tournament_id');
 
         $allIds = $participantIds->merge($staffMiniTournamentIds)->unique();
@@ -792,13 +792,13 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         // total_tournaments: distinct tournament đã bắt đầu (participant + staff/organizer, loại trừ upcoming)
         $participantTournamentIds = DB::table('participants as p')
             ->where('p.user_id', $userId)
-            ->whereRaw('EXISTS (SELECT 1 FROM tournaments t WHERE t.id = p.tournament_id AND t.sport_id = ? AND t.start_date <= NOW())', [$sportId])
+            ->whereRaw('EXISTS (SELECT 1 FROM tournaments t WHERE t.id = p.tournament_id AND t.sport_id = ? AND t.status != 1 AND t.start_date <= NOW())', [$sportId])
             ->pluck('p.tournament_id');
 
         $staffTournamentIds = DB::table('tournament_staff as ts')
             ->where('ts.user_id', $userId)
             ->whereIn('ts.role', [1, 2])
-            ->whereRaw('EXISTS (SELECT 1 FROM tournaments t WHERE t.id = ts.tournament_id AND t.sport_id = ? AND t.start_date <= NOW())', [$sportId])
+            ->whereRaw('EXISTS (SELECT 1 FROM tournaments t WHERE t.id = ts.tournament_id AND t.sport_id = ? AND t.status != 1 AND t.start_date <= NOW())', [$sportId])
             ->pluck('ts.tournament_id');
 
         $totalTournaments = $participantTournamentIds->merge($staffTournamentIds)->unique()->count();
@@ -806,13 +806,13 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         // total_mini_tournaments: distinct mini_tournament đã bắt đầu (participant + staff/organizer, loại trừ upcoming)
         $participantMiniTournamentIds = DB::table('mini_participants as mp')
             ->where('mp.user_id', $userId)
-            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments mt WHERE mt.id = mp.mini_tournament_id AND mt.sport_id = ? AND mt.start_time <= NOW())', [$sportId])
+            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments mt WHERE mt.id = mp.mini_tournament_id AND mt.sport_id = ? AND mt.status != 1 AND mt.start_time <= NOW())', [$sportId])
             ->pluck('mp.mini_tournament_id');
 
         $staffMiniTournamentIds = DB::table('mini_tournament_staff as mts')
             ->where('mts.user_id', $userId)
             ->whereIn('mts.role', [1])
-            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments mt WHERE mt.id = mts.mini_tournament_id AND mt.sport_id = ? AND mt.start_time <= NOW())', [$sportId])
+            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments mt WHERE mt.id = mts.mini_tournament_id AND mt.sport_id = ? AND mt.status != 1 AND mt.start_time <= NOW())', [$sportId])
             ->pluck('mts.mini_tournament_id');
 
         $totalMiniTournaments = $participantMiniTournamentIds->merge($staffMiniTournamentIds)->unique()->count();
