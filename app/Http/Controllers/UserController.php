@@ -492,8 +492,8 @@ class UserController extends Controller
         // Kiểm tra có phải đang xem chính mình không
         $isOwnProfile = ($authUserId && $authUserId == $userId);
 
-        // Tính overview TRƯỚC khi filter theo thời gian (overview luôn tính cho toàn bộ lịch sử)
-        $overview = $this->getUserTournamentOverview($userId);
+        // Tính overview với filter thống nhất: loại trừ ongoing tournament và private (nếu xem profile người khác)
+        $overview = $this->getUserTournamentOverview($userId, $isOwnProfile);
 
             // Sort: open → upcoming → finished → canceled (ongoing tách riêng)
             $query = Tournament::query()
@@ -518,8 +518,9 @@ class UserController extends Controller
             ->where('start_date', '<=', now())
             ->where('status', '!=', 1)
             // Ongoing: tách riêng, không hiển thị trong danh sách
+            // Chỉ loại trừ khi end_date tồn tại VÀ chưa kết thúc; tournament không có end_date vẫn hiển thị trong list
             ->where(function ($q) {
-                $q->whereRaw('NOT (status = 2 AND start_date <= NOW() AND end_date >= NOW())');
+                $q->whereRaw('NOT (status = 2 AND start_date <= NOW() AND end_date IS NOT NULL AND end_date >= NOW())');
             })
             ->select('tournaments.*')
             ->selectRaw("
@@ -559,7 +560,7 @@ class UserController extends Controller
                   ->orWhereHas('tournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1, 2]));
             })
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
-            ->whereRaw('status = 2 AND start_date <= NOW() AND end_date >= NOW()')
+            ->whereRaw('status = 2 AND start_date <= NOW() AND end_date IS NOT NULL AND end_date >= NOW()')
             ->orderBy('start_date', 'ASC')
             ->first();
 
@@ -607,8 +608,8 @@ class UserController extends Controller
         $authUserId = auth()->id();
         $isOwnProfile = ($authUserId && $authUserId == $userId);
 
-        // Tính overview TRƯỚC khi filter theo thời gian
-        $overview = $this->getUserMiniTournamentOverview($userId);
+        // Tính overview với filter thống nhất: loại trừ ongoing tournament và private (nếu xem profile người khác)
+        $overview = $this->getUserMiniTournamentOverview($userId, $isOwnProfile);
 
         // Sort: open → upcoming → finished → canceled (ongoing tách riêng)
         $query = MiniTournament::query()
@@ -635,7 +636,7 @@ class UserController extends Controller
             ->where('status', '!=', 1)
             // Ongoing: tách riêng, không hiển thị trong danh sách
             ->where(function ($q) {
-                $q->whereRaw('NOT (status = 2 AND start_time <= NOW() AND end_time >= NOW())');
+                $q->whereRaw('NOT (status = 2 AND start_time <= NOW() AND end_time IS NOT NULL AND end_time >= NOW())');
             })
             ->select('mini_tournaments.*')
             ->selectRaw("
@@ -676,7 +677,7 @@ class UserController extends Controller
                   ->orWhereHas('miniTournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1]));
             })
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
-            ->whereRaw('status = 2 AND start_time <= NOW() AND end_time >= NOW()')
+            ->whereRaw('status = 2 AND start_time <= NOW() AND end_time IS NOT NULL AND end_time >= NOW()')
             ->orderBy('start_time', 'ASC')
             ->first();
 
@@ -698,19 +699,23 @@ class UserController extends Controller
         return ResponseHelper::success($data, 'Lấy lịch sử mini tournament thành công', 200, $meta);
     }
 
-    private function getUserTournamentOverview(int $userId): array
+    private function getUserTournamentOverview(int $userId, bool $isOwnProfile): array
     {
-        // Lấy tournament IDs user tham gia với vai trò VDV (sport_id = 1, đã bắt đầu)
+        // Filter align với main query: loại trừ ongoing tournament và private (nếu xem profile người khác)
+        // Ongoing = status=2 AND start_date<=NOW() AND end_date IS NOT NULL AND end_date>=NOW()
+        $ongoingCondition = 'NOT (tournaments.status = 2 AND tournaments.start_date <= NOW() AND tournaments.end_date IS NOT NULL AND tournaments.end_date >= NOW())';
+
+        // Lấy tournament IDs user tham gia với vai trò VDV (sport_id = 1, đã bắt đầu, không ongoing, không private nếu không phải chính mình)
         $tournamentIdsAsParticipant = DB::table('participants')
             ->where('user_id', $userId)
-            ->whereRaw('EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = participants.tournament_id AND tournaments.sport_id = 1 AND tournaments.status != 1 AND tournaments.start_date <= NOW())')
+            ->whereRaw("EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = participants.tournament_id AND tournaments.sport_id = 1 AND tournaments.status != 1 AND tournaments.start_date <= NOW() AND {$ongoingCondition}" . ($isOwnProfile ? '' : ' AND tournaments.is_private = false') . ")")
             ->pluck('tournament_id');
 
-        // Lấy tournament IDs user tham gia với vai trò BTC/staff (sport_id = 1, đã bắt đầu)
+        // Lấy tournament IDs user tham gia với vai trò BTC/staff (sport_id = 1, đã bắt đầu, không ongoing, không private nếu không phải chính mình)
         $tournamentIdsAsStaff = DB::table('tournament_staff')
             ->where('user_id', $userId)
             ->whereIn('role', [1, 2])
-            ->whereRaw('EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = tournament_staff.tournament_id AND tournaments.sport_id = 1 AND tournaments.status != 1 AND tournaments.start_date <= NOW())')
+            ->whereRaw("EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = tournament_staff.tournament_id AND tournaments.sport_id = 1 AND tournaments.status != 1 AND tournaments.start_date <= NOW() AND {$ongoingCondition}" . ($isOwnProfile ? '' : ' AND tournaments.is_private = false') . ")")
             ->pluck('tournament_id');
 
         // total_joined = distinct tournament (participant + staff/organizer)
@@ -767,19 +772,23 @@ class UserController extends Controller
         ];
     }
 
-    private function getUserMiniTournamentOverview(int $userId): array
+    private function getUserMiniTournamentOverview(int $userId, bool $isOwnProfile): array
     {
-        // Lấy mini tournament IDs user tham gia với vai trò VDV (sport_id = 1, đã bắt đầu)
+        // Filter align với main query: loại trừ ongoing tournament và private (nếu xem profile người khác)
+        // Ongoing = status=2 AND start_time<=NOW() AND end_time IS NOT NULL AND end_time>=NOW()
+        $ongoingCondition = 'NOT (mini_tournaments.status = 2 AND mini_tournaments.start_time <= NOW() AND mini_tournaments.end_time IS NOT NULL AND mini_tournaments.end_time >= NOW())';
+
+        // Lấy mini tournament IDs user tham gia với vai trò VDV (sport_id = 1, đã bắt đầu, không ongoing, không private nếu không phải chính mình)
         $miniTournamentIdsAsParticipant = DB::table('mini_participants')
             ->where('user_id', $userId)
-            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_participants.mini_tournament_id AND mini_tournaments.sport_id = 1 AND mini_tournaments.status != 1 AND mini_tournaments.start_time <= NOW())')
+            ->whereRaw("EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_participants.mini_tournament_id AND mini_tournaments.sport_id = 1 AND mini_tournaments.status != 1 AND mini_tournaments.start_time <= NOW() AND {$ongoingCondition}" . ($isOwnProfile ? '' : ' AND mini_tournaments.is_private = false') . ")")
             ->pluck('mini_tournament_id');
 
-        // Lấy mini tournament IDs user tham gia với vai trò BTC (role = 1 = organizer, sport_id = 1, đã bắt đầu)
+        // Lấy mini tournament IDs user tham gia với vai trò BTC (role = 1 = organizer, sport_id = 1, đã bắt đầu, không ongoing, không private nếu không phải chính mình)
         $miniTournamentIdsAsStaff = DB::table('mini_tournament_staff')
             ->where('user_id', $userId)
             ->whereIn('role', [1])
-            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_tournament_staff.mini_tournament_id AND mini_tournaments.sport_id = 1 AND mini_tournaments.status != 1 AND mini_tournaments.start_time <= NOW())')
+            ->whereRaw("EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_tournament_staff.mini_tournament_id AND mini_tournaments.sport_id = 1 AND mini_tournaments.status != 1 AND mini_tournaments.start_time <= NOW() AND {$ongoingCondition}" . ($isOwnProfile ? '' : ' AND mini_tournaments.is_private = false') . ")")
             ->pluck('mini_tournament_id');
 
         // total_joined = distinct mini_tournament (participant + staff/organizer)
