@@ -515,9 +515,11 @@ class UserController extends Controller
             })
             ->when($dateFrom, fn($q) => $q->where('start_date', '>=', $dateFrom))
             ->when($dateTo, fn($q) => $q->where('end_date', '<=', $dateTo))
+            ->where('start_date', '<=', now())
+            ->where('status', '!=', 1)
             // Ongoing: tách riêng, không hiển thị trong danh sách
             ->where(function ($q) {
-                $q->whereRaw('NOT (status = 0 AND start_date <= NOW() AND end_date >= NOW())');
+                $q->whereRaw('NOT (status = 2 AND start_date <= NOW() AND end_date >= NOW())');
             })
             ->select('tournaments.*')
             ->selectRaw("
@@ -557,7 +559,7 @@ class UserController extends Controller
                   ->orWhereHas('tournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1, 2]));
             })
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
-            ->whereRaw('status = 0 AND start_date <= NOW() AND end_date >= NOW()')
+            ->whereRaw('status = 2 AND start_date <= NOW() AND end_date >= NOW()')
             ->orderBy('start_date', 'ASC')
             ->first();
 
@@ -629,9 +631,11 @@ class UserController extends Controller
             })
             ->when($dateFrom, fn($q) => $q->where('start_time', '>=', $dateFrom))
             ->when($dateTo, fn($q) => $q->where('end_time', '<=', $dateTo))
+            ->where('start_time', '<=', now())
+            ->where('status', '!=', 1)
             // Ongoing: tách riêng, không hiển thị trong danh sách
             ->where(function ($q) {
-                $q->whereRaw('NOT (status = 0 AND start_time <= NOW() AND end_time >= NOW())');
+                $q->whereRaw('NOT (status = 2 AND start_time <= NOW() AND end_time >= NOW())');
             })
             ->select('mini_tournaments.*')
             ->selectRaw("
@@ -672,7 +676,7 @@ class UserController extends Controller
                   ->orWhereHas('miniTournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1]));
             })
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
-            ->whereRaw('status = 0 AND start_time <= NOW() AND end_time >= NOW()')
+            ->whereRaw('status = 2 AND start_time <= NOW() AND end_time >= NOW()')
             ->orderBy('start_time', 'ASC')
             ->first();
 
@@ -699,14 +703,14 @@ class UserController extends Controller
         // Lấy tournament IDs user tham gia với vai trò VDV (sport_id = 1, đã bắt đầu)
         $tournamentIdsAsParticipant = DB::table('participants')
             ->where('user_id', $userId)
-            ->whereRaw('EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = participants.tournament_id AND tournaments.sport_id = 1 AND tournaments.start_date <= NOW())')
+            ->whereRaw('EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = participants.tournament_id AND tournaments.sport_id = 1 AND tournaments.status != 1 AND tournaments.start_date <= NOW())')
             ->pluck('tournament_id');
 
         // Lấy tournament IDs user tham gia với vai trò BTC/staff (sport_id = 1, đã bắt đầu)
         $tournamentIdsAsStaff = DB::table('tournament_staff')
             ->where('user_id', $userId)
             ->whereIn('role', [1, 2])
-            ->whereRaw('EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = tournament_staff.tournament_id AND tournaments.sport_id = 1 AND tournaments.start_date <= NOW())')
+            ->whereRaw('EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = tournament_staff.tournament_id AND tournaments.sport_id = 1 AND tournaments.status != 1 AND tournaments.start_date <= NOW())')
             ->pluck('tournament_id');
 
         // total_joined = distinct tournament (participant + staff/organizer)
@@ -768,14 +772,14 @@ class UserController extends Controller
         // Lấy mini tournament IDs user tham gia với vai trò VDV (sport_id = 1, đã bắt đầu)
         $miniTournamentIdsAsParticipant = DB::table('mini_participants')
             ->where('user_id', $userId)
-            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_participants.mini_tournament_id AND mini_tournaments.sport_id = 1 AND mini_tournaments.start_time <= NOW())')
+            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_participants.mini_tournament_id AND mini_tournaments.sport_id = 1 AND mini_tournaments.status != 1 AND mini_tournaments.start_time <= NOW())')
             ->pluck('mini_tournament_id');
 
         // Lấy mini tournament IDs user tham gia với vai trò BTC (role = 1 = organizer, sport_id = 1, đã bắt đầu)
         $miniTournamentIdsAsStaff = DB::table('mini_tournament_staff')
             ->where('user_id', $userId)
             ->whereIn('role', [1])
-            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_tournament_staff.mini_tournament_id AND mini_tournaments.sport_id = 1 AND mini_tournaments.start_time <= NOW())')
+            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_tournament_staff.mini_tournament_id AND mini_tournaments.sport_id = 1 AND mini_tournaments.status != 1 AND mini_tournaments.start_time <= NOW())')
             ->pluck('mini_tournament_id');
 
         // total_joined = distinct mini_tournament (participant + staff/organizer)
