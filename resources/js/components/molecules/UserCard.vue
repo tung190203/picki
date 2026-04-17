@@ -12,7 +12,7 @@
       <div v-else :class="`w-${computedSize} h-${computedSize} rounded-full overflow-hidden`">
         <img :src="avatar || defaultImage" :alt="name" @error="event.target.src=defaultImage"
           class="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform duration-300"
-          @click.stop="$emit('click', props)" />
+          @click.stop="$emit('click', { ...props, checked_in_at: props.checkedInAt })" />
       </div>
 
       <button
@@ -160,6 +160,10 @@ const props = defineProps({
     is_invite_by_organizer: {
         type: Boolean,
         default: false,
+    },
+    checkedInAt: {
+        type: [String, Number, Boolean, Date],
+        default: null,
     },
 })
 

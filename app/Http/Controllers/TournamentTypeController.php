@@ -264,8 +264,8 @@ const PAIRING_MODE_MANUAL = 'manual';
                 $newMainConfig = is_array($validated['format_specific_config']) && isset($validated['format_specific_config'][0])
                     ? $validated['format_specific_config'][0]
                     : $validated['format_specific_config'];
-                // Dùng array_replace_recursive để thay thế từng key, giữ nguyên những key không có trong request
-                $tournamentType->format_specific_config = array_replace_recursive($oldMainConfig, $newMainConfig);
+                // Dùng deepMergeRecursive để merge đệ quy mọi cấp nested, giữ nguyên những key không có trong request
+                $tournamentType->format_specific_config = [$this->deepMergeRecursive($oldMainConfig, $newMainConfig)];
             }
 
             // Ghi đè rules và file path
@@ -3129,5 +3129,17 @@ const PAIRING_MODE_MANUAL = 'manual';
                 $q->where('confirmed', true);
             })
             ->exists();
+    }
+
+    private function deepMergeRecursive(array $old, array $new): array
+    {
+        foreach ($new as $key => $value) {
+            if (is_array($value) && isset($old[$key]) && is_array($old[$key])) {
+                $old[$key] = $this->deepMergeRecursive($old[$key], $value);
+            } else {
+                $old[$key] = $value;
+            }
+        }
+        return $old;
     }
 }
