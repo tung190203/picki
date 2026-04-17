@@ -24,10 +24,21 @@ class TournamentTypeResource extends JsonResource
             'match_rules' => $this->match_rules,
             'rules' => $this->rules,
             'rules_file_path' => $this->rules_file_path ? asset('storage/' . $this->rules_file_path) : null,
-            'format_specific_config' => $this->format_specific_config,
+            'format_specific_config' => $this->normalizeFormatSpecificConfig($this->format_specific_config),
             'total_matches' => $this->total_matches,
             'total_teams' => $this->total_teams,
             'total_matches_per_team' => $this->total_matches_per_team,
         ];
+    }
+
+    private function normalizeFormatSpecificConfig($config)
+    {
+        if (!is_array($config)) {
+            return [];
+        }
+        if (isset($config[0])) {
+            return $config;
+        }
+        return [$config];
     }
 }
