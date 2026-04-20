@@ -63,6 +63,7 @@ class UserResource extends JsonResource
             'is_online' => $this->isOnline(),
             'total_tournaments' => (int) $this->total_tournaments,
             'total_mini_tournaments' => (int) $this->total_mini_tournaments,
+            'is_super_admin' => (bool)$this->is_super_admin,
         ];
     }
 }

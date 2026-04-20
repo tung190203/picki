@@ -17,7 +17,7 @@
         <!-- Navigation (Desktop only >= 1024px) -->
         <nav class="hidden lg:flex items-center space-x-1 xl:gap-8 sm:gap-2">
             <!-- Player -->
-            <template v-if="getRole === ROLE.PLAYER">
+            <template v-if="activeMenu === ROLE.PLAYER">
                 <RouterLink class="whitespace-nowrap" to="/" :class="linkClass('/')">
                     <HomeIcon class="w-5 h-5" />
                     Trang chủ
@@ -50,7 +50,7 @@
             </template>
 
             <!-- Referee -->
-            <template v-else-if="getRole === ROLE.REFEREE">
+            <template v-else-if="activeMenu === ROLE.REFEREE">
                 <RouterLink
                     to="/referee/dashboard"
                     :class="linkClass('/referee/dashboard')"
@@ -73,33 +73,6 @@
                 >
                     <UsersIcon class="w-5 h-5" />
                     Báo cáo / Khiếu nại
-                </RouterLink>
-            </template>
-
-            <!-- Admin -->
-            <template v-else-if="getRole === ROLE.ADMIN">
-                <RouterLink class="whitespace-nowrap"
-                    to="/admin/dashboard"
-                    :class="linkClass('/admin/dashboard')"
-                >
-                    <HomeIcon class="w-5 h-5 mr-2" />
-                    Trang chủ
-                </RouterLink>
-
-                <RouterLink class="whitespace-nowrap"
-                    to="/admin/tournament"
-                    :class="linkClass('/admin/tournament')"
-                >
-                    <BriefcaseIcon class="w-5 h-5" />
-                    Quản lý giải
-                </RouterLink>
-
-                <RouterLink class="whitespace-nowrap"
-                    to="/admin/users"
-                    :class="linkClass('/admin/users')"
-                >
-                    <UsersIcon class="w-5 h-5" />
-                    Người dùng
                 </RouterLink>
             </template>
         </nav>
@@ -129,6 +102,7 @@
 </template>
 
 <script setup>
+import { computed } from "vue";
 import {
     HomeIcon,
     UsersIcon,
@@ -147,6 +121,11 @@ const userStore = useUserStore();
 const { getUser } = storeToRefs(userStore);
 const { getRole } = storeToRefs(userStore);
 const defaultAvatar = "/images/default-avatar.png";
+
+const activeMenu = computed(() => {
+    if (getRole.value === ROLE.ADMIN) return ROLE.PLAYER;
+    return getRole.value;
+});
 
 const linkClass = (path) => {
     const base =

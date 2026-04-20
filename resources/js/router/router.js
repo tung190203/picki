@@ -167,7 +167,7 @@ export const route = [
         name: 'dashboard',
         component: DashboardPage,
         meta: {
-          role: [ROLE.PLAYER]
+          role: [ROLE.PLAYER, ROLE.ADMIN]
         }
       },
       {
@@ -183,7 +183,7 @@ export const route = [
         name: 'friends',
         component: UnderConstructionPage,
         meta: {
-          role: [ROLE.PLAYER]
+          role: [ROLE.PLAYER, ROLE.ADMIN]
         }
       },
       {
@@ -191,7 +191,7 @@ export const route = [
         name: 'leaderboard',
         component: Leaderboard,
         meta: {
-          role: [ROLE.PLAYER]
+          role: [ROLE.PLAYER, ROLE.ADMIN]
         }
       },
       {
@@ -213,7 +213,7 @@ export const route = [
       {
         path: '/clubs',
         meta: {
-          role: [ROLE.PLAYER]
+          role: [ROLE.PLAYER, ROLE.ADMIN]
         },
         children: [
           {
@@ -277,7 +277,7 @@ export const route = [
       {
         path: '/tournament',
         meta: {
-          role: [ROLE.PLAYER]
+          role: [ROLE.PLAYER, ROLE.ADMIN]
         },
         children: [
           {
@@ -300,7 +300,7 @@ export const route = [
       {
         path: '/tournament-detail',
         meta: {
-          role: [ROLE.PLAYER]
+          role: [ROLE.PLAYER, ROLE.ADMIN]
         },
         children: [
           {
@@ -324,7 +324,7 @@ export const route = [
       {
         path: '/mini-tournament',
         meta: {
-          role: [ROLE.PLAYER]
+          role: [ROLE.PLAYER, ROLE.ADMIN]
         },
         children: [
           {
@@ -342,7 +342,7 @@ export const route = [
       {
         path: '/mini-tournament-detail',
         meta: {
-          role: [ROLE.PLAYER]
+          role: [ROLE.PLAYER, ROLE.ADMIN]
         },
         children: [
           {
@@ -362,22 +362,39 @@ export const route = [
         }
       },
       {
-        path: '/admin/dashboard',
-        name: 'admin.dashboard',
-        component: AdminDashboard,
-        meta: {
-          role: [ROLE.ADMIN]
-        }
-      },
-      {
         path: '/referee/dashboard',
         name: 'referee.dashboard',
         component: RefereeDashboard,
         meta: {
-          role: [ROLE.REFEREE]
+          role: [ROLE.REFEREE, ROLE.ADMIN]
         }
       }
     ]
+  },
+
+  {
+    path: '/admin/dashboard',
+    name: 'admin.dashboard',
+    component: AdminDashboard,
+    meta: {
+      role: [ROLE.ADMIN]
+    }
+  },
+  {
+    path: '/admin/moderation',
+    name: 'admin.moderation',
+    component: () => import('@/components/pages/admin/AdminModeration.vue'),
+    meta: {
+      role: [ROLE.ADMIN]
+    }
+  },
+  {
+    path: '/admin/configuration',
+    name: 'admin.config',
+    component: () => import('@/components/pages/admin/AdminConfig.vue'),
+    meta: {
+      role: [ROLE.ADMIN]
+    }
   },
 
   // --- GENERAL & ERROR ROUTES ---

@@ -37,7 +37,7 @@ router.beforeEach((to, from, next) => {
   if (loginToken && publicPages.includes(to.name) && to.name !== "privacy-policy" && to.name !== "tournament-landing") {
     switch (userRole) {
       case ROLE.ADMIN:
-        return next({ name: "admin.dashboard" });
+        return next({ name: "dashboard" });
       case ROLE.REFEREE:
         return next({ name: "referee.dashboard" });
       case ROLE.PLAYER:
