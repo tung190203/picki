@@ -51,6 +51,7 @@ use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TournamentStaffController;
 use App\Http\Controllers\MiniTournamentPaymentController;
 use App\Http\Controllers\MiniTournamentTemplateController;
+use App\Http\Controllers\LeaderboardController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
 
@@ -105,6 +106,7 @@ Route::prefix('tournaments')->group(function () {
     Route::get('/index', [TournamentController::class, 'index']);
     Route::get('/{id}', [TournamentController::class, 'show']);
     Route::get('/{id}/bracket', [TournamentController::class, 'getBracket']);
+    Route::get('/{tournamentId}/leaderboard', [LeaderboardController::class, 'index']);
 });
 
 // Clubs API: không throttle để mobile gọi nhiều không bị lỗi 429
