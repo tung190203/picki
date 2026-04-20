@@ -284,12 +284,12 @@ class HomeController extends Controller
             ->joinSub($scoreSubQuery, 'scores', function ($join) {
                 $join->on('scores.user_id', '=', 'users.id');
             })
-            ->withFullRelations()
             ->with([
                 'sports' => function ($query) use ($sportId) {
                     $query->where('sport_id', $sportId)
                         ->with('scores', 'sport');
                 },
+                'clubs:id,name'
             ])
             ->select(
                 'users.*',
@@ -316,6 +316,12 @@ class HomeController extends Controller
                     'avatar_url' => $user->avatar_url,
                     'rank' => $user->rank,
                     'sports' => $user->relationLoaded('sports') && $user->sports ? UserSportResource::collection($user->sports) : [],
+                    'clubs' => $user->clubs->map(function($club) {
+                        return [
+                            'id' => $club->id,
+                            'name' => $club->name
+                        ];
+                    }),
                     'is_anchor' => (bool) $user->is_anchor,
                     'is_verify' => (bool) ($user->total_matches_has_anchor >= 10)
                 ];

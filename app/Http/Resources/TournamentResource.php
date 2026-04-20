@@ -54,6 +54,7 @@ class TournamentResource extends JsonResource
             'auto_approve' => $this->auto_approve,
             'status' => $this->status,
             'status_text' => $this->status_text,
+            'is_completed' => (int) $this->status === 3,
             'description' => $this->description,
             'created_by' => $this->whenLoaded('createdBy', function () {
                 return [
