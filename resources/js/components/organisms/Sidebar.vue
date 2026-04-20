@@ -39,7 +39,7 @@
             <!-- Middle Section - Navigation (Mobile only < 1024px) -->
             <nav class="lg:hidden flex flex-col space-y-1 px-2 flex-1 mt-6 overflow-y-auto">
                 <!-- Player -->
-                <template v-if="getRole === ROLE.PLAYER">
+                <template v-if="activeMenu === ROLE.PLAYER">
                     <RouterLink to="/" :class="mobileLinkClass('/')">
                         <HomeIcon class="w-5 h-5 flex-shrink-0" />
                         <span
@@ -117,7 +117,7 @@
                 </template>
 
                 <!-- Referee -->
-                <template v-else-if="getRole === ROLE.REFEREE">
+                <template v-else-if="activeMenu === ROLE.REFEREE">
                     <RouterLink
                         to="/referee/dashboard"
                         :class="mobileLinkClass('/referee/dashboard')"
@@ -169,64 +169,34 @@
                         </span>
                     </RouterLink>
                 </template>
-
-                <!-- Admin -->
-                <template v-else-if="getRole === ROLE.ADMIN">
-                    <RouterLink
-                        to="/admin/dashboard"
-                        :class="mobileLinkClass('/admin/dashboard')"
-                    >
-                        <HomeIcon class="w-5 h-5 flex-shrink-0" />
-                        <span
-                            class="font-medium whitespace-nowrap overflow-hidden transition-all duration-300"
-                            :class="
-                                isExpanded
-                                    ? 'opacity-100 ml-3 max-w-xs'
-                                    : 'opacity-0 ml-0 max-w-0'
-                            "
-                        >
-                            Trang chủ
-                        </span>
-                    </RouterLink>
-
-                    <RouterLink
-                        to="/admin/tournament"
-                        :class="mobileLinkClass('/admin/tournament')"
-                    >
-                        <BriefcaseIcon class="w-5 h-5 flex-shrink-0" />
-                        <span
-                            class="font-medium whitespace-nowrap overflow-hidden transition-all duration-300"
-                            :class="
-                                isExpanded
-                                    ? 'opacity-100 ml-3 max-w-xs'
-                                    : 'opacity-0 ml-0 max-w-0'
-                            "
-                        >
-                            Quản lý giải
-                        </span>
-                    </RouterLink>
-
-                    <RouterLink
-                        to="/admin/users"
-                        :class="mobileLinkClass('/admin/users')"
-                    >
-                        <UsersIcon class="w-5 h-5 flex-shrink-0" />
-                        <span
-                            class="font-medium whitespace-nowrap overflow-hidden transition-all duration-300"
-                            :class="
-                                isExpanded
-                                    ? 'opacity-100 ml-3 max-w-xs'
-                                    : 'opacity-0 ml-0 max-w-0'
-                            "
-                        >
-                            Người dùng
-                        </span>
-                    </RouterLink>
-                </template>
             </nav>
 
             <!-- Bottom Section (Actions + User Info) -->
             <div class="flex flex-col space-y-1 px-2 mb-4">
+                <!-- Admin Dash -->
+                <router-link v-if="getRole === ROLE.ADMIN" to="/admin/dashboard" v-slot="{ isActive }">
+                    <button
+                        :class="[
+                            'flex items-center h-12 px-3 rounded-xl transition-all w-full text-left',
+                            isActive
+                                ? 'bg-gray-100 text-gray-900'
+                                : 'text-gray-600 hover:bg-gray-100',
+                        ]"
+                    >
+                        <component :is="getUser.is_super_admin ? ShieldCheckIcon : HomeIcon" class="w-5 h-5 flex-shrink-0" />
+                        <span
+                            class="font-medium whitespace-nowrap overflow-hidden transition-all duration-300"
+                            :class="
+                                isExpanded
+                                    ? 'opacity-100 ml-3 max-w-xs'
+                                    : 'opacity-0 ml-0 max-w-0'
+                            "
+                        >
+                            {{ getUser.is_super_admin ? 'Super Admin' : 'Admin Dash' }}
+                        </span>
+                    </button>
+                </router-link>
+
                 <!-- Notification -->
                 <router-link to="/notifications" v-slot="{ isActive }">
                 <button
@@ -330,7 +300,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useUserStore } from "@/store/auth";
 import { storeToRefs } from "pinia";
@@ -348,6 +318,7 @@ import {
     UsersIcon,
     PlusCircleIcon,
     BriefcaseIcon,
+    ShieldCheckIcon,
 } from "@heroicons/vue/24/outline";
 
 const router = useRouter();
@@ -358,6 +329,11 @@ const defaultAvatar = "/images/default-avatar.png";
 
 const isExpanded = ref(false);
 const hasNotification = ref(true);
+
+const activeMenu = computed(() => {
+    if (getRole.value === ROLE.ADMIN) return ROLE.PLAYER;
+    return getRole.value;
+});
 
 const expand = (state) => {
     isExpanded.value = state;
@@ -370,7 +346,7 @@ const collapseOnBackdrop = () => {
 const goToDashboard = () => {
     switch (getRole.value) {
         case ROLE.ADMIN:
-            router.push({ name: "admin.dashboard" });
+            router.push({ name: "dashboard" });
             break;
         case ROLE.REFEREE:
             router.push({ name: "referee.dashboard" });

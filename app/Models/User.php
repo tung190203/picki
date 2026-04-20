@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\SuperAdminDraft;
 use App\Models\Club\Club;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -118,6 +119,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'age_years',
         'age_group',
         'gender_text',
+        'is_super_admin',
     ];
 
     public function getGenderText()
@@ -232,6 +234,16 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     public function playTimes()
     {
         return $this->hasMany(UserPlayTime::class);
+    }
+
+    public function superAdminDraft()
+    {
+        return $this->hasOne(SuperAdminDraft::class, 'user_id');
+    }
+
+    public function getIsSuperAdminAttribute()
+    {
+        return $this->superAdminDraft()->exists();
     }
 
     public function badges()
