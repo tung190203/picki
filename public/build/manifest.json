@@ -12,18 +12,22 @@
     "src": "node_modules/leaflet/dist/images/marker-icon.png"
   },
   "resources/css/app.css": {
-    "file": "assets/app-yI3f8Rg_.css",
+    "file": "assets/app-DDAzKk5_.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-Bx1GdhqV.js",
+    "file": "assets/app-CBEsOCcc.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
+    "dynamicImports": [
+      "resources/js/components/pages/admin/AdminModeration.vue",
+      "resources/js/components/pages/admin/AdminConfig.vue"
+    ],
     "css": [
-      "assets/app-CwqG8SMr.css",
-      "assets/app-yI3f8Rg_.css"
+      "assets/app-D6hTARmL.css",
+      "assets/app-DDAzKk5_.css"
     ],
     "assets": [
       "assets/dashboard-bg-j02aDZD4.svg",
@@ -90,5 +94,31 @@
   "resources/js/assets/ranking/3rd.png": {
     "file": "assets/3rd-Bp28LztR.png",
     "src": "resources/js/assets/ranking/3rd.png"
+  },
+  "resources/js/components/pages/admin/AdminConfig.vue": {
+    "file": "assets/AdminConfig-Bg2uOhK9.js",
+    "name": "AdminConfig",
+    "src": "resources/js/components/pages/admin/AdminConfig.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/AdminConfig-aRhJjqEt.css",
+      "assets/app-DDAzKk5_.css"
+    ]
+  },
+  "resources/js/components/pages/admin/AdminModeration.vue": {
+    "file": "assets/AdminModeration-DEfpW1kU.js",
+    "name": "AdminModeration",
+    "src": "resources/js/components/pages/admin/AdminModeration.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/AdminModeration-DI4y5MlF.css",
+      "assets/app-DDAzKk5_.css"
+    ]
   }
 }
