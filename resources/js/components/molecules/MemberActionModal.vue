@@ -48,29 +48,37 @@
 
                             <!-- Organizer actions: Check-in / Báo vắng cho VĐV -->
                             <template v-if="isOrganizer">
-                                <button v-if="canCheckIn" @click="handleCheckIn"
-                                    class="w-full py-2.5 px-4 rounded-lg bg-[#D72D36] text-white hover:bg-red-700 transition flex items-center justify-center gap-2 font-medium text-sm">
-                                    <CheckIcon class="w-5 h-5" />
-                                    Check-in
+                                <button v-if="!props.member?.is_absent" @click="handleCheckIn" :disabled="props.member?.checked_in_at"
+                                    class="w-full py-2.5 px-4 rounded-lg transition flex items-center justify-center gap-2 font-medium text-sm"
+                                    :class="props.member?.checked_in_at ? 'bg-green-500 text-white cursor-default' : 'bg-[#D72D36] text-white hover:bg-red-700'">
+                                    <CheckIcon v-if="!props.member?.checked_in_at" class="w-5 h-5" />
+                                    <CheckBadgeIcon v-else class="w-5 h-5" />
+                                    {{ props.member?.checked_in_at ? 'Đã check-in' : 'Check-in' }}
                                 </button>
-                                <button v-if="canMarkAbsent" @click="handleAbsent"
-                                    class="w-full py-2.5 px-4 rounded-lg bg-gray-400 text-white hover:bg-gray-500 transition flex items-center justify-center gap-2 font-medium text-sm">
-                                    <XMarkIcon class="w-5 h-5" />
-                                    Báo vắng
+                                <button v-if="!props.member?.checked_in_at" @click="handleAbsent" :disabled="props.member?.is_absent"
+                                    class="w-full py-2.5 px-4 rounded-lg transition flex items-center justify-center gap-2 font-medium text-sm"
+                                    :class="props.member?.is_absent ? 'bg-red-500 text-white cursor-default' : 'bg-gray-400 text-white hover:bg-gray-500'">
+                                    <XMarkIcon v-if="!props.member?.is_absent" class="w-5 h-5" />
+                                    <XCircleIcon v-else class="w-5 h-5" />
+                                    {{ props.member?.is_absent ? 'Đã báo vắng' : 'Báo vắng' }}
                                 </button>
                             </template>
 
                             <!-- Participant actions: Tự check-in / Tự báo vắng (chỉ khi chính mình) -->
                             <template v-if="isSelfParticipant">
-                                <button v-if="canSelfCheckIn" @click="handleSelfCheckIn"
-                                    class="w-full py-2.5 px-4 rounded-lg bg-[#D72D36] text-white hover:bg-red-700 transition flex items-center justify-center gap-2 font-medium text-sm">
-                                    <CheckIcon class="w-5 h-5" />
-                                    Tự check-in
+                                <button v-if="!props.member?.is_absent" @click="handleSelfCheckIn" :disabled="props.member?.checked_in_at"
+                                    class="w-full py-2.5 px-4 rounded-lg transition flex items-center justify-center gap-2 font-medium text-sm"
+                                    :class="props.member?.checked_in_at ? 'bg-green-500 text-white cursor-default' : 'bg-[#D72D36] text-white hover:bg-red-700'">
+                                    <CheckIcon v-if="!props.member?.checked_in_at" class="w-5 h-5" />
+                                    <CheckBadgeIcon v-else class="w-5 h-5" />
+                                    {{ props.member?.checked_in_at ? 'Đã check-in' : 'Tự check-in' }}
                                 </button>
-                                <button v-if="canSelfMarkAbsent" @click="handleSelfAbsent"
-                                    class="w-full py-2.5 px-4 rounded-lg bg-gray-400 text-white hover:bg-gray-500 transition flex items-center justify-center gap-2 font-medium text-sm">
-                                    <XMarkIcon class="w-5 h-5" />
-                                    Tự báo vắng
+                                <button v-if="!props.member?.checked_in_at" @click="handleSelfAbsent" :disabled="props.member?.is_absent"
+                                    class="w-full py-2.5 px-4 rounded-lg transition flex items-center justify-center gap-2 font-medium text-sm"
+                                    :class="props.member?.is_absent ? 'bg-red-500 text-white cursor-default' : 'bg-gray-400 text-white hover:bg-gray-500'">
+                                    <XMarkIcon v-if="!props.member?.is_absent" class="w-5 h-5" />
+                                    <XCircleIcon v-else class="w-5 h-5" />
+                                    {{ props.member?.is_absent ? 'Đã báo vắng' : 'Tự báo vắng' }}
                                 </button>
                             </template>
                         </div>
@@ -201,22 +209,18 @@ const handleViewProfile = () => {
 
 const handleCheckIn = () => {
     emit('check-in', props.member)
-    closeModal()
 }
 
 const handleAbsent = () => {
     emit('absent', props.member)
-    closeModal()
 }
 
 const handleSelfCheckIn = () => {
     emit('self-check-in', props.member)
-    closeModal()
 }
 
 const handleSelfAbsent = () => {
     emit('self-absent', props.member)
-    closeModal()
 }
 </script>
 
