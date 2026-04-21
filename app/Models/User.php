@@ -238,7 +238,10 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     public function getJWTCustomClaims()
     {
-        return [];
+        return [
+            'is_super_admin' => (bool) $this->is_super_admin,
+            'is_verified' => (bool) $this->is_verified,
+        ];
     }
     public function referee()
     {

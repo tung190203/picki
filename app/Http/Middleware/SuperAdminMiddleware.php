@@ -3,7 +3,6 @@
 namespace App\Http\Middleware;
 
 use App\Helpers\ResponseHelper;
-use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -18,7 +17,8 @@ class SuperAdminMiddleware
             return ResponseHelper::error('Unauthenticated', 401);
         }
 
-        if (!$user->is_super_admin) {
+        // Check role = 'admin' directly from the users table
+        if ($user->role !== 'admin') {
             return ResponseHelper::error('Forbidden: Super Admin access required', 403);
         }
 
