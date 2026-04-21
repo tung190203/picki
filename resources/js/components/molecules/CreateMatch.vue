@@ -99,55 +99,12 @@
                                     </div>
                                 </div>
 
-                                <label class="block text-sm font-semibold text-gray-700 mb-3">Kết quả</label>
-
-                                <div v-for="(score, index) in scores" :key="index" class="mb-4">
-                                    <div class="grid grid-cols-[2fr_1fr_2fr] gap-4 items-center">
-                                        <div class="border border-1 border-[#DCDEE6] rounded-lg p-3">
-                                            <button @click="incrementScore(index, 'A')"
-                                                class="w-full bg-[#EDEEF2] rounded px-3 py-2 text-gray-600 hover:bg-gray-300 transition-colors mb-2 flex items-center justify-center">
-                                                <PlusIcon class="w-5 h-5" />
-                                            </button>
-                                            <div class="text-center text-2xl font-bold mb-2">{{ score.teamA }}</div>
-                                            <button @click="decrementScore(index, 'A')"
-                                                class="w-full bg-[#EDEEF2] rounded px-3 py-2 text-gray-600 hover:bg-gray-300 transition-colors flex items-center justify-center">
-                                                <MinusIcon class="w-5 h-5" />
-                                            </button>
-                                        </div>
-
-                                        <div class="flex flex-col items-center gap-2">
-                                            <span class="text-sm font-semibold">Set {{ index + 1 }}</span>
-                                            <button v-if="scores.length > 1" @click="removeSet(index)"
-                                                class="text-red-500 hover:text-red-700 transition-colors">
-                                                <XMarkIcon class="w-5 h-5" />
-                                            </button>
-                                        </div>
-
-                                        <div class="border border-1 border-[#DCDEE6] rounded-lg p-3">
-                                            <button @click="incrementScore(index, 'B')"
-                                                class="w-full bg-[#EDEEF2] rounded px-3 py-2 text-gray-600 hover:bg-gray-300 transition-colors mb-2 flex items-center justify-center">
-                                                <PlusIcon class="w-5 h-5" />
-                                            </button>
-                                            <div class="text-center text-2xl font-bold mb-2">{{ score.teamB }}</div>
-                                            <button @click="decrementScore(index, 'B')"
-                                                class="w-full bg-[#EDEEF2] rounded px-3 py-2 text-gray-600 hover:bg-gray-300 transition-colors flex items-center justify-center">
-                                                <MinusIcon class="w-5 h-5" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <button @click="addSet"
-                                    class="w-full flex justify-center items-center gap-2 border p-3 rounded-lg text-[#838799] hover:bg-gray-100 transition-colors mb-4">
-                                    <PlusIcon class="w-5 h-5" />
-                                    <span class="text-sm font-semibold">Thêm set</span>
-                                </button>
-
-                                <button @click="openRefereeScreen" v-if="isCreator || isReferee"
-                                    class="w-full flex justify-center items-center gap-2 border-2 border-red-400 p-3 rounded-lg text-red-500 hover:bg-red-50 transition-colors font-semibold mb-6">
-                                    <ClipboardIcon class="w-5 h-5" />
-                                    <span class="text-sm font-semibold">Nhập điểm trọng tài</span>
-                                </button>
+                                <MatchScoreInput
+                                    v-model="scores"
+                                    label="Kết quả"
+                                    :can-edit="true"
+                                    @open-referee="openRefereeScreen"
+                                />
 
                                 <!-- Nút tiến vào vòng trong -->
                                 <div v-if="shouldShowAdvanceButtons" class="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -249,6 +206,7 @@ import * as MatchesServices from '@/service/match.js'
 import { useUserStore } from '@/store/auth'
 import { storeToRefs } from 'pinia'
 import RefereeScoringScreen from '@/components/molecules/referee-scoring/RefereeScoringScreen.vue'
+import MatchScoreInput from './MatchScoreInput.vue'
 
 /* ===================== PROPS ===================== */
 const props = defineProps({
@@ -305,11 +263,11 @@ const scores = ref([])
 const initializeScores = () => {
     if (currentLeg.value?.sets) {
         return Object.values(currentLeg.value.sets).map(setArray => ({
-            teamA: setArray.find(s => s.team_id === props.data.home_team?.id)?.score || 0,
-            teamB: setArray.find(s => s.team_id === props.data.away_team?.id)?.score || 0
+            team1: setArray.find(s => s.team_id === props.data.home_team?.id)?.score || 0,
+            team2: setArray.find(s => s.team_id === props.data.away_team?.id)?.score || 0
         }))
     }
-    return [{ teamA: 0, teamB: 0 }]
+    return [{ team1: 0, team2: 0 }]
 }
 
 /* ===================== WATCH LEG ===================== */
@@ -438,26 +396,7 @@ const qrCodeUrl = computed(() => {
 })
 
 /* ===================== SCORE ACTIONS ===================== */
-const incrementScore = (idx, team) => {
-    // const maxPoints = props.tournament?.tournament_types?.[0]?.match_rules?.[0]?.max_points || 11
-    // if (team === 'A' && scores.value[idx].teamA < maxPoints) scores.value[idx].teamA++
-    // if (team === 'B' && scores.value[idx].teamB < maxPoints) scores.value[idx].teamB++
-    if (team === 'A') scores.value[idx].teamA++
-    if (team === 'B') scores.value[idx].teamB++
-}
-
-const decrementScore = (idx, team) => {
-    if (team === 'A' && scores.value[idx].teamA > 0) scores.value[idx].teamA--
-    if (team === 'B' && scores.value[idx].teamB > 0) scores.value[idx].teamB--
-}
-
-const addSet = () => {
-    scores.value.push({ teamA: 0, teamB: 0 })
-}
-
-const removeSet = (idx) => {
-    if (scores.value.length > 1) scores.value.splice(idx, 1)
-}
+// Moved to MatchScoreInput component
 
 /* ===================== REFEREE SCORING ===================== */
 const openRefereeScreen = () => {
@@ -466,8 +405,8 @@ const openRefereeScreen = () => {
 
 const onRefereeDone = (refereeScores) => {
     scores.value = refereeScores.map(s => ({
-        teamA: s.team1,
-        teamB: s.team2
+        team1: s.team1,
+        team2: s.team2
     }))
     showRefereeScreen.value = false
 }
@@ -502,12 +441,12 @@ const formatResultsForAPI = () => {
         {
             set_number: idx + 1,
             team_id: props.data.home_team.id,
-            score: score.teamA
+            score: score.team1
         },
         {
             set_number: idx + 1,
             team_id: props.data.away_team.id,
-            score: score.teamB
+            score: score.team2
         }
     ])
 }
@@ -534,7 +473,7 @@ const saveMatch = async () => {
 
 /* ===================== CONFIRM MATCH ===================== */
 const canConfirmMatch = computed(() =>
-    scores.value.some(s => s.teamA > 0 || s.teamB > 0)
+    scores.value.some(s => s.team1 > 0 || s.team2 > 0)
 )
 
 const confirmMatchResult = async () => {
