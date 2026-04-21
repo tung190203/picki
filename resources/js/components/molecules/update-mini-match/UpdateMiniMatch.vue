@@ -10,6 +10,7 @@ import { toast } from 'vue3-toastify'
 import * as MiniMatchService from '@/service/miniMatch.js';
 import UserCard from '@/components/molecules/UserCard.vue'
 import RefereeScoringScreen from '@/components/molecules/referee-scoring/RefereeScoringScreen.vue'
+import MatchScoreInput from '@/components/molecules/MatchScoreInput.vue'
 
 export default {
     name: 'UpdateMiniMatch',
@@ -23,7 +24,8 @@ export default {
         MapPinIcon,
         QrcodeVue,
         UserCard,
-        RefereeScoringScreen
+        RefereeScoringScreen,
+        MatchScoreInput
     },
     props: {
         modelValue: {
@@ -54,18 +56,6 @@ export default {
         const team1Users = ref([])
         const team2Users = ref([])
 
-        const SCORE_UI_MAX = 999
-
-        const incrementScore = (idx, team) => {
-            if (team === '1' && scores.value[idx].team1 < SCORE_UI_MAX) scores.value[idx].team1++
-            if (team === '2' && scores.value[idx].team2 < SCORE_UI_MAX) scores.value[idx].team2++
-        }
-
-        const decrementScore = (idx, team) => {
-            if (team === '1' && scores.value[idx].team1 > 0) scores.value[idx].team1--
-            if (team === '2' && scores.value[idx].team2 > 0) scores.value[idx].team2--
-        }
-
         const isOpen = computed({
             get: () => props.modelValue,
             set: val => emit('update:modelValue', val)
@@ -79,14 +69,6 @@ export default {
             if (!currentMiniMatch.value?.id) return ''
             return `${globalThis.location.origin}/mini-match/${currentMiniMatch.value.id}/verify`
         })
-
-        const addSet = () => {
-            scores.value.push({ team1: 0, team2: 0 })
-        }
-
-        const removeSet = (idx) => {
-            if (scores.value.length > 1) scores.value.splice(idx, 1)
-        }
 
         const formatSetsForAPI = () => {
             return scores.value
@@ -277,10 +259,6 @@ export default {
             scores,
             initializeScores,
             qrCodeUrl,
-            incrementScore,
-            decrementScore,
-            addSet,
-            removeSet,
             saveMiniMatch,
             confirmMiniMatchResult,
             closeModal,
