@@ -234,6 +234,7 @@
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
                                               :status="'approved'"
                                               :checkedInAt="item.checked_in_at"
+                                              :is-absent="item.is_absent"
                                               @click="openMemberActionModal($event)" />
                                     <div v-if="item.is_guest" class="text-[10px] text-[#6B7280] text-center mt-1">
                                         <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
@@ -271,6 +272,7 @@
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
                                               :status="'approved'"
                                               :checkedInAt="item.checked_in_at"
+                                              :is-absent="item.is_absent"
                                               @click="openMemberActionModal($event)" />
                                     <div v-if="item.is_guest" class="text-[10px] text-[#6B7280] text-center mt-1">
                                         <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
@@ -304,6 +306,7 @@
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
                                               :status="'absent'"
                                               :checkedInAt="item.checked_in_at"
+                                              :is-absent="item.is_absent"
                                               @click="openMemberActionModal($event)" />
                                     <div v-if="item.is_guest" class="text-[10px] text-[#6B7280] text-center mt-1">
                                         <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
@@ -337,6 +340,7 @@
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
                                               :status="'approved'"
                                               :checkedInAt="item.checked_in_at"
+                                              :is-absent="item.is_absent"
                                               @click="openMemberActionModal($event)" />
                                     <div v-if="item.is_guest" class="text-[10px] text-[#6B7280] text-center mt-1">
                                         <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
@@ -369,6 +373,7 @@
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
                                               :status="'pending'"
                                               :checkedInAt="item.checked_in_at"
+                                              :is-absent="item.is_absent"
                                               @click="openMemberActionModal($event)" />
                                     <!-- Nút xác nhận/từ chối cho người tự xin (chỉ hiện khi is_invited = false) -->
                                     <div v-if="!item.is_invited && isCreator" class="flex gap-2 mt-1">
