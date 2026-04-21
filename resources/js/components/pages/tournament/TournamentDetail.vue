@@ -352,6 +352,8 @@
                         status="pending"
                         :showActions="true"
                         :is_invite_by_organizer="item.is_invite_by_organizer"
+                        :checked-in-at="item.checked_in_at"
+                        :is-absent="item.is_absent"
                         @removeUser="handleRemoveUser"
                         @click="openMemberActionModal($event)"
                         @confirm="handleConfirmUser(item)"
@@ -378,7 +380,10 @@
                         :name="getParticipantDisplayName(item)"
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
-                        status="approved" @removeUser="handleRemoveUser"
+                        status="approved"
+                        :checked-in-at="item.checked_in_at"
+                        :is-absent="item.is_absent"
+                        @removeUser="handleRemoveUser"
                         @click="openMemberActionModal($event)" />
                       <UserCard v-if="isCreator"
                         :empty="true" @clickEmpty="openInviteModalWithFriends" />
@@ -396,7 +401,10 @@
                         :name="getParticipantDisplayName(item)"
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
-                        status="approved" @removeUser="handleRemoveUser"
+                        status="approved"
+                        :checked-in-at="item.checked_in_at"
+                        :is-absent="item.is_absent"
+                        @removeUser="handleRemoveUser"
                         @click="openMemberActionModal($event)" />
                     </div>
                   </div>
@@ -412,7 +420,10 @@
                         :name="getParticipantDisplayName(item)"
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
-                        status="absent" @removeUser="handleRemoveUser"
+                        status="absent"
+                        :checked-in-at="item.checked_in_at"
+                        :is-absent="item.is_absent"
+                        @removeUser="handleRemoveUser"
                         @click="openMemberActionModal($event)" />
                     </div>
                   </div>
@@ -948,7 +959,7 @@ function viewProfile() {
 
 function openMemberActionModal(param) {
   // param có thể là props object (từ UserCard click event) hoặc participant item (từ @click.stop)
-  if (param && param.id !== undefined && !param.user && !param.checked_in_at) {
+  if (param && param.id !== undefined && !param.user) {
     // Đây là UserCard props — construct participant object từ props
     selectedMember.value = {
       id: param.userId || param.id,
@@ -956,6 +967,8 @@ function openMemberActionModal(param) {
       name: param.name,
       avatar: param.avatar,
       rating: param.rating,
+      checked_in_at: param.checked_in_at || null,
+      is_absent: param.is_absent || false,
       user: { id: param.userId || param.id, full_name: param.name, avatar_url: param.avatar }
     }
   } else {
@@ -973,6 +986,7 @@ async function handleMemberCheckIn(member) {
   try {
     await markParticipantCheckIn(id, member.id)
     toast.success('Đã đánh dấu check-in thành công!')
+    if (member) member.checked_in_at = new Date().toISOString()
     await detailTournament(id)
   } catch (error) {
     toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi đánh dấu check-in.')
@@ -983,6 +997,7 @@ async function handleMemberAbsent(member) {
   try {
     await markParticipantAbsent(id, member.id)
     toast.success('Đã đánh dấu vắng mặt thành công!')
+    if (member) member.is_absent = true
     await detailTournament(id)
   } catch (error) {
     toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi đánh dấu vắng mặt.')
@@ -993,6 +1008,7 @@ async function handleMemberSelfCheckIn(member) {
   try {
     await selfCheckInTournament(id)
     toast.success('Check-in thành công!')
+    if (member) member.checked_in_at = new Date().toISOString()
     await detailTournament(id)
   } catch (error) {
     toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi check-in.')
@@ -1003,6 +1019,7 @@ async function handleMemberSelfAbsent(member) {
   try {
     await selfMarkAbsentTournament(id)
     toast.success('Đã báo vắng thành công!')
+    if (member) member.is_absent = true
     await detailTournament(id)
   } catch (error) {
     toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi báo vắng.')

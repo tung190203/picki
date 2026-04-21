@@ -403,6 +403,7 @@ export default {
             try {
                 await markMiniParticipantCheckIn(id, member.id)
                 toast.success('Đã đánh dấu check-in thành công!')
+                if (member) member.checked_in_at = new Date().toISOString()
                 await detailMiniTournament(id)
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi đánh dấu check-in.')
@@ -413,6 +414,7 @@ export default {
             try {
                 await markMiniParticipantAbsent(id, member.id)
                 toast.success('Đã đánh dấu vắng mặt thành công!')
+                if (member) member.is_absent = true
                 await detailMiniTournament(id)
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi đánh dấu vắng mặt.')
@@ -423,6 +425,7 @@ export default {
             try {
                 await selfCheckInMini(id)
                 toast.success('Check-in thành công!')
+                if (member) member.checked_in_at = new Date().toISOString()
                 await detailMiniTournament(id)
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi check-in.')
@@ -433,6 +436,7 @@ export default {
             try {
                 await selfMarkAbsentMini(id)
                 toast.success('Đã báo vắng thành công!')
+                if (member) member.is_absent = true
                 await detailMiniTournament(id)
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi báo vắng.')
