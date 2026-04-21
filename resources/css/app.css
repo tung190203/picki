@@ -11,3 +11,22 @@
     background-color: transparent !important;
     padding: 15px !important;
 }
+
+/* Utilities */
+@layer utilities {
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+}
+
+.scroll-snap-x {
+    scroll-snap-type: x proximity;
+}
+
+.scroll-snap-align-start {
+    scroll-snap-align: start;
+}

@@ -10,6 +10,7 @@ import * as MiniMatchService from '@/service/miniMatch.js';
 import UserCard from '@/components/molecules/UserCard.vue'
 import InviteUserParticipant from '@/components/molecules/InviteUserParticipant.vue'
 import RefereeScoringScreen from '@/components/molecules/referee-scoring/RefereeScoringScreen.vue'
+import MatchScoreInput from '@/components/molecules/MatchScoreInput.vue'
 
 export default {
     name: 'CreateMiniMatch',
@@ -23,7 +24,8 @@ export default {
         QrcodeVue,
         UserCard,
         InviteUserParticipant,
-        RefereeScoringScreen
+        RefereeScoringScreen,
+        MatchScoreInput
     },
     props: {
         modelValue: Boolean,
@@ -129,27 +131,6 @@ export default {
             text_team2.value = 'Team 2'
             scores.value = [{ team1: 0, team2: 0 }]
             currentMatchId.value = null
-        }
-
-        /** Giới hạn nút +/- trên UI (không phải validate luật — BE mới quyết định hợp lệ) */
-        const SCORE_UI_MAX = 999
-
-        const incrementScore = (idx, team) => {
-            if (team === '1' && scores.value[idx].team1 < SCORE_UI_MAX) scores.value[idx].team1++
-            if (team === '2' && scores.value[idx].team2 < SCORE_UI_MAX) scores.value[idx].team2++
-        }
-
-        const decrementScore = (idx, team) => {
-            if (team === '1' && scores.value[idx].team1 > 0) scores.value[idx].team1--
-            if (team === '2' && scores.value[idx].team2 > 0) scores.value[idx].team2--
-        }
-
-        const addSet = () => {
-            scores.value.push({ team1: 0, team2: 0 })
-        }
-
-        const removeSet = (idx) => {
-            if (scores.value.length > 1) scores.value.splice(idx, 1)
         }
 
         const hasScores = computed(() => {
@@ -340,10 +321,6 @@ export default {
             confirmMiniMatch,
             miniMatchName,
             scores,
-            incrementScore,
-            decrementScore,
-            addSet,
-            removeSet,
             hasScores,
             showRefereeScreen,
             openRefereeScreen,

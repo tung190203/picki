@@ -109,11 +109,19 @@ export default {
         const getUserRatingBySport = (member, sportId) => {
             if (!sportId) return 0
             const user = member?.user ?? member
-            if (!user?.sports) return 0
-            const sport = user.sports.find(s => s.sport_id === sportId)
+            if (!user?.sports || !Array.isArray(user.sports)) return 0
+            const sport = user.sports.find(s => Number(s.sport_id) === Number(sportId))
             if (!sport?.scores) return 0
-            const scoreRecord = sport.scores.find(sc => sc.score_type === 'vndupr_score')
-            return Number(scoreRecord?.score_value ?? 0).toFixed(1) ?? 0
+
+            let scoreValue = 0
+            if (Array.isArray(sport.scores)) {
+                const scoreRecord = sport.scores.find(sc => sc?.score_type === 'vndupr_score')
+                scoreValue = scoreRecord?.score_value ?? 0
+            } else if (typeof sport.scores === 'object') {
+                scoreValue = sport.scores.vndupr_score ?? sport.scores.personal_score ?? 0
+            }
+
+            return Number(scoreValue || 0).toFixed(1)
         }
 
         const getMyMiniMatches = async (miniTournamentId, page = 1) => {
