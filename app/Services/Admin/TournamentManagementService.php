@@ -14,15 +14,40 @@ class TournamentManagementService
 
     public function search(int $page, int $limit, ?string $status, ?string $keyword): LengthAwarePaginator
     {
-        $query = Tournament::query()
+        $query = Tournament::with([
+            'competitionLocation',
+            'sport',
+            'createdBy',
+            'club',
+            'participants.user',
+            'tournamentStaffs.user',
+        ])
             ->select([
                 'id',
+                'poster',
                 'name',
+                'description',
                 'status',
                 'is_featured',
-                'poster_url',
+                'sport_id',
                 'start_date',
+                'end_date',
+                'registration_open_at',
+                'registration_closed_at',
                 'fee',
+                'standard_fee_amount',
+                'early_registration_deadline',
+                'age_group',
+                'gender_policy',
+                'participant',
+                'max_team',
+                'player_per_team',
+                'max_player',
+                'is_private',
+                'auto_approve',
+                'competition_location_id',
+                'club_id',
+                'created_by',
                 'created_at',
             ])
             ->orderBy('created_at', 'desc');

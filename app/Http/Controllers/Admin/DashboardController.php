@@ -22,7 +22,7 @@ class DashboardController extends Controller
     public function lists(Request $request)
     {
         $validated = $request->validate([
-            'type' => 'required|in:users,matches,tournaments,recent_new_users,open_matches,open_tournaments',
+            'type' => 'required|in:users,matches,tournaments,recent_new_users,open_mini_tournaments,open_tournaments',
             'page' => 'integer|min:1',
             'limit' => 'integer|min:1|max:100',
             'keyword' => 'nullable|string',

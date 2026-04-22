@@ -57,6 +57,18 @@ class UserManagementController extends Controller
         $user = User::findOrFail($id);
         $admin = auth()->user();
 
+        if ($user->id === $admin->id) {
+            return ResponseHelper::error('Bạn không thể tự ban chính mình', 403, [
+                'status_code' => 'CANNOT_SELF_BAN'
+            ]);
+        }
+
+        if ($user->is_super_admin) {
+            return ResponseHelper::error('Không thể ban tài khoản Super Admin', 403, [
+                'status_code' => 'CANNOT_BAN_SUPER_ADMIN'
+            ]);
+        }
+
         $this->userManagementService->ban(
             $user,
             $validated['reason'],
@@ -71,6 +83,12 @@ class UserManagementController extends Controller
     {
         $user = User::findOrFail($id);
         $admin = auth()->user();
+
+        if ($user->id === $admin->id) {
+            return ResponseHelper::error('Bạn không thể tự unban chính mình', 403, [
+                'status_code' => 'CANNOT_SELF_UNBAN'
+            ]);
+        }
 
         $this->userManagementService->unban($user, $admin);
 
