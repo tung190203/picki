@@ -260,7 +260,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     public function getIsSuperAdminAttribute()
     {
-        return $this->superAdminDraft()->exists();
+        return (bool) ($this->attributes['is_super_admin'] ?? false);
     }
 
     public function badges()
