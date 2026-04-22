@@ -12,7 +12,7 @@ class TournamentManagementService
         protected AuditLogService $auditLogService
     ) {}
 
-    public function search(int $page, int $limit, ?string $status, ?string $keyword): LengthAwarePaginator
+    public function search(int $page, int $limit, mixed $status, ?string $keyword): LengthAwarePaginator
     {
         $query = Tournament::with([
             'competitionLocation',
@@ -22,42 +22,43 @@ class TournamentManagementService
             'participants.user',
             'tournamentStaffs.user',
         ])
+            ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
             ->select([
-                'id',
-                'poster',
-                'name',
-                'description',
-                'status',
-                'is_featured',
-                'sport_id',
-                'start_date',
-                'end_date',
-                'registration_open_at',
-                'registration_closed_at',
-                'fee',
-                'standard_fee_amount',
-                'early_registration_deadline',
-                'age_group',
-                'gender_policy',
-                'participant',
-                'max_team',
-                'player_per_team',
-                'max_player',
-                'is_private',
-                'auto_approve',
-                'competition_location_id',
-                'club_id',
-                'created_by',
-                'created_at',
+                'tournaments.id',
+                'tournaments.poster',
+                'tournaments.name',
+                'tournaments.description',
+                'tournaments.status',
+                'tournaments.is_featured',
+                'tournaments.sport_id',
+                'tournaments.start_date',
+                'tournaments.end_date',
+                'tournaments.registration_open_at',
+                'tournaments.registration_closed_at',
+                'tournaments.fee',
+                'tournaments.standard_fee_amount',
+                'tournaments.early_registration_deadline',
+                'tournaments.age_group',
+                'tournaments.gender_policy',
+                'tournaments.participant',
+                'tournaments.max_team',
+                'tournaments.player_per_team',
+                'tournaments.max_player',
+                'tournaments.is_private',
+                'tournaments.auto_approve',
+                'tournaments.competition_location_id',
+                'tournaments.club_id',
+                'tournaments.created_by',
+                'tournaments.created_at',
             ])
             ->orderBy('created_at', 'desc');
 
-        if ($status) {
-            $query->where('status', $status);
+        if ($status !== null && $status !== '') {
+            $query->where('tournaments.status', $status);
         }
 
         if ($keyword) {
-            $query->where('name', 'like', "%{$keyword}%");
+            $query->where('tournaments.name', 'like', "%{$keyword}%");
         }
 
         return $query->paginate($limit, ['*'], 'page', $page);
@@ -67,7 +68,7 @@ class TournamentManagementService
     {
         $oldValues = ['status' => $tournament->status];
 
-        $tournament->update(['status' => 'active']);
+        $tournament->update(['status' => Tournament::OPEN]);
 
         $this->auditLogService->log(
             $admin,
@@ -75,7 +76,7 @@ class TournamentManagementService
             Tournament::class,
             $tournament->id,
             $oldValues,
-            ['status' => 'active']
+            ['status' => Tournament::OPEN]
         );
     }
 

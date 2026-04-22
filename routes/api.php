@@ -55,6 +55,7 @@ use App\Http\Controllers\LeaderboardController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\TournamentManagementController;
+use App\Http\Controllers\Admin\AdminMiniTournamentController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\BroadcastController;
 use App\Http\Controllers\Admin\DisputeController;
@@ -311,6 +312,12 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
     Route::post('/tournaments/{id}/feature', [TournamentManagementController::class, 'feature']);
     Route::post('/tournaments/{id}/unfeature', [TournamentManagementController::class, 'unfeature']);
     Route::delete('/tournaments/{id}', [TournamentManagementController::class, 'destroy']);
+
+    Route::get('/mini-tournaments', [AdminMiniTournamentController::class, 'index']);
+    Route::post('/mini-tournaments/{id}/approve', [AdminMiniTournamentController::class, 'approve']);
+    Route::post('/mini-tournaments/{id}/feature', [AdminMiniTournamentController::class, 'feature']);
+    Route::post('/mini-tournaments/{id}/unfeature', [AdminMiniTournamentController::class, 'unfeature']);
+    Route::delete('/mini-tournaments/{id}', [AdminMiniTournamentController::class, 'destroy']);
 
     Route::get('/settings', [SettingsController::class, 'index']);
     Route::put('/settings', [SettingsController::class, 'update']);
