@@ -4,14 +4,15 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Helpers\ResponseHelper;
-use App\Models\Tournament;
-use App\Services\Admin\TournamentManagementService;
+use App\Models\MiniTournament;
+use App\Services\Admin\MiniTournamentManagementService;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
-class TournamentManagementController extends Controller
+class AdminMiniTournamentController extends Controller
 {
     public function __construct(
-        protected TournamentManagementService $tournamentManagementService
+        protected MiniTournamentManagementService $miniTournamentService
     ) {}
 
     public function index(Request $request)
@@ -23,7 +24,7 @@ class TournamentManagementController extends Controller
             'limit' => 'integer|min:1|max:100',
         ]);
 
-        $data = $this->tournamentManagementService->search(
+        $data = $this->miniTournamentService->search(
             $validated['page'] ?? 1,
             $validated['limit'] ?? 15,
             $validated['status'] ?? null,
@@ -43,41 +44,41 @@ class TournamentManagementController extends Controller
 
     public function approve(int $id)
     {
-        $tournament = Tournament::findOrFail($id);
+        $miniTournament = MiniTournament::findOrFail($id);
         $admin = auth()->user();
 
-        $this->tournamentManagementService->approve($tournament, $admin);
+        $this->miniTournamentService->approve($miniTournament, $admin);
 
-        return ResponseHelper::success(null, 'Approve tournament thành công');
+        return ResponseHelper::success(null, 'Duyệt kèo đấu thành công');
     }
 
     public function feature(int $id)
     {
-        $tournament = Tournament::findOrFail($id);
+        $miniTournament = MiniTournament::findOrFail($id);
         $admin = auth()->user();
 
-        $this->tournamentManagementService->feature($tournament, $admin);
+        $this->miniTournamentService->feature($miniTournament, $admin);
 
-        return ResponseHelper::success(null, 'Feature tournament thành công');
+        return ResponseHelper::success(null, 'Nổi bật kèo đấu thành công');
     }
 
     public function unfeature(int $id)
     {
-        $tournament = Tournament::findOrFail($id);
+        $miniTournament = MiniTournament::findOrFail($id);
         $admin = auth()->user();
 
-        $this->tournamentManagementService->unfeature($tournament, $admin);
+        $this->miniTournamentService->unfeature($miniTournament, $admin);
 
-        return ResponseHelper::success(null, 'Unfeature tournament thành công');
+        return ResponseHelper::success(null, 'Bỏ nổi bật kèo đấu thành công');
     }
 
     public function destroy(int $id)
     {
-        $tournament = Tournament::findOrFail($id);
+        $miniTournament = MiniTournament::findOrFail($id);
         $admin = auth()->user();
 
-        $this->tournamentManagementService->delete($tournament, $admin);
+        $this->miniTournamentService->delete($miniTournament, $admin);
 
-        return ResponseHelper::success(null, 'Delete tournament thành công');
+        return ResponseHelper::success(null, 'Xóa kèo đấu thành công');
     }
 }
