@@ -12,7 +12,7 @@ class TournamentManagementService
         protected AuditLogService $auditLogService
     ) {}
 
-    public function search(int $page, int $limit, ?string $status, ?string $keyword): LengthAwarePaginator
+    public function search(int $page, int $limit, mixed $status, ?string $keyword): LengthAwarePaginator
     {
         $query = Tournament::with([
             'competitionLocation',
@@ -52,8 +52,10 @@ class TournamentManagementService
             ])
             ->orderBy('created_at', 'desc');
 
-        if ($status) {
+        if ($status !== null && $status !== '') {
             $query->where('status', $status);
+        } else {
+            $query->whereIn('status', [Tournament::DRAFT, Tournament::OPEN]);
         }
 
         if ($keyword) {

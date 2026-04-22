@@ -17,7 +17,7 @@ class TournamentManagementController extends Controller
     public function index(Request $request)
     {
         $validated = $request->validate([
-            'status' => 'nullable|in:pending,active,completed,cancelled',
+            'status' => 'nullable|string',
             'keyword' => 'nullable|string',
             'page' => 'integer|min:1',
             'limit' => 'integer|min:1|max:100',
