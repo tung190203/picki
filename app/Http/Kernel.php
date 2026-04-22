@@ -69,5 +69,6 @@ class Kernel extends HttpKernel
         'jwt.refresh' => \Tymon\JWTAuth\Http\Middleware\RefreshToken::class,
         'crawler' => \App\Http\Middleware\DetectCrawlerMiddleware::class,
         'update.last_login' => \App\Http\Middleware\UpdateLastLoginMiddleware::class,
+        'super_admin' => \App\Http\Middleware\SuperAdminMiddleware::class,
     ];
 }

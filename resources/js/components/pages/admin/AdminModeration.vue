@@ -383,7 +383,12 @@ const tournamentsMeta = computed(() => ({
 .font-body { font-family: 'Inter', sans-serif; }
 
 .tab-btn {
-  @apply flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200 cursor-pointer text-on-surface-variant hover:bg-surface-container-high;
+  @apply flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200 cursor-pointer;
+  color: var(--on-surface-variant, #5b403d);
+}
+
+.tab-btn:hover {
+  background-color: var(--surface-container-high, #ffe2de);
 }
 
 .tab-btn-active {
@@ -395,7 +400,9 @@ const tournamentsMeta = computed(() => ({
 }
 
 .table-head {
-  @apply px-6 py-4 font-label text-[10px] uppercase tracking-wider text-on-surface-variant font-extrabold;
+  @apply px-6 py-4 text-[10px] uppercase tracking-wider font-extrabold;
+  font-family: 'Inter', sans-serif;
+  color: var(--on-surface-variant, #5b403d);
 }
 
 .text-right-important {
