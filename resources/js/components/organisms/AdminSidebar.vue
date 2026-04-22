@@ -57,7 +57,14 @@ const isRouteActive = (routeName) => {
 
 <style scoped>
 .nav-item {
-  @apply flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-[#af101a] hover:bg-surface-container-high transition-all duration-200 active:translate-x-1 cursor-pointer rounded-xl font-manrope font-semibold text-sm;
+  @apply flex items-center gap-3 px-4 py-3 hover:text-[#af101a] transition-all duration-200 active:translate-x-1 cursor-pointer rounded-xl font-semibold text-sm;
+  font-family: 'Manrope', sans-serif;
+  color: var(--on-surface-variant, #5b403d);
+  background-color: var(--surface-container-high, #ffe2de);
+}
+
+.nav-item:hover {
+  background-color: var(--surface-container-high, #ffe2de);
 }
 
 .nav-item.active {

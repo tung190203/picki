@@ -26,3 +26,26 @@ export const getVietnameseDay = (date) => {
     return days[dayjs(date).day()]
 }
 
+export const formatedDate = (date, mode = 'full') => {
+    if (!date) return ''
+    const d = dayjs(date)
+
+    switch (mode) {
+        case 'dateDMY':
+            return d.format('DD/MM/YYYY')
+        case 'time':
+            return d.format('HH:mm')
+        case 'daysAgo': {
+            const now = dayjs()
+            const diff = now.diff(d, 'day')
+            if (diff === 0) return 'hôm nay'
+            if (diff === 1) return '1 ngày trước'
+            return `${diff} ngày trước`
+        }
+        case 'short':
+            return d.format('DD/MM')
+        default:
+            return d.format('DD/MM/YYYY HH:mm')
+    }
+}
+

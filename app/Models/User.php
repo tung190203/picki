@@ -49,19 +49,27 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'total_matches',
         'is_guest',
         'last_active_at',
+        'is_super_admin',
+        'is_verified',
+        'is_anchor',
+        'is_banned',
+        'banned_at',
+        'ban_reason',
+        'banned_by',
+        'ban_note',
+        'trust_score',
     ];
 
     const PER_PAGE = 15;
 
     const PLAYER = 'player';
     const ADMIN = 'admin';
-
     const REFEREE = 'referee';
 
     const ROLE = [
         self::PLAYER,
         self::ADMIN,
-        self::REFEREE
+        self::REFEREE,
     ];
 
     const MALE = 1;
@@ -188,6 +196,12 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'last_active_at' => 'datetime',
         'password' => 'hashed',
         'is_guest' => 'boolean',
+        'is_super_admin' => 'boolean',
+        'is_verified' => 'boolean',
+        'is_anchor' => 'boolean',
+        'is_banned' => 'boolean',
+        'banned_at' => 'datetime',
+        'trust_score' => 'float',
     ];
     public function setPasswordAttribute($password)
     {
@@ -224,7 +238,10 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     public function getJWTCustomClaims()
     {
-        return [];
+        return [
+            'is_super_admin' => (bool) $this->is_super_admin,
+            'is_verified' => (bool) $this->is_verified,
+        ];
     }
     public function referee()
     {
@@ -243,7 +260,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     public function getIsSuperAdminAttribute()
     {
-        return $this->superAdminDraft()->exists();
+        return (bool) ($this->attributes['is_super_admin'] ?? false);
     }
 
     public function badges()
@@ -708,6 +725,33 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     public static function isAdmin($userId)
     {
         return User::where('id', $userId)->where('role', self::ADMIN)->exists();
+    }
+
+    public static function isSuperAdmin($userId)
+    {
+        return User::where('id', $userId)->where('is_super_admin', true)->exists();
+    }
+
+    public function scopeBanned($query)
+    {
+        return $query->where('is_banned', true);
+    }
+
+    public function scopeNotBanned($query)
+    {
+        return $query->where('is_banned', false);
+    }
+
+    public function scopeKeyword($query, ?string $keyword)
+    {
+        if (empty($keyword)) {
+            return $query;
+        }
+        return $query->where(function ($q) use ($keyword) {
+            $q->where('full_name', 'like', "%{$keyword}%")
+              ->orWhere('phone', 'like', "%{$keyword}%")
+              ->orWhere('email', 'like', "%{$keyword}%");
+        });
     }
 
     public function getTotalTournamentsAttribute(): int

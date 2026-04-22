@@ -52,6 +52,15 @@ use App\Http\Controllers\TournamentStaffController;
 use App\Http\Controllers\MiniTournamentPaymentController;
 use App\Http\Controllers\MiniTournamentTemplateController;
 use App\Http\Controllers\LeaderboardController;
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\UserManagementController;
+use App\Http\Controllers\Admin\TournamentManagementController;
+use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\BroadcastController;
+use App\Http\Controllers\Admin\DisputeController;
+use App\Http\Controllers\Admin\SearchController;
+use App\Http\Controllers\Admin\AdminNotificationController;
+use App\Http\Controllers\Admin\AuditLogController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
 
@@ -282,6 +291,40 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
         });
     });
+});
+
+// Admin routes - requires super_admin middleware
+Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function () {
+    Route::get('/dashboard', [DashboardController::class, 'index']);
+    Route::get('/dashboard/lists', [DashboardController::class, 'lists']);
+
+    Route::get('/users', [UserManagementController::class, 'index']);
+    Route::get('/users/{id}', [UserManagementController::class, 'show']);
+    Route::post('/users/{id}/ban', [UserManagementController::class, 'ban']);
+    Route::post('/users/{id}/unban', [UserManagementController::class, 'unban']);
+    Route::post('/users/{id}/reset-rating', [UserManagementController::class, 'resetRating']);
+    Route::post('/users/{id}/verify', [UserManagementController::class, 'verify']);
+    Route::post('/users/{id}/set-anchor', [UserManagementController::class, 'setAnchor']);
+
+    Route::get('/tournaments', [TournamentManagementController::class, 'index']);
+    Route::post('/tournaments/{id}/approve', [TournamentManagementController::class, 'approve']);
+    Route::post('/tournaments/{id}/feature', [TournamentManagementController::class, 'feature']);
+    Route::post('/tournaments/{id}/unfeature', [TournamentManagementController::class, 'unfeature']);
+    Route::delete('/tournaments/{id}', [TournamentManagementController::class, 'destroy']);
+
+    Route::get('/settings', [SettingsController::class, 'index']);
+    Route::put('/settings', [SettingsController::class, 'update']);
+
+    Route::get('/broadcast', [BroadcastController::class, 'index']);
+    Route::post('/broadcast', [BroadcastController::class, 'send']);
+
+    Route::get('/disputes', [DisputeController::class, 'index']);
+
+    Route::get('/search', [SearchController::class, 'index']);
+
+    Route::get('/notifications', [AdminNotificationController::class, 'index']);
+
+    Route::get('/logs', [AuditLogController::class, 'index']);
 });
 
 Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(function () {

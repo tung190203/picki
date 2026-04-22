@@ -27,6 +27,34 @@ class ResponseHelper
     }
 
     /**
+     * Success Response (Single Item)
+     */
+    public static function single($data = [], $message = 'Success', $meta = null, $code = 200)
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+            'meta' => $meta ?? new \stdClass(),
+            'error' => null,
+        ], $code, [], self::jsonOptions());
+    }
+
+    /**
+     * Success Response (Paginated)
+     */
+    public static function paginated($data = [], $meta = [], $message = 'Success', $code = 200)
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+            'meta' => array_merge([
+                'message' => $message,
+            ], $meta),
+            'error' => null,
+        ], $code, [], self::jsonOptions());
+    }
+
+    /**
      * Error Response
      */
     public static function error($message = 'Error', $code = 400, $errors = [])
