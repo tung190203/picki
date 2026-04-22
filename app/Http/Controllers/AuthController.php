@@ -43,6 +43,12 @@ class AuthController extends Controller
                 'status_code' => 'USER_NOT_FOUND'
             ]);
         }
+        if ($exits->is_banned) {
+            return ResponseHelper::error('Tài khoản của bạn đã bị khóa: ' . ($exits->ban_reason ?? 'Vui lòng liên hệ hỗ trợ'), 403, [
+                'status_code' => 'USER_BANNED',
+                'ban_reason' => $exits->ban_reason,
+            ]);
+        }
         if (!$exits->email_verified_at) {
             $exits->notify(new VerifyEmailNotification($loginField, $request->login));
             return ResponseHelper::error('Vui lòng xác minh email trước khi đăng nhập', 403, [
@@ -229,6 +235,12 @@ class AuthController extends Controller
 
             $user = User::find($payload->get('sub'));
             if (!$user) return ResponseHelper::error('Người dùng không tồn tại', 404, ['status_code' => 'USER_NOT_FOUND']);
+            if ($user->is_banned) {
+                return ResponseHelper::error('Tài khoản của bạn đã bị khóa: ' . ($user->ban_reason ?? 'Vui lòng liên hệ hỗ trợ'), 403, [
+                    'status_code' => 'USER_BANNED',
+                    'ban_reason' => $user->ban_reason,
+                ]);
+            }
 
             $user->update(['last_login' => now()]);
 
@@ -299,6 +311,12 @@ class AuthController extends Controller
                     'avatar_url' => asset('storage/' . $avatarName),
                     'password' => Hash::make(Str::random(16)),
                     'email_verified_at' => now(),
+                ]);
+            }
+            if ($user->is_banned) {
+                return ResponseHelper::error('Tài khoản của bạn đã bị khóa: ' . ($user->ban_reason ?? 'Vui lòng liên hệ hỗ trợ'), 403, [
+                    'status_code' => 'USER_BANNED',
+                    'ban_reason' => $user->ban_reason,
                 ]);
             }
             Auth::login($user);
@@ -376,6 +394,12 @@ class AuthController extends Controller
                 'avatar_url' => $payload['picture'] ?? null,
                 'password' => Hash::make(Str::random(16)),
                 'email_verified_at' => now(),
+            ]);
+        }
+        if ($user->is_banned) {
+            return ResponseHelper::error('Tài khoản của bạn đã bị khóa: ' . ($user->ban_reason ?? 'Vui lòng liên hệ hỗ trợ'), 403, [
+                'status_code' => 'USER_BANNED',
+                'ban_reason' => $user->ban_reason,
             ]);
         }
         $accessToken = JWTAuth::claims(['type' => 'access'])->fromUser($user);
@@ -462,6 +486,13 @@ class AuthController extends Controller
                 ]);
             }
 
+            if ($user->is_banned) {
+                return ResponseHelper::error('Tài khoản của bạn đã bị khóa: ' . ($user->ban_reason ?? 'Vui lòng liên hệ hỗ trợ'), 403, [
+                    'status_code' => 'USER_BANNED',
+                    'ban_reason' => $user->ban_reason,
+                ]);
+            }
+
             // JWT Token
             $accessTokenJWT = JWTAuth::claims(['type' => 'access'])->fromUser($user);
             $refreshTokenJWT = JWTAuth::claims(['type' => 'refresh', 'exp' => now()->addDays(30)->timestamp])->fromUser($user);
@@ -522,6 +553,12 @@ class AuthController extends Controller
                     'email_verified_at' => now(),
                 ]);
             }
+            if ($user->is_banned) {
+                return ResponseHelper::error('Tài khoản của bạn đã bị khóa: ' . ($user->ban_reason ?? 'Vui lòng liên hệ hỗ trợ'), 403, [
+                    'status_code' => 'USER_BANNED',
+                    'ban_reason' => $user->ban_reason,
+                ]);
+            }
             Auth::login($user);
             $accessToken = JWTAuth::claims(['type' => 'access'])->fromUser($user);
             $refreshToken = JWTAuth::claims(['type' => 'refresh', 'exp' => now()->addDays(30)->timestamp])->fromUser($user);
@@ -576,6 +613,12 @@ class AuthController extends Controller
                     'apple_id' => $appleUser->getId(),
                     'password' => Hash::make(Str::random(16)),
                     'email_verified_at' => now(),
+                ]);
+            }
+            if ($user->is_banned) {
+                return ResponseHelper::error('Tài khoản của bạn đã bị khóa: ' . ($user->ban_reason ?? 'Vui lòng liên hệ hỗ trợ'), 403, [
+                    'status_code' => 'USER_BANNED',
+                    'ban_reason' => $user->ban_reason,
                 ]);
             }
             Auth::login($user);
@@ -655,6 +698,13 @@ class AuthController extends Controller
                 ]);
             }
 
+            if ($user->is_banned) {
+                return ResponseHelper::error('Tài khoản của bạn đã bị khóa: ' . ($user->ban_reason ?? 'Vui lòng liên hệ hỗ trợ'), 403, [
+                    'status_code' => 'USER_BANNED',
+                    'ban_reason' => $user->ban_reason,
+                ]);
+            }
+
             Auth::login($user);
 
             $accessToken = JWTAuth::claims(['type' => 'access'])->fromUser($user);
@@ -676,6 +726,12 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         $user = User::withFullRelations()->find($request->user()->id);
+        if ($user->is_banned) {
+            return ResponseHelper::error('Tài khoản của bạn đã bị khóa: ' . ($user->ban_reason ?? 'Vui lòng liên hệ hỗ trợ'), 403, [
+                'status_code' => 'USER_BANNED',
+                'ban_reason' => $user->ban_reason,
+            ]);
+        }
         return ResponseHelper::success(new UserResource($user), 'Lấy thông tin người dùng thành công', 200);
     }
 
