@@ -200,14 +200,29 @@ class ClubController extends Controller
             'role.*' => [Rule::enum(ClubMemberRole::class)],
         ]);
 
-        $query = Club::whereHas('members', function ($q) use ($userId, $validated) {
-            $q->where('user_id', $userId)
-              ->where('membership_status', ClubMembershipStatus::Joined)
-              ->where('status', \App\Enums\ClubMemberStatus::Active);
-            if (!empty($validated['role'])) {
-                $q->whereIn('role', $validated['role']);
-            }
+        // Luôn bao gồm: clubs user tạo + clubs user là Admin
+        $query = Club::where(function ($q) use ($userId) {
+            $q->where('created_by', $userId)
+              ->orWhereHas('members', function ($q2) use ($userId) {
+                  $q2->where('user_id', $userId)
+                     ->where('membership_status', ClubMembershipStatus::Joined)
+                     ->where('status', \App\Enums\ClubMemberStatus::Active)
+                     ->where('role', ClubMemberRole::Admin);
+              });
         });
+
+        // Nếu filter theo role cụ thể (không phải Admin) -> thêm clubs đó vào kết quả
+        if (!empty($validated['role'])) {
+            $rolesToAdd = array_filter($validated['role'], fn($r) => $r !== ClubMemberRole::Admin);
+            if (!empty($rolesToAdd)) {
+                $query->orWhereHas('members', function ($q) use ($userId, $rolesToAdd) {
+                    $q->where('user_id', $userId)
+                      ->where('membership_status', ClubMembershipStatus::Joined)
+                      ->where('status', \App\Enums\ClubMemberStatus::Active)
+                      ->whereIn('role', $rolesToAdd);
+                });
+            }
+        }
 
         $clubs = $query->withFullRelations()->get();
 
