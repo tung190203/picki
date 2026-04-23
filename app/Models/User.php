@@ -128,6 +128,8 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'age_group',
         'gender_text',
         'is_super_admin',
+        'is_online',
+        'is_banned',
     ];
 
     public function getGenderText()
@@ -261,6 +263,11 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     public function getIsSuperAdminAttribute()
     {
         return (bool) ($this->attributes['is_super_admin'] ?? false);
+    }
+
+    public function getIsOnlineAttribute(): bool
+    {
+        return $this->isOnline();
     }
 
     public function badges()

@@ -50,7 +50,7 @@ class UserManagementController extends Controller
     public function ban(Request $request, int $id)
     {
         $validated = $request->validate([
-            'reason' => 'required|string',
+            'reason' => 'nullable|string',
             'note' => 'nullable|string',
         ]);
 
@@ -71,7 +71,7 @@ class UserManagementController extends Controller
 
         $this->userManagementService->ban(
             $user,
-            $validated['reason'],
+            $validated['reason'] ?? null,
             $validated['note'] ?? null,
             $admin
         );

@@ -78,8 +78,9 @@ class DashboardService
             ->sum('amount') ?? 0;
 
         // ---------- Recent New Users (top 5) ----------
-        $recentNewUsers = User::where('is_guest', false)
-            ->select(['id', 'full_name', 'avatar_url', 'trust_score', 'created_at'])
+        $recentNewUsers = User::with('sports.sport')
+            ->where('is_guest', false)
+            ->select(['id', 'full_name', 'avatar_url', 'trust_score', 'total_matches', 'is_banned', 'is_verified', 'is_anchor', 'last_login', 'created_at'])
             ->orderBy('created_at', 'desc')
             ->limit(5)
             ->get();
@@ -234,6 +235,7 @@ class DashboardService
     private function getRecentNewUsersList(int $page, int $limit, ?string $keyword)
     {
         $query = User::query()
+            ->with('sports.sport')
             ->where('is_guest', false)
             ->select([
                 'id',
@@ -243,6 +245,9 @@ class DashboardService
                 'trust_score',
                 'total_matches',
                 'is_banned',
+                'is_verified',
+                'is_anchor',
+                'last_login',
                 'created_at',
             ])
             ->orderBy('created_at', 'desc');
@@ -352,6 +357,8 @@ class DashboardService
     private function getUsersList(int $page, int $limit, ?string $keyword)
     {
         $query = User::query()
+            ->with('sports.sport')
+            ->where('is_guest', false)
             ->select([
                 'id',
                 'full_name',
@@ -360,6 +367,9 @@ class DashboardService
                 'trust_score',
                 'total_matches',
                 'is_banned',
+                'is_verified',
+                'is_anchor',
+                'last_login',
                 'created_at',
             ])
             ->orderBy('created_at', 'desc');
