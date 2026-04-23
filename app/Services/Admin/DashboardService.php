@@ -2,6 +2,7 @@
 
 namespace App\Services\Admin;
 
+use App\Http\Resources\UserResource;
 use App\Models\Matches;
 use App\Models\MiniMatch;
 use App\Models\MiniTournament;
@@ -78,12 +79,14 @@ class DashboardService
             ->sum('amount') ?? 0;
 
         // ---------- Recent New Users (top 5) ----------
-        $recentNewUsers = User::with('sports.sport')
+        $recentNewUsersQuery = User::with('sports.sport', 'sports.scores')
             ->where('is_guest', false)
             ->select(['id', 'full_name', 'avatar_url', 'trust_score', 'total_matches', 'is_banned', 'is_verified', 'is_anchor', 'last_login', 'created_at'])
             ->orderBy('created_at', 'desc')
-            ->limit(5)
-            ->get();
+            ->limit(5);
+
+        // Transform qua UserResource để resolve sports/sport/score relations
+        $recentNewUsers = UserResource::collection($recentNewUsersQuery->get())->resolve();
 
         // ---------- Open Mini Tournaments (chưa hoàn thành hoặc huỷ) ----------
         $openMiniTournaments = MiniTournament::with([
@@ -235,7 +238,7 @@ class DashboardService
     private function getRecentNewUsersList(int $page, int $limit, ?string $keyword)
     {
         $query = User::query()
-            ->with('sports.sport')
+            ->with('sports.sport', 'sports.scores')
             ->where('is_guest', false)
             ->select([
                 'id',
@@ -260,7 +263,11 @@ class DashboardService
             });
         }
 
-        return $query->paginate($limit, ['*'], 'page', $page);
+        $paginated = $query->paginate($limit, ['*'], 'page', $page);
+
+        return $paginated->setCollection(
+            UserResource::collection($paginated->getCollection())->resolve()
+        );
     }
 
     private function getOpenMiniTournamentsList(int $page, int $limit, ?string $keyword)
@@ -357,7 +364,7 @@ class DashboardService
     private function getUsersList(int $page, int $limit, ?string $keyword)
     {
         $query = User::query()
-            ->with('sports.sport')
+            ->with('sports.sport', 'sports.scores')
             ->where('is_guest', false)
             ->select([
                 'id',
@@ -382,7 +389,11 @@ class DashboardService
             });
         }
 
-        return $query->paginate($limit, ['*'], 'page', $page);
+        $paginated = $query->paginate($limit, ['*'], 'page', $page);
+
+        return $paginated->setCollection(
+            UserResource::collection($paginated->getCollection())->resolve()
+        );
     }
 
     private function getMatchesList(int $page, int $limit, ?string $keyword)
