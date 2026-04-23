@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\TeamLeaderboardResource;
+use App\Models\Club\Club;
 use App\Models\Sport;
 use App\Models\Team;
 use App\Models\TeamRanking;
 use App\Models\TournamentType;
+use App\Models\User;
+use App\Models\UserSportScore;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -168,5 +171,355 @@ class LeaderboardController extends Controller
                     ? round(array_sum($scores) / count($scores), 3) : 0.0;
             }
         }
+    }
+
+    public function getLeaderboard(Request $request)
+    {
+        $validated = $request->validate([
+            'scope'           => 'required|in:all,club,friend',
+            'club_id'         => 'required_if:scope,club|integer|exists:clubs,id',
+            'per_page'        => 'sometimes|integer|min:1|max:100',
+            'page'            => 'sometimes|integer|min:1',
+            'club_per_page'  => 'sometimes|integer|min:1|max:100',
+            'club_page'      => 'sometimes|integer|min:1',
+            'friend_per_page' => 'sometimes|integer|min:1|max:100',
+            'friend_page'     => 'sometimes|integer|min:1',
+        ]);
+
+        $scope = $validated['scope'];
+        $perPage = $validated['per_page'] ?? 50;
+        $page = $validated['page'] ?? 1;
+
+        $sport = Sport::where('slug', 'pickleball')->first();
+        $sportId = $sport?->id ?? 1;
+
+        if ($scope === 'all') {
+            $clubPerPage = $validated['club_per_page'] ?? $perPage;
+            $clubPage = $validated['club_page'] ?? 1;
+            $friendPerPage = $validated['friend_per_page'] ?? $perPage;
+            $friendPage = $validated['friend_page'] ?? 1;
+
+            $allLb = $this->getSystemLeaderboard($sportId, $perPage, $page);
+            $clubLb = $this->getUserClubsLeaderboard($sportId, $clubPerPage, $clubPage);
+            $friendLb = $this->getFriendsLeaderboard($sportId, $friendPerPage, $friendPage);
+
+            return ResponseHelper::success([
+                'scope'            => $scope,
+                'leaderboard'      => $allLb['items'],
+                'leaderboard_club' => $clubLb['items'],
+                'leaderboard_friend' => $friendLb['items'],
+                'meta'             => [
+                    'total'      => $allLb['total'],
+                    'per_page'   => $perPage,
+                    'page'       => $page,
+                    'last_page'  => $allLb['last_page'],
+                ],
+                'meta_club' => [
+                    'total'     => $clubLb['total'],
+                    'per_page'  => $clubPerPage,
+                    'page'      => $clubPage,
+                    'last_page' => $clubLb['last_page'],
+                ],
+                'meta_friend' => [
+                    'total'     => $friendLb['total'],
+                    'per_page'  => $friendPerPage,
+                    'page'      => $friendPage,
+                    'last_page' => $friendLb['last_page'],
+                ],
+            ], 'Lấy bảng xếp hạng thành công');
+        }
+
+        $leaderboardData = match ($scope) {
+            'club'   => $this->getClubLeaderboard((int) $validated['club_id'], $sportId, $perPage, $page),
+            'friend' => $this->getFriendsLeaderboard($sportId, $perPage, $page),
+        };
+
+        return ResponseHelper::success([
+            'scope'       => $scope,
+            'leaderboard' => $leaderboardData['items'],
+            'meta'        => [
+                'total'     => $leaderboardData['total'],
+                'per_page'  => $perPage,
+                'page'      => $page,
+                'last_page' => $leaderboardData['last_page'],
+            ],
+        ], 'Lấy bảng xếp hạng thành công');
+    }
+
+    private function getSystemLeaderboard(int $sportId, int $perPage, int $page): array
+    {
+        $scoreSubQuery = UserSportScore::query()
+            ->select(
+                'user_sport.user_id',
+                DB::raw('MAX(user_sport_scores.score_value) as vndupr_score')
+            )
+            ->join('user_sport', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
+            ->where('user_sport.sport_id', $sportId)
+            ->where('user_sport_scores.score_type', 'vndupr_score')
+            ->groupBy('user_sport.user_id');
+
+        $baseQuery = User::query()
+            ->where('users.total_matches', '>', 5)
+            ->where('users.email', '!=', 'vrplus2018@gmail.com')
+            ->joinSub($scoreSubQuery, 'scores', function ($join) {
+                $join->on('scores.user_id', '=', 'users.id');
+            })
+            ->with(['clubs:id,name'])
+            ->select(
+                'users.id',
+                'users.full_name',
+                'users.visibility',
+                'users.avatar_url',
+                'users.is_anchor',
+                'users.is_verified',
+                'scores.vndupr_score',
+                DB::raw('RANK() OVER (ORDER BY scores.vndupr_score DESC) as rank')
+            )
+            ->orderByDesc('scores.vndupr_score');
+
+        $total = $baseQuery->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $offset = ($page - 1) * $perPage;
+
+        $leaderboard = $baseQuery->offset($offset)->limit($perPage)->get();
+
+        $items = $leaderboard->map(function ($user) {
+            return [
+                'id'         => $user->id,
+                'full_name'  => $user->full_name,
+                'visibility' => $user->visibility,
+                'avatar_url'  => $user->avatar_url,
+                'rank'       => (int) $user->rank,
+                'vndupr_score' => round((float) $user->vndupr_score, 3),
+                'clubs'      => $user->clubs->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
+                'is_anchor'  => (bool) $user->is_anchor,
+                'is_verify'  => (bool) ($user->is_verified ?? false),
+            ];
+        });
+
+        return [
+            'items'    => $items,
+            'total'    => $total,
+            'last_page' => $lastPage,
+        ];
+    }
+
+    private function getUserClubsLeaderboard(int $sportId, int $perPage, int $page): array
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return ['items' => [], 'total' => 0, 'last_page' => 1];
+        }
+
+        // Lấy list club_id user tham gia (Joined)
+        $userClubIds = DB::table('club_members')
+            ->where('user_id', $user->id)
+            ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined)
+            ->where('status', \App\Enums\ClubMemberStatus::Active)
+            ->pluck('club_id')
+            ->filter()
+            ->toArray();
+
+        if (empty($userClubIds)) {
+            return ['items' => [], 'total' => 0, 'last_page' => 1];
+        }
+
+        $total = count($userClubIds);
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $offset = ($page - 1) * $perPage;
+        $paginatedClubIds = array_slice($userClubIds, $offset, $perPage);
+
+        $items = [];
+        $rank = $offset + 1;
+        foreach ($paginatedClubIds as $clubId) {
+            $club = Club::withCount(['joinedMembers as member_count'])->find($clubId);
+            if (!$club) {
+                continue;
+            }
+
+            // BXH top 3 member có điểm vndupr cao nhất trong club
+            $memberIds = $club->joinedMembers()->pluck('user_id')->filter()->unique();
+
+            $scoreSubQuery = UserSportScore::query()
+                ->select(
+                    'user_sport.user_id',
+                    DB::raw('MAX(user_sport_scores.score_value) as vndupr_score')
+                )
+                ->join('user_sport', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
+                ->where('user_sport.sport_id', $sportId)
+                ->where('user_sport_scores.score_type', 'vndupr_score')
+                ->whereIn('user_sport.user_id', $memberIds)
+                ->groupBy('user_sport.user_id');
+
+            $topMembers = User::query()
+                ->joinSub($scoreSubQuery, 'scores', function ($join) {
+                    $join->on('scores.user_id', '=', 'users.id');
+                })
+                ->with(['clubs:id,name'])
+                ->select(
+                    'users.id',
+                    'users.full_name',
+                    'users.avatar_url',
+                    'scores.vndupr_score',
+                    DB::raw('RANK() OVER (ORDER BY scores.vndupr_score DESC) as rank')
+                )
+                ->orderByDesc('scores.vndupr_score')
+                ->limit(3)
+                ->get();
+
+            $items[] = [
+                'club' => [
+                    'id'            => $club->id,
+                    'name'          => $club->name,
+                    'avatar_url'    => $club->avatar_url,
+                    'member_count'  => (int) ($club->member_count ?? 0),
+                ],
+                'top_members' => $topMembers->map(fn($m) => [
+                    'id'          => $m->id,
+                    'full_name'  => $m->full_name,
+                    'avatar_url' => $m->avatar_url,
+                    'rank'       => (int) $m->rank,
+                    'vndupr_score' => round((float) $m->vndupr_score, 3),
+                ])->values()->all(),
+            ];
+
+            $rank++;
+        }
+
+        return [
+            'items'    => $items,
+            'total'    => $total,
+            'last_page' => $lastPage,
+        ];
+    }
+
+    private function getClubLeaderboard(int $clubId, int $sportId, int $perPage, int $page): array
+    {
+        $club = Club::findOrFail($clubId);
+        $memberIds = $club->joinedMembers()->pluck('user_id')->filter()->unique();
+
+        if ($memberIds->isEmpty()) {
+            return ['items' => [], 'total' => 0, 'last_page' => 1];
+        }
+
+        $scoreSubQuery = UserSportScore::query()
+            ->select(
+                'user_sport.user_id',
+                DB::raw('MAX(user_sport_scores.score_value) as vndupr_score')
+            )
+            ->join('user_sport', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
+            ->where('user_sport.sport_id', $sportId)
+            ->where('user_sport_scores.score_type', 'vndupr_score')
+            ->whereIn('user_sport.user_id', $memberIds)
+            ->groupBy('user_sport.user_id');
+
+        $baseQuery = User::query()
+            ->joinSub($scoreSubQuery, 'scores', function ($join) {
+                $join->on('scores.user_id', '=', 'users.id');
+            })
+            ->with(['clubs:id,name'])
+            ->select(
+                'users.id',
+                'users.full_name',
+                'users.visibility',
+                'users.avatar_url',
+                'users.is_anchor',
+                'users.is_verified',
+                'scores.vndupr_score'
+            )
+            ->orderByDesc('scores.vndupr_score');
+
+        $total = $baseQuery->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $offset = ($page - 1) * $perPage;
+
+        $leaderboard = $baseQuery->offset($offset)->limit($perPage)->get();
+
+        $items = $leaderboard->map(function ($user, $index) use ($page, $perPage) {
+            return [
+                'id'         => $user->id,
+                'full_name'  => $user->full_name,
+                'visibility' => $user->visibility,
+                'avatar_url'  => $user->avatar_url,
+                'rank'       => ($page - 1) * $perPage + $index + 1,
+                'vndupr_score' => round((float) $user->vndupr_score, 3),
+                'clubs'      => $user->clubs->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
+                'is_anchor'  => (bool) $user->is_anchor,
+                'is_verify'  => (bool) ($user->is_verified ?? false),
+            ];
+        });
+
+        return [
+            'items'    => $items,
+            'total'    => $total,
+            'last_page' => $lastPage,
+        ];
+    }
+
+    private function getFriendsLeaderboard(int $sportId, int $perPage, int $page): array
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return ['items' => [], 'total' => 0, 'last_page' => 1];
+        }
+
+        $friendIds = $user->friends()->pluck('users.id');
+        if ($friendIds->isEmpty()) {
+            return ['items' => [], 'total' => 0, 'last_page' => 1];
+        }
+
+        $scoreSubQuery = UserSportScore::query()
+            ->select(
+                'user_sport.user_id',
+                DB::raw('MAX(user_sport_scores.score_value) as vndupr_score')
+            )
+            ->join('user_sport', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
+            ->where('user_sport.sport_id', $sportId)
+            ->where('user_sport_scores.score_type', 'vndupr_score')
+            ->whereIn('user_sport.user_id', $friendIds)
+            ->groupBy('user_sport.user_id');
+
+        $baseQuery = User::query()
+            ->joinSub($scoreSubQuery, 'scores', function ($join) {
+                $join->on('scores.user_id', '=', 'users.id');
+            })
+            ->whereIn('users.id', $friendIds)
+            ->with(['clubs:id,name'])
+            ->select(
+                'users.id',
+                'users.full_name',
+                'users.visibility',
+                'users.avatar_url',
+                'users.is_anchor',
+                'users.is_verified',
+                'scores.vndupr_score'
+            )
+            ->orderByDesc('scores.vndupr_score');
+
+        $total = $baseQuery->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $offset = ($page - 1) * $perPage;
+
+        $leaderboard = $baseQuery->offset($offset)->limit($perPage)->get();
+
+        $items = $leaderboard->map(function ($user, $index) use ($page, $perPage) {
+            return [
+                'id'         => $user->id,
+                'full_name'  => $user->full_name,
+                'visibility' => $user->visibility,
+                'avatar_url'  => $user->avatar_url,
+                'rank'       => ($page - 1) * $perPage + $index + 1,
+                'vndupr_score' => round((float) $user->vndupr_score, 3),
+                'clubs'      => $user->clubs->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
+                'is_anchor'  => (bool) $user->is_anchor,
+                'is_verify'  => (bool) ($user->is_verified ?? false),
+            ];
+        });
+
+        return [
+            'items'    => $items,
+            'total'    => $total,
+            'last_page' => $lastPage,
+        ];
     }
 }
