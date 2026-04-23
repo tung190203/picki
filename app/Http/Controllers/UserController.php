@@ -6,6 +6,7 @@ use App\Enums\ClubMemberRole;
 use App\Enums\ClubMembershipStatus;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\ClubResource;
+use App\Models\Club\Club;
 use App\Http\Resources\UserResource;
 use App\Http\Resources\UserTournamentResource;
 use App\Http\Resources\UserMiniTournamentResource;
