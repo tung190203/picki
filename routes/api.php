@@ -614,6 +614,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     });
 
     Route::match(['get', 'post'], '/home', [HomeController::class, 'index']);
+    Route::get('/leaderboard', [LeaderboardController::class, 'getLeaderboard']);
     Route::match(['get', 'post'], '/locations', [LocationController::class, 'index']);
     // search geocoding
     Route::get('/search-location', [UserController::class, 'searchLocation']);

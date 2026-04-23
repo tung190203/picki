@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\TeamLeaderboardResource;
+use App\Models\Club\Club;
 use App\Models\Sport;
 use App\Models\Team;
 use App\Models\TeamRanking;
 use App\Models\TournamentType;
+use App\Models\User;
+use App\Models\UserSportScore;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -168,5 +171,207 @@ class LeaderboardController extends Controller
                     ? round(array_sum($scores) / count($scores), 3) : 0.0;
             }
         }
+    }
+
+    public function getLeaderboard(Request $request)
+    {
+        $validated = $request->validate([
+            'type'     => 'required|in:system,club,friends',
+            'club_id'  => 'required_if:type,club|integer|exists:clubs,id',
+            'per_page' => 'sometimes|integer|min:1|max:100',
+        ]);
+
+        $type = $validated['type'];
+        $perPage = $validated['per_page'] ?? 50;
+
+        $sport = Sport::where('slug', 'pickleball')->first();
+        $sportId = $sport?->id ?? 1;
+
+        $leaderboardData = match ($type) {
+            'system' => $this->getSystemLeaderboard($sportId, $perPage),
+            'club'   => $this->getClubLeaderboard((int) $validated['club_id'], $sportId),
+            'friends'=> $this->getFriendsLeaderboard($sportId),
+        };
+
+        return ResponseHelper::success([
+            'type'        => $type,
+            'leaderboard' => $leaderboardData['items'],
+            'meta'        => [
+                'total'    => $leaderboardData['total'],
+                'per_page'  => $perPage,
+            ],
+        ], 'Lấy bảng xếp hạng thành công');
+    }
+
+    private function getSystemLeaderboard(int $sportId, int $perPage): array
+    {
+        $scoreSubQuery = UserSportScore::query()
+            ->select(
+                'user_sport.user_id',
+                DB::raw('MAX(user_sport_scores.score_value) as vndupr_score')
+            )
+            ->join('user_sport', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
+            ->where('user_sport.sport_id', $sportId)
+            ->where('user_sport_scores.score_type', 'vndupr_score')
+            ->groupBy('user_sport.user_id');
+
+        $leaderboard = User::query()
+            ->where('users.total_matches', '>', 5)
+            ->where('users.email', '!=', 'vrplus2018@gmail.com')
+            ->joinSub($scoreSubQuery, 'scores', function ($join) {
+                $join->on('scores.user_id', '=', 'users.id');
+            })
+            ->with(['clubs:id,name'])
+            ->select(
+                'users.id',
+                'users.full_name',
+                'users.visibility',
+                'users.avatar_url',
+                'users.is_anchor',
+                'users.is_verify',
+                'scores.vndupr_score',
+                DB::raw('RANK() OVER (ORDER BY scores.vndupr_score DESC) as rank')
+            )
+            ->orderByDesc('scores.vndupr_score')
+            ->limit($perPage)
+            ->get();
+
+        $items = $leaderboard->map(function ($user) {
+            return [
+                'id'         => $user->id,
+                'full_name'  => $user->full_name,
+                'visibility' => $user->visibility,
+                'avatar_url'  => $user->avatar_url,
+                'rank'       => (int) $user->rank,
+                'vndupr_score' => round((float) $user->vndupr_score, 3),
+                'clubs'      => $user->clubs->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
+                'is_anchor'  => (bool) $user->is_anchor,
+                'is_verify'  => (bool) $user->is_verify,
+            ];
+        });
+
+        return [
+            'items' => $items,
+            'total' => $leaderboard->count(),
+        ];
+    }
+
+    private function getClubLeaderboard(int $clubId, int $sportId): array
+    {
+        $club = Club::findOrFail($clubId);
+
+        $memberIds = $club->joinedMembers()->pluck('user_id')->filter()->unique();
+
+        if ($memberIds->isEmpty()) {
+            return ['items' => [], 'total' => 0];
+        }
+
+        $scoreSubQuery = UserSportScore::query()
+            ->select(
+                'user_sport.user_id',
+                DB::raw('MAX(user_sport_scores.score_value) as vndupr_score')
+            )
+            ->join('user_sport', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
+            ->where('user_sport.sport_id', $sportId)
+            ->where('user_sport_scores.score_type', 'vndupr_score')
+            ->whereIn('user_sport.user_id', $memberIds)
+            ->groupBy('user_sport.user_id');
+
+        $leaderboard = User::query()
+            ->joinSub($scoreSubQuery, 'scores', function ($join) {
+                $join->on('scores.user_id', '=', 'users.id');
+            })
+            ->with(['clubs:id,name'])
+            ->select(
+                'users.id',
+                'users.full_name',
+                'users.visibility',
+                'users.avatar_url',
+                'users.is_anchor',
+                'users.is_verify',
+                'scores.vndupr_score'
+            )
+            ->orderByDesc('scores.vndupr_score')
+            ->get();
+
+        $items = $leaderboard->map(function ($user, $index) {
+            return [
+                'id'         => $user->id,
+                'full_name'  => $user->full_name,
+                'visibility' => $user->visibility,
+                'avatar_url'  => $user->avatar_url,
+                'rank'       => $index + 1,
+                'vndupr_score' => round((float) $user->vndupr_score, 3),
+                'clubs'      => $user->clubs->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
+                'is_anchor'  => (bool) $user->is_anchor,
+                'is_verify'  => (bool) $user->is_verify,
+            ];
+        });
+
+        return [
+            'items' => $items,
+            'total' => $leaderboard->count(),
+        ];
+    }
+
+    private function getFriendsLeaderboard(int $sportId): array
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return ['items' => [], 'total' => 0];
+        }
+
+        $friendIds = $user->friends()->pluck('users.id');
+        if ($friendIds->isEmpty()) {
+            return ['items' => [], 'total' => 0];
+        }
+
+        $scoreSubQuery = UserSportScore::query()
+            ->select(
+                'user_sport.user_id',
+                DB::raw('MAX(user_sport_scores.score_value) as vndupr_score')
+            )
+            ->join('user_sport', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
+            ->where('user_sport.sport_id', $sportId)
+            ->where('user_sport_scores.score_type', 'vndupr_score')
+            ->whereIn('user_sport.user_id', $friendIds)
+            ->groupBy('user_sport.user_id');
+
+        $leaderboard = User::query()
+            ->joinSub($scoreSubQuery, 'scores', function ($join) {
+                $join->on('scores.user_id', '=', 'users.id');
+            })
+            ->whereIn('users.id', $friendIds)
+            ->with(['clubs:id,name'])
+            ->select(
+                'users.id',
+                'users.full_name',
+                'users.visibility',
+                'users.avatar_url',
+                'users.is_anchor',
+                'users.is_verify',
+                'scores.vndupr_score'
+            )
+            ->orderByDesc('scores.vndupr_score')
+            ->get();
+
+        $items = $leaderboard->map(function ($user, $index) {
+            return [
+                'id'         => $user->id,
+                'full_name'  => $user->full_name,
+                'visibility' => $user->visibility,
+                'avatar_url'  => $user->avatar_url,
+                'rank'       => $index + 1,
+                'vndupr_score' => round((float) $user->vndupr_score, 3),
+                'clubs'      => $user->clubs->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
+                'is_anchor'  => (bool) $user->is_anchor,
+                'is_verify'  => (bool) $user->is_verify,
+            ];
+        });
+
+        return [
+            'items' => $items,
+            'total' => $leaderboard->count(),
+        ];
     }
 }
