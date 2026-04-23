@@ -2,6 +2,7 @@
 
 namespace App\Services\Admin;
 
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Models\VnduprHistory;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -16,7 +17,7 @@ class UserManagementService
     public function search(int $page, int $limit, ?string $keyword, ?string $status): LengthAwarePaginator
     {
         $query = User::query()
-            ->with('sports.sport')
+            ->with('sports.sport', 'sports.scores')
             ->select([
                 'id',
                 'full_name',
@@ -45,7 +46,11 @@ class UserManagementService
             $query->where('is_verified', true);
         }
 
-        return $query->paginate($limit, ['*'], 'page', $page);
+        $paginated = $query->paginate($limit, ['*'], 'page', $page);
+
+        return $paginated->setCollection(
+            collect(UserResource::collection($paginated->getCollection())->resolve())
+        );
     }
 
     public function getDetail(int $userId): User
@@ -54,7 +59,8 @@ class UserManagementService
             'vnduprScores' => function ($q) {
                 $q->latest()->limit(20);
             },
-            'userSports.sport',
+            'sports.sport',
+            'sports.scores',
         ])->findOrFail($userId);
 
         $user->match_history = DB::table('participants')
