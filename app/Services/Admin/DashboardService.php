@@ -266,7 +266,7 @@ class DashboardService
         $paginated = $query->paginate($limit, ['*'], 'page', $page);
 
         return $paginated->setCollection(
-            UserResource::collection($paginated->getCollection())->resolve()
+            collect(UserResource::collection($paginated->getCollection())->resolve())
         );
     }
 
@@ -392,7 +392,7 @@ class DashboardService
         $paginated = $query->paginate($limit, ['*'], 'page', $page);
 
         return $paginated->setCollection(
-            UserResource::collection($paginated->getCollection())->resolve()
+            collect(UserResource::collection($paginated->getCollection())->resolve())
         );
     }
 
