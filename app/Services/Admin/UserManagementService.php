@@ -16,6 +16,7 @@ class UserManagementService
     public function search(int $page, int $limit, ?string $keyword, ?string $status): LengthAwarePaginator
     {
         $query = User::query()
+            ->with('sports.sport')
             ->select([
                 'id',
                 'full_name',
@@ -26,8 +27,10 @@ class UserManagementService
                 'is_banned',
                 'is_verified',
                 'is_anchor',
+                'last_login',
                 'created_at',
             ])
+            ->where('is_guest', false)
             ->orderBy('created_at', 'desc');
 
         if ($keyword) {
@@ -70,7 +73,7 @@ class UserManagementService
         return $user;
     }
 
-    public function ban(User $user, string $reason, ?string $note, User $admin): void
+    public function ban(User $user, ?string $reason, ?string $note, User $admin): void
     {
         $oldValues = ['is_banned' => $user->is_banned, 'banned_at' => $user->banned_at];
 

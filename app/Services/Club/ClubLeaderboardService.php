@@ -118,15 +118,16 @@ class ClubLeaderboardService
         $verified = $sorted->filter(fn($item) => ($item['monthly_stats']['matches_played'] ?? 0) >= 10);
         $unverified = $sorted->filter(fn($item) => ($item['monthly_stats']['matches_played'] ?? 0) < 10);
 
-        // Top 3: chỉ user đã verified (>= 10 trận)
+        // Top 3: chỉ user đã verified (>= 10 trận), giữ nguyên thứ tự score
         $topThree = $verified->take(3)->values();
-        $rest = $verified->skip(3)->concat($unverified)->sortByDesc('vndupr_score')->values();
-        $combined = $topThree->concat($rest)->values();
+        $rest = $verified->skip(3)->concat($unverified)->values();
 
-        return $combined->map(function ($item, $index) {
-            $item['rank'] = $index + 1;
-            return $item;
-        });
+        return $topThree
+            ->concat($rest)
+            ->map(function ($item, $index) {
+                $item['rank'] = $index + 1;
+                return $item;
+            });
     }
 
     private function calculateMemberStats(
