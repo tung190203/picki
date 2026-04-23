@@ -48,6 +48,7 @@ class Tournament extends Model
     ];
 
     protected $appends = ['poster_url'];
+    protected $hidden = ['poster'];
 
     const PER_PAGE = 10;
 

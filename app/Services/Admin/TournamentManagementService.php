@@ -5,6 +5,7 @@ namespace App\Services\Admin;
 use App\Models\Tournament;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 
 class TournamentManagementService
 {
