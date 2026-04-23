@@ -346,6 +346,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     Route::prefix('user')->group(function () {
         Route::match(['get', 'post'], '/index', [UserController::class, 'index']);
         Route::get('/{id}', [UserController::class, 'show']);
+        Route::get('/{id}/clubs', [UserController::class, 'getUserClubs']);
         Route::post('/update', [UserController::class, 'update']);
         Route::delete('/delete/{id}', [UserController::class, 'destroy']);
         Route::get('/matches/dataset', [UserMatchStatsController::class, 'dataset']);
@@ -614,6 +615,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     });
 
     Route::match(['get', 'post'], '/home', [HomeController::class, 'index']);
+    Route::get('/leaderboard', [LeaderboardController::class, 'getLeaderboard']);
     Route::match(['get', 'post'], '/locations', [LocationController::class, 'index']);
     // search geocoding
     Route::get('/search-location', [UserController::class, 'searchLocation']);
