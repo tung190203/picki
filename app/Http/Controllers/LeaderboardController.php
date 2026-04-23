@@ -176,14 +176,10 @@ class LeaderboardController extends Controller
     public function getLeaderboard(Request $request)
     {
         $validated = $request->validate([
-            'scope'           => 'required|in:all,club,friend',
-            'club_id'         => 'required_if:scope,club|integer|exists:clubs,id',
-            'per_page'        => 'sometimes|integer|min:1|max:100',
-            'page'            => 'sometimes|integer|min:1',
-            'club_per_page'  => 'sometimes|integer|min:1|max:100',
-            'club_page'      => 'sometimes|integer|min:1',
-            'friend_per_page' => 'sometimes|integer|min:1|max:100',
-            'friend_page'     => 'sometimes|integer|min:1',
+            'scope'    => 'required|in:all,club,friend',
+            'club_id'  => 'required_if:scope,club|integer|exists:clubs,id',
+            'per_page' => 'sometimes|integer|min:1|max:100',
+            'page'     => 'sometimes|integer|min:1',
         ]);
 
         $scope = $validated['scope'];
@@ -194,37 +190,16 @@ class LeaderboardController extends Controller
         $sportId = $sport?->id ?? 1;
 
         if ($scope === 'all') {
-            $clubPerPage = $validated['club_per_page'] ?? $perPage;
-            $clubPage = $validated['club_page'] ?? 1;
-            $friendPerPage = $validated['friend_per_page'] ?? $perPage;
-            $friendPage = $validated['friend_page'] ?? 1;
-
-            $allLb = $this->getSystemLeaderboard($sportId, $perPage, $page);
-            $clubLb = $this->getUserClubsLeaderboard($sportId, $clubPerPage, $clubPage);
-            $friendLb = $this->getFriendsLeaderboard($sportId, $friendPerPage, $friendPage);
+            $leaderboardData = $this->getSystemLeaderboard($sportId, $perPage, $page);
 
             return ResponseHelper::success([
-                'scope'            => $scope,
-                'leaderboard'      => $allLb['items'],
-                'leaderboard_club' => $clubLb['items'],
-                'leaderboard_friend' => $friendLb['items'],
-                'meta'             => [
-                    'total'      => $allLb['total'],
-                    'per_page'   => $perPage,
-                    'page'       => $page,
-                    'last_page'  => $allLb['last_page'],
-                ],
-                'meta_club' => [
-                    'total'     => $clubLb['total'],
-                    'per_page'  => $clubPerPage,
-                    'page'      => $clubPage,
-                    'last_page' => $clubLb['last_page'],
-                ],
-                'meta_friend' => [
-                    'total'     => $friendLb['total'],
-                    'per_page'  => $friendPerPage,
-                    'page'      => $friendPage,
-                    'last_page' => $friendLb['last_page'],
+                'scope'       => $scope,
+                'leaderboard' => $leaderboardData['items'],
+                'meta'        => [
+                    'total'     => $leaderboardData['total'],
+                    'per_page'  => $perPage,
+                    'page'      => $page,
+                    'last_page' => $leaderboardData['last_page'],
                 ],
             ], 'Lấy bảng xếp hạng thành công');
         }
@@ -296,95 +271,6 @@ class LeaderboardController extends Controller
                 'is_verify'  => (bool) ($user->is_verified ?? false),
             ];
         });
-
-        return [
-            'items'    => $items,
-            'total'    => $total,
-            'last_page' => $lastPage,
-        ];
-    }
-
-    private function getUserClubsLeaderboard(int $sportId, int $perPage, int $page): array
-    {
-        $user = auth()->user();
-        if (!$user) {
-            return ['items' => [], 'total' => 0, 'last_page' => 1];
-        }
-
-        // Lấy list club_id user tham gia (Joined)
-        $userClubIds = DB::table('club_members')
-            ->where('user_id', $user->id)
-            ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined)
-            ->where('status', \App\Enums\ClubMemberStatus::Active)
-            ->pluck('club_id')
-            ->filter()
-            ->toArray();
-
-        if (empty($userClubIds)) {
-            return ['items' => [], 'total' => 0, 'last_page' => 1];
-        }
-
-        $total = count($userClubIds);
-        $lastPage = max(1, (int) ceil($total / $perPage));
-        $offset = ($page - 1) * $perPage;
-        $paginatedClubIds = array_slice($userClubIds, $offset, $perPage);
-
-        $items = [];
-        $rank = $offset + 1;
-        foreach ($paginatedClubIds as $clubId) {
-            $club = Club::withCount(['joinedMembers as member_count'])->find($clubId);
-            if (!$club) {
-                continue;
-            }
-
-            // BXH top 3 member có điểm vndupr cao nhất trong club
-            $memberIds = $club->joinedMembers()->pluck('user_id')->filter()->unique();
-
-            $scoreSubQuery = UserSportScore::query()
-                ->select(
-                    'user_sport.user_id',
-                    DB::raw('MAX(user_sport_scores.score_value) as vndupr_score')
-                )
-                ->join('user_sport', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
-                ->where('user_sport.sport_id', $sportId)
-                ->where('user_sport_scores.score_type', 'vndupr_score')
-                ->whereIn('user_sport.user_id', $memberIds)
-                ->groupBy('user_sport.user_id');
-
-            $topMembers = User::query()
-                ->joinSub($scoreSubQuery, 'scores', function ($join) {
-                    $join->on('scores.user_id', '=', 'users.id');
-                })
-                ->with(['clubs:id,name'])
-                ->select(
-                    'users.id',
-                    'users.full_name',
-                    'users.avatar_url',
-                    'scores.vndupr_score',
-                    DB::raw('RANK() OVER (ORDER BY scores.vndupr_score DESC) as rank')
-                )
-                ->orderByDesc('scores.vndupr_score')
-                ->limit(3)
-                ->get();
-
-            $items[] = [
-                'club' => [
-                    'id'            => $club->id,
-                    'name'          => $club->name,
-                    'avatar_url'    => $club->avatar_url,
-                    'member_count'  => (int) ($club->member_count ?? 0),
-                ],
-                'top_members' => $topMembers->map(fn($m) => [
-                    'id'          => $m->id,
-                    'full_name'  => $m->full_name,
-                    'avatar_url' => $m->avatar_url,
-                    'rank'       => (int) $m->rank,
-                    'vndupr_score' => round((float) $m->vndupr_score, 3),
-                ])->values()->all(),
-            ];
-
-            $rank++;
-        }
 
         return [
             'items'    => $items,
