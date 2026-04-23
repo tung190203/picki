@@ -173,13 +173,19 @@ class UserController extends Controller
             'page'   => 'nullable|integer|min:1',
         ]);
 
-        $query = $user->clubs()
-            ->where('club_members.membership_status', ClubMembershipStatus::Joined)
-            ->where('club_members.status', \App\Enums\ClubMemberStatus::Active);
+        $query = Club::where(function ($q) use ($user, $validated) {
+            $q->where('created_by', $user->id);
 
-        if (!empty($validated['role'])) {
-            $query->whereIn('club_members.role', $validated['role']);
-        }
+            $roleFilter = $validated['role'] ?? null;
+            $q->orWhereHas('members', function ($q2) use ($user, $roleFilter) {
+                $q2->where('user_id', $user->id)
+                   ->where('membership_status', ClubMembershipStatus::Joined)
+                   ->where('status', \App\Enums\ClubMemberStatus::Active);
+                if ($roleFilter) {
+                    $q2->whereIn('role', $roleFilter);
+                }
+            });
+        });
 
         $clubs = $query->withFullRelations()
             ->paginate($validated['per_page'] ?? 20);
