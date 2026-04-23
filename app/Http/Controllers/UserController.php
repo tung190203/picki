@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ClubMemberRole;
+use App\Enums\ClubMembershipStatus;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\ClubResource;
 use App\Http\Resources\UserResource;
@@ -17,9 +19,10 @@ use App\Services\ImageOptimizationService;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -154,6 +157,44 @@ class UserController extends Controller
             return ResponseHelper::error('Người dùng không tồn tại', 404);
         }
         return ResponseHelper::success(new UserResource($user), 'Lấy thông tin người dùng thành công');
+    }
+
+    public function getUserClubs(Request $request, $id)
+    {
+        $user = User::find($id);
+        if (!$user) {
+            return ResponseHelper::error('Người dùng không tồn tại', 404);
+        }
+
+        $validated = $request->validate([
+            'role'   => 'nullable|array',
+            'role.*' => [Rule::enum(ClubMemberRole::class)],
+            'per_page' => 'nullable|integer|min:1|max:100',
+            'page'   => 'nullable|integer|min:1',
+        ]);
+
+        $query = $user->clubs()
+            ->where('club_members.membership_status', ClubMembershipStatus::Joined)
+            ->where('club_members.status', \App\Enums\ClubMemberStatus::Active);
+
+        if (!empty($validated['role'])) {
+            $query->whereIn('club_members.role', $validated['role']);
+        }
+
+        $clubs = $query->withFullRelations()
+            ->paginate($validated['per_page'] ?? 20);
+
+        return ResponseHelper::success(
+            ClubResource::collection($clubs),
+            'Lấy danh sách câu lạc bộ của người dùng thành công',
+            200,
+            [
+                'current_page' => $clubs->currentPage(),
+                'last_page'    => $clubs->lastPage(),
+                'per_page'     => $clubs->perPage(),
+                'total'        => $clubs->total(),
+            ]
+        );
     }
     public function update(Request $request)
     {

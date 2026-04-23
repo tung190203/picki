@@ -129,7 +129,6 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'gender_text',
         'is_super_admin',
         'is_online',
-        'is_banned',
     ];
 
     public function getGenderText()
