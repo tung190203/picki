@@ -17,8 +17,7 @@ class SuperAdminMiddleware
             return ResponseHelper::error('Unauthenticated', 401);
         }
 
-        // Check role = 'admin' directly from the users table
-        if ($user->role !== 'admin') {
+        if (!$user->is_super_admin) {
             return ResponseHelper::error('Forbidden: Super Admin access required', 403);
         }
 
