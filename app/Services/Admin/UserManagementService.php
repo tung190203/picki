@@ -73,7 +73,7 @@ class UserManagementService
         return $user;
     }
 
-    public function ban(User $user, string $reason, ?string $note, User $admin): void
+    public function ban(User $user, ?string $reason, ?string $note, User $admin): void
     {
         $oldValues = ['is_banned' => $user->is_banned, 'banned_at' => $user->banned_at];
 
