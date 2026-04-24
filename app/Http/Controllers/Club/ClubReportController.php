@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Club;
 
 use App\Enums\ClubReportReasonType;
 use App\Enums\ClubReportStatus;
+use App\Events\SuperAdmin\ReportCreated;
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Club\StoreClubReportRequest;
@@ -38,6 +39,13 @@ class ClubReportController extends Controller
 
         $report = $this->reportService->createReport($club, $userId, $request->validated());
         $report->load(['reporter', 'club']);
+
+        ReportCreated::dispatch(
+            $report->id,
+            $report->report_type ?? 'general',
+            $report->content ?? '',
+            $club->id
+        );
 
         return ResponseHelper::success(
             new ClubReportResource($report),

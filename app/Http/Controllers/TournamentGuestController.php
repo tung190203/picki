@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ClubMemberRole;
+use App\Events\SuperAdmin\TournamentMemberAdded;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\ParticipantResource;
 use App\Http\Resources\UserListResource;
@@ -159,6 +160,30 @@ class TournamentGuestController extends Controller
         }
 
         $participant->load(['user', 'guarantor']);
+
+        // Notify super admins via socket
+        TournamentMemberAdded::dispatch(
+            $tournament->id,
+            $tournament->name,
+            [
+                'id' => $participant->id,
+                'user' => [
+                    'id' => $participant->user->id,
+                    'full_name' => $participant->user->full_name,
+                    'avatar_url' => $participant->user->avatar_url,
+                ],
+                'guest_name' => $participant->guest_name,
+                'guest_phone' => $participant->guest_phone,
+                'guest_avatar' => $participant->guest_avatar,
+                'guarantor' => $participant->guarantor ? [
+                    'id' => $participant->guarantor->id,
+                    'full_name' => $participant->guarantor->full_name,
+                    'avatar_url' => $participant->guarantor->avatar_url,
+                ] : null,
+                'is_pending_confirmation' => $participant->is_pending_confirmation,
+            ],
+            'guest'
+        );
 
         return ResponseHelper::success(
             new ParticipantResource($participant),

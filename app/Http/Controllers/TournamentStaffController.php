@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\SuperAdmin\TournamentMemberAdded;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\TournamentStaffResource;
 use App\Models\Participant;
@@ -34,6 +35,23 @@ class TournamentStaffController extends Controller
             'role' => TournamentStaff::ROLE_ORGANIZER,
             'is_invite_by_organizer' => true
         ]);
+
+        $staffUser = User::find($userId);
+        $tournament->load('staff');
+        TournamentMemberAdded::dispatch(
+            $tournament->id,
+            $tournament->name,
+            [
+                'id' => $staffUser->id,
+                'user' => [
+                    'id' => $staffUser->id,
+                    'full_name' => $staffUser->full_name,
+                    'avatar_url' => $staffUser->avatar_url,
+                ],
+                'role' => TournamentStaff::ROLE_ORGANIZER,
+            ],
+            'staff'
+        );
 
         return ResponseHelper::success(null, 'Thêm người vào ban tổ chức thành công', 201);
     }

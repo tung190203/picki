@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\SuperAdmin\MiniTournamentMemberAdded;
 use App\Helpers\ResponseHelper;
 use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
@@ -31,7 +32,24 @@ class MiniTournamentStaffController extends Controller
         $tournament->staff()->attach($staffId, [
             'role' => MiniTournamentStaff::ROLE_ORGANIZER
         ]);
-    
+
+        $staffUser = User::find($staffId);
+        $tournament->load('staff');
+        MiniTournamentMemberAdded::dispatch(
+            $tournament->id,
+            $tournament->name,
+            [
+                'id' => $staffUser->id,
+                'user' => [
+                    'id' => $staffUser->id,
+                    'full_name' => $staffUser->full_name,
+                    'avatar_url' => $staffUser->avatar_url,
+                ],
+                'role' => MiniTournamentStaff::ROLE_ORGANIZER,
+            ],
+            'staff'
+        );
+
         return ResponseHelper::success(['message' => 'Thêm người tổ chức thành công'], 201);
     }
 }

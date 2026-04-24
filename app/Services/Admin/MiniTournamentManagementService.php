@@ -2,6 +2,9 @@
 
 namespace App\Services\Admin;
 
+use App\Events\SuperAdmin\DashboardStatUpdated;
+use App\Events\SuperAdmin\MiniTournamentDeleted;
+use App\Events\SuperAdmin\MiniTournamentUpdated;
 use App\Models\MiniTournament;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -77,34 +80,57 @@ class MiniTournamentManagementService
             $oldValues,
             ['status' => MiniTournament::STATUS_OPEN]
         );
+
+        $miniTournament->refresh();
+        $miniTournament->load(['sport', 'club', 'creator', 'participants', 'competitionLocation']);
+        MiniTournamentUpdated::dispatch($miniTournament, $oldValues);
     }
 
     public function feature(MiniTournament $miniTournament, User $admin): void
     {
+        $oldValues = ['is_featured' => $miniTournament->is_featured ?? false];
+
+        $miniTournament->update(['is_featured' => true]);
+
         $this->auditLogService->log(
             $admin,
             'feature_mini_tournament',
             MiniTournament::class,
             $miniTournament->id,
-            [],
+            $oldValues,
             ['action' => 'feature']
         );
+
+        $miniTournament->refresh();
+        $miniTournament->load(['sport', 'club', 'creator', 'participants', 'competitionLocation']);
+        MiniTournamentUpdated::dispatch($miniTournament, $oldValues);
     }
 
     public function unfeature(MiniTournament $miniTournament, User $admin): void
     {
+        $oldValues = ['is_featured' => $miniTournament->is_featured ?? false];
+
+        $miniTournament->update(['is_featured' => false]);
+
         $this->auditLogService->log(
             $admin,
             'unfeature_mini_tournament',
             MiniTournament::class,
             $miniTournament->id,
-            [],
+            $oldValues,
             ['action' => 'unfeature']
         );
+
+        $miniTournament->refresh();
+        $miniTournament->load(['sport', 'club', 'creator', 'participants', 'competitionLocation']);
+        MiniTournamentUpdated::dispatch($miniTournament, $oldValues);
     }
 
     public function delete(MiniTournament $miniTournament, User $admin): void
     {
+        $miniTournamentId = $miniTournament->id;
+        $miniTournamentName = $miniTournament->name;
+
         $this->auditLogService->log(
             $admin,
             'delete_mini_tournament',
@@ -115,5 +141,8 @@ class MiniTournamentManagementService
         );
 
         $miniTournament->delete();
+
+        MiniTournamentDeleted::dispatch($miniTournamentId, $miniTournamentName);
+        DashboardStatUpdated::dispatch('mini_tournament_growth', 1, 'decremented');
     }
 }
