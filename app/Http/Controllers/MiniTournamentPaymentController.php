@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ClubFundContributionStatus;
 use App\Enums\PaymentStatusEnum;
+use App\Events\SuperAdmin\PaymentConfirmed;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MiniParticipantPaymentResource;
 use App\Http\Resources\MiniTournamentResource;
@@ -533,6 +534,13 @@ class MiniTournamentPaymentController extends Controller
                 $payment->user->notify(new PaymentConfirmedNotification($payment));
             }
 
+            PaymentConfirmed::dispatch(
+                $miniTournamentId,
+                $payment->id,
+                $payment->amount,
+                $participant->user_id
+            );
+
             DB::commit();
 
             return ResponseHelper::success(
@@ -588,6 +596,13 @@ class MiniTournamentPaymentController extends Controller
 
             if ($isConfirm) {
                 $participant->confirmPayment();
+
+                PaymentConfirmed::dispatch(
+                    $miniTournamentId,
+                    $payment->id,
+                    $payment->amount,
+                    $payment->user_id
+                );
 
                 if (!empty($payment->guest_ids)) {
                     MiniParticipant::whereIn('id', $payment->guest_ids)

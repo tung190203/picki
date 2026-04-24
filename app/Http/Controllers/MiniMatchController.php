@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\SuperAdmin\MiniMatchUpdated;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MiniMatchResource;
 use App\Jobs\SendPushJob;
@@ -303,6 +304,8 @@ class MiniMatchController extends Controller
             $users->each(function ($user) use ($match) {
                 $user->notify(new MiniMatchUpdatedNotification($match));
             });
+
+            MiniMatchUpdated::dispatch($match->loadFullRelations());
 
             return ResponseHelper::success(
                 new MiniMatchResource($match->loadFullRelations()),

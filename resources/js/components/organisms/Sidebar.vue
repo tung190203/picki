@@ -174,7 +174,7 @@
             <!-- Bottom Section (Actions + User Info) -->
             <div class="flex flex-col space-y-1 px-2 mb-4">
                 <!-- Admin Dash -->
-                <router-link v-if="getRole === ROLE.ADMIN" to="/admin/dashboard" v-slot="{ isActive }">
+                <router-link v-if="getUser?.is_super_admin" to="/admin/dashboard" v-slot="{ isActive }">
                     <button
                         :class="[
                             'flex items-center h-12 px-3 rounded-xl transition-all w-full text-left',
@@ -183,7 +183,7 @@
                                 : 'text-gray-600 hover:bg-gray-100',
                         ]"
                     >
-                        <component :is="getUser.is_super_admin ? ShieldCheckIcon : HomeIcon" class="w-5 h-5 flex-shrink-0" />
+                        <ShieldCheckIcon class="w-5 h-5 flex-shrink-0" />
                         <span
                             class="font-medium whitespace-nowrap overflow-hidden transition-all duration-300"
                             :class="
@@ -192,7 +192,31 @@
                                     : 'opacity-0 ml-0 max-w-0'
                             "
                         >
-                            {{ getUser.is_super_admin ? 'Super Admin' : 'Admin Dash' }}
+                            Super Admin
+                        </span>
+                    </button>
+                </router-link>
+
+                <!-- Admin Dash (non-super) -->
+                <router-link v-else-if="getRole === ROLE.ADMIN" to="/admin/dashboard" v-slot="{ isActive }">
+                    <button
+                        :class="[
+                            'flex items-center h-12 px-3 rounded-xl transition-all w-full text-left',
+                            isActive
+                                ? 'bg-gray-100 text-gray-900'
+                                : 'text-gray-600 hover:bg-gray-100',
+                        ]"
+                    >
+                        <HomeIcon class="w-5 h-5 flex-shrink-0" />
+                        <span
+                            class="font-medium whitespace-nowrap overflow-hidden transition-all duration-300"
+                            :class="
+                                isExpanded
+                                    ? 'opacity-100 ml-3 max-w-xs'
+                                    : 'opacity-0 ml-0 max-w-0'
+                            "
+                        >
+                            Admin Dash
                         </span>
                     </button>
                 </router-link>

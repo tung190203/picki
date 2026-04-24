@@ -15,6 +15,7 @@ router.beforeEach((to, from, next) => {
   const savedUser = localStorage.getItem(LOCAL_STORAGE_USER.USER);
   const user = savedUser ? JSON.parse(savedUser) : null;
   const userRole = user?.role;
+  const isSuperAdmin = user?.is_super_admin === true;
   const hasSeenOnboarding = localStorage.getItem(LOCAL_STORAGE_KEY.ONBOARDING) === "true";
 
   const publicPages = [
@@ -47,13 +48,8 @@ router.beforeEach((to, from, next) => {
     }
   }
 
-  if (loginToken && to.meta?.role) {
-    const allowedRoles = Array.isArray(to.meta.role)
-      ? to.meta.role
-      : [to.meta.role];
-    if (!allowedRoles.includes(userRole)) {
-      return next({ name: "forbidden" });
-    }
+  if (loginToken && to.meta?.requiresAdmin && !isSuperAdmin) {
+    return next({ name: "forbidden" });
   }
 
   next();

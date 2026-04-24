@@ -3,6 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ClubMemberRole;
+use App\Events\SuperAdmin\DashboardStatUpdated;
+use App\Events\SuperAdmin\MiniTournamentCreated;
+use App\Events\SuperAdmin\MiniTournamentDeleted;
+use App\Events\SuperAdmin\MiniTournamentUpdated;
 use App\Jobs\SendPushJob;
 use App\Helpers\ResponseHelper;
 use App\Http\Requests\StoreMiniTournamentRequest;
@@ -124,6 +128,8 @@ class MiniTournamentController extends Controller
         }
 
         $miniTournament->loadFullRelations();
+
+        MiniTournamentCreated::dispatch($miniTournament);
 
         return ResponseHelper::success(new MiniTournamentResource($miniTournament), 'Tạo kèo đấu thành công', 201);
     }
@@ -309,6 +315,8 @@ class MiniTournamentController extends Controller
 
         $miniTournament->loadFullRelations();
 
+        MiniTournamentUpdated::dispatch($miniTournament);
+
         return ResponseHelper::success(new MiniTournamentResource($miniTournament), 'Cập nhật thông tin kèo đấu thành công');
     }
 
@@ -370,9 +378,15 @@ class MiniTournamentController extends Controller
             ->values()
             ->toArray();
 
+        $miniTournamentName = $miniTournament->name;
+        $miniTournamentId = $miniTournament->id;
+
         DB::transaction(function () use ($miniTournament) {
             $miniTournament->delete();
         });
+
+        MiniTournamentDeleted::dispatch($miniTournamentId, $miniTournamentName);
+        DashboardStatUpdated::dispatch('mini_tournament_growth', 1, 'decremented');
 
         if ($miniTournament->club_id) {
             Cache::increment('club_content_version:' . $miniTournament->club_id);

@@ -7,6 +7,21 @@
     <main class="flex-1 md:ml-64 min-h-screen" style="background-color: var(--surface-bright, #fff8f7);">
     <AdminHeader />
 
+      <!-- 🔍 Socket Debug Bar -->
+      <div class="px-4 py-2 text-xs font-mono flex items-center gap-4 flex-wrap"
+        style="background: #1a1a2e; color: #00ff88;">
+        <span class="font-bold text-white">SOCKET DEBUG:</span>
+        <span>[Echo] {{ socketStatus.echoAvailable ? '✓ available' : '✗ NOT available' }}</span>
+        <span>[Channel] {{ socketStatus.channelName || '—' }}</span>
+        <span>[Subscribed] {{ socketStatus.subscribed ? '✓ YES' : '✗ NO' }}</span>
+        <span v-if="socketStatus.error" class="text-red-400">[ERROR] {{ socketStatus.error }}</span>
+        <button @click="testSocket"
+          class="px-3 py-1 rounded text-xs font-bold text-white"
+          style="background:#b3111b; margin-left: auto;">
+          🔬 Test Socket
+        </button>
+      </div>
+
       <!-- Loading State -->
       <div v-if="loading" class="p-8 max-w-[1400px] mx-auto">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -208,28 +223,364 @@
 <script setup>
 import AdminSidebar from '@/components/organisms/AdminSidebar.vue'
 import AdminHeader from '@/components/organisms/AdminHeader.vue'
-import { get } from '@/utils/httpRequest.js'
-import { ref, computed, onMounted } from 'vue'
+import { get, post } from '@/utils/httpRequest.js'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { formatedDate } from '@/composables/formatedDate.js'
 
 const loading = ref(true)
 const error = ref(null)
 const dashboardData = ref(null)
 
+// ---------- Socket listeners ----------
+let echoChannel = null
+const socketStatus = ref({
+    echoAvailable: false,
+    channelName: '',
+    subscribed: false,
+    error: null,
+})
+
+const setupSocketListeners = () => {
+    console.log('[SuperAdmin] setupSocketListeners called')
+
+    if (!window.Echo) {
+        console.error('[SuperAdmin] window.Echo is NOT available')
+        socketStatus.value.echoAvailable = false
+        socketStatus.value.error = 'window.Echo không tồn tại. Kiểm tra bootstrap.js'
+        return
+    }
+    socketStatus.value.echoAvailable = true
+    console.log('[SuperAdmin] window.Echo is available ✓')
+
+    // Dùng DashboardAdminChannel — đổi tên theo yêu cầu
+    const channelName = 'DashboardAdminChannel'
+    socketStatus.value.channelName = channelName
+    console.log('[SuperAdmin] Subscribing to channel:', channelName)
+
+    echoChannel = window.Echo.private(channelName)
+
+    // Dùng .subscribed() và .error() thay vì .bind() — đây là API chuẩn của laravel-echo v2
+    echoChannel
+        .subscribed(() => {
+            console.log('[SuperAdmin] ✓ Subscribed to', channelName)
+            socketStatus.value.subscribed = true
+        })
+        .error((status) => {
+            console.error('[SuperAdmin] ✗ Subscription error:', status)
+            socketStatus.value.error = `Lỗi subscribe: ${status}`
+            socketStatus.value.subscribed = false
+        })
+        // .listen() trả this nên chain được
+        .listen('.super_admin.tournament', (e) => {
+            console.log('[SuperAdmin] 🎯 RECEIVED .super_admin.tournament:', JSON.stringify(e, null, 2))
+            handleTournamentEvent(e)
+        })
+        .listen('.super_admin.mini_tournament', (e) => {
+            console.log('[SuperAdmin] 🎯 RECEIVED .super_admin.mini_tournament:', JSON.stringify(e, null, 2))
+            handleMiniTournamentEvent(e)
+        })
+        .listen('.super_admin.match', (e) => {
+            console.log('[SuperAdmin] 🎯 RECEIVED .super_admin.match:', JSON.stringify(e, null, 2))
+            handleMatchEvent(e)
+        })
+        .listen('.super_admin.dispute', (e) => {
+            console.log('[SuperAdmin] 🎯 RECEIVED .super_admin.dispute:', JSON.stringify(e, null, 2))
+            handleDisputeEvent(e)
+        })
+        .listen('.super_admin.report', (e) => {
+            console.log('[SuperAdmin] 🎯 RECEIVED .super_admin.report:', JSON.stringify(e, null, 2))
+            handleReportEvent(e)
+        })
+        .listen('.super_admin.payment', (e) => {
+            console.log('[SuperAdmin] 🎯 RECEIVED .super_admin.payment:', JSON.stringify(e, null, 2))
+            handlePaymentEvent(e)
+        })
+        .listen('.super_admin.dashboard_stat', (e) => {
+            console.log('[SuperAdmin] 🎯 RECEIVED .super_admin.dashboard_stat:', JSON.stringify(e, null, 2))
+            handleDashboardStatEvent(e)
+        })
+        .listen('.super_admin.user', (e) => {
+            console.log('[SuperAdmin] 🎯 RECEIVED .super_admin.user:', JSON.stringify(e, null, 2))
+            handleUserEvent(e)
+        })
+}
+
+const handleTournamentEvent = (e) => {
+    const { action, data } = e
+    console.log('[SuperAdmin] handleTournamentEvent called with action:', action, 'data:', data)
+
+    if (!dashboardData.value) {
+        console.warn('[SuperAdmin] dashboardData is null, skipping event')
+        return
+    }
+
+    switch (action) {
+        case 'created':
+            if (!dashboardData.value.open_tournaments) {
+                dashboardData.value.open_tournaments = []
+            }
+            dashboardData.value.open_tournaments = [
+                formatTournament(data),
+                ...dashboardData.value.open_tournaments,
+            ]
+            // Update stat counters
+            if (dashboardData.value.active_tournaments !== undefined) {
+                dashboardData.value.active_tournaments++
+            }
+            // NOTE: tournaments_this_month is handled by handleDashboardStatEvent
+            // via DashboardStatUpdated event to avoid double increment
+            break
+        case 'updated':
+            if (dashboardData.value.open_tournaments) {
+                const idx = dashboardData.value.open_tournaments.findIndex(t => t.id === data.id)
+                if (idx >= 0) {
+                    dashboardData.value.open_tournaments[idx] = {
+                        ...dashboardData.value.open_tournaments[idx],
+                        ...data,
+                    }
+                }
+            }
+            break
+        case 'deleted':
+            if (dashboardData.value.open_tournaments) {
+                dashboardData.value.open_tournaments = dashboardData.value.open_tournaments.filter(t => t.id !== data.id)
+            }
+            // NOTE: active_tournaments is handled by handleDashboardStatEvent
+            // via DashboardStatUpdated event to avoid double decrement.
+            break
+        case 'member_added':
+            if (dashboardData.value.open_tournaments) {
+                const t = dashboardData.value.open_tournaments.find(t => t.id === data.tournament_id)
+                if (t) {
+                    t.participants_count = (t.participants_count || 0) + 1
+                    if (data.member_type === 'guest') {
+                        t.latest_guest = data.member
+                    }
+                }
+            }
+            break
+    }
+}
+
+const handleMiniTournamentEvent = (e) => {
+    const { action, data } = e
+    console.log('[SuperAdmin] handleMiniTournamentEvent called with action:', action, 'data:', data)
+
+    if (!dashboardData.value) {
+        console.warn('[SuperAdmin] dashboardData is null, skipping mini event')
+        return
+    }
+
+    switch (action) {
+        case 'created':
+            if (!dashboardData.value.open_mini_tournaments) {
+                dashboardData.value.open_mini_tournaments = []
+            }
+            dashboardData.value.open_mini_tournaments = [
+                formatMiniTournament(data),
+                ...dashboardData.value.open_mini_tournaments,
+            ]
+            // NOTE: mini_tournament_growth.active_today is handled by handleDashboardStatEvent
+            // via DashboardStatUpdated event to avoid double increment.
+            // growth_percent will be recalculated there.
+            break
+        case 'updated':
+            if (dashboardData.value.open_mini_tournaments) {
+                const idx = dashboardData.value.open_mini_tournaments.findIndex(m => m.id === data.id)
+                if (idx >= 0) {
+                    dashboardData.value.open_mini_tournaments[idx] = {
+                        ...dashboardData.value.open_mini_tournaments[idx],
+                        ...data,
+                    }
+                }
+            }
+            break
+        case 'deleted':
+            if (dashboardData.value.open_mini_tournaments) {
+                dashboardData.value.open_mini_tournaments = dashboardData.value.open_mini_tournaments.filter(m => m.id !== data.id)
+            }
+            // NOTE: mini_tournament_growth is handled by handleDashboardStatEvent
+            // via DashboardStatUpdated event to avoid double decrement.
+            break
+        case 'member_added':
+            if (dashboardData.value.open_mini_tournaments) {
+                const m = dashboardData.value.open_mini_tournaments.find(m => m.id === data.mini_tournament_id)
+                if (m) {
+                    m.players_count = (m.players_count || 0) + 1
+                    if (data.member_type === 'guest') {
+                        m.latest_guest = data.member
+                    }
+                }
+            }
+            break
+    }
+}
+
+const handleMatchEvent = (e) => {
+    const { action, data } = e
+    console.log('[SuperAdmin] Match event:', action, data)
+}
+
+const handleDisputeEvent = (e) => {
+    if (!dashboardData.value) return
+    switch (e.action) {
+        case 'opened':
+            dashboardData.value.open_disputes_count = (dashboardData.value.open_disputes_count ?? 0) + 1
+            break
+        case 'resolved':
+            dashboardData.value.open_disputes_count = Math.max(0, (dashboardData.value.open_disputes_count ?? 1) - 1)
+            break
+    }
+}
+
+const handleReportEvent = (e) => {
+    if (!dashboardData.value) return
+    if (e.action === 'created') {
+        dashboardData.value.pending_reports_count = (dashboardData.value.pending_reports_count ?? 0) + 1
+    }
+}
+
+const handlePaymentEvent = (e) => {
+    if (!dashboardData.value) return
+    if (e.action === 'confirmed') {
+        dashboardData.value.monthly_revenue = (dashboardData.value.monthly_revenue ?? 0) + (e.data?.amount ?? 0)
+        dashboardData.value.total_revenue = (dashboardData.value.total_revenue ?? 0) + (e.data?.amount ?? 0)
+    }
+}
+
+const handleDashboardStatEvent = (e) => {
+    if (!dashboardData.value) return
+    const payload = e.data ?? e
+    const { stat_key, value } = payload
+    switch (stat_key) {
+        case 'active_tournaments':
+            if (e.action === 'incremented') {
+                dashboardData.value.active_tournaments = (dashboardData.value.active_tournaments ?? 0) + 1
+            } else if (e.action === 'decremented' && dashboardData.value.active_tournaments > 0) {
+                dashboardData.value.active_tournaments--
+            }
+            break
+        case 'tournaments_this_month':
+            if (e.action === 'incremented') {
+                dashboardData.value.tournaments_this_month = (dashboardData.value.tournaments_this_month ?? 0) + 1
+            } else if (e.action === 'decremented' && dashboardData.value.tournaments_this_month > 0) {
+                dashboardData.value.tournaments_this_month--
+            }
+            break
+        case 'user_growth_week':
+            if (e.action === 'incremented' && dashboardData.value.user_growth) {
+                dashboardData.value.user_growth.new_this_week = (dashboardData.value.user_growth.new_this_week ?? 0) + 1
+            } else if (e.action === 'decremented' && dashboardData.value.user_growth && dashboardData.value.user_growth.new_this_week > 0) {
+                dashboardData.value.user_growth.new_this_week--
+            }
+            break
+        case 'mini_tournament_growth':
+            if (dashboardData.value.mini_tournament_growth) {
+                if (e.action === 'incremented') {
+                    dashboardData.value.mini_tournament_growth.active_today = (dashboardData.value.mini_tournament_growth.active_today ?? 0) + 1
+                } else if (e.action === 'decremented' && dashboardData.value.mini_tournament_growth.active_today > 0) {
+                    dashboardData.value.mini_tournament_growth.active_today--
+                }
+                // Recalculate growth_percent
+                const newToday = dashboardData.value.mini_tournament_growth.active_today
+                const yesterday = dashboardData.value.mini_tournament_growth.active_yesterday ?? 0
+                dashboardData.value.mini_tournament_growth.growth_percent = yesterday > 0
+                    ? Math.round(((newToday - yesterday) / yesterday) * 100)
+                    : (newToday > 0 ? 100 : 0)
+            }
+            break
+    }
+}
+
+const handleUserEvent = (e) => {
+    const { action, data } = e
+    if (!dashboardData.value) return
+
+    switch (action) {
+        case 'created':
+            if (!dashboardData.value.recent_new_users) {
+                dashboardData.value.recent_new_users = []
+            }
+            dashboardData.value.recent_new_users = [
+                data,
+                ...dashboardData.value.recent_new_users,
+            ]
+            // Update total users count
+            if (dashboardData.value.user_growth) {
+                dashboardData.value.user_growth.total =
+                    (dashboardData.value.user_growth.total ?? 0) + 1
+                dashboardData.value.user_growth.new_this_week =
+                    (dashboardData.value.user_growth.new_this_week ?? 0) + 1
+            }
+            break
+    }
+}
+
+// ---------- Format helpers ----------
+const formatTournament = (data) => ({
+    id: data.id,
+    name: data.name,
+    poster_url: data.poster_url || 'https://images.unsplash.com/photo-1530549387789-4c1017266635?w=800&q=80',
+    competition_location: data.competition_location || data.club,
+    start_date: data.start_date,
+    fee: data.fee,
+    status: data.status,
+    participants_count: data.participants_count ?? 0,
+})
+
+const formatMiniTournament = (data) => ({
+    id: data.id,
+    name: data.name,
+    start_time: data.start_time,
+    competition_location: data.competition_location,
+    players_count: data.players_count ?? 0,
+    status: data.status,
+    has_dispute: data.has_dispute ?? 0,
+})
+
+// ---------- Test Socket ----------
+const testSocket = async () => {
+    console.log('[SuperAdmin] 🔬 testSocket called')
+    if (!echoChannel) {
+        console.error('[SuperAdmin] echoChannel is null')
+        return
+    }
+    // Gửi test event lên backend để verify
+    try {
+        await post('/admin/test-socket', {})
+        console.log('[SuperAdmin] Test socket request sent')
+    } catch (e) {
+        console.error('[SuperAdmin] Test socket request failed:', e)
+    }
+}
+
 // ---------- Fetch data ----------
 onMounted(async () => {
-  try {
-    loading.value = true
-    const res = await get('/admin/dashboard')
-    console.log('Dashboard API response:', res.data)
-    dashboardData.value = res.data.data
-    console.log('dashboardData:', dashboardData.value)
-  } catch (e) {
-    error.value = 'Không thể tải dữ liệu dashboard.'
-    console.error('Dashboard error:', e)
-  } finally {
-    loading.value = false
-  }
+    try {
+        loading.value = true
+        const res = await get('/admin/dashboard')
+        console.log('Dashboard API response:', res.data)
+        dashboardData.value = res.data.data
+        console.log('dashboardData:', dashboardData.value)
+    } catch (e) {
+        error.value = 'Không thể tải dữ liệu dashboard.'
+        console.error('Dashboard error:', e)
+    } finally {
+        loading.value = false
+    }
+
+    setupSocketListeners()
+})
+
+onUnmounted(() => {
+    if (echoChannel) {
+        echoChannel.stopListening('.super_admin.tournament')
+        echoChannel.stopListening('.super_admin.mini_tournament')
+        echoChannel.stopListening('.super_admin.match')
+        echoChannel.stopListening('.super_admin.user')
+        echoChannel.leave()
+        echoChannel = null
+    }
 })
 
 // ---------- Top Stats ----------
