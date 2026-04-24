@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\ResponseHelper;
+use App\Events\SuperAdmin\UserRegistered;
 use App\Http\Resources\UserResource;
 use App\Jobs\SendPushJob;
 use App\Mail\ResetPasswordMail;
@@ -117,6 +118,9 @@ class AuthController extends Controller
             'avatar_url' => null,
             'full_name' => 'PickiUser' . Str::random(5),
         ]);
+
+        // Notify super admins about new user registration
+        UserRegistered::dispatch($user);
 
         $user->notify(new VerifyEmailNotification($loginField, $request->login));
 

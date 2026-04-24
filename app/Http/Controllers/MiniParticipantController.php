@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\PaymentStatusEnum;
+use App\Events\SuperAdmin\MiniTournamentMemberAdded;
 use App\Helpers\ResponseHelper;
 use App\Models\MiniParticipant;
 use App\Models\MiniTournament;
@@ -184,6 +185,21 @@ class MiniParticipantController extends Controller
             // Gắn user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
             $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, Auth::id());
         }
+
+        $currentUser = Auth::user();
+        MiniTournamentMemberAdded::dispatch(
+            $miniTournament->id,
+            $miniTournament->name,
+            [
+                'id' => $participant->id,
+                'user' => [
+                    'id' => $currentUser->id,
+                    'full_name' => $currentUser->full_name,
+                    'avatar_url' => $currentUser->avatar_url,
+                ],
+            ],
+            'participant'
+        );
 
         return ResponseHelper::success(
             new MiniParticipantResource($participant->loadFullRelations()),

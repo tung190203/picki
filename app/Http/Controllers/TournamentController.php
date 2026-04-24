@@ -3,6 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ClubMemberRole;
+use App\Events\SuperAdmin\DashboardStatUpdated;
+use App\Events\SuperAdmin\TournamentCreated;
+use App\Events\SuperAdmin\TournamentDeleted;
+use App\Events\SuperAdmin\TournamentUpdated;
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\TournamentTypeController;
 use App\Http\Resources\ParticipantResource;
@@ -221,6 +225,8 @@ class TournamentController extends Controller
 
         if ($tournament) {
             $tournament = Tournament::withBasicRelations()->find($tournament->id);
+            TournamentCreated::dispatch($tournament);
+            DashboardStatUpdated::dispatch('tournaments_this_month', 1, 'incremented');
         } else {
             return ResponseHelper::error('Tạo giải đấu thất bại', 500);
         }
@@ -363,6 +369,8 @@ class TournamentController extends Controller
         });
 
         $tournament = Tournament::withBasicRelations()->find($tournament->id);
+        $tournament->load(['sport', 'club', 'createdBy', 'participants']);
+        TournamentUpdated::dispatch($tournament, $oldStatus !== $tournament->status ? ['status' => $oldStatus] : []);
 
         return ResponseHelper::success(new TournamentResource($tournament), 'Cập nhật giải đấu thành công');
     }
@@ -389,6 +397,9 @@ class TournamentController extends Controller
         }
 
         DB::transaction(function () use ($tournament) {
+            TournamentDeleted::dispatch($tournament->id, $tournament->name);
+            DashboardStatUpdated::dispatch('tournaments_this_month', 1, 'decremented');
+            DashboardStatUpdated::dispatch('active_tournaments', 1, 'decremented');
             $tournament->delete();
         });
 

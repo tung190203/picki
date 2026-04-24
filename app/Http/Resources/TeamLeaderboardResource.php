@@ -30,6 +30,7 @@ class TeamLeaderboardResource extends JsonResource
             'vndupr_avg'    => $team['vndupr_avg'],
             'members'       => $team['members'],
             'tournament_types' => $team['tournament_types'] ?? [],
+            'is_my_team'    => $team['is_my_team'] ?? false,
             'rank'          => $this->rank,
             'total_matches' => $this->totalMatches,
             'win_rate'      => round($this->winRate, 2),

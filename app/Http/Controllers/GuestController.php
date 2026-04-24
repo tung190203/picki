@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ClubMemberRole;
 use App\Enums\PaymentStatusEnum;
+use App\Events\SuperAdmin\MiniTournamentMemberAdded;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MiniParticipantResource;
 use App\Models\Club;
@@ -233,6 +234,30 @@ class GuestController extends Controller
 
         // Load relations for response
         $participant->load(['user', 'guarantor']);
+
+        // Notify super admins via socket
+        MiniTournamentMemberAdded::dispatch(
+            $miniTournament->id,
+            $miniTournament->name,
+            [
+                'id' => $participant->id,
+                'user' => [
+                    'id' => $participant->user->id,
+                    'full_name' => $participant->user->full_name,
+                    'avatar_url' => $participant->user->avatar_url,
+                ],
+                'guest_name' => $participant->guest_name,
+                'guest_phone' => $participant->guest_phone,
+                'guest_avatar' => $participant->guest_avatar,
+                'guarantor' => $participant->guarantor ? [
+                    'id' => $participant->guarantor->id,
+                    'full_name' => $participant->guarantor->full_name,
+                    'avatar_url' => $participant->guarantor->avatar_url,
+                ] : null,
+                'is_pending_confirmation' => $participant->is_pending_confirmation,
+            ],
+            'guest'
+        );
 
         // Gửi thông báo cho người bảo lãnh (nếu có)
         if ($guarantorUserId && $guarantorUserId !== auth()->id()) {

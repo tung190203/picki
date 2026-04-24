@@ -2,6 +2,9 @@
 
 namespace App\Services\Admin;
 
+use App\Events\SuperAdmin\DashboardStatUpdated;
+use App\Events\SuperAdmin\TournamentDeleted;
+use App\Events\SuperAdmin\TournamentUpdated;
 use App\Models\Tournament;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -79,6 +82,10 @@ class TournamentManagementService
             $oldValues,
             ['status' => Tournament::OPEN]
         );
+
+        $tournament->refresh();
+        $tournament->load(['sport', 'club', 'createdBy', 'participants']);
+        TournamentUpdated::dispatch($tournament, $oldValues);
     }
 
     public function feature(Tournament $tournament, User $admin): void
@@ -95,6 +102,10 @@ class TournamentManagementService
             $oldValues,
             ['is_featured' => true]
         );
+
+        $tournament->refresh();
+        $tournament->load(['sport', 'club', 'createdBy', 'participants']);
+        TournamentUpdated::dispatch($tournament, $oldValues);
     }
 
     public function unfeature(Tournament $tournament, User $admin): void
@@ -111,10 +122,17 @@ class TournamentManagementService
             $oldValues,
             ['is_featured' => false]
         );
+
+        $tournament->refresh();
+        $tournament->load(['sport', 'club', 'createdBy', 'participants']);
+        TournamentUpdated::dispatch($tournament, $oldValues);
     }
 
     public function delete(Tournament $tournament, User $admin): void
     {
+        $tournamentId = $tournament->id;
+        $tournamentName = $tournament->name;
+
         $this->auditLogService->log(
             $admin,
             'delete_tournament',
@@ -125,5 +143,9 @@ class TournamentManagementService
         );
 
         $tournament->delete();
+
+        TournamentDeleted::dispatch($tournamentId, $tournamentName);
+        DashboardStatUpdated::dispatch('tournaments_this_month', 1, 'decremented');
+        DashboardStatUpdated::dispatch('active_tournaments', 1, 'decremented');
     }
 }

@@ -326,6 +326,8 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
     Route::post('/broadcast', [BroadcastController::class, 'send']);
 
     Route::get('/disputes', [DisputeController::class, 'index']);
+    Route::post('/disputes', [DisputeController::class, 'store']);
+    Route::put('/disputes/{id}/resolve', [DisputeController::class, 'resolve']);
 
     Route::get('/search', [SearchController::class, 'index']);
 
@@ -335,6 +337,8 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
 });
 
 Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(function () {
+    // Test socket - chỉ cần auth, không cần super_admin
+    Route::post('/admin/test-socket', [App\Http\Controllers\Admin\DashboardController::class, 'testSocket']);
     Route::post('/device-token/sync', [DeviceTokenController::class, 'sync']);
     Route::post('/notifications/setting', [DeviceTokenController::class, 'update']);
     Route::delete('/device-token/delete', [DeviceTokenController::class, 'destroy']);

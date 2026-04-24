@@ -46,6 +46,11 @@ async function fetchUser(token, type) {
         return
       }
 
+      if (res.data.data.is_super_admin) {
+        router.replace({ name: 'admin.dashboard' })
+        return
+      }
+
       switch (res.data.data.role) {
         case ROLE.ADMIN:
           router.replace({ name: 'admin.dashboard' })

@@ -377,7 +377,7 @@ export const route = [
     name: 'admin.dashboard',
     component: AdminDashboard,
     meta: {
-      role: [ROLE.ADMIN]
+      requiresAdmin: true,
     }
   },
   {
@@ -385,7 +385,7 @@ export const route = [
     name: 'admin.moderation',
     component: () => import('@/components/pages/admin/AdminModeration.vue'),
     meta: {
-      role: [ROLE.ADMIN]
+      requiresAdmin: true,
     }
   },
   {
@@ -393,7 +393,7 @@ export const route = [
     name: 'admin.config',
     component: () => import('@/components/pages/admin/AdminConfig.vue'),
     meta: {
-      role: [ROLE.ADMIN]
+      requiresAdmin: true,
     }
   },
 
