@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Support\Facades\Auth;
 
 class Team extends Model
 {
@@ -16,6 +17,8 @@ class Team extends Model
         'tournament_type_id',
         'avatar',
     ];
+
+    protected $appends = ['is_my_team'];
 
     const PER_PAGE = 15;
 
@@ -34,11 +37,24 @@ class Team extends Model
         return Attribute::make(
             get: fn (string $value = null) => $value
                 ? (
-                    str_starts_with($value, 'http') 
-                        ? $value 
+                    str_starts_with($value, 'http')
+                        ? $value
                         : config('app.frontend_url') . '/storage/' . $value
                   )
                 : null,
+        );
+    }
+
+    protected function isMyTeam(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                $userId = Auth::id();
+                if (!$userId) {
+                    return false;
+                }
+                return $this->members->contains('id', $userId);
+            },
         );
     }
 }

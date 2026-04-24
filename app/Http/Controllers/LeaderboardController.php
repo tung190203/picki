@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\TeamLeaderboardResource;
 use App\Models\Club\Club;
+use App\Models\Participant;
 use App\Models\Sport;
 use App\Models\Team;
 use App\Models\TeamRanking;
@@ -13,6 +14,7 @@ use App\Models\User;
 use App\Models\UserSportScore;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class LeaderboardController extends Controller
 {
@@ -59,9 +61,25 @@ class LeaderboardController extends Controller
             $tournamentId
         );
 
+        // Preload participant records cho tất cả members thuộc các team trong leaderboard
+        $allMemberIds = $rankings
+            ->pluck('team.members')
+            ->flatten()
+            ->pluck('id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $participants = Participant::where('tournament_id', $tournamentId)
+            ->whereIn('user_id', $allMemberIds)
+            ->get()
+            ->keyBy('user_id');
+
+        $currentUserId = Auth::id();
+
         $leaderboard = $rankings
             ->groupBy('team_id')
-            ->map(function ($teamRankings, $teamId) use ($teamStats, $sportId) {
+            ->map(function ($teamRankings, $teamId) use ($teamStats, $sportId, $participants, $currentUserId) {
                 $firstRanking = $teamRankings->first();
                 $team = $firstRanking->team;
                 $stats = $teamStats[$teamId] ?? ['total_matches' => 0, 'win_rate' => 0, 'vndupr_avg' => 0];
@@ -73,11 +91,26 @@ class LeaderboardController extends Controller
                     'name' => $r->tournamentType->format_label ?? 'N/A',
                 ])->values()->all();
 
-                $members = $team->members->map(fn($m) => [
-                    'id'         => $m->id,
-                    'full_name'  => $m->full_name,
-                    'avatar_url' => $m->avatar_url,
-                ])->values()->all();
+                $memberUserIds = $team->members->pluck('id')->toArray();
+                $isMyTeam = $currentUserId && in_array($currentUserId, $memberUserIds);
+
+                $members = $team->members->map(function ($m) use ($participants) {
+                    $participant = $participants->get($m->id);
+                    return [
+                        'id'            => $m->id,
+                        'full_name'     => $m->full_name,
+                        'avatar_url'    => $m->avatar_url,
+                        'participant'   => $participant ? [
+                            'id'                  => $participant->id,
+                            'is_confirmed'        => (bool) $participant->is_confirmed,
+                            'is_guest'            => (bool) $participant->is_guest,
+                            'is_pending_confirmation' => (bool) $participant->is_pending_confirmation,
+                            'is_absent'           => (bool) $participant->is_absent,
+                            'guarantor_user_id'   => $participant->guarantor_user_id,
+                            'checked_in_at'       => $participant->checked_in_at?->toIsoString(),
+                        ] : null,
+                    ];
+                })->values()->all();
 
                 return new TeamLeaderboardResource([
                     'id'            => $team->id,
@@ -86,6 +119,7 @@ class LeaderboardController extends Controller
                     'vndupr_avg'    => $stats['vndupr_avg'],
                     'members'       => $members,
                     'tournament_types' => $tournamentTypes,
+                    'is_my_team'    => $isMyTeam,
                 ], $rank, $stats['total_matches'], $stats['win_rate']);
             })
             ->sortBy(fn($item) => $item->rank)

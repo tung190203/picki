@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\SuperAdmin\TournamentMemberAdded;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\ParticipantResource;
 use App\Http\Resources\TournamentParticipantResource;
@@ -258,6 +259,21 @@ class ParticipantController extends Controller
                 );
             }
         }
+
+        $participant->load('user');
+        TournamentMemberAdded::dispatch(
+            $tournament->id,
+            $tournament->name,
+            [
+                'id' => $participant->id,
+                'user' => [
+                    'id' => $user->id,
+                    'full_name' => $user->full_name,
+                    'avatar_url' => $user->avatar_url,
+                ],
+            ],
+            'participant'
+        );
 
         return ResponseHelper::success(new ParticipantResource($participant),'Tham gia giải đấu thành công',201);
     }

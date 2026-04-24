@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\SuperAdmin\TournamentMatchUpdated;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MatchDetailResource;
 use App\Http\Resources\MatchesResource;
@@ -125,7 +126,8 @@ class MatchesController extends Controller
             'away_team_confirm' => 0,
         ]);
 
-        $match->load('results');
+        $match->load(['results', 'homeTeam', 'awayTeam', 'tournamentType.tournament']);
+        TournamentMatchUpdated::dispatch($match);
 
         return ResponseHelper::success(new MatchDetailResource($match));
     }
@@ -1191,7 +1193,9 @@ class MatchesController extends Controller
                     'by' => 'admin',
                 ]
             );
-        }        
+        }
+
+        TournamentMatchUpdated::dispatch($match->fresh(['results', 'tournamentType.tournament', 'homeTeam.members', 'awayTeam.members']));
 
         return ResponseHelper::success(
             new MatchesResource($match->fresh(['results', 'tournamentType.tournament', 'homeTeam.members', 'awayTeam.members'])),
