@@ -30,6 +30,7 @@ class UserManagementService
                 'is_anchor',
                 'last_login',
                 'created_at',
+                'is_guest',
             ])
             ->where('is_guest', false)
             ->orderBy('created_at', 'desc');
