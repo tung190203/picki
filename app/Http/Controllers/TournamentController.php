@@ -316,8 +316,9 @@ class TournamentController extends Controller
         }
 
         $oldCreatorJoin = $tournament->creator_join;
+        $oldStatus = $tournament->status;
 
-        DB::transaction(function () use ($validated, $tournament, $request, &$oldCreatorJoin) {
+        DB::transaction(function () use ($validated, $tournament, $request, &$oldCreatorJoin, &$oldStatus) {
             if ($request->hasFile('poster')) {
                 $this->imageService->deleteOldImage($tournament->poster);
                 $path = $this->imageService->optimize(
@@ -332,7 +333,6 @@ class TournamentController extends Controller
                 unset($validated['poster']);
             }
             unset($validated['remove_poster']);
-            $oldStatus = $tournament->status;
             $newStatus = $validated['status'] ?? $oldStatus;
             $tournament->fill($validated);
             $tournament->save();
