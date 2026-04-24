@@ -65,6 +65,7 @@ class UserResource extends JsonResource
             'total_mini_tournaments' => (int) $this->total_mini_tournaments,
             'is_super_admin' => (bool)$this->is_super_admin,
             'is_banned' => (bool)$this->is_banned,
+            'is_guest' => (bool)$this->is_guest,
             'created_at' => $this->created_at?->toISOString(),
         ];
     }
