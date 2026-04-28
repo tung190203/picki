@@ -78,10 +78,49 @@ class UserTournamentResource extends JsonResource
 
     /**
      * Xác định giải đấu đã kết thúc hay chưa.
+     * Giải chỉ completed khi tất cả trận đấu đã có kết quả xác nhận.
      */
     protected function isCompleted(): bool
     {
-        return $this->status === 3; // CLOSED = 3
+        if ($this->status !== 3) {
+            return false;
+        }
+
+        $tournamentTypes = $this->tournamentTypes ?? collect();
+
+        $allMatches = $tournamentTypes
+            ->flatMap(fn($type) => $type->groups ?? collect())
+            ->flatMap(fn($group) => $group->matches ?? collect());
+
+        if ($allMatches->isEmpty()) {
+            return true;
+        }
+
+        // Kiểm tra results đã eager loaded chưa
+        $firstMatch = $allMatches->first();
+        $resultsLoaded = $firstMatch && $firstMatch->relationLoaded('results');
+
+        if ($resultsLoaded) {
+            // Dùng dữ liệu đã eager load (tránh N+1)
+            $incompleteCount = $allMatches
+                ->filter(fn($match) => !$match->relationLoaded('results') || $match->results->isEmpty())
+                ->count();
+            return $incompleteCount === 0;
+        }
+
+        // Fallback: query DB khi results chưa loaded
+        $matchIds = $allMatches->pluck('id')->toArray();
+        if (empty($matchIds)) {
+            return true;
+        }
+
+        $matchesWithResults = DB::table('match_results')
+            ->whereIn('match_id', $matchIds)
+            ->distinct()
+            ->pluck('match_id')
+            ->count();
+
+        return $matchesWithResults === count($matchIds);
     }
 
     /**

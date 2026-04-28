@@ -9,6 +9,7 @@ use App\Models\Participant;
 use App\Models\Sport;
 use App\Models\Team;
 use App\Models\TeamRanking;
+use App\Models\Tournament;
 use App\Models\TournamentType;
 use App\Models\User;
 use App\Models\UserSportScore;
@@ -44,15 +45,18 @@ class LeaderboardController extends Controller
 
         $tournamentTypeIds = TournamentType::where('tournament_id', $tournamentId)->pluck('id');
         if ($tournamentTypeIds->isEmpty()) {
-            return ResponseHelper::success(['leaderboard' => []], 'Không tìm thấy giải đấu.');
+            return ResponseHelper::success(['leaderboard' => [], 'is_final' => false], 'Không tìm thấy giải đấu.');
         }
+
+        $tournament = Tournament::find($tournamentId);
+        $isFinal = $tournament && $tournament->status === Tournament::CLOSED;
 
         $rankings = TeamRanking::with(['team.members'])
             ->whereIn('tournament_type_id', $tournamentTypeIds)
             ->get();
 
         if ($rankings->isEmpty()) {
-            return ResponseHelper::success(['leaderboard' => []], 'Không có dữ liệu xếp hạng.');
+            return ResponseHelper::success(['leaderboard' => [], 'is_final' => $isFinal], 'Không có dữ liệu xếp hạng.');
         }
 
         $teamStats = $this->getTeamStats(
@@ -128,6 +132,7 @@ class LeaderboardController extends Controller
 
         return ResponseHelper::success([
             'leaderboard' => $leaderboard->values(),
+            'is_final'   => $isFinal,
         ], 'Lấy dữ liệu leaderboard thành công');
     }
 
