@@ -34,8 +34,8 @@ class ListClubResource extends JsonResource
                 }
 
                 return [
-                    'min' => round($scores->min(), 1),
-                    'max' => round($scores->max(), 1),
+                    'min' => round($scores->min(), 3),
+                    'max' => round($scores->max(), 3),
                 ];
             }, null),
         ];
