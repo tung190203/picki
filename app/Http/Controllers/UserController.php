@@ -544,19 +544,19 @@ class UserController extends Controller
         $overview = $this->getUserTournamentOverview($userId, $isOwnProfile);
 
             // Sort: open → upcoming → finished → canceled (ongoing tách riêng)
-            $query = Tournament::query()
-                ->with([
-                    'createdBy', 'club', 'sport',
-                    'tournamentStaffs', 'competitionLocation',
-                    'teams', 'participants',
-                    'tournamentTypes.groups.matches.homeTeam',
-                    'tournamentTypes.groups.matches.awayTeam',
-                    'tournamentTypes.groups.matches.results',
-                ])
-                ->where(function ($q) use ($userId) {
-                    $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId))
-                      ->orWhereHas('tournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1, 2]));
-                })
+        $query = Tournament::query()
+            ->with([
+                'createdBy', 'club', 'sport',
+                'tournamentStaffs', 'competitionLocation',
+                'teams', 'participants',
+                'tournamentTypes.groups.matches.homeTeam',
+                'tournamentTypes.groups.matches.awayTeam',
+                'tournamentTypes.groups.matches.results',
+            ])
+            ->where(function ($q) use ($userId) {
+                $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId)->where('is_confirmed', true))
+                  ->orWhereHas('tournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1, 2]));
+            })
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
             ->when(!$isOwnProfile, function ($q) {
                 $q->where('is_private', false);
@@ -565,11 +565,11 @@ class UserController extends Controller
             ->when($dateTo, fn($q) => $q->where('end_date', '<=', $dateTo))
             ->where('start_date', '<=', now())
             ->where('status', '!=', 1)
-            // Ongoing: tách riêng, không hiển thị trong danh sách
-            // Chỉ loại trừ khi end_date tồn tại VÀ chưa kết thúc; tournament không có end_date vẫn hiển thị trong list
             ->where(function ($q) {
                 $q->whereRaw('NOT (status = 2 AND start_date <= NOW() AND end_date IS NOT NULL AND end_date >= NOW())');
             })
+            // Chỉ lấy giải có ít nhất 1 trận đấu đã xác nhận kết quả
+            ->whereHas('tournamentTypes.groups.matches', fn($mq) => $mq->whereHas('results'))
             ->select('tournaments.*')
             ->selectRaw("
                 CASE
@@ -593,7 +593,7 @@ class UserController extends Controller
             ->orderByRaw('date_sort_dir ASC, sort_date DESC')
             ->orderBy('start_date', 'desc');
 
-        // Tách 1 giải ongoing gần nhất
+        // Tách 1 giải ongoing gần nhất (chỉ confirmed participant)
         $ongoingTournament = Tournament::query()
             ->with([
                 'createdBy', 'club', 'sport',
@@ -604,11 +604,12 @@ class UserController extends Controller
                 'tournamentTypes.groups.matches.results',
             ])
             ->where(function ($q) use ($userId) {
-                $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId))
+                $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId)->where('is_confirmed', true))
                   ->orWhereHas('tournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1, 2]));
             })
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
             ->whereRaw('status = 2 AND start_date <= NOW() AND end_date IS NOT NULL AND end_date >= NOW()')
+            ->whereHas('tournamentTypes.groups.matches', fn($mq) => $mq->whereHas('results'))
             ->orderBy('start_date', 'ASC')
             ->first();
 
@@ -753,9 +754,10 @@ class UserController extends Controller
         // Ongoing = status=2 AND start_date<=NOW() AND end_date IS NOT NULL AND end_date>=NOW()
         $ongoingCondition = 'NOT (tournaments.status = 2 AND tournaments.start_date <= NOW() AND tournaments.end_date IS NOT NULL AND tournaments.end_date >= NOW())';
 
-        // Lấy tournament IDs user tham gia với vai trò VDV (sport_id = 1, đã bắt đầu, không ongoing, không private nếu không phải chính mình)
+        // Lấy tournament IDs user tham gia với vai trò VDV (sport_id = 1, đã confirm, đã bắt đầu, không ongoing, không private nếu không phải chính mình)
         $tournamentIdsAsParticipant = DB::table('participants')
             ->where('user_id', $userId)
+            ->where('is_confirmed', true)
             ->whereRaw("EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = participants.tournament_id AND tournaments.sport_id = 1 AND tournaments.status != 1 AND tournaments.start_date <= NOW() AND {$ongoingCondition}" . ($isOwnProfile ? '' : ' AND tournaments.is_private = false') . ")")
             ->pluck('tournament_id');
 
