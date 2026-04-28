@@ -491,4 +491,20 @@ class Tournament extends Model
             })
             ->exists();
     }
+
+    /**
+     * Kiểm tra tournament có trận chung kết đã xác nhận kết quả hay chưa.
+     * Round = 4 là Chung kết (theo TournamentType::FORMAT_ELIMINATION).
+     * @return bool
+     */
+    public function hasFinalMatchWithResult(): bool
+    {
+        return $this->tournamentTypes()
+            ->where('format', TournamentType::FORMAT_ELIMINATION)
+            ->whereHas('groups.matches', function ($q) {
+                $q->where('round', 4)
+                  ->whereHas('results');
+            })
+            ->exists();
+    }
 }

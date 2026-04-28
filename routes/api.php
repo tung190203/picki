@@ -44,10 +44,12 @@ use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MiniTournamentController;
+use App\Http\Controllers\MiniTournamentSearchController;
 use App\Http\Controllers\SendMessageController;
 use App\Http\Controllers\SportController;
 use App\Http\Controllers\SystemNotificationController;
 use App\Http\Controllers\TeamController;
+use App\Http\Controllers\TournamentSearchController;
 use App\Http\Controllers\TournamentStaffController;
 use App\Http\Controllers\MiniTournamentPaymentController;
 use App\Http\Controllers\MiniTournamentTemplateController;
@@ -113,6 +115,7 @@ Route::get('/tournament-detail/{id}/bracket', [TournamentController::class, 'get
 
 // Tournament Public Routes - Landing Page (không cần đăng nhập)
 Route::prefix('tournaments')->group(function () {
+    Route::match(['get', 'post'], '/search', [TournamentSearchController::class, 'search']);
     Route::get('/index', [TournamentController::class, 'index']);
     Route::get('/{id}', [TournamentController::class, 'show']);
     Route::get('/{id}/bracket', [TournamentController::class, 'getBracket']);
@@ -626,6 +629,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     Route::get('/location-detail', [UserController::class, 'detailGooglePlace']);
     // Mini Tournament Routes
     Route::prefix('mini-tournaments')->group(function (): void {
+        Route::match(['get', 'post'], '/search', [MiniTournamentSearchController::class, 'search']);
         Route::match(['get', 'post'], '/index', [MiniTournamentController::class, 'index']);
         Route::post('/store', [MiniTournamentController::class, 'store']);
         // Các route có nhiều segment phải khai báo trước GET /{id} để tránh match nhầm / 405 Method Not Allowed

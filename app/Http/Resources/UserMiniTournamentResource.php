@@ -86,17 +86,17 @@ class UserMiniTournamentResource extends JsonResource
 
     protected function isCompleted(): bool
     {
-        if ($this->status === 3) {
-            return true;
+        if ($this->status !== 3) {
+            return false;
         }
 
-        if ($this->end_time && now()->greaterThan($this->end_time)) {
-            $totalMatches = $this->matches?->count() ?? 0;
-            $completedMatches = $this->matches?->where('status', 'completed')->count() ?? 0;
-            return $totalMatches > 0 && $totalMatches === $completedMatches;
+        $matches = $this->matches ?? collect();
+
+        if ($matches->isEmpty()) {
+            return false;
         }
 
-        return false;
+        return $matches->contains(fn($m) => $m->relationLoaded('results') && $m->results->isNotEmpty());
     }
 
     protected function getTargetParticipant(): ?\App\Models\MiniParticipant

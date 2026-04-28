@@ -11,15 +11,14 @@ class AutoCloseMiniTournaments extends Command
 {
     protected $signature = 'mini-tournaments:auto-close';
 
-    protected $description = 'Tự động đóng mini-tournament khi end_time < now() và tất cả matches đã completed, cập nhật stats cho participants';
+    protected $description = 'Tự động đóng mini-tournament khi end_time < now(), cập nhật stats cho participants';
 
     public function handle(): int
     {
-        // Lấy tất cả mini-tournaments có status != CLOSED và đã hết giờ
         $miniTournaments = MiniTournament::where('status', '!=', MiniTournament::STATUS_CLOSED)
             ->whereNotNull('end_time')
             ->where('end_time', '<', now())
-            ->with(['matches', 'participants'])
+            ->with(['participants'])
             ->get();
 
         if ($miniTournaments->isEmpty()) {
@@ -30,15 +29,9 @@ class AutoCloseMiniTournaments extends Command
         $closedCount = 0;
 
         foreach ($miniTournaments as $miniTournament) {
-            $totalMatches = $miniTournament->matches->count();
-            $completedMatches = $miniTournament->matches->where('status', 'completed')->count();
-
-            // Chỉ đóng nếu có match và tất cả matches đều completed
-            if ($totalMatches > 0 && $totalMatches === $completedMatches) {
-                $this->closeMiniTournament($miniTournament);
-                $closedCount++;
-                $this->info("Da dong mini-tournament #{$miniTournament->id} '{$miniTournament->name}'.");
-            }
+            $this->closeMiniTournament($miniTournament);
+            $closedCount++;
+            $this->info("Da dong mini-tournament #{$miniTournament->id} '{$miniTournament->name}'.");
         }
 
         $this->info("Da dong {$closedCount} mini-tournament.");
