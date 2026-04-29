@@ -64,6 +64,7 @@ class UserTournamentResource extends JsonResource
             'player_per_team' => $this->player_per_team,
             'gender_policy' => (int) $this->gender_policy,
             'max_team' => $this->max_team,
+            'participated_team' => $this->getParticipatedTeamCount(),
             'status' => $this->status,
             'is_creator' => (int) $this->created_by === $this->targetUserId,
 
@@ -270,6 +271,21 @@ class UserTournamentResource extends JsonResource
             'current_rank' => $this->getUserRank($sportId),
             'rank_change' => $participant?->rank_change,
         ];
+    }
+
+    /**
+     * Đếm số team thực tế đã tham gia giải.
+     * Ưu tiên dùng eager-loaded teams, fallback query DB.
+     */
+    protected function getParticipatedTeamCount(): int
+    {
+        if ($this->relationLoaded('teams') && $this->teams) {
+            return $this->teams->count();
+        }
+
+        return DB::table('teams')
+            ->where('tournament_id', $this->id)
+            ->count();
     }
 
     /**
