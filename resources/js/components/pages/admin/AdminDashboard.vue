@@ -7,21 +7,6 @@
     <main class="flex-1 md:ml-64 min-h-screen" style="background-color: var(--surface-bright, #fff8f7);">
     <AdminHeader />
 
-      <!-- 🔍 Socket Debug Bar -->
-      <div class="px-4 py-2 text-xs font-mono flex items-center gap-4 flex-wrap"
-        style="background: #1a1a2e; color: #00ff88;">
-        <span class="font-bold text-white">SOCKET DEBUG:</span>
-        <span>[Echo] {{ socketStatus.echoAvailable ? '✓ available' : '✗ NOT available' }}</span>
-        <span>[Channel] {{ socketStatus.channelName || '—' }}</span>
-        <span>[Subscribed] {{ socketStatus.subscribed ? '✓ YES' : '✗ NO' }}</span>
-        <span v-if="socketStatus.error" class="text-red-400">[ERROR] {{ socketStatus.error }}</span>
-        <button @click="testSocket"
-          class="px-3 py-1 rounded text-xs font-bold text-white"
-          style="background:#b3111b; margin-left: auto;">
-          🔬 Test Socket
-        </button>
-      </div>
-
       <!-- Loading State -->
       <div v-if="loading" class="p-8 max-w-[1400px] mx-auto">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -223,7 +208,7 @@
 <script setup>
 import AdminSidebar from '@/components/organisms/AdminSidebar.vue'
 import AdminHeader from '@/components/organisms/AdminHeader.vue'
-import { get, post } from '@/utils/httpRequest.js'
+import { get } from '@/utils/httpRequest.js'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { formatedDate } from '@/composables/formatedDate.js'
 
@@ -233,84 +218,51 @@ const dashboardData = ref(null)
 
 // ---------- Socket listeners ----------
 let echoChannel = null
-const socketStatus = ref({
-    echoAvailable: false,
-    channelName: '',
-    subscribed: false,
-    error: null,
-})
 
 const setupSocketListeners = () => {
-    console.log('[SuperAdmin] setupSocketListeners called')
-
     if (!window.Echo) {
-        console.error('[SuperAdmin] window.Echo is NOT available')
-        socketStatus.value.echoAvailable = false
-        socketStatus.value.error = 'window.Echo không tồn tại. Kiểm tra bootstrap.js'
         return
     }
-    socketStatus.value.echoAvailable = true
-    console.log('[SuperAdmin] window.Echo is available ✓')
 
-    // Dùng DashboardAdminChannel — đổi tên theo yêu cầu
     const channelName = 'DashboardAdminChannel'
-    socketStatus.value.channelName = channelName
-    console.log('[SuperAdmin] Subscribing to channel:', channelName)
 
     echoChannel = window.Echo.private(channelName)
-
-    // Dùng .subscribed() và .error() thay vì .bind() — đây là API chuẩn của laravel-echo v2
     echoChannel
         .subscribed(() => {
-            console.log('[SuperAdmin] ✓ Subscribed to', channelName)
-            socketStatus.value.subscribed = true
         })
         .error((status) => {
-            console.error('[SuperAdmin] ✗ Subscription error:', status)
-            socketStatus.value.error = `Lỗi subscribe: ${status}`
-            socketStatus.value.subscribed = false
         })
         // .listen() trả this nên chain được
         .listen('.super_admin.tournament', (e) => {
-            console.log('[SuperAdmin] 🎯 RECEIVED .super_admin.tournament:', JSON.stringify(e, null, 2))
             handleTournamentEvent(e)
         })
         .listen('.super_admin.mini_tournament', (e) => {
-            console.log('[SuperAdmin] 🎯 RECEIVED .super_admin.mini_tournament:', JSON.stringify(e, null, 2))
             handleMiniTournamentEvent(e)
         })
         .listen('.super_admin.match', (e) => {
-            console.log('[SuperAdmin] 🎯 RECEIVED .super_admin.match:', JSON.stringify(e, null, 2))
             handleMatchEvent(e)
         })
         .listen('.super_admin.dispute', (e) => {
-            console.log('[SuperAdmin] 🎯 RECEIVED .super_admin.dispute:', JSON.stringify(e, null, 2))
             handleDisputeEvent(e)
         })
         .listen('.super_admin.report', (e) => {
-            console.log('[SuperAdmin] 🎯 RECEIVED .super_admin.report:', JSON.stringify(e, null, 2))
             handleReportEvent(e)
         })
         .listen('.super_admin.payment', (e) => {
-            console.log('[SuperAdmin] 🎯 RECEIVED .super_admin.payment:', JSON.stringify(e, null, 2))
             handlePaymentEvent(e)
         })
         .listen('.super_admin.dashboard_stat', (e) => {
-            console.log('[SuperAdmin] 🎯 RECEIVED .super_admin.dashboard_stat:', JSON.stringify(e, null, 2))
             handleDashboardStatEvent(e)
         })
         .listen('.super_admin.user', (e) => {
-            console.log('[SuperAdmin] 🎯 RECEIVED .super_admin.user:', JSON.stringify(e, null, 2))
             handleUserEvent(e)
         })
 }
 
 const handleTournamentEvent = (e) => {
     const { action, data } = e
-    console.log('[SuperAdmin] handleTournamentEvent called with action:', action, 'data:', data)
 
     if (!dashboardData.value) {
-        console.warn('[SuperAdmin] dashboardData is null, skipping event')
         return
     }
 
@@ -364,10 +316,8 @@ const handleTournamentEvent = (e) => {
 
 const handleMiniTournamentEvent = (e) => {
     const { action, data } = e
-    console.log('[SuperAdmin] handleMiniTournamentEvent called with action:', action, 'data:', data)
 
     if (!dashboardData.value) {
-        console.warn('[SuperAdmin] dashboardData is null, skipping mini event')
         return
     }
 
@@ -416,10 +366,7 @@ const handleMiniTournamentEvent = (e) => {
     }
 }
 
-const handleMatchEvent = (e) => {
-    const { action, data } = e
-    console.log('[SuperAdmin] Match event:', action, data)
-}
+const handleMatchEvent = (e) => {}
 
 const handleDisputeEvent = (e) => {
     if (!dashboardData.value) return
@@ -538,22 +485,6 @@ const formatMiniTournament = (data) => ({
     has_dispute: data.has_dispute ?? 0,
 })
 
-// ---------- Test Socket ----------
-const testSocket = async () => {
-    console.log('[SuperAdmin] 🔬 testSocket called')
-    if (!echoChannel) {
-        console.error('[SuperAdmin] echoChannel is null')
-        return
-    }
-    // Gửi test event lên backend để verify
-    try {
-        await post('/admin/test-socket', {})
-        console.log('[SuperAdmin] Test socket request sent')
-    } catch (e) {
-        console.error('[SuperAdmin] Test socket request failed:', e)
-    }
-}
-
 // ---------- Fetch data ----------
 onMounted(async () => {
     try {
@@ -578,7 +509,6 @@ onUnmounted(() => {
         echoChannel.stopListening('.super_admin.mini_tournament')
         echoChannel.stopListening('.super_admin.match')
         echoChannel.stopListening('.super_admin.user')
-        echoChannel.leave()
         echoChannel = null
     }
 })
@@ -603,9 +533,9 @@ const topStats = computed(() => {
     },
     {
       label: 'Kèo Đang Active',
-      value: d.mini_match_growth?.active_today?.toString() ?? '0',
-      trend: d.mini_match_growth?.growth_percent !== null && d.mini_match_growth?.growth_percent !== undefined
-        ? `${d.mini_match_growth.growth_percent > 0 ? '+' : ''}${d.mini_match_growth.growth_percent}%`
+      value: d.mini_tournament_growth?.active_today?.toString() ?? '0',
+      trend: d.mini_tournament_growth?.growth_percent !== null && d.mini_tournament_growth?.growth_percent !== undefined
+        ? `${d.mini_tournament_growth.growth_percent > 0 ? '+' : ''}${d.mini_tournament_growth.growth_percent}%`
         : null,
       borderColor: 'border-[#a03e38]',
       valueColor: '#271716',
@@ -671,7 +601,7 @@ const openMatches = computed(() => {
       date: formatedDate(m.start_time ?? m.created_at, 'dateDMY'),
       players_count: m.players_count ?? 0,
       location: m.competition_location?.name ?? '',
-      statusLabel: mapped.label + (m.players_count !== undefined ? ` (${m.players_count}/—)` : ''),
+      statusLabel: mapped.label + ` (${m.players_count ?? 0}/${m.max_players ?? '—'})`,
       statusClass: mapped.class,
       hasDispute: m.has_dispute > 0,
     }
@@ -694,7 +624,7 @@ const openTournaments = computed(() => {
       location: t.competition_location?.name ?? 'Việt Nam',
       regCount: t.fee ?? '—',
       regText: t.fee ? `${Number(t.fee).toLocaleString()} VNĐ` : 'Miễn phí',
-      image: t.poster_url || 'https://images.unsplash.com/photo-1530549387789-4c1017266635?w=800&q=80',
+      image: t.poster || 'https://images.unsplash.com/photo-1530549387789-4c1017266635?w=800&q=80',
     }
   })
 })
