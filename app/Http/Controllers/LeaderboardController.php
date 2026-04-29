@@ -86,7 +86,8 @@ class LeaderboardController extends Controller
             ->map(function ($teamRankings, $teamId) use ($teamStats, $sportId, $participants, $currentUserId) {
                 $firstRanking = $teamRankings->first();
                 $team = $firstRanking->team;
-                $stats = $teamStats[$teamId] ?? ['total_matches' => 0, 'win_rate' => 0, 'vndupr_avg' => 0];
+                $stats = $teamStats[$teamId] ?? ['total_matches' => 0, 'win_rate' => 0, 'vndupr_avg' => 0, 'last_round' => null];
+                $lastRound = $stats['last_round'] ?? null;
 
                 $rank = $this->resolveFinalRank($teamRankings);
 
@@ -124,7 +125,7 @@ class LeaderboardController extends Controller
                     'members'       => $members,
                     'tournament_types' => $tournamentTypes,
                     'is_my_team'    => $isMyTeam,
-                ], $rank, $stats['total_matches'], $stats['win_rate']);
+                ], $rank, $stats['total_matches'], $stats['win_rate'], $lastRound);
             })
             ->sortBy(fn($item) => $item->rank)
             ->values()
@@ -146,7 +147,7 @@ class LeaderboardController extends Controller
             ->whereIn('m.home_team_id', $teamIds)
             ->where('m.status', 'completed')
             ->whereNotNull('m.winner_id')
-            ->select('m.home_team_id as team_id', 'm.winner_id')
+            ->select('m.home_team_id as team_id', 'm.winner_id', 'm.round')
             ->unionAll(
                 DB::table('matches as m')
                     ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
@@ -154,7 +155,7 @@ class LeaderboardController extends Controller
                     ->whereIn('m.away_team_id', $teamIds)
                     ->where('m.status', 'completed')
                     ->whereNotNull('m.winner_id')
-                    ->select('m.away_team_id as team_id', 'm.winner_id')
+                    ->select('m.away_team_id as team_id', 'm.winner_id', 'm.round')
             )
             ->get();
 
@@ -163,10 +164,12 @@ class LeaderboardController extends Controller
             $teamMatches = $matches->filter(fn($m) => $teamId == $m->team_id);
             $total = $teamMatches->count();
             $wins = $teamMatches->filter(fn($m) => $m->winner_id == $teamId)->count();
+            $lastRound = $teamMatches->max('round');
             $stats[$teamId] = [
                 'total_matches' => $total,
                 'win_rate'      => $total > 0 ? round(($wins / $total) * 100, 2) : 0,
                 'vndupr_avg'    => 0,
+                'last_round'   => $lastRound,
             ];
         }
 
