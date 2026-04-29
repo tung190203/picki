@@ -21,6 +21,22 @@ class TeamLeaderboardResource extends JsonResource
         $this->lastRound = $lastRound;
     }
 
+    private function formatLastRound(int|null $round): string|null
+    {
+        if ($round === null) {
+            return null;
+        }
+
+        return match (true) {
+            $round === 1  => 'Vòng bảng',
+            $round === 2  => 'Vòng 1/8',
+            $round === 3  => 'Tứ kết',
+            $round === 4  => 'Bán kết',
+            $round >= 5   => 'Chung kết',
+            default       => null,
+        };
+    }
+
     public function toArray(Request $request): array
     {
         $team = $this->resource;
@@ -36,7 +52,7 @@ class TeamLeaderboardResource extends JsonResource
             'rank'             => $this->rank,
             'total_matches'    => $this->totalMatches,
             'win_rate'         => round($this->winRate, 2),
-            'last_round'       => $this->lastRound,
+            'last_round'       => $this->formatLastRound($this->lastRound),
         ];
     }
 
