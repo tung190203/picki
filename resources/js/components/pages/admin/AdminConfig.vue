@@ -116,50 +116,104 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { toast } from 'vue3-toastify'
 import AdminSidebar from '@/components/organisms/AdminSidebar.vue'
 import AdminHeader from '@/components/organisms/AdminHeader.vue'
 import Toggle from '@/components/atoms/Toggle.vue'
+import { get, put } from '@/utils/httpRequest.js'
 
-
+const loading = ref(true)
+const error = ref(null)
+const saving = ref(false)
 
 const kFactor = ref(32)
 const serviceFee = ref(5.5)
 const autoConfirmTime = ref(24)
 
 const featureFlags = ref([
-  { 
-    name: 'AI Assistant (Bé Pi)', 
-    desc: 'Cho phép AI quét và tự động gửi Push Noti gạ kèo user.', 
-    icon: 'smart_toy', 
-    enabled: true,
+  {
+    key: 'ai_assistant',
+    name: 'AI Assistant (Bé Pi)',
+    desc: 'Cho phép AI quét và tự động gửi Push Noti gạ kèo user.',
+    icon: 'smart_toy',
     bgClass: 'bg-tertiary-container/10',
     iconClass: 'text-tertiary'
   },
-  { 
-    name: 'Cổng thanh toán trực tuyến', 
-    desc: 'Bật tắt việc thanh toán VNPay/Momo. Nếu tắt, user chỉ cần dùng tiền mặt.', 
-    icon: 'account_balance_wallet', 
-    enabled: true,
+  {
+    key: 'online_payment',
+    name: 'Cổng thanh toán trực tuyến',
+    desc: 'Bật tắt việc thanh toán VNPay/Momo. Nếu tắt, user chỉ cần dùng tiền mặt.',
+    icon: 'account_balance_wallet',
     bgClass: 'bg-secondary-container/10',
     iconClass: 'text-secondary'
   },
-  { 
-    name: 'Chế độ bảo trì (maintenance)', 
-    desc: 'Khóa toàn bộ App để nâng cấp Server. Chỉ admin được vào.', 
-    icon: 'construction', 
-    enabled: false,
+  {
+    key: 'maintenance_mode',
+    name: 'Chế độ bảo trì (maintenance)',
+    desc: 'Khóa toàn bộ App để nâng cấp Server. Chỉ admin được vào.',
+    icon: 'construction',
     bgClass: 'bg-error-container/20',
     iconClass: 'text-error'
   }
 ])
 
-const saveConfig = () => {
-  toast.success('System configuration updated successfully!', {
-    position: 'bottom-right'
-  })
+const fetchSettings = async () => {
+  try {
+    loading.value = true
+    const res = await get('/admin/settings')
+    const data = res.data.data
+
+    kFactor.value = data.k_factor ?? 32
+    serviceFee.value = data.service_fee_percent ?? 5.5
+    autoConfirmTime.value = data.auto_confirm_hours ?? 24
+
+    // Map features
+    const features = data.features ?? {}
+    featureFlags.value = featureFlags.value.map(flag => ({
+      ...flag,
+      enabled: features[flag.key] ?? false
+    }))
+  } catch (e) {
+    error.value = 'Không thể tải cấu hình.'
+    console.error('Settings error:', e)
+  } finally {
+    loading.value = false
+  }
 }
+
+const saveConfig = async () => {
+  try {
+    saving.value = true
+
+    const features = {}
+    featureFlags.value.forEach(flag => {
+      features[flag.key] = flag.enabled
+    })
+
+    await put('/admin/settings', {
+      k_factor: kFactor.value,
+      service_fee_percent: serviceFee.value,
+      auto_confirm_hours: autoConfirmTime.value,
+      features: features
+    })
+
+    toast.success('Cấu hình đã được lưu thành công!', {
+      position: 'bottom-right'
+    })
+  } catch (e) {
+    toast.error('Lỗi khi lưu cấu hình.', {
+      position: 'bottom-right'
+    })
+    console.error('Save config error:', e)
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(() => {
+  fetchSettings()
+})
 </script>
 
 <style scoped>
