@@ -509,7 +509,6 @@ onUnmounted(() => {
         echoChannel.stopListening('.super_admin.mini_tournament')
         echoChannel.stopListening('.super_admin.match')
         echoChannel.stopListening('.super_admin.user')
-        echoChannel.leave()
         echoChannel = null
     }
 })
@@ -534,9 +533,9 @@ const topStats = computed(() => {
     },
     {
       label: 'Kèo Đang Active',
-      value: d.mini_match_growth?.active_today?.toString() ?? '0',
-      trend: d.mini_match_growth?.growth_percent !== null && d.mini_match_growth?.growth_percent !== undefined
-        ? `${d.mini_match_growth.growth_percent > 0 ? '+' : ''}${d.mini_match_growth.growth_percent}%`
+      value: d.mini_tournament_growth?.active_today?.toString() ?? '0',
+      trend: d.mini_tournament_growth?.growth_percent !== null && d.mini_tournament_growth?.growth_percent !== undefined
+        ? `${d.mini_tournament_growth.growth_percent > 0 ? '+' : ''}${d.mini_tournament_growth.growth_percent}%`
         : null,
       borderColor: 'border-[#a03e38]',
       valueColor: '#271716',
@@ -602,7 +601,7 @@ const openMatches = computed(() => {
       date: formatedDate(m.start_time ?? m.created_at, 'dateDMY'),
       players_count: m.players_count ?? 0,
       location: m.competition_location?.name ?? '',
-      statusLabel: mapped.label + (m.players_count !== undefined ? ` (${m.players_count}/—)` : ''),
+      statusLabel: mapped.label + ` (${m.players_count ?? 0}/${m.max_players ?? '—'})`,
       statusClass: mapped.class,
       hasDispute: m.has_dispute > 0,
     }
@@ -625,7 +624,7 @@ const openTournaments = computed(() => {
       location: t.competition_location?.name ?? 'Việt Nam',
       regCount: t.fee ?? '—',
       regText: t.fee ? `${Number(t.fee).toLocaleString()} VNĐ` : 'Miễn phí',
-      image: t.poster_url || 'https://images.unsplash.com/photo-1530549387789-4c1017266635?w=800&q=80',
+      image: t.poster || 'https://images.unsplash.com/photo-1530549387789-4c1017266635?w=800&q=80',
     }
   })
 })
