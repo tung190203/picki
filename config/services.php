@@ -1,17 +1,56 @@
 <?php
 
+/**
+ * Get the path to the CA certificate bundle for SSL verification.
+ * This is needed on Windows where PHP often lacks the CA certificates.
+ */
+function getCaCertPath()
+{
+    static $path = null;
+
+    if ($path !== null) {
+        return $path;
+    }
+
+    // Check environment variable first
+    $envPath = env('CURL_CERT_PATH');
+    if ($envPath && file_exists($envPath)) {
+        $path = $envPath;
+        return $path;
+    }
+
+    // Check common Windows paths
+    $commonPaths = [
+        'C:\Users\Admin\cacert.pem',
+        base_path('cacert.pem'),
+        base_path('extras/cacert.pem'),
+        'C:\Program Files\PHP\extras\ssl\cacert.pem',
+    ];
+
+    foreach ($commonPaths as $p) {
+        if (file_exists($p)) {
+            $path = $p;
+            return $path;
+        }
+    }
+
+    // If curl.cainfo is set in php.ini, use it
+    $curlCainfo = ini_get('curl.cainfo');
+    if ($curlCainfo && file_exists($curlCainfo)) {
+        $path = $curlCainfo;
+        return $path;
+    }
+
+    $path = false;
+    return $path;
+}
+
 return [
 
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
     |--------------------------------------------------------------------------
-    |
-    | This file is for storing the credentials for third party services such
-    | as Mailgun, Postmark, AWS and more. This file provides the de facto
-    | location for this type of information, allowing packages to have
-    | a conventional file to locate the various service credentials.
-    |
     */
 
     'mailgun' => [
@@ -36,6 +75,9 @@ return [
         'ios_client_id' => env('GOOGLE_IOS_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect' => env('GOOGLE_REDIRECT_URI'),
+        'guzzle' => array_filter([
+            'verify' => getCaCertPath(),
+        ]),
     ],
     'facebook' => [
         'client_id' => env('FACEBOOK_CLIENT_ID'),
