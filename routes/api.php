@@ -53,6 +53,7 @@ use App\Http\Controllers\TournamentSearchController;
 use App\Http\Controllers\TournamentStaffController;
 use App\Http\Controllers\MiniTournamentPaymentController;
 use App\Http\Controllers\MiniTournamentTemplateController;
+use App\Http\Controllers\TournamentTemplateController;
 use App\Http\Controllers\LeaderboardController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\UserManagementController;
@@ -660,6 +661,13 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{id}/guests/{participantId}/guarantor-check-in', [GuestController::class, 'guarantorCheckIn']);
         Route::post('/{id}/guests/{participantId}/mark-check-in', [GuestController::class, 'markGuestCheckIn']);
         Route::post('/{id}/guests/{participantId}/mark-absent', [GuestController::class, 'markGuestAbsent']);
+    });
+    // Tournament Templates
+    Route::prefix('tournament-templates')->group(function (): void {
+        Route::get('/', [TournamentTemplateController::class, 'index']);
+        Route::post('/', [TournamentTemplateController::class, 'store']);
+        Route::post('/{id}', [TournamentTemplateController::class, 'update']);
+        Route::delete('/{id}', [TournamentTemplateController::class, 'destroy']);
     });
     // Mini Tournament Templates
     Route::prefix('mini-tournament-templates')->group(function (): void {

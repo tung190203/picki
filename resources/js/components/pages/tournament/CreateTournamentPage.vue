@@ -418,6 +418,61 @@
                         Quay lại
                     </button>
                 </div>
+
+                <!-- Nút chọn mẫu giải đấu -->
+                <button v-if="!isEditMode" type="button" @click="openTemplateModal"
+                    class="w-full mt-3 border border-[#D72D36] text-[#D72D36] font-bold py-3 rounded-[12px] flex items-center justify-center gap-2 hover:bg-[#FFF5F5] transition-colors">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 3H5a2 2 0 0 0-2 2v14l4-3 4 3 4-3 4 3V5a2 2 0 0 0-2-2z" />
+                    </svg>
+                    <span>Chọn mẫu giải đấu</span>
+                </button>
+
+                <!-- Nút lưu mẫu giải đấu -->
+                <button v-if="!isEditMode" type="button" @click="handleSaveTemplate"
+                    class="w-full mt-3 border border-[#D72D36] text-[#D72D36] font-bold py-3 rounded-[12px] flex items-center justify-center gap-2 hover:bg-[#FFF5F5] transition-colors">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17 3H7a2 2 0 0 0-2 2v14l4-3 4 3 4-3 4 3V5a2 2 0 0 0-2-2h-2z" />
+                        <path d="M15 9H9V7h6v2z" fill="#fff" />
+                    </svg>
+                    <span>Lưu làm mẫu</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal chọn mẫu giải đấu -->
+    <div v-if="isTemplateModalOpen"
+        class="fixed inset-0 z-[99] flex items-center justify-center bg-gray-600 bg-opacity-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md" @click.stop>
+            <div class="flex items-center justify-between mb-4">
+                <h4 class="text-lg font-semibold">Chọn mẫu giải đấu</h4>
+                <button @click="closeTemplateModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div v-if="isLoadingTemplates" class="py-6 text-center text-sm text-gray-500">
+                Đang tải...
+            </div>
+            <div v-else-if="!templates.length" class="py-6 text-center text-sm text-gray-500">
+                Bạn chưa có mẫu giải đấu nào.
+            </div>
+            <div v-else class="space-y-3 max-h-80 overflow-y-auto">
+                <button v-for="template in templates" :key="template.id" type="button"
+                    @click="applyTemplate(template)"
+                    class="w-full flex items-center justify-between px-4 py-3 rounded-[10px] border border-[#DCDEE6] hover:border-[#D72D36] hover:bg-[#FFF5F5] transition-colors">
+                    <div class="text-left">
+                        <p class="text-[14px] font-semibold text-[#3E414C]">
+                            {{ template.name }}
+                        </p>
+                    </div>
+                    <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 18l6-6-6-6" />
+                    </svg>
+                </button>
             </div>
         </div>
     </div>
@@ -568,6 +623,14 @@ const formattedFeeAmount = computed(() => {
 // =================================================================================
 const isPrivate = ref(false) // false: Công khai, true: Giải riêng tư
 const creatorJoin = ref(false)
+
+// =================================================================================
+// Template refs
+// =================================================================================
+const isTemplateModalOpen = ref(false)
+const templates = ref([])
+const isLoadingTemplates = ref(false)
+const isSubmitting = ref(false)
 
 // =================================================================================
 // New Refs and Consts for Tournament Advanced Settings
@@ -1025,6 +1088,182 @@ const detailTournament = async (id) => {
         throw error;
     }
 };
+
+// =================================================================================
+// Template helpers
+// =================================================================================
+
+const fetchTemplates = async () => {
+    isLoadingTemplates.value = true
+    try {
+        const res = await TournamentService.getTournamentTemplates()
+        templates.value = res?.data?.templates || res?.templates || []
+    } catch (error) {
+        console.error('Error fetching tournament templates:', error)
+        const errMessage = error?.response?.data?.message || 'Không tải được danh sách mẫu giải đấu.'
+        toast.error(errMessage)
+    } finally {
+        isLoadingTemplates.value = false
+    }
+}
+
+const openTemplateModal = async () => {
+    isTemplateModalOpen.value = true
+    if (!templates.value.length) {
+        await fetchTemplates()
+    }
+}
+
+const closeTemplateModal = () => {
+    isTemplateModalOpen.value = false
+}
+
+const applyTemplate = (template) => {
+    const s = template?.settings || {}
+
+    // Thông tin cơ bản
+    selectedSportId.value = s.sport_id || selectedSportId.value
+    tournamentName.value = s.name || tournamentName.value
+    tournamentNote.value = s.description || tournamentNote.value
+
+    // Địa điểm
+    if (s.competition_location_id) {
+        selectedLocation.value = {
+            id: s.competition_location_id,
+            name: s.competition_location_name || '',
+        }
+        locationKeyword.value = s.competition_location_name || ''
+    } else {
+        selectedLocation.value = null
+        locationKeyword.value = ''
+    }
+
+    // Thời gian dự kiến bắt đầu
+    if (s.start_date) {
+        date.value = new Date(s.start_date)
+    } else {
+        date.value = null
+    }
+
+    // Thời gian đăng ký
+    if (s.registration_open_at) {
+        registrationOpenAt.value = new Date(s.registration_open_at)
+    } else {
+        registrationOpenAt.value = null
+    }
+    if (s.early_registration_deadline) {
+        earlyRegistrationDeadline.value = new Date(s.early_registration_deadline)
+    } else {
+        earlyRegistrationDeadline.value = null
+    }
+    if (s.registration_closed_at) {
+        registrationClosedAt.value = new Date(s.registration_closed_at)
+    } else {
+        registrationClosedAt.value = null
+    }
+
+    // Thời lượng
+    if (s.duration !== undefined && s.duration !== null) {
+        duration.value = s.duration
+    }
+
+    // DUPR
+    duprEnabled.value = s.enable_dupr ?? true
+    vnduprEnabled.value = s.enable_vndupr ?? true
+
+    // Min/Max Level
+    if (s.min_level !== null && s.min_level !== undefined) {
+        minLevel.value = s.min_level.toString()
+    } else {
+        minLevel.value = 'Không giới hạn'
+    }
+    if (s.max_level !== null && s.max_level !== undefined) {
+        maxLevel.value = s.max_level.toString()
+    } else {
+        maxLevel.value = 'Không giới hạn'
+    }
+
+    // Giới hạn người chơi
+    ageGroup.value = s.age_group ?? 1
+    genderPolicy.value = s.gender_policy ?? 3
+
+    // Người tham gia
+    teamCount.value = s.max_team || 1
+    playerPerTeam.value = s.player_per_team || 2
+
+    // Phí giải đấu
+    if (s.fee === 'free') {
+        feeType.value = 'free'
+        standardFeeAmount.value = 0
+        feeAmountInput.value = 0
+    } else {
+        feeType.value = 'pair'
+        standardFeeAmount.value = Number(s.standard_fee_amount) || standardFeeAmount.value
+        feeAmountInput.value = Number(s.standard_fee_amount) || feeAmountInput.value
+    }
+
+    // Quyền riêng tư
+    isPrivate.value = !!s.is_private ?? false
+
+    // Creator join
+    creatorJoin.value = !!s.creator_join ?? false
+
+    isTemplateModalOpen.value = false
+    toast.success('Đã áp dụng mẫu giải đấu')
+}
+
+const buildTemplateSettings = () => {
+    const getNumericLevel = (level) => {
+        if (level === 'Không giới hạn') return null
+        return parseFloat(level)
+    }
+
+    return {
+        sport_id: selectedSportId.value,
+        name: tournamentName.value,
+        description: tournamentNote.value || null,
+        competition_location_id: selectedLocation.value?.id || null,
+        competition_location_name: selectedLocation.value?.name || null,
+        start_date: date.value ? date.value.toISOString() : null,
+        registration_open_at: registrationOpenAt.value ? registrationOpenAt.value.toISOString() : null,
+        early_registration_deadline: earlyRegistrationDeadline.value ? earlyRegistrationDeadline.value.toISOString() : null,
+        registration_closed_at: registrationClosedAt.value ? registrationClosedAt.value.toISOString() : null,
+        duration: durationInMinutes.value,
+        enable_dupr: duprEnabled.value,
+        enable_vndupr: vnduprEnabled.value,
+        min_level: getNumericLevel(minLevel.value),
+        max_level: getNumericLevel(maxLevel.value),
+        age_group: ageGroup.value,
+        gender_policy: genderPolicy.value,
+        max_team: teamCount.value,
+        player_per_team: playerPerTeam.value,
+        fee: feeType.value,
+        standard_fee_amount: feeType.value === 'free' ? 0 : standardFeeAmount.value,
+        is_private: isPrivate.value,
+        creator_join: creatorJoin.value,
+    }
+}
+
+const handleSaveTemplate = async () => {
+    if (isSubmitting.value) return
+    isSubmitting.value = true
+    try {
+        const settings = buildTemplateSettings()
+        const payload = {
+            name: tournamentName.value || 'Mẫu giải đấu Picki',
+            settings,
+        }
+        const res = await TournamentService.saveTournamentTemplate(payload)
+        const message = res?.message || 'Đã lưu cài đặt này làm mẫu'
+        toast.success(message)
+    } catch (error) {
+        console.error('Error saving tournament template:', error)
+        const errMessage = error?.response?.data?.message || 'Lưu mẫu thất bại. Vui lòng thử lại.'
+        toast.error(errMessage)
+    } finally {
+        isSubmitting.value = false
+    }
+}
 
 onMounted(async () => {
     await fetchSports()
