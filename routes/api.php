@@ -15,6 +15,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ParticipantController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentGuestController;
+use App\Http\Controllers\TournamentPaymentController;
 use App\Http\Controllers\TournamentTypeController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VerificationController;
@@ -53,6 +54,7 @@ use App\Http\Controllers\TournamentSearchController;
 use App\Http\Controllers\TournamentStaffController;
 use App\Http\Controllers\MiniTournamentPaymentController;
 use App\Http\Controllers\MiniTournamentTemplateController;
+use App\Http\Controllers\TournamentTemplateController;
 use App\Http\Controllers\LeaderboardController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\UserManagementController;
@@ -390,6 +392,17 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{id}/guests/confirm/{participantId}', [TournamentGuestController::class, 'confirmGuest']);
         Route::post('/{id}/guests/{participantId}/guarantor-check-in', [TournamentGuestController::class, 'guarantorCheckIn']);
         Route::post('/{id}/guests/{participantId}/mark-check-in', [TournamentGuestController::class, 'markGuestCheckIn']);
+
+        // Tournament Payment Routes
+        Route::get('/{id}/payments', [TournamentPaymentController::class, 'index']);
+        Route::post('/{id}/payments', [TournamentPaymentController::class, 'store']);
+        Route::get('/{id}/my-payment', [TournamentPaymentController::class, 'myPayment']);
+        Route::post('/{id}/payments/{pid}/confirm', [TournamentPaymentController::class, 'confirm']);
+        Route::post('/{id}/payments/{pid}/reject', [TournamentPaymentController::class, 'reject']);
+        Route::post('/{id}/payments/mark-paid/{uid}', [TournamentPaymentController::class, 'markPaid']);
+        Route::post('/{id}/payments/remind/{uid}', [TournamentPaymentController::class, 'remind']);
+        Route::post('/{id}/payments/remind-all', [TournamentPaymentController::class, 'remindAll']);
+        Route::get('/{id}/fund-collection', [TournamentPaymentController::class, 'fundCollection']);
     });
 
     Route::prefix('tournament-staff')->group(function () {
@@ -660,6 +673,13 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{id}/guests/{participantId}/guarantor-check-in', [GuestController::class, 'guarantorCheckIn']);
         Route::post('/{id}/guests/{participantId}/mark-check-in', [GuestController::class, 'markGuestCheckIn']);
         Route::post('/{id}/guests/{participantId}/mark-absent', [GuestController::class, 'markGuestAbsent']);
+    });
+    // Tournament Templates
+    Route::prefix('tournament-templates')->group(function (): void {
+        Route::get('/', [TournamentTemplateController::class, 'index']);
+        Route::post('/', [TournamentTemplateController::class, 'store']);
+        Route::post('/{id}', [TournamentTemplateController::class, 'update']);
+        Route::delete('/{id}', [TournamentTemplateController::class, 'destroy']);
     });
     // Mini Tournament Templates
     Route::prefix('mini-tournament-templates')->group(function (): void {

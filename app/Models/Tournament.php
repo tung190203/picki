@@ -44,7 +44,21 @@ class Tournament extends Model
         'status',
         'is_public_branch',
         'is_own_score',
-        'creator_join'
+        'creator_join',
+        'has_financial_management',
+        'auto_split_fee',
+        'fee_description',
+        'qr_code_url',
+        'use_club_fund',
+        'included_in_club_fund',
+        'tournament_fund_collection_id',
+    ];
+
+    protected $casts = [
+        'has_financial_management' => 'bool',
+        'auto_split_fee' => 'bool',
+        'use_club_fund' => 'bool',
+        'included_in_club_fund' => 'bool',
     ];
 
     protected $appends = ['poster_url'];
@@ -135,6 +149,21 @@ class Tournament extends Model
     public function competitionLocation()
     {
         return $this->belongsTo(CompetitionLocation::class);
+    }
+
+    public function fundCollection()
+    {
+        return $this->belongsTo(TournamentFundCollection::class, 'tournament_fund_collection_id');
+    }
+
+    public function clubFundCollection()
+    {
+        return $this->belongsTo(\App\Models\Club\ClubFundCollection::class, 'club_fund_collection_id');
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(TournamentParticipantPayment::class);
     }
 
     public function teams()
@@ -268,6 +297,26 @@ class Tournament extends Model
             (int) $staff->pivot->user_id === $userId
             && in_array((int) $staff->pivot->role, [TournamentStaff::ROLE_ORGANIZER, TournamentStaff::ROLE_STAFF, TournamentStaff::ROLE_REFEREE])
         );
+    }
+
+    public function getIncludedInClubFundAttribute(): bool
+    {
+        return (bool) ($this->attributes['included_in_club_fund'] ?? false);
+    }
+
+    public function getPaymentSummaryAttribute(): array
+    {
+        $participantCount = $this->participants()->count();
+
+        return [
+            'total_expected' => $this->fee === 'pair' ? ($this->auto_split_fee
+                ? ($this->standard_fee_amount * $participantCount)
+                : ($this->standard_fee_amount * $participantCount)) : 0,
+            'total_collected' => $this->payments()->where('status', TournamentParticipantPayment::STATUS_CONFIRMED)->sum('amount'),
+            'total_pending' => $this->payments()->whereIn('status', [TournamentParticipantPayment::STATUS_PENDING, TournamentParticipantPayment::STATUS_PAID])->count(),
+            'participant_count' => $participantCount,
+            'paid_participant_count' => $this->payments()->where('status', TournamentParticipantPayment::STATUS_CONFIRMED)->count(),
+        ];
     }
 
     /**
