@@ -37,6 +37,7 @@ import TournamentBracketPage from '@/components/pages/tournament/TournamentBrack
 import GroupSortView from '@/components/pages/tournament/GroupSortView.vue'
 import MatchVerifyPage from '@/components/pages/tournament/MatchVerifyPage.vue'
 import TournamentLandingPage from '@/components/pages/tournament/TournamentLandingPage.vue'
+import TournamentPaymentsPage from '@/components/pages/tournament/TournamentPaymentsPage.vue'
 import MiniMatchVerifyPage from '@/components/pages/mini-tournament/MiniMatchVerifyPage.vue'
 import NotificationsPage from '@/components/pages/notifications/NotificationsPage.vue'
 import SettingsPage from '@/components/pages/profile/SettingsPage.vue'
@@ -313,6 +314,11 @@ export const route = [
             path: ':id/bracket',
             name: 'tournament-bracket',
             component: TournamentBracketPage,
+          },
+          {
+            path: ':id/payments',
+            name: 'tournament-payments',
+            component: TournamentPaymentsPage,
           },
           {
             path: ':id/groups/sort',
