@@ -36,6 +36,7 @@ use App\Http\Controllers\Club\ClubDashboardController;
 use App\Http\Controllers\Club\ClubJoinRequestController;
 use App\Http\Controllers\Club\ClubReportController;
 use App\Http\Controllers\Club\ClubMiniTournamentController;
+use App\Http\Controllers\Club\ClubTournamentController;
 use App\Http\Controllers\CompetitionLocationYardController;
 use App\Http\Controllers\DeviceTokenController;
 use App\Http\Controllers\FacilityController;
@@ -295,6 +296,16 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
 
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
+
+            Route::prefix('tournaments')->group(function () {
+                Route::get('/', [ClubTournamentController::class, 'index']);
+                Route::post('/', [ClubTournamentController::class, 'store']);
+                Route::get('/{tournamentId}', [ClubTournamentController::class, 'show']);
+                Route::match(['put', 'patch'], '/{tournamentId}', [ClubTournamentController::class, 'update']);
+                Route::delete('/{tournamentId}', [ClubTournamentController::class, 'destroy']);
+                Route::post('/{tournamentId}/participants/{participantId}/check-in', [ClubTournamentController::class, 'markCheckIn']);
+                Route::post('/{tournamentId}/participants/{participantId}/absent', [ClubTournamentController::class, 'markAbsent']);
+            });
         });
     });
 });
@@ -631,6 +642,16 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
 
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
+
+            Route::prefix('tournaments')->group(function () {
+                Route::get('/', [ClubTournamentController::class, 'index']);
+                Route::post('/', [ClubTournamentController::class, 'store']);
+                Route::get('/{tournamentId}', [ClubTournamentController::class, 'show']);
+                Route::match(['put', 'patch'], '/{tournamentId}', [ClubTournamentController::class, 'update']);
+                Route::delete('/{tournamentId}', [ClubTournamentController::class, 'destroy']);
+                Route::post('/{tournamentId}/participants/{participantId}/check-in', [ClubTournamentController::class, 'markCheckIn']);
+                Route::post('/{tournamentId}/participants/{participantId}/absent', [ClubTournamentController::class, 'markAbsent']);
+            });
         });
     });
 
