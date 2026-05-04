@@ -505,10 +505,10 @@ const loadData = async () => {
       paymentConfig.value = paymentData.payment_config
     } else {
       paymentConfig.value = {
-        has_fee: paymentData?.tournament?.has_financial_management && paymentData?.tournament?.fee !== 'free',
-        auto_split_fee: false,
-        fee_amount: paymentData?.tournament?.standard_fee_amount || 0,
-        fee_per_person: paymentData?.tournament?.standard_fee_amount || 0,
+        has_fee: paymentData?.tournament?.has_fee ?? false,
+        auto_split_fee: paymentData?.tournament?.auto_split_fee ?? false,
+        fee_amount: paymentData?.tournament?.fee_amount || 0,
+        fee_per_person: paymentData?.tournament?.fee_per_person || 0,
         fee_description: paymentData?.tournament?.fee_description || '',
         qr_code_url: paymentData?.tournament?.qr_code_url || null,
       }
@@ -537,10 +537,10 @@ const loadData = async () => {
         paymentConfig.value = myData.payment_config
       } else if (myData?.tournament) {
         paymentConfig.value = {
-          has_fee: myData.tournament.has_financial_management && myData.tournament.fee !== 'free',
-          auto_split_fee: false,
-          fee_amount: myData.tournament.standard_fee_amount || 0,
-          fee_per_person: myData.tournament.standard_fee_amount || 0,
+          has_fee: myData.tournament.has_fee ?? false,
+          auto_split_fee: myData.tournament.auto_split_fee ?? false,
+          fee_amount: myData.tournament.fee_amount || 0,
+          fee_per_person: myData.tournament.fee_per_person || 0,
           fee_description: myData.tournament.fee_description || '',
           qr_code_url: myData.tournament.qr_code_url || null,
         }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Helpers\ResponseHelper;
 use App\Models\Tournament;
 use App\Models\TournamentFundCollection;
+use App\Models\Participant;
 use App\Models\TournamentParticipantPayment;
 use App\Services\ImageOptimizationService;
 use App\Services\TournamentFundService;
@@ -60,6 +61,10 @@ class TournamentPaymentController extends Controller
 
         $organizerIds = $tournament->staff->filter(fn($s) => $s->role === 1)->pluck('user_id')->toArray();
 
+        $participantCount = $tournament->participants()->where('is_confirmed', true)->count();
+
+        $qrUrl = $tournament->qr_code_url; // uses model's getQrCodeUrlAttribute() accessor
+
         // Auto-confirm payments for organizers
         foreach ($pendingPayments as $payment) {
             if (in_array($payment->user_id, $organizerIds)) {
@@ -91,27 +96,22 @@ class TournamentPaymentController extends Controller
         $paidPayments = $allPayments->filter(fn($p) => $p->status === TournamentParticipantPayment::STATUS_PAID);
         $confirmedPayments = $allPayments->filter(fn($p) => $p->status === TournamentParticipantPayment::STATUS_CONFIRMED);
 
-        $totalExpected = $allPayments->where('status', '!=', TournamentParticipantPayment::STATUS_REJECTED)->sum('amount');
-        $participantCount = $tournament->participants()->where('is_confirmed', true)->count();
-
-        // Payment config
-        $qrUrl = $tournament->qr_code_url;
-        if ($qrUrl && !str_starts_with($qrUrl, 'http')) {
-            $qrUrl = asset('storage/' . ltrim($qrUrl, '/'));
-        }
-
-        $feePerPerson = $tournament->standard_fee_amount ?? 0;
-        if (($tournament->fee === 'pair') && $tournament->max_team > 0) {
-            $feePerPerson = (int) round(($tournament->standard_fee_amount ?? 0) / $tournament->max_team);
+        $totalExpected = 0;
+        if ($tournament->has_fee) {
+            if ($tournament->auto_split_fee) {
+                $totalExpected = $confirmedPayments->sum('amount');
+            } else {
+                $totalExpected = $tournament->fee_per_person * $participantCount;
+            }
         }
 
         $data = [
             'tournament_id' => $tournament->id,
             'payment_config' => [
-                'has_fee' => $tournament->has_financial_management && $tournament->fee !== 'free',
-                'auto_split_fee' => false,
-                'fee_amount' => $tournament->standard_fee_amount ?? 0,
-                'fee_per_person' => $feePerPerson,
+                'has_fee' => $tournament->has_fee,
+                'auto_split_fee' => $tournament->auto_split_fee,
+                'fee_amount' => $tournament->fee_amount ?? 0,
+                'fee_per_person' => $tournament->fee_per_person,
                 'fee_description' => $tournament->fee_description,
                 'qr_code_url' => $qrUrl,
             ],
@@ -162,23 +162,15 @@ class TournamentPaymentController extends Controller
             $payment->refresh();
         }
 
-        $qrUrl = $tournament->qr_code_url;
-        if ($qrUrl && !str_starts_with($qrUrl, 'http')) {
-            $qrUrl = asset('storage/' . ltrim($qrUrl, '/'));
-        }
-
-        $feePerPerson = $tournament->standard_fee_amount ?? 0;
-        if (($tournament->fee === 'pair') && $tournament->max_team > 0) {
-            $feePerPerson = (int) round(($tournament->standard_fee_amount ?? 0) / $tournament->max_team);
-        }
+        $qrUrl = $tournament->qr_code_url; // uses model's getQrCodeUrlAttribute() accessor
 
         $data = [
             'payment' => $payment ? new TournamentParticipantPaymentResource($payment) : null,
             'payment_config' => [
-                'has_fee' => $tournament->has_financial_management && $tournament->fee !== 'free',
-                'auto_split_fee' => false,
-                'fee_amount' => $tournament->standard_fee_amount ?? 0,
-                'fee_per_person' => $feePerPerson,
+                'has_fee' => $tournament->has_fee,
+                'auto_split_fee' => $tournament->auto_split_fee,
+                'fee_amount' => $tournament->fee_amount ?? 0,
+                'fee_per_person' => $tournament->fee_per_person,
                 'fee_description' => $tournament->fee_description,
                 'qr_code_url' => $qrUrl,
             ],
@@ -186,8 +178,8 @@ class TournamentPaymentController extends Controller
                 'id' => $tournament->id,
                 'name' => $tournament->name,
                 'has_financial_management' => $tournament->has_financial_management,
-                'fee' => $tournament->fee,
-                'standard_fee_amount' => $tournament->standard_fee_amount,
+                'has_fee' => $tournament->has_fee,
+                'fee_amount' => $tournament->fee_amount,
                 'qr_code_url' => $qrUrl,
                 'fee_description' => $tournament->fee_description,
                 'included_in_club_fund' => $tournament->included_in_club_fund,
@@ -217,7 +209,7 @@ class TournamentPaymentController extends Controller
             return ResponseHelper::error('Giải đấu không bật quản lý tài chính', 422);
         }
 
-        if ($tournament->fee === 'free') {
+        if (!$tournament->has_fee) {
             return ResponseHelper::error('Giải đấu miễn phí, không cần thanh toán', 422);
         }
 
@@ -242,7 +234,7 @@ class TournamentPaymentController extends Controller
             $tournament,
             auth()->user(),
             [
-                'amount' => $validated['amount'] ?? $tournament->standard_fee_amount,
+                'amount' => $validated['amount'] ?? $tournament->fee_per_person,
                 'receipt_image' => $receiptUrl,
                 'note' => $validated['note'] ?? null,
             ]
