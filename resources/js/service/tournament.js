@@ -32,3 +32,26 @@ export const getBracketByTournamentId = async (tournamentId) => {
   return axiosInstance.get(`/tournament-detail/${tournamentId}/bracket`)
     .then((response) => response.data.data);
 }
+
+// Templates
+const tournamentTemplateEndpoint = '/tournament-templates';
+
+export const getTournamentTemplates = async () => {
+  return axiosInstance.get(tournamentTemplateEndpoint)
+    .then((response) => response.data);
+}
+
+export const saveTournamentTemplate = async (payload) => {
+  return axiosInstance.post(tournamentTemplateEndpoint, payload)
+    .then((response) => response.data);
+}
+
+export const updateTournamentTemplate = async (id, payload) => {
+  return axiosInstance.post(`${tournamentTemplateEndpoint}/${id}`, payload)
+    .then((response) => response.data);
+}
+
+export const deleteTournamentTemplate = async (id) => {
+  return axiosInstance.delete(`${tournamentTemplateEndpoint}/${id}`)
+    .then((response) => response.data);
+}

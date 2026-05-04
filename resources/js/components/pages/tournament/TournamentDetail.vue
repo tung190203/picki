@@ -335,6 +335,20 @@
                         </svg>
                         Thêm Guest
                       </button>
+                      <button
+                        v-if="canManagePayments"
+                        @click="handlePaymentButtonClick"
+                        class="flex items-center gap-1 text-[#D72D36] text-xs font-semibold hover:underline">
+                        <CreditCardIcon class="h-4 w-4" />
+                        Quản lý thanh toán
+                      </button>
+                      <button
+                        v-else-if="canShowPaymentButton"
+                        @click="handlePaymentButtonClick"
+                        class="flex items-center gap-1 text-[#D72D36] text-xs font-semibold hover:underline">
+                        <CreditCardIcon class="h-4 w-4" />
+                        Nộp bằng chứng thanh toán
+                      </button>
                     </div>
                   </div>
 
@@ -776,7 +790,8 @@ import {
   UsersIcon,
   ClipboardDocumentCheckIcon,
   CheckIcon,
-  ArrowTopRightOnSquareIcon as ExternalLinkIcon
+  ArrowTopRightOnSquareIcon as ExternalLinkIcon,
+  CreditCardIcon,
 } from '@heroicons/vue/24/outline'
 import UserCard from '@/components/molecules/UserCard.vue'
 import UserCardPending from '@/components/molecules/UserCardPending.vue'
@@ -937,6 +952,36 @@ const checkedInParticipants = computed(() => {
 const absentParticipants = computed(() => {
   return allParticipants.value.filter(p => p.is_absent)
 })
+
+// Payment button logic: show when tournament has financial management and pair fee
+const hasFinancialManagement = computed(() => {
+  return tournament.value?.has_financial_management && tournament.value?.fee === 'pair'
+})
+
+const canShowPaymentButton = computed(() => {
+  if (!hasFinancialManagement.value) return false
+  if (tournament.value?.auto_split_fee) {
+    return (tournament.value?.participants || []).some(
+      p => p.payment_status === 'pending' || p.payment_status === 'paid'
+    )
+  }
+  return true
+})
+
+const canManagePayments = computed(() => {
+  if (!hasFinancialManagement.value) return false
+  if (!isCreator.value) return false
+  if (tournament.value?.auto_split_fee) {
+    return (tournament.value?.participants || []).some(
+      p => p.payment_status === 'pending' || p.payment_status === 'paid'
+    )
+  }
+  return true
+})
+
+const handlePaymentButtonClick = () => {
+  router.push({ name: 'tournament-payments', params: { id: id } })
+}
 
 const setupDescription = () => {
   descriptionModel.value = tournament.value.description || '';

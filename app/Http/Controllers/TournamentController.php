@@ -9,6 +9,8 @@ use App\Events\SuperAdmin\TournamentDeleted;
 use App\Events\SuperAdmin\TournamentUpdated;
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\TournamentTypeController;
+use App\Http\Requests\StoreTournamentRequest;
+use App\Http\Requests\UpdateTournamentRequest;
 use App\Http\Resources\ParticipantResource;
 use App\Http\Resources\TournamentResource;
 use App\Http\Resources\TournamentStaffResource;
@@ -19,6 +21,7 @@ use App\Models\Tournament;
 use App\Models\TournamentStaff;
 use App\Models\TournamentType;
 use App\Services\ImageOptimizationService;
+use App\Services\TournamentFundService;
 use App\Services\TournamentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -154,44 +157,17 @@ class TournamentController extends Controller
     public function __construct(
         ImageOptimizationService $imageService,
         TournamentTypeController $tournamentTypeController,
-        TournamentService $tournamentService
+        TournamentService $tournamentService,
+        TournamentFundService $fundService
     ) {
         $this->imageService = $imageService;
         $this->tournamentTypeController = $tournamentTypeController;
         $this->tournamentService = $tournamentService;
+        $this->fundService = $fundService;
     }
-    public function store(Request $request)
+    public function store(StoreTournamentRequest $request)
     {
-        $validated = $request->validate([
-            'poster' => 'nullable|image|max:350',
-            'sport_id' => 'required|exists:sports,id',
-            'name' => 'required|string',
-            'competition_location_id' => 'nullable|exists:competition_locations,id',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date',
-            'registration_open_at' => 'nullable|date',
-            'registration_closed_at' => 'nullable|date',
-            'early_registration_deadline' => 'nullable|date',
-            'duration' => 'nullable|integer',
-            'enable_dupr' => 'nullable|boolean',
-            'enable_vndupr' => 'nullable|boolean',
-            'min_level' => 'nullable',
-            'max_level' => 'nullable',
-            'age_group' => 'nullable|in:' . implode(',', Tournament::AGES),
-            'gender_policy' => 'nullable|in:' . implode(',', Tournament::GENDER),
-            'participant' => 'nullable|in:team,user',
-            'max_team' => 'nullable|integer|required_if:participant,team',
-            'player_per_team' => 'nullable|integer|required_if:participant,team',
-            'max_player' => 'nullable|integer|required_if:participant,user',
-            'fee' => 'nullable|in:free,pair',
-            'standard_fee_amount' => 'nullable|numeric|required_if:fee,pair',
-            'is_private' => 'nullable|boolean',
-            'auto_approve' => 'nullable|boolean',
-            'description' => 'nullable|string',
-            'club_id' => 'nullable|exists:clubs,id',
-            'creator_join' => 'nullable|boolean',
-        ]);
-
+        $validated = $request->validated();
         $tournament = null;
 
         DB::transaction(function () use ($validated, &$tournament, $request) {
@@ -199,6 +175,12 @@ class TournamentController extends Controller
                 $path = $request->file('poster')->store('tournaments/posters', 'public');
                 $validated['poster'] = $path;
             }
+
+            if ($request->hasFile('qr_code_url')) {
+                $path = $request->file('qr_code_url')->store('tournaments/qr', 'public');
+                $validated['qr_code_url'] = $path;
+            }
+
             $tournament = Tournament::create([
                 ...$validated,
                 'created_by' => auth()->id(),
@@ -210,16 +192,26 @@ class TournamentController extends Controller
                 'role' => TournamentStaff::ROLE_ORGANIZER,
             ]);
 
-            // Tính end_date từ start_date + duration
             $this->tournamentService->calculateEndDate($tournament);
 
-            // Nếu creator_join = true, tạo participant cho người tạo giải đấu
             if (!empty($validated['creator_join'])) {
                 Participant::create([
                     'tournament_id' => $tournament->id,
                     'user_id' => auth()->id(),
                     'is_confirmed' => true,
                 ]);
+            }
+
+            // Xử lý quỹ: tạo fund collection nếu có quản lý tài chính
+            if (!empty($validated['has_financial_management']) && ($validated['fee'] ?? 'free') !== 'free') {
+                if (!empty($validated['included_in_club_fund']) && !empty($validated['club_id'])) {
+                    $club = Club::find($validated['club_id']);
+                    if ($club) {
+                        $this->fundService->createClubFundCollection($tournament, $validated, $club);
+                    }
+                } elseif (empty($validated['use_club_fund'])) {
+                    $this->fundService->createTournamentFundCollection($tournament, $validated);
+                }
             }
         });
 
@@ -273,42 +265,9 @@ class TournamentController extends Controller
         return ResponseHelper::success(new TournamentResource($tournament), 'Lấy chi tiết giải đấu thành công');
     }
 
-    public function update(Request $request, $id)
+    public function update(UpdateTournamentRequest $request, $id)
     {
-        $validated = $request->validate([
-            'poster' => 'nullable|image|max:5120',
-            'remove_poster' => 'nullable|boolean', // Thêm field này
-            'sport_id' => 'nullable|exists:sports,id',
-            'name' => 'nullable|string',
-            'competition_location_id' => 'nullable|exists:competition_locations,id',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date',
-            'registration_open_at' => 'nullable|date',
-            'registration_closed_at' => 'nullable|date',
-            'early_registration_deadline' => 'nullable|date',
-            'duration' => 'nullable|integer',
-            'enable_dupr' => 'nullable|boolean',
-            'enable_vndupr' => 'nullable|boolean',
-            'min_level' => 'nullable',
-            'max_level' => 'nullable',
-            'age_group' => 'nullable|in:' . implode(',', Tournament::AGES),
-            'gender_policy' => 'nullable|in:' . implode(',', Tournament::GENDER),
-            'participant' => 'nullable|in:team,user',
-            'max_team' => 'nullable|integer|required_if:participant,team',
-            'player_per_team' => 'nullable|integer|required_if:participant,team',
-            'max_player' => 'nullable|integer|required_if:participant,user',
-            'fee' => 'nullable|in:free,pair',
-            'standard_fee_amount' => 'nullable|numeric|required_if:fee,pair',
-            'is_private' => 'nullable|boolean',
-            'auto_approve' => 'nullable|boolean',
-            'description' => 'nullable|string',
-            'club_id' => 'nullable|exists:clubs,id',
-            'is_public_branch' => 'nullable|boolean',
-            'is_own_score' => 'nullable|boolean',
-            'status' => 'nullable|in:' . implode(',', Tournament::STATUS),
-            'creator_join' => 'nullable|boolean',
-        ]);
-
+        $validated = $request->validated();
         $tournament = Tournament::findOrFail($id);
         $isOrganizer = $tournament->hasOrganizer(Auth::id());
         if (!$isOrganizer) {
@@ -332,23 +291,31 @@ class TournamentController extends Controller
             } else {
                 unset($validated['poster']);
             }
+
+            // Handle QR code upload
+            if ($request->hasFile('qr_code_url')) {
+                $path = $request->file('qr_code_url')->store('tournaments/qr', 'public');
+                $validated['qr_code_url'] = $path;
+            } elseif ($request->filled('qr_code_url')) {
+                // Keep existing or string value
+            } else {
+                unset($validated['qr_code_url']);
+            }
+
             unset($validated['remove_poster']);
             $newStatus = $validated['status'] ?? $oldStatus;
             $tournament->fill($validated);
             $tournament->save();
 
-            // Tính lại end_date nếu start_date hoặc duration thay đổi
             $this->tournamentService->calculateEndDate($tournament);
 
             if ($newStatus == Tournament::CLOSED && $oldStatus != Tournament::CLOSED) {
                 $this->updateParticipantsRatingStats($tournament);
             }
 
-            // Xử lý creator_join: tạo hoặc xóa participant khi giá trị thay đổi
             if (array_key_exists('creator_join', $validated)) {
                 $newCreatorJoin = !empty($validated['creator_join']);
 
-                // 0 → 1: tạo participant cho host
                 if ($newCreatorJoin && !$oldCreatorJoin) {
                     Participant::firstOrCreate([
                         'tournament_id' => $tournament->id,
@@ -358,7 +325,6 @@ class TournamentController extends Controller
                     ]);
                 }
 
-                // 1 → 0: xóa participant của host (nếu chưa check-in)
                 if (!$newCreatorJoin && $oldCreatorJoin) {
                     Participant::where('tournament_id', $tournament->id)
                         ->where('user_id', Auth::id())
