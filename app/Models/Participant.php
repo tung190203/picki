@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentStatusEnum;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -28,6 +29,7 @@ class Participant extends Model
         'rank_before',
         'rank_after',
         'rank_change',
+        'payment_status',
     ];
 
     protected $casts = [
@@ -41,6 +43,7 @@ class Participant extends Model
         'rank_before' => 'integer',
         'rank_after' => 'integer',
         'rank_change' => 'integer',
+        'payment_status' => PaymentStatusEnum::class,
     ];
 
     const PER_PAGE = 15;
@@ -73,5 +76,65 @@ class Participant extends Model
     public function scopePendingConfirmation($query)
     {
         return $query->where('is_guest', true)->where('is_pending_confirmation', true);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(TournamentParticipantPayment::class, 'participant_id');
+    }
+
+    public function pendingPayment()
+    {
+        return $this->hasOne(TournamentParticipantPayment::class)->where('status', TournamentParticipantPayment::STATUS_PENDING);
+    }
+
+    public function paidPayment()
+    {
+        return $this->hasOne(TournamentParticipantPayment::class)->where('status', TournamentParticipantPayment::STATUS_PAID);
+    }
+
+    public function confirmedPayment()
+    {
+        return $this->hasOne(TournamentParticipantPayment::class)->where('status', TournamentParticipantPayment::STATUS_CONFIRMED);
+    }
+
+    public function isPendingPayment(): bool
+    {
+        return $this->payment_status === PaymentStatusEnum::PENDING;
+    }
+
+    public function isConfirmedPayment(): bool
+    {
+        return $this->payment_status === PaymentStatusEnum::CONFIRMED;
+    }
+
+    public function isCancelledPayment(): bool
+    {
+        return $this->payment_status === PaymentStatusEnum::CANCELLED;
+    }
+
+    public function confirmPayment(): void
+    {
+        $this->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
+    }
+
+    public function cancelPayment(): void
+    {
+        $this->update(['payment_status' => PaymentStatusEnum::CANCELLED]);
+    }
+
+    public function scopeWithPendingPayment($query)
+    {
+        return $query->where('payment_status', PaymentStatusEnum::PENDING);
+    }
+
+    public function scopeWithConfirmedPayment($query)
+    {
+        return $query->where('payment_status', PaymentStatusEnum::CONFIRMED);
+    }
+
+    public function scopeWithCancelledPayment($query)
+    {
+        return $query->where('payment_status', PaymentStatusEnum::CANCELLED);
     }
 }

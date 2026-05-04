@@ -50,6 +50,37 @@
 
                 <div class="bg-white rounded-[8px] shadow p-5">
                     <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-gray-900 text-[20px]">Liên kết CLB</h3>
+                    </div>
+                    <div class="relative" @click.stop>
+                        <input v-model="clubKeyword"
+                            @input="searchClubs(clubKeyword)"
+                            @focus="clubKeyword.length >= 2 && (isClubDropdownOpen = clubResults.length > 0)"
+                            @blur="setTimeout(() => isClubDropdownOpen = false, 200)"
+                            type="text" placeholder="Tìm kiếm CLB của bạn..."
+                            class="w-full px-2 py-2 my-1 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]" />
+                        <button v-if="selectedClub" @click="clearClub" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xl">×</button>
+                        <div v-if="isClubDropdownOpen"
+                            class="absolute left-0 right-0 top-full mt-2 bg-white border rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+                            <button v-for="club in clubResults" :key="club.id"
+                                @mousedown.prevent="selectClub(club)"
+                                class="px-4 py-2 w-full text-sm text-left hover:bg-gray-100 first:rounded-t-lg last:rounded-b-lg block">
+                                <span class="font-medium">{{ club.name }}</span>
+                                <p v-if="club.description" class="text-xs text-gray-500 truncate">{{ club.description }}</p>
+                            </button>
+                            <p v-if="!clubResults.length && clubKeyword.length >= 2" class="p-4 text-gray-500 text-sm">Không tìm thấy CLB nào.</p>
+                        </div>
+                    </div>
+                    <p v-if="selectedClub" class="text-sm text-green-600 mt-2">
+                        ✓ Đã chọn: {{ selectedClub.name }}
+                    </p>
+                    <p v-else class="text-xs text-gray-500 mt-2">
+                        Để trống nếu đây là giải thường (không thuộc CLB)
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-[8px] shadow p-5">
+                    <div class="flex items-center justify-between mb-4">
                         <h3 class="font-semibold text-gray-900 text-[20px]">Chi tiết</h3>
                     </div>
                     <div class="space-y-4">
@@ -327,6 +358,49 @@
                     <div class="flex items-center justify-between mb-2">
                         <h3 class="font-semibold text-gray-900 text-[20px]">Phí giải đấu</h3>
                     </div>
+
+                    <!-- Quản lý tài chính -->
+                    <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+                        <div>
+                            <span class="text-gray-700 font-medium">Quản lý tài chính</span>
+                            <p class="text-xs text-gray-500">Theo dõi & quản lý đóng tiền trong app</p>
+                        </div>
+                        <button @click="hasFinancialManagement = !hasFinancialManagement"
+                            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                            :class="hasFinancialManagement ? 'bg-[#D72D36]' : 'bg-gray-300'">
+                            <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
+                                :class="hasFinancialManagement ? 'translate-x-6' : 'translate-x-1'" />
+                        </button>
+                    </div>
+
+                    <!-- CLB fund toggles — chỉ khi chọn CLB + có quản lý tài chính -->
+                    <div v-if="selectedClub && hasFinancialManagement" class="mb-4 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <span class="text-gray-700 font-medium">Dùng quỹ CLB</span>
+                                <p class="text-xs text-gray-500">CLB chi tiền, thành viên không cần đóng</p>
+                            </div>
+                            <button @click="useClubFund = !useClubFund"
+                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                                :class="useClubFund ? 'bg-[#D72D36]' : 'bg-gray-300'">
+                                <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
+                                    :class="useClubFund ? 'translate-x-6' : 'translate-x-1'" />
+                            </button>
+                        </div>
+                        <div v-if="!useClubFund" class="flex items-center justify-between">
+                            <div>
+                                <span class="text-gray-700 font-medium">Thu vào quỹ CLB</span>
+                                <p class="text-xs text-gray-500">Thu tiền vào quỹ chung của CLB</p>
+                            </div>
+                            <button @click="includedInClubFund = !includedInClubFund"
+                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                                :class="includedInClubFund ? 'bg-[#D72D36]' : 'bg-gray-300'">
+                                <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
+                                    :class="includedInClubFund ? 'translate-x-6' : 'translate-x-1'" />
+                            </button>
+                        </div>
+                    </div>
+
                     <div class="flex items-center justify-start gap-4 mb-2">
                         <button @click="feeType = 'pair'" :class="[
                             'px-5 py-2 rounded font-semibold transition-colors',
@@ -341,6 +415,21 @@
                             Miễn phí
                         </button>
                     </div>
+
+                    <!-- Chia tiền tự động — chỉ khi có quản lý tài chính -->
+                    <div v-if="hasFinancialManagement && feeType === 'pair'" class="flex items-center justify-between mb-3">
+                        <div>
+                            <span class="text-gray-700">Chia tiền tự động</span>
+                            <p class="text-xs text-gray-500">Tổng tiền / số đội</p>
+                        </div>
+                        <button @click="autoSplitFee = !autoSplitFee"
+                            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                            :class="autoSplitFee ? 'bg-[#D72D36]' : 'bg-gray-300'">
+                            <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
+                                :class="autoSplitFee ? 'translate-x-6' : 'translate-x-1'" />
+                        </button>
+                    </div>
+
                     <div v-if="feeType === 'pair'" class="flex items-center justify-between relative">
                         <div class="flex items-center gap-3">
                             <span class="text-gray-700">Phí tiêu chuẩn</span>
@@ -359,6 +448,29 @@
                                 placeholder="Nhập số tiền (VNĐ)" @blur="updateStandardFeeAmount" />
                             <div class="mt-2 text-xs text-gray-500">Nhập số tiền VNĐ</div>
                         </div>
+                    </div>
+
+                    <!-- QR Code — khi: có quản lý + phí + không dùng CLB fund -->
+                    <div v-if="hasFinancialManagement && feeType === 'pair' && !useClubFund" class="mt-4">
+                        <label class="text-sm text-gray-600 block mb-1">Mã QR thanh toán</label>
+                        <input ref="qrFileInput" type="file" accept="image/*" @change="onQrFileChange" class="hidden" />
+                        <div v-if="!qrCodePreview"
+                            @click="$refs.qrFileInput.click()"
+                            class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-[#D72D36] transition-colors">
+                            <p class="text-sm text-gray-500">Tải ảnh QR (PNG, JPG, tối đa 5MB)</p>
+                        </div>
+                        <div v-else class="relative inline-block">
+                            <img :src="qrCodePreview" class="w-24 h-24 object-cover rounded" />
+                            <button @click="removeQrCode"
+                                class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">×</button>
+                        </div>
+                    </div>
+
+                    <!-- Ghi chú thanh toán — chỉ khi có quản lý tài chính -->
+                    <div v-if="hasFinancialManagement" class="mt-3">
+                        <textarea v-model="feeDescription" rows="2"
+                            placeholder="Ghi chú thanh toán (VD: STK, tên TK, nội dung chuyển khoản...)"
+                            class="w-full px-2 py-2 border rounded text-sm focus:outline-none resize-none" />
                     </div>
                 </div>
                 <div class="bg-white rounded-[8px] shadow p-5">
@@ -418,6 +530,61 @@
                         Quay lại
                     </button>
                 </div>
+
+                <!-- Nút chọn mẫu giải đấu -->
+                <button v-if="!isEditMode" type="button" @click="openTemplateModal"
+                    class="w-full mt-3 border border-[#D72D36] text-[#D72D36] font-bold py-3 rounded-[12px] flex items-center justify-center gap-2 hover:bg-[#FFF5F5] transition-colors">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 3H5a2 2 0 0 0-2 2v14l4-3 4 3 4-3 4 3V5a2 2 0 0 0-2-2z" />
+                    </svg>
+                    <span>Chọn mẫu giải đấu</span>
+                </button>
+
+                <!-- Nút lưu mẫu giải đấu -->
+                <button v-if="!isEditMode" type="button" @click="handleSaveTemplate"
+                    class="w-full mt-3 border border-[#D72D36] text-[#D72D36] font-bold py-3 rounded-[12px] flex items-center justify-center gap-2 hover:bg-[#FFF5F5] transition-colors">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17 3H7a2 2 0 0 0-2 2v14l4-3 4 3 4-3 4 3V5a2 2 0 0 0-2-2h-2z" />
+                        <path d="M15 9H9V7h6v2z" fill="#fff" />
+                    </svg>
+                    <span>Lưu làm mẫu</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal chọn mẫu giải đấu -->
+    <div v-if="isTemplateModalOpen"
+        class="fixed inset-0 z-[99] flex items-center justify-center bg-gray-600 bg-opacity-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md" @click.stop>
+            <div class="flex items-center justify-between mb-4">
+                <h4 class="text-lg font-semibold">Chọn mẫu giải đấu</h4>
+                <button @click="closeTemplateModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div v-if="isLoadingTemplates" class="py-6 text-center text-sm text-gray-500">
+                Đang tải...
+            </div>
+            <div v-else-if="!templates.length" class="py-6 text-center text-sm text-gray-500">
+                Bạn chưa có mẫu giải đấu nào.
+            </div>
+            <div v-else class="space-y-3 max-h-80 overflow-y-auto">
+                <button v-for="template in templates" :key="template.id" type="button"
+                    @click="applyTemplate(template)"
+                    class="w-full flex items-center justify-between px-4 py-3 rounded-[10px] border border-[#DCDEE6] hover:border-[#D72D36] hover:bg-[#FFF5F5] transition-colors">
+                    <div class="text-left">
+                        <p class="text-[14px] font-semibold text-[#3E414C]">
+                            {{ template.name }}
+                        </p>
+                    </div>
+                    <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 18l6-6-6-6" />
+                    </svg>
+                </button>
             </div>
         </div>
     </div>
@@ -444,6 +611,7 @@ import { ageGroupOptions } from '@/constants/ageGroupOption';
 import { useFormattedDate } from '@/composables/formatedDate'
 import { useRoute, useRouter } from 'vue-router'
 import { watch } from 'vue';
+import axiosInstance from "@/utils/httpRequest.js"
 
 const router = useRouter()
 const route = useRoute()
@@ -562,12 +730,41 @@ const formattedFeeAmount = computed(() => {
     return `VNĐ${standardFeeAmount.value.toLocaleString('vi-VN')}`
 })
 
+// =================================================================================
+// REFS CHO QUẢN LÝ TÀI CHÍNH
+// =================================================================================
+const hasFinancialManagement = ref(false)
+const autoSplitFee = ref(false)
+const feeDescription = ref('')
+const qrCodeFile = ref(null)
+const qrCodePreview = ref(null)
+const qrCodeImage = ref(null)
+const qrFileInput = ref(null)
+
+// =================================================================================
+// REFS CHO LIÊN KẾT CLB
+// =================================================================================
+const selectedClub = ref(null)
+const clubKeyword = ref('')
+const clubResults = ref([])
+const isClubDropdownOpen = ref(false)
+const useClubFund = ref(false)
+const includedInClubFund = ref(false)
+
 
 // =================================================================================
 // REFS CHO PHẦN QUYỀN RIÊNG TƯ
 // =================================================================================
 const isPrivate = ref(false) // false: Công khai, true: Giải riêng tư
 const creatorJoin = ref(false)
+
+// =================================================================================
+// Template refs
+// =================================================================================
+const isTemplateModalOpen = ref(false)
+const templates = ref([])
+const isLoadingTemplates = ref(false)
+const isSubmitting = ref(false)
 
 // =================================================================================
 // New Refs and Consts for Tournament Advanced Settings
@@ -862,6 +1059,31 @@ const handleSubmit = async () => {
         is_private: isPrivate.value,
         creator_join: creatorJoin.value,
         description: tournamentNote.value || null,
+        club_id: selectedClub.value?.id || null,
+        has_financial_management: hasFinancialManagement.value,
+        auto_split_fee: autoSplitFee.value,
+        fee_description: feeDescription.value || null,
+        qr_code_url: qrCodeImage.value || null,
+        use_club_fund: useClubFund.value,
+        included_in_club_fund: includedInClubFund.value,
+    }
+
+    if (qrCodeFile.value) {
+        const formData = new FormData()
+        Object.entries(data).forEach(([key, value]) => {
+            if (value !== null && value !== undefined) {
+                formData.append(key, value)
+            }
+        })
+        formData.append('qr_code_url', qrCodeFile.value)
+        // Replace data with formData for submission
+        const finalData = formData
+        if(isEditMode.value) {
+            await updateTournament(tournamentId, finalData)
+        } else {
+            await createTournament(finalData)
+        }
+        return
     }
 
     if(isEditMode.value) {
@@ -937,6 +1159,58 @@ const fetchCompetitionLocations = async (keyword) => {
         competitionLocations.value = []
         isLocationDropdownOpen.value = false
     }
+}
+
+const searchClubs = async (keyword) => {
+    if (!keyword || keyword.length < 2) {
+        clubResults.value = []
+        isClubDropdownOpen.value = false
+        return
+    }
+    closeOtherDropdowns(isClubDropdownOpen)
+    try {
+        const res = await axiosInstance.get('/clubs/search', { params: { keyword } })
+        clubResults.value = res.data?.data || res.data || []
+        isClubDropdownOpen.value = clubResults.value.length > 0
+    } catch (error) {
+        console.error('Error searching clubs:', error)
+        clubResults.value = []
+        isClubDropdownOpen.value = false
+    }
+}
+
+const selectClub = (club) => {
+    selectedClub.value = club
+    clubKeyword.value = club.name || ''
+    isClubDropdownOpen.value = false
+    useClubFund.value = false
+    includedInClubFund.value = false
+}
+
+const clearClub = () => {
+    selectedClub.value = null
+    clubKeyword.value = ''
+    clubResults.value = []
+    isClubDropdownOpen.value = false
+    useClubFund.value = false
+    includedInClubFund.value = false
+}
+
+const onQrFileChange = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+        toast.error('QR tối đa 5MB')
+        return
+    }
+    qrCodeFile.value = file
+    qrCodePreview.value = URL.createObjectURL(file)
+}
+
+const removeQrCode = () => {
+    qrCodeFile.value = null
+    qrCodePreview.value = null
+    qrCodeImage.value = null
 }
 const prefillForm = (data) => {
     if (!data) return;
@@ -1014,6 +1288,23 @@ const prefillForm = (data) => {
 
     // Creator join
     creatorJoin.value = !!data.creator_join ?? false;
+
+    // Quản lý tài chính
+    hasFinancialManagement.value = !!data.has_financial_management ?? false;
+    autoSplitFee.value = !!data.auto_split_fee ?? false;
+    feeDescription.value = data.fee_description || '';
+    qrCodeImage.value = data.qr_code_url || null;
+    qrCodePreview.value = data.qr_code_url ? (data.qr_code_url.startsWith('http') ? data.qr_code_url : `/storage/${data.qr_code_url}`) : null;
+    useClubFund.value = !!data.use_club_fund ?? false;
+    includedInClubFund.value = !!data.included_in_club_fund ?? false;
+
+    // Club
+    if (data.club_id && data.club) {
+        selectedClub.value = data.club;
+        clubKeyword.value = data.club.name || '';
+    } else if (data.club_id) {
+        selectedClub.value = { id: data.club_id };
+    }
 };
 
 const detailTournament = async (id) => {
@@ -1025,6 +1316,206 @@ const detailTournament = async (id) => {
         throw error;
     }
 };
+
+// =================================================================================
+// Template helpers
+// =================================================================================
+
+const fetchTemplates = async () => {
+    isLoadingTemplates.value = true
+    try {
+        const res = await TournamentService.getTournamentTemplates()
+        templates.value = res?.data?.templates || res?.templates || []
+    } catch (error) {
+        console.error('Error fetching tournament templates:', error)
+        const errMessage = error?.response?.data?.message || 'Không tải được danh sách mẫu giải đấu.'
+        toast.error(errMessage)
+    } finally {
+        isLoadingTemplates.value = false
+    }
+}
+
+const openTemplateModal = async () => {
+    isTemplateModalOpen.value = true
+    if (!templates.value.length) {
+        await fetchTemplates()
+    }
+}
+
+const closeTemplateModal = () => {
+    isTemplateModalOpen.value = false
+}
+
+const applyTemplate = (template) => {
+    const s = template?.settings || {}
+
+    // Thông tin cơ bản
+    selectedSportId.value = s.sport_id || selectedSportId.value
+    tournamentName.value = s.name || tournamentName.value
+    tournamentNote.value = s.description || tournamentNote.value
+
+    // Địa điểm
+    if (s.competition_location_id) {
+        selectedLocation.value = {
+            id: s.competition_location_id,
+            name: s.competition_location_name || '',
+        }
+        locationKeyword.value = s.competition_location_name || ''
+    } else {
+        selectedLocation.value = null
+        locationKeyword.value = ''
+    }
+
+    // Thời gian dự kiến bắt đầu
+    if (s.start_date) {
+        date.value = new Date(s.start_date)
+    } else {
+        date.value = null
+    }
+
+    // Thời gian đăng ký
+    if (s.registration_open_at) {
+        registrationOpenAt.value = new Date(s.registration_open_at)
+    } else {
+        registrationOpenAt.value = null
+    }
+    if (s.early_registration_deadline) {
+        earlyRegistrationDeadline.value = new Date(s.early_registration_deadline)
+    } else {
+        earlyRegistrationDeadline.value = null
+    }
+    if (s.registration_closed_at) {
+        registrationClosedAt.value = new Date(s.registration_closed_at)
+    } else {
+        registrationClosedAt.value = null
+    }
+
+    // Thời lượng
+    if (s.duration !== undefined && s.duration !== null) {
+        duration.value = s.duration
+    }
+
+    // DUPR
+    duprEnabled.value = s.enable_dupr ?? true
+    vnduprEnabled.value = s.enable_vndupr ?? true
+
+    // Min/Max Level
+    if (s.min_level !== null && s.min_level !== undefined) {
+        minLevel.value = s.min_level.toString()
+    } else {
+        minLevel.value = 'Không giới hạn'
+    }
+    if (s.max_level !== null && s.max_level !== undefined) {
+        maxLevel.value = s.max_level.toString()
+    } else {
+        maxLevel.value = 'Không giới hạn'
+    }
+
+    // Giới hạn người chơi
+    ageGroup.value = s.age_group ?? 1
+    genderPolicy.value = s.gender_policy ?? 3
+
+    // Người tham gia
+    teamCount.value = s.max_team || 1
+    playerPerTeam.value = s.player_per_team || 2
+
+    // Phí giải đấu
+    if (s.fee === 'free') {
+        feeType.value = 'free'
+        standardFeeAmount.value = 0
+        feeAmountInput.value = 0
+    } else {
+        feeType.value = 'pair'
+        standardFeeAmount.value = Number(s.standard_fee_amount) || standardFeeAmount.value
+        feeAmountInput.value = Number(s.standard_fee_amount) || feeAmountInput.value
+    }
+
+    // Quyền riêng tư
+    isPrivate.value = !!s.is_private ?? false
+
+    // Creator join
+    creatorJoin.value = !!s.creator_join ?? false
+
+    // Quản lý tài chính
+    hasFinancialManagement.value = !!s.has_financial_management ?? false
+    autoSplitFee.value = !!s.auto_split_fee ?? false
+    feeDescription.value = s.fee_description || ''
+    qrCodeImage.value = s.qr_code_url || null
+    qrCodePreview.value = s.qr_code_url ? (s.qr_code_url.startsWith('http') ? s.qr_code_url : `/storage/${s.qr_code_url}`) : null
+    useClubFund.value = !!s.use_club_fund ?? false
+    includedInClubFund.value = !!s.included_in_club_fund ?? false
+
+    // Club
+    if (s.club_id && s.club) {
+        selectedClub.value = s.club
+        clubKeyword.value = s.club.name || ''
+    } else if (s.club_id) {
+        selectedClub.value = { id: s.club_id }
+    }
+
+    isTemplateModalOpen.value = false
+    toast.success('Đã áp dụng mẫu giải đấu')
+}
+
+const buildTemplateSettings = () => {
+    const getNumericLevel = (level) => {
+        if (level === 'Không giới hạn') return null
+        return parseFloat(level)
+    }
+
+    return {
+        sport_id: selectedSportId.value,
+        name: tournamentName.value,
+        description: tournamentNote.value || null,
+        competition_location_id: selectedLocation.value?.id || null,
+        competition_location_name: selectedLocation.value?.name || null,
+        start_date: date.value ? date.value.toISOString() : null,
+        registration_open_at: registrationOpenAt.value ? registrationOpenAt.value.toISOString() : null,
+        early_registration_deadline: earlyRegistrationDeadline.value ? earlyRegistrationDeadline.value.toISOString() : null,
+        registration_closed_at: registrationClosedAt.value ? registrationClosedAt.value.toISOString() : null,
+        duration: durationInMinutes.value,
+        enable_dupr: duprEnabled.value,
+        enable_vndupr: vnduprEnabled.value,
+        min_level: getNumericLevel(minLevel.value),
+        max_level: getNumericLevel(maxLevel.value),
+        age_group: ageGroup.value,
+        gender_policy: genderPolicy.value,
+        max_team: teamCount.value,
+        player_per_team: playerPerTeam.value,
+        fee: feeType.value,
+        standard_fee_amount: feeType.value === 'free' ? 0 : standardFeeAmount.value,
+        is_private: isPrivate.value,
+        creator_join: creatorJoin.value,
+        club_id: selectedClub.value?.id || null,
+        has_financial_management: hasFinancialManagement.value,
+        auto_split_fee: autoSplitFee.value,
+        fee_description: feeDescription.value || null,
+        qr_code_url: qrCodeImage.value || null,
+        use_club_fund: useClubFund.value,
+        included_in_club_fund: includedInClubFund.value,
+    }
+}
+
+const handleSaveTemplate = async () => {
+    if (isSubmitting.value) return
+    isSubmitting.value = true
+    try {
+        const settings = buildTemplateSettings()
+        const payload = {
+            name: tournamentName.value || 'Mẫu giải đấu Picki',
+            settings,
+        }
+        const res = await TournamentService.saveTournamentTemplate(payload)
+        const message = res?.message || 'Đã lưu cài đặt này làm mẫu'
+        toast.success(message)
+    } catch (error) {
+        console.error('Error saving tournament template:', error)
+        const errMessage = error?.response?.data?.message || 'Lưu mẫu thất bại. Vui lòng thử lại.'
+        toast.error(errMessage)
+    } finally {
+        isSubmitting.value = false
+    }
+}
 
 onMounted(async () => {
     await fetchSports()
