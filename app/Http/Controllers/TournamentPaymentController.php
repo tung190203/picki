@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Helpers\ResponseHelper;
 use App\Models\Tournament;
 use App\Models\TournamentFundCollection;
+use App\Models\Participant;
 use App\Models\TournamentParticipantPayment;
 use App\Services\ImageOptimizationService;
 use App\Services\TournamentFundService;
@@ -62,10 +63,7 @@ class TournamentPaymentController extends Controller
 
         $participantCount = $tournament->participants()->where('is_confirmed', true)->count();
 
-        $qrUrl = $tournament->qr_code_url;
-        if ($qrUrl && !str_starts_with($qrUrl, 'http')) {
-            $qrUrl = asset('storage/' . ltrim($qrUrl, '/'));
-        }
+        $qrUrl = $tournament->qr_code_url; // uses model's getQrCodeUrlAttribute() accessor
 
         // Auto-confirm payments for organizers
         foreach ($pendingPayments as $payment) {
@@ -164,10 +162,7 @@ class TournamentPaymentController extends Controller
             $payment->refresh();
         }
 
-        $qrUrl = $tournament->qr_code_url;
-        if ($qrUrl && !str_starts_with($qrUrl, 'http')) {
-            $qrUrl = asset('storage/' . ltrim($qrUrl, '/'));
-        }
+        $qrUrl = $tournament->qr_code_url; // uses model's getQrCodeUrlAttribute() accessor
 
         $data = [
             'payment' => $payment ? new TournamentParticipantPaymentResource($payment) : null,

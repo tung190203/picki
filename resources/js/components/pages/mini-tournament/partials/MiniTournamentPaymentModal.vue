@@ -39,6 +39,7 @@
                       :src="paymentConfig.qr_code_url"
                       alt="QR thanh toán kèo đấu"
                       class="w-full h-full object-contain mix-blend-multiply"
+                      @error="$event.target.style.display='none'"
                     />
                   </div>
                 </div>

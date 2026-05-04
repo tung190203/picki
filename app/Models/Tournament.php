@@ -68,7 +68,7 @@ class Tournament extends Model
         'cancellation_duration' => 'integer',
     ];
 
-    protected $appends = ['poster_url'];
+    protected $appends = ['poster_url', 'qr_code_url'];
     protected $hidden = ['poster'];
 
     const PER_PAGE = 10;
@@ -267,6 +267,18 @@ class Tournament extends Model
     public function getPosterUrlAttribute()
     {
         return $this->poster ? asset('storage/' . $this->poster) : null;
+    }
+
+    public function getQrCodeUrlAttribute()
+    {
+        if (!$this->attributes['qr_code_url'] ?? null) {
+            return null;
+        }
+        $url = $this->attributes['qr_code_url'];
+        if (str_starts_with($url, 'http')) {
+            return $url;
+        }
+        return asset('storage/' . ltrim($url, '/'));
     }
 
     public function getAllUsersAttribute(): Collection

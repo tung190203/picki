@@ -973,7 +973,7 @@ const canShowPaymentButton = computed(() => {
   if (!hasFinancialManagement.value) return false
   if (tournament.value?.auto_split_fee) {
     return (tournament.value?.participants || []).some(
-      p => p.payment_status === 'pending' || p.payment_status === 'paid'
+      p => ['pending', 'paid', 'pay_pending'].includes(p.payment_status)
     )
   }
   return true
@@ -984,7 +984,7 @@ const canManagePayments = computed(() => {
   if (!isCreator.value) return false
   if (tournament.value?.auto_split_fee) {
     return (tournament.value?.participants || []).some(
-      p => p.payment_status === 'pending' || p.payment_status === 'paid'
+      p => ['pending', 'paid', 'pay_pending'].includes(p.payment_status)
     )
   }
   return true

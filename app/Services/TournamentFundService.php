@@ -9,6 +9,7 @@ use App\Models\Club\ClubWalletTransactionSourceType;
 use App\Models\Club\ClubWalletTransactionDirection;
 use App\Models\Club\ClubWalletTransactionStatus;
 use App\Models\Club\Club;
+use App\Models\Participant;
 use App\Models\Tournament;
 use App\Models\TournamentFundCollection;
 use App\Models\TournamentFundContribution;
@@ -205,6 +206,14 @@ class TournamentFundService
             ]
         );
 
+        // Sync Participant.payment_status = PAY_PENDING (đã nộp, chờ duyệt)
+        $participant = Participant::where('tournament_id', $tournament->id)
+            ->where('user_id', $user->id)
+            ->first();
+        if ($participant) {
+            $participant->update(['payment_status' => \App\Enums\PaymentStatusEnum::PAY_PENDING]);
+        }
+
         // Nếu có tournament fund collection, tạo contribution
         if ($tournament->tournament_fund_collection_id) {
             TournamentFundContribution::updateOrCreate(
@@ -235,6 +244,14 @@ class TournamentFundService
             'confirmed_by' => $admin->id,
         ]);
 
+        // Sync Participant.payment_status = CONFIRMED
+        $participant = Participant::where('tournament_id', $payment->tournament_id)
+            ->where('user_id', $payment->user_id)
+            ->first();
+        if ($participant) {
+            $participant->update(['payment_status' => \App\Enums\PaymentStatusEnum::CONFIRMED]);
+        }
+
         // Sync club fund contribution nếu có
         $tournament = $payment->tournament;
         if ($tournament->club_fund_collection_id) {
@@ -262,6 +279,14 @@ class TournamentFundService
             'status' => TournamentParticipantPayment::STATUS_REJECTED,
             'admin_note' => $reason,
         ]);
+
+        // Sync Participant.payment_status = PENDING (hoặc có thể giữ nguyên tuỳ logic)
+        $participant = Participant::where('tournament_id', $payment->tournament_id)
+            ->where('user_id', $payment->user_id)
+            ->first();
+        if ($participant) {
+            $participant->update(['payment_status' => \App\Enums\PaymentStatusEnum::PENDING]);
+        }
 
         // Sync contributions
         $tournament = $payment->tournament;
@@ -299,6 +324,14 @@ class TournamentFundService
                 'admin_note' => 'BTC đánh dấu đã thanh toán',
             ]
         );
+
+        // Sync Participant.payment_status = CONFIRMED
+        $participant = Participant::where('tournament_id', $tournament->id)
+            ->where('user_id', $userId)
+            ->first();
+        if ($participant) {
+            $participant->update(['payment_status' => \App\Enums\PaymentStatusEnum::CONFIRMED]);
+        }
 
         return $payment;
     }

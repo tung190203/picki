@@ -46,7 +46,7 @@
             <div v-if="myPaymentStatus" class="mt-3 px-3 py-1.5 rounded-full text-xs font-semibold"
               :class="{
                 'bg-[#10B981]/10 text-[#10B981]': myPaymentStatus === 'confirmed',
-                'bg-[#F97316]/10 text-[#F97316]': myPaymentStatus === 'paid',
+                'bg-[#F97316]/10 text-[#F97316]': ['paid', 'pay_pending'].includes(myPaymentStatus),
                 'bg-[#D72D36]/10 text-[#D72D36]': myPaymentStatus === 'pending',
               }"
             >
@@ -135,7 +135,7 @@
                   </svg>
                   Đang gửi...
                 </template>
-                <template v-else-if="myPaymentStatus === 'paid'">
+                <template v-else-if="['paid', 'pay_pending'].includes(myPaymentStatus)">
                   Gửi lại biên lai
                 </template>
                 <template v-else>
@@ -186,7 +186,7 @@ const myPaymentStatus = ref(null)
 
 const titleText = computed(() => {
   if (!hasFee.value) return 'Giải đấu này không thu phí'
-  if (myPaymentStatus.value === 'paid') return 'Gửi lại biên lai thanh toán'
+  if (['paid', 'pay_pending'].includes(myPaymentStatus.value)) return 'Gửi lại biên lai thanh toán'
   if (myPaymentStatus.value === 'confirmed') return 'Thanh toán đã được xác nhận'
   return 'Nộp bằng chứng thanh toán'
 })
@@ -195,6 +195,7 @@ const myPaymentStatusText = computed(() => {
   const statusMap = {
     pending: 'Chờ thanh toán',
     paid: 'Chờ BTC duyệt',
+    pay_pending: 'Chờ BTC duyệt',
     confirmed: 'Đã xác nhận',
     rejected: 'Bị từ chối',
   }
