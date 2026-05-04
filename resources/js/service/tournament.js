@@ -14,6 +14,18 @@ export const getTournamentById = async (id) => {
 }
 
 export const storeTournament = async (tournamentData) => {
+  const hasClubId = tournamentData instanceof FormData
+    ? tournamentData.has('club_id') && tournamentData.get('club_id')
+    : tournamentData?.club_id;
+
+  if (hasClubId) {
+    const clubId = tournamentData instanceof FormData
+      ? tournamentData.get('club_id')
+      : tournamentData.club_id;
+    return axiosInstance.post(`/clubs/${clubId}/tournaments`, tournamentData)
+      .then((response) => response.data.data);
+  }
+
   return axiosInstance.post(`${tournamentEndpoint}/store`, tournamentData)
     .then((response) => response.data.data);
 }

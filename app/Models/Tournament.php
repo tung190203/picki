@@ -32,8 +32,6 @@ class Tournament extends Model
         'max_team',
         'player_per_team',
         'max_player',
-        'fee',
-        'standard_fee_amount',
         'is_private',
         'auto_approve',
         'end_date',
@@ -46,22 +44,31 @@ class Tournament extends Model
         'is_own_score',
         'creator_join',
         'has_financial_management',
+        'has_fee',
+        'fee_amount',
         'auto_split_fee',
         'fee_description',
         'qr_code_url',
         'use_club_fund',
         'included_in_club_fund',
         'tournament_fund_collection_id',
+        'club_fund_collection_id',
+        'allow_cancellation',
+        'cancellation_duration',
     ];
 
     protected $casts = [
         'has_financial_management' => 'bool',
+        'has_fee' => 'bool',
+        'fee_amount' => 'integer',
         'auto_split_fee' => 'bool',
         'use_club_fund' => 'bool',
         'included_in_club_fund' => 'bool',
+        'allow_cancellation' => 'bool',
+        'cancellation_duration' => 'integer',
     ];
 
-    protected $appends = ['poster_url'];
+    protected $appends = ['poster_url', 'qr_code_url'];
     protected $hidden = ['poster'];
 
     const PER_PAGE = 10;
@@ -262,6 +269,18 @@ class Tournament extends Model
         return $this->poster ? asset('storage/' . $this->poster) : null;
     }
 
+    public function getQrCodeUrlAttribute()
+    {
+        if (!$this->attributes['qr_code_url'] ?? null) {
+            return null;
+        }
+        $url = $this->attributes['qr_code_url'];
+        if (str_starts_with($url, 'http')) {
+            return $url;
+        }
+        return asset('storage/' . ltrim($url, '/'));
+    }
+
     public function getAllUsersAttribute(): Collection
     {
         $directUsers = $this->participants
@@ -304,14 +323,107 @@ class Tournament extends Model
         return (bool) ($this->attributes['included_in_club_fund'] ?? false);
     }
 
+    public function getHasFeeAttribute(): bool
+    {
+        return (bool) ($this->attributes['has_fee'] ?? false);
+    }
+
+    /**
+     * Tính phí mỗi người dựa trên cài đặt.
+     * Nếu auto_split_fee = true: fee_amount / số người tham gia
+     * Nếu auto_split_fee = false: fee_amount (tiền cố định mỗi người)
+     */
+    public function getFeePerPersonAttribute()
+    {
+        if (!$this->has_fee) {
+            return 0;
+        }
+
+        if ($this->auto_split_fee) {
+            $participantCount = $this->participants()->count();
+            if ($participantCount > 0) {
+                return (int) round($this->fee_amount / $participantCount);
+            }
+            return 0;
+        }
+
+        return (int) ($this->fee_amount ?? 0);
+    }
+
+    /**
+     * Tính tổng tiền dự kiến.
+     */
+    public function getTotalFeeExpectedAttribute(): int
+    {
+        if (!$this->has_fee) {
+            return 0;
+        }
+
+        $participantCount = $this->participants()->count();
+        if ($participantCount > 0) {
+            return $this->fee_per_person * $participantCount;
+        }
+
+        return 0;
+    }
+
+    /**
+     * Hạn chót được phép hủy giải đấu.
+     */
+    public function getCancellationDeadlineAttribute(): ?Carbon
+    {
+        if (!$this->allow_cancellation || !$this->start_date) {
+            return null;
+        }
+
+        $startDate = $this->start_date instanceof Carbon
+            ? $this->start_date
+            : Carbon::parse($this->start_date);
+
+        if ($this->cancellation_duration === null) {
+            return $startDate;
+        }
+
+        return $startDate->copy()->subMinutes($this->cancellation_duration);
+    }
+
+    /**
+     * Kiểm tra đã hết hạn hủy giải đấu chưa.
+     */
+    public function isCancellationClosed(?CarbonInterface $now = null): bool
+    {
+        $now = $now ?? Carbon::now();
+
+        if (!$this->allow_cancellation) {
+            return true;
+        }
+
+        $deadline = $this->cancellation_deadline;
+
+        if ($deadline === null) {
+            return false;
+        }
+
+        return $now->gt($deadline);
+    }
+
     public function getPaymentSummaryAttribute(): array
     {
         $participantCount = $this->participants()->count();
 
+        $totalExpected = 0;
+        if ($this->has_fee) {
+            if ($this->auto_split_fee) {
+                // auto_split=true: tổng tiền cố định = fee_amount
+                $totalExpected = (int) ($this->fee_amount ?? 0);
+            } else {
+                // auto_split=false: mỗi người đóng fee_amount
+                $totalExpected = (int) ($this->fee_amount ?? 0) * $participantCount;
+            }
+        }
+
         return [
-            'total_expected' => $this->fee === 'pair' ? ($this->auto_split_fee
-                ? ($this->standard_fee_amount * $participantCount)
-                : ($this->standard_fee_amount * $participantCount)) : 0,
+            'total_expected' => $totalExpected,
             'total_collected' => $this->payments()->where('status', TournamentParticipantPayment::STATUS_CONFIRMED)->sum('amount'),
             'total_pending' => $this->payments()->whereIn('status', [TournamentParticipantPayment::STATUS_PENDING, TournamentParticipantPayment::STATUS_PAID])->count(),
             'participant_count' => $participantCount,
@@ -390,14 +502,14 @@ class Tournament extends Model
                     $q->where(function ($subQuery) use ($filters){
                         foreach($filters['fee'] as $fee){
                             if($fee === 'free') {
-                                $subQuery->orWhere('fee', 'free');
+                                $subQuery->orWhere('has_fee', false);
                             } elseif($fee === 'paid') {
                                 $min = $filters['min_price'] ?? 0;
                                 $max = $filters['max_price'] ?? PHP_INT_MAX;
 
                                 $subQuery->orWhere(function ($paid) use ($min, $max){
-                                    $paid->where('fee', 'paid')
-                                         ->whereBetween('standard_fee_amount', [$min, $max]);
+                                    $paid->where('has_fee', true)
+                                         ->whereBetween('fee_amount', [$min, $max]);
                                 });
                             }
                         }

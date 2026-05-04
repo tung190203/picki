@@ -203,7 +203,7 @@ class TournamentController extends Controller
             }
 
             // Xử lý quỹ: tạo fund collection nếu có quản lý tài chính
-            if (!empty($validated['has_financial_management']) && ($validated['fee'] ?? 'free') !== 'free') {
+            if (!empty($validated['has_financial_management']) && !empty($validated['has_fee'])) {
                 if (!empty($validated['included_in_club_fund']) && !empty($validated['club_id'])) {
                     $club = Club::find($validated['club_id']);
                     if ($club) {

@@ -125,6 +125,9 @@ class MiniTournamentController extends Controller
             $qrPath = $qrFile->store('qr_codes', 'public');
             $qrUrl = asset('storage/' . $qrPath);
             $miniTournament->update(['qr_code_url' => $qrUrl]);
+        } elseif ($request->has('qr_code_url') && is_string($request->input('qr_code_url'))) {
+            // Handle qr_code_url as string (e.g. text content or existing URL)
+            $miniTournament->update(['qr_code_url' => $request->input('qr_code_url')]);
         }
 
         $miniTournament->loadFullRelations();

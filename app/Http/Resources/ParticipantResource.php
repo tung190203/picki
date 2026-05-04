@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use App\Http\Resources\TournamentParticipantPaymentResource;
 
 class ParticipantResource extends JsonResource
 {
@@ -47,6 +48,9 @@ class ParticipantResource extends JsonResource
             'is_pending_confirmation' => $this->when($this->is_guest, (bool) $this->is_pending_confirmation),
             'checked_in_at' => $this->checked_in_at,
             'is_absent' => (bool) $this->is_absent,
+            'payment_status' => $this->payment_status,
+            'payment_status_text' => $this->payment_status ? $this->payment_status->label() : null,
+            'payment' => new TournamentParticipantPaymentResource($this->whenLoaded('payments')),
         ];
     }
 }
