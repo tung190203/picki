@@ -111,7 +111,7 @@
           <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center hover:shadow-md transition">
             <BanknotesIcon class="w-6 h-6 text-[#D72D36] mx-auto mb-2" />
             <p class="text-sm font-bold text-gray-900">
-              {{ tournament.fee === 'free' ? 'Miễn phí' : formatCurrency(tournament.standard_fee_amount) }}
+              {{ tournament.has_fee ? formatCurrency(tournament.fee_amount) : 'Miễn phí' }}
             </p>
             <p class="text-xs text-gray-500">Phí tham gia</p>
           </div>

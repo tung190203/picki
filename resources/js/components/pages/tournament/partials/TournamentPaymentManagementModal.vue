@@ -14,10 +14,10 @@
           <div class="p-6 px-8 flex items-center justify-between border-b border-gray-100 bg-white flex-shrink-0">
             <div>
               <h2 class="text-xl font-bold text-[#2D3139]">
-                {{ paymentConfig.auto_split_fee ? 'Quản lý thanh toán' : 'Thanh toán kèo đấu' }}
+                Quản lý thanh toán giải đấu
               </h2>
               <p class="text-xs text-[#6B6F80] mt-1">
-                {{ paymentConfig.auto_split_fee ? 'Theo dõi trạng thái thanh toán của từng người (chia tự động)' : 'Theo dõi trạng thái thanh toán từng người tham gia kèo' }}
+                Theo dõi trạng thái thanh toán của từng người tham gia
               </p>
             </div>
             <button
@@ -32,14 +32,14 @@
           <div class="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
             <!-- Payment config & summary -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <!-- Config -->
               <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
                 <div v-if="paymentConfig.qr_code_url" class="w-full flex justify-center">
                   <div class="w-28 h-28 bg-gray-50 border border-dashed border-gray-200 rounded-xl flex items-center justify-center overflow-hidden">
                     <img
                       :src="paymentConfig.qr_code_url"
-                      alt="QR thanh toán kèo đấu"
+                      alt="QR thanh toán"
                       class="w-full h-full object-contain mix-blend-multiply"
-                      @error="$event.target.style.display='none'"
                     />
                   </div>
                 </div>
@@ -50,7 +50,7 @@
                 <p class="text-sm text-[#3E414C]" v-if="paymentConfig.has_fee">
                   Tổng phí: <span class="font-semibold">{{ formatCurrency(paymentConfig.fee_amount) }}đ</span>
                 </p>
-                <p class="text-sm text-[#3E414C]" v-if="paymentConfig.auto_split_fee">
+                <p class="text-sm text-[#3E414C]" v-if="paymentConfig.fee_per_person">
                   Mỗi người: <span class="font-semibold text-[#D72D36]">{{ formatCurrency(paymentConfig.fee_per_person) }}đ</span>
                 </p>
                 <p class="text-xs text-[#10B981] font-medium" v-if="paymentConfig.auto_split_fee">
@@ -61,6 +61,7 @@
                 </p>
               </div>
 
+              <!-- Summary -->
               <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-2">
                 <p class="text-xs font-semibold text-[#838799] uppercase tracking-wide">Tổng quan</p>
                 <p class="text-sm text-[#3E414C]">
@@ -77,6 +78,7 @@
                 </p>
               </div>
 
+              <!-- Status -->
               <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col justify-between">
                 <div>
                   <p class="text-xs font-semibold text-[#838799] uppercase tracking-wide">Trạng thái</p>
@@ -94,11 +96,10 @@
                   </p>
                 </div>
                 <div class="mt-3 space-y-2">
-                  <p class="text-[11px] text-[#6B6F80]" v-if="paymentConfig.auto_split_fee">
-                    <span class="text-[#10B981]">✓</span> Chủ kèo & guest bảo lãnh bởi chủ kèo: tự động xác nhận
+                  <p class="text-[11px] text-[#6B6F80]">
+                    <span class="text-[#10B981]">✓</span> Chủ giải & guest bảo lãnh bởi chủ giải: tự động xác nhận
                   </p>
                   <button
-                    v-if="canManage"
                     type="button"
                     class="inline-flex items-center justify-center px-4 py-2 rounded-full text-xs font-semibold bg-[#FBEAEB] text-[#D72D36] hover:bg-[#F7D5D7] transition w-full"
                     @click="handleRemindAll"
@@ -129,15 +130,20 @@
                 </button>
               </div>
 
-              <div class="divide-y divide-gray-50 max-h-[420px] overflow-y-auto">
-                <!-- Pending (chưa thanh toán) - Tab 1 -->
+              <!-- Tab: Loading -->
+              <div v-if="loading" class="py-10 text-center text-sm text-gray-400">
+                Đang tải dữ liệu...
+              </div>
+
+              <!-- Tab: Empty -->
+              <div v-else-if="currentPayments.length === 0" class="py-10 text-center text-sm text-gray-400">
+                {{ emptyText }}
+              </div>
+
+              <!-- Tab: Payment list -->
+              <div v-else class="divide-y divide-gray-50 max-h-[420px] overflow-y-auto">
+                <!-- Pending -->
                 <div v-if="activeTab === 'pending'">
-                  <div
-                    v-if="pendingPayments.length === 0"
-                    class="py-10 text-center text-sm text-gray-400"
-                  >
-                    Không có thành viên nào ở trạng thái chờ thanh toán.
-                  </div>
                   <div
                     v-for="payment in pendingPayments"
                     :key="payment.id"
@@ -166,13 +172,12 @@
                         </p>
                         <template v-if="payment.is_guest && payment.participant?.guarantor">
                           <p class="text-[11px] text-[#B45309]">
-                            Bảo lãnh: {{ payment.participant?.guarantor?.full_name }}
+                            Bảo lãnh: {{ payment.participant?.guarantor?.full_name || payment.participant?.guarantor?.name }}
                           </p>
                         </template>
                       </div>
                     </div>
                     <button
-                      v-if="canManage"
                       type="button"
                       class="px-4 py-1.5 rounded-full text-xs font-semibold bg-[#F6E4C8] text-[#E0A243] hover:bg-[#D48D3B] hover:text-white transition"
                       @click="handleRemind(payment)"
@@ -182,23 +187,15 @@
                   </div>
                 </div>
 
-                <!-- Awaiting confirmation - Tab 2 -->
+                <!-- Awaiting confirmation -->
                 <div v-else-if="activeTab === 'awaiting'">
                   <div
-                    v-if="awaitingConfirmationPayments.length === 0"
-                    class="py-10 text-center text-sm text-gray-400"
-                  >
-                    Chưa có thanh toán nào chờ duyệt.
-                  </div>
-                  <div
-                    v-for="payment in awaitingConfirmationPayments"
+                    v-for="payment in awaitingPayments"
                     :key="payment.id"
                     class="p-4 hover:bg-gray-50 transition"
                   >
-                    <!-- Main payment info -->
                     <div class="flex items-center justify-between mb-2">
                       <div class="flex items-center gap-4">
-                        <!-- Guest avatar: initials badge -->
                         <template v-if="payment.is_guest">
                           <div class="w-10 h-10 rounded-full bg-[#FDE68A] border border-[#F59E0B] flex items-center justify-center text-xs font-bold text-[#92400E] shrink-0">
                             G
@@ -223,22 +220,30 @@
                             </span>
                             <span v-if="payment.paid_at"> • {{ formatTime(payment.paid_at) }}</span>
                           </p>
-                          <!-- Guest detail when is_guest -->
                           <template v-if="payment.is_guest">
                             <p class="text-[11px] text-[#B45309] mt-0.5">
                               SĐT: {{ payment.participant?.guest_phone }}
                               <span v-if="payment.participant?.guarantor" class="ml-2">
-                                • Bảo lãnh: {{ payment.participant?.guarantor?.full_name }}
+                                • Bảo lãnh: {{ payment.participant?.guarantor?.full_name || payment.participant?.guarantor?.name }}
                               </span>
                             </p>
                           </template>
+                          <!-- Receipt preview -->
+                          <div v-if="payment.receipt_image" class="mt-1">
+                            <button
+                              class="text-[11px] text-[#4392E0] hover:underline"
+                              @click="showReceipt(payment.receipt_image)"
+                            >
+                              Xem biên nhận
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      <div class="flex items-center gap-2" v-if="canManage">
+                      <div class="flex items-center gap-2">
                         <button
                           type="button"
                           class="px-3 py-1.5 rounded-full text-xs font-semibold bg-white text-[#D72D36] border border-[#D72D36] hover:bg-red-50 transition"
-                          @click="handleReject(payment)"
+                          @click="openRejectModal(payment)"
                         >
                           Không duyệt
                         </button>
@@ -254,14 +259,8 @@
                   </div>
                 </div>
 
-                <!-- Confirmed - Tab 3 -->
+                <!-- Confirmed -->
                 <div v-else-if="activeTab === 'confirmed'">
-                  <div
-                    v-if="confirmedPayments.length === 0"
-                    class="py-10 text-center text-sm text-gray-400"
-                  >
-                    Chưa có thanh toán nào được xác nhận.
-                  </div>
                   <div
                     v-for="payment in confirmedPayments"
                     :key="payment.id"
@@ -294,19 +293,57 @@
                         </p>
                         <template v-if="payment.is_guest && payment.participant?.guarantor">
                           <p class="text-[11px] text-[#B45309]">
-                            Bảo lãnh: {{ payment.participant?.guarantor?.full_name }}
+                            Bảo lãnh: {{ payment.participant?.guarantor?.full_name || payment.participant?.guarantor?.name }}
                           </p>
                         </template>
                       </div>
                     </div>
-                    <span
-                      class="px-3 py-1 rounded-full text-[10px] font-semibold bg-[#10B981]/10 text-[#10B981]"
-                    >
+                    <span class="px-3 py-1 rounded-full text-[10px] font-semibold bg-[#10B981]/10 text-[#10B981]">
                       ĐÃ XÁC NHẬN
                     </span>
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Reject Modal -->
+          <div v-if="rejectModalOpen" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[10001] p-4" @click.self="rejectModalOpen = false">
+            <div class="bg-white rounded-2xl shadow-lg p-6 w-full max-w-md">
+              <h3 class="font-semibold text-gray-900 mb-4">Từ chối thanh toán</h3>
+              <textarea
+                v-model="rejectReason"
+                rows="3"
+                placeholder="Lý do từ chối..."
+                class="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm resize-none mb-4"
+              ></textarea>
+              <div class="flex gap-2 justify-end">
+                <button
+                  @click="rejectModalOpen = false"
+                  class="px-4 py-2 border border-gray-200 rounded-full text-sm text-gray-600 hover:bg-gray-50 transition"
+                >
+                  Hủy
+                </button>
+                <button
+                  @click="confirmReject"
+                  class="px-4 py-2 bg-[#D72D36] text-white rounded-full text-sm font-semibold hover:bg-[#b91c1c] transition"
+                >
+                  Xác nhận từ chối
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Receipt Modal -->
+          <div v-if="receiptModalOpen" class="fixed inset-0 bg-black/70 flex items-center justify-center z-[10001] p-4" @click.self="receiptModalOpen = false">
+            <div class="bg-white rounded-lg shadow-lg p-4 max-w-lg w-full">
+              <div class="flex justify-between items-center mb-4">
+                <h3 class="font-semibold text-gray-900">Biên nhận thanh toán</h3>
+                <button @click="receiptModalOpen = false" class="text-gray-500 hover:text-gray-700">
+                  <XMarkIcon class="w-5 h-5" />
+                </button>
+              </div>
+              <img :src="currentReceiptUrl" alt="Biên nhận thanh toán" class="w-full object-contain max-h-[70vh] rounded" />
             </div>
           </div>
         </div>
@@ -321,23 +358,22 @@ import { XMarkIcon } from '@heroicons/vue/24/outline'
 import { toast } from 'vue3-toastify'
 import dayjs from 'dayjs'
 import {
-  getMiniTournamentPayments,
-  confirmMiniTournamentPayment,
-  rejectMiniTournamentPayment,
-  remindMiniTournamentPayment,
-  remindAllMiniTournamentPayments,
-} from '@/service/miniTournament'
-import { formatCurrency } from '@/composables/formatCurrency'
+  getTournamentPayments,
+  confirmTournamentPayment,
+  rejectTournamentPayment,
+  remindTournamentUser,
+  remindAllTournamentPayments,
+} from '@/service/tournamentPayment.js'
+import { formatCurrency } from '@/composables/formatCurrency.js'
 
 const props = defineProps({
-  isOpen: Boolean,
-  miniId: {
-    type: [String, Number],
-    required: true,
-  },
-  canManage: {
+  isOpen: {
     type: Boolean,
     default: false,
+  },
+  tournamentId: {
+    type: [String, Number],
+    required: true,
   },
 })
 
@@ -351,7 +387,6 @@ const paymentConfig = ref({
   fee_per_person: 0,
   fee_description: '',
   qr_code_url: null,
-  payment_account_id: null,
 })
 const summary = ref({
   total_participants: 0,
@@ -362,10 +397,11 @@ const summary = ref({
   total_confirmed: 0,
 })
 const pendingPayments = ref([])
-const awaitingConfirmationPayments = ref([])
+const awaitingPayments = ref([])
 const confirmedPayments = ref([])
 
 const activeTab = ref('pending')
+
 const tabs = computed(() => [
   {
     key: 'pending',
@@ -381,6 +417,18 @@ const tabs = computed(() => [
   },
 ])
 
+const currentPayments = computed(() => {
+  if (activeTab.value === 'pending') return pendingPayments.value
+  if (activeTab.value === 'awaiting') return awaitingPayments.value
+  return confirmedPayments.value
+})
+
+const emptyText = computed(() => {
+  if (activeTab.value === 'pending') return 'Không có thành viên nào ở trạng thái chờ thanh toán.'
+  if (activeTab.value === 'awaiting') return 'Chưa có thanh toán nào chờ duyệt.'
+  return 'Chưa có thanh toán nào được xác nhận.'
+})
+
 const closeModal = () => {
   emit('update:isOpen', false)
 }
@@ -391,18 +439,41 @@ const formatTime = (value) => {
 }
 
 const fetchPayments = async () => {
-  if (!props.miniId) return
+  if (!props.tournamentId) return
   try {
     loading.value = true
-    const data = await getMiniTournamentPayments(props.miniId)
-    paymentConfig.value = data.payment_config || paymentConfig.value
-    summary.value = data.summary || summary.value
-    pendingPayments.value = data.pending_payments?.data || data.pending_payments || []
-    awaitingConfirmationPayments.value =
-      data.awaiting_confirmation_payments?.data || data.awaiting_confirmation_payments || []
-    confirmedPayments.value = data.confirmed_payments?.data || data.confirmed_payments || []
+    const data = await getTournamentPayments(props.tournamentId)
+
+    if (data?.payment_config) {
+      paymentConfig.value = data.payment_config
+    } else {
+      paymentConfig.value = {
+        has_fee: data?.tournament?.has_fee ?? false,
+        auto_split_fee: data?.tournament?.auto_split_fee ?? false,
+        fee_amount: data?.tournament?.fee_amount || 0,
+        fee_per_person: data?.tournament?.fee_per_person || 0,
+        fee_description: data?.tournament?.fee_description || '',
+        qr_code_url: data?.tournament?.qr_code_url || null,
+      }
+    }
+
+    if (data?.summary) {
+      summary.value = data.summary
+    }
+
+    // Handle both new API (nested) and old API (flat)
+    if (data?.pending_payments !== undefined) {
+      pendingPayments.value = data.pending_payments?.data || data.pending_payments || []
+      awaitingPayments.value = data.awaiting_confirmation_payments?.data || data.awaiting_confirmation_payments || []
+      confirmedPayments.value = data.confirmed_payments?.data || data.confirmed_payments || []
+    } else {
+      const allPayments = data?.payments || []
+      pendingPayments.value = allPayments.filter(p => p.status === 'pending')
+      awaitingPayments.value = allPayments.filter(p => p.status === 'paid')
+      confirmedPayments.value = allPayments.filter(p => p.status === 'confirmed')
+    }
   } catch (error) {
-    toast.error(error.response?.data?.message || 'Không thể tải thông tin thanh toán kèo đấu')
+    toast.error(error.response?.data?.message || 'Không thể tải thông tin thanh toán')
   } finally {
     loading.value = false
   }
@@ -410,7 +481,7 @@ const fetchPayments = async () => {
 
 const handleConfirm = async (payment) => {
   try {
-    await confirmMiniTournamentPayment(props.miniId, payment.id)
+    await confirmTournamentPayment(props.tournamentId, payment.id)
     toast.success('Đã xác nhận thanh toán')
     await fetchPayments()
   } catch (error) {
@@ -418,10 +489,26 @@ const handleConfirm = async (payment) => {
   }
 }
 
-const handleReject = async (payment) => {
+// Reject
+const rejectModalOpen = ref(false)
+const rejectPayment = ref(null)
+const rejectReason = ref('')
+
+const openRejectModal = (payment) => {
+  rejectPayment.value = payment
+  rejectReason.value = ''
+  rejectModalOpen.value = true
+}
+
+const confirmReject = async () => {
+  if (rejectReason.value.trim() === '') {
+    toast.error('Vui lòng nhập lý do từ chối')
+    return
+  }
   try {
-    await rejectMiniTournamentPayment(props.miniId, payment.id)
+    await rejectTournamentPayment(props.tournamentId, rejectPayment.value.id, rejectReason.value)
     toast.success('Đã từ chối thanh toán')
+    rejectModalOpen.value = false
     await fetchPayments()
   } catch (error) {
     toast.error(error.response?.data?.message || 'Không thể từ chối thanh toán')
@@ -430,7 +517,7 @@ const handleReject = async (payment) => {
 
 const handleRemind = async (payment) => {
   try {
-    await remindMiniTournamentPayment(props.miniId, payment.participant_id)
+    await remindTournamentUser(props.tournamentId, payment.user_id)
     toast.success('Đã gửi nhắc thanh toán')
   } catch (error) {
     toast.error(error.response?.data?.message || 'Không thể gửi nhắc thanh toán')
@@ -439,11 +526,20 @@ const handleRemind = async (payment) => {
 
 const handleRemindAll = async () => {
   try {
-    await remindAllMiniTournamentPayments(props.miniId)
+    await remindAllTournamentPayments(props.tournamentId)
     toast.success('Đã gửi nhắc thanh toán cho tất cả thành viên chưa thanh toán')
   } catch (error) {
     toast.error(error.response?.data?.message || 'Không thể gửi nhắc thanh toán')
   }
+}
+
+// Receipt viewer
+const receiptModalOpen = ref(false)
+const currentReceiptUrl = ref('')
+
+const showReceipt = (url) => {
+  currentReceiptUrl.value = url
+  receiptModalOpen.value = true
 }
 
 watch(
@@ -467,21 +563,17 @@ onMounted(() => {
 .scale-leave-active {
   transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-
 .scale-enter-from,
 .scale-leave-to {
   opacity: 0;
   transform: scale(0.9) translateY(20px);
 }
-
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.3s ease;
 }
-
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
 }
 </style>
-

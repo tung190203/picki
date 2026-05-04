@@ -10,6 +10,7 @@ use App\Jobs\SendPushJob;
 use App\Models\Participant;
 use App\Models\SuperAdminDraft;
 use App\Models\Tournament;
+use App\Models\TournamentParticipantPayment;
 use App\Models\TournamentStaff;
 use App\Models\User;
 use App\Notifications\TournamentGuestAddedNotification;
@@ -209,13 +210,37 @@ class ParticipantController extends Controller
 
         $rank = $user->getVNRank($tournament->sport_id);
 
+        // Xác định payment_status dựa trên tournament financial settings
+        $paymentStatus = TournamentParticipantPayment::STATUS_CONFIRMED;
+        if ($tournament->has_financial_management && $tournament->has_fee && !$tournament->use_club_fund && !$tournament->auto_split_fee) {
+            $paymentStatus = TournamentParticipantPayment::STATUS_PENDING;
+        }
+
         $participant = Participant::create([
             'tournament_id' => $tournamentId,
             'user_id' => $user->id,
             'is_confirmed' => $tournament->auto_approve && !$tournament->is_private,
             'rating_before' => $score,
             'rank_before' => $rank,
+            'payment_status' => $paymentStatus,
         ]);
+
+        // Tạo TournamentParticipantPayment record nếu có phí cố định mỗi người
+        if ($tournament->has_financial_management && $tournament->has_fee && !$tournament->use_club_fund && !$tournament->auto_split_fee) {
+            $feePerPerson = $tournament->fee_amount;
+
+            TournamentParticipantPayment::firstOrCreate(
+                [
+                    'tournament_id' => $tournament->id,
+                    'participant_id' => $participant->id,
+                ],
+                [
+                    'user_id' => $user->id,
+                    'amount' => $feePerPerson,
+                    'status' => TournamentParticipantPayment::STATUS_PENDING,
+                ]
+            );
+        }
 
         $organizers = $tournament->staff()->wherePivot('role', TournamentStaff::ROLE_ORGANIZER)->get();
         if(!$participant->is_confirmed){
@@ -313,6 +338,26 @@ class ParticipantController extends Controller
                 );
             }
 
+            // Đảm bảo TournamentParticipantPayment tồn tại khi confirm guest
+            if ($participant->tournament->has_financial_management
+                && $participant->tournament->has_fee
+                && !$participant->tournament->auto_split_fee
+                && !$participant->tournament->use_club_fund
+            ) {
+                $feePerPerson = $participant->tournament->fee_amount;
+                TournamentParticipantPayment::firstOrCreate(
+                    [
+                        'tournament_id' => $participant->tournament_id,
+                        'participant_id' => $participant->id,
+                    ],
+                    [
+                        'user_id' => $participant->guarantor_user_id,
+                        'amount' => $feePerPerson,
+                        'status' => TournamentParticipantPayment::STATUS_PENDING,
+                    ]
+                );
+            }
+
             $participant->load(['user', 'guarantor']);
             return ResponseHelper::success(
                 new ParticipantResource($participant),
@@ -333,6 +378,26 @@ class ParticipantController extends Controller
         if ($participant->tournament->participants()->where('is_confirmed', true)->count()
             >= ($participant->tournament->max_team * $participant->tournament->player_per_team)) {
             return ResponseHelper::error('Số lượng người tham gia đã đạt giới hạn.', 422);
+        }
+
+        // Đảm bảo TournamentParticipantPayment tồn tại khi confirm (phòng trường hợp user được duyệt mà chưa có payment record)
+        if ($participant->tournament->has_financial_management
+            && $participant->tournament->has_fee
+            && !$participant->tournament->auto_split_fee
+            && !$participant->tournament->use_club_fund
+        ) {
+            $feePerPerson = $participant->tournament->fee_amount;
+            TournamentParticipantPayment::firstOrCreate(
+                [
+                    'tournament_id' => $participant->tournament_id,
+                    'participant_id' => $participant->id,
+                ],
+                [
+                    'user_id' => $participant->user_id,
+                    'amount' => $feePerPerson,
+                    'status' => TournamentParticipantPayment::STATUS_PENDING,
+                ]
+            );
         }
 
         $participant->update(['is_confirmed' => true]);
@@ -425,7 +490,13 @@ class ParticipantController extends Controller
 
         $organizerId = $organizer->id;
 
-        $insertData = array_map(function ($invitedUserId) use ($tournament, $organizerId, $isSuperAdminDraft) {
+        // Xác định payment_status cho invited user
+        $paymentStatus = TournamentParticipantPayment::STATUS_CONFIRMED;
+        if ($tournament->has_financial_management && $tournament->has_fee && !$tournament->use_club_fund && !$tournament->auto_split_fee) {
+            $paymentStatus = TournamentParticipantPayment::STATUS_PENDING;
+        }
+
+        $insertData = array_map(function ($invitedUserId) use ($tournament, $organizerId, $isSuperAdminDraft, $paymentStatus) {
             return [
                 'tournament_id' => $tournament->id,
                 'user_id' => $invitedUserId,
@@ -433,10 +504,34 @@ class ParticipantController extends Controller
                 'created_at' => now(),
                 'updated_at' => now(),
                 'is_invite_by_organizer' => true,
+                'payment_status' => $paymentStatus,
             ];
         }, $newUserIds);
 
         $tournament->participants()->insert($insertData);
+
+        // Tạo TournamentParticipantPayment cho invited users có phí cố định
+        if ($tournament->has_financial_management && $tournament->has_fee && !$tournament->use_club_fund && !$tournament->auto_split_fee) {
+            $feePerPerson = $tournament->fee_amount;
+            $newParticipants = Participant::where('tournament_id', $tournament->id)
+                ->whereIn('user_id', $newUserIds)
+                ->get();
+
+            foreach ($newParticipants as $participant) {
+                TournamentParticipantPayment::firstOrCreate(
+                    [
+                        'tournament_id' => $tournament->id,
+                        'participant_id' => $participant->id,
+                    ],
+                    [
+                        'user_id' => $participant->user_id,
+                        'amount' => $feePerPerson,
+                        'status' => TournamentParticipantPayment::STATUS_PENDING,
+                    ]
+                );
+            }
+        }
+
         $invitedUsers = User::whereIn('id', $newUserIds)->get();
 
         foreach ($invitedUsers as $user) {
