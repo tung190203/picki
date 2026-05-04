@@ -35,7 +35,7 @@ class TournamentFundService
             'club_id' => $validated['club_id'] ?? null,
             'title' => $tournament->name,
             'description' => $validated['fee_description'] ?? null,
-            'target_amount' => $validated['standard_fee_amount'],
+            'target_amount' => $validated['fee_amount'],
             'collected_amount' => 0,
             'currency' => 'VND',
             'start_date' => $tournament->start_date ?? now()->toDateString(),
@@ -63,8 +63,8 @@ class TournamentFundService
             'club_id' => $club->id,
             'title' => $tournament->name,
             'description' => $validated['fee_description'] ?? null,
-            'target_amount' => $validated['standard_fee_amount'],
-            'amount_per_member' => $validated['standard_fee_amount'],
+            'target_amount' => $validated['fee_amount'],
+            'amount_per_member' => $validated['fee_amount'],
             'currency' => 'VND',
             'start_date' => $tournament->start_date ?? now()->toDateString(),
             'end_date' => $tournament->end_date ?? null,
@@ -166,14 +166,21 @@ class TournamentFundService
     }
 
     /**
-     * Tính phí mỗi đội
+     * Tính phí mỗi người
      */
     protected function calculateFeePerTeam(Tournament $tournament, array $validated): int
     {
-        if (($validated['auto_split_fee'] ?? false) && $tournament->max_team > 0) {
-            return (int) round($validated['standard_fee_amount'] / $tournament->max_team);
+        if (!($validated['has_fee'] ?? $tournament->has_fee ?? false)) {
+            return 0;
         }
-        return (int) ($validated['standard_fee_amount'] ?? 0);
+
+        $feeAmount = (int) ($validated['fee_amount'] ?? $tournament->fee_amount ?? 0);
+
+        if (($validated['auto_split_fee'] ?? $tournament->auto_split_fee ?? false) && $tournament->max_team > 0) {
+            return (int) round($feeAmount / $tournament->max_team);
+        }
+
+        return $feeAmount;
     }
 
     /**
@@ -187,7 +194,7 @@ class TournamentFundService
                 'user_id' => $user->id,
             ],
             [
-                'amount' => $data['amount'] ?? $tournament->standard_fee_amount,
+                'amount' => $data['amount'] ?? $tournament->fee_per_person,
                 'status' => TournamentParticipantPayment::STATUS_PAID,
                 'receipt_image' => $data['receipt_image'] ?? null,
                 'note' => $data['note'] ?? null,
@@ -284,7 +291,7 @@ class TournamentFundService
                 'user_id' => $userId,
             ],
             [
-                'amount' => $tournament->standard_fee_amount,
+                'amount' => $tournament->fee_per_person,
                 'status' => TournamentParticipantPayment::STATUS_CONFIRMED,
                 'paid_at' => now(),
                 'confirmed_at' => now(),
@@ -306,7 +313,7 @@ class TournamentFundService
             return;
         }
 
-        $user->notify(new TournamentPaymentReminderNotification($tournament, $tournament->standard_fee_amount));
+        $user->notify(new TournamentPaymentReminderNotification($tournament, $tournament->fee_per_person));
     }
 
     /**

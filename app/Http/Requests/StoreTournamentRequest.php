@@ -35,8 +35,6 @@ class StoreTournamentRequest extends FormRequest
             'max_team' => 'nullable|integer|required_if:participant,team',
             'player_per_team' => 'nullable|integer|required_if:participant,team',
             'max_player' => 'nullable|integer|required_if:participant,user',
-            'fee' => 'nullable|in:free,pair',
-            'standard_fee_amount' => 'nullable|numeric|required_if:fee,pair',
             'is_private' => 'nullable|boolean',
             'auto_approve' => 'nullable|boolean',
             'description' => 'nullable|string',
@@ -45,11 +43,15 @@ class StoreTournamentRequest extends FormRequest
 
             // Financial fields
             'has_financial_management' => 'nullable|boolean',
+            'has_fee' => 'nullable|boolean',
+            'fee_amount' => 'nullable|integer|min:0',
             'auto_split_fee' => 'nullable|boolean',
             'fee_description' => 'nullable|string|max:500',
             'qr_code_url' => 'nullable',
             'use_club_fund' => 'nullable|boolean',
             'included_in_club_fund' => 'nullable|boolean',
+            'allow_cancellation' => 'nullable|boolean',
+            'cancellation_duration' => 'nullable|integer|min:0',
         ];
     }
 
@@ -59,7 +61,7 @@ class StoreTournamentRequest extends FormRequest
             $useClubFund = $this->boolean('use_club_fund');
             $includedInClubFund = $this->boolean('included_in_club_fund');
             $hasFinancialMgmt = $this->boolean('has_financial_management');
-            $fee = $this->input('fee');
+            $hasFee = $this->boolean('has_fee');
             $clubId = $this->input('club_id');
 
             // use_club_fund và included_in_club_fund không thể chọn đồng thời
@@ -87,16 +89,19 @@ class StoreTournamentRequest extends FormRequest
             }
 
             // QR code required khi có phí + quản lý tài chính + không dùng CLB fund
-            if ($fee === 'pair' && $hasFinancialMgmt && !$useClubFund && !$this->hasFile('qr_code_url') && !$this->input('qr_code_url')) {
+            if ($hasFee && $hasFinancialMgmt && !$useClubFund && !$this->hasFile('qr_code_url') && !$this->input('qr_code_url')) {
                 $validator->errors()->add(
                     'qr_code_url',
                     'Mã QR thanh toán là bắt buộc khi có phí và sử dụng quản lý tài chính.'
                 );
             }
 
-            // use_club_fund tự động loại included_in_club_fund
-            if ($useClubFund && $includedInClubFund) {
-                // already validated above
+            // fee_amount required khi has_fee = true
+            if ($hasFee && $hasFinancialMgmt && !$this->input('fee_amount')) {
+                $validator->errors()->add(
+                    'fee_amount',
+                    'Số tiền phí là bắt buộc khi bật thu phí.'
+                );
             }
         });
     }
@@ -105,8 +110,8 @@ class StoreTournamentRequest extends FormRequest
     {
         $boolKeys = [
             'enable_dupr', 'enable_vndupr', 'is_private', 'auto_approve',
-            'has_financial_management', 'auto_split_fee', 'use_club_fund',
-            'included_in_club_fund', 'creator_join',
+            'has_financial_management', 'has_fee', 'auto_split_fee', 'use_club_fund',
+            'included_in_club_fund', 'creator_join', 'allow_cancellation',
         ];
 
         $prepared = [];

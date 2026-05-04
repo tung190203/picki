@@ -773,6 +773,15 @@
       :tournament="tournament"
       @success="detailTournament(id)"
     />
+    <TournamentPaymentModal
+      v-model:isOpen="showPaymentModal"
+      :tournamentId="id"
+      @success="detailTournament(id)"
+    />
+    <TournamentPaymentManagementModal
+      v-model:isOpen="showPaymentManagementModal"
+      :tournamentId="id"
+    />
   </div>
 </template>
 
@@ -833,6 +842,8 @@ import ScheduleTab from '@/components/molecules/ScheduleTab.vue'
 import ChatForm from '@/components/organisms/ChatForm.vue'
 import PlayerActionModal from '@/components/molecules/PlayerActionModal.vue'
 import AddTournamentGuestModal from '@/components/pages/tournament/partials/AddTournamentGuestModal.vue'
+import TournamentPaymentModal from '@/components/pages/tournament/partials/TournamentPaymentModal.vue'
+import TournamentPaymentManagementModal from '@/components/pages/tournament/partials/TournamentPaymentManagementModal.vue'
 import MemberActionModal from '@/components/molecules/MemberActionModal.vue'
 import TableChartIcon from '@/assets/images/table_chart.svg';
 import ScheduleIcon from '@/assets/images/branch.svg';
@@ -953,9 +964,9 @@ const absentParticipants = computed(() => {
   return allParticipants.value.filter(p => p.is_absent)
 })
 
-// Payment button logic: show when tournament has financial management and pair fee
+// Payment button logic: show when tournament has financial management and has fee
 const hasFinancialManagement = computed(() => {
-  return tournament.value?.has_financial_management && tournament.value?.fee === 'pair'
+  return tournament.value?.has_financial_management && tournament.value?.has_fee
 })
 
 const canShowPaymentButton = computed(() => {
@@ -980,8 +991,15 @@ const canManagePayments = computed(() => {
 })
 
 const handlePaymentButtonClick = () => {
-  router.push({ name: 'tournament-payments', params: { id: id } })
+  if (canManagePayments.value) {
+    showPaymentManagementModal.value = true
+  } else {
+    showPaymentModal.value = true
+  }
 }
+
+const showPaymentModal = ref(false)
+const showPaymentManagementModal = ref(false)
 
 const setupDescription = () => {
   descriptionModel.value = tournament.value.description || '';

@@ -401,76 +401,81 @@
                         </div>
                     </div>
 
-                    <div class="flex items-center justify-start gap-4 mb-2">
-                        <button @click="feeType = 'pair'" :class="[
-                            'px-5 py-2 rounded font-semibold transition-colors',
-                            feeType === 'pair' ? 'bg-[#D72D36] text-white hover:bg-red-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        ]">
-                            Mỗi đội
-                        </button>
-                        <button @click="feeType = 'free'" :class="[
-                            'px-5 py-2 rounded font-semibold transition-colors',
-                            feeType === 'free' ? 'bg-[#D72D36] text-white hover:bg-red-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        ]">
-                            Miễn phí
-                        </button>
-                    </div>
-
-                    <!-- Chia tiền tự động — chỉ khi có quản lý tài chính -->
-                    <div v-if="hasFinancialManagement && feeType === 'pair'" class="flex items-center justify-between mb-3">
-                        <div>
-                            <span class="text-gray-700">Chia tiền tự động</span>
-                            <p class="text-xs text-gray-500">Tổng tiền / số đội</p>
+                    <!-- Thu phí tham gia — chỉ khi có quản lý tài chính -->
+                    <div v-if="hasFinancialManagement" class="mb-4 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <span class="text-gray-700 font-medium">Thu phí tham gia</span>
+                                <p class="text-xs text-gray-500">Thu tiền từ người tham gia</p>
+                            </div>
+                            <button @click="hasFee = !hasFee"
+                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                                :class="hasFee ? 'bg-[#D72D36]' : 'bg-gray-300'">
+                                <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
+                                    :class="hasFee ? 'translate-x-6' : 'translate-x-1'" />
+                            </button>
                         </div>
-                        <button @click="autoSplitFee = !autoSplitFee"
-                            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                            :class="autoSplitFee ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                            <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
-                                :class="autoSplitFee ? 'translate-x-6' : 'translate-x-1'" />
-                        </button>
-                    </div>
 
-                    <div v-if="feeType === 'pair'" class="flex items-center justify-between relative">
-                        <div class="flex items-center gap-3">
-                            <span class="text-gray-700">Phí tiêu chuẩn</span>
-                        </div>
-                        <button @click="toggleFeeAmountInput" @click.stop
-                            class="flex items-center gap-2 text-gray-700 hover:text-gray-900">
-                            <span class="font-medium">{{ formattedFeeAmount }}</span>
-                            <ChevronRightIcon class="w-5 h-5 transition-transform"
-                                :class="{ 'rotate-90': isFeeAmountInputOpen }" />
-                        </button>
+                        <!-- Fee settings — chỉ khi hasFee = true -->
+                        <div v-if="hasFee">
+                            <!-- Chia tiền tự động -->
+                            <div class="flex items-center justify-between mb-3">
+                                <div>
+                                    <span class="text-gray-700">Chia tiền tự động</span>
+                                    <p class="text-xs text-gray-500">Tổng tiền / số người</p>
+                                </div>
+                                <button @click="autoSplitFee = !autoSplitFee"
+                                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                                    :class="autoSplitFee ? 'bg-[#D72D36]' : 'bg-gray-300'">
+                                    <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
+                                        :class="autoSplitFee ? 'translate-x-6' : 'translate-x-1'" />
+                                </button>
+                            </div>
 
-                        <div v-if="isFeeAmountInputOpen" @click.stop
-                            class="absolute right-0 top-full mt-2 bg-white border rounded-lg shadow-lg z-50 p-3">
-                            <input v-model="feeAmountInput" type="number" min="0" step="10000"
-                                class="w-full px-2 py-1 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-white"
-                                placeholder="Nhập số tiền (VNĐ)" @blur="updateStandardFeeAmount" />
-                            <div class="mt-2 text-xs text-gray-500">Nhập số tiền VNĐ</div>
-                        </div>
-                    </div>
+                            <!-- Số tiền phí -->
+                            <div class="flex items-center justify-between relative">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-gray-700">Phí tham gia</span>
+                                </div>
+                                <button @click="toggleFeeAmountInput" @click.stop
+                                    class="flex items-center gap-2 text-gray-700 hover:text-gray-900">
+                                    <span class="font-medium">{{ formattedFeeAmount }}</span>
+                                    <ChevronRightIcon class="w-5 h-5 transition-transform"
+                                        :class="{ 'rotate-90': isFeeAmountInputOpen }" />
+                                </button>
 
-                    <!-- QR Code — khi: có quản lý + phí + không dùng CLB fund -->
-                    <div v-if="hasFinancialManagement && feeType === 'pair' && !useClubFund" class="mt-4">
-                        <label class="text-sm text-gray-600 block mb-1">Mã QR thanh toán</label>
-                        <input ref="qrFileInput" type="file" accept="image/*" @change="onQrFileChange" class="hidden" />
-                        <div v-if="!qrCodePreview"
-                            @click="$refs.qrFileInput.click()"
-                            class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-[#D72D36] transition-colors">
-                            <p class="text-sm text-gray-500">Tải ảnh QR (PNG, JPG, tối đa 5MB)</p>
-                        </div>
-                        <div v-else class="relative inline-block">
-                            <img :src="qrCodePreview" class="w-24 h-24 object-cover rounded" />
-                            <button @click="removeQrCode"
-                                class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">×</button>
-                        </div>
-                    </div>
+                                <div v-if="isFeeAmountInputOpen" @click.stop
+                                    class="absolute right-0 top-full mt-2 bg-white border rounded-lg shadow-lg z-50 p-3">
+                                    <input v-model="feeAmount" type="number" min="0" step="10000"
+                                        class="w-full px-2 py-1 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-white"
+                                        placeholder="Nhập số tiền (VNĐ)" />
+                                    <div class="mt-2 text-xs text-gray-500">Nhập số tiền VNĐ</div>
+                                </div>
+                            </div>
 
-                    <!-- Ghi chú thanh toán — chỉ khi có quản lý tài chính -->
-                    <div v-if="hasFinancialManagement" class="mt-3">
-                        <textarea v-model="feeDescription" rows="2"
-                            placeholder="Ghi chú thanh toán (VD: STK, tên TK, nội dung chuyển khoản...)"
-                            class="w-full px-2 py-2 border rounded text-sm focus:outline-none resize-none" />
+                            <!-- QR Code — khi: có phí + không dùng CLB fund -->
+                            <div v-if="!useClubFund" class="mt-4">
+                                <label class="text-sm text-gray-600 block mb-1">Mã QR thanh toán</label>
+                                <input ref="qrFileInput" type="file" accept="image/*" @change="onQrFileChange" class="hidden" />
+                                <div v-if="!qrCodePreview"
+                                    @click="$refs.qrFileInput.click()"
+                                    class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-[#D72D36] transition-colors">
+                                    <p class="text-sm text-gray-500">Tải ảnh QR (PNG, JPG, tối đa 5MB)</p>
+                                </div>
+                                <div v-else class="relative inline-block">
+                                    <img :src="qrCodePreview" class="w-24 h-24 object-cover rounded" />
+                                    <button @click="removeQrCode"
+                                        class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">×</button>
+                                </div>
+                            </div>
+
+                            <!-- Ghi chú thanh toán -->
+                            <div class="mt-3">
+                                <textarea v-model="feeDescription" rows="2"
+                                    placeholder="Ghi chú thanh toán (VD: STK, tên TK, nội dung chuyển khoản...)"
+                                    class="w-full px-2 py-2 border rounded text-sm focus:outline-none resize-none" />
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="bg-white rounded-[8px] shadow p-5">
@@ -721,13 +726,12 @@ watch(selectedSportId, (id) => {
 // =================================================================================
 // REFS CHO PHẦN PHÍ GIẢI ĐẤU
 // =================================================================================
-const feeType = ref('pair') // 'pair' hoặc 'free'
-const standardFeeAmount = ref(100000)
+const hasFee = ref(false)
+const feeAmount = ref(100000)
 const isFeeAmountInputOpen = ref(false)
-const feeAmountInput = ref(100000)
 
 const formattedFeeAmount = computed(() => {
-    return `VNĐ${standardFeeAmount.value.toLocaleString('vi-VN')}`
+    return `VNĐ${feeAmount.value.toLocaleString('vi-VN')}`
 })
 
 // =================================================================================
@@ -737,8 +741,12 @@ const hasFinancialManagement = ref(false)
 const autoSplitFee = ref(false)
 const feeDescription = ref('')
 const qrCodeFile = ref(null)
-const qrCodePreview = ref(null)
 const qrCodeImage = ref(null)
+const qrCodePreview = ref(null)
+const useClubFund = ref(false)
+const includedInClubFund = ref(false)
+const allowCancellation = ref(true)
+const cancellationDuration = ref(60)
 const qrFileInput = ref(null)
 
 // =================================================================================
@@ -748,8 +756,6 @@ const selectedClub = ref(null)
 const clubKeyword = ref('')
 const clubResults = ref([])
 const isClubDropdownOpen = ref(false)
-const useClubFund = ref(false)
-const includedInClubFund = ref(false)
 
 
 // =================================================================================
@@ -791,7 +797,7 @@ const initialStates = {
     locationKeyword: '', selectedLocation: null, competitionLocations: [],
     genderPolicy: 3, ageGroup: 1,
     registrationOpenAt: null, earlyRegistrationDeadline: null, registrationClosedAt: null, duration: durationOptions[durationOptions.length - 1].value,
-    feeType: 'pair', standardFeeAmount: 100000, feeAmountInput: 100000,
+    hasFee: false, feeAmount: 100000,
     isPrivate: false,
     creatorJoin: false,
 };
@@ -826,9 +832,8 @@ const resetFormState = () => {
     duration.value = initialStates.duration;
 
     // Fee
-    feeType.value = initialStates.feeType;
-    standardFeeAmount.value = initialStates.standardFeeAmount;
-    feeAmountInput.value = initialStates.feeAmountInput;
+    hasFee.value = initialStates.hasFee;
+    feeAmount.value = initialStates.feeAmount;
 
     // Privacy
     isPrivate.value = initialStates.isPrivate;
@@ -949,25 +954,6 @@ const toggleFeeAmountInput = () => {
     const currentState = isFeeAmountInputOpen.value
     closeOtherDropdowns(isFeeAmountInputOpen)
     isFeeAmountInputOpen.value = !currentState
-
-    // Cập nhật giá trị input khi mở
-    if (isFeeAmountInputOpen.value) {
-        feeAmountInput.value = standardFeeAmount.value
-    } else {
-        // Cập nhật standardFeeAmount khi đóng
-        updateStandardFeeAmount()
-    }
-}
-
-const updateStandardFeeAmount = () => {
-    const numericValue = parseFloat(feeAmountInput.value)
-    if (!isNaN(numericValue) && numericValue >= 0) {
-        standardFeeAmount.value = Math.round(numericValue)
-    } else {
-        // Đặt lại 0 nếu không hợp lệ
-        standardFeeAmount.value = 0
-    }
-    isFeeAmountInputOpen.value = false
 }
 
 // =================================================================================
@@ -1054,18 +1040,20 @@ const handleSubmit = async () => {
         participants: "team", // sau này sẽ mở rộng thêm user tạm fix cứng là team
         max_team: teamCount.value,
         player_per_team: playerPerTeam.value,
-        fee: feeType.value,
-        standard_fee_amount: feeType.value === 'free' ? 0 : standardFeeAmount.value,
         is_private: isPrivate.value,
         creator_join: creatorJoin.value,
         description: tournamentNote.value || null,
         club_id: selectedClub.value?.id || null,
         has_financial_management: hasFinancialManagement.value,
+        has_fee: hasFee.value,
+        fee_amount: hasFee.value ? feeAmount.value : null,
         auto_split_fee: autoSplitFee.value,
         fee_description: feeDescription.value || null,
         qr_code_url: qrCodeImage.value || null,
         use_club_fund: useClubFund.value,
         included_in_club_fund: includedInClubFund.value,
+        allow_cancellation: allowCancellation.value,
+        cancellation_duration: allowCancellation.value ? cancellationDuration.value : null,
     }
 
     if (qrCodeFile.value) {
@@ -1273,15 +1261,8 @@ const prefillForm = (data) => {
     playerPerTeam.value = data.player_per_team || 2;
 
     // Phí giải đấu
-    if (data.fee === 'free') {
-        feeType.value = 'free';
-        standardFeeAmount.value = 0;
-        feeAmountInput.value = 0;
-    } else {
-        feeType.value = 'pair';
-        standardFeeAmount.value = Number(data.standard_fee_amount) || standardFeeAmount.value;
-        feeAmountInput.value = Number(data.standard_fee_amount) || standardFeeAmount.value;
-    }
+    hasFee.value = !!data.has_fee;
+    feeAmount.value = Number(data.fee_amount) || 100000;
 
     // Quyền riêng tư
     isPrivate.value = !!data.is_private ?? false;
@@ -1297,6 +1278,8 @@ const prefillForm = (data) => {
     qrCodePreview.value = data.qr_code_url ? (data.qr_code_url.startsWith('http') ? data.qr_code_url : `/storage/${data.qr_code_url}`) : null;
     useClubFund.value = !!data.use_club_fund ?? false;
     includedInClubFund.value = !!data.included_in_club_fund ?? false;
+    allowCancellation.value = data.allow_cancellation !== undefined ? !!data.allow_cancellation : true;
+    cancellationDuration.value = data.cancellation_duration || 60;
 
     // Club
     if (data.club_id && data.club) {
@@ -1420,15 +1403,8 @@ const applyTemplate = (template) => {
     playerPerTeam.value = s.player_per_team || 2
 
     // Phí giải đấu
-    if (s.fee === 'free') {
-        feeType.value = 'free'
-        standardFeeAmount.value = 0
-        feeAmountInput.value = 0
-    } else {
-        feeType.value = 'pair'
-        standardFeeAmount.value = Number(s.standard_fee_amount) || standardFeeAmount.value
-        feeAmountInput.value = Number(s.standard_fee_amount) || feeAmountInput.value
-    }
+    hasFee.value = !!s.has_fee
+    feeAmount.value = Number(s.fee_amount) || 100000
 
     // Quyền riêng tư
     isPrivate.value = !!s.is_private ?? false
@@ -1444,6 +1420,8 @@ const applyTemplate = (template) => {
     qrCodePreview.value = s.qr_code_url ? (s.qr_code_url.startsWith('http') ? s.qr_code_url : `/storage/${s.qr_code_url}`) : null
     useClubFund.value = !!s.use_club_fund ?? false
     includedInClubFund.value = !!s.included_in_club_fund ?? false
+    allowCancellation.value = s.allow_cancellation !== undefined ? !!s.allow_cancellation : true
+    cancellationDuration.value = s.cancellation_duration || 60
 
     // Club
     if (s.club_id && s.club) {
@@ -1482,17 +1460,19 @@ const buildTemplateSettings = () => {
         gender_policy: genderPolicy.value,
         max_team: teamCount.value,
         player_per_team: playerPerTeam.value,
-        fee: feeType.value,
-        standard_fee_amount: feeType.value === 'free' ? 0 : standardFeeAmount.value,
         is_private: isPrivate.value,
         creator_join: creatorJoin.value,
         club_id: selectedClub.value?.id || null,
         has_financial_management: hasFinancialManagement.value,
+        has_fee: hasFee.value,
+        fee_amount: hasFee.value ? feeAmount.value : null,
         auto_split_fee: autoSplitFee.value,
         fee_description: feeDescription.value || null,
         qr_code_url: qrCodeImage.value || null,
         use_club_fund: useClubFund.value,
         included_in_club_fund: includedInClubFund.value,
+        allow_cancellation: allowCancellation.value,
+        cancellation_duration: allowCancellation.value ? cancellationDuration.value : null,
     }
 }
 
