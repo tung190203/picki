@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Notifications\TournamentPaymentReminderNotification;
 use App\Notifications\TournamentPaymentRejectedNotification;
 use App\Notifications\TournamentPaymentConfirmedNotification;
+use App\Events\SuperAdmin\PaymentConfirmed;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 
@@ -270,6 +271,13 @@ class TournamentFundService
         }
 
         $payment->user->notify(new TournamentPaymentConfirmedNotification($payment));
+
+        PaymentConfirmed::dispatch(
+            $payment->tournament_id,
+            $payment->id,
+            $payment->amount,
+            $payment->user_id
+        );
     }
 
     /**
@@ -334,6 +342,13 @@ class TournamentFundService
         if ($participant) {
             $participant->update(['payment_status' => \App\Enums\PaymentStatusEnum::CONFIRMED]);
         }
+
+        PaymentConfirmed::dispatch(
+            $tournament->id,
+            $payment->id,
+            $payment->amount,
+            $userId
+        );
 
         return $payment;
     }

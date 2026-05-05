@@ -414,6 +414,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{id}/payments/remind/{uid}', [TournamentPaymentController::class, 'remind']);
         Route::post('/{id}/payments/remind-all', [TournamentPaymentController::class, 'remindAll']);
         Route::get('/{id}/fund-collection', [TournamentPaymentController::class, 'fundCollection']);
+        Route::post('/{id}/lock-fee', [TournamentController::class, 'lockFee']);
     });
 
     Route::prefix('tournament-staff')->group(function () {

@@ -166,6 +166,19 @@ class TournamentController extends Controller
         $this->tournamentService = $tournamentService;
         $this->fundService = $fundService;
     }
+
+    protected function authorizeAdmin(Tournament $tournament): ?\Illuminate\Http\JsonResponse
+    {
+        $userId = Auth::id();
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+        if (!$tournament->hasOrganizerOrStaff($userId)) {
+            return ResponseHelper::error('Bạn không có quyền thực hiện thao tác này', 403);
+        }
+        return null;
+    }
+
     public function store(StoreTournamentRequest $request)
     {
         $validated = $request->validated();
@@ -403,6 +416,49 @@ class TournamentController extends Controller
         });
 
         return ResponseHelper::success(null, 'Xoá giải đấu thành công');
+    }
+
+    /**
+     * POST /api/tournaments/{id}/lock-fee
+     * Lock phí mỗi người sau khi giải đấu bắt đầu
+     *
+     * Chỉ áp dụng khi auto_split_fee = true.
+     * Tính feePerPerson dựa trên số participant đã confirmed và cập nhật final_fee_per_person.
+     */
+    public function lockFee(int $tournamentId)
+    {
+        $tournament = Tournament::find($tournamentId);
+        if (!$tournament) {
+            return ResponseHelper::error('Giải đấu không tồn tại', 404);
+        }
+
+        if ($err = $this->authorizeAdmin($tournament)) {
+            return $err;
+        }
+
+        if (!$tournament->auto_split_fee) {
+            return ResponseHelper::error('Chỉ áp dụng cho giải có chia tiền tự động', 422);
+        }
+
+        if ($tournament->auto_payment_created) {
+            return ResponseHelper::error('Phí đã được lock trước đó, không thể cập nhật lại', 422);
+        }
+
+        $participantCount = $tournament->participants()->where('is_confirmed', true)->count();
+        $feePerPerson = $participantCount > 0
+            ? (int) round($tournament->fee_amount / $participantCount)
+            : 0;
+
+        $tournament->update([
+            'final_fee_per_person' => $feePerPerson,
+            'auto_payment_created' => true,
+        ]);
+
+        return ResponseHelper::success([
+            'final_fee_per_person' => $feePerPerson,
+            'auto_payment_created' => true,
+            'participant_count' => $participantCount,
+        ], 'Đã lock phí mỗi người');
     }
 
     /**
