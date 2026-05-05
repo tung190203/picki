@@ -217,7 +217,12 @@ class TournamentController extends Controller
         });
 
         if ($tournament) {
-            $tournament = Tournament::with(['createdBy', 'sport', 'competitionLocation'])->find($tournament->id);
+            $tournament = Tournament::with([
+                'createdBy',
+                'sport',
+                'competitionLocation',
+                'club' => fn($q) => $q->withCount('members'),
+            ])->find($tournament->id);
             TournamentCreated::dispatch($tournament);
             DashboardStatUpdated::dispatch('tournaments_this_month', 1, 'incremented');
         } else {

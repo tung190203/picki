@@ -77,6 +77,8 @@ class TournamentResource extends JsonResource
                 return [
                     'id' => $this->club->id,
                     'name' => $this->club->name,
+                    'address' => $this->club->address,
+                    'quantity_members' => $this->club->members_count ?? $this->club->members()->count(),
                 ];
             }),
             'tournament_staff' => TournamentStaffResource::collection($this->whenLoaded('tournamentStaffs')),
