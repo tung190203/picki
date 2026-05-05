@@ -328,8 +328,21 @@
                             </button>
                         </div>
 
-                        <div v-if="hasFee" class="space-y-3">
-                            <div class="flex items-center justify-between">
+                        <div v-if="hasFee">
+                            <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+                                <div>
+                                    <span class="text-sm text-gray-700 font-medium">Quản lý tài chính</span>
+                                    <p class="text-xs text-gray-400">Theo dõi và quản lý thu chi</p>
+                                </div>
+                                <button @click="hasFinancialManagement = !hasFinancialManagement"
+                                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                                    :class="hasFinancialManagement ? 'bg-[#D72D36]' : 'bg-gray-300'">
+                                    <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
+                                        :class="hasFinancialManagement ? 'translate-x-6' : 'translate-x-1'" />
+                                </button>
+                            </div>
+
+                            <div class="flex items-center justify-between pt-3">
                                 <div>
                                     <span class="text-sm text-gray-700">Chia tiền tự động</span>
                                     <p class="text-xs text-gray-400">Tổng tiền / số người</p>
@@ -342,7 +355,7 @@
                                 </button>
                             </div>
 
-                            <div class="flex items-center justify-between relative">
+                            <div class="flex items-center justify-between relative mt-3">
                                 <span class="text-sm text-gray-700">Phí tham gia</span>
                                 <button @click="toggleFeeAmountInput" @click.stop
                                     class="flex items-center gap-2 text-gray-600 hover:text-gray-900">
@@ -627,6 +640,7 @@ watch(selectedSportId, (id) => {
 // REFS CHO PHẦN PHÍ GIẢI ĐẤU
 // =================================================================================
 const hasFee = ref(false)
+const hasFinancialManagement = ref(false)
 const feeAmount = ref(100000)
 const isFeeAmountInputOpen = ref(false)
 const autoSplitFee = ref(false)
@@ -673,7 +687,7 @@ const initialStates = {
     duprEnabled: true, vnduprEnabled: true, minLevel: 'Không giới hạn', maxLevel: 'Không giới hạn',
     locationKeyword: '', selectedLocation: null, competitionLocations: [],
     registrationOpenAt: null, earlyRegistrationDeadline: null, registrationClosedAt: null, duration: durationOptions[durationOptions.length - 1].value,
-    hasFee: false, feeAmount: 100000,
+    hasFee: false, hasFinancialManagement: false, feeAmount: 100000,
     isPrivate: false,
     creatorJoin: false,
 };
@@ -705,6 +719,7 @@ const resetFormState = () => {
 
     // Fee
     hasFee.value = initialStates.hasFee;
+    hasFinancialManagement.value = initialStates.hasFinancialManagement;
     feeAmount.value = initialStates.feeAmount;
 
     // Privacy
@@ -890,6 +905,7 @@ const handleSubmit = async () => {
         description: tournamentNote.value || null,
         club_id: selectedClub.value?.id || null,
         has_fee: hasFee.value,
+        has_financial_management: hasFinancialManagement.value,
         fee_amount: hasFee.value ? feeAmount.value : null,
         auto_split_fee: autoSplitFee.value,
         fee_description: feeDescription.value || null,
@@ -1094,6 +1110,7 @@ const prefillForm = (data) => {
 
     // Phí giải đấu
     hasFee.value = !!data.has_fee;
+    hasFinancialManagement.value = !!data.has_financial_management;
     feeAmount.value = Number(data.fee_amount) || 100000;
 
     // Quyền riêng tư
@@ -1227,6 +1244,7 @@ const applyTemplate = (template) => {
 
     // Phí giải đấu
     hasFee.value = !!s.has_fee
+    hasFinancialManagement.value = !!s.has_financial_management
     feeAmount.value = Number(s.fee_amount) || 100000
 
     // Quyền riêng tư
@@ -1280,6 +1298,7 @@ const buildTemplateSettings = () => {
         creator_join: creatorJoin.value,
         club_id: selectedClub.value?.id || null,
         has_fee: hasFee.value,
+        has_financial_management: hasFinancialManagement.value,
         fee_amount: hasFee.value ? feeAmount.value : null,
         auto_split_fee: autoSplitFee.value,
         fee_description: feeDescription.value || null,
