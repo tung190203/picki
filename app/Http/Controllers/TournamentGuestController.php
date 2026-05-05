@@ -67,6 +67,36 @@ class TournamentGuestController extends Controller
             }
         }
 
+        // ─────────────────────────────────────────────────────────────────────────
+        // Xác định payment_status
+        // Giải miễn phí → CONFIRMED
+        // auto_split_fee = true → CONFIRMED
+        // Guarantor là organizer/admin → CONFIRMED (bảo lãnh)
+        // Guarantor là VĐV đã đóng tiền → CONFIRMED
+        // Guarantor là VĐV chưa đóng tiền → PENDING
+        // ─────────────────────────────────────────────────────────────────────────
+        $isGuarantorOrganizer = $guarantorUserId
+            ? $tournament->hasOrganizer($guarantorUserId)
+            : false;
+
+        $paymentStatus = PaymentStatusEnum::CONFIRMED;
+
+        if (
+            $tournament->has_fee
+            && !$tournament->auto_split_fee
+            && $guarantorUserId
+            && !$isGuarantorOrganizer
+        ) {
+            $guarantorParticipant = Participant::where('tournament_id', $tournamentId)
+                ->where('user_id', $guarantorUserId)
+                ->where('is_confirmed', true)
+                ->first();
+
+            if (!$guarantorParticipant || !$guarantorParticipant->isConfirmedPayment()) {
+                $paymentStatus = PaymentStatusEnum::PENDING;
+            }
+        }
+
         // Theo người thực hiện thêm guest (không theo guarantor)
         if ($callerIsOrganizer) {
             $isConfirmed = true;
@@ -135,6 +165,7 @@ class TournamentGuestController extends Controller
             'guarantor_user_id' => $guarantorUserId,
             'estimated_level' => $data['estimated_level'] ?? null,
             'is_pending_confirmation' => $isPendingConfirmation,
+            'payment_status' => $paymentStatus,
         ]);
 
         if ($guestAvatarUrl) {
