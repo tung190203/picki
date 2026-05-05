@@ -29,8 +29,6 @@ class UpdateTournamentRequest extends FormRequest
             'enable_vndupr' => 'nullable|boolean',
             'min_level' => 'nullable',
             'max_level' => 'nullable',
-            'age_group' => 'nullable|in:1,2,3,4',
-            'gender_policy' => 'nullable|in:1,2,3',
             'participant' => 'nullable|in:team,user',
             'max_team' => 'nullable|integer|required_if:participant,team',
             'player_per_team' => 'nullable|integer|required_if:participant,team',
@@ -45,60 +43,24 @@ class UpdateTournamentRequest extends FormRequest
             'creator_join' => 'nullable|boolean',
 
             // Financial fields
-            'has_financial_management' => 'nullable|boolean',
             'has_fee' => 'nullable|boolean',
             'fee_amount' => 'nullable|integer|min:0',
             'auto_split_fee' => 'nullable|boolean',
             'fee_description' => 'nullable|string|max:500',
             'qr_code_url' => 'nullable',
-            'use_club_fund' => 'nullable|boolean',
-            'included_in_club_fund' => 'nullable|boolean',
-            'allow_cancellation' => 'nullable|boolean',
-            'cancellation_duration' => 'nullable|integer|min:0',
         ];
     }
 
     public function withValidator($validator): void
     {
         $validator->after(function ($validator) {
-            $useClubFund = $this->boolean('use_club_fund');
-            $includedInClubFund = $this->boolean('included_in_club_fund');
-            $hasFinancialMgmt = $this->boolean('has_financial_management');
             $hasFee = $this->boolean('has_fee');
-            $clubId = $this->input('club_id');
 
-            if ($useClubFund && $includedInClubFund) {
-                $validator->errors()->add(
-                    'included_in_club_fund',
-                    'Không thể chọn đồng thời "Dùng quỹ CLB" và "Thu vào quỹ CLB".'
-                );
-            }
-
-            if ($includedInClubFund && !$clubId) {
-                $validator->errors()->add(
-                    'club_id',
-                    'Thu tiền vào quỹ CLB yêu cầu chọn CLB.'
-                );
-            }
-
-            if ($useClubFund && !$clubId) {
-                $validator->errors()->add(
-                    'club_id',
-                    'Dùng quỹ CLB yêu cầu chọn CLB.'
-                );
-            }
-
-            if ($hasFee && $hasFinancialMgmt && !$useClubFund && !$this->hasFile('qr_code_url') && !$this->input('qr_code_url')) {
+            // QR code required khi có phí
+            if ($hasFee && !$this->hasFile('qr_code_url') && !$this->input('qr_code_url')) {
                 $validator->errors()->add(
                     'qr_code_url',
-                    'Mã QR thanh toán là bắt buộc khi có phí và sử dụng quản lý tài chính.'
-                );
-            }
-
-            if ($hasFee && $hasFinancialMgmt && !$this->input('fee_amount')) {
-                $validator->errors()->add(
-                    'fee_amount',
-                    'Số tiền phí là bắt buộc khi bật thu phí.'
+                    'Mã QR thanh toán là bắt buộc khi bật thu phí.'
                 );
             }
         });
@@ -108,8 +70,7 @@ class UpdateTournamentRequest extends FormRequest
     {
         $boolKeys = [
             'enable_dupr', 'enable_vndupr', 'is_private', 'auto_approve',
-            'has_financial_management', 'has_fee', 'auto_split_fee', 'use_club_fund',
-            'included_in_club_fund', 'creator_join', 'allow_cancellation',
+            'has_fee', 'auto_split_fee', 'creator_join',
         ];
 
         $prepared = [];
