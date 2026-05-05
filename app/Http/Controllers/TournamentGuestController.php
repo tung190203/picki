@@ -9,6 +9,7 @@ use App\Helpers\ResponseHelper;
 use App\Http\Resources\ParticipantResource;
 use App\Http\Resources\UserListResource;
 use App\Models\Club;
+use App\Models\Club\Club as ModelsClub;
 use App\Models\Participant;
 use App\Models\Tournament;
 use App\Models\TournamentParticipantPayment;
@@ -263,19 +264,20 @@ class TournamentGuestController extends Controller
         );
     }
 
-    /**
-     * Lấy danh sách guest mà user hiện tại bảo lãnh và đang chờ xác nhận
-     * API: GET /api/tournaments/{id}/guaranteed-guests
-     */
     public function guaranteedGuests(Request $request, $tournamentId)
     {
         $userId = Auth::id();
 
-        $guests = Participant::with(['user', 'guarantor'])
+        $guests = Participant::with(['user', 'guarantor', 'payments'])
             ->where('tournament_id', $tournamentId)
             ->where('is_guest', true)
             ->where('guarantor_user_id', $userId)
-            ->where('is_pending_confirmation', true)
+            ->whereHas('payments', function ($query) {
+                $query->whereIn('status', [
+                    TournamentParticipantPayment::STATUS_PENDING,
+                    TournamentParticipantPayment::STATUS_REJECTED,
+                ]);
+            })
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -454,7 +456,7 @@ class TournamentGuestController extends Controller
                 return ResponseHelper::error('Giải đấu không thuộc CLB này', 403);
             }
 
-            $club = Club::find($clubId);
+            $club = ModelsClub::find($clubId);
             if (!$club) {
                 return ResponseHelper::error('CLB không tồn tại', 404);
             }
