@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ClubMemberRole;
+use App\Enums\PaymentStatusEnum;
 use App\Events\SuperAdmin\TournamentMemberAdded;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\ParticipantResource;
@@ -10,6 +11,7 @@ use App\Http\Resources\UserListResource;
 use App\Models\Club;
 use App\Models\Participant;
 use App\Models\Tournament;
+use App\Models\TournamentParticipantPayment;
 use App\Models\TournamentStaff;
 use App\Models\User;
 use App\Notifications\TournamentGuestAddedNotification;
@@ -167,6 +169,20 @@ class TournamentGuestController extends Controller
             'is_pending_confirmation' => $isPendingConfirmation,
             'payment_status' => $paymentStatus,
         ]);
+
+        // Tạo tournament_participant_payment nếu giải có thu phí
+        if ($tournament->has_fee) {
+            $feeAmount = $tournament->fee_per_person ?? $tournament->fee_amount ?? 0;
+            TournamentParticipantPayment::create([
+                'tournament_id' => $tournamentId,
+                'participant_id' => $participant->id,
+                'user_id' => $guestUser->id,
+                'amount' => $feeAmount,
+                'status' => $paymentStatus === PaymentStatusEnum::CONFIRMED
+                    ? TournamentParticipantPayment::STATUS_CONFIRMED
+                    : TournamentParticipantPayment::STATUS_PENDING,
+            ]);
+        }
 
         if ($guestAvatarUrl) {
             $guestUser->forceFill(['avatar_url' => $guestAvatarUrl])->saveQuietly();

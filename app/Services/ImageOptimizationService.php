@@ -175,4 +175,25 @@ class ImageOptimizationService
         return asset('storage/' . $fullPath);
     }
 
+    /**
+     * Tối ưu ảnh từ đường dẫn file (dùng cho queue job - vì UploadedFile không serialize được)
+     */
+    public function optimizeFromPath(string $filePath, string $path, int $maxWidth = 1920, int $quality = 80): string
+    {
+        if (!file_exists($filePath)) {
+            throw new \InvalidArgumentException('File ảnh không tồn tại: ' . $filePath);
+        }
+
+        $extension = pathinfo($filePath, PATHINFO_EXTENSION);
+        $filename = time() . '_' . uniqid() . '.' . $extension;
+
+        $image = $this->manager->read($filePath);
+        $optimized = $image->scaleDown(width: $maxWidth);
+        $encoded = $optimized->toJpeg(quality: $quality);
+
+        Storage::disk('public')->put($path . '/' . $filename, $encoded);
+
+        return $path . '/' . $filename;
+    }
+
 }

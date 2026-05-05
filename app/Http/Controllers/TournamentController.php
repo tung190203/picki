@@ -8,6 +8,7 @@ use App\Events\SuperAdmin\TournamentCreated;
 use App\Events\SuperAdmin\TournamentDeleted;
 use App\Events\SuperAdmin\TournamentUpdated;
 use App\Helpers\ResponseHelper;
+use App\Jobs\OptimizeTournamentImageJob;
 use App\Http\Controllers\TournamentTypeController;
 use App\Http\Requests\StoreTournamentRequest;
 use App\Http\Requests\UpdateTournamentRequest;
@@ -171,22 +172,18 @@ class TournamentController extends Controller
         $tournament = null;
 
         DB::transaction(function () use ($validated, &$tournament, $request) {
+            // Lưu file tạm để queue job xử lý (UploadedFile không serialize được qua queue)
+            $posterTempPath = null;
+            $qrCodeTempPath = null;
+
             if ($request->hasFile('poster')) {
-                $path = $this->imageService->optimize(
-                    $request->file('poster'),
-                    'tournaments/posters'
-                );
-                $validated['poster'] = $path;
+                $posterTempPath = $request->file('poster')->store('temp/uploads', 'local');
+                $validated['poster'] = null;
             }
 
             if ($request->hasFile('qr_code_url')) {
-                $path = $this->imageService->optimize(
-                    $request->file('qr_code_url'),
-                    'tournaments/qr',
-                    800,  // QR code nhỏ hơn, max 800px
-                    75
-                );
-                $validated['qr_code_url'] = $path;
+                $qrCodeTempPath = $request->file('qr_code_url')->store('temp/uploads', 'local');
+                $validated['qr_code_url'] = null;
             }
 
             $tournament = Tournament::create([
@@ -203,16 +200,31 @@ class TournamentController extends Controller
             $this->tournamentService->calculateEndDate($tournament);
 
             if (!empty($validated['creator_join'])) {
-                Participant::create([
+                $participantData = [
                     'tournament_id' => $tournament->id,
                     'user_id' => auth()->id(),
                     'is_confirmed' => true,
-                ]);
+                ];
+
+                // Nếu giải có thu phí, chủ giải tự động tham gia thì xác nhận thanh toán luôn
+                if (!empty($validated['has_fee'])) {
+                    $participantData['payment_status'] = \App\Enums\PaymentStatusEnum::CONFIRMED;
+                }
+
+                Participant::create($participantData);
             }
 
-            // Xử lý quỹ: tạo fund collection riêng cho giải đấu khi có quản lý tài chính + phí
             if (!empty($validated['has_financial_management']) && !empty($validated['has_fee'])) {
                 $this->fundService->createTournamentFundCollection($tournament, $validated);
+            }
+
+            // Dispatch job xử lý ảnh bất đồng bộ
+            if ($posterTempPath || $qrCodeTempPath) {
+                OptimizeTournamentImageJob::dispatch(
+                    $tournament->id,
+                    $posterTempPath,
+                    $qrCodeTempPath
+                );
             }
         });
 
@@ -283,14 +295,13 @@ class TournamentController extends Controller
         $oldCreatorJoin = $tournament->creator_join;
         $oldStatus = $tournament->status;
 
-        DB::transaction(function () use ($validated, $tournament, $request, &$oldCreatorJoin, &$oldStatus) {
+        DB::transaction(function () use ($validated, $tournament, $request) {
+            $posterTempPath = null;
+            $qrCodeTempPath = null;
+
             if ($request->hasFile('poster')) {
-                $this->imageService->deleteOldImage($tournament->poster);
-                $path = $this->imageService->optimize(
-                    $validated['poster'],
-                    'tournaments/posters'
-                );
-                $validated['poster'] = $path;
+                $posterTempPath = $request->file('poster')->store('temp/uploads', 'local');
+                unset($validated['poster']);
             } elseif ($request->has('remove_poster') && $request->input('remove_poster')) {
                 $this->imageService->deleteOldImage($tournament->poster);
                 $validated['poster'] = null;
@@ -300,8 +311,8 @@ class TournamentController extends Controller
 
             // Handle QR code upload
             if ($request->hasFile('qr_code_url')) {
-                $path = $this->imageService->optimize($request->file('qr_code_url'), 'tournaments/qr', 800, 75);
-                $validated['qr_code_url'] = $path;
+                $qrCodeTempPath = $request->file('qr_code_url')->store('temp/uploads', 'local');
+                unset($validated['qr_code_url']);
             } elseif ($request->filled('qr_code_url')) {
                 // Keep existing or string value
             } else {
@@ -309,20 +320,20 @@ class TournamentController extends Controller
             }
 
             unset($validated['remove_poster']);
-            $newStatus = $validated['status'] ?? $oldStatus;
+            $newStatus = $validated['status'] ?? $tournament->status;
             $tournament->fill($validated);
             $tournament->save();
 
             $this->tournamentService->calculateEndDate($tournament);
 
-            if ($newStatus == Tournament::CLOSED && $oldStatus != Tournament::CLOSED) {
+            if ($newStatus == Tournament::CLOSED && $tournament->getOriginal('status') != Tournament::CLOSED) {
                 $this->updateParticipantsRatingStats($tournament);
             }
 
             if (array_key_exists('creator_join', $validated)) {
                 $newCreatorJoin = !empty($validated['creator_join']);
 
-                if ($newCreatorJoin && !$oldCreatorJoin) {
+                if ($newCreatorJoin && !$tournament->getOriginal('creator_join')) {
                     Participant::firstOrCreate([
                         'tournament_id' => $tournament->id,
                         'user_id' => Auth::id(),
@@ -331,12 +342,28 @@ class TournamentController extends Controller
                     ]);
                 }
 
-                if (!$newCreatorJoin && $oldCreatorJoin) {
+                if (!$newCreatorJoin && $tournament->getOriginal('creator_join')) {
                     Participant::where('tournament_id', $tournament->id)
                         ->where('user_id', Auth::id())
                         ->whereNull('checked_in_at')
                         ->delete();
                 }
+            }
+
+            // Dispatch job xử lý ảnh bất đồng bộ
+            if ($posterTempPath || $qrCodeTempPath) {
+                $deleteOldPoster = $request->hasFile('poster');
+                $deleteOldQrCode = $request->hasFile('qr_code_url');
+
+                OptimizeTournamentImageJob::dispatch(
+                    $tournament->id,
+                    $posterTempPath,
+                    $qrCodeTempPath,
+                    $deleteOldPoster,
+                    $tournament->getOriginal('poster'),
+                    $deleteOldQrCode,
+                    $tournament->getOriginal('qr_code_url')
+                );
             }
         });
 

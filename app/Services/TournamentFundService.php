@@ -99,7 +99,7 @@ class TournamentFundService
                 'tournament_fund_collection_id' => $collection->id,
                 'user_id' => $uid,
                 'amount' => $feePerTeam,
-                'status' => 'pending',
+                'status' => $uid === $userId ? 'confirmed' : 'pending',
                 'created_by' => $userId,
             ]);
 
@@ -108,7 +108,9 @@ class TournamentFundService
                 'participant_id' => null,
                 'user_id' => $uid,
                 'amount' => $feePerTeam,
-                'status' => TournamentParticipantPayment::STATUS_PENDING,
+                'status' => $uid === $userId
+                    ? TournamentParticipantPayment::STATUS_CONFIRMED
+                    : TournamentParticipantPayment::STATUS_PENDING,
             ]);
         }
     }
