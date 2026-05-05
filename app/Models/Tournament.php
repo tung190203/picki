@@ -173,7 +173,7 @@ class Tournament extends Model
     {
         return $query->with([
             'createdBy',
-            'club',
+            'club' => fn($q) => $q->withCount('members'),
             'sport',
             'tournamentTypes.groups.matches.homeTeam',
             'tournamentTypes.groups.matches.homeTeam.members',
@@ -190,7 +190,13 @@ class Tournament extends Model
 
     public function scopeWithBasicRelations($query)
     {
-        return $query->with(['createdBy', 'club', 'sport', 'tournamentStaffs', 'competitionLocation'] );
+        return $query->with([
+            'createdBy',
+            'club' => fn($q) => $q->withCount('members'),
+            'sport',
+            'tournamentStaffs',
+            'competitionLocation'
+        ]);
     }
     public function scopeUpcoming($query)
     {
