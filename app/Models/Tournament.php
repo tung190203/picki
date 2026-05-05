@@ -43,29 +43,18 @@ class Tournament extends Model
         'is_public_branch',
         'is_own_score',
         'creator_join',
-        'has_financial_management',
         'has_fee',
         'fee_amount',
         'auto_split_fee',
         'fee_description',
         'qr_code_url',
-        'use_club_fund',
-        'included_in_club_fund',
         'tournament_fund_collection_id',
-        'club_fund_collection_id',
-        'allow_cancellation',
-        'cancellation_duration',
     ];
 
     protected $casts = [
-        'has_financial_management' => 'bool',
         'has_fee' => 'bool',
         'fee_amount' => 'integer',
         'auto_split_fee' => 'bool',
-        'use_club_fund' => 'bool',
-        'included_in_club_fund' => 'bool',
-        'allow_cancellation' => 'bool',
-        'cancellation_duration' => 'integer',
     ];
 
     protected $appends = ['poster_url', 'qr_code_url'];
@@ -318,11 +307,6 @@ class Tournament extends Model
         );
     }
 
-    public function getIncludedInClubFundAttribute(): bool
-    {
-        return (bool) ($this->attributes['included_in_club_fund'] ?? false);
-    }
-
     public function getHasFeeAttribute(): bool
     {
         return (bool) ($this->attributes['has_fee'] ?? false);
@@ -365,46 +349,6 @@ class Tournament extends Model
         }
 
         return 0;
-    }
-
-    /**
-     * Hạn chót được phép hủy giải đấu.
-     */
-    public function getCancellationDeadlineAttribute(): ?Carbon
-    {
-        if (!$this->allow_cancellation || !$this->start_date) {
-            return null;
-        }
-
-        $startDate = $this->start_date instanceof Carbon
-            ? $this->start_date
-            : Carbon::parse($this->start_date);
-
-        if ($this->cancellation_duration === null) {
-            return $startDate;
-        }
-
-        return $startDate->copy()->subMinutes($this->cancellation_duration);
-    }
-
-    /**
-     * Kiểm tra đã hết hạn hủy giải đấu chưa.
-     */
-    public function isCancellationClosed(?CarbonInterface $now = null): bool
-    {
-        $now = $now ?? Carbon::now();
-
-        if (!$this->allow_cancellation) {
-            return true;
-        }
-
-        $deadline = $this->cancellation_deadline;
-
-        if ($deadline === null) {
-            return false;
-        }
-
-        return $now->gt($deadline);
     }
 
     public function getPaymentSummaryAttribute(): array
