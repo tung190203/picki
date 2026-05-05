@@ -202,16 +202,9 @@ class TournamentController extends Controller
                 ]);
             }
 
-            // Xử lý quỹ: tạo fund collection nếu có quản lý tài chính
-            if (!empty($validated['has_financial_management']) && !empty($validated['has_fee'])) {
-                if (!empty($validated['included_in_club_fund']) && !empty($validated['club_id'])) {
-                    $club = Club::find($validated['club_id']);
-                    if ($club) {
-                        $this->fundService->createClubFundCollection($tournament, $validated, $club);
-                    }
-                } elseif (empty($validated['use_club_fund'])) {
-                    $this->fundService->createTournamentFundCollection($tournament, $validated);
-                }
+            // Xử lý quỹ: tạo fund collection riêng cho giải đấu nếu có phí
+            if (!empty($validated['has_fee'])) {
+                $this->fundService->createTournamentFundCollection($tournament, $validated);
             }
         });
 

@@ -57,7 +57,7 @@ class ClubTournamentController extends Controller
 
         $tournament = null;
 
-        DB::transaction(function () use ($validated, $request, $club, $userId, &$tournament) {
+        DB::transaction(function () use ($validated, $request, $userId, &$tournament) {
             if ($request->hasFile('poster')) {
                 $path = $request->file('poster')->store('tournaments/posters', 'public');
                 $validated['poster'] = $path;
@@ -70,21 +70,6 @@ class ClubTournamentController extends Controller
                 $qrStr = trim((string) $request->input('qr_code_url'));
                 if ($qrStr !== '' && filter_var($qrStr, FILTER_VALIDATE_URL)) {
                     $validated['qr_code_url'] = $qrStr;
-                }
-            }
-
-            // Nếu CLB có mã QR chung và use_club_fund = true thì gán luôn
-            if (
-                empty($validated['qr_code_url'])
-                && !empty($validated['use_club_fund'])
-                && empty($validated['has_fee'])
-            ) {
-                $clubQrWallet = $club->activeQrWallet();
-                if ($clubQrWallet && $clubQrWallet->qr_code_url) {
-                    $qrUrl = str_starts_with($clubQrWallet->qr_code_url, 'http')
-                        ? $clubQrWallet->qr_code_url
-                        : asset('storage/' . $clubQrWallet->qr_code_url);
-                    $validated['qr_code_url'] = $qrUrl;
                 }
             }
 
@@ -110,13 +95,9 @@ class ClubTournamentController extends Controller
                 ]);
             }
 
-            // Xử lý quỹ
-            if (!empty($validated['has_financial_management']) && !empty($validated['has_fee'])) {
-                if (!empty($validated['included_in_club_fund'])) {
-                    $this->fundService->createClubFundCollection($tournament, $validated, $club);
-                } elseif (empty($validated['use_club_fund'])) {
-                    $this->fundService->createTournamentFundCollection($tournament, $validated);
-                }
+            // Tạo fund collection riêng cho giải đấu nếu có phí
+            if (!empty($validated['has_fee'])) {
+                $this->fundService->createTournamentFundCollection($tournament, $validated);
             }
         });
 
