@@ -27,7 +27,9 @@ class TournamentResource extends JsonResource
             }),
             'name' => $this->name,
             'competition_location_id' => $this->competition_location_id,
-            'competition_location' => new CompetitionLocationResource($this->whenLoaded('competitionLocation')),
+            'competition_location' => $this->whenLoaded('competitionLocation')
+                ? new CompetitionLocationResource($this->competitionLocation)
+                : null,
             'start_date' => $this->start_date,
             // 'end_date' => $this->end_date,
             'registration_open_at' => $this->registration_open_at,
@@ -86,15 +88,15 @@ class TournamentResource extends JsonResource
                 return ParticipantResource::collection($this->participants);
             }),
             'tournament_types' => TournamentTypeResource::collection($this->whenLoaded('tournamentTypes')) ?? [],
-            'is_joined' => auth()->check()
-                ? ($this->whenLoaded('participants') && $this->participants?->contains('user_id', auth()->id()))
-                : null,
-            'is_confirmed_by_organizer' => auth()->check()
-                ? (bool) ($this->whenLoaded('participants') ? $this->participants?->firstWhere('user_id', auth()->id())?->is_confirmed : null)
-                : null,
-            'is_invite_by_organizer' => auth()->check()
-                ? (bool) ($this->whenLoaded('participants') ? $this->participants?->firstWhere('user_id', auth()->id())?->is_invite_by_organizer : null)
-                : null,
+            'is_joined' => $this->whenLoaded('participants') && auth()->check()
+                ? ($this->participants?->contains('user_id', auth()->id()) ?? false)
+                : false,
+            'is_confirmed_by_organizer' => $this->whenLoaded('participants') && auth()->check()
+                ? (bool) ($this->participants?->firstWhere('user_id', auth()->id())?->is_confirmed ?? false)
+                : false,
+            'is_invite_by_organizer' => $this->whenLoaded('participants') && auth()->check()
+                ? (bool) ($this->participants?->firstWhere('user_id', auth()->id())?->is_invite_by_organizer ?? false)
+                : false,
             'my_tournament_stats' => $this->whenLoaded('participants', function () {
                 $participant = $this->participants?->firstWhere('user_id', auth()->id());
                 if (!$participant) {
