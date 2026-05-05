@@ -172,12 +172,20 @@ class TournamentController extends Controller
 
         DB::transaction(function () use ($validated, &$tournament, $request) {
             if ($request->hasFile('poster')) {
-                $path = $request->file('poster')->store('tournaments/posters', 'public');
+                $path = $this->imageService->optimize(
+                    $request->file('poster'),
+                    'tournaments/posters'
+                );
                 $validated['poster'] = $path;
             }
 
             if ($request->hasFile('qr_code_url')) {
-                $path = $request->file('qr_code_url')->store('tournaments/qr', 'public');
+                $path = $this->imageService->optimize(
+                    $request->file('qr_code_url'),
+                    'tournaments/qr',
+                    800,  // QR code nhỏ hơn, max 800px
+                    75
+                );
                 $validated['qr_code_url'] = $path;
             }
 
@@ -209,7 +217,7 @@ class TournamentController extends Controller
         });
 
         if ($tournament) {
-            $tournament = Tournament::withBasicRelations()->find($tournament->id);
+            $tournament = Tournament::with(['createdBy', 'sport', 'competitionLocation'])->find($tournament->id);
             TournamentCreated::dispatch($tournament);
             DashboardStatUpdated::dispatch('tournaments_this_month', 1, 'incremented');
         } else {
@@ -287,7 +295,7 @@ class TournamentController extends Controller
 
             // Handle QR code upload
             if ($request->hasFile('qr_code_url')) {
-                $path = $request->file('qr_code_url')->store('tournaments/qr', 'public');
+                $path = $this->imageService->optimize($request->file('qr_code_url'), 'tournaments/qr', 800, 75);
                 $validated['qr_code_url'] = $path;
             } elseif ($request->filled('qr_code_url')) {
                 // Keep existing or string value
