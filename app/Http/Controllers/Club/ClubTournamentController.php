@@ -95,8 +95,8 @@ class ClubTournamentController extends Controller
                 ]);
             }
 
-            // Tạo fund collection riêng cho giải đấu nếu có phí
-            if (!empty($validated['has_fee'])) {
+            // Tạo fund collection riêng cho giải đấu khi có quản lý tài chính + phí
+            if (!empty($validated['has_financial_management']) && !empty($validated['has_fee'])) {
                 $this->fundService->createTournamentFundCollection($tournament, $validated);
             }
         });

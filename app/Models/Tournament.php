@@ -43,6 +43,7 @@ class Tournament extends Model
         'is_public_branch',
         'is_own_score',
         'creator_join',
+        'has_financial_management',
         'has_fee',
         'fee_amount',
         'auto_split_fee',
@@ -52,6 +53,7 @@ class Tournament extends Model
     ];
 
     protected $casts = [
+        'has_financial_management' => 'bool',
         'has_fee' => 'bool',
         'fee_amount' => 'integer',
         'auto_split_fee' => 'bool',
