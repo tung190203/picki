@@ -77,6 +77,8 @@ class TournamentResource extends JsonResource
                 return [
                     'id' => $this->club->id,
                     'name' => $this->club->name,
+                    'address' => $this->club->address,
+                    'quantity_members' => $this->club->members_count ?? $this->club->members()->count(),
                 ];
             }),
             'tournament_staff' => TournamentStaffResource::collection($this->whenLoaded('tournamentStaffs')),
@@ -85,15 +87,15 @@ class TournamentResource extends JsonResource
             }),
             'tournament_types' => TournamentTypeResource::collection($this->whenLoaded('tournamentTypes')) ?? [],
             'is_joined' => auth()->check()
-                ? ($this->participants ? $this->participants->contains('user_id', auth()->id()) : false)
+                ? ($this->whenLoaded('participants') && $this->participants?->contains('user_id', auth()->id()))
                 : null,
             'is_confirmed_by_organizer' => auth()->check()
-                ? (bool) $this->participants?->firstWhere('user_id', auth()->id())?->is_confirmed
+                ? (bool) ($this->whenLoaded('participants') ? $this->participants?->firstWhere('user_id', auth()->id())?->is_confirmed : null)
                 : null,
             'is_invite_by_organizer' => auth()->check()
-                ? (bool) $this->participants?->firstWhere('user_id', auth()->id())?->is_invite_by_organizer
+                ? (bool) ($this->whenLoaded('participants') ? $this->participants?->firstWhere('user_id', auth()->id())?->is_invite_by_organizer : null)
                 : null,
-            'my_tournament_stats' => auth()->check() ? function () {
+            'my_tournament_stats' => $this->whenLoaded('participants', function () {
                 $participant = $this->participants?->firstWhere('user_id', auth()->id());
                 if (!$participant) {
                     return null;
@@ -105,7 +107,7 @@ class TournamentResource extends JsonResource
                     'rank_after' => $participant->rank_after,
                     'rank_change' => $participant->rank_change,
                 ];
-            } : null,
+            }),
         ];
     }
 }

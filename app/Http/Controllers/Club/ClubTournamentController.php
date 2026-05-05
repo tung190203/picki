@@ -59,12 +59,12 @@ class ClubTournamentController extends Controller
 
         DB::transaction(function () use ($validated, $request, $userId, &$tournament) {
             if ($request->hasFile('poster')) {
-                $path = $request->file('poster')->store('tournaments/posters', 'public');
+                $path = $this->imageService->optimize($request->file('poster'), 'tournaments/posters');
                 $validated['poster'] = $path;
             }
 
             if ($request->hasFile('qr_code_url')) {
-                $path = $request->file('qr_code_url')->store('tournaments/qr', 'public');
+                $path = $this->imageService->optimize($request->file('qr_code_url'), 'tournaments/qr', 800, 75);
                 $validated['qr_code_url'] = $path;
             } elseif ($request->filled('qr_code_url') && is_string($request->input('qr_code_url'))) {
                 $qrStr = trim((string) $request->input('qr_code_url'));
@@ -149,7 +149,7 @@ class ClubTournamentController extends Controller
             }
 
             if ($request->hasFile('qr_code_url')) {
-                $path = $request->file('qr_code_url')->store('tournaments/qr', 'public');
+                $path = $this->imageService->optimize($request->file('qr_code_url'), 'tournaments/qr', 800, 75);
                 $validated['qr_code_url'] = $path;
             } elseif ($request->filled('qr_code_url') && is_string($request->input('qr_code_url'))) {
                 $qrStr = trim((string) $request->input('qr_code_url'));

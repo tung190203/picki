@@ -19,7 +19,7 @@ class TournamentCreated implements ShouldBroadcast
 
     public function __construct(Tournament $tournament)
     {
-        $this->tournament = $tournament;
+        $this->tournament = $tournament->loadCount('participants');
     }
 
     public function broadcastOn(): array
