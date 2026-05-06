@@ -410,7 +410,7 @@ const fetchPayments = async () => {
 
 const handleConfirm = async (payment) => {
   try {
-    await confirmMiniTournamentPayment(props.miniId, payment.id)
+    await confirmMiniTournamentPayment(props.miniId, payment.participant_id)
     toast.success('Đã xác nhận thanh toán')
     await fetchPayments()
   } catch (error) {
@@ -420,7 +420,7 @@ const handleConfirm = async (payment) => {
 
 const handleReject = async (payment) => {
   try {
-    await rejectMiniTournamentPayment(props.miniId, payment.id)
+    await rejectMiniTournamentPayment(props.miniId, payment.participant_id)
     toast.success('Đã từ chối thanh toán')
     await fetchPayments()
   } catch (error) {
