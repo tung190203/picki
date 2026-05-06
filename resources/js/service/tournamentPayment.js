@@ -30,12 +30,12 @@ export const rejectTournamentPayment = (id, pid, reason) =>
   axiosInstance.post(`${BASE}/${id}/payments/${pid}/reject`, { reason })
     .then((response) => response.data.data);
 
-export const markTournamentUserPaid = (id, uid) =>
-  axiosInstance.post(`${BASE}/${id}/payments/mark-paid/${uid}`)
+export const markTournamentUserPaid = (id, participantId) =>
+  axiosInstance.post(`${BASE}/${id}/payments/${participantId}/mark-paid`)
     .then((response) => response.data.data);
 
-export const remindTournamentUser = (id, uid) =>
-  axiosInstance.post(`${BASE}/${id}/payments/remind/${uid}`)
+export const remindTournamentUser = (id, participantId) =>
+  axiosInstance.post(`${BASE}/${id}/payments/${participantId}/remind`)
     .then((response) => response.data.data);
 
 export const remindAllTournamentPayments = (id) =>
