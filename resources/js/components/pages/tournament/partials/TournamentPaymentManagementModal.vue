@@ -177,13 +177,25 @@
                         </template>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      class="px-4 py-1.5 rounded-full text-xs font-semibold bg-[#F6E4C8] text-[#E0A243] hover:bg-[#D48D3B] hover:text-white transition"
-                      @click="handleRemind(payment)"
-                    >
-                      Nhắc thanh toán
-                    </button>
+                    <div class="flex items-center gap-2">
+                      <!-- Mark paid button (chỉ cho user thường, không áp dụng cho guest) -->
+                      <button
+                        v-if="!payment.is_guest"
+                        type="button"
+                        class="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#10B981] text-white hover:bg-[#059669] transition"
+                        @click="handleMarkPaid(payment)"
+                        :disabled="markPaidLoading === payment.id"
+                      >
+                        {{ markPaidLoading === payment.id ? '...' : 'Đánh dấu đã TT' }}
+                      </button>
+                      <button
+                        type="button"
+                        class="px-4 py-1.5 rounded-full text-xs font-semibold bg-[#F6E4C8] text-[#E0A243] hover:bg-[#D48D3B] hover:text-white transition"
+                        @click="handleRemind(payment)"
+                      >
+                        Nhắc thanh toán
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -363,6 +375,7 @@ import {
   rejectTournamentPayment,
   remindTournamentUser,
   remindAllTournamentPayments,
+  markTournamentUserPaid,
 } from '@/service/tournamentPayment.js'
 import { formatCurrency } from '@/composables/formatCurrency.js'
 
@@ -380,6 +393,7 @@ const props = defineProps({
 const emit = defineEmits(['update:isOpen'])
 
 const loading = ref(false)
+const markPaidLoading = ref(null)
 const paymentConfig = ref({
   has_fee: false,
   auto_split_fee: false,
@@ -486,6 +500,19 @@ const handleConfirm = async (payment) => {
     await fetchPayments()
   } catch (error) {
     toast.error(error.response?.data?.message || 'Không thể xác nhận thanh toán')
+  }
+}
+
+const handleMarkPaid = async (payment) => {
+  try {
+    markPaidLoading.value = payment.id
+    await markTournamentUserPaid(props.tournamentId, payment.user_id)
+    toast.success('Đã đánh dấu đã thanh toán')
+    await fetchPayments()
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Không thể đánh dấu thanh toán')
+  } finally {
+    markPaidLoading.value = null
   }
 }
 
