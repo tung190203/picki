@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Notifications\TournamentPaymentReminderNotification;
 use App\Notifications\TournamentPaymentRejectedNotification;
 use App\Notifications\TournamentPaymentConfirmedNotification;
+use App\Events\SuperAdmin\PaymentConfirmed;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 
@@ -99,7 +100,7 @@ class TournamentFundService
                 'tournament_fund_collection_id' => $collection->id,
                 'user_id' => $uid,
                 'amount' => $feePerTeam,
-                'status' => 'pending',
+                'status' => $uid === $userId ? 'confirmed' : 'pending',
                 'created_by' => $userId,
             ]);
 
@@ -108,7 +109,9 @@ class TournamentFundService
                 'participant_id' => null,
                 'user_id' => $uid,
                 'amount' => $feePerTeam,
-                'status' => TournamentParticipantPayment::STATUS_PENDING,
+                'status' => $uid === $userId
+                    ? TournamentParticipantPayment::STATUS_CONFIRMED
+                    : TournamentParticipantPayment::STATUS_PENDING,
             ]);
         }
     }
@@ -268,6 +271,13 @@ class TournamentFundService
         }
 
         $payment->user->notify(new TournamentPaymentConfirmedNotification($payment));
+
+        PaymentConfirmed::dispatch(
+            $payment->tournament_id,
+            $payment->id,
+            $payment->amount,
+            $payment->user_id
+        );
     }
 
     /**
@@ -332,6 +342,13 @@ class TournamentFundService
         if ($participant) {
             $participant->update(['payment_status' => \App\Enums\PaymentStatusEnum::CONFIRMED]);
         }
+
+        PaymentConfirmed::dispatch(
+            $tournament->id,
+            $payment->id,
+            $payment->amount,
+            $userId
+        );
 
         return $payment;
     }
