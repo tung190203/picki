@@ -303,14 +303,15 @@ class TournamentFundService
     /**
      * Admin đánh dấu đã thanh toán (không cần receipt)
      */
-    public function markPaidManually(Tournament $tournament, int $userId, User $admin): TournamentParticipantPayment
+    public function markPaidManually(Tournament $tournament, Participant $participant, User $admin): TournamentParticipantPayment
     {
         $payment = TournamentParticipantPayment::updateOrCreate(
             [
                 'tournament_id' => $tournament->id,
-                'user_id' => $userId,
+                'participant_id' => $participant->id,
             ],
             [
+                'user_id' => $participant->user_id,
                 'amount' => $tournament->fee_per_person,
                 'status' => TournamentParticipantPayment::STATUS_CONFIRMED,
                 'paid_at' => now(),
@@ -320,29 +321,24 @@ class TournamentFundService
             ]
         );
 
-        // Sync Participant.payment_status = CONFIRMED
-        $participant = Participant::where('tournament_id', $tournament->id)
-            ->where('user_id', $userId)
-            ->first();
-        if ($participant) {
-            $participant->update(['payment_status' => \App\Enums\PaymentStatusEnum::CONFIRMED]);
-        }
+        $participant->update(['payment_status' => \App\Enums\PaymentStatusEnum::CONFIRMED]);
 
         PaymentConfirmed::dispatch(
             $tournament->id,
             $payment->id,
             $payment->amount,
-            $userId
+            $participant->user_id
         );
 
-        // Sync TournamentFundContribution
-        if ($tournament->tournament_fund_collection_id) {
+        if ($tournament->tournament_fund_collection_id && $participant->user_id) {
             TournamentFundContribution::where('tournament_fund_collection_id', $tournament->tournament_fund_collection_id)
-                ->where('user_id', $userId)
+                ->where('user_id', $participant->user_id)
                 ->update(['status' => 'confirmed']);
         }
 
-        $payment->user->notify(new TournamentPaymentConfirmedNotification($payment));
+        if ($participant->user_id) {
+            $payment->user->notify(new TournamentPaymentConfirmedNotification($payment));
+        }
 
         return $payment;
     }
@@ -350,9 +346,13 @@ class TournamentFundService
     /**
      * Gửi nhắc nhở cho 1 thành viên
      */
-    public function remindUser(Tournament $tournament, int $userId): void
+    public function remindUser(Tournament $tournament, Participant $participant): void
     {
-        $user = User::find($userId);
+        if (!$participant->user_id) {
+            return;
+        }
+
+        $user = User::find($participant->user_id);
         if (!$user) {
             return;
         }
@@ -367,12 +367,15 @@ class TournamentFundService
     {
         $pendingPayments = TournamentParticipantPayment::where('tournament_id', $tournament->id)
             ->whereIn('status', [TournamentParticipantPayment::STATUS_PENDING, TournamentParticipantPayment::STATUS_REJECTED])
-            ->pluck('user_id');
+            ->with('participant')
+            ->get();
 
-        foreach ($pendingPayments as $userId) {
-            $this->remindUser($tournament, $userId);
+        foreach ($pendingPayments as $payment) {
+            if ($payment->participant) {
+                $this->remindUser($tournament, $payment->participant);
+            }
         }
 
-        return $pendingPayments->toArray();
+        return $pendingPayments->pluck('id')->toArray();
     }
 }
