@@ -337,45 +337,95 @@ class StoreMiniTournamentRequest extends FormRequest
     public function messages(): array
     {
         return [
+            // Poster
+            'poster.image' => 'Ảnh bìa kèo đấu phải là định dạng hình ảnh (jpeg, png, jpg, gif, svg)',
+            'poster.mimes' => 'Ảnh bìa kèo đấu phải là định dạng jpeg, png, jpg, gif hoặc svg',
+            'poster.max' => 'Ảnh bìa kèo đấu không được vượt quá 2MB',
+
+            // Thông tin cơ bản
             'sport_id.required' => 'Vui lòng chọn môn thể thao',
-            'sport_id.exists' => 'Môn thể thao không hợp lệ',
+            'sport_id.exists' => 'Môn thể thao không tồn tại hoặc đã bị xóa',
             'name.required' => 'Vui lòng nhập tên kèo đấu',
+            'name.string' => 'Tên kèo đấu phải là chuỗi ký tự',
             'name.max' => 'Tên kèo đấu không được vượt quá 255 ký tự',
+            'description.string' => 'Mô tả kèo đấu phải là chuỗi ký tự',
+
+            // Chế độ và thể thức
             'play_mode.required' => 'Vui lòng chọn chế độ thi đấu',
             'play_mode.in' => 'Chế độ thi đấu không hợp lệ (casual, competition, practice)',
             'format.required' => 'Vui lòng chọn thể thức thi đấu',
-            'format.in' => 'Thể thức thi đấu không hợp lệ',
+            'format.in' => 'Thể thức thi đấu không hợp lệ (single, double, mens_doubles, womens_doubles, mixed)',
+
+            // Thời gian
             'start_time.required' => 'Vui lòng chọn thời gian bắt đầu',
             'start_time.date' => 'Thời gian bắt đầu không hợp lệ',
             'start_time.after_or_equal' => 'Thời gian bắt đầu phải từ thời điểm hiện tại trở đi',
+            'end_time.date' => 'Thời gian kết thúc không hợp lệ',
             'end_time.after' => 'Thời gian kết thúc phải sau thời gian bắt đầu',
             'duration.required' => 'Vui lòng chọn thời lượng kèo đấu',
+            'duration.integer' => 'Thời lượng phải là số nguyên (phút)',
             'duration.min' => 'Thời lượng kèo đấu phải lớn hơn 0 phút',
+
+            // Địa điểm
             'competition_location_id.required' => 'Vui lòng chọn địa điểm thi đấu',
-            'competition_location_id.exists' => 'Địa điểm thi đấu không hợp lệ',
-            'fee_amount.required' => 'Vui lòng nhập phí tham gia',
-            'fee_amount.min' => 'Phí tham gia phải lớn hơn 0',
-            'max_players.required' => 'Vui lòng nhập số lượng người chơi',
+            'competition_location_id.exists' => 'Địa điểm thi đấu không tồn tại hoặc đã bị xóa',
+
+            // Giới tính
+            'gender.required' => 'Vui lòng chọn giới tính cho kèo đấu',
+            'gender.in' => 'Giới tính không hợp lệ',
+
+            // Số người chơi
+            'max_players.required' => 'Vui lòng nhập số lượng người chơi tối đa',
+            'max_players.integer' => 'Số người chơi phải là số nguyên',
             'max_players.min' => 'Số người chơi tối thiểu là 2',
             'max_players.max' => 'Số người chơi tối đa là 100',
+
+            // Phí
+            'fee_amount.required' => 'Vui lòng nhập phí tham gia kèo đấu',
+            'fee_amount.integer' => 'Phí tham gia phải là số nguyên (VNĐ)',
+            'fee_amount.min' => 'Phí tham gia phải lớn hơn 0',
+            'fee_description.string' => 'Mô tả phí phải là chuỗi ký tự',
+            'fee_description.max' => 'Mô tả phí không được vượt quá 500 ký tự',
+            'payment_account_id.exists' => 'Tài khoản thanh toán không tồn tại hoặc đã bị xóa',
+
+            // Trình độ
+            'min_rating.numeric' => 'Trình độ tối thiểu phải là số (ví dụ: 2.5)',
             'min_rating.min' => 'Trình độ tối thiểu phải từ 1.0',
+            'min_rating.max' => 'Trình độ tối thiểu không được vượt quá 8.0',
+            'max_rating.numeric' => 'Trình độ tối đa phải là số (ví dụ: 5.0)',
+            'max_rating.min' => 'Trình độ tối đa phải từ 1.0',
             'max_rating.max' => 'Trình độ tối đa không được vượt quá 8.0',
+
+            // Luật thi đấu
             'set_number.required' => 'Vui lòng nhập số set thi đấu',
+            'set_number.integer' => 'Số set thi đấu phải là số nguyên',
             'set_number.min' => 'Số set thi đấu phải lớn hơn 0',
             'base_points.required' => 'Vui lòng nhập điểm cơ bản',
+            'base_points.integer' => 'Điểm cơ bản phải là số nguyên',
             'base_points.min' => 'Điểm cơ bản phải lớn hơn hoặc bằng 11',
             'points_difference.required' => 'Vui lòng nhập cách biệt điểm',
+            'points_difference.integer' => 'Cách biệt điểm phải là số nguyên',
             'points_difference.min' => 'Cách biệt điểm phải lớn hơn 0',
             'max_points.required' => 'Vui lòng nhập điểm tối đa',
+            'max_points.integer' => 'Điểm tối đa phải là số nguyên',
             'max_points.min' => 'Điểm tối đa phải lớn hơn hoặc bằng 11',
-            'gender.required' => 'Vui lòng chọn giới tính',
-            'gender.in' => 'Giới tính không hợp lệ',
-            'status.required' => 'Vui lòng chọn trạng thái',
-            'status.in' => 'Trạng thái không hợp lệ',
-            'cancellation_duration.required' => 'Vui lòng nhập thời gian hủy kèo (phút)',
+
+            // Trạng thái
+            'status.required' => 'Vui lòng chọn trạng thái kèo đấu',
+            'status.in' => 'Trạng thái kèo đấu không hợp lệ',
+
+            // Hủy kèo
+            'cancellation_duration.required' => 'Vui lòng nhập thời gian cho phép hủy kèo (phút)',
+            'cancellation_duration.integer' => 'Thời gian hủy kèo phải là số nguyên (phút)',
             'cancellation_duration.min' => 'Thời gian hủy kèo phải lớn hơn 0',
-            'invite_user.*.distinct' => 'Danh sách người được mời không được trùng lặp',
-            'invite_user.*.exists' => 'Người dùng được mời không tồn tại',
+
+            // Lịch lặp
+            'recurring_schedule.array' => 'Lịch lặp không hợp lệ',
+
+            // Mời người chơi
+            'invite_user.array' => 'Danh sách người được mời không hợp lệ',
+            'invite_user.*.distinct' => 'Danh sách người được mời chứa người bị trùng lặp',
+            'invite_user.*.exists' => 'Người dùng được mời không tồn tại trong hệ thống',
         ];
     }
 }
