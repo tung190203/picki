@@ -18,6 +18,9 @@ class Sport extends Model
 
     const PER_PAGE = 20;
 
+    public const PICKLEBALL_SLUG = 'pickleball';
+    public const PICKLEBALL_ID = 1;
+
     public function tournaments()
     {
         return $this->hasMany(MiniTournament::class, 'sport_id');
