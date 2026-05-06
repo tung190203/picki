@@ -539,6 +539,7 @@ async function fetchTournament() {
 }
 
 function handleRegister() {
+  if (!tournament.value?.id) return
   router.push({ name: 'tournament-detail', params: { id: tournament.value.id } })
 }
 

@@ -819,14 +819,17 @@ function formatDate(datetime) {
 }
 
 function goToMiniTournamentDetail(id) {
+  if (!id) return
   router.push({ name: 'mini-tournament-detail', params: { id } })
 }
 
 function goToTournamentDetail(id) {
+  if (!id) return
   router.push({ name: 'tournament-detail', params: { id } })
 }
 
 function goToProfile(id) {
+  if (!id) return
   router.push({ name: 'profile', params: { id } })
 }
 

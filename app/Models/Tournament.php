@@ -50,6 +50,8 @@ class Tournament extends Model
         'fee_description',
         'qr_code_url',
         'tournament_fund_collection_id',
+        'final_fee_per_person',
+        'auto_payment_created',
     ];
 
     protected $casts = [
@@ -57,6 +59,8 @@ class Tournament extends Model
         'has_fee' => 'bool',
         'fee_amount' => 'integer',
         'auto_split_fee' => 'bool',
+        'final_fee_per_person' => 'integer',
+        'auto_payment_created' => 'bool',
     ];
 
     protected $appends = ['poster_url', 'qr_code_url'];
@@ -332,7 +336,10 @@ class Tournament extends Model
         }
 
         if ($this->auto_split_fee) {
-            $participantCount = $this->participants()->count();
+            if ($this->final_fee_per_person !== null) {
+                return (int) $this->final_fee_per_person;
+            }
+            $participantCount = $this->participants()->where('is_confirmed', true)->count();
             if ($participantCount > 0) {
                 return (int) round($this->fee_amount / $participantCount);
             }
