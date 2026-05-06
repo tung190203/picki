@@ -6,6 +6,7 @@ use App\Enums\ClubMemberRole;
 use App\Enums\PaymentStatusEnum;
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
+use App\Jobs\OptimizeTournamentImageJob;
 use App\Http\Requests\StoreTournamentRequest;
 use App\Http\Requests\UpdateTournamentRequest;
 use App\Http\Resources\ParticipantResource;
@@ -27,7 +28,6 @@ class ClubTournamentController extends Controller
     public function __construct(
         protected TournamentService $tournamentService,
         protected TournamentFundService $fundService,
-        protected ImageOptimizationService $imageService,
     ) {
     }
 
@@ -58,14 +58,21 @@ class ClubTournamentController extends Controller
         $tournament = null;
 
         DB::transaction(function () use ($validated, $request, $userId, &$tournament) {
+            // Lưu file tạm để queue job xử lý
+            $posterTempPath = null;
+            $qrCodeTempPath = null;
+
             if ($request->hasFile('poster')) {
-                $path = $this->imageService->optimize($request->file('poster'), 'tournaments/posters');
-                $validated['poster'] = $path;
+                $posterTempPath = $request->file('poster')->store('temp/uploads', 'local');
+                $validated['poster'] = null;
             }
 
             if ($request->hasFile('qr_code_url')) {
-                $path = $this->imageService->optimize($request->file('qr_code_url'), 'tournaments/qr', 800, 75);
-                $validated['qr_code_url'] = $path;
+                $qrFile = $request->file('qr_code_url');
+                if ($qrFile && $qrFile->isValid()) {
+                    $qrCodeTempPath = $qrFile->store('temp/uploads', 'local');
+                }
+                $validated['qr_code_url'] = null;
             } elseif ($request->filled('qr_code_url') && is_string($request->input('qr_code_url'))) {
                 $qrStr = trim((string) $request->input('qr_code_url'));
                 if ($qrStr !== '' && filter_var($qrStr, FILTER_VALIDATE_URL)) {
@@ -87,17 +94,31 @@ class ClubTournamentController extends Controller
             $this->tournamentService->calculateEndDate($tournament);
 
             if (!empty($validated['creator_join'])) {
-                Participant::create([
+                $participantData = [
                     'tournament_id' => $tournament->id,
                     'user_id' => $userId,
                     'is_confirmed' => true,
-                    'payment_status' => PaymentStatusEnum::CONFIRMED,
-                ]);
+                ];
+
+                // Nếu giải có thu phí, chủ giải tự động tham gia thì xác nhận thanh toán luôn
+                if (!empty($validated['has_fee'])) {
+                    $participantData['payment_status'] = PaymentStatusEnum::CONFIRMED;
+                }
+
+                Participant::create($participantData);
             }
 
-            // Tạo fund collection riêng cho giải đấu khi có quản lý tài chính + phí
             if (!empty($validated['has_financial_management']) && !empty($validated['has_fee'])) {
                 $this->fundService->createTournamentFundCollection($tournament, $validated);
+            }
+
+            // Dispatch job xử lý ảnh bất đồng bộ
+            if ($posterTempPath || $qrCodeTempPath) {
+                OptimizeTournamentImageJob::dispatch(
+                    $tournament->id,
+                    $posterTempPath,
+                    $qrCodeTempPath
+                );
             }
         });
 
@@ -137,20 +158,23 @@ class ClubTournamentController extends Controller
         $validated = $request->validated();
 
         DB::transaction(function () use ($validated, $tournament, $request) {
+            $posterTempPath = null;
+            $qrCodeTempPath = null;
+
             if ($request->hasFile('poster')) {
-                $this->imageService->deleteOldImage($tournament->poster);
-                $path = $this->imageService->optimize($validated['poster'], 'tournaments/posters');
-                $validated['poster'] = $path;
+                $posterTempPath = $request->file('poster')->store('temp/uploads', 'local');
+                unset($validated['poster']);
             } elseif ($request->has('remove_poster') && $request->input('remove_poster')) {
-                $this->imageService->deleteOldImage($tournament->poster);
+                $imageService = app(ImageOptimizationService::class);
+                $imageService->deleteOldImage($tournament->poster);
                 $validated['poster'] = null;
             } else {
                 unset($validated['poster']);
             }
 
             if ($request->hasFile('qr_code_url')) {
-                $path = $this->imageService->optimize($request->file('qr_code_url'), 'tournaments/qr', 800, 75);
-                $validated['qr_code_url'] = $path;
+                $qrCodeTempPath = $request->file('qr_code_url')->store('temp/uploads', 'local');
+                unset($validated['qr_code_url']);
             } elseif ($request->filled('qr_code_url') && is_string($request->input('qr_code_url'))) {
                 $qrStr = trim((string) $request->input('qr_code_url'));
                 if ($qrStr !== '' && filter_var($qrStr, FILTER_VALIDATE_URL)) {
@@ -170,6 +194,22 @@ class ClubTournamentController extends Controller
 
             if ($tournament->status === Tournament::CLOSED && $oldStatus !== Tournament::CLOSED) {
                 $this->tournamentService->updateParticipantsRatingStats($tournament);
+            }
+
+            // Dispatch job xử lý ảnh bất đồng bộ
+            if ($posterTempPath || $qrCodeTempPath) {
+                $deleteOldPoster = $request->hasFile('poster');
+                $deleteOldQrCode = $request->hasFile('qr_code_url');
+
+                OptimizeTournamentImageJob::dispatch(
+                    $tournament->id,
+                    $posterTempPath,
+                    $qrCodeTempPath,
+                    $deleteOldPoster,
+                    $tournament->getOriginal('poster'),
+                    $deleteOldQrCode,
+                    $tournament->getOriginal('qr_code_url')
+                );
             }
         });
 
