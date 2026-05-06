@@ -7,8 +7,10 @@ use App\Events\SuperAdmin\PaymentConfirmed;
 use App\Helpers\ResponseHelper;
 use App\Models\Tournament;
 use App\Models\TournamentFundCollection;
+use App\Models\TournamentFundContribution;
 use App\Models\Participant;
 use App\Models\TournamentParticipantPayment;
+use App\Notifications\TournamentPaymentConfirmedNotification;
 use App\Services\ImageOptimizationService;
 use App\Services\TournamentFundService;
 use Illuminate\Http\Request;
@@ -89,6 +91,30 @@ class TournamentPaymentController extends Controller
             }
         }
 
+        // Đảm bảo organizer luôn có payment record STATUS_CONFIRMED
+        $feePerPerson = $this->calculateFeePerPerson($tournament);
+        foreach ($organizerIds as $orgId) {
+            $hasPayment = $allPayments->contains(fn($p) => $p->user_id === $orgId);
+            if (!$hasPayment) {
+                $existingParticipant = Participant::where('tournament_id', $tournament->id)
+                    ->where('user_id', $orgId)
+                    ->first();
+                if ($existingParticipant && $existingParticipant->is_confirmed) {
+                    TournamentParticipantPayment::create([
+                        'tournament_id' => $tournament->id,
+                        'participant_id' => $existingParticipant->id,
+                        'user_id' => $orgId,
+                        'amount' => $feePerPerson,
+                        'status' => TournamentParticipantPayment::STATUS_CONFIRMED,
+                        'paid_at' => now(),
+                        'confirmed_at' => now(),
+                        'confirmed_by' => Auth::id(),
+                        'admin_note' => 'Auto tạo: chủ kèo mặc định đã đóng tiền',
+                    ]);
+                }
+            }
+        }
+
         // Refresh after auto-confirm
         $allPayments = $tournament->payments()->with([
             'user',
@@ -106,7 +132,9 @@ class TournamentPaymentController extends Controller
             if ($tournament->auto_split_fee) {
                 $totalExpected = $confirmedPayments->sum('amount');
             } else {
-                $totalExpected = $tournament->fee_per_person * $participantCount;
+                $organizerCount = count($organizerIds);
+                $memberParticipantCount = max(0, $participantCount - $organizerCount);
+                $totalExpected = $tournament->fee_per_person * $memberParticipantCount;
             }
         }
 
@@ -390,6 +418,18 @@ class TournamentPaymentController extends Controller
 
                 DB::commit();
 
+                // Sync TournamentFundContribution khi auto_approve = true
+                if ($tournament->auto_approve && $tournament->tournament_fund_collection_id) {
+                    foreach ($payments as $p) {
+                        if ($p->status === TournamentParticipantPayment::STATUS_CONFIRMED) {
+                            TournamentFundContribution::where('tournament_fund_collection_id', $tournament->tournament_fund_collection_id)
+                                ->where('user_id', $p->user_id)
+                                ->update(['status' => 'confirmed']);
+                            PaymentConfirmed::dispatch($tournamentId, $p->id, $p->amount, $p->user_id);
+                        }
+                    }
+                }
+
                 $message = $tournament->auto_approve
                     ? ($tournament->auto_split_fee
                         ? 'Thanh toán cho bản thân và guest thành công, đã được xác nhận'
@@ -465,6 +505,15 @@ class TournamentPaymentController extends Controller
             }
 
             DB::commit();
+
+            // Sync TournamentFundContribution khi auto_approve = true
+            if ($tournament->auto_approve && $tournament->tournament_fund_collection_id && $payment->status === TournamentParticipantPayment::STATUS_CONFIRMED) {
+                TournamentFundContribution::where('tournament_fund_collection_id', $tournament->tournament_fund_collection_id)
+                    ->where('user_id', $payment->user_id)
+                    ->update(['status' => 'confirmed']);
+                PaymentConfirmed::dispatch($tournamentId, $payment->id, $payment->amount, $payment->user_id);
+                $payment->user->notify(new TournamentPaymentConfirmedNotification($payment));
+            }
 
             $message = $tournament->auto_approve
                 ? 'Thanh toán thành công, đã được xác nhận'
@@ -569,7 +618,7 @@ class TournamentPaymentController extends Controller
             return ResponseHelper::error('Thanh toán không tồn tại', 404);
         }
 
-        $this->fundService->rejectPayment($payment, auth()->user(), $validated['reason']);
+        $this->fundService->rejectPayment($payment, $validated['reason']);
 
         $payment->load('user');
 

@@ -79,6 +79,11 @@ class StoreTournamentRequest extends FormRequest
 
     public function prepareForValidation(): void
     {
+        // Nếu không gửi sport_id → mặc định là Pickleball
+        if (!$this->has('sport_id') || $this->input('sport_id') === null || $this->input('sport_id') === '') {
+            $this->merge(['sport_id' => \App\Models\Sport::PICKLEBALL_ID]);
+        }
+
         $boolKeys = [
             'enable_dupr', 'enable_vndupr', 'is_private', 'auto_approve',
             'has_financial_management', 'has_fee', 'auto_split_fee', 'creator_join',

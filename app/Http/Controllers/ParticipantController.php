@@ -586,6 +586,12 @@ class ParticipantController extends Controller
             ->where('user_id', $userNeedRemove)
             ->whereIn('team_id', $teamIdsInTournament)
             ->delete();
+
+        // Xóa payment record của user trong giải đấu này
+        TournamentParticipantPayment::where('tournament_id', $tournamentId)
+            ->where('user_id', $userNeedRemove)
+            ->delete();
+
         $participant->delete();
 
         $participant->user?->notify(new TournamentRemovedNotification($participant));

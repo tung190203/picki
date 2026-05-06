@@ -185,18 +185,20 @@ class TournamentController extends Controller
         $tournament = null;
 
         DB::transaction(function () use ($validated, &$tournament, $request) {
-            // Lưu file tạm để queue job xử lý (UploadedFile không serialize được qua queue)
+            // Xử lý poster bất đồng bộ (cần optimize nhiều size)
             $posterTempPath = null;
-            $qrCodeTempPath = null;
 
             if ($request->hasFile('poster')) {
                 $posterTempPath = $request->file('poster')->store('temp/uploads', 'local');
                 $validated['poster'] = null;
             }
 
+            // Xử lý QR code đồng bộ (giống MiniTournamentController - lưu ngay để user thấy ngay trong modal thanh toán)
             if ($request->hasFile('qr_code_url')) {
-                $qrCodeTempPath = $request->file('qr_code_url')->store('temp/uploads', 'local');
-                $validated['qr_code_url'] = null;
+                $qrFile = $request->file('qr_code_url');
+                $qrPath = $qrFile->store('tournaments/qr', 'public');
+                $qrUrl = asset('storage/' . $qrPath);
+                $validated['qr_code_url'] = $qrUrl;
             }
 
             $tournament = Tournament::create([
@@ -231,12 +233,12 @@ class TournamentController extends Controller
                 $this->fundService->createTournamentFundCollection($tournament, $validated);
             }
 
-            // Dispatch job xử lý ảnh bất đồng bộ
-            if ($posterTempPath || $qrCodeTempPath) {
+            // Dispatch job xử lý poster bất đồng bộ (QR code giờ xử lý đồng bộ trong create)
+            if ($posterTempPath) {
                 OptimizeTournamentImageJob::dispatch(
                     $tournament->id,
                     $posterTempPath,
-                    $qrCodeTempPath
+                    null
                 );
             }
         });
@@ -310,7 +312,6 @@ class TournamentController extends Controller
 
         DB::transaction(function () use ($validated, $tournament, $request) {
             $posterTempPath = null;
-            $qrCodeTempPath = null;
 
             if ($request->hasFile('poster')) {
                 $posterTempPath = $request->file('poster')->store('temp/uploads', 'local');
@@ -322,10 +323,14 @@ class TournamentController extends Controller
                 unset($validated['poster']);
             }
 
-            // Handle QR code upload
+            // Xử lý QR code đồng bộ (giống MiniTournamentController)
             if ($request->hasFile('qr_code_url')) {
-                $qrCodeTempPath = $request->file('qr_code_url')->store('temp/uploads', 'local');
-                unset($validated['qr_code_url']);
+                $qrFile = $request->file('qr_code_url');
+                $qrPath = $qrFile->store('tournaments/qr', 'public');
+                $qrUrl = asset('storage/' . $qrPath);
+                $validated['qr_code_url'] = $qrUrl;
+                // Delete old QR image
+                $this->imageService->deleteOldImage($tournament->qr_code_url);
             } elseif ($request->filled('qr_code_url')) {
                 // Keep existing or string value
             } else {
@@ -363,19 +368,16 @@ class TournamentController extends Controller
                 }
             }
 
-            // Dispatch job xử lý ảnh bất đồng bộ
-            if ($posterTempPath || $qrCodeTempPath) {
+            // Dispatch job xử lý poster bất đồng bộ (QR code giờ xử lý đồng bộ)
+            if ($posterTempPath) {
                 $deleteOldPoster = $request->hasFile('poster');
-                $deleteOldQrCode = $request->hasFile('qr_code_url');
 
                 OptimizeTournamentImageJob::dispatch(
                     $tournament->id,
                     $posterTempPath,
-                    $qrCodeTempPath,
+                    null,
                     $deleteOldPoster,
-                    $tournament->getOriginal('poster'),
-                    $deleteOldQrCode,
-                    $tournament->getOriginal('qr_code_url')
+                    $tournament->getOriginal('poster')
                 );
             }
         });
