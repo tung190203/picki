@@ -626,10 +626,10 @@ class TournamentPaymentController extends Controller
     }
 
     /**
-     * POST /api/tournaments/{id}/payments/mark-paid/{uid}
+     * POST /api/tournaments/{id}/payments/{participantId}/mark-paid
      * Admin đánh dấu thành viên đã thanh toán (không cần receipt)
      */
-    public function markPaid(int $tournamentId, int $userId)
+    public function markPaid(int $tournamentId, int $participantId)
     {
         $tournament = Tournament::find($tournamentId);
         if (!$tournament) {
@@ -640,26 +640,28 @@ class TournamentPaymentController extends Controller
             return $err;
         }
 
-        $participant = Participant::where('tournament_id', $tournamentId)
-            ->where('user_id', $userId)
+        $participant = Participant::where('id', $participantId)
+            ->where('tournament_id', $tournamentId)
             ->first();
+        if (!$participant) {
+            return ResponseHelper::error('Thành viên không tồn tại', 404);
+        }
 
-        $existingPayment = TournamentParticipantPayment::where('tournament_id', $tournamentId)
-            ->where('user_id', $userId)
+        $existingPayment = TournamentParticipantPayment::where('participant_id', $participantId)
+            ->where('tournament_id', $tournamentId)
             ->first();
 
         if ($existingPayment) {
             if ($existingPayment->status === TournamentParticipantPayment::STATUS_CONFIRMED) {
                 return ResponseHelper::error('Thanh toán đã được xác nhận trước đó', 400);
             }
-            $payment = $this->fundService->markPaidManually($tournament, $userId, auth()->user());
+            $payment = $this->fundService->markPaidManually($tournament, $participant, auth()->user());
         } else {
-            // Tạo payment record mới nếu chưa có
             $feePerPerson = $this->calculateFeePerPerson($tournament);
             $payment = TournamentParticipantPayment::create([
                 'tournament_id' => $tournamentId,
-                'participant_id' => $participant?->id,
-                'user_id' => $userId,
+                'participant_id' => $participantId,
+                'user_id' => $participant->user_id,
                 'amount' => $feePerPerson,
                 'status' => TournamentParticipantPayment::STATUS_CONFIRMED,
                 'paid_at' => now(),
@@ -668,12 +670,9 @@ class TournamentPaymentController extends Controller
                 'admin_note' => 'BTC đánh dấu đã thanh toán',
             ]);
 
-            // Sync Participant.payment_status
-            if ($participant) {
-                $participant->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
-            }
+            $participant->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
 
-            PaymentConfirmed::dispatch($tournamentId, $payment->id, $payment->amount, $userId);
+            PaymentConfirmed::dispatch($tournamentId, $payment->id, $payment->amount, $participant->user_id);
         }
 
         $payment->load('user', 'confirmer');
@@ -682,10 +681,10 @@ class TournamentPaymentController extends Controller
     }
 
     /**
-     * POST /api/tournaments/{id}/payments/remind/{uid}
+     * POST /api/tournaments/{id}/payments/{participantId}/remind
      * Gửi nhắc nhở cho 1 thành viên
      */
-    public function remind(int $tournamentId, int $userId)
+    public function remind(int $tournamentId, int $participantId)
     {
         $tournament = Tournament::find($tournamentId);
         if (!$tournament) {
@@ -696,7 +695,14 @@ class TournamentPaymentController extends Controller
             return $err;
         }
 
-        $this->fundService->remindUser($tournament, $userId);
+        $participant = Participant::where('id', $participantId)
+            ->where('tournament_id', $tournamentId)
+            ->first();
+        if (!$participant) {
+            return ResponseHelper::error('Thành viên không tồn tại', 404);
+        }
+
+        $this->fundService->remindUser($tournament, $participant);
 
         return ResponseHelper::success(null, 'Đã gửi nhắc nhở thành công');
     }

@@ -624,7 +624,7 @@ const confirmReject = async () => {
 
 const handleRemind = async (payment) => {
   try {
-    await tp.remindTournamentUser(tournamentId.value, payment.user_id)
+    await tp.remindTournamentUser(tournamentId.value, payment.participant_id)
     toast.success('Đã gửi nhắc thanh toán')
   } catch (e) {
     toast.error(e?.response?.data?.message || 'Gửi nhắc thất bại')
