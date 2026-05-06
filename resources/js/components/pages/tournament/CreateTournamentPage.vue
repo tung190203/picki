@@ -1,6 +1,6 @@
 <template>
-    <div class="p-4 max-w-5xl mx-auto">
-        <div class="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6">
+    <div class="p-4 max-w-5xl mx-auto overflow-visible">
+        <div class="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6 overflow-visible">
             <div class="space-y-4">
                 <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
                     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
@@ -39,13 +39,35 @@
                     <div class="px-4 py-4 space-y-4">
                         <input v-model="tournamentName" type="text" placeholder="Điền tên giải đấu của bạn"
                             class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 placeholder:text-sm placeholder:text-gray-400 bg-white" />
+
+                        <!-- Poster upload -->
+                        <div>
+                            <label class="text-xs text-gray-600 font-medium block mb-1">Ảnh bìa giải đấu</label>
+                            <input ref="posterFileInput" type="file" accept="image/*" @change="onPosterFileChange" class="hidden" />
+                            <div v-if="!posterPreview"
+                                @click="$refs.posterFileInput.click()"
+                                class="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center cursor-pointer hover:border-red-400 transition-colors">
+                                <div class="flex flex-col items-center gap-1">
+                                    <svg class="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    <p class="text-xs text-gray-400">Tải lên ảnh bìa (PNG, JPG, tối đa 5MB)</p>
+                                </div>
+                            </div>
+                            <div v-else class="relative inline-block w-full">
+                                <img :src="posterPreview" class="w-full h-32 object-cover rounded-lg" />
+                                <button @click="removePoster"
+                                    class="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-600">×</button>
+                            </div>
+                        </div>
+
                         <textarea v-model="tournamentNote" rows="3" placeholder="Thêm ghi chú cho giải đấu"
                             class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 placeholder:text-sm placeholder:text-gray-400 bg-white resize-none"></textarea>
                     </div>
                 </div>
 
                 <!-- Liên kết CLB -->
-                <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-visible">
                     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
                         <h3 class="font-semibold text-gray-800 text-base">Liên kết CLB</h3>
                     </div>
@@ -79,12 +101,12 @@
                 </div>
 
                 <!-- Chi tiết -->
-                <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-visible">
                     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
                         <h3 class="font-semibold text-gray-800 text-base">Chi tiết</h3>
                     </div>
                     <div class="px-4 py-4 space-y-4">
-                        <div class="relative flex items-center" @click.stop>
+                        <div class="relative flex items-center overflow-visible" @click.stop>
                             <MapPinIcon class="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input v-model="locationKeyword" @input="fetchCompetitionLocations(locationKeyword)"
                                 @focus="isLocationDropdownOpen = competitionLocations.length > 0 || locationKeyword.length >= 2"
@@ -93,7 +115,7 @@
                                 class="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 placeholder:text-sm placeholder:text-gray-400 bg-white" />
 
                             <div v-if="isLocationDropdownOpen"
-                                class="absolute left-0 right-0 top-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+                                class="absolute left-0 right-0 top-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-[200] max-h-60 overflow-y-auto">
                                 <button v-for="location in competitionLocations" :key="location.id"
                                     @mousedown.prevent="selectLocation(location)"
                                     class="px-4 py-2 w-full text-sm text-left hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg block whitespace-nowrap"
@@ -106,7 +128,7 @@
                                     class="p-4 text-gray-500 text-sm">Không tìm thấy địa điểm nào.</p>
                             </div>
                         </div>
-                        <div class="bg-gray-50 rounded-lg overflow-visible relative" @click.stop>
+                        <div class="relative bg-gray-50 rounded-lg" @click.stop>
                             <button @click="toggleOpenDate"
                                 class="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors">
                                 <div class="flex items-center gap-2">
@@ -122,7 +144,7 @@
 
                             <Transition name="fade">
                                 <div v-if="openDate"
-                                    class="absolute top-full left-0 right-0 mt-2 p-4 z-50 bg-white rounded-lg shadow-lg border border-gray-200">
+                                    class="absolute top-full left-0 right-0 mt-2 p-4 z-[200] bg-white rounded-lg shadow-lg border border-gray-200">
                                     <VueDatePicker v-model="date" :locale="vi" inline auto-apply enable-time-picker />
                                 </div>
                             </Transition>
@@ -132,7 +154,7 @@
                 </div>
 
                 <!-- Thời gian đăng kí -->
-                <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-visible">
                     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
                         <h3 class="font-semibold text-gray-800 text-base">Thời gian đăng kí</h3>
                     </div>
@@ -147,7 +169,7 @@
                             </button>
                             <Transition name="fade">
                                 <div v-if="openRegistrationOpenAt" @click.stop
-                                    class="absolute right-0 top-full mt-2 p-4 z-50 bg-white rounded-lg shadow-lg border border-gray-200">
+                                    class="absolute right-0 top-full mt-2 p-4 z-[200] bg-white rounded-lg shadow-lg border border-gray-200">
                                     <VueDatePicker v-model="registrationOpenAt" :locale="vi" inline auto-apply
                                         enable-time-picker />
                                 </div>
@@ -163,7 +185,7 @@
                             </button>
                             <Transition name="fade">
                                 <div v-if="openEarlyDeadline" @click.stop
-                                    class="absolute right-0 top-full mt-2 p-4 z-50 bg-white rounded-lg shadow-lg border border-gray-200">
+                                    class="absolute right-0 top-full mt-2 p-4 z-[200] bg-white rounded-lg shadow-lg border border-gray-200">
                                     <VueDatePicker v-model="earlyRegistrationDeadline" :locale="vi" inline auto-apply
                                         enable-time-picker />
                                 </div>
@@ -179,7 +201,7 @@
                             </button>
                             <Transition name="fade">
                                 <div v-if="openClosedDeadline" @click.stop
-                                    class="absolute right-0 top-full mt-2 p-4 z-50 bg-white rounded-lg shadow-lg border border-gray-200">
+                                    class="absolute right-0 top-full mt-2 p-4 z-[200] bg-white rounded-lg shadow-lg border border-gray-200">
                                     <VueDatePicker v-model="registrationClosedAt" :locale="vi" inline auto-apply
                                         enable-time-picker />
                                 </div>
@@ -206,7 +228,7 @@
                 </div>
 
                 <!-- DUPR -->
-                <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-visible">
                     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
                         <h3 class="font-semibold text-gray-800 text-base">DUPR</h3>
                     </div>
@@ -649,6 +671,9 @@ const qrCodeFile = ref(null)
 const qrCodeImage = ref(null)
 const qrCodePreview = ref(null)
 const qrFileInput = ref(null)
+const posterFile = ref(null)
+const posterPreview = ref(null)
+const posterFileInput = ref(null)
 
 const formattedFeeAmount = computed(() => {
     return `VNĐ${feeAmount.value.toLocaleString('vi-VN')}`
@@ -721,6 +746,10 @@ const resetFormState = () => {
     hasFee.value = initialStates.hasFee;
     hasFinancialManagement.value = initialStates.hasFinancialManagement;
     feeAmount.value = initialStates.feeAmount;
+
+    // Poster
+    posterFile.value = null;
+    posterPreview.value = null;
 
     // Privacy
     isPrivate.value = initialStates.isPrivate;
@@ -920,12 +949,31 @@ const handleSubmit = async () => {
             }
         })
         formData.append('qr_code_url', qrCodeFile.value)
+        if (posterFile.value) {
+            formData.append('poster', posterFile.value)
+        }
         // Replace data with formData for submission
         const finalData = formData
         if(isEditMode.value) {
             await updateTournament(tournamentId, finalData)
         } else {
             await createTournament(finalData)
+        }
+        return
+    }
+
+    if (posterFile.value) {
+        const formData = new FormData()
+        Object.entries(data).forEach(([key, value]) => {
+            if (value !== null && value !== undefined) {
+                formData.append(key, value)
+            }
+        })
+        formData.append('poster', posterFile.value)
+        if(isEditMode.value) {
+            await updateTournament(tournamentId, formData)
+        } else {
+            await createTournament(formData)
         }
         return
     }
@@ -1052,6 +1100,22 @@ const removeQrCode = () => {
     qrCodePreview.value = null
     qrCodeImage.value = null
 }
+
+const onPosterFileChange = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+        toast.error('Ảnh bìa tối đa 5MB')
+        return
+    }
+    posterFile.value = file
+    posterPreview.value = URL.createObjectURL(file)
+}
+
+const removePoster = () => {
+    posterFile.value = null
+    posterPreview.value = null
+}
 const prefillForm = (data) => {
     if (!data) return;
 
@@ -1124,6 +1188,10 @@ const prefillForm = (data) => {
     feeDescription.value = data.fee_description || '';
     qrCodeImage.value = data.qr_code_url || null;
     qrCodePreview.value = data.qr_code_url ? (data.qr_code_url.startsWith('http') ? data.qr_code_url : `/storage/${data.qr_code_url}`) : null;
+
+    // Poster
+    posterFile.value = null;
+    posterPreview.value = data.poster ? (data.poster.startsWith('http') ? data.poster : `/storage/${data.poster}`) : null;
 
     // Club
     if (data.club_id && data.club) {
