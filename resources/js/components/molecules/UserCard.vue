@@ -10,7 +10,7 @@
       </div>
 
       <div v-else :class="`w-${computedSize} h-${computedSize} rounded-full overflow-hidden`">
-        <img :src="avatar || defaultImage" :alt="name" @error="$event.target.src=defaultImage"
+        <img :src="computedSrc" :alt="name" @error="$event.target.src=computedFallbackSrc"
           class="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform duration-300"
           @click.stop="$emit('click', { ...props, checked_in_at: props.checkedInAt, is_absent: props.isAbsent })" />
       </div>
@@ -143,7 +143,7 @@ const props = defineProps({
   },
   defaultImage: {
     type: String,
-    default: false,
+    default: '',
   },
     userId: {
         type: [Number, String],
@@ -187,6 +187,13 @@ const confirmDelete = () => {
 const handleClick = () => {
   if (props.empty) emit('clickEmpty')
 }
+
+const computedSrc = computed(() => {
+  if (props.avatar) return props.avatar
+  if (props.defaultImage) return props.defaultImage
+  return null
+})
+const computedFallbackSrc = computed(() => `https://ui-avatars.com/api/?name=${encodeURIComponent(props.name || '?')}&background=random`)
 
 const computedSize = computed(() => `${props.size}`)
 const iconSize = computed(() => `${Math.floor(props.size / 2)}`)

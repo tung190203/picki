@@ -506,7 +506,7 @@ const handleConfirm = async (payment) => {
 const handleMarkPaid = async (payment) => {
   try {
     markPaidLoading.value = payment.id
-    await markTournamentUserPaid(props.tournamentId, payment.user_id)
+    await markTournamentUserPaid(props.tournamentId, payment.participant_id)
     toast.success('Đã đánh dấu đã thanh toán')
     await fetchPayments()
   } catch (error) {
@@ -544,7 +544,7 @@ const confirmReject = async () => {
 
 const handleRemind = async (payment) => {
   try {
-    await remindTournamentUser(props.tournamentId, payment.user_id)
+    await remindTournamentUser(props.tournamentId, payment.participant_id)
     toast.success('Đã gửi nhắc thanh toán')
   } catch (error) {
     toast.error(error.response?.data?.message || 'Không thể gửi nhắc thanh toán')
