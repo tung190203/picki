@@ -89,6 +89,30 @@ class TournamentPaymentController extends Controller
             }
         }
 
+        // Đảm bảo organizer luôn có payment record STATUS_CONFIRMED
+        $feePerPerson = $this->calculateFeePerPerson($tournament);
+        foreach ($organizerIds as $orgId) {
+            $hasPayment = $allPayments->contains(fn($p) => $p->user_id === $orgId);
+            if (!$hasPayment) {
+                $existingParticipant = Participant::where('tournament_id', $tournament->id)
+                    ->where('user_id', $orgId)
+                    ->first();
+                if ($existingParticipant && $existingParticipant->is_confirmed) {
+                    TournamentParticipantPayment::create([
+                        'tournament_id' => $tournament->id,
+                        'participant_id' => $existingParticipant->id,
+                        'user_id' => $orgId,
+                        'amount' => $feePerPerson,
+                        'status' => TournamentParticipantPayment::STATUS_CONFIRMED,
+                        'paid_at' => now(),
+                        'confirmed_at' => now(),
+                        'confirmed_by' => Auth::id(),
+                        'admin_note' => 'Auto tạo: chủ kèo mặc định đã đóng tiền',
+                    ]);
+                }
+            }
+        }
+
         // Refresh after auto-confirm
         $allPayments = $tournament->payments()->with([
             'user',
@@ -106,7 +130,9 @@ class TournamentPaymentController extends Controller
             if ($tournament->auto_split_fee) {
                 $totalExpected = $confirmedPayments->sum('amount');
             } else {
-                $totalExpected = $tournament->fee_per_person * $participantCount;
+                $organizerCount = count($organizerIds);
+                $memberParticipantCount = max(0, $participantCount - $organizerCount);
+                $totalExpected = $tournament->fee_per_person * $memberParticipantCount;
             }
         }
 
