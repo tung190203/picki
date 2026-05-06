@@ -407,6 +407,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         // Tournament Payment Routes
         Route::get('/{id}/payments', [TournamentPaymentController::class, 'index']);
         Route::post('/{id}/payments', [TournamentPaymentController::class, 'store']);
+        Route::post('/{id}/pay', [TournamentPaymentController::class, 'store']);
         Route::get('/{id}/my-payment', [TournamentPaymentController::class, 'myPayment']);
         Route::post('/{id}/payments/{pid}/confirm', [TournamentPaymentController::class, 'confirm']);
         Route::post('/{id}/payments/{pid}/reject', [TournamentPaymentController::class, 'reject']);

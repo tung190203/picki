@@ -255,17 +255,9 @@ class TournamentFundService
             $participant->update(['payment_status' => \App\Enums\PaymentStatusEnum::CONFIRMED]);
         }
 
-        // Sync club fund contribution nếu có
-        $tournament = $payment->tournament;
-        if ($tournament->club_fund_collection_id) {
-            ClubFundContribution::where('club_fund_collection_id', $tournament->club_fund_collection_id)
-                ->where('user_id', $payment->user_id)
-                ->update(['status' => 'confirmed']);
-        }
-
         // Sync tournament fund contribution
-        if ($tournament->tournament_fund_collection_id) {
-            TournamentFundContribution::where('tournament_fund_collection_id', $tournament->tournament_fund_collection_id)
+        if ($payment->tournament->tournament_fund_collection_id) {
+            TournamentFundContribution::where('tournament_fund_collection_id', $payment->tournament->tournament_fund_collection_id)
                 ->where('user_id', $payment->user_id)
                 ->update(['status' => 'confirmed']);
         }
@@ -283,7 +275,7 @@ class TournamentFundService
     /**
      * Admin từ chối thanh toán
      */
-    public function rejectPayment(TournamentParticipantPayment $payment, User $admin, string $reason): void
+    public function rejectPayment(TournamentParticipantPayment $payment, string $reason): void
     {
         $payment->update([
             'status' => TournamentParticipantPayment::STATUS_REJECTED,
@@ -298,16 +290,9 @@ class TournamentFundService
             $participant->update(['payment_status' => \App\Enums\PaymentStatusEnum::PENDING]);
         }
 
-        // Sync contributions
-        $tournament = $payment->tournament;
-        if ($tournament->club_fund_collection_id) {
-            ClubFundContribution::where('club_fund_collection_id', $tournament->club_fund_collection_id)
-                ->where('user_id', $payment->user_id)
-                ->update(['status' => 'rejected']);
-        }
-
-        if ($tournament->tournament_fund_collection_id) {
-            TournamentFundContribution::where('tournament_fund_collection_id', $tournament->tournament_fund_collection_id)
+        // Sync TournamentFundContribution
+        if ($payment->tournament->tournament_fund_collection_id) {
+            TournamentFundContribution::where('tournament_fund_collection_id', $payment->tournament->tournament_fund_collection_id)
                 ->where('user_id', $payment->user_id)
                 ->update(['status' => 'rejected']);
         }
@@ -349,6 +334,15 @@ class TournamentFundService
             $payment->amount,
             $userId
         );
+
+        // Sync TournamentFundContribution
+        if ($tournament->tournament_fund_collection_id) {
+            TournamentFundContribution::where('tournament_fund_collection_id', $tournament->tournament_fund_collection_id)
+                ->where('user_id', $userId)
+                ->update(['status' => 'confirmed']);
+        }
+
+        $payment->user->notify(new TournamentPaymentConfirmedNotification($payment));
 
         return $payment;
     }

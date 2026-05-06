@@ -177,6 +177,11 @@ class StoreMiniTournamentRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        // Nếu không gửi sport_id → mặc định là Pickleball
+        if (!$this->has('sport_id') || $this->input('sport_id') === null || $this->input('sport_id') === '') {
+            $this->merge(['sport_id' => \App\Models\Sport::PICKLEBALL_ID]);
+        }
+
         // Normalize empty strings to null for nullable fields
         $nullableKeys = [
             'min_rating', 'max_rating', 'fee_description', 'description',
