@@ -54,6 +54,11 @@ class MiniTournamentPaymentController extends Controller
         $confirmedPayments = $payments->filter(fn($p) => $p->status === MiniParticipantPayment::STATUS_CONFIRMED);
         $rejectedPayments = $payments->filter(fn($p) => $p->status === MiniParticipantPayment::STATUS_REJECTED);
 
+        $organizerIds = $miniTournament->staff()
+            ->where('role', MiniTournamentStaff::ROLE_ORGANIZER)
+            ->pluck('user_id')
+            ->toArray();
+
         // Tính tổng tiền (chỉ đếm participants đã confirmed)
         $participantCount = $miniTournament->participants()->where('is_confirmed', true)->count();
 
@@ -80,6 +85,48 @@ class MiniTournamentPaymentController extends Controller
             $qrUrl = asset('storage/' . ltrim($qrUrl, '/'));
         }
 
+        // Đảm bảo organizer luôn có payment record STATUS_CONFIRMED (khi auto_split_fee = false)
+        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
+            foreach ($organizerIds as $orgId) {
+                $hasPayment = $payments->contains(fn($p) => $p->user_id === $orgId);
+                if (!$hasPayment) {
+                    $existingParticipant = MiniParticipant::where('mini_tournament_id', $miniTournamentId)
+                        ->where('user_id', $orgId)
+                        ->first();
+                    if ($existingParticipant && $existingParticipant->is_confirmed) {
+                        $created = MiniParticipantPayment::create([
+                            'mini_tournament_id' => $miniTournamentId,
+                            'participant_id' => $existingParticipant->id,
+                            'user_id' => $orgId,
+                            'amount' => $feePerPerson,
+                            'status' => MiniParticipantPayment::STATUS_CONFIRMED,
+                            'paid_at' => now(),
+                            'confirmed_at' => now(),
+                            'confirmed_by' => $orgId,
+                        ]);
+                        $created->load(['user', 'confirmer']);
+                        $confirmedPayments->push($created);
+                    }
+                }
+            }
+        }
+
+        // Refresh payments và recalculate summaries
+        $allRefreshedPayments = MiniParticipantPayment::with(['user', 'confirmer', 'participant'])
+            ->where('mini_tournament_id', $miniTournamentId)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $confirmedPayments = $allRefreshedPayments->filter(fn($p) => $p->status === MiniParticipantPayment::STATUS_CONFIRMED);
+        $pendingPayments = $allRefreshedPayments->filter(fn($p) => $p->status === MiniParticipantPayment::STATUS_PENDING);
+        $paidPayments = $allRefreshedPayments->filter(fn($p) => $p->status === MiniParticipantPayment::STATUS_PAID);
+        $rejectedPayments = $allRefreshedPayments->filter(fn($p) => $p->status === MiniParticipantPayment::STATUS_REJECTED);
+
+        // total_expected = tổng phí kỳ vọng (đã trừ organizer vì họ CONFIRMED)
+        $organizerCount = count($organizerIds);
+        $memberParticipantCount = max(0, $participantCount - $organizerCount);
+        $totalExpected = $feePerPerson * $memberParticipantCount;
+
         $data = [
             'mini_tournament_id' => $miniTournament->id,
             'payment_config' => [
@@ -93,14 +140,14 @@ class MiniTournamentPaymentController extends Controller
             ],
             'summary' => [
                 'total_participants' => $participantCount,
-                'total_expected' => $feePerPerson * $participantCount,
+                'total_expected' => $totalExpected,
                 'total_collected' => $confirmedPayments->sum('amount'),
                 'total_pending' => $pendingPayments->count(),
                 'total_awaiting_confirmation' => $paidPayments->count(),
                 'total_confirmed' => $confirmedPayments->count(),
                 'total_rejected' => $rejectedPayments->count(),
             ],
-            'payments' => MiniParticipantPaymentResource::collection($payments),
+            'payments' => MiniParticipantPaymentResource::collection($allRefreshedPayments),
             'pending_payments' => MiniParticipantPaymentResource::collection($pendingPayments->values()),
             'awaiting_confirmation_payments' => MiniParticipantPaymentResource::collection($paidPayments->values()),
             'confirmed_payments' => MiniParticipantPaymentResource::collection($confirmedPayments->values()),

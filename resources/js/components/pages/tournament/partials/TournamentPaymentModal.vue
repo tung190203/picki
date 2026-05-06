@@ -246,11 +246,12 @@ const removePreview = () => {
 const fetchMyPayment = async () => {
   try {
     const data = await getMyTournamentPayment(props.tournamentId)
-    qrCodeUrl.value = data?.qr_code_url || null
-    feePerPerson.value = Number(data?.fee_per_person || 0)
-    feeDescription.value = data?.fee_description || ''
-    hasFee.value = Boolean(data?.has_fee)
-    myPaymentStatus.value = data?.payment_status || null
+    const config = data?.payment_config || {}
+    qrCodeUrl.value = config?.qr_code_url || null
+    feePerPerson.value = Number(config?.fee_per_person || 0)
+    feeDescription.value = config?.fee_description || ''
+    hasFee.value = Boolean(config?.has_fee)
+    myPaymentStatus.value = data?.payment?.status || null
   } catch (error) {
     toast.error(error.response?.data?.message || 'Không thể lấy thông tin thanh toán')
     close()

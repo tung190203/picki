@@ -8,6 +8,7 @@ use App\Http\Resources\TournamentStaffResource;
 use App\Models\Participant;
 use App\Models\Tournament;
 use App\Models\TournamentStaff;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
