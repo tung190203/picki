@@ -285,12 +285,13 @@
                             </p>
                         </div>
                         <template v-if="activities.length > 0">
-                            <ActivityScheduleCard v-for="(activity, index) in activities" :key="index" v-bind="activity"
-                                @click-card="goToActivityDetail(activity)" @edit="handleEditActivity(activity)"
-                                @register="handleRegisterActivity(activity)"
-                                @cancel-join="handleCancelJoinActivity(activity)"
-                                @self-absent="handleSelfAbsentActivity(club.id, activity.id)"
-                                @check-in="handleSelfCheckInActivity(club.id, activity.id)" />
+                            <ActivityScheduleCard v-for="(item, index) in activities" :key="index" v-bind="item"
+                                @click-card="goToContentDetail(item, item)"
+                                @edit="handleEditActivity(item)"
+                                @register="handleRegisterActivity(item)"
+                                @cancel-join="handleCancelJoinActivity(item)"
+                                @self-absent="handleSelfAbsentActivity(club.id, item.id)"
+                                @check-in="handleSelfCheckInActivity(club.id, item.id)" />
                         </template>
                         <div v-else class="p-4 text-center">
                             <p class="text-[#838799]">Hiện chưa có lịch thi đấu</p>
@@ -414,7 +415,7 @@
                 :has-more-upcoming="currentUpcomingPage < (upcomingMeta?.last_page ?? 1)"
                 :has-more-history="currentHistoryPage < (historyMeta?.last_page ?? 1)"
                 @close="closeActivityModal"
-                @edit="handleEditActivity" @click-card="goToActivityDetail" @register="handleRegisterActivity"
+                @edit="handleEditActivity" @click-card="(item) => goToContentDetail(item)" @register="handleRegisterActivity"
                 @cancel-join="handleCancelJoinActivity" @self-absent="handleSelfAbsentActivity" @check-in="handleSelfCheckInActivity"
                 @load-more-upcoming="handleLoadMoreUpcoming" @load-more-history="handleLoadMoreHistory" />
 
@@ -1050,14 +1051,33 @@ const handleEditActivity = (activity) => {
     })
 }
 
-const goToActivityDetail = (activity) => {
-    router.push({
-        name: 'club-detail-activity',
-        params: { id: clubId.value, activityId: activity.id }
-    })
+const goToContentDetail = (rawItem, data) => {
+    const type = rawItem?.itemType || rawItem?.type || data?.itemType || data?.type
+
+    if (type === 'activity') {
+        const id = data?.id ?? rawItem?.id
+        router.push({
+            name: 'club-detail-activity',
+            params: { id: clubId.value, activityId: id }
+        })
+    } else if (type === 'mini_tournament') {
+        const id = data?.id ?? rawItem?.id
+        router.push({
+            name: 'mini-tournament-detail',
+            params: { id }
+        })
+    } else if (type === 'tournament') {
+        const id = data?.id ?? rawItem?.id
+        router.push({
+            name: 'tournament-detail',
+            params: { id }
+        })
+    }
 }
 
-const formatActivity = (item) => {
+const formatActivity = (rawItem, data) => {
+    const item = data || rawItem
+    const itemType = rawItem?.type || item.type
     const userId = getUser.value.id
     const isCancelled = item.status === 'cancelled'
     const isCompleted = item.status === 'completed' || dayjs().isAfter(dayjs(item.end_time)) || isCancelled
@@ -1105,6 +1125,7 @@ const formatActivity = (item) => {
 
     return {
         ...item,
+        itemType,
         day: getVietnameseDay(item.start_time),
         date: dayjs(item.start_time).format('DD'),
         time: `${dayjs(item.start_time).format('HH:mm')} - ${dayjs(item.end_time).format('HH:mm')}`,
@@ -1379,7 +1400,7 @@ const getClubActivities = async () => {
             statuses: ['scheduled', 'ongoing'],
         })
         const activitiesList = response.data?.items || []
-        const allActivities = activitiesList.map(item => formatActivity(item.data))
+        const allActivities = activitiesList.map(item => formatActivity(item, item.data))
         activities.value = allActivities.slice(0, 5)
     } catch (error) {
         toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi lấy thông tin hoạt động')
@@ -1399,7 +1420,7 @@ const getMoreUpcomingActivities = async (append = false) => {
             statuses: ['scheduled', 'ongoing']
         })
         const activitiesList = response.data?.items || []
-        const formatted = activitiesList.map(item => formatActivity(item.data))
+        const formatted = activitiesList.map(item => formatActivity(item, item.data))
         if (append) {
             upcomingActivities.value = [...upcomingActivities.value, ...formatted]
         } else {
@@ -1426,7 +1447,7 @@ const getMoreHistoryActivities = async (append = false) => {
             statuses: ['completed', 'cancelled']
         })
         const activitiesList = response.data?.items || []
-        const formatted = activitiesList.map(item => formatActivity(item.data))
+        const formatted = activitiesList.map(item => formatActivity(item, item.data))
         if (append) {
             historyActivities.value = [...historyActivities.value, ...formatted]
         } else {

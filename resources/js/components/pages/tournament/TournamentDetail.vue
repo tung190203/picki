@@ -1534,8 +1534,7 @@ const storeTournamentType = async (payload) => {
     await TournamentTypeService.createTournamentType(payload);
     toast.success('Thể thức thi đấu đã được lưu thành công!');
     showFormatType.value = false;
-    const response = await TournamentService.getTournamentById(tournament.value.id);
-    tournament.value.tournament_types = response.tournament_types;
+    await detailTournament(id);
     await getRanks();
   } catch (error) {
     toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi lưu thể thức thi đấu.');

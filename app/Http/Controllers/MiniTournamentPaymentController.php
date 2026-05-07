@@ -484,19 +484,19 @@ class MiniTournamentPaymentController extends Controller
      * API: POST /api/mini-tournaments/{id}/payments/{paymentId}/confirm
      * API: POST /api/mini-tournaments/{id}/payments/{paymentId}/reject
      */
-    public function confirm(Request $request, $miniTournamentId, $participantId)
+    public function confirm(Request $request, $miniTournamentId, $participant_id)
     {
-        return $this->processConfirmation($request, $miniTournamentId, $participantId, true);
+        return $this->processConfirmation($request, $miniTournamentId, $participant_id, true);
     }
 
-    public function reject(Request $request, $miniTournamentId, $participantId)
+    public function reject(Request $request, $miniTournamentId, $participant_id)
     {
-        return $this->processConfirmation($request, $miniTournamentId, $participantId, false);
+        return $this->processConfirmation($request, $miniTournamentId, $participant_id, false);
     }
 
-    public function markPaid(Request $request, $miniTournamentId, $participantId)
+    public function markPaid(Request $request, $miniTournamentId, $participant_id)
     {
-        $participant = MiniParticipant::where('id', $participantId)
+        $participant = MiniParticipant::where('id', $participant_id)
             ->where('mini_tournament_id', $miniTournamentId)
             ->first();
         if (!$participant) {
@@ -704,7 +704,7 @@ class MiniTournamentPaymentController extends Controller
      * Nhắc thành viên đóng phí
      * API: POST /api/mini-tournaments/{id}/payments/remind/{participantId}
      */
-    public function remind(Request $request, $miniTournamentId, $participantId)
+    public function remind(Request $request, $miniTournamentId, $participant_id)
     {
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
 
@@ -718,7 +718,7 @@ class MiniTournamentPaymentController extends Controller
             return ResponseHelper::error('Kèo này không thu phí tham gia', 400);
         }
 
-        $participant = MiniParticipant::where('id', $participantId)
+        $participant = MiniParticipant::where('id', $participant_id)
             ->where('mini_tournament_id', $miniTournamentId)
             ->first();
 
@@ -728,7 +728,7 @@ class MiniTournamentPaymentController extends Controller
 
         // Kiểm tra xem đã thanh toán chưa
         $payment = MiniParticipantPayment::where('mini_tournament_id', $miniTournamentId)
-            ->where('participant_id', $participantId)
+            ->where('participant_id', $participant_id)
             ->where('status', MiniParticipantPayment::STATUS_CONFIRMED)
             ->first();
 

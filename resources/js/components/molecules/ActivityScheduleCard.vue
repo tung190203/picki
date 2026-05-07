@@ -1,7 +1,7 @@
 <template>
   <div 
     class="flex items-center justify-between p-4 bg-white rounded-lg shadow-sm border-l-[2px] mb-4 transition cursor-pointer hover:shadow-md hover:border-l-4"
-    @click="$emit('click-card')"
+    @click="$emit('click-card', { id, itemType })"
     :class="[
       disabled ? 'border-gray-200 opacity-70 grayscale-[0.5]' : (
         type === 'danger' ? 'border-red-500' : 
@@ -136,6 +136,14 @@ import { computed } from 'vue'
 defineEmits(['click-card', 'edit', 'register', 'cancel-join', 'self-absent', 'check-in'])
 
 const props = defineProps({
+  id: {
+    type: [Number, String],
+    default: null
+  },
+  itemType: {
+    type: String,
+    default: null
+  },
   day: {
     type: String,
     required: true

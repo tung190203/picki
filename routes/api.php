@@ -411,8 +411,8 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::get('/{id}/my-payment', [TournamentPaymentController::class, 'myPayment']);
         Route::post('/{id}/payments/{pid}/confirm', [TournamentPaymentController::class, 'confirm']);
         Route::post('/{id}/payments/{pid}/reject', [TournamentPaymentController::class, 'reject']);
-        Route::post('/{id}/payments/{participantId}/mark-paid', [TournamentPaymentController::class, 'markPaid']);
-        Route::post('/{id}/payments/{participantId}/remind', [TournamentPaymentController::class, 'remind']);
+        Route::post('/{id}/payments/mark-paid/{participant_id}', [TournamentPaymentController::class, 'markPaid']);
+        Route::post('/{id}/payments/remind/{participant_id}', [TournamentPaymentController::class, 'remind']);
         Route::post('/{id}/payments/remind-all', [TournamentPaymentController::class, 'remindAll']);
         Route::get('/{id}/fund-collection', [TournamentPaymentController::class, 'fundCollection']);
         Route::post('/{id}/lock-fee', [TournamentController::class, 'lockFee']);
@@ -680,10 +680,10 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::get('/{id}/payments', [MiniTournamentPaymentController::class, 'index']);
         Route::post('/{id}/pay', [MiniTournamentPaymentController::class, 'pay']);
         Route::match(['get', 'post'], '/{id}/my-payment', [MiniTournamentPaymentController::class, 'myPayment']);
-        Route::post('/{id}/payments/{participantId}/mark-paid', [MiniTournamentPaymentController::class, 'markPaid']);
-        Route::post('/{id}/payments/{participantId}/confirm', [MiniTournamentPaymentController::class, 'confirm']);
-        Route::post('/{id}/payments/{participantId}/reject', [MiniTournamentPaymentController::class, 'reject']);
-        Route::post('/{id}/payments/remind/{participantId}', [MiniTournamentPaymentController::class, 'remind']);
+        Route::post('/{id}/payments/mark-paid/{participant_id}', [MiniTournamentPaymentController::class, 'markPaid']);
+        Route::post('/{id}/payments/confirm/{participant_id}', [MiniTournamentPaymentController::class, 'confirm']);
+        Route::post('/{id}/payments/reject/{participant_id}', [MiniTournamentPaymentController::class, 'reject']);
+        Route::post('/{id}/payments/remind/{participant_id}', [MiniTournamentPaymentController::class, 'remind']);
         Route::post('/{id}/payments/remind-all', [MiniTournamentPaymentController::class, 'remindAll']);
 
         // Guest Routes

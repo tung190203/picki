@@ -284,9 +284,9 @@ class ClubTournamentController extends Controller
 
     /**
      * DELETE /api/clubs/{clubId}/tournaments/{tournamentId}
-     * Xóa giải đấu của CLB
+     * Hủy giải đấu của CLB (đổi status thành cancelled, không xóa bản ghi)
      */
-    public function destroy(int $clubId, int $tournamentId)
+    public function destroy(Request $request, int $clubId, int $tournamentId)
     {
         $club = Club::findOrFail($clubId);
         $tournament = Tournament::findOrFail($tournamentId);
@@ -302,7 +302,11 @@ class ClubTournamentController extends Controller
 
         $member = $club->activeMembers()->where('user_id', $userId)->first();
         if (!$member || !in_array($member->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary], true)) {
-            return ResponseHelper::error('Chỉ admin/manager/secretary mới có quyền xóa giải của CLB', 403);
+            return ResponseHelper::error('Chỉ admin/manager/secretary mới có quyền hủy giải của CLB', 403);
+        }
+
+        if ($tournament->status === Tournament::CANCELLED) {
+            return ResponseHelper::error('Giải đấu đã bị hủy trước đó rồi', 422);
         }
 
         $hasCompletedMatch = \App\Models\Matches::whereHas('tournamentType', fn($q) => $q->where('tournament_id', $tournament->id))
@@ -310,16 +314,18 @@ class ClubTournamentController extends Controller
             ->exists();
 
         if ($hasCompletedMatch) {
-            return ResponseHelper::error('Không thể huỷ bỏ giải. Đã có trận đấu hoàn thành thuộc giải này.', 400);
+            return ResponseHelper::error('Không thể hủy giải. Đã có trận đấu hoàn thành thuộc giải này.', 400);
         }
 
-        DB::transaction(function () use ($tournament) {
-            $tournament->delete();
-        });
+            'cancelled_reason' => $request->input('cancellation_reason', 'Hủy giải đấu');
+
+        $tournament->update([
+            'status' => Tournament::CANCELLED,
+        ]);
 
         Cache::increment('club_content_version:' . $club->id);
 
-        return ResponseHelper::success(null, 'Xóa giải đấu thành công');
+        return ResponseHelper::success(null, 'Hủy giải đấu thành công');
     }
 
     /**
