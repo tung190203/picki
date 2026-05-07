@@ -679,6 +679,7 @@ const myClubsList = ref([])
 // REFS CHO PHẦN QUYỀN RIÊNG TƯ
 // =================================================================================
 const isPrivate = ref(false) // false: Công khai, true: Giải riêng tư
+const autoApprove = ref(false)
 const creatorJoin = ref(false)
 
 // =================================================================================
@@ -701,6 +702,7 @@ const initialStates = {
     registrationOpenAt: null, earlyRegistrationDeadline: null, registrationClosedAt: null, duration: durationOptions[durationOptions.length - 1].value,
     hasFee: false, hasFinancialManagement: false, feeAmount: 100000,
     isPrivate: false,
+    autoApprove: false,
     creatorJoin: false,
 };
 
@@ -740,6 +742,7 @@ const resetFormState = () => {
 
     // Privacy
     isPrivate.value = initialStates.isPrivate;
+    autoApprove.value = initialStates.autoApprove;
     creatorJoin.value = initialStates.creatorJoin;
 
     // Club
@@ -1144,6 +1147,7 @@ const prefillForm = (data) => {
 
     // Quyền riêng tư
     isPrivate.value = !!data.is_private ?? false;
+    autoApprove.value = !!data.auto_approve ?? false;
 
     // Creator join
     creatorJoin.value = !!data.creator_join ?? false;
@@ -1277,6 +1281,7 @@ const applyTemplate = (template) => {
 
     // Quyền riêng tư
     isPrivate.value = !!s.is_private ?? false
+    autoApprove.value = !!s.auto_approve ?? false
 
     // Creator join
     creatorJoin.value = !!s.creator_join ?? false
@@ -1317,7 +1322,9 @@ const buildTemplateSettings = () => {
         max_level: getNumericLevel(maxLevel.value),
         max_team: teamCount.value,
         player_per_team: playerPerTeam.value,
+        participants: "team",
         is_private: isPrivate.value,
+        auto_approve: false,
         creator_join: creatorJoin.value,
         club_id: selectedClubId.value,
         has_fee: hasFee.value,
