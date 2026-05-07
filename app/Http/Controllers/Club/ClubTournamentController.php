@@ -317,10 +317,9 @@ class ClubTournamentController extends Controller
             return ResponseHelper::error('Không thể hủy giải. Đã có trận đấu hoàn thành thuộc giải này.', 400);
         }
 
-            'cancelled_reason' => $request->input('cancellation_reason', 'Hủy giải đấu');
-
         $tournament->update([
             'status' => Tournament::CANCELLED,
+            'cancelled_reason' => $request->input('cancellation_reason', 'Hủy giải đấu'),
         ]);
 
         Cache::increment('club_content_version:' . $club->id);
