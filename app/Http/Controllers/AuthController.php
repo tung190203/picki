@@ -76,7 +76,7 @@ class AuthController extends Controller
             ]);
         }
 
-        $user = Auth::user();
+        $user = $exits;
 
         $accessToken = JWTAuth::claims(['type' => 'access'])->fromUser($user);
         $refreshToken = JWTAuth::claims(['type' => 'refresh', 'exp' => now()->addDays(30)->timestamp])->fromUser($user);
