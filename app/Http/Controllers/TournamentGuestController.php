@@ -23,16 +23,7 @@ use Illuminate\Support\Str;
 
 class TournamentGuestController extends Controller
 {
-    /**
-     * Thêm guest vào tournament
-     * API: POST /api/tournaments/{id}/guests
-     *
-     * Quyền: organizer (BTC/staff) HOẶC VĐV đã xác nhận tham gia (không phải guest).
-     *
-     * Xác nhận guest theo người gọi API:
-     * - Admin/BTC/staff thêm → guest is_confirmed = true ngay
-     * - VĐV đã confirm thêm → guest chờ BTC duyệt (is_pending_confirmation = true)
-     */
+
     public function store(Request $request, $tournamentId)
     {
         $data = $request->validate([

@@ -33,6 +33,7 @@ class TournamentController extends Controller
 {
     protected $imageService;
     protected $tournamentTypeController;
+    protected $tournamentService;
 
     /**
      * Quyền đánh dấu check-in / vắng: host và staff BTC
