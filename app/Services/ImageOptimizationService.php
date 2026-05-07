@@ -123,8 +123,13 @@ class ImageOptimizationService
             return;
         }
 
-        $path = str_replace(asset('storage/') . '/', '', $url);
-        if (Storage::disk('public')->exists($path)) {
+        // Extract relative path: handle both full URL and relative path
+        $path = $url;
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            $path = str_replace(asset('storage/') . '/', '', $url);
+        }
+
+        if ($path && Storage::disk('public')->exists($path)) {
             Storage::disk('public')->delete($path);
         }
     }

@@ -198,8 +198,7 @@ class TournamentController extends Controller
             if ($request->hasFile('qr_code_url')) {
                 $qrFile = $request->file('qr_code_url');
                 $qrPath = $qrFile->store('tournaments/qr', 'public');
-                $qrUrl = asset('storage/' . $qrPath);
-                $validated['qr_code_url'] = $qrUrl;
+                $validated['qr_code_url'] = $qrPath;
             }
 
             $tournament = Tournament::create([
@@ -328,8 +327,7 @@ class TournamentController extends Controller
             if ($request->hasFile('qr_code_url')) {
                 $qrFile = $request->file('qr_code_url');
                 $qrPath = $qrFile->store('tournaments/qr', 'public');
-                $qrUrl = asset('storage/' . $qrPath);
-                $validated['qr_code_url'] = $qrUrl;
+                $validated['qr_code_url'] = $qrPath;
                 // Delete old QR image
                 $this->imageService->deleteOldImage($tournament->qr_code_url);
             } elseif ($request->filled('qr_code_url')) {
