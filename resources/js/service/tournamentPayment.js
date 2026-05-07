@@ -31,11 +31,11 @@ export const rejectTournamentPayment = (id, pid, reason) =>
     .then((response) => response.data.data);
 
 export const markTournamentUserPaid = (id, participantId) =>
-  axiosInstance.post(`${BASE}/${id}/payments/${participantId}/mark-paid`)
+  axiosInstance.post(`${BASE}/${id}/payments/mark-paid/${participantId}`)
     .then((response) => response.data.data);
 
 export const remindTournamentUser = (id, participantId) =>
-  axiosInstance.post(`${BASE}/${id}/payments/${participantId}/remind`)
+  axiosInstance.post(`${BASE}/${id}/payments/remind/${participantId}`)
     .then((response) => response.data.data);
 
 export const remindAllTournamentPayments = (id) =>

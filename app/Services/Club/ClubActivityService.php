@@ -39,6 +39,7 @@ class ClubActivityService
                 'participants.user',
                 'creator',
                 'fundCollection:id,club_activity_id',
+                'miniTournament',
             ]);
 
         if (!empty($filters['type'])) {

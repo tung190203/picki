@@ -37,13 +37,13 @@ export const getMiniTournamentPayments = async (id) => {
     .then((response) => response.data.data);
 }
 
-export const confirmMiniTournamentPayment = async (tournamentId, paymentId, data = {}) => {
-  return axiosInstance.post(`${miniTournamentEndpoint}/${tournamentId}/payments/${paymentId}/confirm`, data)
+export const confirmMiniTournamentPayment = async (tournamentId, participantId, data = {}) => {
+  return axiosInstance.post(`${miniTournamentEndpoint}/${tournamentId}/payments/confirm/${participantId}`, data)
     .then((response) => response.data.data);
 }
 
-export const rejectMiniTournamentPayment = async (tournamentId, paymentId, data = {}) => {
-  return axiosInstance.post(`${miniTournamentEndpoint}/${tournamentId}/payments/${paymentId}/reject`, data)
+export const rejectMiniTournamentPayment = async (tournamentId, participantId, data = {}) => {
+  return axiosInstance.post(`${miniTournamentEndpoint}/${tournamentId}/payments/reject/${participantId}`, data)
     .then((response) => response.data.data);
 }
 

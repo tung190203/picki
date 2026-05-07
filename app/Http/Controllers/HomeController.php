@@ -236,6 +236,15 @@ class HomeController extends Controller
                 $query->whereHas('participants', fn($p) => $p->where('user_id', $userId))
                       ->orWhereHas('tournamentStaffs', fn($s) => $s->where('user_id', $userId));
             })
+            ->where(function ($query) use ($userId) {
+                $query->where(function ($q) use ($userId) {
+                    $q->where('created_by', $userId)
+                      ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN]);
+                })->orWhere(function ($q) use ($userId) {
+                    $q->where('created_by', '!=', $userId)
+                      ->where('status', Tournament::OPEN);
+                });
+            })
             ->orderBy('start_date', 'asc')
             ->take($validated['tournament_per_page'] ?? Tournament::PER_PAGE)
             ->get();

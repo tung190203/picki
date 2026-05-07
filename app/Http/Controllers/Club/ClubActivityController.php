@@ -14,10 +14,14 @@ use App\Http\Resources\Club\ClubActivityListResource;
 use App\Http\Resources\Club\ClubActivityParticipantResource;
 use App\Http\Resources\Club\ClubActivityResource;
 use App\Http\Resources\Club\ClubMixedContentResource;
+use App\Http\Resources\ListTournamentResource;
 use App\Models\Club\Club;
 use App\Models\Club\ClubActivity;
 use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
+use App\Models\Participant;
+use App\Models\Tournament;
+use App\Models\TournamentStaff;
 use App\Models\User;
 use App\Services\Club\ClubActivityService;
 use Carbon\Carbon;
@@ -127,6 +131,19 @@ class ClubActivityController extends Controller
             $totalCount += $miniTournaments->count();
         }
 
+        // Tournaments
+        if ($category === 'all' || $category === 'tournament') {
+            $tournaments = $this->getTournaments($club, $filters, $userId);
+            foreach ($tournaments as $tournament) {
+                $items->push([
+                    'id' => $tournament->id,
+                    'type' => 'tournament',
+                    'data' => new \App\Http\Resources\ListTournamentResource($tournament),
+                ]);
+            }
+            $totalCount += $tournaments->count();
+        }
+
         // Sort by start_time
         $items = $isHistoryOnly
             ? $items->sortByDesc(fn($i) => $i['data']->resource->start_time ?? '')->values()
@@ -163,6 +180,7 @@ class ClubActivityController extends Controller
     private function getMiniTournaments(Club $club, array $filters, ?int $userId)
     {
         $query = MiniTournament::withFullRelations()
+            ->with('fundCollection')
             ->where('club_id', $club->id);
 
         $dateFrom = $filters['date_from'] ?? null;
@@ -200,7 +218,7 @@ class ClubActivityController extends Controller
                     if (! empty($mappedStatuses)) {
                         $main->whereIn('status', $mappedStatuses);
                     }
-                } elseif (empty($statuses)) {
+                } elseif (empty($dateFrom) && empty($dateTo)) {
                     $main->whereIn('status', [MiniTournament::STATUS_OPEN]);
                 }
             });
@@ -227,6 +245,75 @@ class ClubActivityController extends Controller
 
         $orderDirection = $isHistoryOnly ? 'desc' : 'asc';
         $query->orderBy('start_time', $orderDirection);
+
+        return $query->limit($filters['per_page'] ?? 50)->get();
+    }
+
+    /**
+     * Lấy danh sách tournaments của club
+     */
+    private function getTournaments(Club $club, array $filters, ?int $userId)
+    {
+        $query = Tournament::withFullRelations()->where('club_id', $club->id);
+
+        $dateFrom = $filters['date_from'] ?? null;
+        $dateTo = $filters['date_to'] ?? null;
+
+        $statuses = $filters['statuses'] ?? [];
+        $hasAll = in_array('all', $statuses);
+        $isHistoryOnly = !empty($statuses)
+            && empty(array_diff($statuses, ['completed', 'cancelled']));
+
+        $showDrafts = (bool) $userId && !$isHistoryOnly;
+
+        $query->where(function ($outer) use ($dateFrom, $dateTo, $statuses, $hasAll, $userId, $showDrafts) {
+            $outer->where(function ($main) use ($dateFrom, $dateTo, $statuses, $hasAll) {
+                if (! empty($dateFrom)) {
+                    $main->whereDate('start_date', '>=', $dateFrom);
+                }
+                if (! empty($dateTo)) {
+                    $main->whereDate('start_date', '<=', $dateTo);
+                }
+
+                if (! $hasAll && ! empty($statuses)) {
+                    $mappedStatuses = [];
+                    foreach ($statuses as $status) {
+                        $mappedStatuses[] = match ($status) {
+                            'scheduled', 'ongoing' => Tournament::OPEN,
+                            'completed' => Tournament::CLOSED,
+                            'cancelled' => Tournament::CANCELLED,
+                            default => null,
+                        };
+                    }
+                    $mappedStatuses = array_filter($mappedStatuses);
+
+                    if (! empty($mappedStatuses)) {
+                        $main->whereIn('status', $mappedStatuses);
+                    }
+                } elseif (empty($dateFrom) && empty($dateTo)) {
+                    $main->whereIn('status', [Tournament::OPEN]);
+                }
+            });
+
+            if ($showDrafts) {
+                $outer->orWhere(function ($draftQ) use ($userId) {
+                    $draftQ->where('status', Tournament::DRAFT)
+                        ->where(function ($who) use ($userId) {
+                            $who->where('tournaments.created_by', $userId)
+                                ->orWhereHas('staff', function ($sq) use ($userId) {
+                                    $sq->where('users.id', $userId)
+                                        ->where('tournament_staff.role', TournamentStaff::ROLE_ORGANIZER);
+                                })
+                                ->orWhereHas('participants', function ($pq) use ($userId) {
+                                    $pq->where('user_id', $userId);
+                                });
+                        });
+                });
+            }
+        });
+
+        $orderDirection = $isHistoryOnly ? 'desc' : 'asc';
+        $query->orderBy('start_date', $orderDirection);
 
         return $query->limit($filters['per_page'] ?? 50)->get();
     }
