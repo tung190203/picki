@@ -52,6 +52,7 @@ class Tournament extends Model
         'tournament_fund_collection_id',
         'final_fee_per_person',
         'auto_payment_created',
+        'cancelled_reason',
     ];
 
     protected $casts = [
