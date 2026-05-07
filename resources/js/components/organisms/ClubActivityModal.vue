@@ -18,7 +18,7 @@
 
             <!-- Featured Card (Dynamic) -->
             <div class="px-6 pb-4" v-if="nextMatch">
-                <div class="relative w-full rounded-2xl overflow-hidden shadow-md cursor-pointer hover:opacity-95 transition-opacity" @click="$emit('click-card', nextMatch)">
+                <div class="relative w-full rounded-2xl overflow-hidden shadow-md cursor-pointer hover:opacity-95 transition-opacity" @click="$emit('click-card', nextMatch, 'next')">
                     <div class="absolute inset-0 bg-[#D72D36]" :style="{ backgroundImage: `url(${thumbnail})` }">
                     </div>
 

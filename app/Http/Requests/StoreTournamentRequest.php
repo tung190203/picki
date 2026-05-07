@@ -77,6 +77,64 @@ class StoreTournamentRequest extends FormRequest
         });
     }
 
+    public function messages(): array
+    {
+        return [
+            // Poster
+            'poster.image' => 'Ảnh bia giải đấu phải là định dạng hình ảnh (jpeg, png, jpg, gif, svg)',
+            'poster.max' => 'Ảnh bia giải đấu không được vượt quá 350KB',
+
+            // Thông tin cơ bản
+            'sport_id.required' => 'Vui lòng chọn môn thể thao',
+            'sport_id.exists' => 'Môn thể thao không tồn tại hoặc đã bị xóa',
+            'name.required' => 'Vui lòng nhập tên giải đấu',
+            'name.string' => 'Tên giải đấu phải là chuỗi ký tự',
+
+            // Địa điểm
+            'competition_location_id.exists' => 'Địa điểm thi đấu không hợp lệ',
+
+            // Thời gian
+            'start_date.date' => 'Ngày bắt đầu không hợp lệ',
+            'end_date.date' => 'Ngày kết thúc không hợp lệ',
+            'registration_open_at.date' => 'Thời gian mở đăng ký không hợp lệ',
+            'registration_closed_at.date' => 'Thời gian đóng đăng ký không hợp lệ',
+            'early_registration_deadline.date' => 'Hạn đăng ký sớm không hợp lệ',
+
+            // Thời lượng
+            'duration.integer' => 'Thời lượng phải là số nguyên (phút)',
+
+            // Trình độ
+            'age_group.string' => 'Nhóm tuổi phải là chuỗi ký tự',
+            'age_group_text.string' => 'Ghi chú nhóm tuổi phải là chuỗi ký tự',
+            'gender_policy.string' => 'Chính sách giới tính phải là chuỗi ký tự',
+            'gender_policy_text.string' => 'Ghi chú chính sách giới tính phải là chuỗi ký tự',
+
+            // Hình thức tham gia
+            'participant.in' => 'Hình thức tham gia không hợp lệ (team hoặc user)',
+            'max_team.required_if' => 'Vui lòng nhập số đội tối đa khi chọn hình thức thi đấu theo đội',
+            'max_team.integer' => 'Số đội tối đa phải là số nguyên',
+            'player_per_team.required_if' => 'Vui lòng nhập số người mỗi đội khi chọn hình thức thi đấu theo đội',
+            'player_per_team.integer' => 'Số người mỗi đội phải là số nguyên',
+            'max_player.required_if' => 'Vui lòng nhập số người chơi tối đa khi chọn hình thức thi đấu cá nhân',
+            'max_player.integer' => 'Số người chơi tối đa phải là số nguyên',
+
+            // Mô tả
+            'description.string' => 'Mô tả giải đấu phải là chuỗi ký tự',
+
+            // CLB
+            'club_id.exists' => 'Câu lạc bộ không tồn tại hoặc đã bị xóa',
+
+            // Tài chính
+            'fee_amount.integer' => 'Số tiền phí phải là số nguyên (VNĐ)',
+            'fee_amount.min' => 'Số tiền phí không được nhỏ hơn 0',
+            'fee_description.max' => 'Mô tả phí không được vượt quá 500 ký tự',
+            'qr_code_url.required_with' => 'Vui lòng tải lên mã QR thanh toán hoặc nhập URL mã QR',
+
+            // Trạng thái
+            'status.in' => 'Trạng thái giải đấu không hợp lệ',
+        ];
+    }
+
     public function prepareForValidation(): void
     {
         // Nếu không gửi sport_id → mặc định là Pickleball

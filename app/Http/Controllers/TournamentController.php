@@ -397,6 +397,14 @@ class TournamentController extends Controller
             return ResponseHelper::error('Giải đấu không tồn tại', 404);
         }
 
+        if ($err = $this->authorizeAdmin($tournament)) {
+            return $err;
+        }
+
+        if ($tournament->status === Tournament::CANCELLED) {
+            return ResponseHelper::error('Giải đấu đã bị hủy trước đó rồi', 422);
+        }
+
         $hasCompletedMatch = Matches::whereHas('tournamentType', function ($q) use ($tournament) {
             $q->where('tournament_id', $tournament->id);
         })
@@ -405,19 +413,18 @@ class TournamentController extends Controller
 
         if ($hasCompletedMatch) {
             return ResponseHelper::error(
-                'Không thể huỷ bỏ giải. Đã có trận đấu hoàn thành thuộc giải này.',
+                'Không thể hủy giải. Đã có trận đấu hoàn thành thuộc giải này.',
                 400
             );
         }
 
-        DB::transaction(function () use ($tournament) {
-            TournamentDeleted::dispatch($tournament->id, $tournament->name);
-            DashboardStatUpdated::dispatch('tournaments_this_month', 1, 'decremented');
-            DashboardStatUpdated::dispatch('active_tournaments', 1, 'decremented');
-            $tournament->delete();
-        });
+        $tournament->update([
+            'status' => Tournament::CANCELLED,
+        ]);
 
-        return ResponseHelper::success(null, 'Xoá giải đấu thành công');
+        DashboardStatUpdated::dispatch('active_tournaments', 1, 'decremented');
+
+        return ResponseHelper::success(null, 'Hủy giải đấu thành công');
     }
 
     /**

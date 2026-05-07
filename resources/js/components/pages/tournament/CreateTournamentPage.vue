@@ -72,30 +72,18 @@
                         <h3 class="font-semibold text-gray-800 text-base">Liên kết CLB</h3>
                     </div>
                     <div class="px-4 py-4">
-                        <div class="relative" @click.stop>
-                            <input v-model="clubKeyword"
-                                @input="searchClubs(clubKeyword)"
-                                @focus="clubKeyword.length >= 2 && (isClubDropdownOpen = clubResults.length > 0)"
-                                @blur="setTimeout(() => isClubDropdownOpen = false, 200)"
-                                type="text" placeholder="Tìm kiếm CLB của bạn..."
-                                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 placeholder:text-sm placeholder:text-gray-400 bg-white" />
-                            <button v-if="selectedClub" @click="clearClub" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
-                            <div v-if="isClubDropdownOpen"
-                                class="absolute left-0 right-0 top-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
-                                <button v-for="club in clubResults" :key="club.id"
-                                    @mousedown.prevent="selectClub(club)"
-                                    class="px-4 py-2 w-full text-sm text-left hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg block">
-                                    <span class="font-medium">{{ club.name }}</span>
-                                    <p v-if="club.description" class="text-xs text-gray-500 truncate">{{ club.description }}</p>
-                                </button>
-                                <p v-if="!clubResults.length && clubKeyword.length >= 2" class="p-4 text-gray-500 text-sm">Không tìm thấy CLB nào.</p>
-                            </div>
-                        </div>
-                        <p v-if="selectedClub" class="text-xs text-green-600 mt-2">
-                            ✓ Đã chọn: {{ selectedClub.name }}
+                        <select v-model="selectedClubId"
+                            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 bg-white">
+                            <option :value="null">-- Không thuộc CLB --</option>
+                            <option v-for="club in myClubsList" :key="club.id" :value="club.id">
+                                {{ club.name }}
+                            </option>
+                        </select>
+                        <p v-if="selectedClubId" class="text-xs text-green-600 mt-2">
+                            ✓ Đang tạo giải cho CLB
                         </p>
                         <p v-else class="text-xs text-gray-400 mt-2">
-                            Để trống nếu đây là giải thường (không thuộc CLB)
+                            Đây là giải thường (không thuộc CLB)
                         </p>
                     </div>
                 </div>
@@ -542,6 +530,7 @@ import { CalendarDaysIcon, MapPinIcon } from "@heroicons/vue/24/outline";
 import * as TournamentService from '@/service/tournament'
 import * as SportService from '@/service/sport'
 import * as CompetitionLocationService from '@/service/competitionLocation'
+import * as ClubService from '@/service/club'
 import { toast } from 'vue3-toastify'
 import { Swiper, SwiperSlide } from 'swiper/vue'
 import { FreeMode, Mousewheel } from 'swiper/modules'
@@ -682,10 +671,8 @@ const formattedFeeAmount = computed(() => {
 // =================================================================================
 // REFS CHO LIÊN KẾT CLB
 // =================================================================================
-const selectedClub = ref(null)
-const clubKeyword = ref('')
-const clubResults = ref([])
-const isClubDropdownOpen = ref(false)
+const selectedClubId = ref(null)
+const myClubsList = ref([])
 
 
 // =================================================================================
@@ -755,7 +742,8 @@ const resetFormState = () => {
     isPrivate.value = initialStates.isPrivate;
     creatorJoin.value = initialStates.creatorJoin;
 
-    // Reset Sport Selection
+    // Club
+    selectedClubId.value = null;
     if (sports.value.length > 0) {
         selectedSportId.value = sports.value[0].id;
     }
@@ -932,7 +920,7 @@ const handleSubmit = async () => {
         is_private: isPrivate.value,
         creator_join: creatorJoin.value,
         description: tournamentNote.value || null,
-        club_id: selectedClub.value?.id || null,
+        club_id: selectedClubId.value,
         has_fee: hasFee.value,
         has_financial_management: hasFinancialManagement.value,
         fee_amount: hasFee.value ? feeAmount.value : null,
@@ -1027,6 +1015,14 @@ const fetchSports = async () => {
     }
 }
 
+const fetchMyClubs = async () => {
+    try {
+        myClubsList.value = await ClubService.myClubs()
+    } catch (error) {
+        console.error('Error fetching clubs:', error)
+    }
+}
+
 const fetchCompetitionLocations = async (keyword) => {
     if (!keyword || keyword.length < 2) {
         competitionLocations.value = []
@@ -1051,37 +1047,6 @@ const fetchCompetitionLocations = async (keyword) => {
         competitionLocations.value = []
         isLocationDropdownOpen.value = false
     }
-}
-
-const searchClubs = async (keyword) => {
-    if (!keyword || keyword.length < 2) {
-        clubResults.value = []
-        isClubDropdownOpen.value = false
-        return
-    }
-    closeOtherDropdowns(isClubDropdownOpen)
-    try {
-        const res = await axiosInstance.get('/clubs/search', { params: { keyword } })
-        clubResults.value = res.data?.data || res.data || []
-        isClubDropdownOpen.value = clubResults.value.length > 0
-    } catch (error) {
-        console.error('Error searching clubs:', error)
-        clubResults.value = []
-        isClubDropdownOpen.value = false
-    }
-}
-
-const selectClub = (club) => {
-    selectedClub.value = club
-    clubKeyword.value = club.name || ''
-    isClubDropdownOpen.value = false
-}
-
-const clearClub = () => {
-    selectedClub.value = null
-    clubKeyword.value = ''
-    clubResults.value = []
-    isClubDropdownOpen.value = false
 }
 
 const onQrFileChange = (e) => {
@@ -1194,12 +1159,7 @@ const prefillForm = (data) => {
     posterPreview.value = data.poster ? (data.poster.startsWith('http') ? data.poster : `/storage/${data.poster}`) : null;
 
     // Club
-    if (data.club_id && data.club) {
-        selectedClub.value = data.club;
-        clubKeyword.value = data.club.name || '';
-    } else if (data.club_id) {
-        selectedClub.value = { id: data.club_id };
-    }
+    selectedClubId.value = data.club_id || null;
 };
 
 const detailTournament = async (id) => {
@@ -1328,12 +1288,7 @@ const applyTemplate = (template) => {
     qrCodePreview.value = s.qr_code_url ? (s.qr_code_url.startsWith('http') ? s.qr_code_url : `/storage/${s.qr_code_url}`) : null
 
     // Club
-    if (s.club_id && s.club) {
-        selectedClub.value = s.club
-        clubKeyword.value = s.club.name || ''
-    } else if (s.club_id) {
-        selectedClub.value = { id: s.club_id }
-    }
+    selectedClubId.value = s.club_id || null;
 
     isTemplateModalOpen.value = false
     toast.success('Đã áp dụng mẫu giải đấu')
@@ -1364,7 +1319,7 @@ const buildTemplateSettings = () => {
         player_per_team: playerPerTeam.value,
         is_private: isPrivate.value,
         creator_join: creatorJoin.value,
-        club_id: selectedClub.value?.id || null,
+        club_id: selectedClubId.value,
         has_fee: hasFee.value,
         has_financial_management: hasFinancialManagement.value,
         fee_amount: hasFee.value ? feeAmount.value : null,
@@ -1396,11 +1351,10 @@ const handleSaveTemplate = async () => {
 }
 
 onMounted(async () => {
-    await fetchSports()
+    await Promise.all([fetchSports(), fetchMyClubs()])
     if (isEditMode.value) {
         await detailTournament(tournamentId)
     }
-    // Thêm listener cho sự kiện click toàn cục
     document.addEventListener('click', handleClickOutside)
 })
 
