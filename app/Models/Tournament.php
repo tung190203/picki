@@ -268,16 +268,19 @@ class Tournament extends Model
 
     public function getPosterUrlAttribute()
     {
-        return $this->poster ? asset('storage/' . $this->poster) : null;
+        if (!array_key_exists('poster', $this->attributes) || !$this->attributes['poster']) {
+            return null;
+        }
+        return asset('storage/' . $this->attributes['poster']);
     }
 
     public function getQrCodeUrlAttribute()
     {
-        if (!$this->attributes['qr_code_url'] ?? null) {
+        if (!array_key_exists('qr_code_url', $this->attributes) || !$this->attributes['qr_code_url']) {
             return null;
         }
         $url = $this->attributes['qr_code_url'];
-        if (str_starts_with($url, 'http')) {
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
             return $url;
         }
         return asset('storage/' . ltrim($url, '/'));
