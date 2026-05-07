@@ -31,7 +31,7 @@ export const rejectTournamentPayment = (id, pid, reason) =>
     .then((response) => response.data.data);
 
 export const markTournamentUserPaid = (id, participantId) =>
-  axiosInstance.post(`${BASE}/${id}/payments/mark-paid/${participantId}`)
+  axiosInstance.post(`${BASE}/${id}/payments/${participantId}/mark-paid`)
     .then((response) => response.data.data);
 
 export const remindTournamentUser = (id, participantId) =>
