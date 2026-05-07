@@ -52,25 +52,67 @@ class UpdateTournamentRequest extends FormRequest
             'fee_amount' => 'nullable|integer|min:0',
             'auto_split_fee' => 'nullable|boolean',
             'fee_description' => 'nullable|string|max:500',
-            'qr_code_url' => 'nullable',
+            'qr_code_url' => [
+                'nullable',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if ($value === null || $value === '') {
+                        return;
+                    }
+                    $file = $value instanceof \Illuminate\Http\UploadedFile ? $value : $this->file('qr_code_url');
+                    if ($file instanceof \Illuminate\Http\UploadedFile) {
+                        if (!$file->isValid()) {
+                            $fail('Mã QR phải là một file ảnh hợp lệ.');
+                            return;
+                        }
+                        $allowedMimes = ['png', 'jpg', 'jpeg', 'gif'];
+                        if (!in_array(strtolower($file->getClientOriginalExtension()), $allowedMimes, true)) {
+                            $fail('Mã QR phải là định dạng png, jpg, jpeg hoặc gif.');
+                            return;
+                        }
+                        if ($file->getSize() > 5 * 1024 * 1024) {
+                            $fail('Mã QR không được vượt quá 5MB.');
+                        }
+                        return;
+                    }
+                    if (!is_string($value)) {
+                        $fail('Mã QR phải là file ảnh hoặc URL hợp lệ.');
+                    }
+                },
+            ],
         ];
     }
 
     public function withValidator($validator): void
     {
         $validator->after(function ($validator) {
+
+            if (!$this->has('has_fee') && !$this->has('has_financial_management')) {
+                return;
+            }
+
             $hasFinancialMgmt = $this->boolean('has_financial_management');
             $hasFee = $this->boolean('has_fee');
 
-            // QR code required khi có phí + quản lý tài chính
-            if ($hasFee && $hasFinancialMgmt && !$this->hasFile('qr_code_url') && !$this->input('qr_code_url')) {
-                $validator->errors()->add(
-                    'qr_code_url',
-                    'Mã QR thanh toán là bắt buộc khi bật thu phí và quản lý tài chính.'
-                );
+            if ($hasFee && $hasFinancialMgmt) {
+                $hasQrFile = $this->hasFile('qr_code_url');
+                $qrInput = $this->input('qr_code_url');
+                $hasQrString = is_string($qrInput) && trim($qrInput) !== '';
+
+                if (!$hasQrFile && !$hasQrString) {
+                    $tournamentId = $this->route('id');
+                    if ($tournamentId) {
+                        $tournament = \App\Models\Tournament::find($tournamentId);
+                        $existingQr = $tournament && $tournament->qr_code_url;
+                        if (!$existingQr) {
+                            $validator->errors()->add(
+                                'qr_code_url',
+                                'Mã QR thanh toán là bắt buộc khi bật thu phí và quản lý tài chính.'
+                            );
+                        }
+                    }
+                }
             }
 
-            // fee_amount required khi has_fee = true
             if ($hasFee && !$this->input('fee_amount')) {
                 $validator->errors()->add(
                     'fee_amount',
@@ -138,6 +180,21 @@ class UpdateTournamentRequest extends FormRequest
 
     public function prepareForValidation(): void
     {
+        // Normalize empty strings to null for date fields (mobile app sends "" instead of null)
+        $dateKeys = [
+            'start_date', 'end_date',
+            'registration_open_at', 'registration_closed_at',
+            'early_registration_deadline',
+        ];
+        foreach ($dateKeys as $key) {
+            if ($this->has($key)) {
+                $v = $this->input($key);
+                if ($v === '' || $v === null) {
+                    $this->merge([$key => null]);
+                }
+            }
+        }
+
         $boolKeys = [
             'enable_dupr', 'enable_vndupr', 'is_private', 'auto_approve',
             'has_financial_management', 'has_fee', 'auto_split_fee', 'creator_join',
