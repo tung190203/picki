@@ -55,7 +55,7 @@ class MiniTournamentPaymentController extends Controller
         $rejectedPayments = $payments->filter(fn($p) => $p->status === MiniParticipantPayment::STATUS_REJECTED);
 
         $organizerIds = $miniTournament->staff()
-            ->where('role', MiniTournamentStaff::ROLE_ORGANIZER)
+            ->where('mini_tournament_staff.role', MiniTournamentStaff::ROLE_ORGANIZER)
             ->pluck('user_id')
             ->toArray();
 
@@ -523,7 +523,7 @@ class MiniTournamentPaymentController extends Controller
 
         DB::beginTransaction();
         try {
-            $payment = MiniParticipantPayment::where('participant_id', $participantId)
+            $payment = MiniParticipantPayment::where('participant_id', $participant_id)
                 ->where('mini_tournament_id', $miniTournamentId)
                 ->first();
 
@@ -557,7 +557,7 @@ class MiniTournamentPaymentController extends Controller
 
                 $payment = MiniParticipantPayment::create([
                     'mini_tournament_id' => $miniTournamentId,
-                    'participant_id' => $participantId,
+                    'participant_id' => $participant->id,
                     'user_id' => $participant->user_id,
                     'amount' => $feePerPerson,
                     'status' => MiniParticipantPayment::STATUS_CONFIRMED,
@@ -609,7 +609,7 @@ class MiniTournamentPaymentController extends Controller
             return ResponseHelper::error('Không tìm thấy thành viên trong kèo đấu này', 404);
         }
 
-        $payment = MiniParticipantPayment::where('participant_id', $participantId)
+        $payment = MiniParticipantPayment::where('participant_id', $participant->id)
             ->where('mini_tournament_id', $miniTournamentId)
             ->first();
         if (!$payment) {
