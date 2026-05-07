@@ -186,12 +186,12 @@ class TournamentController extends Controller
         $tournament = null;
 
         DB::transaction(function () use ($validated, &$tournament, $request) {
-            // Xử lý poster bất đồng bộ (cần optimize nhiều size)
-            $posterTempPath = null;
+            // Xử lý poster đồng bộ để response trả về đúng poster_url ngay
+            $posterStoragePath = null;
 
             if ($request->hasFile('poster')) {
-                $posterTempPath = $request->file('poster')->store('temp/uploads', 'local');
-                $validated['poster'] = null;
+                $posterStoragePath = $request->file('poster')->store('temp/uploads', 'local');
+                unset($validated['poster']);
             }
 
             // Xử lý QR code đồng bộ (giống MiniTournamentController - lưu ngay để user thấy ngay trong modal thanh toán)
@@ -205,6 +205,16 @@ class TournamentController extends Controller
                 ...$validated,
                 'created_by' => auth()->id(),
             ]);
+
+            // Xử lý poster đồng bộ ngay sau khi tạo tournament
+            if ($posterStoragePath) {
+                $realPath = storage_path('app/' . $posterStoragePath);
+                if (file_exists($realPath)) {
+                    $posterPath = $this->imageService->optimizeFromPath($realPath, 'tournaments/posters');
+                    $tournament->update(['poster' => $posterPath]);
+                    @unlink($realPath);
+                }
+            }
 
             TournamentStaff::create([
                 'tournament_id' => $tournament->id,
@@ -231,15 +241,6 @@ class TournamentController extends Controller
 
             if (!empty($validated['has_financial_management']) && !empty($validated['has_fee'])) {
                 $this->fundService->createTournamentFundCollection($tournament, $validated);
-            }
-
-            // Dispatch job xử lý poster bất đồng bộ (QR code giờ xử lý đồng bộ trong create)
-            if ($posterTempPath) {
-                OptimizeTournamentImageJob::dispatch(
-                    $tournament->id,
-                    $posterTempPath,
-                    null
-                );
             }
         });
 
@@ -367,17 +368,16 @@ class TournamentController extends Controller
                 }
             }
 
-            // Dispatch job xử lý poster bất đồng bộ (QR code giờ xử lý đồng bộ)
+            // Xử lý poster đồng bộ ngay sau khi lưu để response trả về đúng poster_url
             if ($posterTempPath) {
-                $deleteOldPoster = $request->hasFile('poster');
-
-                OptimizeTournamentImageJob::dispatch(
-                    $tournament->id,
-                    $posterTempPath,
-                    null,
-                    $deleteOldPoster,
-                    $tournament->getOriginal('poster')
-                );
+                $realPath = storage_path('app/' . $posterTempPath);
+                if (file_exists($realPath)) {
+                    // Xóa ảnh cũ trước
+                    $this->imageService->deleteOldImage($tournament->getOriginal('poster'));
+                    $posterPath = $this->imageService->optimizeFromPath($realPath, 'tournaments/posters');
+                    $tournament->update(['poster' => $posterPath]);
+                    @unlink($realPath);
+                }
             }
         });
 
