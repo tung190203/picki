@@ -25,6 +25,7 @@ class GetClubsRequest extends FormRequest
             'minLng' => 'nullable|numeric',
             'maxLng' => 'nullable|numeric',
             'per_page' => 'nullable|integer|min:1|max:200',
+            'is_map' => 'nullable|string|in:true,false',
         ];
     }
 }
