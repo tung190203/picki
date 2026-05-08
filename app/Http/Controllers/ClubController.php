@@ -37,7 +37,7 @@ class ClubController extends Controller
     public function index(GetClubsRequest $request)
     {
         $userId = auth()->id();
-        $isMap = filter_var($request->boolean('is_map'), FILTER_VALIDATE_BOOLEAN);
+        $isMap = $request->boolean('is_map');
 
         if ($isMap) {
             $clubs = $this->clubService->searchClubsForMap($request->validated(), $userId);
