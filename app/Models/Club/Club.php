@@ -71,7 +71,6 @@ class Club extends Model
     public function activeMembers()
     {
         return $this->hasMany(ClubMember::class)
-            ->whereHas('user') // Chỉ lấy members có user tồn tại
             ->where('membership_status', ClubMembershipStatus::Joined)
             ->where('status', ClubMemberStatus::Active);
     }
@@ -176,7 +175,7 @@ class Club extends Model
     public function scopeWithListRelations($query)
     {
         return $query->with(['profile:id,club_id,cover_image_url,description'])
-            ->withCount(['activeMembers as members_count']);
+            ->withCount('activeMembers');
     }
 
     public function scopeSearch($query, $fillable, $searchTerm)
