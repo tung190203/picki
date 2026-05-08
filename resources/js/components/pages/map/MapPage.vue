@@ -1633,7 +1633,7 @@ const getListClubs = async (bounds = null) => {
         });
 
         const res = await ClubService.getAllClubs(params);
-        const clubsData = res?.clubs ?? res?.data ?? [];
+        const clubsData = res?.data?.clubs ?? res?.clubs ?? [];
         mergeData(clubsMap.value, clubsData, hasActiveFilters.value);
         quantityClubs.value = clubsMap.value.size;
     } catch (error) {

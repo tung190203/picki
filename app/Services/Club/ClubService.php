@@ -382,7 +382,7 @@ class ClubService
 
     public function searchClubs(array $filters, ?int $userId): LengthAwarePaginator
     {
-        $query = Club::withListRelations()->orderBy('created_at', 'desc');
+        $query = Club::with(['profile:id,club_id,cover_image_url,description', 'activeMembers'])->orderBy('created_at', 'desc');
 
         if ($userId) {
             $query->where(function ($q) use ($userId) {
@@ -446,7 +446,7 @@ class ClubService
 
     public function searchClubsForMap(array $filters, ?int $userId): Collection
     {
-        $query = Club::withListRelations()
+        $query = Club::with(['profile:id,club_id,cover_image_url,description', 'activeMembers'])
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->where('is_public', true);
