@@ -15,6 +15,7 @@ use App\Notifications\ClubDissolvedNotification;
 use App\Notifications\ClubRenamedNotification;
 use App\Services\ImageOptimizationService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
@@ -436,6 +437,59 @@ class ClubService
             $this->attachUserMembershipStatus($clubs->items(), $userId);
         } else {
             foreach ($clubs->items() as $club) {
+                $club->is_admin = false;
+            }
+        }
+
+        return $clubs;
+    }
+
+    public function searchClubsForMap(array $filters, ?int $userId): Collection
+    {
+        $query = Club::withListRelations()
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->where('is_public', true);
+
+        if (!empty($filters['name'])) {
+            $query->search(['name'], $filters['name']);
+        }
+
+        if (!empty($filters['address'])) {
+            $query->search(['address'], $filters['address']);
+        }
+
+        $hasFilter = !empty($filters['name']) || !empty($filters['address']);
+
+        if (
+            !$hasFilter &&
+            (!empty($filters['minLat']) ||
+                !empty($filters['maxLat']) ||
+                !empty($filters['minLng']) ||
+                !empty($filters['maxLng']))
+        ) {
+            $query->inBounds(
+                $filters['minLat'],
+                $filters['maxLat'],
+                $filters['minLng'],
+                $filters['maxLng']
+            );
+        }
+
+        if (!empty($filters['lat']) && !empty($filters['lng'])) {
+            $query->orderByDistance($filters['lat'], $filters['lng']);
+        }
+
+        if (!empty($filters['lat']) && !empty($filters['lng']) && !empty($filters['radius'])) {
+            $query->nearBy($filters['lat'], $filters['lng'], $filters['radius']);
+        }
+
+        $clubs = $query->get();
+
+        if ($userId) {
+            $this->attachUserMembershipStatus($clubs->all(), $userId);
+        } else {
+            foreach ($clubs as $club) {
                 $club->is_admin = false;
             }
         }

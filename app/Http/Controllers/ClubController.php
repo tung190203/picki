@@ -37,6 +37,16 @@ class ClubController extends Controller
     public function index(GetClubsRequest $request)
     {
         $userId = auth()->id();
+        $isMap = filter_var($request->boolean('is_map'), FILTER_VALIDATE_BOOLEAN);
+
+        if ($isMap) {
+            $clubs = $this->clubService->searchClubsForMap($request->validated(), $userId);
+
+            return ResponseHelper::success([
+                'clubs' => ClubListResource::collection($clubs),
+            ], 'Lấy danh sách câu lạc bộ cho bản đồ thành công');
+        }
+
         $clubs = $this->clubService->searchClubs($request->validated(), $userId);
 
         $data = [
