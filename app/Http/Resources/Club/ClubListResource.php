@@ -30,6 +30,7 @@ class ClubListResource extends JsonResource
             'has_pending_request' => (bool) ($this->has_pending_request ?? false),
             'has_invitation' => (bool) ($this->has_invitation ?? false),
             'created_at' => $this->created_at?->toISOString(),
+            'distance' => $this->when(isset($this->distance), $this->distance),
         ];
     }
 }
