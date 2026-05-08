@@ -938,6 +938,82 @@ export function useMap() {
     }
   };
 
+  const addClubMarkers = (clubsData, router, onMarkerClick, shouldUpdate = false, defaultImage = '') => {
+    const dataToAdd = shouldUpdate ? updateMarkers(clubsData) : clubsData;
+    const batchMarkers = [];
+
+    dataToAdd.forEach(club => {
+      if (!club.latitude || !club.longitude || isNaN(club.latitude) || isNaN(club.longitude)) return;
+
+      const popupContent = `
+        <div id="club-popup-${club.id}" style="
+          min-width: 250px; max-width: 300px; font-family: system-ui; padding: 0; margin: 0; cursor: pointer;
+        ">
+          <div style="
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+            border-radius: 6px 6px 0 0;
+          ">
+            <img src="${club.logo_url || defaultImage}" alt="Club Logo" style="
+              width: 50px;
+              height: 50px;
+              object-fit: cover;
+              border-radius: 50%;
+              border: 2px solid #4392E0;
+              flex-shrink: 0;
+              margin-right: 12px;
+            " onerror="this.onerror=null;this.src='${defaultImage}'" />
+            <div style="flex: 1; min-width: 0;">
+              <h3 style="margin: 0; font-weight: 700; font-size: 16px; color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(club.name)}">
+                ${escapeHtml(club.name)}
+              </h3>
+              ${club.quantity_members !== undefined ? `
+                <p style="margin: 3px 0 0 0; font-size: 13px; color: #6b7280;">
+                  ${club.quantity_members} thành viên
+                </p>
+              ` : ''}
+            </div>
+          </div>
+          <div style="padding: 15px; background-color: white;">
+            ${club.address ? `
+              <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; color: #4b5563; margin-bottom: 8px;">
+                <span style="color: #4392E0; flex-shrink: 0; display: flex; align-items: center; width: 20px; height: 20px;">
+                  ${mapPinIcon}
+                </span>
+                <p style="margin: 0; line-height: 1.4; color: #374151;" title="${escapeHtml(club.address)}">
+                  ${escapeHtml(club.address)}
+                </p>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+
+      const m = L.marker([club.latitude, club.longitude], { icon: defaultMarkerIcon })
+        .bindPopup(popupContent, { maxWidth: 350 });
+
+      markers[club.id] = m;
+      batchMarkers.push(m);
+
+      if (onMarkerClick) {
+        m.on('click', () => onMarkerClick(club));
+      }
+
+      m.on('popupopen', () => {
+        const el = document.getElementById(`club-popup-${club.id}`);
+        if (el) {
+          el.onclick = () => router.push(`/club/${club.id}`);
+        }
+      });
+    });
+
+    if (batchMarkers.length) {
+      markerClusterGroup.addLayers(batchMarkers);
+    }
+  };
+
   return {
     initMap,
     clearAllMarkers,
@@ -946,6 +1022,7 @@ export function useMap() {
     addCourtMarkers,
     addUserMarkers,
     addMatchMarkers,
+    addClubMarkers,
     markers
   };
 }

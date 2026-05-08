@@ -79,6 +79,11 @@
                                     :femaleIcon="femaleIcon" :getUserRating="getUserRating"
                                     :getVisibilityText="getVisibilityText" @select="focusItemAuto" />
                             </template>
+                            <template v-else-if="activeTab === 'clubs'">
+                                <ClubListItem v-for="club in displayedListData" :key="club.id" :club="club"
+                                    :selected="selectedClubItem" :defaultImage="defaultImage"
+                                    @select="focusItemAuto" />
+                            </template>
 
                             <div v-if="activeTab === 'match' && isLoadingMoreMatches" class="text-center py-4 text-sm text-gray-500">
                                 <div class="flex items-center justify-center gap-2">
@@ -840,14 +845,16 @@ import SearchInput from '@/components/atoms/SearchInput.vue';
 import CourtListItem from '@/components/molecules/CourtListItem.vue';
 import MatchListItem from '@/components/molecules/MatchListItem.vue';
 import UserListItem from '@/components/molecules/UserListItem.vue';
+import ClubListItem from '@/components/molecules/ClubListItem.vue';
 
 const router = useRouter();
 const { toHourMinute } = useTimeFormat();
-const { initMap, clearAllMarkers, addCourtMarkers, addUserMarkers, addMatchMarkers, focusItem } = useMap();
+const { initMap, clearAllMarkers, addCourtMarkers, addUserMarkers, addMatchMarkers, addClubMarkers, focusItem } = useMap();
 const currentBounds = ref(null);
 const courtsMap = ref(new Map());
 const usersMap = ref(new Map());
 const matchesMap = ref(new Map());
+const clubsMap = ref(new Map());
 const isInitialLoad = ref(true);
 const isLoadingMap = ref(false);
 const activeTab = ref('courts');
@@ -870,9 +877,11 @@ const isHasAchievement = ref(false);
 const selectedCourt = ref(null);
 const selectedUser = ref(null);
 const selectedMatches = ref(null);
+const selectedClubItem = ref(null);
 const quantityCourts = ref(0);
 const quantityUsers = ref(0);
 const quantityMatches = ref(0);
+const quantityClubs = ref(0);
 const sports = ref([]);
 const selectedSportId = ref(null);
 const isFilterModalOpen = ref(false);
@@ -880,6 +889,7 @@ const spinning = ref(false);
 const searchCourt = ref('');
 const searchMatch = ref('');
 const searchUser = ref('');
+const searchClub = ref('');
 const selectedCourtCounts = ref([]);
 const selectedCourtTypes = ref([]);
 const selectedFacilities = ref([]);
@@ -976,7 +986,8 @@ const onlineRecently = [
 const tabs = [
     { id: 'courts', label: 'Sân bóng' },
     { id: 'match', label: 'Trận đấu' },
-    { id: 'players', label: 'Người chơi' }
+    { id: 'players', label: 'Người chơi' },
+    { id: 'clubs', label: 'Câu lạc bộ' }
 ];
 
 const myClub = ref([]);
@@ -987,6 +998,7 @@ const lng = ref(null)
 const courts = computed(() => Array.from(courtsMap.value.values()));
 const users = computed(() => Array.from(usersMap.value.values()));
 const matches = computed(() => Array.from(matchesMap.value.values()));
+const clubs = computed(() => Array.from(clubsMap.value.values()));
 
 // Convert Map sang Array
 const listData = computed(() => {
@@ -996,6 +1008,7 @@ const listData = computed(() => {
         if (activeMatchTab.value === 'tournament') return matchesTournament.value;
     }
     if (activeTab.value === 'players') return users.value;
+    if (activeTab.value === 'clubs') return clubs.value;
     return [];
 });
 
@@ -1013,7 +1026,8 @@ const searchResultText = computed(() => {
     const map = {
         courts: `${quantityCourts.value ?? 0} Sân bóng được tìm thấy`,
         match: `${quantityMatches.value ?? 0} Trận đấu được tìm thấy`,
-        players: `${quantityUsers.value ?? 0} Người dùng được tìm thấy`
+        players: `${quantityUsers.value ?? 0} Người dùng được tìm thấy`,
+        clubs: `${quantityClubs.value ?? 0} Câu lạc bộ được tìm thấy`
     }
 
     return map[activeTab.value] ?? '0 kết quả được tìm thấy'
@@ -1370,6 +1384,9 @@ const loadTabContent = async (tab, bounds = null) => {
         } else if (tab === 'players') {
             await getListUser(bounds);
             addUserMarkers(users.value, defaultImage, maleIconRaw, femaleIconRaw, getVisibilityText, getUserRating, router, focusItemAuto, shouldUpdate);
+        } else if (tab === 'clubs') {
+            await getListClubs(bounds);
+            addClubMarkers(clubs.value, router, focusItemAuto, shouldUpdate, defaultImage);
         }
     } finally {
         isLoadingMap.value = false;
@@ -1390,6 +1407,8 @@ const refresh = async () => {
         matchesMap.value.clear();
     } else if (activeTab.value === 'players') {
         usersMap.value.clear();
+    } else if (activeTab.value === 'clubs') {
+        clubsMap.value.clear();
     }
 
     clearAllMarkers();
@@ -1414,6 +1433,8 @@ const applyFilter = async () => {
         matchesMap.value.clear();
     } else if (activeTab.value === 'players') {
         usersMap.value.clear();
+    } else if (activeTab.value === 'clubs') {
+        clubsMap.value.clear();
     }
 
     clearAllMarkers();
@@ -1433,6 +1454,7 @@ const resetFilter = async () => {
     searchCourt.value = '';
     searchMatch.value = '';
     searchUser.value = '';
+    searchClub.value = '';
     selectedRadiusValue.value = null;
     selectedRadiusLabel.value = 'Chọn';
     userLocation.value = null;
@@ -1455,6 +1477,7 @@ const resetFilter = async () => {
     courtsMap.value.clear();
     usersMap.value.clear();
     matchesMap.value.clear();
+    clubsMap.value.clear();
     clearAllMarkers();
 
     await loadTabContent(activeTab.value, currentBounds.value);
@@ -1558,7 +1581,8 @@ const selectLocation = async (location) => {
 const selectedMap = {
     courts: selectedCourt,
     players: selectedUser,
-    match: selectedMatches
+    match: selectedMatches,
+    clubs: selectedClubItem
 }
 
 const focusItemAuto = (item) => {
@@ -1581,7 +1605,40 @@ const getMyClubs = async () => {
         const response = await ClubService.myClubs();
         myClub.value = response || [];
     } catch (e) {
-        toast.error(e.responsve?.data?.message || "Lấy danh sách câu lạc bộ không thành công");
+        toast.error(e.response?.data?.message || "Lấy danh sách câu lạc bộ không thành công");
+    }
+};
+
+const getListClubs = async (bounds = null) => {
+    try {
+        const params = {
+            is_map: true,
+            name: searchClub.value?.trim() || undefined,
+        };
+
+        if (lat.value && lng.value) {
+            params.lat = lat.value;
+            params.lng = lng.value;
+        } else if (bounds) {
+            params.minLat = bounds.getSouth();
+            params.maxLat = bounds.getNorth();
+            params.minLng = bounds.getWest();
+            params.maxLng = bounds.getEast();
+        }
+
+        Object.keys(params).forEach(key => {
+            if (params[key] === undefined) {
+                delete params[key];
+            }
+        });
+
+        const res = await ClubService.getAllClubs(params);
+        const clubsData = res?.clubs ?? res?.data ?? [];
+        mergeData(clubsMap.value, clubsData, hasActiveFilters.value);
+        quantityClubs.value = clubsMap.value.size;
+    } catch (error) {
+        console.error("Error fetching clubs data:", error);
+        toast.error(error.response?.data?.message || "Lỗi khi tải dữ liệu câu lạc bộ");
     }
 };
 
@@ -1596,12 +1653,14 @@ const searchValue = computed({
         if (activeTab.value === 'courts') return searchCourt.value
         if (activeTab.value === 'match') return searchMatch.value
         if (activeTab.value === 'players') return searchUser.value
+        if (activeTab.value === 'clubs') return searchClub.value
         return ''
     },
     set(val) {
         if (activeTab.value === 'courts') searchCourt.value = val
         if (activeTab.value === 'match') searchMatch.value = val
         if (activeTab.value === 'players') searchUser.value = val
+        if (activeTab.value === 'clubs') searchClub.value = val
     }
 })
 
@@ -1609,6 +1668,7 @@ const searchPlaceholder = computed(() => {
     if (activeTab.value === 'courts') return 'Tìm sân'
     if (activeTab.value === 'match') return 'Tìm trận'
     if (activeTab.value === 'players') return 'Tìm người chơi'
+    if (activeTab.value === 'clubs') return 'Tìm câu lạc bộ'
     return ''
 })
 
@@ -1634,6 +1694,8 @@ watch(activeTab, (newTab) => {
         matchesMap.value.clear();
     } else if (newTab === 'players') {
         usersMap.value.clear();
+    } else if (newTab === 'clubs') {
+        clubsMap.value.clear();
     }
 
     clearAllMarkers();
@@ -1641,11 +1703,13 @@ watch(activeTab, (newTab) => {
 });
 
 let searchDebounceTimer = null;
-watch([searchCourt, searchMatch, searchUser], ([newCourt, newMatch, newUser], [oldCourt, oldMatch, oldUser]) => {
+watch([searchCourt, searchMatch, searchUser, searchClub], ([newCourt, newMatch, newUser, newClub], [oldCourt, oldMatch, oldUser, oldClub]) => {
     const activeSearchValue = activeTab.value === 'courts' ? newCourt :
-        activeTab.value === 'match' ? newMatch : newUser;
+        activeTab.value === 'match' ? newMatch :
+        activeTab.value === 'players' ? newUser : newClub;
     const oldSearchValue = activeTab.value === 'courts' ? oldCourt :
-        activeTab.value === 'match' ? oldMatch : oldUser;
+        activeTab.value === 'match' ? oldMatch :
+        activeTab.value === 'players' ? oldUser : oldClub;
 
     if (activeSearchValue === oldSearchValue) return;
 
@@ -1661,6 +1725,8 @@ watch([searchCourt, searchMatch, searchUser], ([newCourt, newMatch, newUser], [o
                 matchesMap.value.clear();
             } else if (activeTab.value === 'players') {
                 usersMap.value.clear();
+            } else if (activeTab.value === 'clubs') {
+                clubsMap.value.clear();
             }
 
             clearAllMarkers();
@@ -1678,6 +1744,8 @@ watch([searchCourt, searchMatch, searchUser], ([newCourt, newMatch, newUser], [o
             matchesMap.value.clear();
         } else if (activeTab.value === 'players') {
             usersMap.value.clear();
+        } else if (activeTab.value === 'clubs') {
+            clubsMap.value.clear();
         }
 
         clearAllMarkers();
