@@ -47,6 +47,7 @@ use App\Http\Controllers\MapController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MiniTournamentController;
 use App\Http\Controllers\MiniTournamentSearchController;
+use App\Http\Controllers\SearchV2Controller;
 use App\Http\Controllers\SendMessageController;
 use App\Http\Controllers\SportController;
 use App\Http\Controllers\SystemNotificationController;
@@ -124,6 +125,23 @@ Route::prefix('tournaments')->group(function () {
     Route::get('/{id}/bracket', [TournamentController::class, 'getBracket']);
     Route::get('/{tournamentId}/leaderboard', [LeaderboardController::class, 'index']);
 });
+
+// Search V2 API - Unified search endpoint
+Route::prefix('search')->group(function () {
+    Route::get('/v2', [SearchV2Controller::class, 'search']);
+    Route::get('/filters', [SearchV2Controller::class, 'availableFilters']);
+    Route::get('/quick', [SearchV2Controller::class, 'quick']);
+});
+
+// Search V2 - giữ nguyên endpoint cũ, chỉ sửa logic bên trong
+Route::match(['get', 'post'], '/matches/search', [SearchV2Controller::class, 'search'])
+    ->defaults('tab', 'match');
+Route::match(['get', 'post'], '/clubs/search', [SearchV2Controller::class, 'search'])
+    ->defaults('tab', 'club');
+Route::match(['get', 'post'], '/players/search', [SearchV2Controller::class, 'search'])
+    ->defaults('tab', 'user');
+Route::match(['get', 'post'], '/courts/search', [SearchV2Controller::class, 'search'])
+    ->defaults('tab', 'court');
 
 // Clubs API: không throttle để mobile gọi nhiều không bị lỗi 429
 Route::middleware(['auth:api', 'update.last_login'])->group(function () {

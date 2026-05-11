@@ -760,6 +760,25 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         });
     }
 
+    public function scopeApplyTimeline($query, ?string $timeFilter, ?int $userId = null)
+    {
+        if (!$timeFilter || $timeFilter === 'all') {
+            return $query;
+        }
+
+        $userId = $userId ?? auth()->id();
+
+        return match ($timeFilter) {
+            'mine' => $query->whereHas('clubs', function ($q) use ($userId) {
+                $q->whereIn('clubs.id', \DB::table('club_members')
+                    ->where('user_id', $userId)
+                    ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined->value)
+                    ->pluck('club_id'));
+            }),
+            default => $query,
+        };
+    }
+
     public function getTotalTournamentsAttribute(): int
     {
         $participantIds = DB::table('participants as p')

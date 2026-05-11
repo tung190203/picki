@@ -306,4 +306,41 @@ class Club extends Model
             ->orderByRaw('latitude IS NULL OR longitude IS NULL')
             ->orderBy('distance', 'asc');
     }
+
+    public function scopeFilter($query, array $filters)
+    {
+        return $query
+            ->when(
+                !empty($filters['keyword']),
+                fn($q) => $q->where('name', 'like', '%' . $filters['keyword'] . '%')
+            )
+            ->when(
+                !empty($filters['location_id']),
+                fn($q) => $q->where('location_id', $filters['location_id'])
+            )
+            ->when(
+                isset($filters['joined_only']) && $filters['joined_only'] === true,
+                fn($q) => $q->whereHas('members', fn($m) => $m
+                    ->where('user_id', auth()->id())
+                    ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined->value)
+                )
+            );
+    }
+
+    public function scopeApplyTimeline($query, ?string $timeFilter, ?int $userId = null)
+    {
+        if (!$timeFilter || $timeFilter === 'all') {
+            return $query;
+        }
+
+        $userId = $userId ?? auth()->id();
+
+        return match ($timeFilter) {
+            'mine' => $query->whereHas('members', fn($m) => $m
+                ->where('user_id', $userId)
+                ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined->value)
+            ),
+            default => $query,
+        };
+    }
 }

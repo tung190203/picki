@@ -234,6 +234,35 @@ class Tournament extends Model
             ->when($endDate, fn($q) => $q->whereDate('end_date', '<=', $endDate));
     }
 
+    public function scopeApplyTimeline($query, ?string $timeFilter, ?int $userId = null)
+    {
+        if (!$timeFilter || $timeFilter === 'all') {
+            return $query;
+        }
+
+        $userId = $userId ?? auth()->id();
+
+        return match ($timeFilter) {
+            'mine' => $query->where(function ($q) use ($userId) {
+                $q->where('created_by', $userId)
+                    ->orWhereHas('participants', fn($p) => $p->where('user_id', $userId));
+            }),
+            'today' => $query->whereDate('start_date', now()->toDateString()),
+            'tonight' => $query->whereDate('start_date', now()->toDateString())
+                ->whereTime('start_date', '>=', '18:00:00')
+                ->whereTime('start_date', '<=', '23:59:59'),
+            'this_week' => $query->whereBetween('start_date', [
+                now()->startOfWeek()->toDateString(),
+                now()->endOfWeek()->toDateString(),
+            ]),
+            'this_month' => $query->whereBetween('start_date', [
+                now()->startOfMonth()->toDateString(),
+                now()->endOfMonth()->toDateString(),
+            ]),
+            default => $query,
+        };
+    }
+
     public function getAgeGroupTextAttribute()
     {
         return match ($this->age_group) {

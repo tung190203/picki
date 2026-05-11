@@ -662,6 +662,35 @@ class MiniTournament extends Model
             });
     }
 
+    public function scopeApplyTimeline($query, ?string $timeFilter, ?int $userId = null)
+    {
+        if (!$timeFilter || $timeFilter === 'all') {
+            return $query;
+        }
+
+        $userId = $userId ?? auth()->id();
+
+        return match ($timeFilter) {
+            'mine' => $query->where(function ($q) use ($userId) {
+                $q->where('created_by', $userId)
+                    ->orWhereHas('participants', fn($p) => $p->where('user_id', $userId));
+            }),
+            'today' => $query->whereDate('start_time', now()->toDateString()),
+            'tonight' => $query->whereDate('start_time', now()->toDateString())
+                ->whereTime('start_time', '>=', '18:00:00')
+                ->whereTime('start_time', '<=', '23:59:59'),
+            'this_week' => $query->whereBetween('start_time', [
+                now()->startOfWeek()->toDateTimeString(),
+                now()->endOfWeek()->toDateTimeString(),
+            ]),
+            'this_month' => $query->whereBetween('start_time', [
+                now()->startOfMonth()->toDateTimeString(),
+                now()->endOfMonth()->toDateTimeString(),
+            ]),
+            default => $query,
+        };
+    }
+
     public function scopeNearBy($query, $lat, $lng, $radiusKm)
     {
         $haversine = "(6371 * acos(

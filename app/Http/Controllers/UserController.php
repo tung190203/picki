@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubMembershipStatus;
+use App\Enums\TimelineFilter;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\ClubResource;
+use App\Http\Resources\Map\MapUserResource;
 use App\Models\Club\Club;
 use App\Http\Resources\UserResource;
 use App\Http\Resources\UserTournamentResource;
@@ -65,6 +67,8 @@ class UserController extends Controller
             'verify_profile' => 'nullable|boolean',
             'achievement' => 'nullable',
             'is_map' => 'nullable|boolean',
+            'map_mode' => 'nullable|boolean',
+            'time_filter' => 'nullable|string|in:' . implode(',', TimelineFilter::values()),
         ]);
 
         $sport = Sport::where('slug', 'pickleball')->first();
@@ -75,7 +79,8 @@ class UserController extends Controller
             ->filter($validated)
             ->visibleFor(auth()->user())
             ->withPickleballStats($sport?->id)
-            ->withInteractionStatus(auth()->id());
+            ->withInteractionStatus(auth()->id())
+            ->applyTimeline($validated['time_filter'] ?? null, auth()->id());
 
         $hasFilter = collect([
             'sport_id',
@@ -120,38 +125,45 @@ class UserController extends Controller
             $query->nearBy($validated['lat'], $validated['lng'], $validated['radius']);
         }
 
-        if (!empty($validated['is_map']) && $validated['is_map']) {
-            $users = $query->get();
+        $isMap = filter_var(
+            $validated['map_mode'] ?? $validated['is_map'] ?? false,
+            FILTER_VALIDATE_BOOLEAN
+        );
 
-            $data = [
-                'users' => UserResource::collection($users),
-                'clubs' => ClubResource::collection(auth()->user()->clubs),
-            ];
+        if ($isMap) {
+            $users = $query
+                ->select(['id', 'full_name', 'avatar_url', 'latitude', 'longitude', 'gender', 'is_online', 'is_verified'])
+                ->get();
 
-            $meta = [
-                'current_page' => 1,
-                'per_page' => $users->count(),
-                'total' => $users->count(),
-                'last_page' => 1,
-            ];
-        } else {
-            $paginated = $query->paginate($validated['per_page'] ?? User::PER_PAGE);
-
-            $data = [
-                'users' => UserResource::collection($paginated),
-                'clubs' => ClubResource::collection(auth()->user()->clubs),
-            ];
-
-            $meta = [
-                'current_page' => $paginated->currentPage(),
-                'per_page' => $paginated->perPage(),
-                'total' => $paginated->total(),
-                'last_page' => $paginated->lastPage(),
-            ];
+            return ResponseHelper::success([
+                'data' => MapUserResource::collection($users),
+                'meta' => [
+                    'current_page' => 1,
+                    'per_page'     => $users->count(),
+                    'total'        => $users->count(),
+                    'last_page'    => 1,
+                    'map_mode'     => true,
+                ],
+            ], 'Lấy danh sách người dùng thành công');
         }
+
+        $paginated = $query->paginate($validated['per_page'] ?? User::PER_PAGE);
+
+        $data = [
+            'users' => UserResource::collection($paginated),
+            'clubs' => ClubResource::collection(auth()->user()->clubs),
+        ];
+
+        $meta = [
+            'current_page' => $paginated->currentPage(),
+            'per_page'     => $paginated->perPage(),
+            'total'        => $paginated->total(),
+            'last_page'    => $paginated->lastPage(),
+        ];
 
         return ResponseHelper::success($data, 'Lấy danh sách người dùng thành công', 200, $meta);
     }
+
     public function show($id)
     {
         $user = User::withFullRelations()->find($id);
