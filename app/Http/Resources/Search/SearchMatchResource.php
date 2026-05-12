@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Search;
 
+use App\Http\Resources\UserResource;
 use App\Models\MiniTournamentStaff;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -13,7 +14,6 @@ class SearchMatchResource extends JsonResource
         $location = $this->whenLoaded('competitionLocation');
         $participants = $this->whenLoaded('participants');
         $staff = $this->whenLoaded('staff');
-        $creator = $this->whenLoaded('creator');
 
         return [
             'id'             => $this->id,
@@ -52,12 +52,11 @@ class SearchMatchResource extends JsonResource
             'lng'            => $location?->longitude,
             // Participants
             'participants'   => $participants ? $participants->map(fn($p) => [
-                'id'   => $p->id,
-                'user' => $p->user ? [
-                    'id'         => $p->user->id,
-                    'full_name'  => $p->user->full_name,
-                    'avatar_url' => $p->user->avatar_url,
-                ] : null,
+                'id'         => $p->id,
+                'user_id'    => $p->user_id,
+                'full_name'  => $p->user?->full_name,
+                'avatar_url' => $p->user?->avatar_url,
+                'is_confirmed' => (bool) $p->is_confirmed,
             ])->toArray() : [],
             // Staff — organizers only
             'staff' => [
@@ -71,12 +70,8 @@ class SearchMatchResource extends JsonResource
                         ],
                     ])->values()->toArray() : [],
             ],
-            // Creator fallback
-            'creator' => $creator ? [
-                'id'         => $creator->id,
-                'full_name'  => $creator->full_name,
-                'avatar_url' => $creator->avatar_url,
-            ] : null,
+            // Created by
+            'created_by' => new UserResource($this->whenLoaded('creator')),
             // Badges
             'is_private'   => (bool) $this->is_private,
             'min_rating'   => $this->min_rating,
@@ -84,6 +79,9 @@ class SearchMatchResource extends JsonResource
             'is_dupr'      => (bool) ($this->is_dupr ?? false),
             'distance'     => $this->when(isset($this->distance), (int) round($this->distance)),
             'marker_type'  => 'mini_tournament',
+            // Membership
+            'is_joined'    => $this->isJoinedBy(auth()->id()),
+            'is_registered' => $this->isRegisteredBy(auth()->id()),
         ];
     }
 

@@ -113,10 +113,8 @@ class CompetitionLocation extends Model
             );
     }
 
-    public function scopeNearBy($query, float $lat, float $lng, float $radiusMeters)
+    public function scopeNearBy($query, float $lat, float $lng, float $radiusKm)
     {
-        $radiusKm = $radiusMeters / 1000;
-
         $haversine = "(6371 * acos(cos(radians($lat))
                 * cos(radians(latitude))
                 * cos(radians(longitude) - radians($lng))
@@ -134,7 +132,7 @@ class CompetitionLocation extends Model
             ->addSelect('*')
             ->addSelect(DB::raw("
                 (
-                    6371000 * acos(
+                    6371 * acos(
                         cos(radians($lat))
                         * cos(radians(latitude))
                         * cos(radians(longitude) - radians($lng))

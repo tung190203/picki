@@ -21,7 +21,7 @@ class SearchClubResource extends JsonResource
             'is_verified'  => (bool) $this->is_verified,
             'members_count' => (int) ($this->activeMembers_count ?? $this->activeMembers?->count() ?? 0),
             'description' => $this->whenLoaded('profile', fn() => $this->profile?->description),
-            'is_member' => (bool) ($this->is_member ?? false),
+            'is_joined' => (bool) ($this->is_member ?? false),
             'is_admin' => (bool) ($this->is_admin ?? false),
             'has_pending_request' => (bool) ($this->has_pending_request ?? false),
             'distance' => $this->when(isset($this->distance), (int) round($this->distance)),

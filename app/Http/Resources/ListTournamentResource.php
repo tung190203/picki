@@ -14,6 +14,8 @@ class ListTournamentResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $participants = $this->whenLoaded('participants');
+
         return  [
             'id' => $this->id,
             'poster' => $this->poster_url,
@@ -27,6 +29,8 @@ class ListTournamentResource extends JsonResource
                 return [
                     'id' => $this->createdBy->id,
                     'name' => $this->createdBy->full_name,
+                    'avatar_url' => $this->createdBy->avatar_url,
+                    'gender' => $this->createdBy->gender,
                 ];
             }),
             'club' => $this->whenLoaded('club', function () {
@@ -35,6 +39,9 @@ class ListTournamentResource extends JsonResource
                     'name' => $this->club->name,
                 ];
             }),
+            'is_joined' => $participants && auth()->check()
+                ? ($participants->contains('user_id', auth()->id()) ?? false)
+                : false,
         ];
     }
 }
