@@ -378,37 +378,39 @@ export function useMap() {
 
   // --- ADD MARKERS ---
   const addCourtMarkers = (courtsData, toHourMinute, defaultImage, onMarkerClick, shouldUpdate = false) => {
-    const dataToAdd = shouldUpdate ? updateMarkers(courtsData) : courtsData;
+    const dataToAdd = shouldUpdate ? updateMarkers(courtsData.map(cl => ({ ...cl, ...cl.competition_location, id: cl.competition_location?.id ?? cl.id }))) : courtsData;
     const batchMarkers = [];
 
     dataToAdd.forEach(c => {
-      if (!c.latitude || !c.longitude || isNaN(c.latitude) || isNaN(c.longitude)) return;
+      const cl = c.competition_location ?? c;
+      const courtId = cl.id ?? c.id;
+      if (!cl.latitude || !cl.longitude || isNaN(cl.latitude) || isNaN(cl.longitude)) return;
 
       const popupContent = `
         <div style="min-width: 220px; font-family: system-ui; margin-top: 20px;">
-          <img src="${c.image || defaultImage}" alt="Court Image" style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 10px;" onerror="this.onerror=null;this.src='${defaultImage}'" />
-          <h3 style="margin: 0 0 10px 0; font-weight: 600; font-size: 16px; color: #1f2937;">${escapeHtml(c.name)}</h3>
+          <img src="${cl.image || defaultImage}" alt="Court Image" style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 10px;" onerror="this.onerror=null;this.src='${defaultImage}'" />
+          <h3 style="margin: 0 0 10px 0; font-weight: 600; font-size: 16px; color: #1f2937;">${escapeHtml(cl.name)}</h3>
           <div style="display: flex; flex-direction: column; gap: 6px;">
             <p style="margin: 0;display:flex; justify-content:start; align-items:center; gap:6px; font-size: 14px; color: #4b5563;">
               <span style="color: #4392E0; font-weight: 500;">${clockIcon}</span>
-              Giờ Mở cửa: ${toHourMinute(c.opening_time)} - ${toHourMinute(c.closing_time)}
+              Giờ Mở cửa: ${toHourMinute(cl.opening_time)} - ${toHourMinute(cl.closing_time)}
             </p>
             <p style="margin: 0;display:flex; justify-content:start; align-items:center; gap:6px; font-size: 14px; color: #4b5563;">
               <span style="color: #4392E0; font-weight: 500;">${phoneIcon}</span>
-              ${escapeHtml(c.phone)}
+              ${escapeHtml(cl.phone || '')}
             </p>
             <p style="margin: 0;display:flex; justify-content:start; align-items:baseline; gap:6px; font-size: 14px; color: #4b5563; line-height: 1.4;">
               <span style="color: #4392E0; font-weight: 500;">${mapPinIcon}</span>
-              ${escapeHtml(c.address)}
+              ${escapeHtml(cl.address || '')}
             </p>
           </div>
         </div>
       `;
 
-      const m = L.marker([c.latitude, c.longitude], { icon: defaultMarkerIcon })
+      const m = L.marker([cl.latitude, cl.longitude], { icon: defaultMarkerIcon })
         .bindPopup(popupContent, { maxWidth: 300 });
 
-      markers[c.id] = m;
+      markers[courtId] = m;
       batchMarkers.push(m);
 
       if (onMarkerClick) {
@@ -467,7 +469,10 @@ export function useMap() {
     };
 
     dataToAdd.forEach(user => {
-      if (!user.latitude || !user.longitude || isNaN(user.latitude) || isNaN(user.longitude)) return;
+      if (!user.lat && !user.lng || isNaN(user.lat) || isNaN(user.lng)) return;
+
+      const lat = user.lat ?? user.latitude;
+      const lng = user.lng ?? user.longitude;
 
       const rating = getUserRating(user);
       const genderIconHtml = getGenderIconHtml(user.gender);
@@ -549,7 +554,7 @@ export function useMap() {
         </div>
       `;
 
-      const m = L.marker([user.latitude, user.longitude], { icon: defaultMarkerIcon })
+      const m = L.marker([lat, lng], { icon: defaultMarkerIcon })
         .bindPopup(popupContent, { maxWidth: 350 });
 
       markers[user.id] = m;
@@ -577,9 +582,9 @@ export function useMap() {
     const batchMarkers = [];
 
     dataToAdd.forEach(match => {
-      // Handle both direct lat/lng and nested in competition_location
-      const lat = match.competition_location?.latitude || match.latitude;
-      const lng = match.competition_location?.longitude || match.longitude;
+      // Handle lat/lng from API (map resources) with fallback to competition_location
+      const lat = match.lat ?? match.competition_location?.latitude;
+      const lng = match.lng ?? match.competition_location?.longitude;
 
       if (!lat || !lng || isNaN(lat) || isNaN(lng)) return;
 
@@ -943,7 +948,10 @@ export function useMap() {
     const batchMarkers = [];
 
     dataToAdd.forEach(club => {
-      if (!club.latitude || !club.longitude || isNaN(club.latitude) || isNaN(club.longitude)) return;
+      if (!club.lat || !club.lng || isNaN(club.lat) || isNaN(club.lng)) return;
+
+      const lat = club.lat ?? club.latitude;
+      const lng = club.lng ?? club.longitude;
 
       const popupContent = `
         <div id="club-popup-${club.id}" style="
@@ -969,9 +977,9 @@ export function useMap() {
               <h3 style="margin: 0; font-weight: 700; font-size: 16px; color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(club.name)}">
                 ${escapeHtml(club.name)}
               </h3>
-              ${club.quantity_members !== undefined ? `
+              ${club.members_count !== undefined ? `
                 <p style="margin: 3px 0 0 0; font-size: 13px; color: #6b7280;">
-                  ${club.quantity_members} thành viên
+                  ${club.members_count} thành viên
                 </p>
               ` : ''}
             </div>
@@ -991,7 +999,7 @@ export function useMap() {
         </div>
       `;
 
-      const m = L.marker([club.latitude, club.longitude], { icon: defaultMarkerIcon })
+      const m = L.marker([lat, lng], { icon: defaultMarkerIcon })
         .bindPopup(popupContent, { maxWidth: 350 });
 
       markers[club.id] = m;

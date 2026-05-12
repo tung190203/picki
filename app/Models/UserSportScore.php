@@ -15,6 +15,10 @@ class UserSportScore extends Model
         'score_value'
     ];
 
+    protected $casts = [
+        'score_value' => 'float',
+    ];
+
     const PERSONAL_SCORE = 'personal_score';
     const VNDUPR_SCORE = 'vndupr_score';
     const DUPR_SCORE = 'dupr_score';

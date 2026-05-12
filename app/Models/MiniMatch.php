@@ -198,17 +198,15 @@ class MiniMatch extends Model
                 function ($q) use ($filters) {
                     $q->where(function ($subQuery) use ($filters) {
                         foreach ($filters['slot_status'] as $slotStatus) {
-                            if ($slotStatus === 'one_slot') {
-                                $subQuery->orWhereRaw('(CASE WHEN participant1_id IS NULL THEN 1 ELSE 0 END + CASE WHEN participant2_id IS NULL THEN 1 ELSE 0 END) = 1');
-                            } elseif ($slotStatus === 'two_slot') {
-                                $subQuery->orWhere(function ($sub) {
-                                    $sub->whereHas('participant1', fn($p) => $p->whereNotNull('team_id'))
-                                        ->orWhereHas('participant2', fn($p) => $p->whereNotNull('team_id'));
-                                });
-                            } elseif ($slotStatus === 'full_slot') {
+                            if ($slotStatus === 'con_trong') {
                                 $subQuery->orWhere(function ($sub) {
                                     $sub->whereNull('participant1_id')
                                         ->whereNull('participant2_id');
+                                });
+                            } elseif ($slotStatus === 'da_day') {
+                                $subQuery->orWhere(function ($sub) {
+                                    $sub->whereNotNull('participant1_id')
+                                        ->whereNotNull('participant2_id');
                                 });
                             }
                         }

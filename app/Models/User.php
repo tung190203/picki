@@ -354,9 +354,15 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     public const FULL_RELATIONS = ['referee', 'follows', 'playTimes', 'sports', 'sports.sport', 'sports.scores', 'clubs'];
 
-    public function scopeWithFullRelations($query)
+    public function scopeWithFullRelations($query, ?int $sportId = null)
     {
-        return $query->with(['referee', 'follows', 'playTimes', 'sports', 'sports.sport', 'sports.scores', 'clubs.members']);
+        $query = $query->with(['referee', 'follows', 'playTimes', 'sports', 'sports.sport', 'sports.scores', 'clubs.members']);
+
+        // Apply pickleball stats for vn_rank, defaulting to sport_id = 1 if not specified
+        $effectiveSportId = $sportId ?? 1;
+        $query->withPickleballStats($effectiveSportId);
+
+        return $query;
     }
 
     public function scopeLoadFullRelations()
@@ -600,8 +606,10 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         }
     }
 
-    public function scopeNearBy($query, float $lat, float $lng, float $radiusKm = 5)
+    public function scopeNearBy($query, float $lat, float $lng, float $radiusMeters)
     {
+        $radiusKm = $radiusMeters / 1000;
+
         $haversine = "(6371 * acos(cos(radians($lat))
                 * cos(radians(latitude))
                 * cos(radians(longitude) - radians($lng))
@@ -620,7 +628,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             ->select('*')
             ->selectRaw("
                 (
-                    6371 * acos(
+                    6371000 * acos(
                         cos(radians(?))
                         * cos(radians(latitude))
                         * cos(radians(longitude) - radians(?))
@@ -629,7 +637,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                     )
                 ) AS distance
             ", [$lat, $lng, $lat])
-            ->orderByRaw('latitude IS NULL OR longitude IS NULL') // 👈 NULL xuống cuối
+            ->orderByRaw('latitude IS NULL OR longitude IS NULL')
             ->orderBy('distance', 'asc');
     }
     // User.php
@@ -758,6 +766,25 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
               ->orWhere('phone', 'like', "%{$keyword}%")
               ->orWhere('email', 'like', "%{$keyword}%");
         });
+    }
+
+    public function scopeApplyTimeline($query, ?string $timeFilter, ?int $userId = null)
+    {
+        if (!$timeFilter || $timeFilter === 'all') {
+            return $query;
+        }
+
+        $userId = $userId ?? auth()->id();
+
+        return match ($timeFilter) {
+            'mine' => $query->whereHas('clubs', function ($q) use ($userId) {
+                $q->whereIn('clubs.id', \DB::table('club_members')
+                    ->where('user_id', $userId)
+                    ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined->value)
+                    ->pluck('club_id'));
+            }),
+            default => $query,
+        };
     }
 
     public function getTotalTournamentsAttribute(): int

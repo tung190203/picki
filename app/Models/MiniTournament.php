@@ -63,6 +63,7 @@ class MiniTournament extends Model
         'use_club_fund' => 'bool',
         'included_in_club_fund' => 'bool',
         'fee_amount' => 'integer',
+        'enable_dupr' => 'bool',
     ];
 
     const PER_PAGE = 15;
@@ -192,6 +193,11 @@ class MiniTournament extends Model
     public function getAutoSplitFeeTextAttribute(): string
     {
         return $this->auto_split_fee ? 'Chia tiền tự động' : 'Tiền cố định/người';
+    }
+
+    public function getIsDuprAttribute(): bool
+    {
+        return (bool) ($this->attributes['enable_dupr'] ?? false);
     }
 
     /**
@@ -450,6 +456,7 @@ class MiniTournament extends Model
             'participants.invitedBy',
             'miniTournamentStaffs.user',
             'staff',
+            'creator',
             'matches',
         ]);
     }
@@ -466,6 +473,7 @@ class MiniTournament extends Model
             'participants.guarantor',
             'miniTournamentStaffs.user',
             'staff',
+            'creator',
             'matches',
         ]);
     }
@@ -605,28 +613,22 @@ class MiniTournament extends Model
                 function ($q) use ($filter) {
                     $q->where(function ($subQuery) use ($filter) {
                         foreach ($filter['slot_status'] as $slotStatus) {
-                            if ($slotStatus === 'one_slot') {
+                            if ($slotStatus === 'con_trong') {
                                 $subQuery->orWhereRaw('(
                                 COALESCE(max_players, 0) - (
                                     SELECT COUNT(*)
                                     FROM mini_participants
                                     WHERE mini_participants.mini_tournament_id = mini_tournaments.id
                                 )
-                            ) >= 1');
-                            } elseif ($slotStatus === 'two_slot') {
+                            ) > 0');
+                            } elseif ($slotStatus === 'da_day') {
                                 $subQuery->orWhereRaw('(
                                 COALESCE(max_players, 0) - (
                                     SELECT COUNT(*)
                                     FROM mini_participants
                                     WHERE mini_participants.mini_tournament_id = mini_tournaments.id
                                 )
-                            ) >= 2');
-                            } elseif ($slotStatus === 'full_slot') {
-                                $subQuery->orWhereRaw('(
-                                SELECT COUNT(*)
-                                FROM mini_participants
-                                WHERE mini_participants.mini_tournament_id = mini_tournaments.id
-                            ) = 0');
+                            ) <= 0');
                             }
                         }
                     });
@@ -662,8 +664,36 @@ class MiniTournament extends Model
             });
     }
 
-    public function scopeNearBy($query, $lat, $lng, $radiusKm)
+    public function scopeApplyTimeline($query, ?string $timeFilter, ?int $userId = null)
     {
+        if (!$timeFilter || $timeFilter === 'all') {
+            return $query;
+        }
+
+        $userId = $userId ?? auth()->id();
+
+        return match ($timeFilter) {
+            'mine' => $query->where(function ($q) use ($userId) {
+                $q->where('created_by', $userId)
+                    ->orWhereHas('participants', fn($p) => $p->where('user_id', $userId));
+            }),
+            'today' => $query->whereDate('start_time', now()->toDateString()),
+            'this_week' => $query->whereBetween('start_time', [
+                now()->startOfWeek()->toDateTimeString(),
+                now()->endOfWeek()->toDateTimeString(),
+            ]),
+            'this_month' => $query->whereBetween('start_time', [
+                now()->startOfMonth()->toDateTimeString(),
+                now()->endOfMonth()->toDateTimeString(),
+            ]),
+            default => $query,
+        };
+    }
+
+    public function scopeNearBy($query, $lat, $lng, float $radiusMeters)
+    {
+        $radiusKm = $radiusMeters / 1000;
+
         $haversine = "(6371 * acos(
             cos(radians(?))
             * cos(radians(competition_locations.latitude))
@@ -700,7 +730,7 @@ class MiniTournament extends Model
             ->select('mini_tournaments.*')
             ->selectRaw("
                 (
-                    6371 * acos(
+                    6371000 * acos(
                         cos(radians(?))
                         * cos(radians(competition_locations.latitude))
                         * cos(radians(competition_locations.longitude) - radians(?))

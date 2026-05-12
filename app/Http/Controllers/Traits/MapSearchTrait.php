@@ -213,7 +213,7 @@ trait MapSearchTrait
             'time_of_day'      => 'nullable|array',
             'time_of_day.*'    => 'in:morning,afternoon,evening',
             'slot_status'      => 'nullable|array',
-            'slot_status.*'    => 'in:one_slot,two_slot,full_slot',
+            'slot_status.*'    => 'in:con_trong,da_day',
             'type'             => 'nullable|array',
             'type.*'           => 'in:single,double',
             'fee'              => 'nullable|array',

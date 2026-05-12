@@ -174,7 +174,7 @@ class Club extends Model
 
     public function scopeWithListRelations($query)
     {
-        return $query->with(['profile:id,club_id,cover_image_url,description'])
+        return $query->with(['profile:id,club_id,cover_image_url,description,address'])
             ->withCount('activeMembers');
     }
 
@@ -274,8 +274,10 @@ class Club extends Model
             ->whereBetween('longitude', [$minLng, $maxLng]);
     }
 
-    public function scopeNearBy($query, float $lat, float $lng, float $radiusKm = 5)
+    public function scopeNearBy($query, float $lat, float $lng, float $radiusMeters)
     {
+        $radiusKm = $radiusMeters / 1000;
+
         $haversine = "(6371 * acos(cos(radians($lat))
                 * cos(radians(latitude))
                 * cos(radians(longitude) - radians($lng))
@@ -294,7 +296,7 @@ class Club extends Model
             ->select('*')
             ->selectRaw("
                 (
-                    6371 * acos(
+                    6371000 * acos(
                         cos(radians(?))
                         * cos(radians(latitude))
                         * cos(radians(longitude) - radians(?))
@@ -305,5 +307,42 @@ class Club extends Model
             ", [$lat, $lng, $lat])
             ->orderByRaw('latitude IS NULL OR longitude IS NULL')
             ->orderBy('distance', 'asc');
+    }
+
+    public function scopeFilter($query, array $filters)
+    {
+        return $query
+            ->when(
+                !empty($filters['keyword']),
+                fn($q) => $q->where('name', 'like', '%' . $filters['keyword'] . '%')
+            )
+            ->when(
+                !empty($filters['location_id']),
+                fn($q) => $q->where('location_id', $filters['location_id'])
+            )
+            ->when(
+                isset($filters['joined_only']) && $filters['joined_only'] === true,
+                fn($q) => $q->whereHas('members', fn($m) => $m
+                    ->where('user_id', auth()->id())
+                    ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined->value)
+                )
+            );
+    }
+
+    public function scopeApplyTimeline($query, ?string $timeFilter, ?int $userId = null)
+    {
+        if (!$timeFilter || $timeFilter === 'all') {
+            return $query;
+        }
+
+        $userId = $userId ?? auth()->id();
+
+        return match ($timeFilter) {
+            'mine' => $query->whereHas('members', fn($m) => $m
+                ->where('user_id', $userId)
+                ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined->value)
+            ),
+            default => $query,
+        };
     }
 }
