@@ -10,22 +10,24 @@ class MapCourtResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id'           => $this->id,
-            'name'         => $this->name,
-            'latitude'     => $this->latitude,
-            'longitude'    => $this->longitude,
-            'address'      => $this->address,
-            'number_of_yards' => $this->number_of_yards,
-            'sport'        => $this->whenLoaded('sports', function () {
-                $sport = $this->sports->first();
-                return $sport ? [
-                    'id'   => $sport->id,
-                    'name' => $sport->name,
-                    'icon' => $sport->icon,
-                ] : null;
-            }),
-            'distance' => $this->when(isset($this->distance), (int) round($this->distance)),
-            'marker_type' => 'court',
+            'competition_location' => [
+                'id'           => $this->id,
+                'name'         => $this->name,
+                'latitude'     => $this->latitude,
+                'longitude'    => $this->longitude,
+                'address'      => $this->address,
+                'number_of_yards' => $this->whenLoaded('competitionLocationYards', fn() => $this->competitionLocationYards->count()),
+                'sport'        => $this->whenLoaded('sports', function () {
+                    $sport = $this->sports->first();
+                    return $sport ? [
+                        'id'   => $sport->id,
+                        'name' => $sport->name,
+                        'icon' => $sport->icon,
+                    ] : null;
+                }),
+                'distance'     => $this->when(isset($this->distance), (int) round($this->distance)),
+                'marker_type'  => 'court',
+            ],
         ];
     }
 }

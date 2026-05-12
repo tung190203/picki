@@ -44,7 +44,12 @@ class SearchV2Controller extends Controller
 
         $userId = Auth::check() ? Auth::id() : null;
         $isMap = filter_var($params['map_mode'], FILTER_VALIDATE_BOOLEAN);
+
+        // Inject location_id into filters so every tab's scopeFilter receives it
         $filters = $params['filters'] ?? [];
+        if (!empty($params['location_id'])) {
+            $filters['location_id'] = (int) $params['location_id'];
+        }
 
         $query = $this->buildQuery($tab, $params, $filters, $timeFilter, $userId);
 
