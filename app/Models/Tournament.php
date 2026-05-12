@@ -447,6 +447,13 @@ class Tournament extends Model
                 fn($q) => $q->where('competition_location_id', $filters['competition_location_id'])
             )
             ->when(
+                !empty($filters['location_id']),
+                fn($q) => $q->whereHas(
+                    'competitionLocation',
+                    fn($lq) => $lq->where('location_id', $filters['location_id'])
+                )
+            )
+            ->when(
                 !empty($filters['keyword']),
                 fn($q) => $q->where(function ($kq) use ($filters){
                     $kq->where('tournaments.name', 'like', '%' . $filters['keyword'] . '%')

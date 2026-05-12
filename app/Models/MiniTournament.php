@@ -521,6 +521,13 @@ class MiniTournament extends Model
                 fn($q) => $q->where('competition_location_id', $filter['competition_location_id'])
             )
             ->when(
+                !empty($filter['location_id']),
+                fn($q) => $q->whereHas(
+                    'competitionLocation',
+                    fn($lq) => $lq->where('location_id', $filter['location_id'])
+                )
+            )
+            ->when(
                 !empty($filter['keyword']),
                 fn($q) => $q->where(function ($kq) use ($filter) {
                     $kq->where('mini_tournaments.name', 'like', '%' . $filter['keyword'] . '%')

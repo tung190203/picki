@@ -31,7 +31,7 @@ trait MapSearchTrait
     protected function buildFilter(Request $request, string $modelType = 'both'): array
     {
         $allKeys = [
-            'sport_id', 'competition_location_id', 'date_from', 'keyword',
+            'sport_id', 'location_id', 'competition_location_id', 'date_from', 'keyword',
             'rating', 'time_of_day', 'slot_status',
             'type', 'fee', 'min_price', 'max_price',
         ];
@@ -125,7 +125,7 @@ trait MapSearchTrait
         }
 
         // Bounds filter (only when no other filter is present)
-        $filterKeys = ['sport_id', 'competition_location_id', 'date_from', 'keyword', 'lat', 'lng', 'radius', 'type', 'rating', 'fee', 'time_of_day', 'slot_status'];
+        $filterKeys = ['sport_id', 'location_id', 'competition_location_id', 'date_from', 'keyword', 'lat', 'lng', 'radius', 'type', 'rating', 'fee', 'time_of_day', 'slot_status'];
         if ($modelType === 'tournament') {
             $filterKeys = array_merge($filterKeys, ['min_price', 'max_price']);
         }
@@ -205,6 +205,7 @@ trait MapSearchTrait
             'tournament_per_page'    => 'nullable|integer|min:1|max:200',
             'is_map'           => 'nullable|boolean',
             'date_from'        => 'nullable|date',
+            'location_id'       => 'nullable|integer|exists:locations,id',
             'competition_location_id' => 'nullable|integer|exists:competition_locations,id',
             'sport_id'         => 'nullable|integer|exists:sports,id',
             'keyword'          => 'nullable|string|max:255',
