@@ -89,8 +89,8 @@
                     <div class="flex-1 overflow-y-auto px-4 py-1" @scroll="handleScroll">
                         <div class="space-y-3">
                             <template v-if="activeTab === 'court'">
-                                <CourtListItem v-for="court in displayedListData" :key="court.id" :court="court"
-                                    :selected="selectedCourt" :defaultImage="defaultImage" :toHourMinute="toHourMinute"
+                                <CourtListItem v-for="court in displayedListData" :key="court.competition_location?.id" :court="court"
+                                    :selected="selectedCourt?.competition_location?.id" :defaultImage="defaultImage" :toHourMinute="toHourMinute"
                                     @select="focusItemAuto" />
                             </template>
                             <template v-else-if="activeTab === 'match' || activeTab === 'tournament'">
@@ -1532,11 +1532,13 @@ const mergeData = (existingMap, newDataArray, isFiltered = false) => {
     if (isFiltered) {
         existingMap.clear();
         newDataArray.forEach(item => {
-            existingMap.set(item.id, item);
+            const key = item.competition_location?.id ?? item.id;
+            existingMap.set(key, item);
         });
     } else {
         newDataArray.forEach(item => {
-            existingMap.set(item.id, item);
+            const key = item.competition_location?.id ?? item.id;
+            existingMap.set(key, item);
         });
     }
 };
@@ -2029,8 +2031,9 @@ const focusItemAuto = (item) => {
     const selectedRef = selectedMap[activeTab.value]
     if (!selectedRef) return
 
-    selectedRef.value = item.id
-    focusItem(item.id)
+    const itemId = item.competition_location?.id ?? item.id
+    selectedRef.value = itemId
+    focusItem(itemId)
 }
 
 const getUserRating = (user) => {

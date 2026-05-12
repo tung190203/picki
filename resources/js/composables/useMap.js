@@ -378,37 +378,39 @@ export function useMap() {
 
   // --- ADD MARKERS ---
   const addCourtMarkers = (courtsData, toHourMinute, defaultImage, onMarkerClick, shouldUpdate = false) => {
-    const dataToAdd = shouldUpdate ? updateMarkers(courtsData) : courtsData;
+    const dataToAdd = shouldUpdate ? updateMarkers(courtsData.map(cl => ({ ...cl, ...cl.competition_location, id: cl.competition_location?.id ?? cl.id }))) : courtsData;
     const batchMarkers = [];
 
     dataToAdd.forEach(c => {
-      if (!c.latitude || !c.longitude || isNaN(c.latitude) || isNaN(c.longitude)) return;
+      const cl = c.competition_location ?? c;
+      const courtId = cl.id ?? c.id;
+      if (!cl.latitude || !cl.longitude || isNaN(cl.latitude) || isNaN(cl.longitude)) return;
 
       const popupContent = `
         <div style="min-width: 220px; font-family: system-ui; margin-top: 20px;">
-          <img src="${c.image || defaultImage}" alt="Court Image" style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 10px;" onerror="this.onerror=null;this.src='${defaultImage}'" />
-          <h3 style="margin: 0 0 10px 0; font-weight: 600; font-size: 16px; color: #1f2937;">${escapeHtml(c.name)}</h3>
+          <img src="${cl.image || defaultImage}" alt="Court Image" style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 10px;" onerror="this.onerror=null;this.src='${defaultImage}'" />
+          <h3 style="margin: 0 0 10px 0; font-weight: 600; font-size: 16px; color: #1f2937;">${escapeHtml(cl.name)}</h3>
           <div style="display: flex; flex-direction: column; gap: 6px;">
             <p style="margin: 0;display:flex; justify-content:start; align-items:center; gap:6px; font-size: 14px; color: #4b5563;">
               <span style="color: #4392E0; font-weight: 500;">${clockIcon}</span>
-              Giờ Mở cửa: ${toHourMinute(c.opening_time)} - ${toHourMinute(c.closing_time)}
+              Giờ Mở cửa: ${toHourMinute(cl.opening_time)} - ${toHourMinute(cl.closing_time)}
             </p>
             <p style="margin: 0;display:flex; justify-content:start; align-items:center; gap:6px; font-size: 14px; color: #4b5563;">
               <span style="color: #4392E0; font-weight: 500;">${phoneIcon}</span>
-              ${escapeHtml(c.phone)}
+              ${escapeHtml(cl.phone || '')}
             </p>
             <p style="margin: 0;display:flex; justify-content:start; align-items:baseline; gap:6px; font-size: 14px; color: #4b5563; line-height: 1.4;">
               <span style="color: #4392E0; font-weight: 500;">${mapPinIcon}</span>
-              ${escapeHtml(c.address)}
+              ${escapeHtml(cl.address || '')}
             </p>
           </div>
         </div>
       `;
 
-      const m = L.marker([c.latitude, c.longitude], { icon: defaultMarkerIcon })
+      const m = L.marker([cl.latitude, cl.longitude], { icon: defaultMarkerIcon })
         .bindPopup(popupContent, { maxWidth: 300 });
 
-      markers[c.id] = m;
+      markers[courtId] = m;
       batchMarkers.push(m);
 
       if (onMarkerClick) {
