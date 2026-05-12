@@ -59,6 +59,7 @@ class MapTournamentResource extends JsonResource
             'marker_type'   => 'tournament',
             // Membership
             'is_joined'     => $this->isJoinedBy(auth()->id()),
+            'is_registered' => $this->isRegisteredBy(auth()->id()),
         ];
     }
 

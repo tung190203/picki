@@ -82,6 +82,7 @@ class SearchMatchResource extends JsonResource
             'marker_type'  => 'mini_tournament',
             // Membership
             'is_joined'    => $this->isJoinedBy(auth()->id()),
+            'is_registered' => $this->isRegisteredBy(auth()->id()),
         ];
     }
 

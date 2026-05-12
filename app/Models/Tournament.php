@@ -133,6 +133,15 @@ class Tournament extends Model
             return false;
         }
 
+        return $this->participants()->where('user_id', $userId)->where('is_confirmed', 1)->exists();
+    }
+
+    public function isRegisteredBy(?int $userId): bool
+    {
+        if (!$userId) {
+            return false;
+        }
+
         return $this->participants()->where('user_id', $userId)->exists();
     }
 
