@@ -10,6 +10,7 @@ class MapMiniTournamentResource extends JsonResource
     public function toArray(Request $request): array
     {
         $location = $this->whenLoaded('competitionLocation');
+        $creator = $this->whenLoaded('creator');
 
         return [
             'id'           => $this->id,
@@ -32,6 +33,12 @@ class MapMiniTournamentResource extends JsonResource
             ]),
             'location_name' => $location?->name,
             'address'       => $location?->address,
+            'created_by'   => $creator ? [
+                'id'         => $creator->id,
+                'name'       => $creator->full_name,
+                'avatar_url' => $creator->avatar_url,
+                'gender'     => $creator->gender,
+            ] : null,
             'slot_status'   => $this->computeSlotStatus(),
             'distance'      => $this->when(isset($this->distance), (int) round($this->distance)),
             'is_joined'     => auth()->check()

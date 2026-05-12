@@ -12,6 +12,7 @@ class MapTournamentResource extends JsonResource
         $location = $this->whenLoaded('competitionLocation');
         $club = $this->whenLoaded('club');
         $participants = $this->whenLoaded('participants');
+        $createdBy = $this->whenLoaded('createdBy');
 
         $participantsCount = (int) ($this->participants_count ?? $participants?->count() ?? 0);
 
@@ -53,6 +54,13 @@ class MapTournamentResource extends JsonResource
                 'name'          => $club->name,
                 'logo_url'      => $club->logo_url,
                 'members_count' => (int) ($club->members_count ?? 0),
+            ] : null,
+            // Creator
+            'created_by' => $createdBy ? [
+                'id'         => $createdBy->id,
+                'name'       => $createdBy->full_name,
+                'avatar_url' => $createdBy->avatar_url,
+                'gender'     => $createdBy->gender,
             ] : null,
             'slot_status'   => $this->computeSlotStatus(),
             'distance'      => $this->when(isset($this->distance), (int) round($this->distance)),
