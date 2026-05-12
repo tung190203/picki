@@ -117,7 +117,7 @@ class SearchV2Controller extends Controller
         $radius = $params['radius'] ?? null;
 
         if ($lat !== null && $lng !== null) {
-            if ($tab === SearchFilterConfig::TAB_USER || $tab === SearchFilterConfig::TAB_CLUB) {
+            if ($tab === SearchFilterConfig::TAB_USER || $tab === SearchFilterConfig::TAB_CLUB || $tab === SearchFilterConfig::TAB_COURT) {
                 $query->orderByDistance($lat, $lng);
             } else {
                 $query->orderByDistanceFromLocation($lat, $lng);
@@ -191,7 +191,7 @@ class SearchV2Controller extends Controller
             'day'      => $group['day'],
             'is_today' => $group['is_today'],
             'count'    => $group['count'],
-            'items'    => $resourceClass::collect($group['items']),
+            'items'    => $resourceClass::collection($group['items']),
         ])->filter(fn($group) => $group['count'] > 0)->values();
 
         $this->logSearch(

@@ -30,7 +30,7 @@ class SearchRequest extends FormRequest
             'maxLng'       => 'nullable|numeric|between:-180,180',
 
             // Output mode
-            'map_mode'     => 'nullable|boolean',
+            'map_mode'     => 'nullable|in:true,false,1,0',
             'page'         => 'nullable|integer|min:1',
             'per_page'     => 'nullable|integer|min:1|max:200',
 

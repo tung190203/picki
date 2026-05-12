@@ -16,11 +16,14 @@ class MapCourtResource extends JsonResource
             'longitude'    => $this->longitude,
             'address'      => $this->address,
             'number_of_yards' => $this->number_of_yards,
-            'sport'        => $this->whenLoaded('sport', fn() => [
-                'id'   => $this->sport->id,
-                'name' => $this->sport->name,
-                'icon' => $this->sport->icon,
-            ]),
+            'sport'        => $this->whenLoaded('sports', function () {
+                $sport = $this->sports->first();
+                return $sport ? [
+                    'id'   => $sport->id,
+                    'name' => $sport->name,
+                    'icon' => $sport->icon,
+                ] : null;
+            }),
             'distance' => $this->when(isset($this->distance), (int) round($this->distance)),
             'marker_type' => 'court',
         ];

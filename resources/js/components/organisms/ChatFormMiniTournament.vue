@@ -16,7 +16,7 @@
                 : 'bg-[#EDEEF2] grid grid-cols-[auto_1fr] gap-3 items-start'
             ]">
               <div v-if="!message.is_own" class="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
-                <img :src="message.user.avatar_url || 'https://via.placeholder.com/40'" :alt="message.user.full_name"
+                <img :src="message.user.avatar_url || '/images/default-avatar.png'" :alt="message.user.full_name"
                   class="w-full h-full object-cover" />
               </div>
               <div class="min-w-0">
