@@ -61,6 +61,10 @@ export const buildFilters = (tab, uiState) => {
         if (tab === 'match' && uiState.matchType) {
             filters.type = uiState.matchType;
         }
+        // Club type (match + tournament): 'thuong'|'clb'
+        if (uiState.clubType?.length) {
+            filters.club_type = uiState.clubType;
+        }
     }
 
     if (tab === 'club') {
