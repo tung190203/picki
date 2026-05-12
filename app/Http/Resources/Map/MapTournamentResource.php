@@ -31,7 +31,7 @@ class MapTournamentResource extends JsonResource
             'location_name' => $location?->name,
             'address'       => $location?->address,
             'slot_status'   => $this->computeSlotStatus(),
-            'distance'      => $this->when(isset($this->distance), round($this->distance, 1)),
+            'distance'      => $this->when(isset($this->distance), (int) round($this->distance)),
             'marker_type'   => 'tournament',
         ];
     }

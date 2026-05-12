@@ -600,8 +600,10 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         }
     }
 
-    public function scopeNearBy($query, float $lat, float $lng, float $radiusKm = 5)
+    public function scopeNearBy($query, float $lat, float $lng, float $radiusMeters)
     {
+        $radiusKm = $radiusMeters / 1000;
+
         $haversine = "(6371 * acos(cos(radians($lat))
                 * cos(radians(latitude))
                 * cos(radians(longitude) - radians($lng))
@@ -620,7 +622,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             ->select('*')
             ->selectRaw("
                 (
-                    6371 * acos(
+                    6371000 * acos(
                         cos(radians(?))
                         * cos(radians(latitude))
                         * cos(radians(longitude) - radians(?))
@@ -629,7 +631,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                     )
                 ) AS distance
             ", [$lat, $lng, $lat])
-            ->orderByRaw('latitude IS NULL OR longitude IS NULL') // 👈 NULL xuống cuối
+            ->orderByRaw('latitude IS NULL OR longitude IS NULL')
             ->orderBy('distance', 'asc');
     }
     // User.php

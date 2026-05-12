@@ -17,7 +17,7 @@ class SearchPlayerResource extends JsonResource
             'is_online'   => (bool) $this->is_online,
             'is_verified' => (bool) $this->is_verified,
             'vn_rank'     => $this->vn_rank ?? null,
-            'distance'    => $this->when(isset($this->distance), round($this->distance, 1)),
+            'distance'    => $this->when(isset($this->distance), (int) round($this->distance)),
             'sports'      => $this->whenLoaded('sports', fn() => $this->sports->map(fn($s) => [
                 'id'   => $s->sport_id,
                 'name' => $s->sport?->name,

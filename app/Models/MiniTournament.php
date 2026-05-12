@@ -670,9 +670,6 @@ class MiniTournament extends Model
                     ->orWhereHas('participants', fn($p) => $p->where('user_id', $userId));
             }),
             'today' => $query->whereDate('start_time', now()->toDateString()),
-            'tonight' => $query->whereDate('start_time', now()->toDateString())
-                ->whereTime('start_time', '>=', '18:00:00')
-                ->whereTime('start_time', '<=', '23:59:59'),
             'this_week' => $query->whereBetween('start_time', [
                 now()->startOfWeek()->toDateTimeString(),
                 now()->endOfWeek()->toDateTimeString(),
@@ -685,8 +682,10 @@ class MiniTournament extends Model
         };
     }
 
-    public function scopeNearBy($query, $lat, $lng, $radiusKm)
+    public function scopeNearBy($query, $lat, $lng, float $radiusMeters)
     {
+        $radiusKm = $radiusMeters / 1000;
+
         $haversine = "(6371 * acos(
             cos(radians(?))
             * cos(radians(competition_locations.latitude))
@@ -723,7 +722,7 @@ class MiniTournament extends Model
             ->select('mini_tournaments.*')
             ->selectRaw("
                 (
-                    6371 * acos(
+                    6371000 * acos(
                         cos(radians(?))
                         * cos(radians(competition_locations.latitude))
                         * cos(radians(competition_locations.longitude) - radians(?))

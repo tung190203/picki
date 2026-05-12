@@ -113,12 +113,14 @@ class CompetitionLocation extends Model
             );
     }
 
-    public function scopeNearBy($query, float $lat, float $lng, float $radiusKm = 5)
+    public function scopeNearBy($query, float $lat, float $lng, float $radiusMeters)
     {
-        $haversine = "(6371 * acos(cos(radians($lat)) 
-                * cos(radians(latitude)) 
-                * cos(radians(longitude) - radians($lng)) 
-                + sin(radians($lat)) 
+        $radiusKm = $radiusMeters / 1000;
+
+        $haversine = "(6371 * acos(cos(radians($lat))
+                * cos(radians(latitude))
+                * cos(radians(longitude) - radians($lng))
+                + sin(radians($lat))
                 * sin(radians(latitude))))";
 
         return $query->select('*')
@@ -132,7 +134,7 @@ class CompetitionLocation extends Model
             ->addSelect('*')
             ->addSelect(DB::raw("
                 (
-                    6371 * acos(
+                    6371000 * acos(
                         cos(radians($lat))
                         * cos(radians(latitude))
                         * cos(radians(longitude) - radians($lng))
@@ -143,5 +145,5 @@ class CompetitionLocation extends Model
             AS distance"))
             ->orderByRaw('(latitude IS NULL OR longitude IS NULL)')
             ->orderBy('distance', 'asc');
-    }    
+    }
 }

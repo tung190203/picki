@@ -33,8 +33,8 @@ class SearchFilterConfig
      * Null = tab doesn't support timeline filter.
      */
     public const TIMELINE_PER_TAB = [
-        self::TAB_MATCH      => [TimelineFilter::ALL, TimelineFilter::MINE, TimelineFilter::TODAY, TimelineFilter::TONIGHT, TimelineFilter::THIS_WEEK, TimelineFilter::THIS_MONTH],
-        self::TAB_TOURNAMENT => [TimelineFilter::ALL, TimelineFilter::MINE, TimelineFilter::TODAY, TimelineFilter::TONIGHT, TimelineFilter::THIS_WEEK, TimelineFilter::THIS_MONTH],
+        self::TAB_MATCH      => [TimelineFilter::ALL, TimelineFilter::MINE, TimelineFilter::TODAY, TimelineFilter::THIS_WEEK, TimelineFilter::THIS_MONTH],
+        self::TAB_TOURNAMENT => [TimelineFilter::ALL, TimelineFilter::MINE, TimelineFilter::TODAY, TimelineFilter::THIS_WEEK, TimelineFilter::THIS_MONTH],
         self::TAB_CLUB       => [TimelineFilter::ALL, TimelineFilter::MINE],
         self::TAB_USER        => [TimelineFilter::ALL, TimelineFilter::MINE],
         self::TAB_COURT       => [TimelineFilter::ALL],
@@ -49,17 +49,17 @@ class SearchFilterConfig
         self::TAB_MATCH => [
             ['key' => 'distance',     'label' => 'Khoảng cách',  'type' => 'range',        'options' => null],
             ['key' => 'rating',       'label' => 'Điểm rating',   'type' => 'range',        'options' => null],
-            ['key' => 'time_of_day',  'label' => 'Thời gian',      'type' => 'multi_select', 'options' => ['morning', 'afternoon', 'evening']],
-            ['key' => 'slot_status',  'label' => 'Tình trạng',   'type' => 'multi_select', 'options' => ['con_trong', 'da_day']],
-            ['key' => 'fee',          'label' => 'Phí',             'type' => 'multi_select', 'options' => ['free', 'paid']],
-            ['key' => 'type',         'label' => 'Loại',           'type' => 'multi_select', 'options' => ['single', 'double']],
+            ['key' => 'time_of_day',  'label' => 'Thời gian',      'type' => 'multi_select', 'options' => ['morning' => 'Sáng', 'afternoon' => 'Chiều', 'evening' => 'Tối']],
+            ['key' => 'slot_status',  'label' => 'Tình trạng',   'type' => 'multi_select', 'options' => ['con_trong' => 'Còn trống', 'da_day' => 'Đã đầy']],
+            ['key' => 'fee',          'label' => 'Phí',             'type' => 'multi_select', 'options' => ['free' => 'Miễn phí', 'paid' => 'Có phí']],
+            ['key' => 'type',         'label' => 'Loại',           'type' => 'multi_select', 'options' => ['single' => 'Đánh đơn', 'double' => 'Đánh đôi']],
         ],
         self::TAB_TOURNAMENT => [
             ['key' => 'distance',     'label' => 'Khoảng cách',  'type' => 'range',        'options' => null],
             ['key' => 'rating',       'label' => 'Điểm rating',   'type' => 'range',        'options' => null],
-            ['key' => 'time_of_day',  'label' => 'Thời gian',      'type' => 'multi_select', 'options' => ['morning', 'afternoon', 'evening']],
-            ['key' => 'slot_status',  'label' => 'Tình trạng',    'type' => 'multi_select', 'options' => ['con_trong', 'da_day']],
-            ['key' => 'fee',          'label' => 'Phí',             'type' => 'multi_select', 'options' => ['free', 'paid']],
+            ['key' => 'time_of_day',  'label' => 'Thời gian',      'type' => 'multi_select', 'options' => ['morning' => 'Sáng', 'afternoon' => 'Chiều', 'evening' => 'Tối']],
+            ['key' => 'slot_status',  'label' => 'Tình trạng',    'type' => 'multi_select', 'options' => ['con_trong' => 'Còn trống', 'da_day' => 'Đã đầy']],
+            ['key' => 'fee',          'label' => 'Phí',             'type' => 'multi_select', 'options' => ['free' => 'Miễn phí', 'paid' => 'Có phí']],
         ],
         self::TAB_CLUB => [
             ['key' => 'distance',    'label' => 'Khoảng cách', 'type' => 'range',   'options' => null],
@@ -68,10 +68,8 @@ class SearchFilterConfig
         self::TAB_USER => [
             ['key' => 'distance',         'label' => 'Khoảng cách',    'type' => 'range',        'options' => null],
             ['key' => 'rating',           'label' => 'Điểm rating',     'type' => 'range',        'options' => null],
-            ['key' => 'gender',           'label' => 'Giới tính',        'type' => 'multi_select', 'options' => ['male', 'female', 'other']],
+            ['key' => 'gender',           'label' => 'Giới tính',        'type' => 'multi_select', 'options' => ['male' => 'Nam', 'female' => 'Nữ', 'other' => 'Khác']],
             ['key' => 'same_club_id',     'label' => 'Cùng câu lạc bộ', 'type' => 'boolean',      'options' => null],
-            ['key' => 'online_recently',  'label' => 'Đang online',     'type' => 'boolean',      'options' => null],
-            ['key' => 'sport_id',         'label' => 'Môn thể thao',     'type' => 'single_select','options' => null],
         ],
         self::TAB_COURT => [
             ['key' => 'distance',  'label' => 'Khoảng cách', 'type' => 'range', 'options' => null],

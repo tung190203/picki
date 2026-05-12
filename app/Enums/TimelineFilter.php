@@ -7,7 +7,6 @@ enum TimelineFilter: string
     case ALL = 'all';
     case MINE = 'mine';
     case TODAY = 'today';
-    case TONIGHT = 'tonight';
     case THIS_WEEK = 'this_week';
     case THIS_MONTH = 'this_month';
 
@@ -17,7 +16,6 @@ enum TimelineFilter: string
             self::ALL => 'Tất cả',
             self::MINE => 'Của tôi',
             self::TODAY => 'Hôm nay',
-            self::TONIGHT => 'Tối nay',
             self::THIS_WEEK => 'Tuần này',
             self::THIS_MONTH => 'Tháng này',
         };
@@ -27,7 +25,6 @@ enum TimelineFilter: string
     {
         return match ($this) {
             self::TODAY => 'Hôm nay',
-            self::TONIGHT => 'Tối nay',
             default => null,
         };
     }

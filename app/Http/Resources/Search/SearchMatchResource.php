@@ -35,7 +35,7 @@ class SearchMatchResource extends JsonResource
             'address'        => $location?->address,
             'lat'            => $location?->latitude,
             'lng'            => $location?->longitude,
-            'distance'       => $this->when(isset($this->distance), round($this->distance, 1)),
+            'distance'       => $this->when(isset($this->distance), (int) round($this->distance)),
             'marker_type'    => 'mini_tournament',
         ];
     }

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\TimelineFilter;
+use App\Models\Sport;
 use Illuminate\Foundation\Http\FormRequest;
 
 class SearchRequest extends FormRequest
@@ -63,6 +64,8 @@ class SearchRequest extends FormRequest
             'page'        => 1,
             'per_page'    => 15,
             'map_mode'    => false,
-        ], $validated);
+        ], $validated, [
+            'sport_id' => $this->input('sport_id', Sport::PICKLEBALL_ID),
+        ]);
     }
 }

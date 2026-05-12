@@ -274,8 +274,10 @@ class Club extends Model
             ->whereBetween('longitude', [$minLng, $maxLng]);
     }
 
-    public function scopeNearBy($query, float $lat, float $lng, float $radiusKm = 5)
+    public function scopeNearBy($query, float $lat, float $lng, float $radiusMeters)
     {
+        $radiusKm = $radiusMeters / 1000;
+
         $haversine = "(6371 * acos(cos(radians($lat))
                 * cos(radians(latitude))
                 * cos(radians(longitude) - radians($lng))
@@ -294,7 +296,7 @@ class Club extends Model
             ->select('*')
             ->selectRaw("
                 (
-                    6371 * acos(
+                    6371000 * acos(
                         cos(radians(?))
                         * cos(radians(latitude))
                         * cos(radians(longitude) - radians(?))

@@ -248,9 +248,6 @@ class Tournament extends Model
                     ->orWhereHas('participants', fn($p) => $p->where('user_id', $userId));
             }),
             'today' => $query->whereDate('start_date', now()->toDateString()),
-            'tonight' => $query->whereDate('start_date', now()->toDateString())
-                ->whereTime('start_date', '>=', '18:00:00')
-                ->whereTime('start_date', '<=', '23:59:59'),
             'this_week' => $query->whereBetween('start_date', [
                 now()->startOfWeek()->toDateString(),
                 now()->endOfWeek()->toDateString(),
@@ -582,8 +579,10 @@ class Tournament extends Model
               ->whereBetween('longitude', [$minLng, $maxLng]);
         });
     }
-    public function scopeNearBy($query, $lat, $lng, $radius)
+    public function scopeNearBy($query, $lat, $lng, float $radiusMeters)
     {
+        $radiusKm = $radiusMeters / 1000;
+
         $haversine = "(6371 * acos(
             cos(radians(?))
             * cos(radians(competition_locations.latitude))
@@ -592,12 +591,12 @@ class Tournament extends Model
             * sin(radians(competition_locations.latitude))
         ))";
 
-        return $query->whereHas('competitionLocation', function ($q) use ($haversine, $lat, $lng, $radius) {
+        return $query->whereHas('competitionLocation', function ($q) use ($haversine, $lat, $lng, $radiusKm) {
             $q->whereRaw("$haversine < ?", [
                 $lat,
                 $lng,
                 $lat,
-                $radius
+                $radiusKm
             ]);
         });
     }
@@ -611,7 +610,7 @@ class Tournament extends Model
             ->select('tournaments.*')
             ->selectRaw("
                 (
-                    6371 * acos(
+                    6371000 * acos(
                         cos(radians(?))
                         * cos(radians(competition_locations.latitude))
                         * cos(radians(competition_locations.longitude) - radians(?))

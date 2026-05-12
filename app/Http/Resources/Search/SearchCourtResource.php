@@ -25,7 +25,7 @@ class SearchCourtResource extends JsonResource
                 'name' => $s->name,
                 'icon' => $s->icon,
             ])),
-            'distance'     => $this->when(isset($this->distance), round($this->distance, 1)),
+            'distance'     => $this->when(isset($this->distance), (int) round($this->distance)),
             'marker_type'  => 'court',
         ];
     }

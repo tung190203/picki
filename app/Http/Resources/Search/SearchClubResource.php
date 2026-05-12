@@ -24,7 +24,7 @@ class SearchClubResource extends JsonResource
             'is_member' => (bool) ($this->is_member ?? false),
             'is_admin' => (bool) ($this->is_admin ?? false),
             'has_pending_request' => (bool) ($this->has_pending_request ?? false),
-            'distance' => $this->when(isset($this->distance), $this->distance),
+            'distance' => $this->when(isset($this->distance), (int) round($this->distance)),
             'marker_type' => 'club',
         ];
     }

@@ -18,7 +18,7 @@ class MapUserResource extends JsonResource
             'gender'     => $this->gender,
             'is_online'  => $this->is_online,
             'is_verified'=> (bool) $this->is_verified,
-            'distance'   => $this->when(isset($this->distance), round($this->distance, 1)),
+            'distance'   => $this->when(isset($this->distance), (int) round($this->distance)),
             'marker_type' => 'user',
         ];
     }

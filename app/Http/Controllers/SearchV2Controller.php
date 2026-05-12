@@ -17,7 +17,6 @@ use App\Models\User;
 use App\Services\SearchCacheService;
 use App\Services\SearchFilterConfig;
 use App\Services\SearchV2Service;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class SearchV2Controller extends Controller
@@ -29,9 +28,9 @@ class SearchV2Controller extends Controller
 
     /**
      * Unified search endpoint.
-     * GET /api/search/v2?tab=match&keyword=&time_filter=this_week&...
+     * GET /api/search/?tab=match&keyword=&time_filter=...
      *
-     * Also called by aliases:
+     * Alias routes (same handler, different default tab via route defaults):
      * - GET /api/matches/search  (tab=match)
      * - GET /api/clubs/search    (tab=club)
      * - GET /api/players/search  (tab=user)
@@ -64,38 +63,6 @@ class SearchV2Controller extends Controller
             'data' => $result['data'],
             'meta' => $result['meta'],
         ], 'Tìm kiếm thành công', 200);
-    }
-
-    /**
-     * Returns filter configuration for a given tab.
-     * GET /api/search/filters?tab=match
-     */
-    public function availableFilters(Request $request)
-    {
-        $tab = $request->input('tab', 'match');
-
-        if (!in_array($tab, SearchFilterConfig::getTabs(), true)) {
-            return ResponseHelper::error('Tab không hợp lệ.', 400);
-        }
-
-        return ResponseHelper::success([
-            'tabs'     => SearchFilterConfig::availableTabs(),
-            'config'   => SearchFilterConfig::getConfig($tab),
-            'hot_searches' => $this->cacheService->getHotSearches($tab),
-        ], 'Lấy cấu hình filter thành công', 200);
-    }
-
-    /**
-     * Returns popular/quick searches.
-     * GET /api/search/quick
-     */
-    public function quick(Request $request)
-    {
-        $tab = $request->input('tab', 'match');
-
-        return ResponseHelper::success([
-            'hot_searches' => $this->cacheService->getHotSearches($tab, 8),
-        ], 'Lấy tìm kiếm nhanh thành công', 200);
     }
 
     // -------------------------------------------------------------------------

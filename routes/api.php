@@ -128,8 +128,7 @@ Route::prefix('tournaments')->group(function () {
 
 // Search V2 API - Unified search endpoint
 Route::prefix('search')->group(function () {
-    Route::get('/v2', [SearchV2Controller::class, 'search']);
-    Route::get('/filters', [SearchV2Controller::class, 'availableFilters']);
+    Route::get('/', [SearchV2Controller::class, 'search']);
     Route::get('/quick', [SearchV2Controller::class, 'quick']);
 });
 
