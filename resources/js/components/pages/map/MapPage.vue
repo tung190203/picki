@@ -618,6 +618,22 @@
                                     </div>
                                 </template>
                             </div>
+
+                            <!-- Loại kèo -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Loại kèo</p>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <label v-for="item in clubTypeOptions" :key="item.value"
+                                        class="flex items-center gap-3 cursor-pointer relative select-none">
+                                        <input type="checkbox" v-model="selectedClubType" :value="item.value"
+                                            class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                            checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                        <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                            opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                        <span>{{ item.label }}</span>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1222,6 +1238,22 @@
                                     </div>
                                 </template>
                             </div>
+
+                            <!-- Loại giải -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Loại giải</p>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <label v-for="item in clubTypeOptions" :key="item.value"
+                                        class="flex items-center gap-3 cursor-pointer relative select-none">
+                                        <input type="checkbox" v-model="selectedClubType" :value="item.value"
+                                            class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                            checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                        <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                            opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                        <span>{{ item.label }}</span>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1403,6 +1435,13 @@ const selectedMatchType = ref([]); // ['single', 'double']
 const matchTypeOptions = [
     { label: 'Đánh đơn', value: 'single' },
     { label: 'Đánh đôi', value: 'double' },
+];
+
+// Club type filter (match + tournament)
+const selectedClubType = ref([]); // ['thuong', 'clb']
+const clubTypeOptions = [
+    { label: 'Kèo thường', value: 'thuong' },
+    { label: 'Kèo CLB',    value: 'clb' },
 ];
 
 // Shared filter state
@@ -1636,6 +1675,7 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
         slotStatus: tab === 'match' || tab === 'tournament' ? selectedSlotStatus.value : [],
         fee: tab === 'match' || tab === 'tournament' ? selectedFee.value : null,
         matchType: tab === 'match' ? selectedMatchType.value : null,
+        clubType: tab === 'match' || tab === 'tournament' ? selectedClubType.value : [],
         joinedOnly: joinedOnly.value,
         selectedGender: selectedGender.value,
         sameClubId: sameClubId.value,
@@ -1908,6 +1948,7 @@ const resetFilter = async () => {
     selectedSlotStatus.value = [];
     selectedFee.value = [];
     selectedMatchType.value = [];
+    selectedClubType.value = [];
 
     // Reset pagination
     miniMatchPage.value = 1;
