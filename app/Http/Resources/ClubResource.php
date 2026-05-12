@@ -63,6 +63,7 @@ class ClubResource extends JsonResource
                 ];
             }, null),
             'is_member' => true,
+            'is_joined' => $isMember,
             'has_pending_request' => $this->when(auth()->check(), fn () =>
                 ClubMember::where('club_id', $this->id)
                     ->where('user_id', auth()->id())
@@ -117,6 +118,7 @@ class ClubResource extends JsonResource
             'skill_level' => $skillLevel,
             'rank' => $this->rank ?? null,
             'is_member' => false,
+            'is_joined' => false,
             'has_pending_request' => auth()->check() && ClubMember::where('club_id', $this->id)
                 ->where('user_id', auth()->id())
                 ->where('membership_status', ClubMembershipStatus::Pending)

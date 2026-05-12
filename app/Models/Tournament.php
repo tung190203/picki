@@ -127,6 +127,15 @@ class Tournament extends Model
         return $this->hasMany(Participant::class, 'tournament_id');
     }
 
+    public function isJoinedBy(?int $userId): bool
+    {
+        if (!$userId) {
+            return false;
+        }
+
+        return $this->participants()->where('user_id', $userId)->exists();
+    }
+
     public function matches()
     {
         return $this->hasManyThrough(Matches::class, Group::class);

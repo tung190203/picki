@@ -309,6 +309,15 @@ class MiniTournament extends Model
         return $this->hasMany(MiniParticipant::class);
     }
 
+    public function isJoinedBy(?int $userId): bool
+    {
+        if (!$userId) {
+            return false;
+        }
+
+        return $this->participants()->where('user_id', $userId)->exists();
+    }
+
     public function sport()
     {
         return $this->belongsTo(Sport::class);

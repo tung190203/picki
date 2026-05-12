@@ -61,6 +61,8 @@ class SearchTournamentResource extends JsonResource
             'created_by' => new \App\Http\Resources\UserResource($this->whenLoaded('createdBy')),
             'distance'     => $this->when(isset($this->distance), (int) round($this->distance)),
             'marker_type'  => 'tournament',
+            // Membership
+            'is_joined'    => $this->isJoinedBy(auth()->id()),
         ];
     }
 

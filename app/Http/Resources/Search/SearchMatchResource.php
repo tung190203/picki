@@ -80,6 +80,8 @@ class SearchMatchResource extends JsonResource
             'is_dupr'      => (bool) ($this->is_dupr ?? false),
             'distance'     => $this->when(isset($this->distance), (int) round($this->distance)),
             'marker_type'  => 'mini_tournament',
+            // Membership
+            'is_joined'    => $this->isJoinedBy(auth()->id()),
         ];
     }
 

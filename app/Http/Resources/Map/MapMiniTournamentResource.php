@@ -34,6 +34,10 @@ class MapMiniTournamentResource extends JsonResource
             'address'       => $location?->address,
             'slot_status'   => $this->computeSlotStatus(),
             'distance'      => $this->when(isset($this->distance), (int) round($this->distance)),
+            'is_joined'     => auth()->check()
+                ? (($this->relationLoaded('participants') ? $this->participants : collect())
+                    ->contains('user_id', auth()->id()))
+                : false,
             'marker_type'   => 'mini_tournament',
         ];
     }
