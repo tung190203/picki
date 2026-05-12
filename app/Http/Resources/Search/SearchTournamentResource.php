@@ -12,6 +12,7 @@ class SearchTournamentResource extends JsonResource
         $location = $this->whenLoaded('competitionLocation');
         $club = $this->whenLoaded('club');
         $participants = $this->whenLoaded('participants');
+        $teams = $this->whenLoaded('teams');
 
         $participantsCount = (int) ($this->participants_count ?? $participants?->count() ?? 0);
 
@@ -57,6 +58,12 @@ class SearchTournamentResource extends JsonResource
                 'logo_url'      => $club->logo_url,
                 'members_count' => (int) ($club->members_count ?? 0),
             ] : null,
+            // Participated teams
+            'participated_teams' => $teams ? $teams->map(fn($team) => [
+                'id'    => $team->id,
+                'name'  => $team->name,
+                'avatar'=> $team->avatar,
+            ])->toArray() : [],
             // Created by
             'created_by' => new \App\Http\Resources\UserResource($this->whenLoaded('createdBy')),
             'distance'     => $this->when(isset($this->distance), (int) round($this->distance)),

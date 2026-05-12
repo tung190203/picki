@@ -80,7 +80,7 @@
             <!-- Avatar Group (Mock/Real) -->
             <div class="flex -space-x-2 overflow-hidden py-1"
               v-if="match.participants && match.participants.length > 0">
-              <img v-for="(p, idx) in match.participants.slice(0, 2)" :key="idx" :src="p.user.avatar_url || defaultImage"
+              <img v-for="(p, idx) in match.participants.slice(0, 2)" :key="idx" :src="p.avatar_url || defaultImage"
                 class="inline-block h-12 w-12 rounded-full ring-2 ring-white object-cover" />
               <div v-if="match.participants.length > 3"
                 class="flex items-center justify-center h-8 w-8 rounded-full ring-2 ring-white bg-red-50 text-[#D72D36] text-xs font-bold">

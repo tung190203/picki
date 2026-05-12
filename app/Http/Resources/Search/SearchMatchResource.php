@@ -52,12 +52,11 @@ class SearchMatchResource extends JsonResource
             'lng'            => $location?->longitude,
             // Participants
             'participants'   => $participants ? $participants->map(fn($p) => [
-                'id'   => $p->id,
-                'user' => $p->user ? [
-                    'id'         => $p->user->id,
-                    'full_name'  => $p->user->full_name,
-                    'avatar_url' => $p->user->avatar_url,
-                ] : null,
+                'id'         => $p->id,
+                'user_id'    => $p->user_id,
+                'full_name'  => $p->user?->full_name,
+                'avatar_url' => $p->user?->avatar_url,
+                'is_confirmed' => (bool) $p->is_confirmed,
             ])->toArray() : [],
             // Staff — organizers only
             'staff' => [

@@ -207,7 +207,8 @@ class Tournament extends Model
             'participants',
             'participants.user.sports.scores',
             'participants.guarantor',
-            'competitionLocation'
+            'competitionLocation',
+            'teams',
         ]);
     }
 
