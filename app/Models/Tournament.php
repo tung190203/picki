@@ -532,30 +532,22 @@ class Tournament extends Model
                 function ($q) use ($filters) {
                     $q->where(function ($subQuery) use ($filters) {
                         foreach($filters['slot_status'] as $slotStatus){
-                            if($slotStatus === 'one_slot') {
+                            if($slotStatus === 'con_trong') {
                                 $subQuery->orWhereRaw('(
                                     COALESCE(max_player, 0) - (
                                         SELECT COUNT(*)
                                         FROM participants
                                         WHERE participants.tournament_id = tournaments.id
                                     )
-                                ) >= 1');
-                            } elseif($slotStatus === 'two_slot') {
+                                ) > 0');
+                            } elseif($slotStatus === 'da_day') {
                                 $subQuery->orWhereRaw('(
                                     COALESCE(max_player, 0) - (
                                         SELECT COUNT(*)
                                         FROM participants
                                         WHERE participants.tournament_id = tournaments.id
                                     )
-                                ) >= 2');
-                            } elseif($slotStatus === 'full_slot') {
-                                $subQuery->orWhereRaw('(
-                                    COALESCE(max_player, 0) - (
-                                        SELECT COUNT(*)
-                                        FROM participants
-                                        WHERE participants.tournament_id = tournaments.id
-                                    )
-                                ) = 0');
+                                ) <= 0');
                             }
                         }
                     });

@@ -44,12 +44,6 @@ class MapMiniTournamentResource extends JsonResource
         $current = (int) ($this->participants_count ?? $this->participants?->count() ?? 0);
         $remaining = $max - $current;
 
-        if ($remaining <= 0) {
-            return 'full_slot';
-        }
-        if ($remaining === 1) {
-            return 'one_slot';
-        }
-        return 'two_slot';
+        return $remaining > 0 ? 'con_trong' : 'da_day';
     }
 }

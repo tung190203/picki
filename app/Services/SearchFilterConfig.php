@@ -50,7 +50,7 @@ class SearchFilterConfig
             ['key' => 'distance',     'label' => 'Khoảng cách',  'type' => 'range',        'options' => null],
             ['key' => 'rating',       'label' => 'Điểm rating',   'type' => 'range',        'options' => null],
             ['key' => 'time_of_day',  'label' => 'Thời gian',      'type' => 'multi_select', 'options' => ['morning', 'afternoon', 'evening']],
-            ['key' => 'slot_status',  'label' => 'Số chỗ trống',   'type' => 'multi_select', 'options' => ['one_slot', 'two_slot', 'full_slot']],
+            ['key' => 'slot_status',  'label' => 'Tình trạng',   'type' => 'multi_select', 'options' => ['con_trong', 'da_day']],
             ['key' => 'fee',          'label' => 'Phí',             'type' => 'multi_select', 'options' => ['free', 'paid']],
             ['key' => 'type',         'label' => 'Loại',           'type' => 'multi_select', 'options' => ['single', 'double']],
         ],
@@ -58,7 +58,7 @@ class SearchFilterConfig
             ['key' => 'distance',     'label' => 'Khoảng cách',  'type' => 'range',        'options' => null],
             ['key' => 'rating',       'label' => 'Điểm rating',   'type' => 'range',        'options' => null],
             ['key' => 'time_of_day',  'label' => 'Thời gian',      'type' => 'multi_select', 'options' => ['morning', 'afternoon', 'evening']],
-            ['key' => 'slot_status',  'label' => 'Số chỗ trống',   'type' => 'multi_select', 'options' => ['one_slot', 'two_slot', 'full_slot']],
+            ['key' => 'slot_status',  'label' => 'Tình trạng',    'type' => 'multi_select', 'options' => ['con_trong', 'da_day']],
             ['key' => 'fee',          'label' => 'Phí',             'type' => 'multi_select', 'options' => ['free', 'paid']],
         ],
         self::TAB_CLUB => [
