@@ -550,6 +550,20 @@ class Tournament extends Model
                     });
                 }
             )
+            ->when(
+                !empty($filters['club_type']) && is_array($filters['club_type']),
+                function ($q) use ($filters) {
+                    $q->where(function ($subQuery) use ($filters) {
+                        foreach ($filters['club_type'] as $clubType) {
+                            if ($clubType === 'thuong') {
+                                $subQuery->orWhereNull('club_id');
+                            } elseif ($clubType === 'clb') {
+                                $subQuery->orWhereNotNull('club_id');
+                            }
+                        }
+                    });
+                }
+            )
             ->when(true, function ($q){
                 $userId = auth()->id();
 

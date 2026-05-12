@@ -317,10 +317,6 @@ class Club extends Model
                 fn($q) => $q->where('name', 'like', '%' . $filters['keyword'] . '%')
             )
             ->when(
-                !empty($filters['location_id']),
-                fn($q) => $q->where('location_id', $filters['location_id'])
-            )
-            ->when(
                 isset($filters['joined_only']) && $filters['joined_only'] === true,
                 fn($q) => $q->whereHas('members', fn($m) => $m
                     ->where('user_id', auth()->id())

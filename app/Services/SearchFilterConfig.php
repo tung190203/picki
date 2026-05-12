@@ -53,6 +53,7 @@ class SearchFilterConfig
             ['key' => 'slot_status',  'label' => 'Tình trạng',   'type' => 'multi_select', 'options' => ['con_trong' => 'Còn trống', 'da_day' => 'Đã đầy']],
             ['key' => 'fee',          'label' => 'Phí',             'type' => 'multi_select', 'options' => ['free' => 'Miễn phí', 'paid' => 'Có phí']],
             ['key' => 'type',         'label' => 'Loại',           'type' => 'multi_select', 'options' => ['single' => 'Đánh đơn', 'double' => 'Đánh đôi']],
+            ['key' => 'club_type',    'label' => 'Loại kèo',      'type' => 'multi_select', 'options' => ['thuong' => 'Kèo thường', 'clb' => 'Kèo CLB']],
         ],
         self::TAB_TOURNAMENT => [
             ['key' => 'distance',     'label' => 'Khoảng cách',  'type' => 'range',        'options' => null],
@@ -60,6 +61,7 @@ class SearchFilterConfig
             ['key' => 'time_of_day',  'label' => 'Thời gian',      'type' => 'multi_select', 'options' => ['morning' => 'Sáng', 'afternoon' => 'Chiều', 'evening' => 'Tối']],
             ['key' => 'slot_status',  'label' => 'Tình trạng',    'type' => 'multi_select', 'options' => ['con_trong' => 'Còn trống', 'da_day' => 'Đã đầy']],
             ['key' => 'fee',          'label' => 'Phí',             'type' => 'multi_select', 'options' => ['free' => 'Miễn phí', 'paid' => 'Có phí']],
+            ['key' => 'club_type',    'label' => 'Loại giải',     'type' => 'multi_select', 'options' => ['thuong' => 'Giải thường', 'clb' => 'Giải CLB']],
         ],
         self::TAB_CLUB => [
             ['key' => 'distance',    'label' => 'Khoảng cách', 'type' => 'range',   'options' => null],

@@ -634,6 +634,20 @@ class MiniTournament extends Model
                     });
                 }
             )
+            ->when(
+                !empty($filter['club_type']) && is_array($filter['club_type']),
+                function ($q) use ($filter) {
+                    $q->where(function ($subQuery) use ($filter) {
+                        foreach ($filter['club_type'] as $clubType) {
+                            if ($clubType === 'thuong') {
+                                $subQuery->orWhereNull('club_id');
+                            } elseif ($clubType === 'clb') {
+                                $subQuery->orWhereNotNull('club_id');
+                            }
+                        }
+                    });
+                }
+            )
             ->when(true, function ($q) {
                 $userId = auth()->id();
 
