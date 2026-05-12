@@ -127,6 +127,24 @@ class Tournament extends Model
         return $this->hasMany(Participant::class, 'tournament_id');
     }
 
+    public function isJoinedBy(?int $userId): bool
+    {
+        if (!$userId) {
+            return false;
+        }
+
+        return $this->participants()->where('user_id', $userId)->where('is_confirmed', 1)->exists();
+    }
+
+    public function isRegisteredBy(?int $userId): bool
+    {
+        if (!$userId) {
+            return false;
+        }
+
+        return $this->participants()->where('user_id', $userId)->exists();
+    }
+
     public function matches()
     {
         return $this->hasManyThrough(Matches::class, Group::class);
@@ -189,7 +207,8 @@ class Tournament extends Model
             'participants',
             'participants.user.sports.scores',
             'participants.guarantor',
-            'competitionLocation'
+            'competitionLocation',
+            'teams',
         ]);
     }
 
@@ -443,24 +462,24 @@ class Tournament extends Model
                 )
             )
             ->when(
+                !empty($filters['competition_location_id']),
+                fn($q) => $q->where('competition_location_id', $filters['competition_location_id'])
+            )
+            ->when(
                 !empty($filters['location_id']),
                 fn($q) => $q->whereHas(
                     'competitionLocation',
-                    fn($lq) => $lq->where('id', $filters['location_id'])
+                    fn($lq) => $lq->where('location_id', $filters['location_id'])
                 )
             )
             ->when(
                 !empty($filters['keyword']),
                 fn($q) => $q->where(function ($kq) use ($filters){
                     $kq->where('tournaments.name', 'like', '%' . $filters['keyword'] . '%')
-                    ->orWhereHas('competitionLocation', function ($clq) use ($filters) {
-                        $clq->where('competition_locations.name', 'like', '%' . $filters['keyword'] . '%')
-                            ->orWhere('competition_locations.address', 'like', '%' . $filters['keyword'] . '%')
-                            ->orWhereHas(
-                                'location',
-                                fn($llq) => $llq->where('locations.name', 'like', '%' . $filters['keyword'] . '%')
-                            );
-                    });
+                        ->orWhereHas('competitionLocation', function ($clq) use ($filters) {
+                            $clq->where('competition_locations.name', 'like', '%' . $filters['keyword'] . '%')
+                                ->orWhere('competition_locations.address', 'like', '%' . $filters['keyword'] . '%');
+                        });
                 })
             )
             ->when(
@@ -593,10 +612,8 @@ class Tournament extends Model
               ->whereBetween('longitude', [$minLng, $maxLng]);
         });
     }
-    public function scopeNearBy($query, $lat, $lng, float $radiusMeters)
+    public function scopeNearBy($query, $lat, $lng, float $radiusKm)
     {
-        $radiusKm = $radiusMeters / 1000;
-
         $haversine = "(6371 * acos(
             cos(radians(?))
             * cos(radians(competition_locations.latitude))
@@ -605,14 +622,13 @@ class Tournament extends Model
             * sin(radians(competition_locations.latitude))
         ))";
 
-        return $query->whereHas('competitionLocation', function ($q) use ($haversine, $lat, $lng, $radiusKm) {
-            $q->whereRaw("$haversine < ?", [
-                $lat,
-                $lng,
-                $lat,
-                $radiusKm
-            ]);
-        });
+        return $query
+            ->leftJoin('competition_locations', 'competition_locations.id', '=', 'tournaments.competition_location_id')
+            ->select('tournaments.*')
+            ->selectRaw("$haversine AS distance", [$lat, $lng, $lat])
+            ->whereRaw("$haversine <= ?", [$lat, $lng, $lat, $radiusKm])
+            ->orderByRaw('competition_locations.latitude IS NULL OR competition_locations.longitude IS NULL')
+            ->orderBy('distance', 'asc');
     }
     public function scopeOrderByDistanceFromLocation(
         Builder $query,
@@ -624,7 +640,7 @@ class Tournament extends Model
             ->select('tournaments.*')
             ->selectRaw("
                 (
-                    6371000 * acos(
+                    6371 * acos(
                         cos(radians(?))
                         * cos(radians(competition_locations.latitude))
                         * cos(radians(competition_locations.longitude) - radians(?))

@@ -76,6 +76,14 @@ class MiniTournamentResource extends JsonResource
             'duration' => $this->duration,
 
             'competition_location' => new CompetitionLocationResource($this->whenLoaded('competitionLocation')),
+            'created_by' => $this->whenLoaded('creator', function () {
+                return [
+                    'id' => $this->creator->id,
+                    'name' => $this->creator->full_name,
+                    'avatar_url' => $this->creator->avatar_url,
+                    'gender' => $this->creator->gender,
+                ];
+            }),
             'is_private' => $this->is_private,
 
             // Updated fee fields
@@ -139,6 +147,11 @@ class MiniTournamentResource extends JsonResource
             'use_club_fund' => $this->use_club_fund,
             'included_in_club_fund' => $this->included_in_club_fund,
             'club_fund_collection_id' => $this->club_fund_collection_id,
+
+            // Current user participation
+            'is_joined' => auth()->check()
+                ? $participants->contains('user_id', auth()->id())
+                : false,
         ];
 
         // Include game rule fields only if apply_rule is true

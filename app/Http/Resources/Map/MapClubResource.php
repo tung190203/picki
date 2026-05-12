@@ -19,6 +19,11 @@ class MapClubResource extends JsonResource
             'is_public'    => (bool) ($this->is_public ?? true),
             'is_verified'  => (bool) $this->is_verified,
             'members_count' => (int) ($this->activeMembers_count ?? $this->activeMembers?->count() ?? 0),
+            'is_joined'     => auth()->check()
+                ? ($this->relationLoaded('activeMembers')
+                    ? $this->activeMembers->contains('user_id', auth()->id())
+                    : false)
+                : false,
             'distance' => $this->when(isset($this->distance), (int) round($this->distance)),
             'marker_type' => 'club',
         ];

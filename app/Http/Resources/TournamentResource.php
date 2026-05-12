@@ -73,6 +73,8 @@ class TournamentResource extends JsonResource
                 return [
                     'id' => $this->createdBy->id,
                     'name' => $this->createdBy->full_name,
+                    'avatar_url' => $this->createdBy->avatar_url,
+                    'gender' => $this->createdBy->gender,
                 ];
             }),
             'club' => $this->whenLoaded('club', function () {
