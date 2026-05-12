@@ -17,7 +17,8 @@
                             </button>
                         </div>
                     </div>
-                    <div class="px-4 py-3 border-gray-100">
+                    <div class="px-4 py-3 border-gray-100 space-y-2">
+                        <!-- Tab chips -->
                         <div class="grid grid-cols-3 gap-2">
                             <button v-for="tab in tabs" :key="tab.id" @click="activeTab = tab.id" :class="[
                                 'flex items-center justify-center gap-1 w-full py-2 rounded border text-sm font-medium transition-all',
@@ -36,6 +37,49 @@
                                 {{ tab.label }}
                             </button>
                         </div>
+
+                        <!-- Timeline chips (only for tabs that support them) -->
+                        <div v-if="timelineOptions.length > 1" class="flex gap-2 overflow-x-auto pb-0.5">
+                            <button
+                                v-for="opt in timelineOptions"
+                                :key="opt.value"
+                                @click="selectTimeFilter(opt.value)"
+                                :class="[
+                                    'flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-all whitespace-nowrap',
+                                    timeFilter === opt.value
+                                        ? 'bg-[#D72D36] text-white border-[#D72D36]'
+                                        : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                                ]"
+                            >
+                                {{ opt.label }}
+                                <span v-if="opt.badge" :class="[
+                                    'ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold',
+                                    timeFilter === opt.value ? 'bg-white/20 text-white' : 'bg-red-50 text-[#D72D36]'
+                                ]">
+                                    {{ opt.badge }}
+                                </span>
+                            </button>
+                        </div>
+
+                        <!-- Match sub-tabs (only for match tab) -->
+                        <div v-if="activeTab === 'match'" class="grid grid-cols-2 gap-2">
+                            <button @click="activeMatchTab = 'mini'" :class="[
+                                'py-1.5 text-sm font-medium rounded transition-colors',
+                                activeMatchTab === 'mini'
+                                    ? 'bg-red-50 text-[#D72D36] border border-[#D72D36]'
+                                    : 'text-gray-500 hover:bg-gray-50 border'
+                            ]">
+                                Kèo đấu
+                            </button>
+                            <button @click="activeMatchTab = 'tournament'" :class="[
+                                'py-1.5 text-sm font-medium rounded transition-colors',
+                                activeMatchTab === 'tournament'
+                                    ? 'bg-red-50 text-[#D72D36] border border-[#D72D36]'
+                                    : 'text-gray-500 hover:bg-gray-50 border'
+                            ]">
+                                Giải đấu
+                            </button>
+                        </div>
                     </div>
 
                     <div class="px-4 pt-3 pb-2">
@@ -44,48 +88,28 @@
 
                     <div class="flex-1 overflow-y-auto px-4 py-1" @scroll="handleScroll">
                         <div class="space-y-3">
-                            <template v-if="activeTab === 'courts'">
-                                <CourtListItem v-for="court in displayedListData" :key="court.id" :court="court"
-                                    :selected="selectedCourt" :defaultImage="defaultImage" :toHourMinute="toHourMinute"
+                            <template v-if="activeTab === 'court'">
+                                <CourtListItem v-for="court in displayedListData" :key="court.competition_location?.id" :court="court"
+                                    :selected="selectedCourt?.competition_location?.id" :defaultImage="defaultImage" :toHourMinute="toHourMinute"
                                     @select="focusItemAuto" />
                             </template>
-                            <template v-else-if="activeTab === 'match'">
-                                <!-- Sub tabs -->
-                                <div class="grid grid-cols-2 gap-2 mb-3">
-                                    <button @click="activeMatchTab = 'mini'" :class="[
-                                        'py-1.5 text-sm font-medium rounded transition-colors',
-                                        activeMatchTab === 'mini' 
-                                            ? 'bg-red-50 text-[#D72D36] border border-[#D72D36]'
-                                            : 'text-gray-500 hover:bg-gray-50 border'
-                                    ]">
-                                        Kèo đấu
-                                    </button>
-                                    <button @click="activeMatchTab = 'tournament'" :class="[
-                                        'py-1.5 text-sm font-medium rounded transition-colors',
-                                        activeMatchTab === 'tournament'
-                                            ? 'bg-red-50 text-[#D72D36] border border-[#D72D36]'
-                                            : 'text-gray-500 hover:bg-gray-50 border'
-                                    ]">
-                                        Giải đấu
-                                    </button>
-                                </div>
-
+                            <template v-else-if="activeTab === 'match' || activeTab === 'tournament'">
                                 <MatchListItem v-for="(match, index) in displayedListData" :key="match.id ?? index"
                                     :match="match" :selected="selectedMatches" @select="focusItemAuto" :defaultImage="defaultImage"/>
                             </template>
-                            <template v-else-if="activeTab === 'players'">
+                            <template v-else-if="activeTab === 'user'">
                                 <UserListItem v-for="user in displayedListData" :key="user.id" :user="user"
                                     :selected="selectedUser" :defaultImage="defaultImage" :maleIcon="maleIcon"
                                     :femaleIcon="femaleIcon" :getUserRating="getUserRating"
                                     :getVisibilityText="getVisibilityText" @select="focusItemAuto" />
                             </template>
-                            <template v-else-if="activeTab === 'clubs'">
+                            <template v-else-if="activeTab === 'club'">
                                 <ClubListItem v-for="club in displayedListData" :key="club.id" :club="club"
                                     :selected="selectedClubItem" :defaultImage="defaultImage"
                                     @select="focusItemAuto" />
                             </template>
 
-                            <div v-if="activeTab === 'match' && isLoadingMoreMatches" class="text-center py-4 text-sm text-gray-500">
+                            <div v-if="(activeTab === 'match' || activeTab === 'tournament') && isLoadingMoreMatches" class="text-center py-4 text-sm text-gray-500">
                                 <div class="flex items-center justify-center gap-2">
                                     <svg class="animate-spin h-4 w-4 text-[#4392E0]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -94,12 +118,13 @@
                                     <span>Đang tải thêm...</span>
                                 </div>
                             </div>
-                            <div v-else-if="activeTab !== 'match' && visibleItems < listData.length" class="text-center py-2 text-sm text-gray-500">
+                            <div v-else-if="activeTab !== 'match' && activeTab !== 'tournament' && visibleItems < listData.length" class="text-center py-2 text-sm text-gray-500">
                                 Đang tải thêm...
                             </div>
-                            <div v-else-if="activeTab === 'match' && !isLoadingMoreMatches && 
-                                ((activeMatchTab === 'mini' && miniMatchPage >= miniMatchLastPage) || 
-                                 (activeMatchTab === 'tournament' && tournamentPage >= tournamentLastPage)) && 
+                            <div v-else-if="(activeTab === 'match' || activeTab === 'tournament') &&
+                                !isLoadingMoreMatches &&
+                                ((activeMatchTab === 'mini' && miniMatchPage >= miniMatchLastPage) ||
+                                 (activeMatchTab === 'tournament' && tournamentPage >= tournamentLastPage)) &&
                                 listData.length > 0" class="text-center py-4 text-sm text-gray-500">
                                 Đã hiển thị tất cả
                             </div>
@@ -141,7 +166,7 @@
             </div>
         </Transition>
 
-        <template v-if="activeTab === 'courts'">
+        <template v-if="activeTab === 'court'">
             <Transition enter-active-class="transition ease-out duration-300" enter-from-class="translate-x-full"
                 enter-to-class="translate-x-0" leave-active-class="transition ease-in duration-200"
                 leave-from-class="translate-x-0" leave-to-class="translate-x-full">
@@ -379,8 +404,9 @@
                 enter-to-class="translate-x-0" leave-active-class="transition ease-in duration-200"
                 leave-from-class="translate-x-0" leave-to-class="translate-x-full">
                 <div v-if="isFilterModalOpen"
-                    class="fixed inset-y-0 right-4 z-[10000] w-full max-w-sm h-[95vh] mt-6 bg-white shadow-xl overflow-y-auto transform flex flex-col rounded-md">
-                    <div class="px-4 pt-4 flex justify-between items-center sticky top-0 bg-white z-10">
+                    class="fixed inset-y-0 right-4 z-[10000] w-full max-w-sm h-[95vh] mt-6 bg-white shadow-xl rounded-md flex flex-col">
+                    <!-- ===== HEADER ===== -->
+                    <div class="px-4 pt-4 pb-3 flex justify-between items-center border-b bg-white rounded-tl-md rounded-tr-md">
                         <h3 class="text-2xl font-semibold text-gray-900">
                             Trình lọc trận đấu
                         </h3>
@@ -389,52 +415,227 @@
                             <XMarkIcon class="w-6 h-6" />
                         </button>
                     </div>
-                    <div class="px-4 pb-4 border-b sticky top-0 bg-white z-10">
-                        <h3 class="text-xl text-gray-900">
-                            Bộ môn thể thao
-                        </h3>
-                        <div class="mt-4 flex gap-2 font-semibold">
-                            <div
-                                class="px-6 py-2 rounded-full bg-[#D72D36] border inline-block text-white text-sm cursor-pointer">
-                                Bóng đá
+
+                    <div class="flex-1 overflow-y-auto">
+                        <!-- Sport selector -->
+                        <div class="px-4 py-4 border-b bg-white">
+                            <h3 class="text-xl text-gray-900 mb-4">
+                                Bộ môn thể thao
+                            </h3>
+                            <Swiper :slides-per-view="'auto'" :space-between="8" :freeMode="true"
+                                :mousewheel="{ forceToAxis: true }" :modules="modules" class="mt-2 !pb-2">
+                                <SwiperSlide v-for="sport in sports" :key="sport.id" class="!w-auto">
+                                    <div @click="selectedSportId = sport.id" :class="[
+                                        'px-6 py-2 rounded-full text-sm font-semibold cursor-pointer transition select-none whitespace-nowrap flex items-center gap-2',
+                                        selectedSportId === sport.id
+                                            ? 'bg-[#D72D36] text-white border border-[#D72D36]'
+                                            : 'border border-[#BBBFCC] bg-white text-gray-700 hover:border-gray-400'
+                                    ]">
+                                        <img v-if="sport.icon" :src="sport.icon" class="w-4 h-4"
+                                            :class="{ 'filter brightness-0 invert': selectedSportId === sport.id }"
+                                            draggable="false" />
+                                        {{ sport.name }}
+                                    </div>
+                                </SwiperSlide>
+                            </Swiper>
+                        </div>
+
+                        <div class="p-4 space-y-6">
+                            <!-- Xung quanh -->
+                            <div class="flex justify-between items-center">
+                                <p class="font-medium text-gray-900 text-xl">Xung quanh bạn</p>
+                                <div class="relative">
+                                    <button @click="isRadiusDropdownOpen = !isRadiusDropdownOpen"
+                                        class="text-[#207AD5] flex items-center gap-1 cursor-pointer font-semibold">
+                                        <p>{{ selectedRadiusLabel }}</p>
+                                        <ChevronRightIcon class="w-4 h-4 transition-transform"
+                                            :class="{ 'rotate-90': isRadiusDropdownOpen }" />
+                                    </button>
+                                    <Transition enter-active-class="transition ease-out duration-100"
+                                        enter-from-class="opacity-0 scale-95" enter-to-class="opacity-100 scale-100"
+                                        leave-active-class="transition ease-in duration-75"
+                                        leave-from-class="opacity-100 scale-100" leave-to-class="opacity-0 scale-95">
+                                        <div v-if="isRadiusDropdownOpen"
+                                            class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                                            <div class="py-1">
+                                                <button v-for="option in radiusOptions" :key="option.value"
+                                                    @click="selectRadius(option)"
+                                                    :disabled="selectedRadiusValue === option.value" :class="[
+                                                        'w-full text-left px-4 py-2 text-sm',
+                                                        selectedRadiusValue === option.value
+                                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                            : 'text-gray-700 hover:bg-gray-50 cursor-pointer'
+                                                    ]">
+                                                    {{ option.label }}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </Transition>
+                                </div>
                             </div>
-                            <div
-                                class="px-6 py-2 rounded-full border border-[#BBBFCC] bg-white inline-block text-sm cursor-pointer">
-                                Tennis
+
+                            <!-- Khu vực -->
+                            <div class="flex justify-between items-center">
+                                <p class="font-medium text-gray-900 text-xl">Khu vực</p>
+                                <div class="relative">
+                                    <button @click="isLocationDropdownOpen = !isLocationDropdownOpen"
+                                        class="text-[#207AD5] flex items-center gap-1 cursor-pointer font-semibold">
+                                        <p>{{ selectedLocationLabel }}</p>
+                                        <ChevronRightIcon class="w-4 h-4 transition-transform"
+                                            :class="{ 'rotate-90': isLocationDropdownOpen }" />
+                                    </button>
+                                    <Transition enter-active-class="transition ease-out duration-100"
+                                        enter-from-class="opacity-0 scale-95" enter-to-class="opacity-100 scale-100"
+                                        leave-active-class="transition ease-in duration-75"
+                                        leave-from-class="opacity-100 scale-100" leave-to-class="opacity-0 scale-95">
+                                        <div v-if="isLocationDropdownOpen"
+                                            class="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                                            <div class="p-2 border-b">
+                                                <div class="relative">
+                                                    <MagnifyingGlassIcon
+                                                        class="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                                                    <input v-model="locationSearchQuery" type="text"
+                                                        placeholder="Tìm kiếm địa điểm..."
+                                                        class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D72D36] focus:border-transparent" />
+                                                </div>
+                                            </div>
+                                            <div class="max-h-60 overflow-y-auto py-1">
+                                                <button @click="selectLocation(null)"
+                                                    :disabled="selectedLocationValue === null" :class="[
+                                                        'w-full text-left px-4 py-2 text-sm',
+                                                        selectedLocationValue === null
+                                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                            : 'text-gray-700 hover:bg-gray-50 cursor-pointer'
+                                                    ]">
+                                                    Chọn địa điểm
+                                                </button>
+                                                <button v-for="location in filteredLocations" :key="location.id"
+                                                    @click="selectLocation(location)"
+                                                    :disabled="selectedLocationValue === location.id" :class="[
+                                                        'w-full text-left px-4 py-2 text-sm',
+                                                        selectedLocationValue === location.id
+                                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                            : 'text-gray-700 hover:bg-gray-50 cursor-pointer'
+                                                    ]">
+                                                    {{ location.name }}
+                                                </button>
+                                                <div v-if="filteredLocations.length === 0"
+                                                    class="px-4 py-3 text-sm text-gray-500 text-center">
+                                                    Không tìm thấy địa điểm
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Transition>
+                                </div>
+                            </div>
+
+                            <!-- Trình độ -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Trình độ</p>
+                                <template v-if="ratingOptions.length">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <label v-for="item in ratingOptions" :key="item.value"
+                                            class="flex items-center gap-3 cursor-pointer relative select-none">
+                                            <input type="checkbox" v-model="selectedRating" :value="item.value"
+                                                class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                                checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                            <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                                opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                            <span>{{ item.label }}</span>
+                                        </label>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Thời gian chơi trong ngày -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Thời gian</p>
+                                <template v-if="timePlay.length">
+                                    <div class="grid grid-cols-1 gap-4">
+                                        <label v-for="item in timePlay" :key="item.value"
+                                            class="flex items-center gap-3 cursor-pointer relative select-none">
+                                            <input type="checkbox" v-model="selectedTimePlay" :value="item.value"
+                                                class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                                checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                            <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                                opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                            <span>{{ item.label }}</span>
+                                        </label>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Tình trạng -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Tình trạng</p>
+                                <template v-if="slotStatusOptions.length">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <label v-for="item in slotStatusOptions" :key="item.value"
+                                            class="flex items-center gap-3 cursor-pointer relative select-none">
+                                            <input type="checkbox" v-model="selectedSlotStatus" :value="item.value"
+                                                class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                                checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                            <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                                opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                            <span>{{ item.label }}</span>
+                                        </label>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Phí -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Phí</p>
+                                <template v-if="feeOptions.length">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <label v-for="item in feeOptions" :key="item.value"
+                                            class="flex items-center gap-3 cursor-pointer relative select-none">
+                                            <input type="checkbox" v-model="selectedFee" :value="item.value"
+                                                class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                                checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                            <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                                opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                            <span>{{ item.label }}</span>
+                                        </label>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Loại -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Loại</p>
+                                <template v-if="matchTypeOptions.length">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <label v-for="item in matchTypeOptions" :key="item.value"
+                                            class="flex items-center gap-3 cursor-pointer relative select-none">
+                                            <input type="checkbox" v-model="selectedMatchType" :value="item.value"
+                                                class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                                checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                            <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                                opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                            <span>{{ item.label }}</span>
+                                        </label>
+                                    </div>
+                                </template>
                             </div>
                         </div>
                     </div>
 
-                    <div class="flex-1 p-4 space-y-6">
-                        <div class="flex justify-between items-center">
-                            <p class="font-medium text-gray-900">Hiển thị sân bóng tôi theo dõi</p>
-                            <button @click="isShowMyFollow = !isShowMyFollow"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                :class="isShowMyFollow ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="isShowMyFollow ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <p class="font-medium text-gray-900">Xung quanh bạn</p>
-                        </div>
-                    </div>
-
-                    <div class="p-4 border-t sticky bottom-0 bg-white flex justify-between gap-3">
-                        <div class="flex items-center gap-2">
+                    <!-- ===== FOOTER ===== -->
+                    <div class="p-4 border-t bg-white flex justify-between gap-3 rounded-bl-md rounded-br-md">
+                        <div class="flex items-center gap-2 cursor-pointer" @click="resetFilter">
                             <p>Làm mới</p>
-                            <ArrowPathIcon class="w-5 h-5 text-[#4392E0] cursor-pointer"
-                                :class="{ 'animate-spin-once': spinning }" @click="refresh" />
+                            <ArrowPathIcon class="w-5 h-5 text-[#4392E0]" :class="{ 'animate-spin': spinning }" />
                         </div>
                         <button @click="applyFilter"
-                            class="px-4 py-2 text-sm font-medium text-white bg-[#D72D36] rounded-md hover:bg-[#c22830] transition-colors">
-                            Áp dụng Lọc
+                            class="px-8 py-2 text-sm font-medium text-white bg-[#D72D36] rounded-full hover:bg-[#c22830]">
+                            Lọc
                         </button>
                     </div>
                 </div>
             </Transition>
         </template>
-        <template v-else-if="activeTab === 'players'">
+        <template v-else-if="activeTab === 'user'">
             <Transition enter-active-class="transition ease-out duration-300" enter-from-class="translate-x-full"
                 enter-to-class="translate-x-0" leave-active-class="transition ease-in duration-200"
                 leave-from-class="translate-x-0" leave-to-class="translate-x-full">
@@ -815,6 +1016,229 @@
                 </div>
             </Transition>
         </template>
+        <template v-else-if="activeTab === 'tournament'">
+            <Transition enter-active-class="transition ease-out duration-300" enter-from-class="translate-x-full"
+                enter-to-class="translate-x-0" leave-active-class="transition ease-in duration-200"
+                leave-from-class="translate-x-0" leave-to-class="translate-x-full">
+                <div v-if="isFilterModalOpen"
+                    class="fixed inset-y-0 right-4 z-[10000] w-full max-w-sm h-[95vh] mt-6 bg-white shadow-xl rounded-md flex flex-col">
+                    <!-- ===== HEADER ===== -->
+                    <div class="px-4 pt-4 pb-3 flex justify-between items-center border-b bg-white rounded-tl-md rounded-tr-md">
+                        <h3 class="text-2xl font-semibold text-gray-900">
+                            Trình lọc giải đấu
+                        </h3>
+                        <button @click="closeFilterModal"
+                            class="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-100">
+                            <XMarkIcon class="w-6 h-6" />
+                        </button>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto">
+                        <!-- Sport selector -->
+                        <div class="px-4 py-4 border-b bg-white">
+                            <h3 class="text-xl text-gray-900 mb-4">
+                                Bộ môn thể thao
+                            </h3>
+                            <Swiper :slides-per-view="'auto'" :space-between="8" :freeMode="true"
+                                :mousewheel="{ forceToAxis: true }" :modules="modules" class="mt-2 !pb-2">
+                                <SwiperSlide v-for="sport in sports" :key="sport.id" class="!w-auto">
+                                    <div @click="selectedSportId = sport.id" :class="[
+                                        'px-6 py-2 rounded-full text-sm font-semibold cursor-pointer transition select-none whitespace-nowrap flex items-center gap-2',
+                                        selectedSportId === sport.id
+                                            ? 'bg-[#D72D36] text-white border border-[#D72D36]'
+                                            : 'border border-[#BBBFCC] bg-white text-gray-700 hover:border-gray-400'
+                                    ]">
+                                        <img v-if="sport.icon" :src="sport.icon" class="w-4 h-4"
+                                            :class="{ 'filter brightness-0 invert': selectedSportId === sport.id }"
+                                            draggable="false" />
+                                        {{ sport.name }}
+                                    </div>
+                                </SwiperSlide>
+                            </Swiper>
+                        </div>
+
+                        <div class="p-4 space-y-6">
+                            <!-- Xung quanh -->
+                            <div class="flex justify-between items-center">
+                                <p class="font-medium text-gray-900 text-xl">Xung quanh bạn</p>
+                                <div class="relative">
+                                    <button @click="isRadiusDropdownOpen = !isRadiusDropdownOpen"
+                                        class="text-[#207AD5] flex items-center gap-1 cursor-pointer font-semibold">
+                                        <p>{{ selectedRadiusLabel }}</p>
+                                        <ChevronRightIcon class="w-4 h-4 transition-transform"
+                                            :class="{ 'rotate-90': isRadiusDropdownOpen }" />
+                                    </button>
+                                    <Transition enter-active-class="transition ease-out duration-100"
+                                        enter-from-class="opacity-0 scale-95" enter-to-class="opacity-100 scale-100"
+                                        leave-active-class="transition ease-in duration-75"
+                                        leave-from-class="opacity-100 scale-100" leave-to-class="opacity-0 scale-95">
+                                        <div v-if="isRadiusDropdownOpen"
+                                            class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                                            <div class="py-1">
+                                                <button v-for="option in radiusOptions" :key="option.value"
+                                                    @click="selectRadius(option)"
+                                                    :disabled="selectedRadiusValue === option.value" :class="[
+                                                        'w-full text-left px-4 py-2 text-sm',
+                                                        selectedRadiusValue === option.value
+                                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                            : 'text-gray-700 hover:bg-gray-50 cursor-pointer'
+                                                    ]">
+                                                    {{ option.label }}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </Transition>
+                                </div>
+                            </div>
+
+                            <!-- Khu vực -->
+                            <div class="flex justify-between items-center">
+                                <p class="font-medium text-gray-900 text-xl">Khu vực</p>
+                                <div class="relative">
+                                    <button @click="isLocationDropdownOpen = !isLocationDropdownOpen"
+                                        class="text-[#207AD5] flex items-center gap-1 cursor-pointer font-semibold">
+                                        <p>{{ selectedLocationLabel }}</p>
+                                        <ChevronRightIcon class="w-4 h-4 transition-transform"
+                                            :class="{ 'rotate-90': isLocationDropdownOpen }" />
+                                    </button>
+                                    <Transition enter-active-class="transition ease-out duration-100"
+                                        enter-from-class="opacity-0 scale-95" enter-to-class="opacity-100 scale-100"
+                                        leave-active-class="transition ease-in duration-75"
+                                        leave-from-class="opacity-100 scale-100" leave-to-class="opacity-0 scale-95">
+                                        <div v-if="isLocationDropdownOpen"
+                                            class="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                                            <div class="p-2 border-b">
+                                                <div class="relative">
+                                                    <MagnifyingGlassIcon
+                                                        class="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                                                    <input v-model="locationSearchQuery" type="text"
+                                                        placeholder="Tìm kiếm địa điểm..."
+                                                        class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D72D36] focus:border-transparent" />
+                                                </div>
+                                            </div>
+                                            <div class="max-h-60 overflow-y-auto py-1">
+                                                <button @click="selectLocation(null)"
+                                                    :disabled="selectedLocationValue === null" :class="[
+                                                        'w-full text-left px-4 py-2 text-sm',
+                                                        selectedLocationValue === null
+                                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                            : 'text-gray-700 hover:bg-gray-50 cursor-pointer'
+                                                    ]">
+                                                    Chọn địa điểm
+                                                </button>
+                                                <button v-for="location in filteredLocations" :key="location.id"
+                                                    @click="selectLocation(location)"
+                                                    :disabled="selectedLocationValue === location.id" :class="[
+                                                        'w-full text-left px-4 py-2 text-sm',
+                                                        selectedLocationValue === location.id
+                                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                            : 'text-gray-700 hover:bg-gray-50 cursor-pointer'
+                                                    ]">
+                                                    {{ location.name }}
+                                                </button>
+                                                <div v-if="filteredLocations.length === 0"
+                                                    class="px-4 py-3 text-sm text-gray-500 text-center">
+                                                    Không tìm thấy địa điểm
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Transition>
+                                </div>
+                            </div>
+
+                            <!-- Trình độ -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Trình độ</p>
+                                <template v-if="ratingOptions.length">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <label v-for="item in ratingOptions" :key="item.value"
+                                            class="flex items-center gap-3 cursor-pointer relative select-none">
+                                            <input type="checkbox" v-model="selectedRating" :value="item.value"
+                                                class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                                checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                            <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                                opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                            <span>{{ item.label }}</span>
+                                        </label>
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <div class="text-gray-400 italic text-sm flex justify-center">
+                                        Tính năng đang phát triển
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Thời gian chơi trong ngày -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Thời gian</p>
+                                <template v-if="timePlay.length">
+                                    <div class="grid grid-cols-1 gap-4">
+                                        <label v-for="item in timePlay" :key="item.value"
+                                            class="flex items-center gap-3 cursor-pointer relative select-none">
+                                            <input type="checkbox" v-model="selectedTimePlay" :value="item.value"
+                                                class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                                checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                            <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                                opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                            <span>{{ item.label }}</span>
+                                        </label>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Tình trạng -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Tình trạng</p>
+                                <template v-if="slotStatusOptions.length">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <label v-for="item in slotStatusOptions" :key="item.value"
+                                            class="flex items-center gap-3 cursor-pointer relative select-none">
+                                            <input type="checkbox" v-model="selectedSlotStatus" :value="item.value"
+                                                class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                                checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                            <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                                opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                            <span>{{ item.label }}</span>
+                                        </label>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Phí -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Phí</p>
+                                <template v-if="feeOptions.length">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <label v-for="item in feeOptions" :key="item.value"
+                                            class="flex items-center gap-3 cursor-pointer relative select-none">
+                                            <input type="checkbox" v-model="selectedFee" :value="item.value"
+                                                class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                                checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                            <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                                opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                            <span>{{ item.label }}</span>
+                                        </label>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== FOOTER ===== -->
+                    <div class="p-4 border-t bg-white flex justify-between gap-3 rounded-bl-md rounded-br-md">
+                        <div class="flex items-center gap-2 cursor-pointer" @click="resetFilter">
+                            <p>Làm mới</p>
+                            <ArrowPathIcon class="w-5 h-5 text-[#4392E0]" :class="{ 'animate-spin': spinning }" />
+                        </div>
+                        <button @click="applyFilter"
+                            class="px-8 py-2 text-sm font-medium text-white bg-[#D72D36] rounded-full hover:bg-[#c22830]">
+                            Lọc
+                        </button>
+                    </div>
+                </div>
+            </Transition>
+        </template>
     </div>
 </template>
 
@@ -824,6 +1248,7 @@ import { useRouter } from 'vue-router';
 import { FunnelIcon, MagnifyingGlassIcon, XMarkIcon, ArrowPathIcon, ChevronRightIcon } from '@heroicons/vue/24/outline';
 import { toast } from 'vue3-toastify';
 import * as MapService from '@/service/map.js';
+import * as SearchService from '@/service/search.js';
 import * as UserService from '@/service/auth.js';
 import * as SportService from '@/service/sport.js';
 import * as LocationService from '@/service/location.js';
@@ -857,8 +1282,43 @@ const matchesMap = ref(new Map());
 const clubsMap = ref(new Map());
 const isInitialLoad = ref(true);
 const isLoadingMap = ref(false);
-const activeTab = ref('courts');
-const activeMatchTab = ref('mini'); // 'mini' (Kèo đấu) or 'tournament' (Giải đấu)
+
+// Tab state
+const activeTab = ref('match');
+const activeMatchTab = ref('mini');
+const timeFilter = ref('all');
+
+// Timeline options per tab — static config matching backend SearchFilterConfig
+const TIMELINE_OPTIONS = {
+    match: [
+        { value: 'all', label: 'Tất cả', badge: null },
+        { value: 'mine', label: 'Của tôi', badge: null },
+        { value: 'today', label: 'Hôm nay', badge: 'Hôm nay' },
+        { value: 'this_week', label: 'Tuần này', badge: null },
+        { value: 'this_month', label: 'Tháng này', badge: null },
+    ],
+    tournament: [
+        { value: 'all', label: 'Tất cả', badge: null },
+        { value: 'mine', label: 'Của tôi', badge: null },
+        { value: 'today', label: 'Hôm nay', badge: 'Hôm nay' },
+        { value: 'this_week', label: 'Tuần này', badge: null },
+        { value: 'this_month', label: 'Tháng này', badge: null },
+    ],
+    club: [
+        { value: 'all', label: 'Tất cả', badge: null },
+        { value: 'mine', label: 'Của tôi', badge: null },
+    ],
+    user: [
+        { value: 'all', label: 'Tất cả', badge: null },
+        { value: 'mine', label: 'Của tôi', badge: null },
+    ],
+    court: [
+        { value: 'all', label: 'Tất cả', badge: null },
+    ],
+};
+
+const timelineOptions = computed(() => TIMELINE_OPTIONS[activeTab.value] || []);
+
 const matchesMini = ref([]);
 const matchesTournament = ref([]);
 // Pagination state for matches
@@ -869,72 +1329,48 @@ const tournamentPerPage = ref(15);
 const miniMatchLastPage = ref(1);
 const tournamentLastPage = ref(1);
 const isLoadingMoreMatches = ref(false);
-const isShowMyFollow = ref(false);
-const isShowFavoritePlayer = ref(false);
-const isConnected = ref(false);
-const is_verify_profile = ref(false);
-const isHasAchievement = ref(false);
-const selectedCourt = ref(null);
-const selectedUser = ref(null);
-const selectedMatches = ref(null);
-const selectedClubItem = ref(null);
-const quantityCourts = ref(0);
-const quantityUsers = ref(0);
-const quantityMatches = ref(0);
-const quantityClubs = ref(0);
+
+// Shared state
 const sports = ref([]);
 const selectedSportId = ref(null);
 const isFilterModalOpen = ref(false);
 const spinning = ref(false);
-const searchCourt = ref('');
-const searchMatch = ref('');
-const searchUser = ref('');
-const searchClub = ref('');
+const searchKeyword = ref(''); // unified keyword for all tabs
+const lat = ref(null);
+const lng = ref(null);
+const radiusKm = ref(null); // km value when nearby is selected
+
+// Court-only state
+const isShowMyFollow = ref(false);
 const selectedCourtCounts = ref([]);
 const selectedCourtTypes = ref([]);
 const selectedFacilities = ref([]);
 const facilities = ref([]);
 const yardTypes = ref([]);
-const courtCounts = []; // Sau cho hiện sân thì thêm vào đây
+const courtCounts = []; // placeholder for court counts
 const matchesType = [];
 const modules = [FreeMode, Mousewheel];
 const visibleItems = ref(20);
 const itemsPerLoad = ref(10);
-const isRadiusDropdownOpen = ref(false);
-const selectedRadiusValue = ref(null);
-const selectedRadiusLabel = ref('Chọn');
-const userLocation = ref(null);
-const radiusOptions = [
-    { value: null, label: 'Tất cả' },
-    { value: 'nearby', label: 'Gần đây (20km)' }
-];
-const isLocationDropdownOpen = ref(false);
-const selectedLocationValue = ref(null);
-const selectedLocationLabel = ref('Chọn địa điểm');
-const locations = ref([]);
-const locationSearchQuery = ref('');
-const isGenderDropdownOpen = ref(false);
-const selectedGenderValue = ref(null);
-const selectedGenderLabel = ref('Tất cả');
+
+// Player-only state
+const isShowFavoritePlayer = ref(false);
+const isConnected = ref(false);
+const is_verify_profile = ref(false);
+const isHasAchievement = ref(false);
 const selectedTimePlay = ref([]);
 const selectedRating = ref([]);
 const selectedClub = ref([]);
 const isOnlineRecently = ref(false);
-const quantityMatchesHasPlayRecently = [
-    {
-        label: 'Ít',
-        value: 'low',
-    },
-    {
-        label: 'Trung bình',
-        value: 'medium',
-    },
-    {
-        label: 'Nhiều',
-        value: 'high',
-    },
-];
+const quantityMatchesHasPlayRecently = ref([
+    { label: 'Ít', value: 'low' },
+    { label: 'Trung bình', value: 'medium' },
+    { label: 'Nhiều', value: 'high' },
+]);
 const isQuantityMatcheshasPlayRecently = ref([]);
+const selectedGenderValue = ref(null);
+const selectedGenderLabel = ref('Tất cả');
+const selectedGender = ref(null); // 'male'|'female'|'other'|null for API
 const genderOptions = [
     { value: null, label: 'Tất cả' },
     { value: 1, label: 'Nam' },
@@ -942,57 +1378,83 @@ const genderOptions = [
     { value: 0, label: 'Khác' },
     { value: 3, label: 'Không tiết lộ' },
 ];
+const isGenderDropdownOpen = ref(false);
+const onlineRecently = [{ label: 'Online gần đây', value: false }];
 
+// Club-only state
+const joinedOnly = ref(false);
+const sameClubId = ref(null);
+
+// Tournament-only state
+const selectedSlotStatus = ref([]); // ['con_trong', 'da_day']
+const selectedFee = ref([]);         // ['free', 'paid']
+
+const slotStatusOptions = [
+    { label: 'Còn trống', value: 'con_trong' },
+    { label: 'Đã đầy',    value: 'da_day' },
+];
+const feeOptions = [
+    { label: 'Miễn phí', value: 'free' },
+    { label: 'Có phí',    value: 'paid' },
+];
+
+// Match-only state
+const selectedMatchType = ref([]); // ['single', 'double']
+const matchTypeOptions = [
+    { label: 'Đánh đơn', value: 'single' },
+    { label: 'Đánh đôi', value: 'double' },
+];
+
+// Shared filter state
+const isRadiusDropdownOpen = ref(false);
+const selectedRadiusValue = ref(null);
+const selectedRadiusLabel = ref('Chọn');
+const userLocation = ref(null);
+const radiusOptions = [
+    { value: null, label: 'Tất cả' },
+    { value: 'nearby', label: 'Gần đây (20km)' },
+];
+const isLocationDropdownOpen = ref(false);
+const selectedLocationValue = ref(null);
+const selectedLocationLabel = ref('Chọn địa điểm');
+const locations = ref([]);
+const locationSearchQuery = ref('');
+
+// Time-of-day options (for filter modal)
 const timePlay = [
-    {
-        label: 'Sáng (Trước 11:00 AM)',
-        value: 'morning',
-    },
-    {
-        label: 'Chiều (Từ 11:00 AM - 4:00 PM)',
-        value: 'afternoon',
-    },
-    {
-        label: 'Tối (Sau 4:00 PM)',
-        value: 'evening',
-    },
+    { label: 'Sáng (Trước 11:00 AM)', value: 'morning' },
+    { label: 'Chiều (Từ 11:00 AM - 4:00 PM)', value: 'afternoon' },
+    { label: 'Tối (Sau 4:00 PM)', value: 'evening' },
 ];
-const rating = [
-    {
-        label: '2+',
-        value: 2,
-    },
-    {
-        label: '3+',
-        value: 3,
-    },
-    {
-        label: '4+',
-        value: 4,
-    },
-    {
-        label: '5+',
-        value: 5,
-    },
+// Rating options (for filter modal)
+const ratingOptions = [
+    { label: '2+', value: 2 },
+    { label: '3+', value: 3 },
+    { label: '4+', value: 4 },
+    { label: '5+', value: 5 },
 ];
 
-const onlineRecently = [
-    {
-        label: 'Online gần đây',
-        value: false
-    }
-]
+// Selection tracking (for highlighting on map)
+const selectedCourt = ref(null);
+const selectedUser = ref(null);
+const selectedMatches = ref(null);
+const selectedClubItem = ref(null);
 
-const tabs = [
-    { id: 'courts', label: 'Sân bóng' },
-    { id: 'match', label: 'Trận đấu' },
-    { id: 'players', label: 'Người chơi' },
-    { id: 'clubs', label: 'Câu lạc bộ' }
-];
+// Quantity counters
+const quantityCourts = ref(0);
+const quantityUsers = ref(0);
+const quantityMatches = ref(0);
+const quantityClubs = ref(0);
 
 const myClub = ref([]);
-const lat = ref(null)
-const lng = ref(null)
+
+const tabs = [
+    { id: 'match', label: 'Kèo đấu' },
+    { id: 'tournament', label: 'Giải đấu' },
+    { id: 'club', label: 'Câu lạc bộ' },
+    { id: 'user', label: 'Người chơi' },
+    { id: 'court', label: 'Sân bãi' },
+];
 
 // Convert Map sang Array
 const courts = computed(() => Array.from(courtsMap.value.values()));
@@ -1002,20 +1464,21 @@ const clubs = computed(() => Array.from(clubsMap.value.values()));
 
 // Convert Map sang Array
 const listData = computed(() => {
-    if (activeTab.value === 'courts') return courts.value;
+    if (activeTab.value === 'court') return courts.value;
     if (activeTab.value === 'match') {
         if (activeMatchTab.value === 'mini') return matchesMini.value;
         if (activeMatchTab.value === 'tournament') return matchesTournament.value;
     }
-    if (activeTab.value === 'players') return users.value;
-    if (activeTab.value === 'clubs') return clubs.value;
+    if (activeTab.value === 'tournament') return matchesTournament.value;
+    if (activeTab.value === 'user') return users.value;
+    if (activeTab.value === 'club') return clubs.value;
     return [];
 });
 
 const displayedListData = computed(() => {
     const data = listData.value;
-    // For match tab, show all loaded data (pagination handled by API)
-    if (activeTab.value === 'match') {
+    // For match/tournament tabs, show all loaded data (pagination handled by API)
+    if (activeTab.value === 'match' || activeTab.value === 'tournament') {
         return data;
     }
     // For other tabs, use visibleItems slicing
@@ -1024,10 +1487,11 @@ const displayedListData = computed(() => {
 
 const searchResultText = computed(() => {
     const map = {
-        courts: `${quantityCourts.value ?? 0} Sân bóng được tìm thấy`,
-        match: `${quantityMatches.value ?? 0} Trận đấu được tìm thấy`,
-        players: `${quantityUsers.value ?? 0} Người dùng được tìm thấy`,
-        clubs: `${quantityClubs.value ?? 0} Câu lạc bộ được tìm thấy`
+        court: `${quantityCourts.value ?? 0} Sân bãi được tìm thấy`,
+        match: `${quantityMatches.value ?? 0} Kèo đấu được tìm thấy`,
+        tournament: `${quantityMatches.value ?? 0} Giải đấu được tìm thấy`,
+        user: `${quantityUsers.value ?? 0} Người chơi được tìm thấy`,
+        club: `${quantityClubs.value ?? 0} Câu lạc bộ được tìm thấy`,
     }
 
     return map[activeTab.value] ?? '0 kết quả được tìm thấy'
@@ -1038,28 +1502,29 @@ const handleScroll = async (event) => {
     const target = event.target;
     const scrollPercentage = (target.scrollTop + target.clientHeight) / target.scrollHeight;
 
-    // For match tab, load more from API when scrolling
-    if (activeTab.value === 'match' && scrollPercentage > 0.8) {
-        const currentData = activeMatchTab.value === 'mini' ? matchesMini.value : matchesTournament.value;
-        const hasMore = activeMatchTab.value === 'mini' 
+    // For match/tournament tabs, load more from API when scrolling
+    if ((activeTab.value === 'match' || activeTab.value === 'tournament') && scrollPercentage > 0.8) {
+        const hasMore = activeTab.value === 'match' && activeMatchTab.value === 'mini'
             ? miniMatchPage.value < miniMatchLastPage.value
             : tournamentPage.value < tournamentLastPage.value;
-        
+
         if (hasMore && !isLoadingMoreMatches.value) {
             await loadMoreMatches();
         }
     }
-    
+
     // For other tabs, just show more items from existing data
-    if (activeTab.value !== 'match' && scrollPercentage > 0.8 && visibleItems.value < listData.value.length) {
-        visibleItems.value = Math.min(
-            visibleItems.value + itemsPerLoad.value,
-            listData.value.length
-        );
+    if (activeTab.value === 'court' || activeTab.value === 'user' || activeTab.value === 'club') {
+        if (scrollPercentage > 0.8 && visibleItems.value < listData.value.length) {
+            visibleItems.value = Math.min(
+                visibleItems.value + itemsPerLoad.value,
+                listData.value.length
+            );
+        }
     }
 };
 
-watch([activeTab, searchCourt, searchMatch, searchUser], () => {
+watch([activeTab, searchKeyword], () => {
     visibleItems.value = 20;
 });
 
@@ -1067,21 +1532,22 @@ const mergeData = (existingMap, newDataArray, isFiltered = false) => {
     if (isFiltered) {
         existingMap.clear();
         newDataArray.forEach(item => {
-            existingMap.set(item.id, item);
+            const key = item.competition_location?.id ?? item.id;
+            existingMap.set(key, item);
         });
     } else {
         newDataArray.forEach(item => {
-            existingMap.set(item.id, item);
+            const key = item.competition_location?.id ?? item.id;
+            existingMap.set(key, item);
         });
     }
 };
 
 const hasActiveFilters = computed(() => {
     return !!(
-        searchCourt.value?.trim() ||
-        searchMatch.value?.trim() ||
-        searchUser.value?.trim() ||
+        searchKeyword.value?.trim() ||
         selectedSportId.value ||
+        timeFilter.value !== 'all' ||
         isShowMyFollow.value ||
         isShowFavoritePlayer.value ||
         isConnected.value ||
@@ -1091,7 +1557,14 @@ const hasActiveFilters = computed(() => {
         selectedRadiusValue.value !== null ||
         selectedLocationValue.value !== null ||
         is_verify_profile.value ||
-        isHasAchievement.value
+        isHasAchievement.value ||
+        selectedTimePlay.value.length > 0 ||
+        selectedRating.value.length > 0 ||
+        selectedClub.value.length > 0 ||
+        selectedSlotStatus.value.length > 0 ||
+        selectedFee.value.length > 0 ||
+        selectedMatchType.value.length > 0 ||
+        joinedOnly.value
     );
 });
 
@@ -1102,239 +1575,202 @@ navigator.geolocation.getCurrentPosition(
   }
 )
 
-const getCompetitionLocation = async (bounds = null) => {
-    try {
-        const params = {
-            is_map: 1,
-            keyword: searchCourt.value?.trim() || undefined,
-            sport_id: selectedSportId.value || undefined,
-            is_followed: isShowMyFollow.value ? 1 : 0,
-            number_of_yards: selectedCourtCounts.value.length > 0 ? selectedCourtCounts.value : undefined,
-            yard_type: selectedCourtTypes.value.length > 0 ? selectedCourtTypes.value : undefined,
-            facility_id: selectedFacilities.value.length > 0 ? selectedFacilities.value : undefined,
-            location_id: selectedLocationValue.value || undefined,
-        };
+/**
+ * Unified search using search-v2 API.
+ * Handles all tabs: match, tournament, club, user, court.
+ *
+ * @param {boolean} isLoadMore - true = append page, false = replace
+ * @param {Object} bounds - map bounds { getSouth(), getNorth(), getWest(), getEast() }
+ */
+const doSearch = async (isLoadMore = false, bounds = null) => {
+    const tab = activeTab.value;
 
-        if (selectedRadiusValue.value === 'nearby' && userLocation.value) {
+    // Build base params for search-v2 API
+    const params = {
+        tab,
+        time_filter: timeFilter.value,
+        keyword: searchKeyword.value?.trim() || undefined,
+        sport_id: selectedSportId.value || undefined,
+        location_id: selectedLocationValue.value || undefined,
+        per_page: 200, // load enough for list view
+    };
+
+    // Pagination for match/tournament tabs
+    if (tab === 'match' || tab === 'tournament') {
+        params.page = isLoadMore
+            ? (tab === 'match' ? miniMatchPage.value : tournamentPage.value)
+            : 1;
+    } else {
+        // Other tabs: map mode, load all at once
+        params.map_mode = true;
+    }
+
+    // Geo params: user location > bounds
+    if (lat.value && lng.value) {
+        params.lat = lat.value;
+        params.lng = lng.value;
+    } else if (bounds) {
+        params.minLat = bounds.getSouth();
+        params.maxLat = bounds.getNorth();
+        params.minLng = bounds.getWest();
+        params.maxLng = bounds.getEast();
+    }
+
+    // Nearby radius
+    if (selectedRadiusValue.value === 'nearby') {
+        params.radius = 20 * 1000; // 20km in meters
+        if (lat.value && lng.value) {
+            // already have lat/lng above
+        } else if (userLocation.value) {
             params.lat = userLocation.value.lat;
             params.lng = userLocation.value.lng;
-            params.radius = 20;
-        } else if (bounds) {
-            params.minLat = bounds.getSouth();
-            params.maxLat = bounds.getNorth();
-            params.minLng = bounds.getWest();
-            params.maxLng = bounds.getEast();
         }
+    }
 
-        if(lat.value && lng.value) {
-            params.lat = lat.value,
-            params.lng = lng.value   
-        }
+    // Build filters bundle
+    const filters = SearchService.buildFilters(tab, {
+        selectedRadiusValue: selectedRadiusValue.value,
+        radiusKm: radiusKm.value,
+        selectedRating: selectedRating.value,
+        selectedTimePlay: selectedTimePlay.value,
+        slotStatus: tab === 'match' || tab === 'tournament' ? selectedSlotStatus.value : [],
+        fee: tab === 'match' || tab === 'tournament' ? selectedFee.value : null,
+        matchType: tab === 'match' ? selectedMatchType.value : null,
+        joinedOnly: joinedOnly.value,
+        selectedGender: selectedGender.value,
+        sameClubId: sameClubId.value,
+    });
+    if (filters) params.filters = filters;
 
-        Object.keys(params).forEach(key => {
-            if (params[key] === undefined) {
-                delete params[key];
+    // Clean undefined values
+    Object.keys(params).forEach(key => {
+        if (params[key] === undefined) delete params[key];
+    });
+
+    try {
+        isLoadingMap.value = true;
+        const res = await SearchService.search(params);
+
+        // ---- MATCH / TOURNAMENT TAB ----
+        if (tab === 'match' || tab === 'tournament') {
+            const apiTab = tab;
+            const items = res.data?.data || [];
+
+            if (!isLoadMore) {
+                // Replace data
+                if (apiTab === 'match') {
+                    matchesMini.value = items.map(m => ({ ...m, id: `mini_${m.id}`, original_id: m.id, type: 'mini' }));
+                    matchesTournament.value = [];
+                } else {
+                    matchesTournament.value = items.map(t => ({ ...t, id: `tour_${t.id}`, original_id: t.id, type: 'tournament' }));
+                    matchesMini.value = [];
+                }
+                matchesMap.value.clear();
+            } else {
+                // Append data
+                if (apiTab === 'match') {
+                    const newItems = items.map(m => ({ ...m, id: `mini_${m.id}`, original_id: m.id, type: 'mini' }));
+                    if (activeMatchTab.value === 'mini') {
+                        matchesMini.value = [...matchesMini.value, ...newItems];
+                    }
+                } else {
+                    const newItems = items.map(t => ({ ...t, id: `tour_${t.id}`, original_id: t.id, type: 'tournament' }));
+                    if (activeMatchTab.value === 'tournament') {
+                        matchesTournament.value = [...matchesTournament.value, ...newItems];
+                    }
+                }
             }
-        });
 
-        const res = await MapService.getCourtData(params);
-        if (res.data) {
-            mergeData(courtsMap.value, res.data.competition_locations, hasActiveFilters.value);
+            // Update pagination meta
+            const meta = res.data?.meta;
+            if (meta) {
+                if (apiTab === 'match') {
+                    miniMatchLastPage.value = meta.last_page || 1;
+                    miniMatchPage.value = meta.current_page || 1;
+                } else {
+                    tournamentLastPage.value = meta.last_page || 1;
+                    tournamentPage.value = meta.current_page || 1;
+                }
+            }
+
+            const allMatches = [...matchesMini.value, ...matchesTournament.value];
+            mergeData(matchesMap.value, allMatches, !isLoadMore);
+            quantityMatches.value = matchesMap.value.size;
+
+            // Update map markers
+            clearAllMarkers();
+            addMatchMarkers(matches.value, router, focusItemAuto, !isLoadMore, defaultImage);
+        }
+
+        // ---- CLUB TAB ----
+        if (tab === 'club') {
+            const clubsData = res.data?.data || [];
+            mergeData(clubsMap.value, clubsData, !isLoadMore);
+            quantityClubs.value = clubsMap.value.size;
+
+            clearAllMarkers();
+            addClubMarkers(clubs.value, router, focusItemAuto, !isLoadMore, defaultImage);
+        }
+
+        // ---- USER TAB ----
+        if (tab === 'user') {
+            const usersData = res.data?.data || [];
+            mergeData(usersMap.value, usersData, !isLoadMore);
+            quantityUsers.value = usersMap.value.size;
+
+            clearAllMarkers();
+            addUserMarkers(users.value, defaultImage, maleIconRaw, femaleIconRaw, getVisibilityText, getUserRating, router, focusItemAuto, !isLoadMore);
+        }
+
+        // ---- COURT TAB ----
+        if (tab === 'court') {
+            const courtsData = res.data?.data || [];
+            mergeData(courtsMap.value, courtsData, !isLoadMore);
             quantityCourts.value = courtsMap.value.size;
 
-            if (res.data.facilities) {
-                facilities.value = res.data.facilities;
-            }
-            if (res.data.yard_types) {
-                yardTypes.value = res.data.yard_types;
-            }
+            clearAllMarkers();
+            addCourtMarkers(courts.value, toHourMinute, defaultImage, focusItemAuto, !isLoadMore);
         }
+
     } catch (error) {
-        console.error("Error fetching map data:", error);
-        toast.error(error.response?.data?.message || "Lỗi khi tải dữ liệu sân bóng");
-    }
-};
-
-const getListUser = async (bounds = null) => {
-    try {
-        const params = {
-            keyword: searchUser.value?.trim() || undefined,
-            sport_id: selectedSportId.value || undefined,
-            favourite_player: isShowFavoritePlayer.value ? 1 : 0,
-            is_connected: isConnected.value ? 1 : 0,
-            is_map: 1,
-            location_id: selectedLocationValue.value || undefined,
-            gender: selectedGenderValue.value ?? undefined,
-            time_of_day: selectedTimePlay.value ?? undefined,
-            rating: selectedRating.value ?? undefined,
-            online_recently: isOnlineRecently.value ? 1 : 0,
-            recent_matches: isQuantityMatcheshasPlayRecently.value ?? undefined,
-            same_club_id: selectedClub.value ?? undefined,
-            verify_profile: is_verify_profile.value ? 1 : undefined,
-            achievement: isHasAchievement.value ? 1 : undefined
-        };
-
-        // if (bounds) {
-        //     params.minLat = bounds.getSouth();
-        //     params.maxLat = bounds.getNorth();
-        //     params.minLng = bounds.getWest();
-        //     params.maxLng = bounds.getEast();
-        // }
-        if(lat.value && lng.value) {
-            params.lat = lat.value,
-            params.lng = lng.value   
-        }
-
-        Object.keys(params).forEach(key => {
-            if (params[key] === undefined) {
-                delete params[key];
-            }
-        });
-
-        const res = await UserService.getUserData(params);
-        if (res.data) {
-            mergeData(usersMap.value, res.data.users || [], hasActiveFilters.value);
-            quantityUsers.value = usersMap.value.size;
-        }
-    } catch (error) {
-        console.error("Error fetching user data:", error);
-        toast.error(error.response?.data?.message || "Lỗi khi tải dữ liệu người chơi");
+        console.error('Search error:', error);
+        toast.error(error.response?.data?.message || 'Lỗi khi tải dữ liệu');
+    } finally {
+        isLoadingMap.value = false;
     }
 };
 
 const getListMatches = async (bounds = null, isLoadMore = false) => {
-    try {
-        const params = {
-            keyword: searchMatch.value?.trim() || undefined,
-            sport_id: selectedSportId.value || undefined,
-            is_followed: isShowMyFollow.value ? 1 : 0 || undefined,
-        };
-
-        // Always use pagination for list view
-        if (activeMatchTab.value === 'mini') {
-            params.mini_tournament_page = isLoadMore ? miniMatchPage.value : 1;
-            params.mini_tournament_per_page = miniMatchPerPage.value;
-        } else {
-            params.tournament_page = isLoadMore ? tournamentPage.value : 1;
-            params.tournament_per_page = tournamentPerPage.value;
-        }
-
-        if (bounds) {
-            params.min_lat = bounds.getSouth();
-            params.max_lat = bounds.getNorth();
-            params.min_lng = bounds.getWest();
-            params.max_lng = bounds.getEast();
-        }
-
-        if(lat.value && lng.value) {
-            params.lat = lat.value,
-            params.lng = lng.value   
-        }
-
-        Object.keys(params).forEach(key => {
-            if (params[key] === undefined) {
-                delete params[key];
-            }
-        });
-
-        const res = await MapService.getMatchesData(params);
-        
-        if (!isLoadMore) {
-            matchesMap.value.clear();
-        }
-
-        if (res && typeof res === 'object' && !Array.isArray(res)) {
-             const mini = (res.mini_tournaments?.data || []).map(m => ({ ...m, id: `mini_${m.id}`, original_id: m.id, type: 'mini' }));
-             const tour = (res.tournaments?.data || []).map(t => ({ ...t, id: `tour_${t.id}`, original_id: t.id, type: 'tournament' }));
-             
-             // Update pagination meta
-             if (res.mini_tournaments?.meta) {
-                 miniMatchLastPage.value = res.mini_tournaments.meta.last_page || 1;
-                 if (!isLoadMore) {
-                     miniMatchPage.value = res.mini_tournaments.meta.current_page || 1;
-                 } else {
-                     // Update current page when loading more
-                     miniMatchPage.value = res.mini_tournaments.meta.current_page || miniMatchPage.value;
-                 }
-             }
-             if (res.tournaments?.meta) {
-                 tournamentLastPage.value = res.tournaments.meta.last_page || 1;
-                 if (!isLoadMore) {
-                     tournamentPage.value = res.tournaments.meta.current_page || 1;
-                 } else {
-                     // Update current page when loading more
-                     tournamentPage.value = res.tournaments.meta.current_page || tournamentPage.value;
-                 }
-             }
-
-             if (isLoadMore) {
-                 // Append new data when loading more - only for active tab
-                 if (activeMatchTab.value === 'mini') {
-                     matchesMini.value = [...matchesMini.value, ...mini];
-                 } else {
-                     matchesTournament.value = [...matchesTournament.value, ...tour];
-                 }
-             } else {
-                 // Replace data on initial load or filter
-                 matchesMini.value = mini;
-                 matchesTournament.value = tour;
-             }
-
-             const dataToShow = activeMatchTab.value === 'mini' ? matchesMini.value : matchesTournament.value;
-             mergeData(matchesMap.value, dataToShow, !isLoadMore && hasActiveFilters.value);
-             
-        } else {
-            if (!isLoadMore) {
-                matchesMini.value = [];
-                matchesTournament.value = [];
-            }
-        }
-        
-        quantityMatches.value = matchesMap.value.size;
-    } catch (error) {
-        console.error("Error fetching match data:", error);
-        toast.error(error.response?.data?.message || "Lỗi khi tải dữ liệu trận đấu");
-    }
+    await doSearch(isLoadMore, bounds);
 };
 
 const loadMoreMatches = async () => {
     if (isLoadingMoreMatches.value) return;
-    
     isLoadingMoreMatches.value = true;
     try {
-        if (activeMatchTab.value === 'mini') {
+        if (activeTab.value === 'match' && activeMatchTab.value === 'mini') {
             miniMatchPage.value += 1;
         } else {
             tournamentPage.value += 1;
         }
-        
-        await getListMatches(currentBounds.value, true);
-        
-        // Update markers with new data
-        clearAllMarkers();
-        addMatchMarkers(matches.value, router, focusItemAuto, false, defaultImage);
-    } catch (error) {
-        // Revert page on error
-        if (activeMatchTab.value === 'mini') {
-            miniMatchPage.value -= 1;
-        } else {
-            tournamentPage.value -= 1;
-        }
+        await doSearch(true, currentBounds.value);
     } finally {
         isLoadingMoreMatches.value = false;
     }
 };
 
-// Watch activeMatchTab to reload markers
+// Watch activeMatchTab to reload markers (only when on match tab)
 watch(activeMatchTab, () => {
-    // Reset pagination when switching tabs
+    if (activeTab.value !== 'match') return;
+
+    // Reset pagination when switching sub-tabs
     miniMatchPage.value = 1;
     tournamentPage.value = 1;
-    
+
     matchesMap.value.clear();
     const dataToShow = activeMatchTab.value === 'mini' ? matchesMini.value : matchesTournament.value;
-    mergeData(matchesMap.value, dataToShow, true); // Treat like filter change
-    quantityMatches.value = matchesMap.value.size; // Cập nhật số lượng
+    mergeData(matchesMap.value, dataToShow, true);
+    quantityMatches.value = matchesMap.value.size;
     clearAllMarkers();
     addMatchMarkers(matches.value, router, focusItemAuto, true, defaultImage);
 });
@@ -1375,18 +1811,14 @@ const loadTabContent = async (tab, bounds = null) => {
     }
 
     try {
-        if (tab === 'courts') {
-            await getCompetitionLocation(bounds);
-            addCourtMarkers(courts.value, toHourMinute, defaultImage, focusItemAuto, shouldUpdate);
-        } else if (tab === 'match') {
-            await getListMatches(bounds);
-            addMatchMarkers(matches.value, router, focusItemAuto, shouldUpdate, defaultImage);
-        } else if (tab === 'players') {
-            await getListUser(bounds);
-            addUserMarkers(users.value, defaultImage, maleIconRaw, femaleIconRaw, getVisibilityText, getUserRating, router, focusItemAuto, shouldUpdate);
-        } else if (tab === 'clubs') {
-            await getListClubs(bounds);
-            addClubMarkers(clubs.value, router, focusItemAuto, shouldUpdate, defaultImage);
+        if (tab === 'court') {
+            await doSearch(false, bounds);
+        } else if (tab === 'match' || tab === 'tournament') {
+            await doSearch(false, bounds);
+        } else if (tab === 'user') {
+            await doSearch(false, bounds);
+        } else if (tab === 'club') {
+            await doSearch(false, bounds);
         }
     } finally {
         isLoadingMap.value = false;
@@ -1401,15 +1833,14 @@ const refresh = async () => {
     if (spinning.value) return;
     spinning.value = true;
 
-    if (activeTab.value === 'courts') {
-        courtsMap.value.clear();
-    } else if (activeTab.value === 'match') {
-        matchesMap.value.clear();
-    } else if (activeTab.value === 'players') {
-        usersMap.value.clear();
-    } else if (activeTab.value === 'clubs') {
-        clubsMap.value.clear();
-    }
+    // Reset match tab pagination
+    miniMatchPage.value = 1;
+    tournamentPage.value = 1;
+
+    courtsMap.value.clear();
+    usersMap.value.clear();
+    matchesMap.value.clear();
+    clubsMap.value.clear();
 
     clearAllMarkers();
     await loadTabContent(activeTab.value, currentBounds.value);
@@ -1424,18 +1855,14 @@ const closeFilterModal = () => {
 };
 
 const applyFilter = async () => {
-    if (activeTab.value === 'courts') {
-        courtsMap.value.clear();
-    } else if (activeTab.value === 'match') {
-        // Reset pagination when applying filter
-        miniMatchPage.value = 1;
-        tournamentPage.value = 1;
-        matchesMap.value.clear();
-    } else if (activeTab.value === 'players') {
-        usersMap.value.clear();
-    } else if (activeTab.value === 'clubs') {
-        clubsMap.value.clear();
-    }
+    // Reset pagination
+    miniMatchPage.value = 1;
+    tournamentPage.value = 1;
+
+    courtsMap.value.clear();
+    usersMap.value.clear();
+    matchesMap.value.clear();
+    clubsMap.value.clear();
 
     clearAllMarkers();
     await loadTabContent(activeTab.value, currentBounds.value);
@@ -1451,17 +1878,15 @@ const resetFilter = async () => {
     selectedSportId.value = null;
     isShowMyFollow.value = false;
     isShowFavoritePlayer.value = false;
-    searchCourt.value = '';
-    searchMatch.value = '';
-    searchUser.value = '';
-    searchClub.value = '';
+    searchKeyword.value = '';
     selectedRadiusValue.value = null;
     selectedRadiusLabel.value = 'Chọn';
     userLocation.value = null;
     selectedLocationValue.value = null;
     selectedLocationLabel.value = 'Chọn địa điểm';
     locationSearchQuery.value = '';
-    
+    timeFilter.value = 'all';
+
     // Reset các trường của tab Players
     selectedTimePlay.value = [];
     selectedRating.value = [];
@@ -1473,6 +1898,20 @@ const resetFilter = async () => {
     isHasAchievement.value = false;
     selectedGenderValue.value = null;
     selectedGenderLabel.value = 'Tất cả';
+    selectedGender.value = null;
+
+    // Reset club-only
+    joinedOnly.value = false;
+    sameClubId.value = null;
+
+    // Reset tournament/match-only
+    selectedSlotStatus.value = [];
+    selectedFee.value = [];
+    selectedMatchType.value = [];
+
+    // Reset pagination
+    miniMatchPage.value = 1;
+    tournamentPage.value = 1;
 
     courtsMap.value.clear();
     usersMap.value.clear();
@@ -1544,16 +1983,19 @@ const selectRadius = async (option) => {
     isRadiusDropdownOpen.value = false;
 
     if (option.value === 'nearby') {
+        radiusKm.value = 20;
         try {
             userLocation.value = await getUserLocation();
         } catch (error) {
             toast.error('Không thể lấy vị trí của bạn. Vui lòng cho phép truy cập vị trí.');
             selectedRadiusValue.value = null;
             selectedRadiusLabel.value = 'Chọn';
+            radiusKm.value = null;
             return;
         }
     } else {
         userLocation.value = null;
+        radiusKm.value = null;
     }
 
     isInitialLoad.value = true;
@@ -1579,25 +2021,24 @@ const selectLocation = async (location) => {
 };
 
 const selectedMap = {
-    courts: selectedCourt,
-    players: selectedUser,
+    court: selectedCourt,
+    user: selectedUser,
     match: selectedMatches,
-    clubs: selectedClubItem
+    club: selectedClubItem,
 }
 
 const focusItemAuto = (item) => {
     const selectedRef = selectedMap[activeTab.value]
     if (!selectedRef) return
 
-    selectedRef.value = item.id
-    focusItem(item.id)
+    const itemId = item.competition_location?.id ?? item.id
+    selectedRef.value = itemId
+    focusItem(itemId)
 }
 
 const getUserRating = (user) => {
-    if (!user?.sports?.length) return "0";
-    const pickleballSport = user.sports.find(sport => sport.sport_name === "Pickleball");
-    if (!pickleballSport) return "0";
-    return parseFloat(pickleballSport.scores.vndupr_score).toFixed(1) || "0";
+    const score = user?.vndupr_score ?? user?.sports?.[0]?.scores?.vndupr_score ?? 0;
+    return typeof score === 'number' ? score.toFixed(1) : "0";
 };
 
 const getMyClubs = async () => {
@@ -1609,67 +2050,37 @@ const getMyClubs = async () => {
     }
 };
 
-const getListClubs = async (bounds = null) => {
-    try {
-        const params = {
-            is_map: true,
-            name: searchClub.value?.trim() || undefined,
-        };
-
-        if (lat.value && lng.value) {
-            params.lat = lat.value;
-            params.lng = lng.value;
-        } else if (bounds) {
-            params.minLat = bounds.getSouth();
-            params.maxLat = bounds.getNorth();
-            params.minLng = bounds.getWest();
-            params.maxLng = bounds.getEast();
-        }
-
-        Object.keys(params).forEach(key => {
-            if (params[key] === undefined) {
-                delete params[key];
-            }
-        });
-
-        const res = await ClubService.getAllClubs(params);
-        const clubsData = res?.data?.clubs ?? res?.clubs ?? [];
-        mergeData(clubsMap.value, clubsData, hasActiveFilters.value);
-        quantityClubs.value = clubsMap.value.size;
-    } catch (error) {
-        console.error("Error fetching clubs data:", error);
-        toast.error(error.response?.data?.message || "Lỗi khi tải dữ liệu câu lạc bộ");
+// Timeline helpers
+const selectTimeFilter = async (value) => {
+    timeFilter.value = value;
+    isInitialLoad.value = true;
+    // Reset match pagination when changing time filter
+    if (activeTab.value === 'match' || activeTab.value === 'tournament') {
+        miniMatchPage.value = 1;
+        tournamentPage.value = 1;
     }
+    courtsMap.value.clear();
+    usersMap.value.clear();
+    matchesMap.value.clear();
+    clubsMap.value.clear();
+    clearAllMarkers();
+    await loadTabContent(activeTab.value, currentBounds.value);
 };
 
-onMounted(async () => {
-    await getListSports();
-    await getListLocation();
-    await getMyClubs();
-});
-
 const searchValue = computed({
-    get() {
-        if (activeTab.value === 'courts') return searchCourt.value
-        if (activeTab.value === 'match') return searchMatch.value
-        if (activeTab.value === 'players') return searchUser.value
-        if (activeTab.value === 'clubs') return searchClub.value
-        return ''
-    },
-    set(val) {
-        if (activeTab.value === 'courts') searchCourt.value = val
-        if (activeTab.value === 'match') searchMatch.value = val
-        if (activeTab.value === 'players') searchUser.value = val
-        if (activeTab.value === 'clubs') searchClub.value = val
-    }
+    get() { return searchKeyword.value; },
+    set(val) { searchKeyword.value = val; }
 })
 
 const searchPlaceholder = computed(() => {
-    if (activeTab.value === 'courts') return 'Tìm sân'
-    if (activeTab.value === 'match') return 'Tìm trận'
-    if (activeTab.value === 'players') return 'Tìm người chơi'
-    if (activeTab.value === 'clubs') return 'Tìm câu lạc bộ'
-    return ''
+    const map = {
+        match: 'Tìm kèo đấu',
+        tournament: 'Tìm giải đấu',
+        club: 'Tìm câu lạc bộ',
+        user: 'Tìm người chơi',
+        court: 'Tìm sân bãi',
+    };
+    return map[activeTab.value] ?? 'Tìm kiếm';
 })
 
 const filteredLocations = computed(() => {
@@ -1685,50 +2096,30 @@ const filteredLocations = computed(() => {
 watch(activeTab, (newTab) => {
     isInitialLoad.value = true;
 
-    if (newTab === 'courts') {
-        courtsMap.value.clear();
-    } else if (newTab === 'match') {
-        // Reset pagination when switching to match tab
-        miniMatchPage.value = 1;
-        tournamentPage.value = 1;
-        matchesMap.value.clear();
-    } else if (newTab === 'players') {
-        usersMap.value.clear();
-    } else if (newTab === 'clubs') {
-        clubsMap.value.clear();
-    }
+    // Reset pagination
+    miniMatchPage.value = 1;
+    tournamentPage.value = 1;
+
+    courtsMap.value.clear();
+    usersMap.value.clear();
+    matchesMap.value.clear();
+    clubsMap.value.clear();
 
     clearAllMarkers();
     loadTabContent(newTab, currentBounds.value);
 });
 
 let searchDebounceTimer = null;
-watch([searchCourt, searchMatch, searchUser, searchClub], ([newCourt, newMatch, newUser, newClub], [oldCourt, oldMatch, oldUser, oldClub]) => {
-    const activeSearchValue = activeTab.value === 'courts' ? newCourt :
-        activeTab.value === 'match' ? newMatch :
-        activeTab.value === 'players' ? newUser : newClub;
-    const oldSearchValue = activeTab.value === 'courts' ? oldCourt :
-        activeTab.value === 'match' ? oldMatch :
-        activeTab.value === 'players' ? oldUser : oldClub;
-
-    if (activeSearchValue === oldSearchValue) return;
-
+watch(searchKeyword, () => {
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
 
-    if (!activeSearchValue?.trim()) {
+    if (!searchKeyword.value?.trim()) {
         searchDebounceTimer = setTimeout(async () => {
             isInitialLoad.value = true;
-
-            if (activeTab.value === 'courts') {
-                courtsMap.value.clear();
-            } else if (activeTab.value === 'match') {
-                matchesMap.value.clear();
-            } else if (activeTab.value === 'players') {
-                usersMap.value.clear();
-            } else if (activeTab.value === 'clubs') {
-                clubsMap.value.clear();
-            }
-
+            courtsMap.value.clear();
+            usersMap.value.clear();
+            matchesMap.value.clear();
+            clubsMap.value.clear();
             clearAllMarkers();
             await loadTabContent(activeTab.value, currentBounds.value);
         }, 300);
@@ -1737,17 +2128,10 @@ watch([searchCourt, searchMatch, searchUser, searchClub], ([newCourt, newMatch, 
 
     searchDebounceTimer = setTimeout(async () => {
         isInitialLoad.value = true;
-
-        if (activeTab.value === 'courts') {
-            courtsMap.value.clear();
-        } else if (activeTab.value === 'match') {
-            matchesMap.value.clear();
-        } else if (activeTab.value === 'players') {
-            usersMap.value.clear();
-        } else if (activeTab.value === 'clubs') {
-            clubsMap.value.clear();
-        }
-
+        courtsMap.value.clear();
+        usersMap.value.clear();
+        matchesMap.value.clear();
+        clubsMap.value.clear();
         clearAllMarkers();
         await loadTabContent(activeTab.value, currentBounds.value);
     }, 800);
@@ -1761,6 +2145,14 @@ const handleBoundsChange = (bounds) => {
     currentBounds.value = bounds;
     loadTabContent(activeTab.value, bounds);
 };
+
+onMounted(async () => {
+    await getListSports();
+    await getListLocation();
+    await getMyClubs();
+    // Load initial data for default tab
+    await loadTabContent(activeTab.value, null);
+});
 
 initMap(handleBoundsChange, handleBoundsChange);
 </script>

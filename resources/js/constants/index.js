@@ -41,6 +41,7 @@ export const API_ENDPOINT = {
   NOTIFICATION: '/user-notifications',
   MAP: '/map',
   PROMOTION: '/promotion',
+  SEARCH_V2: '/search',
 };
 
 export const TOURNAMENT_STATUS = {

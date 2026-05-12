@@ -29,9 +29,9 @@
           </span>
         </div>
 
-        <div v-if="club.quantity_members !== undefined" class="flex items-center gap-1.5 mt-1 text-sm text-gray-500">
+        <div v-if="club.members_count !== undefined || club.quantity_members !== undefined" class="flex items-center gap-1.5 mt-1 text-sm text-gray-500">
           <UserGroupIcon class="w-4 h-4 text-gray-400 flex-shrink-0" />
-          <span>{{ club.quantity_members }} thành viên</span>
+          <span>{{ (club.members_count ?? club.quantity_members) }} thành viên</span>
         </div>
       </div>
     </div>

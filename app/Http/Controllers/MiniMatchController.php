@@ -911,7 +911,7 @@ class MiniMatchController extends Controller
             'rating' => 'sometimes',
             'rating.*' => 'integer',
             'slot_status' => 'sometimes|array',
-            'slot_status.*' => 'in:one_slot,two_slot,full_slot',
+            'slot_status.*' => 'in:con_trong,da_day',
             'type' => 'sometimes|array',
             'type.*' => 'in:single,double',
             'fee' => 'sometimes|array',

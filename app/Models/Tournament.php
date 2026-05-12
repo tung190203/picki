@@ -234,6 +234,32 @@ class Tournament extends Model
             ->when($endDate, fn($q) => $q->whereDate('end_date', '<=', $endDate));
     }
 
+    public function scopeApplyTimeline($query, ?string $timeFilter, ?int $userId = null)
+    {
+        if (!$timeFilter || $timeFilter === 'all') {
+            return $query;
+        }
+
+        $userId = $userId ?? auth()->id();
+
+        return match ($timeFilter) {
+            'mine' => $query->where(function ($q) use ($userId) {
+                $q->where('created_by', $userId)
+                    ->orWhereHas('participants', fn($p) => $p->where('user_id', $userId));
+            }),
+            'today' => $query->whereDate('start_date', now()->toDateString()),
+            'this_week' => $query->whereBetween('start_date', [
+                now()->startOfWeek()->toDateString(),
+                now()->endOfWeek()->toDateString(),
+            ]),
+            'this_month' => $query->whereBetween('start_date', [
+                now()->startOfMonth()->toDateString(),
+                now()->endOfMonth()->toDateString(),
+            ]),
+            default => $query,
+        };
+    }
+
     public function getAgeGroupTextAttribute()
     {
         return match ($this->age_group) {
@@ -503,30 +529,22 @@ class Tournament extends Model
                 function ($q) use ($filters) {
                     $q->where(function ($subQuery) use ($filters) {
                         foreach($filters['slot_status'] as $slotStatus){
-                            if($slotStatus === 'one_slot') {
+                            if($slotStatus === 'con_trong') {
                                 $subQuery->orWhereRaw('(
                                     COALESCE(max_player, 0) - (
                                         SELECT COUNT(*)
                                         FROM participants
                                         WHERE participants.tournament_id = tournaments.id
                                     )
-                                ) >= 1');
-                            } elseif($slotStatus === 'two_slot') {
+                                ) > 0');
+                            } elseif($slotStatus === 'da_day') {
                                 $subQuery->orWhereRaw('(
                                     COALESCE(max_player, 0) - (
                                         SELECT COUNT(*)
                                         FROM participants
                                         WHERE participants.tournament_id = tournaments.id
                                     )
-                                ) >= 2');
-                            } elseif($slotStatus === 'full_slot') {
-                                $subQuery->orWhereRaw('(
-                                    COALESCE(max_player, 0) - (
-                                        SELECT COUNT(*)
-                                        FROM participants
-                                        WHERE participants.tournament_id = tournaments.id
-                                    )
-                                ) = 0');
+                                ) <= 0');
                             }
                         }
                     });
@@ -561,8 +579,10 @@ class Tournament extends Model
               ->whereBetween('longitude', [$minLng, $maxLng]);
         });
     }
-    public function scopeNearBy($query, $lat, $lng, $radius)
+    public function scopeNearBy($query, $lat, $lng, float $radiusMeters)
     {
+        $radiusKm = $radiusMeters / 1000;
+
         $haversine = "(6371 * acos(
             cos(radians(?))
             * cos(radians(competition_locations.latitude))
@@ -571,12 +591,12 @@ class Tournament extends Model
             * sin(radians(competition_locations.latitude))
         ))";
 
-        return $query->whereHas('competitionLocation', function ($q) use ($haversine, $lat, $lng, $radius) {
+        return $query->whereHas('competitionLocation', function ($q) use ($haversine, $lat, $lng, $radiusKm) {
             $q->whereRaw("$haversine < ?", [
                 $lat,
                 $lng,
                 $lat,
-                $radius
+                $radiusKm
             ]);
         });
     }
@@ -590,7 +610,7 @@ class Tournament extends Model
             ->select('tournaments.*')
             ->selectRaw("
                 (
-                    6371 * acos(
+                    6371000 * acos(
                         cos(radians(?))
                         * cos(radians(competition_locations.latitude))
                         * cos(radians(competition_locations.longitude) - radians(?))

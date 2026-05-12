@@ -16,6 +16,7 @@ use App\Http\Requests\Club\VerifyClubRequest;
 use App\Http\Resources\Club\ClubLeaderboardResource;
 use App\Http\Resources\Club\ClubListResource;
 use App\Http\Resources\ClubResource;
+use App\Http\Resources\Map\MapClubResource;
 use App\Models\Club\Club;
 use App\Models\User;
 use App\Services\Club\ClubLeaderboardService;
@@ -37,13 +38,20 @@ class ClubController extends Controller
     public function index(GetClubsRequest $request)
     {
         $userId = auth()->id();
-        $isMap = $request->boolean('is_map');
+        $isMap = filter_var(
+            $request->boolean('map_mode') || $request->boolean('is_map'),
+            FILTER_VALIDATE_BOOLEAN
+        );
 
         if ($isMap) {
             $clubs = $this->clubService->searchClubsForMap($request->validated(), $userId);
 
             return ResponseHelper::success([
-                'clubs' => ClubListResource::collection($clubs),
+                'data' => MapClubResource::collection($clubs),
+                'meta' => [
+                    'total'    => $clubs->count(),
+                    'map_mode' => true,
+                ],
             ], 'Lấy danh sách câu lạc bộ cho bản đồ thành công');
         }
 
