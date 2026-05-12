@@ -593,10 +593,8 @@ class Tournament extends Model
               ->whereBetween('longitude', [$minLng, $maxLng]);
         });
     }
-    public function scopeNearBy($query, $lat, $lng, float $radiusMeters)
+    public function scopeNearBy($query, $lat, $lng, float $radiusKm)
     {
-        $radiusKm = $radiusMeters / 1000;
-
         $haversine = "(6371 * acos(
             cos(radians(?))
             * cos(radians(competition_locations.latitude))
@@ -605,14 +603,13 @@ class Tournament extends Model
             * sin(radians(competition_locations.latitude))
         ))";
 
-        return $query->whereHas('competitionLocation', function ($q) use ($haversine, $lat, $lng, $radiusKm) {
-            $q->whereRaw("$haversine < ?", [
-                $lat,
-                $lng,
-                $lat,
-                $radiusKm
-            ]);
-        });
+        return $query
+            ->leftJoin('competition_locations', 'competition_locations.id', '=', 'tournaments.competition_location_id')
+            ->select('tournaments.*')
+            ->selectRaw("$haversine AS distance", [$lat, $lng, $lat])
+            ->whereRaw("$haversine <= ?", [$lat, $lng, $lat, $radiusKm])
+            ->orderByRaw('competition_locations.latitude IS NULL OR competition_locations.longitude IS NULL')
+            ->orderBy('distance', 'asc');
     }
     public function scopeOrderByDistanceFromLocation(
         Builder $query,
@@ -624,7 +621,7 @@ class Tournament extends Model
             ->select('tournaments.*')
             ->selectRaw("
                 (
-                    6371000 * acos(
+                    6371 * acos(
                         cos(radians(?))
                         * cos(radians(competition_locations.latitude))
                         * cos(radians(competition_locations.longitude) - radians(?))
