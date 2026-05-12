@@ -11,7 +11,6 @@ class SearchTournamentResource extends JsonResource
     {
         $location = $this->whenLoaded('competitionLocation');
         $club = $this->whenLoaded('club');
-        $creator = $this->whenLoaded('createdBy');
         $participants = $this->whenLoaded('participants');
 
         $participantsCount = (int) ($this->participants_count ?? $participants?->count() ?? 0);
@@ -58,12 +57,8 @@ class SearchTournamentResource extends JsonResource
                 'logo_url'      => $club->logo_url,
                 'members_count' => (int) ($club->members_count ?? 0),
             ] : null,
-            // Creator
-            'creator' => $creator ? [
-                'id'         => $creator->id,
-                'full_name'  => $creator->full_name,
-                'avatar_url' => $creator->avatar_url,
-            ] : null,
+            // Created by
+            'created_by' => new \App\Http\Resources\UserResource($this->whenLoaded('createdBy')),
             'distance'     => $this->when(isset($this->distance), (int) round($this->distance)),
             'marker_type'  => 'tournament',
         ];

@@ -443,24 +443,17 @@ class Tournament extends Model
                 )
             )
             ->when(
-                !empty($filters['location_id']),
-                fn($q) => $q->whereHas(
-                    'competitionLocation',
-                    fn($lq) => $lq->where('id', $filters['location_id'])
-                )
+                !empty($filters['competition_location_id']),
+                fn($q) => $q->where('competition_location_id', $filters['competition_location_id'])
             )
             ->when(
                 !empty($filters['keyword']),
                 fn($q) => $q->where(function ($kq) use ($filters){
                     $kq->where('tournaments.name', 'like', '%' . $filters['keyword'] . '%')
-                    ->orWhereHas('competitionLocation', function ($clq) use ($filters) {
-                        $clq->where('competition_locations.name', 'like', '%' . $filters['keyword'] . '%')
-                            ->orWhere('competition_locations.address', 'like', '%' . $filters['keyword'] . '%')
-                            ->orWhereHas(
-                                'location',
-                                fn($llq) => $llq->where('locations.name', 'like', '%' . $filters['keyword'] . '%')
-                            );
-                    });
+                        ->orWhereHas('competitionLocation', function ($clq) use ($filters) {
+                            $clq->where('competition_locations.name', 'like', '%' . $filters['keyword'] . '%')
+                                ->orWhere('competition_locations.address', 'like', '%' . $filters['keyword'] . '%');
+                        });
                 })
             )
             ->when(

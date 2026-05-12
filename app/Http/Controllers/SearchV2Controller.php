@@ -45,10 +45,10 @@ class SearchV2Controller extends Controller
         $userId = Auth::check() ? Auth::id() : null;
         $isMap = filter_var($params['map_mode'], FILTER_VALIDATE_BOOLEAN);
 
-        // Inject location_id into filters so every tab's scopeFilter receives it
+        // Inject competition_location_id into filters for tournament/mini filtering by venue
         $filters = $params['filters'] ?? [];
-        if (!empty($params['location_id'])) {
-            $filters['location_id'] = (int) $params['location_id'];
+        if (!empty($params['competition_location_id'])) {
+            $filters['competition_location_id'] = (int) $params['competition_location_id'];
         }
 
         $query = $this->buildQuery($tab, $params, $filters, $timeFilter, $userId);
@@ -134,7 +134,7 @@ class SearchV2Controller extends Controller
         }
 
         $hasFilter = !empty($params['keyword']) || !empty($params['sport_id']) ||
-                     !empty($params['location_id']) || !empty($params['filters'] ?? []);
+                     !empty($params['competition_location_id']) || !empty($params['filters'] ?? []);
         $hasBounds = !empty($params['minLat']) || !empty($params['maxLat']) ||
                      !empty($params['minLng']) || !empty($params['maxLng']);
 

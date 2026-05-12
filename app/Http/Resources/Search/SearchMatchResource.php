@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Search;
 
+use App\Http\Resources\UserResource;
 use App\Models\MiniTournamentStaff;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -13,7 +14,6 @@ class SearchMatchResource extends JsonResource
         $location = $this->whenLoaded('competitionLocation');
         $participants = $this->whenLoaded('participants');
         $staff = $this->whenLoaded('staff');
-        $creator = $this->whenLoaded('creator');
 
         return [
             'id'             => $this->id,
@@ -71,12 +71,8 @@ class SearchMatchResource extends JsonResource
                         ],
                     ])->values()->toArray() : [],
             ],
-            // Creator fallback
-            'creator' => $creator ? [
-                'id'         => $creator->id,
-                'full_name'  => $creator->full_name,
-                'avatar_url' => $creator->avatar_url,
-            ] : null,
+            // Created by
+            'created_by' => new UserResource($this->whenLoaded('creator')),
             // Badges
             'is_private'   => (bool) $this->is_private,
             'min_rating'   => $this->min_rating,
