@@ -24,6 +24,11 @@ class ListClubResource extends JsonResource
             'is_verified' => (bool) $this->is_verified,
             'created_by' => $this->created_by,
             'quantity_members' => $this->whenLoaded('members', fn() => $this->members->count(), 0),
+            'is_joined' => auth()->check()
+                ? ($this->relationLoaded('activeMembers')
+                    ? $this->activeMembers->contains('user_id', auth()->id())
+                    : false)
+                : false,
             'skill_level' => $this->whenLoaded('members', function () {
                 $scores = $this->members
                     ->map(fn($member) => $this->getMemberVnduprScore($member))

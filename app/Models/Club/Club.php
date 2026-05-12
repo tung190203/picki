@@ -35,6 +35,7 @@ class Club extends Model
         'is_public',
         'is_verified',
         'created_by',
+        'location_id',
     ];
 
     protected $casts = [
@@ -58,6 +59,11 @@ class Club extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function location()
+    {
+        return $this->belongsTo(\App\Models\Location::class);
     }
 
     public function members()
@@ -274,10 +280,8 @@ class Club extends Model
             ->whereBetween('longitude', [$minLng, $maxLng]);
     }
 
-    public function scopeNearBy($query, float $lat, float $lng, float $radiusMeters)
+    public function scopeNearBy($query, float $lat, float $lng, float $radiusKm)
     {
-        $radiusKm = $radiusMeters / 1000;
-
         $haversine = "(6371 * acos(cos(radians($lat))
                 * cos(radians(latitude))
                 * cos(radians(longitude) - radians($lng))
@@ -315,6 +319,10 @@ class Club extends Model
             ->when(
                 !empty($filters['keyword']),
                 fn($q) => $q->where('name', 'like', '%' . $filters['keyword'] . '%')
+            )
+            ->when(
+                !empty($filters['location_id']),
+                fn($q) => $q->where('location_id', $filters['location_id'])
             )
             ->when(
                 isset($filters['joined_only']) && $filters['joined_only'] === true,

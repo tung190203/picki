@@ -309,6 +309,24 @@ class MiniTournament extends Model
         return $this->hasMany(MiniParticipant::class);
     }
 
+    public function isJoinedBy(?int $userId): bool
+    {
+        if (!$userId) {
+            return false;
+        }
+
+        return $this->participants()->where('user_id', $userId)->where('is_confirmed', 1)->exists();
+    }
+
+    public function isRegisteredBy(?int $userId): bool
+    {
+        if (!$userId) {
+            return false;
+        }
+
+        return $this->participants()->where('user_id', $userId)->exists();
+    }
+
     public function sport()
     {
         return $this->belongsTo(Sport::class);
@@ -517,6 +535,10 @@ class MiniTournament extends Model
                 )
             )
             ->when(
+                !empty($filter['competition_location_id']),
+                fn($q) => $q->where('competition_location_id', $filter['competition_location_id'])
+            )
+            ->when(
                 !empty($filter['location_id']),
                 fn($q) => $q->whereHas(
                     'competitionLocation',
@@ -529,11 +551,7 @@ class MiniTournament extends Model
                     $kq->where('mini_tournaments.name', 'like', '%' . $filter['keyword'] . '%')
                         ->orWhereHas('competitionLocation', function ($locSub) use ($filter) {
                             $locSub->where('competition_locations.name', 'like', '%' . $filter['keyword'] . '%')
-                                ->orWhere('competition_locations.address', 'like', '%' . $filter['keyword'] . '%')
-                                ->orWhereHas(
-                                    'location',
-                                    fn($lq) => $lq->where('locations.name', 'like', '%' . $filter['keyword'] . '%')
-                                );
+                                ->orWhere('competition_locations.address', 'like', '%' . $filter['keyword'] . '%');
                         });
                 })
             )
@@ -704,10 +722,8 @@ class MiniTournament extends Model
         };
     }
 
-    public function scopeNearBy($query, $lat, $lng, float $radiusMeters)
+    public function scopeNearBy($query, $lat, $lng, float $radiusKm)
     {
-        $radiusKm = $radiusMeters / 1000;
-
         $haversine = "(6371 * acos(
             cos(radians(?))
             * cos(radians(competition_locations.latitude))
@@ -716,14 +732,13 @@ class MiniTournament extends Model
             * sin(radians(competition_locations.latitude))
         ))";
 
-        return $query->whereHas('competitionLocation', function ($q) use ($haversine, $lat, $lng, $radiusKm) {
-            $q->whereRaw("$haversine < ?", [
-                $lat,
-                $lng,
-                $lat,
-                $radiusKm
-            ]);
-        });
+        return $query
+            ->leftJoin('competition_locations', 'competition_locations.id', '=', 'mini_tournaments.competition_location_id')
+            ->select('mini_tournaments.*')
+            ->selectRaw("$haversine AS distance", [$lat, $lng, $lat])
+            ->whereRaw("$haversine <= ?", [$lat, $lng, $lat, $radiusKm])
+            ->orderByRaw('competition_locations.latitude IS NULL OR competition_locations.longitude IS NULL')
+            ->orderBy('distance', 'asc');
     }
 
     public function scopeInBounds($query, $minLat, $maxLat, $minLng, $maxLng)
@@ -744,7 +759,7 @@ class MiniTournament extends Model
             ->select('mini_tournaments.*')
             ->selectRaw("
                 (
-                    6371000 * acos(
+                    6371 * acos(
                         cos(radians(?))
                         * cos(radians(competition_locations.latitude))
                         * cos(radians(competition_locations.longitude) - radians(?))
