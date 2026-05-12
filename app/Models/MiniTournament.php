@@ -63,6 +63,7 @@ class MiniTournament extends Model
         'use_club_fund' => 'bool',
         'included_in_club_fund' => 'bool',
         'fee_amount' => 'integer',
+        'enable_dupr' => 'bool',
     ];
 
     const PER_PAGE = 15;
@@ -192,6 +193,11 @@ class MiniTournament extends Model
     public function getAutoSplitFeeTextAttribute(): string
     {
         return $this->auto_split_fee ? 'Chia tiền tự động' : 'Tiền cố định/người';
+    }
+
+    public function getIsDuprAttribute(): bool
+    {
+        return (bool) ($this->attributes['enable_dupr'] ?? false);
     }
 
     /**
@@ -450,6 +456,7 @@ class MiniTournament extends Model
             'participants.invitedBy',
             'miniTournamentStaffs.user',
             'staff',
+            'creator',
             'matches',
         ]);
     }
@@ -466,6 +473,7 @@ class MiniTournament extends Model
             'participants.guarantor',
             'miniTournamentStaffs.user',
             'staff',
+            'creator',
             'matches',
         ]);
     }
