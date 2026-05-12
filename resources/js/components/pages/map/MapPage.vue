@@ -2034,10 +2034,8 @@ const focusItemAuto = (item) => {
 }
 
 const getUserRating = (user) => {
-    if (!user?.sports?.length) return "0";
-    const pickleballSport = user.sports.find(sport => sport.sport_name === "Pickleball");
-    if (!pickleballSport) return "0";
-    return parseFloat(pickleballSport.scores.vndupr_score).toFixed(1) || "0";
+    const score = user?.vndupr_score ?? user?.sports?.[0]?.scores?.vndupr_score ?? 0;
+    return typeof score === 'number' ? score.toFixed(1) : "0";
 };
 
 const getMyClubs = async () => {

@@ -14,7 +14,7 @@ class SearchClubResource extends JsonResource
             'name'     => $this->name,
             'logo_url' => $this->logo_url,
             'cover_image_url' => $this->whenLoaded('profile', fn() => $this->profile?->cover_image_url),
-            'address'  => $this->address,
+            'address'  => $this->address ?? $this->whenLoaded('profile', fn() => $this->profile?->address),
             'lat'      => $this->latitude,
             'lng'      => $this->longitude,
             'is_public'    => (bool) ($this->is_public ?? true),

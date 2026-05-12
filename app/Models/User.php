@@ -354,9 +354,15 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     public const FULL_RELATIONS = ['referee', 'follows', 'playTimes', 'sports', 'sports.sport', 'sports.scores', 'clubs'];
 
-    public function scopeWithFullRelations($query)
+    public function scopeWithFullRelations($query, ?int $sportId = null)
     {
-        return $query->with(['referee', 'follows', 'playTimes', 'sports', 'sports.sport', 'sports.scores', 'clubs.members']);
+        $query = $query->with(['referee', 'follows', 'playTimes', 'sports', 'sports.sport', 'sports.scores', 'clubs.members']);
+
+        // Apply pickleball stats for vn_rank, defaulting to sport_id = 1 if not specified
+        $effectiveSportId = $sportId ?? 1;
+        $query->withPickleballStats($effectiveSportId);
+
+        return $query;
     }
 
     public function scopeLoadFullRelations()

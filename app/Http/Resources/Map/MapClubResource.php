@@ -15,7 +15,7 @@ class MapClubResource extends JsonResource
             'logo_url' => $this->logo_url,
             'lat'      => $this->latitude,
             'lng'      => $this->longitude,
-            'address'  => $this->address,
+            'address'  => $this->address ?? $this->profile?->address,
             'is_public'    => (bool) ($this->is_public ?? true),
             'is_verified'  => (bool) $this->is_verified,
             'members_count' => (int) ($this->activeMembers_count ?? $this->activeMembers?->count() ?? 0),
