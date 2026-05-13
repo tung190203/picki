@@ -474,43 +474,33 @@ const convertLevel = user => {
 }
 
 const handleAutoInvite = async () => {
-    if (neededCount.value <= 0 || !props.competitionLocation) return
+    if (neededCount.value <= 0) return
 
     isAutoInviting.value = true
     autoInviteResult.value = null
     autoInviteProgress.value = 0
 
-    // Determine lat/lng based on source
-    let lat, lng
-    if (locationSource.value === 'venue' && props.competitionLocation) {
-        lat = props.competitionLocation.latitude
-        lng = props.competitionLocation.longitude
-    } else {
-        // Fall back to venue location if user location not available
-        lat = props.competitionLocation?.latitude
-        lng = props.competitionLocation?.longitude
+    // Build payload
+    const payload = {
+        friend_only: friendOnly.value,
+        source: locationSource.value,
+        radius_start: localRadius.value,
+        radius_max: 200,
     }
 
-    if (!lat || !lng) {
-        isAutoInviting.value = false
-        autoInviteResult.value = {
-            invited_count: 0,
-            failed_count: 0,
-            total_found: 0,
-            reached_max_radius: false,
-            already_full: false,
+    // Only send lat/lng when source is "user"
+    if (locationSource.value === 'user') {
+        const userLat = props.competitionLocation?.latitude
+        const userLng = props.competitionLocation?.longitude
+        if (userLat && userLng) {
+            payload.lat = userLat
+            payload.lng = userLng
         }
-        return
     }
+    // When source is 'venue', backend will auto-fetch from competition_location
 
     try {
-        const result = await autoInviteArea(props.tournamentId, {
-            friend_only: friendOnly.value,
-            lat,
-            lng,
-            radius_start: localRadius.value,
-            radius_max: 200,
-        })
+        const result = await autoInviteArea(props.tournamentId, payload)
 
         autoInviteProgress.value = result.invited_count || 0
         autoInviteResult.value = result

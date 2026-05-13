@@ -862,16 +862,34 @@ class MiniParticipantController extends Controller
 
         $validated = $request->validate([
             'friend_only' => 'sometimes|boolean',
-            'lat'         => 'required|numeric',
-            'lng'         => 'required|numeric',
+            'lat'         => 'sometimes|numeric',
+            'lng'         => 'sometimes|numeric',
             'radius_start' => 'sometimes|numeric|min:1|max:200',
             'radius_max'   => 'sometimes|numeric|min:1|max:500',
+            'source'       => 'sometimes|in:venue,user',
         ]);
 
-        $friendOnly = $validated['friend_only'] ?? false;
-        $lat = (float) $validated['lat'];
-        $lng = (float) $validated['lng'];
+        // Fallback to competition location if lat/lng not provided
+        $source = $validated['source'] ?? 'venue';
+
+        if (!empty($validated['lat']) && !empty($validated['lng'])) {
+            $lat = (float) $validated['lat'];
+            $lng = (float) $validated['lng'];
+        } elseif ($source === 'venue' && $miniTournament->competitionLocation) {
+            $lat = (float) $miniTournament->competitionLocation->latitude;
+            $lng = (float) $miniTournament->competitionLocation->longitude;
+        } else {
+            $user = Auth::user();
+            $lat = (float) $user->latitude;
+            $lng = (float) $user->longitude;
+        }
+
+        if (empty($lat) || empty($lng)) {
+            return ResponseHelper::error('Không có thông tin toạ độ. Vui lòng truyền lat/lng hoặc đảm bảo sân đấu có toạ độ.', 422);
+        }
+
         $radiusStart = (float) ($validated['radius_start'] ?? 1);
+        $friendOnly = $validated['friend_only'] ?? false;
         $radiusMax = (float) ($validated['radius_max'] ?? 200);
         $radiusStep = 5.0;
 
