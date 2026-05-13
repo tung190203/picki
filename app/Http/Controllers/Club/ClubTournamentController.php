@@ -15,6 +15,7 @@ use App\Models\Club\Club;
 use App\Models\Participant;
 use App\Models\Tournament;
 use App\Models\TournamentStaff;
+use App\Models\TournamentParticipantPayment;
 use App\Services\ImageOptimizationService;
 use App\Services\TournamentFundService;
 use App\Services\TournamentService;
@@ -202,6 +203,13 @@ class ClubTournamentController extends Controller
             $oldStatus = $tournament->status;
             $tournament->fill($validated);
             $tournament->save();
+
+            // Sync payment status khi has_fee thay đổi (free→paid hoặc paid→free)
+            $wasPaid = (bool) ($tournament->getOriginal('has_fee') ?? false);
+            $isNowPaid = isset($validated['has_fee']) ? (bool) $validated['has_fee'] : $wasPaid;
+            if ($wasPaid !== $isNowPaid) {
+                $this->syncParticipantsPaymentStatus($tournament, $isNowPaid);
+            }
 
             $this->tournamentService->calculateEndDate($tournament);
 
@@ -445,5 +453,79 @@ class ClubTournamentController extends Controller
         $participant->load('user');
 
         return ResponseHelper::success(new ParticipantResource($participant), 'Đã đánh dấu vắng mặt thành công');
+    }
+
+    private function syncParticipantsPaymentStatus(Tournament $tournament, bool $isNowPaid): void
+    {
+        $organizerIds = $tournament->staff()
+            ->where('role', TournamentStaff::ROLE_ORGANIZER)
+            ->pluck('user_id')
+            ->toArray();
+
+        $sponsoredByOrganizerGuestIds = [];
+        if (!empty($organizerIds)) {
+            $sponsoredByOrganizerGuestIds = Participant::where('tournament_id', $tournament->id)
+                ->where('is_guest', true)
+                ->whereNotNull('guarantor_user_id')
+                ->whereIn('guarantor_user_id', $organizerIds)
+                ->pluck('user_id')
+                ->toArray();
+        }
+
+        $confirmedParticipants = $tournament->participants()
+            ->where('is_confirmed', true)
+            ->get();
+
+        if ($confirmedParticipants->isEmpty()) {
+            return;
+        }
+
+        $feePerPerson = 0;
+        if ($isNowPaid) {
+            $feePerPerson = $tournament->fee_amount ?? 0;
+        }
+
+        foreach ($confirmedParticipants as $participant) {
+            $isOrganizer = in_array($participant->user_id, $organizerIds);
+            $isSponsoredByOrganizer = in_array($participant->user_id, $sponsoredByOrganizerGuestIds);
+
+            if (!$isNowPaid) {
+                if ($participant->payment_status !== PaymentStatusEnum::CANCELLED) {
+                    $participant->update(['payment_status' => PaymentStatusEnum::CANCELLED]);
+                }
+                TournamentParticipantPayment::where('tournament_id', $tournament->id)
+                    ->where('participant_id', $participant->id)
+                    ->update(['status' => TournamentParticipantPayment::STATUS_REJECTED]);
+            } elseif ($isOrganizer || $isSponsoredByOrganizer) {
+                if ($participant->payment_status !== PaymentStatusEnum::CONFIRMED) {
+                    $participant->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
+                }
+                $this->upsertTournamentPaymentRecord($tournament, $participant, 0, TournamentParticipantPayment::STATUS_CONFIRMED);
+            } else {
+                if ($participant->payment_status !== PaymentStatusEnum::PENDING) {
+                    $participant->update(['payment_status' => PaymentStatusEnum::PENDING]);
+                }
+                $this->upsertTournamentPaymentRecord($tournament, $participant, $feePerPerson, TournamentParticipantPayment::STATUS_PENDING);
+            }
+        }
+    }
+
+    private function upsertTournamentPaymentRecord(Tournament $tournament, Participant $participant, float $amount, string $status): void
+    {
+        $existing = TournamentParticipantPayment::where('tournament_id', $tournament->id)
+            ->where('participant_id', $participant->id)
+            ->first();
+
+        if ($existing) {
+            $existing->update(['amount' => $amount, 'status' => $status]);
+        } else {
+            TournamentParticipantPayment::create([
+                'tournament_id' => $tournament->id,
+                'participant_id' => $participant->id,
+                'user_id' => $participant->user_id,
+                'amount' => $amount,
+                'status' => $status,
+            ]);
+        }
     }
 }
