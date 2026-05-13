@@ -1179,6 +1179,13 @@ const handleSubmitFundRevenue = async (data) => {
     // Luôn gửi qr_image nếu có (để làm fallback khi CLB chưa có QR chung)
     if (data.qr_image) {
         formData.append('qr_image', data.qr_image);
+    } else if (data.qr_code_url) {
+        // Nếu có QR cũ từ modal nhưng user không upload mới, gửi URL cũ
+        formData.append('qr_code_url', data.qr_code_url);
+    }
+
+    if (data.use_cached_qr) {
+        formData.append('use_cached_qr', 1);
     }
 
     try {

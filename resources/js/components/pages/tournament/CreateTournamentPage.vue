@@ -457,21 +457,36 @@
                                 <p class="text-sm text-gray-600 font-medium block mb-1">Mã QR thanh toán</p>
                                 <input ref="qrFileInput" type="file" accept="image/*" class="hidden"
                                     @change="onQrFileChange" />
-                                <div v-if="!qrCodePreview"
-                                    @click="$refs.qrFileInput.click()"
-                                    class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-[#D72D36] transition-colors">
-                                    <div class="flex flex-col items-center">
-                                        <ArrowUpTrayIcon class="w-8 h-8 text-gray-400 mb-2" aria-hidden="true" />
-                                        <p class="text-sm text-gray-500">Tải ảnh lên</p>
-                                        <p class="text-xs text-gray-400">JPG, PNG (tối đa 5MB)</p>
-                                    </div>
-                                </div>
-                                <div v-else class="relative inline-block">
+
+                                <!-- Khi đã có preview (file mới hoặc cached) -->
+                                <div v-if="qrCodePreview" class="relative inline-block">
                                     <img :src="qrCodePreview" alt="QR Code thanh toán"
                                         class="w-32 h-32 object-contain mx-auto rounded-lg border" />
                                     <button @click="removeQrCode"
                                         class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1">
                                         <XMarkIcon class="w-4 h-4" />
+                                    </button>
+                                    <p v-if="useCachedQr" class="text-center text-xs text-green-600 mt-1 font-medium">
+                                        Đang dùng mã QR đã lưu
+                                    </p>
+                                </div>
+
+                                <!-- Khi chưa có preview: cho chọn upload HOẶC dùng cached -->
+                                <div v-else class="space-y-2">
+                                    <div @click="$refs.qrFileInput.click()"
+                                        class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-[#D72D36] transition-colors">
+                                        <div class="flex flex-col items-center">
+                                            <ArrowUpTrayIcon class="w-8 h-8 text-gray-400 mb-2" aria-hidden="true" />
+                                            <p class="text-sm text-gray-500">Tải ảnh lên</p>
+                                            <p class="text-xs text-gray-400">JPG, PNG (tối đa 5MB)</p>
+                                        </div>
+                                    </div>
+
+                                    <button type="button"
+                                        v-if="user.latest_used_qr"
+                                        @click="useCachedQr = true; qrCodePreview = user.latest_used_qr"
+                                        class="w-full py-2 px-4 bg-green-50 border border-green-300 rounded-lg text-center cursor-pointer hover:bg-green-100 transition-colors text-sm text-green-700 font-medium">
+                                        Dùng mã QR đã lưu trước đó
                                     </button>
                                 </div>
                             </div>
@@ -733,9 +748,12 @@ import { toast } from 'vue3-toastify'
 import { levels } from '@/constants/levels';
 import { useFormattedDate } from '@/composables/formatedDate'
 import { useRoute, useRouter } from 'vue-router'
+import { useUserStore } from '@/store/auth'
 
 const router = useRouter()
 const route = useRoute()
+const userStore = useUserStore()
+const user = userStore.getUser
 const tournamentId = route.params.id || null
 const isEditMode = computed(() => !!tournamentId)
 const btnTitle = computed(() => isEditMode.value ? 'Chỉnh sửa giải đấu' : 'Tạo giải đấu');
@@ -842,6 +860,7 @@ const qrCodeFile = ref(null)
 const qrCodePreview = ref(null)
 const qrCodeImage = ref(null)
 const qrFileInput = ref(null)
+const useCachedQr = ref(false)
 const posterFile = ref(null)
 const posterPreview = ref(null)
 const posterInputRef = ref(null)
@@ -1050,6 +1069,7 @@ const onQrFileChange = (e) => {
         toast.error('Kích thước ảnh không được quá 5MB')
         return
     }
+    useCachedQr.value = false
     qrCodeFile.value = file
     qrCodePreview.value = URL.createObjectURL(file)
 }
@@ -1058,6 +1078,7 @@ const removeQrCode = () => {
     qrCodeFile.value = null
     qrCodePreview.value = null
     qrCodeImage.value = null
+    useCachedQr.value = false
 }
 
 const onPosterFileChange = (e) => {
@@ -1180,9 +1201,10 @@ const handleSubmit = async () => {
         is_public_branch: isPublicBranch.value,
         is_own_score: isOwnScore.value,
         creator_join: creatorJoin.value,
+        use_cached_qr: useCachedQr.value,
     }
 
-    if (qrCodeFile.value || posterFile.value) {
+    if (qrCodeFile.value || posterFile.value || useCachedQr.value) {
         const formData = new FormData()
         Object.entries(data).forEach(([key, value]) => {
             if (value !== null && value !== undefined) {

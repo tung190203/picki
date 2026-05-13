@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ClubMemberRole;
+use App\Enums\PaymentStatusEnum;
 use App\Events\SuperAdmin\DashboardStatUpdated;
 use App\Events\SuperAdmin\TournamentCreated;
 use App\Events\SuperAdmin\TournamentDeleted;
@@ -20,6 +21,7 @@ use App\Models\Matches;
 use App\Models\Participant;
 use App\Models\Tournament;
 use App\Models\TournamentStaff;
+use App\Models\TournamentParticipantPayment;
 use App\Models\TournamentType;
 use App\Services\ImageOptimizationService;
 use App\Services\TournamentFundService;
@@ -195,16 +197,26 @@ class TournamentController extends Controller
             }
 
             // Xử lý QR code đồng bộ (giống MiniTournamentController - lưu ngay để user thấy ngay trong modal thanh toán)
-            if ($request->hasFile('qr_code_url')) {
+            $qrUrl = null;
+            if ($request->boolean('use_cached_qr') && auth()->user()->latest_used_qr) {
+                $qrUrl = auth()->user()->latest_used_qr;
+                $validated['qr_code_url'] = $qrUrl;
+            } elseif ($request->hasFile('qr_code_url')) {
                 $qrFile = $request->file('qr_code_url');
                 $qrPath = $qrFile->store('tournaments/qr', 'public');
-                $validated['qr_code_url'] = $qrPath;
+                $qrUrl = $qrPath;
+                $validated['qr_code_url'] = $qrUrl;
             }
 
             $tournament = Tournament::create([
                 ...$validated,
                 'created_by' => auth()->id(),
             ]);
+
+            // Lưu lại QR vừa dùng vào user
+            if ($qrUrl) {
+                auth()->user()->update(['latest_used_qr' => $qrUrl]);
+            }
 
             // Xử lý poster đồng bộ ngay sau khi tạo tournament
             if ($posterStoragePath) {
@@ -341,6 +353,13 @@ class TournamentController extends Controller
             $newStatus = $validated['status'] ?? $tournament->status;
             $tournament->fill($validated);
             $tournament->save();
+
+            // Sync payment status khi has_fee thay đổi (free→paid hoặc paid→free)
+            $wasPaid = (bool) ($tournament->getOriginal('has_fee') ?? false);
+            $isNowPaid = isset($validated['has_fee']) ? (bool) $validated['has_fee'] : $wasPaid;
+            if ($wasPaid !== $isNowPaid) {
+                $this->syncParticipantsPaymentStatus($tournament, $isNowPaid);
+            }
 
             $this->tournamentService->calculateEndDate($tournament);
 
@@ -831,5 +850,79 @@ class TournamentController extends Controller
     private function updateParticipantsRatingStats(Tournament $tournament): void
     {
         $this->tournamentService->updateParticipantsRatingStats($tournament);
+    }
+
+    private function syncParticipantsPaymentStatus(Tournament $tournament, bool $isNowPaid): void
+    {
+        $organizerIds = $tournament->staff()
+            ->where('role', TournamentStaff::ROLE_ORGANIZER)
+            ->pluck('user_id')
+            ->toArray();
+
+        $sponsoredByOrganizerGuestIds = [];
+        if (!empty($organizerIds)) {
+            $sponsoredByOrganizerGuestIds = Participant::where('tournament_id', $tournament->id)
+                ->where('is_guest', true)
+                ->whereNotNull('guarantor_user_id')
+                ->whereIn('guarantor_user_id', $organizerIds)
+                ->pluck('user_id')
+                ->toArray();
+        }
+
+        $confirmedParticipants = $tournament->participants()
+            ->where('is_confirmed', true)
+            ->get();
+
+        if ($confirmedParticipants->isEmpty()) {
+            return;
+        }
+
+        $feePerPerson = 0;
+        if ($isNowPaid) {
+            $feePerPerson = $tournament->fee_amount ?? 0;
+        }
+
+        foreach ($confirmedParticipants as $participant) {
+            $isOrganizer = in_array($participant->user_id, $organizerIds);
+            $isSponsoredByOrganizer = in_array($participant->user_id, $sponsoredByOrganizerGuestIds);
+
+            if (!$isNowPaid) {
+                if ($participant->payment_status !== PaymentStatusEnum::CANCELLED) {
+                    $participant->update(['payment_status' => PaymentStatusEnum::CANCELLED]);
+                }
+                TournamentParticipantPayment::where('tournament_id', $tournament->id)
+                    ->where('participant_id', $participant->id)
+                    ->update(['status' => TournamentParticipantPayment::STATUS_REJECTED]);
+            } elseif ($isOrganizer || $isSponsoredByOrganizer) {
+                if ($participant->payment_status !== PaymentStatusEnum::CONFIRMED) {
+                    $participant->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
+                }
+                $this->upsertTournamentPaymentRecord($tournament, $participant, 0, TournamentParticipantPayment::STATUS_CONFIRMED);
+            } else {
+                if ($participant->payment_status !== PaymentStatusEnum::PENDING) {
+                    $participant->update(['payment_status' => PaymentStatusEnum::PENDING]);
+                }
+                $this->upsertTournamentPaymentRecord($tournament, $participant, $feePerPerson, TournamentParticipantPayment::STATUS_PENDING);
+            }
+        }
+    }
+
+    private function upsertTournamentPaymentRecord(Tournament $tournament, Participant $participant, float $amount, string $status): void
+    {
+        $existing = TournamentParticipantPayment::where('tournament_id', $tournament->id)
+            ->where('participant_id', $participant->id)
+            ->first();
+
+        if ($existing) {
+            $existing->update(['amount' => $amount, 'status' => $status]);
+        } else {
+            TournamentParticipantPayment::create([
+                'tournament_id' => $tournament->id,
+                'participant_id' => $participant->id,
+                'user_id' => $participant->user_id,
+                'amount' => $amount,
+                'status' => $status,
+            ]);
+        }
     }
 }

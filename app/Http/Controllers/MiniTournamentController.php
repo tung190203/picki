@@ -2,7 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ClubFundCollectionStatus;
+use App\Enums\ClubFundContributionStatus;
 use App\Enums\ClubMemberRole;
+use App\Enums\ClubWalletTransactionDirection;
+use App\Enums\ClubWalletTransactionSourceType;
+use App\Enums\ClubWalletTransactionStatus;
+use App\Enums\PaymentMethod;
 use App\Events\SuperAdmin\DashboardStatUpdated;
 use App\Events\SuperAdmin\MiniTournamentCreated;
 use App\Events\SuperAdmin\MiniTournamentDeleted;
@@ -12,9 +18,12 @@ use App\Helpers\ResponseHelper;
 use App\Http\Requests\StoreMiniTournamentRequest;
 use App\Http\Requests\UpdateMiniTournamentRequest;
 use App\Http\Resources\ListMiniTournamentResource;
+use App\Http\Resources\MiniParticipantPaymentResource;
 use App\Http\Resources\MiniParticipantResource;
 use App\Http\Resources\MiniTournamentResource;
 use App\Models\Club\Club;
+use App\Models\Club\ClubFundCollection;
+use App\Models\Club\ClubFundContribution;
 use App\Models\MiniMatch;
 use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
@@ -22,18 +31,24 @@ use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
 use App\Models\User;
 use App\Notifications\MiniTournamentInvitationNotification;
+use App\Notifications\PaymentConfirmedNotification;
+use App\Notifications\PaymentRejectedNotification;
+use App\Notifications\PaymentReminderNotification;
+use App\Services\Club\ClubFundContributionService;
 use App\Services\MiniTournamentService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class MiniTournamentController extends Controller
 {
     public function __construct(
-        protected MiniTournamentService $tournamentService
+        protected MiniTournamentService $tournamentService,
+        protected ClubFundContributionService $fundContributionService,
     ) {
     }
 
@@ -120,14 +135,73 @@ class MiniTournamentController extends Controller
         }
 
         // Handle qr_code_url file
-        $qrFile = $request->file('qr_code_url');
-        if ($qrFile) {
+        $qrUrl = null;
+        if ($request->boolean('use_cached_qr') && Auth::user()->latest_used_qr) {
+            $qrUrl = Auth::user()->latest_used_qr;
+        } elseif ($qrFile = $request->file('qr_code_url')) {
             $qrPath = $qrFile->store('qr_codes', 'public');
             $qrUrl = asset('storage/' . $qrPath);
-            $miniTournament->update(['qr_code_url' => $qrUrl]);
         } elseif ($request->has('qr_code_url') && is_string($request->input('qr_code_url'))) {
-            // Handle qr_code_url as string (e.g. text content or existing URL)
-            $miniTournament->update(['qr_code_url' => $request->input('qr_code_url')]);
+            $qrUrl = $request->input('qr_code_url');
+        }
+
+        if ($qrUrl) {
+            $miniTournament->update(['qr_code_url' => $qrUrl]);
+            Auth::user()->update(['latest_used_qr' => $qrUrl]);
+        }
+
+        // === Tạo ClubFundCollection khi included_in_club_fund = true ===
+        if ($miniTournament->included_in_club_fund && $miniTournament->club_id) {
+            $club = Club::find($miniTournament->club_id);
+            if ($club) {
+                $collection = ClubFundCollection::create([
+                    'club_id' => $club->id,
+                    'title' => $miniTournament->name,
+                    'description' => $miniTournament->fee_description,
+                    'target_amount' => $miniTournament->fee_amount,
+                    'amount_per_member' => $miniTournament->fee_amount,
+                    'currency' => 'VND',
+                    'start_date' => $miniTournament->start_time,
+                    'end_date' => $miniTournament->end_time ?? $miniTournament->start_time,
+                    'status' => ClubFundCollectionStatus::Active,
+                    'qr_code_url' => $qrUrl,
+                    'created_by' => Auth::id(),
+                    'included_in_club_fund' => true,
+                ]);
+
+                $miniTournament->update(['club_fund_collection_id' => $collection->id]);
+
+                // Gán organizer (creator) vào assignedMembers → Confirmed (exempt)
+                $collection->assignedMembers()->attach(Auth::id(), ['amount_due' => 0]);
+
+                ClubFundContribution::create([
+                    'club_fund_collection_id' => $collection->id,
+                    'user_id' => Auth::id(),
+                    'amount' => (float) $miniTournament->fee_amount,
+                    'receipt_url' => null,
+                    'note' => 'Chủ kèo - bao phí',
+                    'status' => ClubFundContributionStatus::Confirmed,
+                ]);
+
+                // Tạo wallet tx IN cho organizer exempt
+                if ($club->mainWallet) {
+                    $club->mainWallet->transactions()->create([
+                        'direction' => ClubWalletTransactionDirection::In,
+                        'amount' => (float) $miniTournament->fee_amount,
+                        'source_type' => ClubWalletTransactionSourceType::FundCollection,
+                        'source_id' => $collection->id,
+                        'payment_method' => PaymentMethod::Other,
+                        'status' => ClubWalletTransactionStatus::Confirmed,
+                        'description' => 'Thu quỹ kèo: ' . $miniTournament->name,
+                        'created_by' => Auth::id(),
+                        'confirmed_by' => Auth::id(),
+                        'confirmed_at' => now(),
+                        'included_in_club_fund' => true,
+                    ]);
+                    $collection->updateCollectedAmount();
+                }
+
+            }
         }
 
         $miniTournament->loadFullRelations();

@@ -79,6 +79,7 @@ class StoreMiniTournamentRequest extends FormRequest
             'max_players' => 'required|integer|min:2|max:100',
 
             // Club fund integration
+            'club_id' => 'nullable|integer|exists:clubs,id',
             'use_club_fund' => 'boolean',
             'included_in_club_fund' => 'boolean',
 
@@ -157,9 +158,15 @@ class StoreMiniTournamentRequest extends FormRequest
             }
 
             // use_club_fund = true và included_in_club_fund = true loại trừ nhau
+            // use_club_fund = true và included_in_club_fund = true loại trừ nhau
             // use_club_fund = true: CLB chi tiền → không thu từ member → KHÔNG tạo collection
             if ($this->boolean('use_club_fund') && $this->boolean('included_in_club_fund')) {
                 $validator->errors()->add('included_in_club_fund', 'Không thể chọn đồng thời "Quỹ chi" và "Thu vào quỹ chung CLB". Vui lòng chỉ chọn một trong hai.');
+            }
+
+            // Khi bật included_in_club_fund hoặc use_club_fund thì phải có club_id
+            if (($this->boolean('included_in_club_fund') || $this->boolean('use_club_fund')) && !$this->filled('club_id')) {
+                $validator->errors()->add('club_id', 'Vui lòng chọn CLB khi sử dụng tùy chọn quỹ CLB.');
             }
 
             if ($this->boolean('apply_rule')) {
