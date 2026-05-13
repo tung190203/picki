@@ -325,8 +325,14 @@ class ClubActivityService
         }
 
         $qrCodeUrl = null;
-        if (isset($data['qr_image']) && $data['qr_image'] instanceof UploadedFile) {
+        if (!empty($data['use_cached_qr'])) {
+            $qrCodeUrl = User::find($userId)?->latest_used_qr;
+        } elseif (isset($data['qr_image']) && $data['qr_image'] instanceof UploadedFile) {
             $qrCodeUrl = $this->imageService->optimizeThumbnail($data['qr_image'], 'activity_qr_codes', 90);
+        }
+
+        if ($qrCodeUrl) {
+            User::find($userId)?->update(['latest_used_qr' => $qrCodeUrl]);
         }
 
         $recurringSchedule = $data['recurring_schedule'] ?? null;
