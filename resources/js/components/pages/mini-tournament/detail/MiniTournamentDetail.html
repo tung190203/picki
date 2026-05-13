@@ -126,12 +126,6 @@
                                 {{ mini?.status == 1 ? 'Công bố kèo đấu' : 'Huỷ công bố' }}
                             </button>
 
-                            <button @click="openPromotionModal"
-                                    class="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium px-4 py-2 rounded-md transition">
-                                Quảng bá
-                                <MegaphoneIcon class="w-4 h-4" />
-                            </button>
-
                             <button @click="goToEditPage"
                                     class="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium px-4 py-2 rounded-md transition">
                                 Chỉnh sửa
@@ -414,15 +408,20 @@
                 { label: 'Gửi link', icon: LinkIcon, onClick: copyLink },
                 { label: 'Quét mã QR', icon: QrCodeIcon, onClick: showQRCode },
                 isCreator ? { label: 'Mời nhóm', icon: UserMultiple, onClick: () => openInviteModalDefault() } : null,
-                isCreator ? { label: 'Quảng bá', icon: MegaphoneIcon, onClick: openPromotionModal } : null,
+                isCreator ? { label: 'Mời người chơi ở gần bạn', icon: MegaphoneIcon, onClick: openInviteModalArea } : null,
                 isCreator ? { label: 'Yêu cầu xác nhận KQ', icon: ClipboardDocumentCheckIcon } : null,
             ].filter(Boolean)" :subtitle="'Hãy chia sẻ thông tin tới bạn bè để cùng tham gia kèo đấu'" />
     </div>
 
     <!-- Invite Group Modal -->
     <InviteGroup v-model="showInviteModal" :data="inviteGroupData" :clubs="clubs" :active-scope="activeScope"
-                 :selected-club="selectedClub" :search-query="searchQuery" :current-radius="currentRadius" :current-club-id="selectedClub" @update:radius="onRadiusChange" @update:searchQuery="onSearchChange"
-                 @change-scope="onScopeChange" @change-club="onClubChange" @invite="handleInvite" />
+                 :selected-club="selectedClub" :search-query="searchQuery" :current-radius="currentRadius" :current-club-id="selectedClub"
+                 :tournament-max-players="mini.max_players"
+                 :current-participants-count="allParticipants.length"
+                 :competition-location="competitionLocation"
+                 :tournament-id="id"
+                 @update:radius="onRadiusChange" @update:searchQuery="onSearchChange"
+                 @change-scope="onScopeChange" @change-club="onClubChange" @invite="handleInvite" @invite-complete="inviteComplete" />
     <DeleteConfirmationModal v-model="showDeleteModal" title="Xác nhận hủy bỏ kèo đấu" message="Thao tác này không thể hoàn tác." confirmButtonText="Xác nhận" @confirm="removeMiniTournament" />
     <CancelRecurrenceModal v-model="showCancelRecurrenceModal" @cancelSingle="showDeleteModal = true" @cancelSeries="cancelRecurrenceSeries" />
     <DeleteConfirmationModal v-model="showDelineMiniParticipantModal" title="Xác nhận từ chối tham gia kèo đấu" message="Thao tác này không thể hoàn tác." confirmButtonText="Xác nhận" @confirm="declineMiniTournament" />

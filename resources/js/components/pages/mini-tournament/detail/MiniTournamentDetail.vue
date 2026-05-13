@@ -484,9 +484,28 @@ export default {
             showInviteModal.value = true
         }
 
+        const inviteComplete = async (result) => {
+            if (result && result.invited_count > 0) {
+                try {
+                    await detailMiniTournament(id);
+                } catch (error) {
+                    // eslint-disable-next-line no-console
+                    console.error('Error refreshing tournament after auto-invite:', error);
+                }
+            }
+        }
+
         const openInviteModalWithFriends = async () => {
             inviteType.value = 'participant'
             activeScope.value = 'friends'
+            await getInviteGroupData()
+            showInviteModal.value = true
+        }
+
+        const openInviteModalArea = async () => {
+            inviteType.value = 'participant'
+            activeScope.value = 'area'
+            currentRadius.value = 10
             await getInviteGroupData()
             showInviteModal.value = true
         }
@@ -920,6 +939,8 @@ export default {
             onScopeChange,
             onClubChange,
             openInviteModalWithFriends,
+            openInviteModalArea,
+            inviteComplete,
             showQRCode,
             handleRemoveStaff,
             handleRemoveUser,
@@ -972,7 +993,10 @@ export default {
             handleMemberAbsent,
             handleMemberSelfCheckIn,
             handleMemberSelfAbsent,
-            isCurrentUserParticipant
+            isCurrentUserParticipant,
+            competitionLocation: computed(() => mini.value?.competition_location ?? null),
+            tournamentMaxPlayers: computed(() => mini.value?.max_players ?? null),
+            tournamentId: computed(() => mini.value?.id ?? null),
         }
     }
 }
