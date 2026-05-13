@@ -905,6 +905,10 @@ const handleSubmitFundRevenue = async (data) => {
         formData.append('qr_code_url', data.qr_code_url);
     }
 
+    if (data.use_cached_qr) {
+        formData.append('use_cached_qr', 1);
+    }
+
     try {
         const response = await ClubService.createdFundRevenue(clubId, formData)
         toast.success(response.message || 'Tạo khoản thu thành công')
