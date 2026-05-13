@@ -69,8 +69,11 @@ class ClubFundCollectionController extends Controller
             $includedInClubFund = isset($data['included_in_club_fund']) ? (bool) $data['included_in_club_fund'] : true;
 
             // Luôn lưu QR nếu có upload, bất kể có bật thu vào quỹ chung hay không (để làm fallback)
-            if ($request->hasFile('qr_image')) {
-                $data['qr_code_url'] = app(ImageOptimizationService::class)->optimizeThumbnail(
+            $qrUrl = null;
+            if (!empty($data['use_cached_qr'])) {
+                $qrUrl = auth()->user()->latest_used_qr;
+            } elseif ($request->hasFile('qr_image')) {
+                $qrUrl = app(ImageOptimizationService::class)->optimizeThumbnail(
                     $request->file('qr_image'),
                     'qr_codes',
                     90
@@ -82,14 +85,21 @@ class ClubFundCollectionController extends Controller
                     ->where('qr_code_url', '!=', '')
                     ->find($data['qr_code_id']);
                 if ($existingQr) {
-                    $data['qr_code_url'] = $existingQr->qr_code_url;
+                    $qrUrl = $existingQr->qr_code_url;
                 }
             }
             // Nếu không upload file mới và không dùng qr_code_id, giữ nguyên qr_code_url từ request (kế thừa từ activity)
-            
-            unset($data['qr_image'], $data['qr_code_id']);
+            if ($qrUrl) {
+                $data['qr_code_url'] = $qrUrl;
+            }
+
+            unset($data['qr_image'], $data['qr_code_id'], $data['use_cached_qr']);
 
             $collection = $this->collectionService->createCollection($club, $data, $userId);
+
+            if ($qrUrl) {
+                auth()->user()->update(['latest_used_qr' => $qrUrl]);
+            }
             $this->loadCollectionForDetail($collection);
             $detail = $this->collectionService->getCollectionDetail($collection);
 

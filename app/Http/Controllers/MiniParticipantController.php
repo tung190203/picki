@@ -1042,8 +1042,10 @@ class MiniParticipantController extends Controller
                     $isSuperAdmin = SuperAdminDraft::where('user_id', Auth::id())->exists();
 
                     $paymentStatus = PaymentStatusEnum::CONFIRMED;
+                    $isPaidBySystem = false;
                     if ($miniTournament->use_club_fund) {
                         // CLB chi → CONFIRMED
+                        $isPaidBySystem = true;
                     } elseif ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
                         $paymentStatus = PaymentStatusEnum::PENDING;
                     }
@@ -1058,12 +1060,31 @@ class MiniParticipantController extends Controller
 
                     $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $candidate->id);
 
+                    // Tính phí dự kiến khi auto_split_fee
+                    $hasAutoSplitFee = $miniTournament->has_fee && $miniTournament->auto_split_fee && !$isPaidBySystem;
+                    $estimatedFeePerPerson = null;
+                    if ($hasAutoSplitFee) {
+                        $currentCount = $miniTournament->participants()->count();
+                        $estimatedFeePerPerson = $currentCount > 0
+                            ? round($miniTournament->fee_amount / $currentCount)
+                            : $miniTournament->fee_amount;
+                    }
+
                     // Send notification
-                    $candidate->notify(new MiniTournamentCreatorInvitationNotification($participant, Auth::id()));
+                    $candidate->notify(new MiniTournamentCreatorInvitationNotification(
+                        $participant,
+                        Auth::id(),
+                        $hasAutoSplitFee,
+                        $estimatedFeePerPerson
+                    ));
+
+                    $notifMessage = $hasAutoSplitFee && $estimatedFeePerPerson
+                        ? "Bạn được mời tham gia kèo đấu \"{$miniTournament->name}\". Phí dự kiến " . number_format($estimatedFeePerPerson, 0, ',', '.') . " VND/người, sẽ được chia khi kèo bắt đầu."
+                        : "Bạn được mời tham gia kèo đấu \"{$miniTournament->name}\".";
                     $this->pushToUsers(
                         [$candidate->id],
                         'Lời mời tham gia kèo đấu',
-                        'Bạn được mời tham gia kèo đấu "' . $miniTournament->name . '"',
+                        $notifMessage,
                         [
                             'type' => 'MINI_TOURNAMENT_INVITED',
                             'mini_tournament_id' => $miniTournament->id,
@@ -1071,8 +1092,8 @@ class MiniParticipantController extends Controller
                         ]
                     );
 
-                    // Create payment record if needed
-                    if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
+                    // Create payment record (cả auto_split_fee lẫn phí cố định)
+                    if ($miniTournament->has_fee && !$isPaidBySystem) {
                         MiniParticipantPayment::firstOrCreate(
                             [
                                 'mini_tournament_id' => $miniTournament->id,
@@ -1080,7 +1101,7 @@ class MiniParticipantController extends Controller
                             ],
                             [
                                 'user_id' => $candidate->id,
-                                'amount' => $miniTournament->fee_amount,
+                                'amount' => $hasAutoSplitFee ? $estimatedFeePerPerson : $miniTournament->fee_amount,
                                 'status' => MiniParticipantPayment::STATUS_PENDING,
                             ]
                         );

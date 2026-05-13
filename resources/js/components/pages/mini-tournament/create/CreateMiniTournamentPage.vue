@@ -31,6 +31,24 @@
                     </div>
                 </div>
 
+                <!-- Liên kết CLB -->
+                <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
+                    <h3 class="font-bold text-[#838799] text-[14px] uppercase tracking-wide mb-3">Liên kết CLB</h3>
+                    <select v-model="selectedClubId"
+                        class="w-full px-3 py-2 border rounded focus:outline-none bg-[#EDEEF2] text-sm">
+                        <option :value="null">-- Không thuộc CLB --</option>
+                        <option v-for="club in myClubsList" :key="club.id" :value="club.id">
+                            {{ club.name }}
+                        </option>
+                    </select>
+                    <p v-if="selectedClubId" class="text-xs text-green-600 mt-2">
+                        ✓ Kèo này sẽ thuộc CLB
+                    </p>
+                    <p v-else class="text-xs text-gray-400 mt-2">
+                        Đây là kèo thường (không thuộc CLB)
+                    </p>
+                </div>
+
                 <!-- Chế độ chơi -->
                 <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
                     <h3 class="font-bold text-[#838799] text-[14px] uppercase tracking-wide mb-3">Chế độ chơi</h3>
@@ -335,27 +353,43 @@
                                         class="w-full px-3 py-2 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2] resize-none"></textarea>
                                 </div>
 
-                                <!-- QR Code Upload -->
-                                <div>
+                                <!-- QR Code Upload - ẩn khi dùng quỹ chi CLB -->
+                                <div v-if="!useClubFund">
                                     <label class="text-sm text-gray-600 block mb-1" for="qr-file-input">Mã QR thanh
                                         toán</label>
-                                    <button v-if="!qrCodePreview" type="button"
-                                        class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-[#D72D36] transition-colors w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
-                                        @click="$refs.qrFileInput.click()">
-                                        <input id="qr-file-input" type="file" ref="qrFileInput" class="hidden"
-                                            accept="image/*" @change="handleQrCodeUpload" />
-                                        <div class="flex flex-col items-center">
-                                            <ArrowUpTrayIcon class="w-8 h-8 text-gray-400 mb-2" aria-hidden="true" />
-                                            <p class="text-sm text-gray-500">Tải ảnh lên</p>
-                                            <p class="text-xs text-gray-400">JPG, PNG (tối đa 5MB)</p>
-                                        </div>
-                                    </button>
-                                    <div v-else class="relative">
+
+                                    <!-- Khi đã có preview (file mới hoặc cached) -->
+                                    <div v-if="qrCodePreview" class="relative">
                                         <img :src="qrCodePreview" alt="QR Code thanh toán"
                                             class="w-32 h-32 object-contain mx-auto rounded-lg border" />
                                         <button type="button" @click="clearQrCode" aria-label="Xóa mã QR"
                                             class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500">
                                             <XMarkIcon class="w-4 h-4" />
+                                        </button>
+                                        <p v-if="useCachedQr" class="text-center text-xs text-green-600 mt-1 font-medium">
+                                            Đang dùng mã QR đã lưu
+                                        </p>
+                                    </div>
+
+                                    <!-- Khi chưa có preview: cho chọn upload HOẶC dùng cached -->
+                                    <div v-else class="space-y-2">
+                                        <button type="button"
+                                            class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-[#D72D36] transition-colors w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
+                                            @click="$refs.qrFileInput.click()">
+                                            <input id="qr-file-input" type="file" ref="qrFileInput" class="hidden"
+                                                accept="image/*" @change="handleQrCodeUpload" />
+                                            <div class="flex flex-col items-center">
+                                                <ArrowUpTrayIcon class="w-8 h-8 text-gray-400 mb-2" aria-hidden="true" />
+                                                <p class="text-sm text-gray-500">Tải ảnh lên</p>
+                                                <p class="text-xs text-gray-400">JPG, PNG (tối đa 5MB)</p>
+                                            </div>
+                                        </button>
+
+                                        <button type="button"
+                                            v-if="user.latest_used_qr"
+                                            @click="useCachedQr = true; qrCodePreview = user.latest_used_qr"
+                                            class="w-full py-2 px-4 bg-green-50 border border-green-300 rounded-lg text-center cursor-pointer hover:bg-green-100 transition-colors text-sm text-green-700 font-medium">
+                                            Dùng mã QR đã lưu trước đó
                                         </button>
                                     </div>
                                 </div>
@@ -368,6 +402,46 @@
                                         Vui lòng chuẩn bị danh sách người tham gia trước khi tạo kèo đấu.
                                     </p>
                                 </div>
+
+                                <!-- Tùy chọn CLB - chỉ hiện khi có chọn CLB -->
+                                <template v-if="selectedClubId">
+                                    <div class="border-t border-gray-200 pt-3 space-y-3">
+                                        <!-- Quỹ chi CLB -->
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <p class="text-sm font-medium text-gray-700">Quỹ CLB chi</p>
+                                                <p class="text-xs text-gray-500">CLB chi tiền, người tham gia không cần đóng phí</p>
+                                            </div>
+                                            <button type="button" @click="toggleUseClubFund"
+                                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                                                :class="useClubFund ? 'bg-[#D72D36]' : 'bg-gray-300'">
+                                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                                    :class="useClubFund ? 'translate-x-6' : 'translate-x-1'" />
+                                            </button>
+                                        </div>
+
+                                        <!-- Thu vào quỹ chung CLB - chỉ hiện khi chưa bật Quỹ chi -->
+                                        <div v-if="!useClubFund" class="flex items-center justify-between">
+                                            <div>
+                                                <p class="text-sm font-medium text-gray-700">Thu vào quỹ chung CLB</p>
+                                                <p class="text-xs text-gray-500">Thu phí từ người tham gia và gửi vào quỹ CLB</p>
+                                            </div>
+                                            <button type="button" @click="includedInClubFund = !includedInClubFund"
+                                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                                                :class="includedInClubFund ? 'bg-[#D72D36]' : 'bg-gray-300'">
+                                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                                    :class="includedInClubFund ? 'translate-x-6' : 'translate-x-1'" />
+                                            </button>
+                                        </div>
+
+                                        <!-- QR không hiện khi Quỹ chi -->
+                                        <div v-if="useClubFund" class="bg-blue-50 border border-blue-200 rounded p-3">
+                                            <p class="text-sm text-blue-700">
+                                                Kèo này sử dụng <span class="font-bold">quỹ CLB</span> để chi trả. Không cần mã QR thanh toán.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </template>
                             </div>
                         </div>
                     </div>
@@ -811,6 +885,7 @@ import Toggle from '@/components/atoms/Toggle.vue'
 import * as MiniTournamentService from '@/service/miniTournament'
 import * as SportService from '@/service/sport'
 import * as CompetitionLocationService from '@/service/competitionLocation'
+import * as ClubService from '@/service/club'
 import { toast } from 'vue3-toastify'
 import { FreeMode, Mousewheel } from 'swiper/modules'
 import 'swiper/css'
@@ -821,11 +896,14 @@ import { setOptions } from '@/constants/setOption';
 import { winRuleOptions } from '@/constants/winRuleOption';
 import { lockCancellationOptions } from '@/constants/lockCancellationOption';
 import { durationOptions } from '@/constants/durationOption';
+import { useUserStore } from '@/store/auth'
 import { useFormattedDate } from '@/composables/formatedDate'
 import { useRoute, useRouter } from 'vue-router'
 const modules = [FreeMode, Mousewheel]
 const router = useRouter()
 const route = useRoute()
+const userStore = useUserStore()
+const user = userStore.getUser
 const miniTournamentId = route.params.id || null
 const isEditMode = computed(() => !!miniTournamentId)
 const btnTitle = computed(() => isEditMode.value ? 'Chỉnh sửa kèo đấu' : 'Tạo kèo đấu');
@@ -863,6 +941,7 @@ const paymentNote = ref('')
 const qrCodeImage = ref(null)
 const qrCodePreview = ref(null)
 const qrCodeFile = ref(null) // File object for upload
+const useCachedQr = ref(false)
 const isSubmitting = ref(false)
 const qrFileInput = ref(null)
 
@@ -870,6 +949,10 @@ const qrFileInput = ref(null)
 const fee = ref('none')
 const feeAmount = ref(0)
 const formattedFeeAmount = ref('')
+
+// CLB fund options
+const useClubFund = ref(false)
+const includedInClubFund = ref(false)
 
 const sports = ref([])
 // Chỉ có 1 môn Pickleball, mặc định sport_id = 1
@@ -896,6 +979,12 @@ const locationKeyword = ref('')
 const competitionLocations = ref([])
 const selectedLocation = ref(null)
 const isLocationDropdownOpen = ref(false)
+
+// =================================================================================
+// REFS CHO PHẦN CHỌN CLB
+// =================================================================================
+const myClubsList = ref([])
+const selectedClubId = ref(null)
 
 // =================================================================================
 // New Refs and Consts for Tournament Rules and Advanced Settings
@@ -1004,6 +1093,8 @@ const initialStates = {
     setNumber: 1, gamesPerSet: 11, pointsDifference: 2, maxPoints: 11,
     genderPolicy: 3, isRepeated: false, repeatUnit: 'Tuần', recurringWeekDays: [], lockCancellation: 1,
     allowCancellation: true, autoApprove: true, allowParticipantAddFriends: true,
+    selectedClubId: null,
+    useClubFund: false, includedInClubFund: false,
 };
 
 const resetFormState = () => {
@@ -1036,6 +1127,9 @@ const resetFormState = () => {
     allowParticipantAddFriends.value = initialStates.allowParticipantAddFriends;
     competitionLocations.value = initialStates.competitionLocations;
     isLocationDropdownOpen.value = initialStates.isLocationDropdownOpen;
+    selectedClubId.value = initialStates.selectedClubId;
+    useClubFund.value = initialStates.useClubFund;
+    includedInClubFund.value = initialStates.includedInClubFund;
     qrCodeImage.value = null;
     qrCodePreview.value = null;
     qrCodeFile.value = null;
@@ -1115,6 +1209,16 @@ const toggleHasFee = () => {
         fee.value = 'none'
         feeAmount.value = 0
         formattedFeeAmount.value = ''
+        useClubFund.value = false
+        includedInClubFund.value = false
+    }
+}
+
+// Toggle use club fund - khi bật thì tắt included_in_club_fund
+const toggleUseClubFund = () => {
+    useClubFund.value = !useClubFund.value
+    if (useClubFund.value) {
+        includedInClubFund.value = false
     }
 }
 
@@ -1139,6 +1243,7 @@ const handleQrCodeUpload = (event) => {
     }
 
     qrCodeFile.value = file
+    useCachedQr.value = false
     const reader = new FileReader()
     reader.onload = (e) => {
         qrCodePreview.value = e.target.result
@@ -1257,6 +1362,17 @@ const applyTemplate = (template) => {
         paymentNote.value = s.fee_description || ''
     }
 
+    // CLB fund options
+    if (s.club_id !== undefined && s.club_id !== null) {
+        selectedClubId.value = s.club_id
+    }
+    if (s.use_club_fund !== undefined) {
+        useClubFund.value = !!s.use_club_fund
+    }
+    if (s.included_in_club_fund !== undefined) {
+        includedInClubFund.value = !!s.included_in_club_fund
+    }
+
     // Trình độ
     if (s.min_rating !== undefined && s.min_rating !== null) {
         minLevel.value = s.min_rating
@@ -1321,6 +1437,7 @@ const clearQrCode = () => {
     qrCodeImage.value = null
     qrCodePreview.value = null
     qrCodeFile.value = null
+    useCachedQr.value = false
     if (qrFileInput.value) qrFileInput.value.value = ''
 }
 
@@ -1588,10 +1705,13 @@ const buildTemplateSettings = () => {
         duration: durationMinutes.value,
         max_players: playerCount.value,
         is_private: privacy.value === 'Riêng tư',
+        club_id: selectedClubId.value,
         has_fee: hasFee.value,
         auto_split_fee: autoSplitCourtFee.value,
         fee_amount: hasFee.value ? feeAmount.value : null,
         fee_description: paymentNote.value || null,
+        use_club_fund: selectedClubId.value ? useClubFund.value : false,
+        included_in_club_fund: selectedClubId.value ? includedInClubFund.value : false,
         min_rating: minLevel.value,
         max_rating: maxLevel.value,
         ...ruleSettings,
@@ -1681,9 +1801,9 @@ const handleSubmit = async () => {
     if (isSubmitting.value) return
     isSubmitting.value = true
     try {
-        // Nếu kèo có thu phí nhưng không có QR mới và cũng không có QR cũ => bắt buộc upload
-        if (hasFee.value && !qrCodeFile.value && !qrCodeImage.value) {
-            toast.error('Vui lòng tải ảnh mã QR thanh toán lên')
+        // Nếu kèo có thu phí và KHÔNG dùng quỹ chi CLB thì cần có QR
+        if (hasFee.value && !useClubFund.value && !qrCodeFile.value && !qrCodeImage.value && !useCachedQr.value) {
+            toast.error('Vui lòng tải ảnh mã QR thanh toán hoặc chọn mã QR đã lưu.')
             return
         }
         let startTime = null;
@@ -1730,11 +1850,14 @@ const handleSubmit = async () => {
             competition_location_id: selectedLocation.value ? selectedLocation.value?.id : null,
             max_players: playerCount.value,
             is_private: privacy.value === 'Riêng tư',
+            club_id: selectedClubId.value,
 
             has_fee: hasFee.value,
             auto_split_fee: autoSplitCourtFee.value,
             fee_description: paymentNote.value || null,
             fee_amount: hasFee.value ? feeAmount.value : null,
+            use_club_fund: selectedClubId.value ? useClubFund.value : false,
+            included_in_club_fund: selectedClubId.value ? includedInClubFund.value : false,
 
             min_rating: getNumericLevel(minLevel.value),
             max_rating: getNumericLevel(maxLevel.value),
@@ -1751,15 +1874,10 @@ const handleSubmit = async () => {
         }
 
         if (isEditMode.value) {
-            const payload = qrCodeFile.value
-                ? buildFormDataWithFile(data)
-                : { ...data, qr_code_url: qrCodeImage.value || null }
+            const payload = buildFormDataWithFile({ ...data, use_cached_qr: useCachedQr.value }, !!qrCodeFile.value)
             await updateMiniTournament(miniTournamentId, payload)
         } else {
-            // Khi có file QR code, dùng FormData để gửi multipart/form-data
-            const payload = qrCodeFile.value
-                ? buildFormDataWithFile(data)
-                : { ...data, qr_code_url: qrCodeImage.value || null }
+            const payload = buildFormDataWithFile({ ...data, use_cached_qr: useCachedQr.value }, !!qrCodeFile.value)
             await createMiniTournament(payload)
         }
     } finally {
@@ -1767,7 +1885,7 @@ const handleSubmit = async () => {
     }
 }
 
-const buildFormDataWithFile = (data) => {
+const buildFormDataWithFile = (data, hasQrFile) => {
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
         if (value === null || value === undefined) return
@@ -1789,7 +1907,9 @@ const buildFormDataWithFile = (data) => {
             formData.append(key, value)
         }
     })
-    formData.append('qr_code_url', qrCodeFile.value)
+    if (hasQrFile) {
+        formData.append('qr_code_url', qrCodeFile.value)
+    }
     return formData
 }
 
@@ -1830,6 +1950,14 @@ const fetchSports = async () => {
         selectedSportId.value = 1
     } catch (error) {
         console.error('Error fetching sports:', error)
+    }
+}
+
+const fetchMyClubs = async () => {
+    try {
+        myClubsList.value = await ClubService.myClubs()
+    } catch (error) {
+        console.error('Error fetching clubs:', error)
     }
 }
 
@@ -1969,6 +2097,10 @@ const prefillForm = (data) => {
         lockCancellation.value = minutesToValueMap[data.cancellation_duration] || 1
     }
 
+    selectedClubId.value = data?.club_id || null
+    useClubFund.value = !!data?.use_club_fund
+    includedInClubFund.value = !!data?.included_in_club_fund
+
     autoApprove.value = !!data?.auto_approve
     allowParticipantAddFriends.value = !!data?.allow_participant_add_friends
 }
@@ -2024,7 +2156,7 @@ const formatCurrency = (amount) => {
 }
 
 onMounted(async () => {
-    await fetchSports()
+    await Promise.all([fetchSports(), fetchMyClubs()])
     if (isEditMode.value) {
         await detailMiniTournament(miniTournamentId);
     }

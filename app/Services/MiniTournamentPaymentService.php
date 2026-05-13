@@ -114,6 +114,9 @@ class MiniTournamentPaymentService
                     }
 
                     $existingPayment->update($updateData);
+
+                    // Chỉ gửi notification khi payment được tạo mới (chưa có trước đó)
+                    $isNewlyCreated = false;
                 } else {
                     // Tạo payment record mới
                     $payment = MiniParticipantPayment::create([
@@ -130,22 +133,24 @@ class MiniTournamentPaymentService
                     ]);
 
                     // Gửi notification cho người cần thanh toán (không gửi cho organizer/guest by organizer)
-                    if (!$shouldBeConfirmed && $participant->user_id) {
-                        $participant->user?->notify(
-                            new MiniTournamentPaymentCreatedNotification($tournament, $payment, $finalFeePerPerson)
-                        );
-                        // Gửi FCM push notification
-                        SendPushJob::dispatch(
-                            $participant->user_id,
-                            'Yêu cầu thanh toán kèo đấu',
-                            "Kèo \"{$tournament->name}\" đã bắt đầu. Bạn cần thanh toán {$finalFeePerPerson} VND để hoàn tất.",
-                            [
-                                'type' => 'mini_tournament_payment_created',
-                                'mini_tournament_id' => (string) $tournament->id,
-                                'payment_id' => (string) $payment->id,
-                            ]
-                        );
-                    }
+                    $isNewlyCreated = true;
+                }
+
+                if (!$shouldBeConfirmed && $participant->user_id && $isNewlyCreated) {
+                    $participant->user?->notify(
+                        new MiniTournamentPaymentCreatedNotification($tournament, $existingPayment ?? $payment, $finalFeePerPerson)
+                    );
+                    // Gửi FCM push notification
+                    SendPushJob::dispatch(
+                        $participant->user_id,
+                        'Yêu cầu thanh toán kèo đấu',
+                        "Kèo \"{$tournament->name}\" đã bắt đầu. Bạn cần thanh toán " . number_format($finalFeePerPerson, 0, ',', '.') . " VND để hoàn tất.",
+                        [
+                            'type' => 'mini_tournament_payment_created',
+                            'mini_tournament_id' => (string) $tournament->id,
+                            'payment_id' => (string) ($existingPayment?->id ?? $payment->id),
+                        ]
+                    );
                 }
 
                 // Cập nhật participant payment_status nếu cần
@@ -156,7 +161,8 @@ class MiniTournamentPaymentService
                 ]);
 
                 // Khi organizer/guest được auto-confirmed → tạo ClubFundContribution Confirmed + wallet tx
-                if ($shouldBeConfirmed && $participant->user_id) {
+                // Chỉ thực hiện khi tournament có liên kết ClubFundCollection (use_club_fund = true)
+                if ($shouldBeConfirmed && $participant->user_id && $tournament->fundCollection) {
                     $this->fundContributionService->createOrganizerConfirmedContribution(
                         $tournament->fundCollection,
                         $participant->user_id,

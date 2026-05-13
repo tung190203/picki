@@ -102,12 +102,12 @@
                                         qrCodePreview ? 'border-solid' : ''
                                     ]"
                                 >
-                                    <input 
-                                        type="file" 
-                                        ref="fileInput" 
-                                        class="hidden" 
+                                    <input
+                                        type="file"
+                                        ref="fileInput"
+                                        class="hidden"
                                         accept="image/*"
-                                        @change="handleFileChange" 
+                                        @change="handleFileChange"
                                     />
 
                                     <div v-if="!qrCodePreview" class="flex flex-col items-center p-6 text-center">
@@ -116,16 +116,26 @@
                                         </div>
                                         <p class="text-sm font-semibold text-[#3E414C]">Thả ảnh vào đây hoặc nhấn để tải lên</p>
                                         <p class="text-xs text-[#838799] mt-1">Hỗ trợ JPG, PNG (Tối đa 5MB)</p>
+
+                                        <button type="button"
+                                            v-if="user.latest_used_qr"
+                                            @click.stop="useCachedQr = true; qrImageFile = null; qrCodePreview = user.latest_used_qr"
+                                            class="mt-3 w-full py-1.5 px-3 bg-green-50 border border-green-300 rounded-lg text-center cursor-pointer hover:bg-green-100 transition-colors text-xs text-green-700 font-medium">
+                                            Dùng mã QR đã lưu trước đó
+                                        </button>
                                     </div>
 
                                     <div v-else class="relative w-full h-full flex items-center justify-center p-2">
                                         <img :src="qrCodePreview" class="max-h-[120px] rounded-lg shadow-sm" />
-                                        <button 
+                                        <button
                                             @click.stop="removeQrCode"
                                             class="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg"
                                         >
                                             <TrashIcon class="w-4 h-4" />
                                         </button>
+                                        <p v-if="useCachedQr" class="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-green-600 bg-white/90 px-2 py-0.5 rounded font-medium">
+                                            Đang dùng mã QR đã lưu
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -220,6 +230,10 @@ import VueDatePicker from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
 import dayjs from 'dayjs'
 import ImageCropperModal from '@/components/molecules/ImageCropperModal.vue'
+import { useUserStore } from '@/store/auth'
+
+const userStore = useUserStore()
+const user = userStore.getUser
 
 const props = defineProps({
     isOpen: {
@@ -249,6 +263,7 @@ const fileInput = ref(null)
 const showCropper = ref(false)
 const cropImageSrc = ref(null)
 const includedInClubFund = ref(true)
+const useCachedQr = ref(false)
 
 watch(() => props.isOpen, (newVal) => {
     if (newVal && props.initialData) {
@@ -336,6 +351,7 @@ const processFile = (file) => {
 
 const handleCropSave = (blob) => {
     // Convert blob to file to ensure it has a name and type for backend processing
+    useCachedQr.value = false
     const file = new File([blob], "qr-code.jpg", { type: "image/jpeg" })
     qrImageFile.value = file
     qrCodePreview.value = URL.createObjectURL(blob)
@@ -346,6 +362,7 @@ const handleCropSave = (blob) => {
 const removeQrCode = () => {
     qrImageFile.value = null
     qrCodePreview.value = null
+    useCachedQr.value = false
 }
 
 const selectAllMembers = () => {
@@ -394,7 +411,8 @@ const submitCreateFund = () => {
         end_date: deadlineDate ? deadlineDate.format('YYYY-MM-DD') : null,
         member_ids: selectedMemberIds.value,
         qr_image: qrImageFile.value,
-        qr_code_url: qrImageFile.value ? null : (qrCodePreview.value || null), // Nếu không upload file mới, giữ URL cũ
+        qr_code_url: qrImageFile.value ? null : (qrCodePreview.value || null),
+        use_cached_qr: useCachedQr.value,
         included_in_club_fund: includedInClubFund.value ? 1 : 0
     })
     close()
@@ -408,6 +426,7 @@ const resetForm = () => {
     selectedMemberIds.value = []
     qrImageFile.value = null
     qrCodePreview.value = null
+    useCachedQr.value = false
     includedInClubFund.value = true
 }
 </script>

@@ -273,7 +273,23 @@
                 <div @click="triggerQrUpload"
                   class="border-2 border-dashed border-[#EDEEF2] rounded-[12px] h-40 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors group bg-[#FAFAFA]">
                   <input ref="qrInput" type="file" @change="handleQrUpload" class="hidden" accept="image/*" />
-                  <template v-if="!form.qr_image">
+
+                  <!-- Khi đã có preview (file mới hoặc cached) -->
+                  <template v-if="form.qr_image">
+                    <div class="relative w-full h-full flex items-center justify-center p-2">
+                      <img :src="form.qr_image" class="w-full h-full object-contain p-2 rounded-xl" />
+                      <button @click.stop="form.qr_image = null; form.qr_file = null; useCachedQr = false"
+                        class="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg">
+                        <XMarkIcon class="w-4 h-4" />
+                      </button>
+                      <p v-if="useCachedQr" class="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-green-600 bg-white/80 px-2 py-0.5 rounded font-medium">
+                        Đang dùng mã QR đã lưu
+                      </p>
+                    </div>
+                  </template>
+
+                  <!-- Khi chưa có preview -->
+                  <template v-else>
                     <div
                       class="w-10 h-10 bg-[#EDEEF2] rounded-full flex items-center justify-center text-[#838799] group-hover:bg-white group-hover:shadow-sm transition-all">
                       <PhotoIcon class="w-5 h-5" />
@@ -282,8 +298,14 @@
                       <p class="text-sm font-bold text-[#3E414C]">Nhấn để tải ảnh lên</p>
                       <p class="text-[10px] text-[#A1A5B7]">PNG, JPG, GIF (Tối đa 5MB)</p>
                     </div>
+
+                    <button type="button"
+                      v-if="user.latest_used_qr"
+                      @click.stop="useCachedQr = true; form.qr_image = user.latest_used_qr; form.qr_file = null"
+                      class="w-[calc(100%-2rem)] mx-auto mt-1 py-1 px-2 bg-green-50 border border-green-300 rounded-lg text-center cursor-pointer hover:bg-green-100 transition-colors text-xs text-green-700 font-medium">
+                      Dùng mã QR đã lưu trước đó
+                    </button>
                   </template>
-                  <img v-else :src="form.qr_image" class="w-full h-full object-contain p-2 rounded-xl" />
                 </div>
               </div>
 
@@ -403,7 +425,8 @@ import {
   PhotoIcon,
   InformationCircleIcon,
   ClockIcon,
-  CalendarIcon
+  CalendarIcon,
+  XMarkIcon
 } from '@heroicons/vue/24/outline'
 import EditNoteIcon from "@/assets/images/edit_note.svg";
 import PriceCheckIcon from '@/assets/images/price_check.svg'
@@ -417,11 +440,15 @@ import * as ClubService from '@/service/club'
 import { toast } from 'vue3-toastify'
 import dayjs from 'dayjs'
 import debounce from 'lodash.debounce'
+import { useUserStore } from '@/store/auth'
 
 const router = useRouter()
 const route = useRoute()
+const userStore = useUserStore()
+const user = userStore.getUser
 const clubId = route.params.id
 const activityId = route.params.activityId
+const useCachedQr = ref(false)
 const has_cancel_penalty = ref(false)
 const has_guest_fee = ref(false)
 const isLoading = ref(false)
@@ -546,6 +573,7 @@ const handleQrUpload = (event) => {
       toast.error('Kích thước ảnh không được vượt quá 5MB')
       return
     }
+    useCachedQr.value = false
     form.value.qr_file = file
     const reader = new FileReader()
     reader.onload = (e) => form.value.qr_image = e.target.result
@@ -760,6 +788,8 @@ const handleSubmit = async () => {
 
     if (form.value.qr_file) {
       formData.append('qr_image', form.value.qr_file)
+    } else if (useCachedQr.value) {
+      formData.append('use_cached_qr', 1)
     }
 
     const res = await ClubService.updateActivity(clubId, activityId, formData)
