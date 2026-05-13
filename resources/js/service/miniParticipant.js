@@ -67,3 +67,8 @@ export const selfMarkAbsentMini = async (miniTournamentId) => {
     return axiosInstance.post(`/mini-participants/self/absent/${miniTournamentId}`)
         .then(r => r.data);
 };
+
+export const autoInviteArea = async (tournamentId, payload) => {
+    return axiosInstance.post(`/mini-participants/auto-invite-area/${tournamentId}`, payload)
+        .then(r => r.data.data);
+};

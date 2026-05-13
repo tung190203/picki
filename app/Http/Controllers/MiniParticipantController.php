@@ -849,6 +849,277 @@ class MiniParticipantController extends Controller
 
     /**
      * =====================
+     * Auto invite by area
+     * =====================
+     */
+    public function autoInviteArea(Request $request, $tournamentId)
+    {
+        $miniTournament = MiniTournament::with(['competitionLocation', 'participants', 'miniTournamentStaffs'])->findOrFail($tournamentId);
+
+        if (!$miniTournament->hasOrganizer(Auth::id())) {
+            return ResponseHelper::error('Bạn không có quyền mời người tham gia.', 403);
+        }
+
+        $validated = $request->validate([
+            'friend_only' => 'sometimes|boolean',
+            'lat'         => 'sometimes|numeric',
+            'lng'         => 'sometimes|numeric',
+            'radius_start' => 'sometimes|numeric|min:1|max:200',
+            'radius_max'   => 'sometimes|numeric|min:1|max:500',
+            'source'       => 'sometimes|in:venue,user',
+        ]);
+
+        // Fallback to competition location if lat/lng not provided
+        $source = $validated['source'] ?? 'venue';
+
+        if (!empty($validated['lat']) && !empty($validated['lng'])) {
+            $lat = (float) $validated['lat'];
+            $lng = (float) $validated['lng'];
+        } elseif ($source === 'venue' && $miniTournament->competitionLocation) {
+            $lat = (float) $miniTournament->competitionLocation->latitude;
+            $lng = (float) $miniTournament->competitionLocation->longitude;
+        } else {
+            $user = Auth::user();
+            $lat = (float) $user->latitude;
+            $lng = (float) $user->longitude;
+        }
+
+        if (empty($lat) || empty($lng)) {
+            return ResponseHelper::error('Không có thông tin toạ độ. Vui lòng truyền lat/lng hoặc đảm bảo sân đấu có toạ độ.', 422);
+        }
+
+        $radiusStart = (float) ($validated['radius_start'] ?? 1);
+        $friendOnly = $validated['friend_only'] ?? false;
+        $radiusMax = (float) ($validated['radius_max'] ?? 200);
+        $radiusStep = 5.0;
+
+        // Tính số người cần mời = max_players - confirmed participants
+        $confirmedCount = $miniTournament->participants()
+            ->where('is_confirmed', true)
+            ->count();
+
+        $needed = $miniTournament->max_players - $confirmedCount;
+
+        if ($needed <= 0) {
+            return ResponseHelper::success([
+                'invited_count' => 0,
+                'failed_count' => 0,
+                'total_found' => 0,
+                'reached_max_radius' => false,
+                'already_full' => true,
+                'results' => [],
+            ], 'Kèo đấu đã đủ số lượng người chơi.');
+        }
+
+        // Collect IDs cần loại trừ
+        $excludedUserIds = collect([
+            $miniTournament->participants->pluck('user_id'),
+            $miniTournament->miniTournamentStaffs->pluck('user_id'),
+        ])->flatten()->filter()->unique()->toArray();
+
+        $invitedUserIds = [];
+        $failedUserIds = [];
+        $totalFound = 0;
+        $reachedMaxRadius = false;
+
+        // Determine tournament filters
+        $sportId = $miniTournament->sport_id ?? null;
+        $ageGroup = $miniTournament->age_group ?? null;
+        $genderPolicy = $miniTournament->gender_policy ?? null;
+
+        $currentRadius = $radiusStart;
+        while ($currentRadius <= $radiusMax) {
+            $effectiveRadius = min($currentRadius, $radiusMax);
+
+            // Build user query using Haversine
+            $haversine = "(6371 * acos(
+                cos(radians(?))
+                * cos(radians(users.latitude))
+                * cos(radians(users.longitude) - radians(?))
+                + sin(radians(?))
+                * sin(radians(users.latitude))
+            ))";
+
+            $query = User::withFullRelations()
+                ->whereNotNull('users.latitude')
+                ->whereNotNull('users.longitude')
+                ->whereRaw("$haversine <= ?", [$lat, $lng, $lat, $effectiveRadius])
+                ->orderByRaw("$haversine ASC", [$lat, $lng, $lat]);
+
+            // Visibility filter
+            $query->whereIn('users.visibility', [
+                User::VISIBILITY_PUBLIC,
+                User::VISIBILITY_FRIEND_ONLY
+            ]);
+
+            // Friend-only filter
+            if ($friendOnly) {
+                $currentUserId = Auth::id();
+                $query->whereExists(function ($q) use ($currentUserId) {
+                    $q->select(DB::raw(1))
+                        ->from('follows as f1')
+                        ->whereColumn('f1.followable_id', 'users.id')
+                        ->where('f1.user_id', $currentUserId)
+                        ->where('f1.followable_type', User::class);
+                })
+                ->whereExists(function ($q) use ($currentUserId) {
+                    $q->select(DB::raw(1))
+                        ->from('follows as f2')
+                        ->whereColumn('f2.user_id', 'users.id')
+                        ->where('f2.followable_id', $currentUserId)
+                        ->where('f2.followable_type', User::class);
+                });
+            }
+
+            // Exclude already in tournament
+            if (!empty($excludedUserIds)) {
+                $query->whereNotIn('users.id', $excludedUserIds);
+            }
+
+            // Exclude already invited in current run
+            if (!empty($invitedUserIds)) {
+                $query->whereNotIn('users.id', $invitedUserIds);
+            }
+
+            // Exclude already invited in current run from excluded set
+            $allExcluded = array_unique(array_merge($excludedUserIds, $invitedUserIds));
+            if (!empty($allExcluded)) {
+                $query->whereNotIn('users.id', $allExcluded);
+            }
+
+            // Sport filter
+            if ($sportId) {
+                $query->whereHas('sports', fn($q) => $q->where('sport_id', $sportId));
+            }
+
+            // Age filter
+            if ($ageGroup) {
+                $query->tap(fn($q) => $this->filterByAge($q, $ageGroup));
+            }
+
+            // Gender filter
+            if ($genderPolicy) {
+                $query->tap(fn($q) => $this->filterByGender($q, $genderPolicy));
+            }
+
+            // Level filter
+            if (isset($miniTournament->min_level)) {
+                $query->whereHas('sports.scores', fn($q) =>
+                    $q->where('score_type', 'vndupr_score')
+                      ->where('score_value', '>=', $miniTournament->min_level)
+                );
+            }
+            if (isset($miniTournament->max_level)) {
+                $query->whereHas('sports.scores', fn($q) =>
+                    $q->where('score_type', 'vndupr_score')
+                      ->where('score_value', '<=', $miniTournament->max_level)
+                );
+            }
+
+            $candidates = $query->get();
+
+            if ($candidates->isEmpty()) {
+                if ($currentRadius >= $radiusMax) {
+                    $reachedMaxRadius = true;
+                    break;
+                }
+                $currentRadius += $radiusStep;
+                continue;
+            }
+
+            foreach ($candidates as $candidate) {
+                if (count($invitedUserIds) >= $needed) {
+                    break 2;
+                }
+
+                // Check max_players one more time before inviting
+                $currentConfirmed = $miniTournament->participants()->where('is_confirmed', true)->count();
+                if ($currentConfirmed >= $miniTournament->max_players) {
+                    break 2;
+                }
+
+                try {
+                    $isSuperAdmin = SuperAdminDraft::where('user_id', Auth::id())->exists();
+
+                    $paymentStatus = PaymentStatusEnum::CONFIRMED;
+                    if ($miniTournament->use_club_fund) {
+                        // CLB chi → CONFIRMED
+                    } elseif ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
+                        $paymentStatus = PaymentStatusEnum::PENDING;
+                    }
+
+                    $participant = $miniTournament->participants()->create([
+                        'user_id' => $candidate->id,
+                        'is_confirmed' => $isSuperAdmin,
+                        'is_invited' => true,
+                        'invited_by' => Auth::id(),
+                        'payment_status' => $paymentStatus,
+                    ]);
+
+                    $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $candidate->id);
+
+                    // Send notification
+                    $candidate->notify(new MiniTournamentCreatorInvitationNotification($participant, Auth::id()));
+                    $this->pushToUsers(
+                        [$candidate->id],
+                        'Lời mời tham gia kèo đấu',
+                        'Bạn được mời tham gia kèo đấu "' . $miniTournament->name . '"',
+                        [
+                            'type' => 'MINI_TOURNAMENT_INVITED',
+                            'mini_tournament_id' => $miniTournament->id,
+                            'participant_id' => $participant->id,
+                        ]
+                    );
+
+                    // Create payment record if needed
+                    if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
+                        MiniParticipantPayment::firstOrCreate(
+                            [
+                                'mini_tournament_id' => $miniTournament->id,
+                                'participant_id' => $participant->id,
+                            ],
+                            [
+                                'user_id' => $candidate->id,
+                                'amount' => $miniTournament->fee_amount,
+                                'status' => MiniParticipantPayment::STATUS_PENDING,
+                            ]
+                        );
+                    }
+
+                    $invitedUserIds[] = $candidate->id;
+                    $totalFound++;
+                } catch (\Exception $e) {
+                    $failedUserIds[] = $candidate->id;
+                }
+            }
+
+            if (count($invitedUserIds) >= $needed) {
+                break;
+            }
+
+            if ($currentRadius >= $radiusMax) {
+                $reachedMaxRadius = true;
+                break;
+            }
+
+            $currentRadius += $radiusStep;
+        }
+
+        return ResponseHelper::success([
+            'invited_count' => count($invitedUserIds),
+            'failed_count' => count($failedUserIds),
+            'total_found' => $totalFound,
+            'reached_max_radius' => $reachedMaxRadius,
+            'already_full' => false,
+            'results' => [
+                'invited_ids' => $invitedUserIds,
+                'failed_ids' => $failedUserIds,
+            ],
+        ], 'Đã mời ' . count($invitedUserIds) . ' người chơi.');
+    }
+
+    /**
+     * =====================
      * Helpers
      * =====================
      */
