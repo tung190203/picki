@@ -52,25 +52,141 @@
                         </Swiper>
                     </div>
 
-                    <!-- Radius -->
-                    <div v-if="activeTab === 'area'" class="px-6 pb-4">
-                        <div class="flex items-center justify-between mb-2">
-                            <label class="text-sm font-medium text-gray-700">Bán kính tìm kiếm</label>
-                            <span class="text-sm font-semibold text-red-600">{{ localRadius }} km</span>
+                    <!-- Radius & Auto-Invite Controls (area tab only) -->
+                    <div v-if="activeTab === 'area'" class="px-6 pb-4 space-y-3">
+                        <!-- Source Toggle -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-medium text-gray-700">Nguồn toạ độ:</span>
+                            <div class="flex rounded-lg border border-gray-300 overflow-hidden text-xs">
+                                <button
+                                    @click="locationSource = 'venue'"
+                                    :class="[
+                                        'px-3 py-1.5 transition',
+                                        locationSource === 'venue'
+                                            ? 'bg-red-500 text-white'
+                                            : 'bg-white text-gray-600 hover:bg-gray-50'
+                                    ]"
+                                >
+                                    Theo sân đấu
+                                </button>
+                                <button
+                                    @click="locationSource = 'user'"
+                                    :class="[
+                                        'px-3 py-1.5 transition',
+                                        locationSource === 'user'
+                                            ? 'bg-red-500 text-white'
+                                            : 'bg-white text-gray-600 hover:bg-gray-50'
+                                    ]"
+                                >
+                                    Theo vị trí tôi
+                                </button>
+                            </div>
                         </div>
-                        <input
-                            type="range"
-                            v-model.number="localRadius"
-                            @change="onRadiusChange"
-                            min="1"
-                            max="50"
-                            step="1"
-                            class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-600 custom-range"
-                            :style="sliderStyle"
-                        />
-                        <div class="flex justify-between text-xs text-gray-500 mt-1">
-                            <span>1 km</span>
-                            <span>50 km</span>
+
+                        <!-- Radius Slider -->
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="text-sm font-medium text-gray-700">Bán kính tìm kiếm</label>
+                                <span class="text-sm font-semibold text-red-600">{{ localRadius }} km</span>
+                            </div>
+                            <input
+                                type="range"
+                                v-model.number="localRadius"
+                                @change="onRadiusChange"
+                                min="1"
+                                max="50"
+                                step="1"
+                                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-600 custom-range"
+                                :style="sliderStyle"
+                            />
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>1 km</span>
+                                <span>50 km</span>
+                            </div>
+                        </div>
+
+                        <!-- Friend Only Toggle -->
+                        <div class="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                id="friend-only"
+                                v-model="friendOnly"
+                                class="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                            />
+                            <label for="friend-only" class="text-sm font-medium text-gray-700 cursor-pointer select-none">
+                                Chỉ bạn bè (friend only)
+                            </label>
+                        </div>
+
+                        <!-- Auto-Invite Section -->
+                        <div class="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-medium text-gray-700">
+                                    Cần mời:
+                                    <span class="font-bold text-red-600">{{ neededCount }}</span> người
+                                </span>
+                                <button
+                                    v-if="!isAutoInviting && !autoInviteResult"
+                                    @click="handleAutoInvite"
+                                    :disabled="neededCount <= 0"
+                                    :class="[
+                                        'px-4 py-2 rounded-lg text-sm font-semibold transition',
+                                        neededCount > 0
+                                            ? 'bg-red-600 text-white hover:bg-red-700'
+                                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    ]"
+                                >
+                                    Mời tự động
+                                </button>
+                            </div>
+
+                            <!-- Auto-invite loading -->
+                            <div v-if="isAutoInviting" class="space-y-1">
+                                <div class="flex items-center gap-2">
+                                    <div class="animate-spin w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full"></div>
+                                    <span class="text-sm text-gray-600">
+                                        Đang mời {{ autoInviteProgress }} người...
+                                    </span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div
+                                        class="bg-red-600 h-2 rounded-full transition-all duration-300"
+                                        :style="{ width: autoInviteProgressPercent + '%' }"
+                                    ></div>
+                                </div>
+                            </div>
+
+                            <!-- Auto-invite result -->
+                            <div v-if="autoInviteResult" class="space-y-1">
+                                <div class="flex items-center gap-2">
+                                    <CheckCircleIcon v-if="autoInviteResult.invited_count > 0" class="w-5 h-5 text-green-500" />
+                                    <ExclamationCircleIcon v-else class="w-5 h-5 text-yellow-500" />
+                                    <span class="text-sm font-medium text-gray-700">
+                                        <template v-if="autoInviteResult.already_full">
+                                            Kèo đã đủ số lượng người chơi.
+                                        </template>
+                                        <template v-else-if="autoInviteResult.invited_count > 0">
+                                            Đã mời thành công
+                                            <span class="font-bold text-green-600">{{ autoInviteResult.invited_count }}</span> người
+                                            <template v-if="autoInviteResult.failed_count > 0">
+                                                ({{ autoInviteResult.failed_count }} thất bại)
+                                            </template>
+                                            <template v-if="autoInviteResult.reached_max_radius">
+                                                - Đã quét hết bán kính tối đa
+                                            </template>
+                                        </template>
+                                        <template v-else>
+                                            Không tìm thấy người chơi phù hợp.
+                                        </template>
+                                    </span>
+                                </div>
+                                <button
+                                    @click="resetAutoInvite"
+                                    class="text-xs text-blue-600 hover:underline"
+                                >
+                                    Mời lại
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -135,6 +251,14 @@
                                             </span>
                                         </div>
                                     </div>
+                                    <!-- Friend badge -->
+                                    <div
+                                        v-if="user.is_friend"
+                                        class="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center border border-white"
+                                        title="Bạn bè"
+                                    >
+                                        <span class="text-white text-[8px] font-bold">F</span>
+                                    </div>
                                 </div>
 
                                 <!-- Info -->
@@ -183,13 +307,14 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { XMarkIcon, MagnifyingGlassIcon } from '@heroicons/vue/24/outline'
+import { XMarkIcon, MagnifyingGlassIcon, CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/vue/24/outline'
 import { Swiper, SwiperSlide } from 'swiper/vue'
 import { FreeMode, Mousewheel } from 'swiper/modules'
 import 'swiper/css'
 import 'swiper/css/free-mode'
 import maleIcon from '@/assets/images/male.svg'
 import femaleIcon from '@/assets/images/female.svg'
+import { autoInviteArea } from '@/service/miniParticipant.js'
 
 const defaultAvatar = '/images/default-avatar.png'
 const modules = [FreeMode, Mousewheel]
@@ -218,7 +343,23 @@ const props = defineProps({
     selectedStaffRole: {
         type: String,
         default: 'organizer'
-    }
+    },
+    tournamentMaxPlayers: {
+        type: Number,
+        default: null
+    },
+    currentParticipantsCount: {
+        type: Number,
+        default: 0
+    },
+    competitionLocation: {
+        type: Object,
+        default: null
+    },
+    tournamentId: {
+        type: [Number, String],
+        default: null
+    },
 })
 
 const emit = defineEmits([
@@ -228,7 +369,8 @@ const emit = defineEmits([
     'change-club',
     'update:searchQuery',
     'update:radius',
-    'load-more'
+    'load-more',
+    'invite-complete',
 ])
 
 const isOpen = computed({
@@ -242,7 +384,7 @@ const tabs = [
     { id: 'all', label: 'Tất cả' },
     { id: 'club', label: 'Trong CLB của bạn' },
     { id: 'friends', label: 'Bạn bè của bạn' },
-    { id: 'area', label: 'Trong khu vực của bạn' }
+    { id: 'area', label: 'Trong khu vực' }
 ]
 
 const selectedClub = ref(props.currentClubId || '')
@@ -251,6 +393,22 @@ const localRadius = ref(props.currentRadius || 10)
 const scrollContainer = ref(null)
 const activeTab = ref('all')
 const selectedRole = ref('organizer')
+const friendOnly = ref(false)
+const locationSource = ref('venue')
+const isAutoInviting = ref(false)
+const autoInviteResult = ref(null)
+const autoInviteProgress = ref(0)
+
+const neededCount = computed(() => {
+    if (props.tournamentMaxPlayers == null) return 0
+    const remaining = props.tournamentMaxPlayers - props.currentParticipantsCount
+    return Math.max(0, remaining)
+})
+
+const autoInviteProgressPercent = computed(() => {
+    if (neededCount.value <= 0) return 100
+    return Math.min(100, Math.round((autoInviteProgress.value / neededCount.value) * 100))
+})
 
 watch(
   () => props.activeScope,
@@ -312,7 +470,69 @@ const onScroll = () => {
 
 const convertLevel = user => {
     if (!user?.sports?.length) return '0'
-    return parseFloat(user?.sports[0]?.scores?.vndupr_score || 0).toFixed(1)
+    return Number.parseFloat(user?.sports[0]?.scores?.vndupr_score || 0).toFixed(1)
+}
+
+const handleAutoInvite = async () => {
+    if (neededCount.value <= 0 || !props.competitionLocation) return
+
+    isAutoInviting.value = true
+    autoInviteResult.value = null
+    autoInviteProgress.value = 0
+
+    // Determine lat/lng based on source
+    let lat, lng
+    if (locationSource.value === 'venue' && props.competitionLocation) {
+        lat = props.competitionLocation.latitude
+        lng = props.competitionLocation.longitude
+    } else {
+        // Fall back to venue location if user location not available
+        lat = props.competitionLocation?.latitude
+        lng = props.competitionLocation?.longitude
+    }
+
+    if (!lat || !lng) {
+        isAutoInviting.value = false
+        autoInviteResult.value = {
+            invited_count: 0,
+            failed_count: 0,
+            total_found: 0,
+            reached_max_radius: false,
+            already_full: false,
+        }
+        return
+    }
+
+    try {
+        const result = await autoInviteArea(props.tournamentId, {
+            friend_only: friendOnly.value,
+            lat,
+            lng,
+            radius_start: localRadius.value,
+            radius_max: 200,
+        })
+
+        autoInviteProgress.value = result.invited_count || 0
+        autoInviteResult.value = result
+        emit('invite-complete', result)
+    } catch (error) {
+        autoInviteResult.value = {
+            invited_count: 0,
+            failed_count: 0,
+            total_found: 0,
+            reached_max_radius: false,
+            already_full: false,
+        }
+        // eslint-disable-next-line no-console
+        console.error('Auto invite error:', error)
+    } finally {
+        isAutoInviting.value = false
+    }
+}
+
+const resetAutoInvite = () => {
+    autoInviteResult.value = null
+    autoInviteProgress.value = 0
 }
 </script>
 
