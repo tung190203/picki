@@ -282,8 +282,6 @@ class TournamentGuestController extends Controller
     /**
      * Lấy danh sách người có thể làm guarantor
      * API: GET /api/tournaments/{id}/guarantor-candidates
-     *
-     * Trả về: organizers + confirmed participants
      */
     public function guarantorCandidates(Request $request, $tournamentId)
     {
@@ -436,7 +434,6 @@ class TournamentGuestController extends Controller
         $userId = Auth::id();
         $tournament = Tournament::findOrFail($tournamentId);
 
-        // === Giải đấu thuộc CLB: kiểm tra club_id và quyền staff ===
         if ($tournament->club_id) {
             $clubId = $request->input('club_id');
 
