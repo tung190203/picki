@@ -120,14 +120,19 @@ class MiniTournamentController extends Controller
         }
 
         // Handle qr_code_url file
-        $qrFile = $request->file('qr_code_url');
-        if ($qrFile) {
+        $qrUrl = null;
+        if ($request->boolean('use_cached_qr') && Auth::user()->latest_used_qr) {
+            $qrUrl = Auth::user()->latest_used_qr;
+        } elseif ($qrFile = $request->file('qr_code_url')) {
             $qrPath = $qrFile->store('qr_codes', 'public');
             $qrUrl = asset('storage/' . $qrPath);
-            $miniTournament->update(['qr_code_url' => $qrUrl]);
         } elseif ($request->has('qr_code_url') && is_string($request->input('qr_code_url'))) {
-            // Handle qr_code_url as string (e.g. text content or existing URL)
-            $miniTournament->update(['qr_code_url' => $request->input('qr_code_url')]);
+            $qrUrl = $request->input('qr_code_url');
+        }
+
+        if ($qrUrl) {
+            $miniTournament->update(['qr_code_url' => $qrUrl]);
+            Auth::user()->update(['latest_used_qr' => $qrUrl]);
         }
 
         $miniTournament->loadFullRelations();

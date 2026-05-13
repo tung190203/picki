@@ -195,16 +195,26 @@ class TournamentController extends Controller
             }
 
             // Xử lý QR code đồng bộ (giống MiniTournamentController - lưu ngay để user thấy ngay trong modal thanh toán)
-            if ($request->hasFile('qr_code_url')) {
+            $qrUrl = null;
+            if ($request->boolean('use_cached_qr') && auth()->user()->latest_used_qr) {
+                $qrUrl = auth()->user()->latest_used_qr;
+                $validated['qr_code_url'] = $qrUrl;
+            } elseif ($request->hasFile('qr_code_url')) {
                 $qrFile = $request->file('qr_code_url');
                 $qrPath = $qrFile->store('tournaments/qr', 'public');
-                $validated['qr_code_url'] = $qrPath;
+                $qrUrl = $qrPath;
+                $validated['qr_code_url'] = $qrUrl;
             }
 
             $tournament = Tournament::create([
                 ...$validated,
                 'created_by' => auth()->id(),
             ]);
+
+            // Lưu lại QR vừa dùng vào user
+            if ($qrUrl) {
+                auth()->user()->update(['latest_used_qr' => $qrUrl]);
+            }
 
             // Xử lý poster đồng bộ ngay sau khi tạo tournament
             if ($posterStoragePath) {
