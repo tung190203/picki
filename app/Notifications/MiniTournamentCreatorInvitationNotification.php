@@ -14,11 +14,20 @@ class MiniTournamentCreatorInvitationNotification extends Notification implement
 
     protected $participant;
     protected ?int $invitedBy;
+    protected bool $hasAutoSplitFee;
+    protected ?float $estimatedFeePerPerson;
+    private const TITLE = 'Bạn được mời tham gia kèo đấu';
 
-    public function __construct(MiniParticipant $participant, ?int $invitedBy = null)
-    {
+    public function __construct(
+        MiniParticipant $participant,
+        ?int $invitedBy = null,
+        bool $hasAutoSplitFee = false,
+        ?float $estimatedFeePerPerson = null
+    ) {
         $this->participant = $participant;
         $this->invitedBy = $invitedBy ?? auth()->id();
+        $this->hasAutoSplitFee = $hasAutoSplitFee;
+        $this->estimatedFeePerPerson = $estimatedFeePerPerson;
     }
 
     public function via($notifiable)
@@ -26,40 +35,47 @@ class MiniTournamentCreatorInvitationNotification extends Notification implement
         return ['database', 'broadcast'];
     }
 
-    public function toDatabase($notifiable)
+    private function buildMessage(): string
     {
         $tournamentName = $this->participant->miniTournament?->name ?? 'kèo đấu';
+        $message = self::TITLE . " \"{$tournamentName}\".";
 
+        if ($this->hasAutoSplitFee && $this->estimatedFeePerPerson !== null) {
+            $feeFormatted = number_format($this->estimatedFeePerPerson, 0, ',', '.');
+            $message .= " Phí dự kiến {$feeFormatted} VND/người, sẽ được chia khi kèo bắt đầu.";
+        }
+
+        return $message;
+    }
+
+    public function toDatabase($notifiable)
+    {
         return [
             'participant_id' => $this->participant->id,
             'mini_tournament_id' => $this->participant->mini_tournament_id,
-            'title' => 'Bạn được mời tham gia kèo đấu',
-            'message' => "Bạn được mời tham gia kèo đấu \"{$tournamentName}\".",
+            'title' => self::TITLE,
+            'message' => $this->buildMessage(),
             'invited_by' => $this->invitedBy,
         ];
     }
 
     public function toBroadcast($notifiable)
     {
-        $tournamentName = $this->participant->miniTournament?->name ?? 'kèo đấu';
-
         return new BroadcastMessage([
             'participant_id' => $this->participant->id,
             'mini_tournament_id' => $this->participant->mini_tournament_id,
-            'title' => 'Bạn được mời tham gia kèo đấu',
-            'message' => "Bạn được mời tham gia kèo đấu \"{$tournamentName}\".",
+            'title' => self::TITLE,
+            'message' => $this->buildMessage(),
             'invited_by' => $this->invitedBy,
         ]);
     }
 
     public function toArray($notifiable)
     {
-        $tournamentName = $this->participant->miniTournament?->name ?? 'kèo đấu';
-
         return [
             'participant_id' => $this->participant->id,
-            'title' => 'Bạn được mời tham gia kèo đấu',
-            'message' => "Bạn được mời tham gia kèo đấu \"{$tournamentName}\".",
+            'title' => self::TITLE,
+            'message' => $this->buildMessage(),
             'invited_by' => $this->invitedBy,
         ];
     }
