@@ -37,6 +37,7 @@ class SearchTournamentResource extends JsonResource
             'min_level'      => $this->min_level,
             'max_level'      => $this->max_level,
             'max_players'    => $this->max_player,
+            'max_team'       => $this->max_team,
             'participants_count' => $participantsCount,
             'joined_count'   => $participantsCount,
             'slot_status'    => $this->computeSlotStatus(),

@@ -57,6 +57,7 @@ class SearchMatchResource extends JsonResource
                 'full_name'  => $p->user?->full_name,
                 'avatar_url' => $p->user?->avatar_url,
                 'is_confirmed' => (bool) $p->is_confirmed,
+                'is_guest'   => (bool) $p->is_guest,
             ])->toArray() : [],
             // Staff — organizers only
             'staff' => [

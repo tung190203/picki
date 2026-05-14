@@ -6,7 +6,6 @@ use App\Enums\ClubMemberRole;
 use App\Enums\PaymentStatusEnum;
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
-use App\Jobs\OptimizeTournamentImageJob;
 use App\Http\Requests\StoreTournamentRequest;
 use App\Http\Requests\UpdateTournamentRequest;
 use App\Http\Resources\ParticipantResource;
@@ -59,45 +58,41 @@ class ClubTournamentController extends Controller
         $tournament = null;
 
         DB::transaction(function () use ($validated, $request, $userId, &$tournament) {
-            // Lưu file tạm để queue job xử lý
-            $posterTempPath = null;
-            $qrCodeTempPath = null;
+            $imageService = app(ImageOptimizationService::class);
 
-            // Poster xử lý đồng bộ để response trả về đúng poster_url ngay
-            $posterStoragePath = null;
+            // Poster: resize + convert WebP + lưu ngay
             if ($request->hasFile('poster')) {
-                $posterStoragePath = $request->file('poster')->store('temp/uploads', 'local');
-                unset($validated['poster']);
+                $savedPath = $imageService->processAndSaveImage(
+                    $request->file('poster'),
+                    'tournaments/posters',
+                    'poster_',
+                    720,
+                    80
+                );
+                $validated['poster'] = $savedPath;
             }
 
+            // QR code: resize + convert WebP + lưu ngay
+            $qrUrl = null;
             if ($request->hasFile('qr_code_url')) {
                 $qrFile = $request->file('qr_code_url');
                 if ($qrFile && $qrFile->isValid()) {
-                    $qrCodeTempPath = $qrFile->store('temp/uploads', 'local');
+                    $qrUrl = $imageService->processAndSaveImage($qrFile, 'tournaments/qr', 'qr_', 500, 75);
                 }
-                $validated['qr_code_url'] = null;
             } elseif ($request->filled('qr_code_url') && is_string($request->input('qr_code_url'))) {
                 $qrStr = trim((string) $request->input('qr_code_url'));
                 if ($qrStr !== '' && filter_var($qrStr, FILTER_VALIDATE_URL)) {
-                    $validated['qr_code_url'] = $qrStr;
+                    $qrUrl = $qrStr;
                 }
+            }
+            if ($qrUrl) {
+                $validated['qr_code_url'] = $qrUrl;
             }
 
             $tournament = Tournament::create([
                 ...$validated,
                 'created_by' => $userId,
             ]);
-
-            // Xử lý poster đồng bộ ngay sau khi tạo tournament
-            if ($posterStoragePath) {
-                $realPath = storage_path('app/' . $posterStoragePath);
-                if (file_exists($realPath)) {
-                    $imageService = app(ImageOptimizationService::class);
-                    $posterPath = $imageService->optimizeFromPath($realPath, 'tournaments/posters');
-                    $tournament->update(['poster' => $posterPath]);
-                    @unlink($realPath);
-                }
-            }
 
             TournamentStaff::create([
                 'tournament_id' => $tournament->id,
@@ -114,7 +109,6 @@ class ClubTournamentController extends Controller
                     'is_confirmed' => true,
                 ];
 
-                // Nếu giải có thu phí, chủ giải tự động tham gia thì xác nhận thanh toán luôn
                 if (!empty($validated['has_fee'])) {
                     $participantData['payment_status'] = PaymentStatusEnum::CONFIRMED;
                 }
@@ -124,15 +118,6 @@ class ClubTournamentController extends Controller
 
             if (!empty($validated['has_financial_management']) && !empty($validated['has_fee'])) {
                 $this->fundService->createTournamentFundCollection($tournament, $validated);
-            }
-
-            // Dispatch job xử lý QR code bất đồng bộ (poster đã xử lý đồng bộ)
-            if ($qrCodeTempPath) {
-                OptimizeTournamentImageJob::dispatch(
-                    $tournament->id,
-                    null,
-                    $qrCodeTempPath
-                );
             }
         });
 
@@ -172,23 +157,38 @@ class ClubTournamentController extends Controller
         $validated = $request->validated();
 
         DB::transaction(function () use ($validated, $tournament, $request) {
-            $posterTempPath = null;
-            $qrCodeTempPath = null;
+            $imageService = app(ImageOptimizationService::class);
 
+            // Poster: resize + convert WebP + lưu ngay
+            $newPosterPath = null;
             if ($request->hasFile('poster')) {
-                $posterTempPath = $request->file('poster')->store('temp/uploads', 'local');
-                unset($validated['poster']);
+                $newPosterPath = $imageService->processAndSaveImage(
+                    $request->file('poster'),
+                    'tournaments/posters',
+                    'poster_',
+                    720,
+                    80
+                );
+                $imageService->deleteOldImage($tournament->poster);
+                $validated['poster'] = $newPosterPath;
             } elseif ($request->has('remove_poster') && $request->input('remove_poster')) {
-                $imageService = app(ImageOptimizationService::class);
                 $imageService->deleteOldImage($tournament->poster);
                 $validated['poster'] = null;
             } else {
                 unset($validated['poster']);
             }
 
+            // QR code: resize + convert WebP + lưu ngay
             if ($request->hasFile('qr_code_url')) {
-                $qrCodeTempPath = $request->file('qr_code_url')->store('temp/uploads', 'local');
-                unset($validated['qr_code_url']);
+                $qrUrl = $imageService->processAndSaveImage(
+                    $request->file('qr_code_url'),
+                    'tournaments/qr',
+                    'qr_',
+                    800,
+                    75
+                );
+                $imageService->deleteOldImage($tournament->qr_code_url);
+                $validated['qr_code_url'] = $qrUrl;
             } elseif ($request->filled('qr_code_url') && is_string($request->input('qr_code_url'))) {
                 $qrStr = trim((string) $request->input('qr_code_url'));
                 if ($qrStr !== '' && filter_var($qrStr, FILTER_VALIDATE_URL)) {
@@ -215,34 +215,6 @@ class ClubTournamentController extends Controller
 
             if ($tournament->status === Tournament::CLOSED && $oldStatus !== Tournament::CLOSED) {
                 $this->tournamentService->updateParticipantsRatingStats($tournament);
-            }
-
-            // Xử lý poster đồng bộ ngay sau khi lưu để response trả về đúng poster_url
-            if ($posterTempPath) {
-                $realPath = storage_path('app/' . $posterTempPath);
-                if (file_exists($realPath)) {
-                    $imageService = app(ImageOptimizationService::class);
-                    // Xóa ảnh cũ trước
-                    $imageService->deleteOldImage($tournament->getOriginal('poster'));
-                    $posterPath = $imageService->optimizeFromPath($realPath, 'tournaments/posters');
-                    $tournament->update(['poster' => $posterPath]);
-                    @unlink($realPath);
-                }
-            }
-
-            // Dispatch job xử lý QR code bất đồng bộ (poster đã xử lý đồng bộ)
-            if ($qrCodeTempPath) {
-                $deleteOldQrCode = $request->hasFile('qr_code_url');
-
-                OptimizeTournamentImageJob::dispatch(
-                    $tournament->id,
-                    null,
-                    $qrCodeTempPath,
-                    false,
-                    null,
-                    $deleteOldQrCode,
-                    $tournament->getOriginal('qr_code_url')
-                );
             }
         });
 
