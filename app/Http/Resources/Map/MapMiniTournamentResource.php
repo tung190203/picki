@@ -50,6 +50,12 @@ class MapMiniTournamentResource extends JsonResource
                 ? (($this->relationLoaded('participants') ? $this->participants : collect())
                     ->contains('user_id', auth()->id()))
                 : false,
+            'participants' => $this->whenLoaded('participants', fn() => $this->participants->map(fn($p) => [
+                'is_guest'   => (bool) $p->is_guest,
+                'user'       => $p->user ? [
+                    'avatar_url' => $p->user->avatar_url,
+                ] : null,
+            ])),
             'marker_type'   => 'mini_tournament',
         ];
     }
