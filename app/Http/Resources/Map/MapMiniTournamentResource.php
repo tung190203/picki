@@ -18,8 +18,13 @@ class MapMiniTournamentResource extends JsonResource
             'poster'       => $this->poster && !str_starts_with($this->poster, 'http')
                 ? asset('storage/' . ltrim($this->poster, '/'))
                 : $this->poster,
-            'lat'          => $location?->latitude,
-            'lng'          => $location?->longitude,
+            'competition_location' => $location ? [
+                'id'       => $location->id,
+                'name'     => $location->name,
+                'latitude' => $location->latitude,
+                'longitude'=> $location->longitude,
+                'address'  => $location->address,
+            ] : null,
             'start_time'   => $this->start_time,
             'start_hour'   => $this->start_time ? \Carbon\Carbon::parse($this->start_time)->format('H:i') : null,
             'status'       => $this->status,
