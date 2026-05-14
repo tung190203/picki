@@ -12,44 +12,10 @@ use App\Models\MiniTournament;
 use App\Models\Tournament;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 
 class SearchV2Service
 {
-    public function buildWeekdayGroups(Collection $items, string $dateField): array
-    {
-        $today = now()->dayOfWeek;
-
-        $grouped = $items->groupBy(function ($item) use ($dateField) {
-            $date = $item->{$dateField};
-            return Carbon::parse($date)->dayName;
-        });
-
-        $dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-        $startIndex = $today - 1;
-
-        if ($startIndex > 0) {
-            $dayOrder = array_merge(
-                array_slice($dayOrder, $startIndex),
-                array_slice($dayOrder, 0, $startIndex)
-            );
-        }
-
-        $result = [];
-        foreach ($dayOrder as $dayName) {
-            $dayItems = $grouped->get($dayName, collect());
-            $result[] = [
-                'day'       => $dayName,
-                'is_today'  => $dayName === now()->dayName,
-                'count'     => $dayItems->count(),
-                'items'     => $dayItems->values()->toArray(),
-            ];
-        }
-
-        return $result;
-    }
-
     public function resolveResourceClass(string $tab): string
     {
         return match ($tab) {
@@ -82,18 +48,6 @@ class SearchV2Service
             SearchFilterConfig::TAB_CLUB       => Club::class,
             SearchFilterConfig::TAB_USER       => User::class,
             default => throw new \InvalidArgumentException("Unknown tab: {$tab}"),
-        };
-    }
-
-    public function resolveDateField(string $tab): string
-    {
-        return match ($tab) {
-            SearchFilterConfig::TAB_MATCH      => 'start_time',
-            SearchFilterConfig::TAB_TOURNAMENT => 'start_date',
-            SearchFilterConfig::TAB_CLUB       => 'created_at',
-            SearchFilterConfig::TAB_USER        => 'created_at',
-            SearchFilterConfig::TAB_COURT      => 'created_at',
-            default => 'created_at',
         };
     }
 

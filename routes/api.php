@@ -133,8 +133,8 @@ Route::prefix('search')->group(function () {
 });
 
 // Search V2 - giữ nguyên endpoint cũ, chỉ sửa logic bên trong
-Route::match(['get', 'post'], '/matches/search', [SearchV2Controller::class, 'search'])
-    ->defaults('tab', 'match');
+    Route::match(['get', 'post'], '/matches/search', [SearchV2Controller::class, 'search'])
+    ->defaults('tab', 'mini-tournament');
 Route::match(['get', 'post'], '/clubs/search', [SearchV2Controller::class, 'search'])
     ->defaults('tab', 'club');
 Route::match(['get', 'post'], '/players/search', [SearchV2Controller::class, 'search'])

@@ -583,6 +583,42 @@ class Tournament extends Model
                     });
                 }
             )
+            ->when(
+                !empty($filters['tournament_type']) && is_array($filters['tournament_type']),
+                function ($q) use ($filters) {
+                    $types = collect($filters['tournament_type'])->map(fn($t) => match ($t) {
+                        'all' => 1, 'youth' => 2, 'adult' => 3, 'senior' => 4,
+                        default => null,
+                    })->filter()->values()->all();
+                    if (!empty($types)) {
+                        $q->whereIn('age_group', $types);
+                    }
+                }
+            )
+            ->when(
+                !empty($filters['gender']) && is_array($filters['gender']),
+                function ($q) use ($filters) {
+                    $genders = collect($filters['gender'])->map(fn($g) => match ($g) {
+                        'male' => 1, 'female' => 2, 'mixed' => 3,
+                        default => null,
+                    })->filter()->values()->all();
+                    if (!empty($genders)) {
+                        $q->whereIn('gender_policy', $genders);
+                    }
+                }
+            )
+            ->when(
+                !empty($filters['min_level']),
+                function ($q) use ($filters) {
+                    $q->where('max_level', '>=', (float) $filters['min_level']);
+                }
+            )
+            ->when(
+                !empty($filters['max_level']),
+                function ($q) use ($filters) {
+                    $q->where('min_level', '<=', (float) $filters['max_level']);
+                }
+            )
             ->when(true, function ($q){
                 $userId = auth()->id();
 

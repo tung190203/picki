@@ -44,7 +44,7 @@ class SearchCacheService
         string $tab,
         ?string $keyword,
         ?array $filters,
-        ?string $timeFilter,
+        ?string $subTab,
         ?int $resultCount
     ): void {
         SearchLog::create([
@@ -52,7 +52,7 @@ class SearchCacheService
             'tab'           => $tab,
             'keyword'       => $keyword,
             'filters_json'  => $filters ? json_encode($filters) : null,
-            'time_filter'   => $timeFilter,
+            'sub_tab'       => $subTab,
             'result_count'  => $resultCount ? (string) $resultCount : null,
             'searched_at'   => now(),
         ]);

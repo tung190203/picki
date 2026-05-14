@@ -28,10 +28,10 @@ class SearchV2Controller extends Controller
 
     /**
      * Unified search endpoint.
-     * GET /api/search/?tab=match&keyword=&time_filter=...
+     * GET /api/search/?tab=mini-tournament&keyword=&sub_tab=...
      *
      * Alias routes (same handler, different default tab via route defaults):
-     * - GET /api/matches/search  (tab=match)
+     * - GET /api/matches/search  (tab=mini-tournament)
      * - GET /api/clubs/search    (tab=club)
      * - GET /api/players/search  (tab=user)
      * - GET /api/courts/search   (tab=court)
@@ -40,7 +40,7 @@ class SearchV2Controller extends Controller
     {
         $params = $request->validatedWithDefaults();
         $tab = $params['tab'];
-        $timeFilter = $params['time_filter'];
+        $subTab = $params['sub_tab'];
 
         $userId = Auth::check() ? Auth::id() : null;
         $isMap = filter_var($params['map_mode'], FILTER_VALIDATE_BOOLEAN);
@@ -54,18 +54,18 @@ class SearchV2Controller extends Controller
             $filters['competition_location_id'] = (int) $params['competition_location_id'];
         }
 
-        $query = $this->buildQuery($tab, $params, $filters, $timeFilter, $userId);
+        $query = $this->buildQuery($tab, $params, $filters, $subTab, $userId);
 
         if ($isMap) {
             return $this->mapResponse($query, $tab);
         }
 
-        if ($timeFilter === 'this_week') {
+        if ($subTab === 'this_week') {
             return $this->timelineWeekResponse($query, $tab, $params);
         }
 
         $result = $this->paginate($query, $params);
-        $this->logSearch($userId, $tab, $params['keyword'] ?? null, $filters, $timeFilter, $result['meta']['total'] ?? 0);
+        $this->logSearch($userId, $tab, $params['keyword'] ?? null, $filters, $subTab, $result['meta']['total'] ?? 0);
 
         return ResponseHelper::success([
             'data' => $result['data'],
@@ -77,7 +77,7 @@ class SearchV2Controller extends Controller
     // Private helpers
     // -------------------------------------------------------------------------
 
-    private function buildQuery(string $tab, array $params, array $filters, string $timeFilter, ?int $userId)
+    private function buildQuery(string $tab, array $params, array $filters, string $subTab, ?int $userId)
     {
         $user = Auth::user();
         $userId = $userId ?? ($user ? $user->id : null);
@@ -96,7 +96,7 @@ class SearchV2Controller extends Controller
                 ->when($userId, fn($q) => $q->where('id', '!=', $userId))
                 ->when($user, fn($q) => $q->visibleFor($user))
                 ->filter($filters)
-                ->applyTimeline($timeFilter, $userId),
+                ->applyTimeline($subTab, $userId),
 
             SearchFilterConfig::TAB_CLUB => Club::withListRelations()
                 ->filter($filters),
@@ -107,9 +107,9 @@ class SearchV2Controller extends Controller
             default => throw new \InvalidArgumentException("Unknown tab: {$tab}"),
         };
 
-        // Timeline filter (except user which has its own logic in the query above)
+        // Sub-tab filter (except user which has its own logic in the query above)
         if ($tab !== SearchFilterConfig::TAB_USER && $tab !== SearchFilterConfig::TAB_COURT) {
-            $query = $query->applyTimeline($timeFilter, $userId);
+            $query = $query->applyTimeline($subTab, $userId);
         }
 
         // Geo filters
@@ -189,42 +189,36 @@ class SearchV2Controller extends Controller
 
     private function timelineWeekResponse($query, string $tab, array $params): \Illuminate\Http\JsonResponse
     {
+        $page = (int) ($params['page'] ?? 1);
+        $perPage = min(200, max(1, (int) ($params['per_page'] ?? 15)));
+
+        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
         $resourceClass = $this->searchService->resolveListResourceClass($tab);
-        $dateField = $this->searchService->resolveDateField($tab);
-
-        $items = $query->get();
-        $groups = $this->searchService->buildWeekdayGroups($items, $dateField);
-
-        $data = collect($groups)->map(fn($group) => [
-            'day'      => $group['day'],
-            'is_today' => $group['is_today'],
-            'count'    => $group['count'],
-            'items'    => $resourceClass::collection($group['items']),
-        ])->filter(fn($group) => $group['count'] > 0)->values();
 
         $this->logSearch(
             Auth::check() ? Auth::id() : null,
             $tab,
             $params['keyword'] ?? null,
             $params['filters'] ?? [],
-            $params['time_filter'] ?? 'all',
-            $items->count()
+            'this_week',
+            $paginator->total()
         );
 
         return ResponseHelper::success([
-            'data'     => $data,
-            'timeline' => true,
-            'meta'     => [
-                'total'        => $items->count(),
-                'time_filter'  => 'this_week',
+            'data' => $resourceClass::collection($paginator->getCollection()),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
             ],
-        ], 'Tìm kiếm theo tuần thành công', 200);
+        ], 'Tìm kiếm thành công', 200);
     }
 
-    private function logSearch(?int $userId, string $tab, ?string $keyword, ?array $filters, ?string $timeFilter, int $resultCount): void
+    private function logSearch(?int $userId, string $tab, ?string $keyword, ?array $filters, ?string $subTab, int $resultCount): void
     {
         try {
-            $this->cacheService->logSearch($userId, $tab, $keyword, $filters, $timeFilter, $resultCount);
+            $this->cacheService->logSearch($userId, $tab, $keyword, $filters, $subTab, $resultCount);
         } catch (\Throwable) {
             // Don't fail the search request if logging fails
         }

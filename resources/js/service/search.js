@@ -3,11 +3,11 @@ import { API_ENDPOINT } from "@/constants/index.js";
 
 /**
  * Unified search API v2 service.
- * Single endpoint for all tabs: match, tournament, club, user, court
+ * Single endpoint for all tabs: mini-tournament, tournament, club, user, court
  *
  * @param {Object} params
- * @param {string} [params.tab='match']           - match | tournament | club | user | court
- * @param {string} [params.time_filter='all']     - all | mine | today | this_week | this_month
+ * @param {string} [params.tab='mini-tournament'] - mini-tournament | tournament | club | user | court
+ * @param {string} [params.sub_tab='all']     - all | mine | friends | today | this_week | this_month
  * @param {string} [params.keyword]              - search keyword
  * @param {number} [params.sport_id]              - filter by sport ID
  * @param {number} [params.location_id]           - filter by location ID
@@ -35,7 +35,7 @@ export const search = async (params = {}) => {
 export const buildFilters = (tab, uiState) => {
     const filters = {};
 
-    if (tab === 'match' || tab === 'tournament') {
+    if (tab === 'mini-tournament' || tab === 'tournament') {
         // Distance range: [min_km, max_km]
         if (uiState.selectedRadiusValue === 'nearby' && uiState.radiusKm) {
             filters.distance = [0, uiState.radiusKm];
@@ -58,12 +58,36 @@ export const buildFilters = (tab, uiState) => {
             filters.fee = uiState.fee;
         }
         // Type (match only): 'single'|'double'
-        if (tab === 'match' && uiState.matchType) {
+        if (tab === 'mini-tournament' && uiState.matchType) {
             filters.type = uiState.matchType;
         }
         // Club type (match + tournament): 'thuong'|'clb'
         if (uiState.clubType?.length) {
             filters.club_type = uiState.clubType;
+        }
+        // Play mode (match only): 'casual'|'competition'|'practice'
+        if (tab === 'mini-tournament' && uiState.playMode?.length) {
+            filters.play_mode = uiState.playMode;
+        }
+        // Gender (match + tournament): 'male'|'female'|'mixed'
+        if (tab === 'mini-tournament' && uiState.selectedGenderMatch?.length) {
+            filters.gender = uiState.selectedGenderMatch;
+        }
+        if (tab === 'tournament' && uiState.selectedGenderTour?.length) {
+            filters.gender = uiState.selectedGenderTour;
+        }
+        // Level range (match + tournament): min_level / max_level as floats
+        if (tab === 'mini-tournament' || tab === 'tournament') {
+            if (uiState.selectedMinLevel != null) {
+                filters.min_level = uiState.selectedMinLevel;
+            }
+            if (uiState.selectedMaxLevel != null) {
+                filters.max_level = uiState.selectedMaxLevel;
+            }
+        }
+        // Tournament type (tournament only): 'all'|'youth'|'adult'|'senior'
+        if (tab === 'tournament' && uiState.tournamentType?.length) {
+            filters.tournament_type = uiState.tournamentType;
         }
     }
 
