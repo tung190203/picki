@@ -188,23 +188,31 @@ class TournamentController extends Controller
         $tournament = null;
 
         DB::transaction(function () use ($validated, &$tournament, $request) {
-            // Xử lý poster đồng bộ để response trả về đúng poster_url ngay
-            $posterStoragePath = null;
-
+            // Poster: resize + convert WebP + lưu ngay
             if ($request->hasFile('poster')) {
-                $posterStoragePath = $request->file('poster')->store('temp/uploads', 'local');
-                unset($validated['poster']);
+                $savedPath = $this->imageService->processAndSaveImage(
+                    $request->file('poster'),
+                    'tournaments/posters',
+                    'poster_',
+                    1920,
+                    80
+                );
+                $validated['poster'] = $savedPath;
             }
 
-            // Xử lý QR code đồng bộ (giống MiniTournamentController - lưu ngay để user thấy ngay trong modal thanh toán)
+            // QR code: resize + convert WebP + lưu ngay
             $qrUrl = null;
             if ($request->boolean('use_cached_qr') && auth()->user()->latest_used_qr) {
                 $qrUrl = auth()->user()->latest_used_qr;
                 $validated['qr_code_url'] = $qrUrl;
             } elseif ($request->hasFile('qr_code_url')) {
-                $qrFile = $request->file('qr_code_url');
-                $qrPath = $qrFile->store('tournaments/qr', 'public');
-                $qrUrl = $qrPath;
+                $qrUrl = $this->imageService->processAndSaveImage(
+                    $request->file('qr_code_url'),
+                    'tournaments/qr',
+                    'qr_',
+                    800,
+                    75
+                );
                 $validated['qr_code_url'] = $qrUrl;
             }
 
@@ -216,16 +224,6 @@ class TournamentController extends Controller
             // Lưu lại QR vừa dùng vào user
             if ($qrUrl) {
                 auth()->user()->update(['latest_used_qr' => $qrUrl]);
-            }
-
-            // Xử lý poster đồng bộ ngay sau khi tạo tournament
-            if ($posterStoragePath) {
-                $realPath = storage_path('app/' . $posterStoragePath);
-                if (file_exists($realPath)) {
-                    $posterPath = $this->imageService->optimizeFromPath($realPath, 'tournaments/posters');
-                    $tournament->update(['poster' => $posterPath]);
-                    @unlink($realPath);
-                }
             }
 
             TournamentStaff::create([
@@ -324,11 +322,18 @@ class TournamentController extends Controller
         $oldStatus = $tournament->status;
 
         DB::transaction(function () use ($validated, $tournament, $request) {
-            $posterTempPath = null;
-
+            // Poster: resize + convert WebP + lưu ngay
+            $newPosterPath = null;
             if ($request->hasFile('poster')) {
-                $posterTempPath = $request->file('poster')->store('temp/uploads', 'local');
-                unset($validated['poster']);
+                $newPosterPath = $this->imageService->processAndSaveImage(
+                    $request->file('poster'),
+                    'tournaments/posters',
+                    'poster_',
+                    1920,
+                    80
+                );
+                $this->imageService->deleteOldImage($tournament->poster);
+                $validated['poster'] = $newPosterPath;
             } elseif ($request->has('remove_poster') && $request->input('remove_poster')) {
                 $this->imageService->deleteOldImage($tournament->poster);
                 $validated['poster'] = null;
@@ -336,12 +341,16 @@ class TournamentController extends Controller
                 unset($validated['poster']);
             }
 
-            // Xử lý QR code đồng bộ (giống MiniTournamentController)
+            // QR code: resize + convert WebP + lưu ngay
             if ($request->hasFile('qr_code_url')) {
-                $qrFile = $request->file('qr_code_url');
-                $qrPath = $qrFile->store('tournaments/qr', 'public');
-                $validated['qr_code_url'] = $qrPath;
-                // Delete old QR image
+                $qrUrl = $this->imageService->processAndSaveImage(
+                    $request->file('qr_code_url'),
+                    'tournaments/qr',
+                    'qr_',
+                    800,
+                    75
+                );
+                $validated['qr_code_url'] = $qrUrl;
                 $this->imageService->deleteOldImage($tournament->qr_code_url);
             } elseif ($request->filled('qr_code_url')) {
                 // Keep existing or string value
@@ -387,17 +396,6 @@ class TournamentController extends Controller
                 }
             }
 
-            // Xử lý poster đồng bộ ngay sau khi lưu để response trả về đúng poster_url
-            if ($posterTempPath) {
-                $realPath = storage_path('app/' . $posterTempPath);
-                if (file_exists($realPath)) {
-                    // Xóa ảnh cũ trước
-                    $this->imageService->deleteOldImage($tournament->getOriginal('poster'));
-                    $posterPath = $this->imageService->optimizeFromPath($realPath, 'tournaments/posters');
-                    $tournament->update(['poster' => $posterPath]);
-                    @unlink($realPath);
-                }
-            }
         });
 
         $tournament = Tournament::withBasicRelations()->find($tournament->id);

@@ -14,7 +14,7 @@
                                 class="w-full h-full object-cover rounded-[8px]">
                             <span v-else class="text-gray-400 text-[11px] text-center leading-tight px-1">Thêm ảnh
                                 bìa</span>
-                            <input ref="posterInputRef" type="file" accept="image/*" class="hidden"
+                            <input ref="posterInputRef" type="file" accept="image/webp,image/*" class="hidden"
                                 @change="handlePosterUpload">
 
                             <button v-if="posterPreview" @click.stop="clearPoster"
@@ -377,7 +377,7 @@
                                             class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-[#D72D36] transition-colors w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
                                             @click="$refs.qrFileInput.click()">
                                             <input id="qr-file-input" type="file" ref="qrFileInput" class="hidden"
-                                                accept="image/*" @change="handleQrCodeUpload" />
+                                                accept="image/webp,image/*" @change="handleQrCodeUpload" />
                                             <div class="flex flex-col items-center">
                                                 <ArrowUpTrayIcon class="w-8 h-8 text-gray-400 mb-2" aria-hidden="true" />
                                                 <p class="text-sm text-gray-500">Tải ảnh lên</p>

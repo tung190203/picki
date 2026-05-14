@@ -15,7 +15,7 @@
                                 class="w-full h-full object-cover rounded-[8px]">
                             <span v-else class="text-gray-400 text-[11px] text-center leading-tight px-1">Thêm ảnh
                                 bìa</span>
-                            <input ref="posterInputRef" type="file" accept="image/*" class="hidden"
+                            <input ref="posterInputRef" type="file" accept="image/webp,image/*" class="hidden"
                                 @change="onPosterFileChange">
 
                             <button v-if="posterPreview" @click.stop="removePoster"
@@ -455,7 +455,7 @@
                             <!-- QR Code Upload -->
                             <div>
                                 <p class="text-sm text-gray-600 font-medium block mb-1">Mã QR thanh toán</p>
-                                <input ref="qrFileInput" type="file" accept="image/*" class="hidden"
+                                <input ref="qrFileInput" type="file" accept="image/webp,image/*" class="hidden"
                                     @change="onQrFileChange" />
 
                                 <!-- Khi đã có preview (file mới hoặc cached) -->
