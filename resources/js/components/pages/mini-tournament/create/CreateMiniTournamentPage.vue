@@ -1262,11 +1262,10 @@ const handlePosterUpload = (event) => {
         return
     }
 
-    posterImage.value = file
+    posterFile.value = file
     const reader = new FileReader()
     reader.onload = (e) => {
         posterPreview.value = e.target.result
-        posterImage.value = e.target.result // base64 for preview
     }
     reader.readAsDataURL(file)
 }
@@ -1874,10 +1873,10 @@ const handleSubmit = async () => {
         }
 
         if (isEditMode.value) {
-            const payload = buildFormDataWithFile({ ...data, use_cached_qr: useCachedQr.value }, !!qrCodeFile.value)
+            const payload = buildFormDataWithFile({ ...data, use_cached_qr: useCachedQr.value }, !!qrCodeFile.value, !!posterFile.value)
             await updateMiniTournament(miniTournamentId, payload)
         } else {
-            const payload = buildFormDataWithFile({ ...data, use_cached_qr: useCachedQr.value }, !!qrCodeFile.value)
+            const payload = buildFormDataWithFile({ ...data, use_cached_qr: useCachedQr.value }, !!qrCodeFile.value, !!posterFile.value)
             await createMiniTournament(payload)
         }
     } finally {
@@ -1885,7 +1884,7 @@ const handleSubmit = async () => {
     }
 }
 
-const buildFormDataWithFile = (data, hasQrFile) => {
+const buildFormDataWithFile = (data, hasQrFile, hasPosterFile = false) => {
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
         if (value === null || value === undefined) return
@@ -1907,9 +1906,12 @@ const buildFormDataWithFile = (data, hasQrFile) => {
             formData.append(key, value)
         }
     })
-    if (hasQrFile) {
-        formData.append('qr_code_url', qrCodeFile.value)
-    }
+        if (hasQrFile) {
+            formData.append('qr_code_url', qrCodeFile.value)
+        }
+        if (hasPosterFile) {
+            formData.append('poster', posterFile.value)
+        }
     return formData
 }
 
