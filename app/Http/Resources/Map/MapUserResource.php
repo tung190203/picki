@@ -35,7 +35,7 @@ class MapUserResource extends JsonResource
             'dupr_score'   => $duprScore?->score_value ?? null,
             'total_matches' => $stats['total_matches'] ?? 0,
             'win_rate'     => $stats['win_rate'] ?? 0.0,
-            'distance'     => $this->when(isset($this->distance), (int) round($this->distance)),
+            'distance'     => $this->when(isset($this->distance), round($this->distance, 1)),
             'clubs'        => $this->whenLoaded('clubs', fn() => $this->clubs->map(fn($c) => [
                 'id'       => $c->id,
                 'name'     => $c->name,
