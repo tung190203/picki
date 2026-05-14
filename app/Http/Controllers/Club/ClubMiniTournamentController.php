@@ -28,6 +28,7 @@ use App\Models\MiniTournamentStaff;
 use App\Models\User;
 use App\Notifications\MiniTournamentInvitationNotification;
 use App\Services\Club\ClubFundContributionService;
+use App\Services\ImageOptimizationService;
 use App\Services\MiniTournamentService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -230,30 +231,30 @@ class ClubMiniTournamentController extends Controller
         }
 
         $posterFile = $request->file('poster');
-        $posterStoragePath = null;
         if ($posterFile) {
             $posterStoragePath = $posterFile->store('posters', 'public');
-            OptimizeMiniTournamentImageJob::dispatch(
+            (new OptimizeMiniTournamentImageJob(
                 $miniTournament->id,
                 $posterStoragePath,
                 null,
                 false, null,
                 false, null
-            );
+            ))->handle(app(ImageOptimizationService::class));
+            $miniTournament->refresh();
         }
 
         $qrFile = $request->file('qr_code_url');
         if ($qrFile) {
             $qrPath = $qrFile->store('qr_codes', 'public');
-            OptimizeMiniTournamentImageJob::dispatch(
+            (new OptimizeMiniTournamentImageJob(
                 $miniTournament->id,
                 null,
                 $qrPath,
                 false, null,
                 false, null
-            );
-            $qrUrl = asset('storage/' . $qrPath);
-            $miniTournament->update(['qr_code_url' => $qrUrl]);
+            ))->handle(app(ImageOptimizationService::class));
+            $miniTournament->refresh();
+            $qrUrl = $miniTournament->qr_code_url; // lấy URL đã được job update vào DB
 
             if ($miniTournament->club_fund_collection_id) {
                 $miniTournament->fundCollection->update(['qr_code_url' => $qrUrl]);
@@ -308,13 +309,14 @@ class ClubMiniTournamentController extends Controller
         if ($posterFile) {
             $oldPoster = $miniTournament->poster;
             $posterStoragePath = $posterFile->store('posters', 'public');
-            OptimizeMiniTournamentImageJob::dispatch(
+            (new OptimizeMiniTournamentImageJob(
                 $miniTournament->id,
                 $posterStoragePath,
                 null,
                 true, $oldPoster,
                 false, null
-            );
+            ))->handle(app(ImageOptimizationService::class));
+            $miniTournament->refresh();
         } elseif ($request->filled('poster') && is_string($request->input('poster'))) {
             $posterStr = trim((string) $request->input('poster'));
             if ($posterStr !== '' && filter_var($posterStr, FILTER_VALIDATE_URL)) {
@@ -326,14 +328,14 @@ class ClubMiniTournamentController extends Controller
         if ($qrFile) {
             $oldQr = $miniTournament->qr_code_url;
             $qrPath = $qrFile->store('qr_codes', 'public');
-            OptimizeMiniTournamentImageJob::dispatch(
+            (new OptimizeMiniTournamentImageJob(
                 $miniTournament->id,
                 null,
                 $qrPath,
                 false, null,
                 true, $oldQr
-            );
-            $miniTournament->update(['qr_code_url' => asset('storage/' . $qrPath)]);
+            ))->handle(app(ImageOptimizationService::class));
+            $miniTournament->refresh();
         }
 
         $miniTournament->loadFullRelations();
