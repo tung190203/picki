@@ -13,6 +13,7 @@ use App\Events\SuperAdmin\DashboardStatUpdated;
 use App\Events\SuperAdmin\MiniTournamentCreated;
 use App\Events\SuperAdmin\MiniTournamentDeleted;
 use App\Events\SuperAdmin\MiniTournamentUpdated;
+use App\Jobs\OptimizeMiniTournamentImageJob;
 use App\Jobs\SendPushJob;
 use App\Helpers\ResponseHelper;
 use App\Http\Requests\StoreMiniTournamentRequest;
@@ -128,10 +129,16 @@ class MiniTournamentController extends Controller
 
         // Handle poster file
         $posterFile = $request->file('poster');
+        $posterStoragePath = null;
         if ($posterFile) {
-            $posterPath = $posterFile->store('posters', 'public');
-            $posterUrl = asset('storage/' . $posterPath);
-            $miniTournament->update(['poster' => $posterUrl]);
+            $posterStoragePath = $posterFile->store('posters', 'public');
+            OptimizeMiniTournamentImageJob::dispatch(
+                $miniTournament->id,
+                $posterStoragePath,
+                null,
+                false, null,
+                false, null
+            );
         }
 
         // Handle qr_code_url file
@@ -140,6 +147,13 @@ class MiniTournamentController extends Controller
             $qrUrl = Auth::user()->latest_used_qr;
         } elseif ($qrFile = $request->file('qr_code_url')) {
             $qrPath = $qrFile->store('qr_codes', 'public');
+            OptimizeMiniTournamentImageJob::dispatch(
+                $miniTournament->id,
+                null,
+                $qrPath,
+                false, null,
+                false, null
+            );
             $qrUrl = asset('storage/' . $qrPath);
         } elseif ($request->has('qr_code_url') && is_string($request->input('qr_code_url'))) {
             $qrUrl = $request->input('qr_code_url');
@@ -374,9 +388,15 @@ class MiniTournamentController extends Controller
         }
 
         if ($request->hasFile('poster')) {
-            $posterPath = $request->file('poster')->store('posters', 'public');
-            $posterUrl = asset('storage/' . $posterPath);
-            $miniTournament->update(['poster' => $posterUrl]);
+            $oldPoster = $miniTournament->poster;
+            $posterStoragePath = $request->file('poster')->store('posters', 'public');
+            OptimizeMiniTournamentImageJob::dispatch(
+                $miniTournament->id,
+                $posterStoragePath,
+                null,
+                true, $oldPoster,
+                false, null
+            );
         } elseif ($request->filled('poster') && is_string($request->input('poster'))) {
             $posterStr = trim((string) $request->input('poster'));
             if ($posterStr !== '' && filter_var($posterStr, FILTER_VALIDATE_URL)) {
@@ -385,9 +405,16 @@ class MiniTournamentController extends Controller
         }
 
         if ($request->hasFile('qr_code_url')) {
+            $oldQr = $miniTournament->qr_code_url;
             $qrPath = $request->file('qr_code_url')->store('qr_codes', 'public');
-            $qrUrl = asset('storage/' . $qrPath);
-            $miniTournament->update(['qr_code_url' => $qrUrl]);
+            OptimizeMiniTournamentImageJob::dispatch(
+                $miniTournament->id,
+                null,
+                $qrPath,
+                false, null,
+                true, $oldQr
+            );
+            $miniTournament->update(['qr_code_url' => asset('storage/' . $qrPath)]);
         }
 
         $miniTournament->loadFullRelations();

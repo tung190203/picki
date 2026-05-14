@@ -12,6 +12,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatusEnum;
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
+use App\Jobs\OptimizeMiniTournamentImageJob;
 use App\Http\Requests\StoreMiniTournamentRequest;
 use App\Http\Requests\UpdateMiniTournamentRequest;
 use App\Http\Resources\MiniParticipantResource;
@@ -229,19 +230,31 @@ class ClubMiniTournamentController extends Controller
         }
 
         $posterFile = $request->file('poster');
+        $posterStoragePath = null;
         if ($posterFile) {
-            $posterPath = $posterFile->store('posters', 'public');
-            $posterUrl = asset('storage/' . $posterPath);
-            $miniTournament->update(['poster' => $posterUrl]);
+            $posterStoragePath = $posterFile->store('posters', 'public');
+            OptimizeMiniTournamentImageJob::dispatch(
+                $miniTournament->id,
+                $posterStoragePath,
+                null,
+                false, null,
+                false, null
+            );
         }
 
         $qrFile = $request->file('qr_code_url');
         if ($qrFile) {
             $qrPath = $qrFile->store('qr_codes', 'public');
+            OptimizeMiniTournamentImageJob::dispatch(
+                $miniTournament->id,
+                null,
+                $qrPath,
+                false, null,
+                false, null
+            );
             $qrUrl = asset('storage/' . $qrPath);
             $miniTournament->update(['qr_code_url' => $qrUrl]);
 
-            // Đồng bộ QR vào ClubFundCollection nếu kèo thuộc quỹ chung CLB
             if ($miniTournament->club_fund_collection_id) {
                 $miniTournament->fundCollection->update(['qr_code_url' => $qrUrl]);
             }
@@ -293,8 +306,15 @@ class ClubMiniTournamentController extends Controller
 
         $posterFile = $request->file('poster');
         if ($posterFile) {
-            $posterPath = $posterFile->store('posters', 'public');
-            $miniTournament->update(['poster' => asset('storage/' . $posterPath)]);
+            $oldPoster = $miniTournament->poster;
+            $posterStoragePath = $posterFile->store('posters', 'public');
+            OptimizeMiniTournamentImageJob::dispatch(
+                $miniTournament->id,
+                $posterStoragePath,
+                null,
+                true, $oldPoster,
+                false, null
+            );
         } elseif ($request->filled('poster') && is_string($request->input('poster'))) {
             $posterStr = trim((string) $request->input('poster'));
             if ($posterStr !== '' && filter_var($posterStr, FILTER_VALIDATE_URL)) {
@@ -304,7 +324,15 @@ class ClubMiniTournamentController extends Controller
 
         $qrFile = $request->file('qr_code_url');
         if ($qrFile) {
+            $oldQr = $miniTournament->qr_code_url;
             $qrPath = $qrFile->store('qr_codes', 'public');
+            OptimizeMiniTournamentImageJob::dispatch(
+                $miniTournament->id,
+                null,
+                $qrPath,
+                false, null,
+                true, $oldQr
+            );
             $miniTournament->update(['qr_code_url' => asset('storage/' . $qrPath)]);
         }
 
