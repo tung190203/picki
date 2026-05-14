@@ -189,36 +189,30 @@ class SearchV2Controller extends Controller
 
     private function timelineWeekResponse($query, string $tab, array $params): \Illuminate\Http\JsonResponse
     {
+        $page = (int) ($params['page'] ?? 1);
+        $perPage = min(200, max(1, (int) ($params['per_page'] ?? 15)));
+
+        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
         $resourceClass = $this->searchService->resolveListResourceClass($tab);
-        $dateField = $this->searchService->resolveDateField($tab);
-
-        $items = $query->get();
-        $groups = $this->searchService->buildWeekdayGroups($items, $dateField);
-
-        $data = collect($groups)->map(fn($group) => [
-            'day'      => $group['day'],
-            'is_today' => $group['is_today'],
-            'count'    => $group['count'],
-            'items'    => $resourceClass::collection($group['items']),
-        ])->filter(fn($group) => $group['count'] > 0)->values();
 
         $this->logSearch(
             Auth::check() ? Auth::id() : null,
             $tab,
             $params['keyword'] ?? null,
             $params['filters'] ?? [],
-            $params['time_filter'] ?? 'all',
-            $items->count()
+            'this_week',
+            $paginator->total()
         );
 
         return ResponseHelper::success([
-            'data'     => $data,
-            'timeline' => true,
-            'meta'     => [
-                'total'        => $items->count(),
-                'time_filter'  => 'this_week',
+            'data' => $resourceClass::collection($paginator->getCollection()),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
             ],
-        ], 'Tìm kiếm theo tuần thành công', 200);
+        ], 'Tìm kiếm thành công', 200);
     }
 
     private function logSearch(?int $userId, string $tab, ?string $keyword, ?array $filters, ?string $timeFilter, int $resultCount): void
