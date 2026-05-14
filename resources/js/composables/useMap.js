@@ -469,10 +469,10 @@ export function useMap() {
     };
 
     dataToAdd.forEach(user => {
-      if (!user.lat && !user.lng || isNaN(user.lat) || isNaN(user.lng)) return;
+      if (!user.latitude && !user.longitude || isNaN(user.latitude) || isNaN(user.longitude)) return;
 
-      const lat = user.lat ?? user.latitude;
-      const lng = user.lng ?? user.longitude;
+      const lat = user.latitude;
+      const lng = user.longitude;
 
       const rating = getUserRating(user);
       const genderIconHtml = getGenderIconHtml(user.gender);
@@ -606,29 +606,27 @@ export function useMap() {
     }
   };
 
-  const addMatchMarkers = (matchesData, router, onMarkerClick, shouldUpdate = false, defaultImage = '') => {
-    const dataToAdd = shouldUpdate ? updateMarkers(matchesData) : matchesData;
+  const addMatchMarkers = (miniTournamentsData, router, onMarkerClick, shouldUpdate = false, defaultImage = '') => {
+    const dataToAdd = shouldUpdate ? updateMarkers(miniTournamentsData) : miniTournamentsData;
     const batchMarkers = [];
 
-    dataToAdd.forEach(match => {
-      // Handle lat/lng from API (map resources) with fallback to competition_location
-      const lat = match.lat ?? match.competition_location?.latitude;
-      const lng = match.lng ?? match.competition_location?.longitude;
-
+    dataToAdd.forEach(miniTournament => {
+      const lat = miniTournament.lat ?? miniTournament.competition_location?.latitude;
+      const lng = miniTournament.lng ?? miniTournament.competition_location?.longitude;
       if (!lat || !lng || isNaN(lat) || isNaN(lng)) return;
 
-      const locationName = match.competition_location?.name || match.competition_location?.address || '';
-      const matchImage = match.poster || defaultImage;
+      const locationName = miniTournament.competition_location?.name || miniTournament.competition_location?.address || '';
+      const matchImage = miniTournament.poster || defaultImage;
 
       let popupContent = '';
 
       // Tournament Layout
-      if (match.type === 'tournament') {
-        const dateText = formatDateText(match.start_date || match.starts_at);
-        const description = match.description || match.rules || '';
+      if (miniTournament.type === 'tournament') {
+        const dateText = formatDateText(miniTournament.start_date || miniTournament.starts_at);
+        const description = miniTournament.description || miniTournament.rules || '';
 
         popupContent = `
-          <div id="match-popup-${match.id}" style="
+          <div id="mini-tournament-popup-${miniTournament.id}" style="
             overflow: hidden;
             background: white;
             cursor: pointer;
@@ -663,7 +661,7 @@ export function useMap() {
                     -webkit-line-clamp: 2;
                     -webkit-box-orient: vertical;
                     overflow: hidden;
-                  ">${escapeHtml(match.name)}</h4>
+                  ">${escapeHtml(miniTournament.name)}</h4>
                 </div>
 
                 <div style="display: flex; flex-direction: column; gap: 4px; padding-top: 8px;">
@@ -704,17 +702,17 @@ export function useMap() {
       }
       // Mini Layout
       else {
-        const dateText = formatDateText(match.starts_at);
-        const timeRange = formatTimeRange(match.starts_at, match.duration_minutes);
-        const organizer = match.staff?.organizer?.[0]?.user || match.creator || match.user;
+        const dateText = formatDateText(miniTournament.starts_at);
+        const timeRange = formatTimeRange(miniTournament.starts_at, miniTournament.duration_minutes);
+        const organizer = miniTournament.staff?.organizer?.[0]?.user || miniTournament.creator || miniTournament.user;
         const organizerName = organizer?.full_name || organizer?.name || '';
         const organizerAvatar = organizer?.avatar_url || organizer?.avatar || defaultImage;
-        const participants = match.participants || [];
-        const joinedCount = match.joined_count || 0;
+        const participants = miniTournament.participants || [];
+        const joinedCount = miniTournament.joined_count || 0;
 
         // Build badges HTML
         let badgesHtml = '';
-        if (match.is_private !== undefined) {
+        if (miniTournament.is_private !== undefined) {
           badgesHtml += `
             <span style="
               display: inline-flex;
@@ -729,12 +727,12 @@ export function useMap() {
               white-space: nowrap;
               margin-right: 8px;
             ">
-              ${match.is_private ? lockIcon : lockOpenIcon}
-              ${match.is_private ? 'Private' : 'Public'}
+              ${miniTournament.is_private ? lockIcon : lockOpenIcon}
+              ${miniTournament.is_private ? 'Private' : 'Public'}
             </span>
           `;
         }
-        if (match.min_rating !== null || match.max_rating !== null) {
+        if (miniTournament.min_rating !== null || miniTournament.max_rating !== null) {
           badgesHtml += `
             <span style="
               display: inline-flex;
@@ -750,11 +748,11 @@ export function useMap() {
               margin-right: 8px;
             ">
               ${flagIcon}
-              ${match.min_rating || ''} - ${match.max_rating || ''}
+              ${miniTournament.min_rating || ''} - ${miniTournament.max_rating || ''}
             </span>
           `;
         }
-        if (match.is_dupr) {
+        if (miniTournament.is_dupr) {
           badgesHtml += `
             <span style="
               display: inline-flex;
@@ -774,7 +772,7 @@ export function useMap() {
             </span>
           `;
         }
-        if (match.max_players) {
+        if (miniTournament.max_players) {
           badgesHtml += `
             <span style="
               display: inline-flex;
@@ -790,7 +788,7 @@ export function useMap() {
               margin-right: 8px;
             ">
               ${userGroupIcon}
-              Max ${match.max_players}
+              Max ${miniTournament.max_players}
             </span>
           `;
         }
@@ -802,7 +800,7 @@ export function useMap() {
           participantsHtml = `
             <div style="display: flex; overflow: hidden; padding: 4px 0;">
               ${displayParticipants.map((p, idx) => `
-                <img src="${p.user?.avatar_url || defaultImage}"
+                <img src="${p.avatar_url || defaultImage}"
                   onerror="this.onerror=null;this.src='${defaultImage}'"
                   style="
                     width: 40px;
@@ -854,7 +852,7 @@ export function useMap() {
         }
 
         popupContent = `
-          <div id="match-popup-${match.id}" style="
+          <div id="mini-tournament-popup-${miniTournament.id}" style="
             overflow: hidden;
             background: white;
             cursor: pointer;
@@ -877,7 +875,7 @@ export function useMap() {
                       -webkit-line-clamp: 2;
                       -webkit-box-orient: vertical;
                       overflow: hidden;
-                    ">${escapeHtml(match.name)}</h3>
+                    ">${escapeHtml(miniTournament.name)}</h3>
                     ${locationName ? `
                       <div style="display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12px; color: #3b82f6; font-weight: 500;">
                         ${mapPinIconSmall}
@@ -945,23 +943,23 @@ export function useMap() {
       }
 
       const m = L.marker([lat, lng], { icon: defaultMarkerIcon })
-        .bindPopup(popupContent, { maxWidth: 350, className: 'match-popup' });
+        .bindPopup(popupContent, { maxWidth: 350, className: 'mini-tournament-popup' });
 
-      markers[match.id] = m;
+      markers[miniTournament.id] = m;
       batchMarkers.push(m);
 
       if (onMarkerClick) {
-        m.on('click', () => onMarkerClick(match));
+        m.on('click', () => onMarkerClick(miniTournament));
       }
 
       m.on('popupopen', () => {
-        const el = document.getElementById(`match-popup-${match.id}`);
+        const el = document.getElementById(`mini-tournament-popup-${miniTournament.id}`);
         if (el) {
             el.onclick = () => {
-                if (match.type === 'mini') {
-                    router.push(`/mini-tournament-detail/${match.original_id || match.id}`);
-                } else if (match.type === 'tournament') {
-                    router.push(`/tournament-detail/${match.original_id || match.id}`);
+                if (miniTournament.type === 'mini_tournament') {
+                    router.push(`/mini-tournament-detail/${miniTournament.original_id || miniTournament.id}`);
+                } else if (miniTournament.type === 'tournament') {
+                    router.push(`/mini-tournament-detail/${miniTournament.original_id || miniTournament.id}`);
                 }
             };
         }
@@ -977,10 +975,10 @@ export function useMap() {
     const batchMarkers = [];
 
     dataToAdd.forEach(club => {
-      if (!club.lat || !club.lng || isNaN(club.lat) || isNaN(club.lng)) return;
+      if (!club.latitude || !club.longitude || isNaN(club.latitude) || isNaN(club.longitude)) return;
 
-      const lat = club.lat ?? club.latitude;
-      const lng = club.lng ?? club.longitude;
+      const lat = club.latitude;
+      const lng = club.longitude;
 
       const popupContent = `
         <div id="club-popup-${club.id}" style="
