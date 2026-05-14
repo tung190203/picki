@@ -67,7 +67,7 @@ class ClubTournamentController extends Controller
                     'tournaments/posters',
                     'poster_',
                     720,
-                    80
+                    65
                 );
                 $validated['poster'] = $savedPath;
             }
@@ -77,7 +77,7 @@ class ClubTournamentController extends Controller
             if ($request->hasFile('qr_code_url')) {
                 $qrFile = $request->file('qr_code_url');
                 if ($qrFile && $qrFile->isValid()) {
-                    $qrUrl = $imageService->processAndSaveImage($qrFile, 'tournaments/qr', 'qr_', 500, 75);
+                    $qrUrl = $imageService->processAndSaveImage($qrFile, 'tournaments/qr', 'qr_', 500, 60);
                 }
             } elseif ($request->filled('qr_code_url') && is_string($request->input('qr_code_url'))) {
                 $qrStr = trim((string) $request->input('qr_code_url'));
@@ -167,7 +167,7 @@ class ClubTournamentController extends Controller
                     'tournaments/posters',
                     'poster_',
                     720,
-                    80
+                    65
                 );
                 $imageService->deleteOldImage($tournament->poster);
                 $validated['poster'] = $newPosterPath;
@@ -184,8 +184,8 @@ class ClubTournamentController extends Controller
                     $request->file('qr_code_url'),
                     'tournaments/qr',
                     'qr_',
-                    800,
-                    75
+                    500,
+                    60
                 );
                 $imageService->deleteOldImage($tournament->qr_code_url);
                 $validated['qr_code_url'] = $qrUrl;

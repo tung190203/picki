@@ -30,7 +30,7 @@ class SearchCourtResource extends JsonResource
                 'name'        => $f->name,
                 'description' => $f->description,
             ])),
-            'distance'        => $this->when(isset($this->distance), (int) round($this->distance)),
+            'distance'        => $this->when(isset($this->distance), round($this->distance, 1)),
             'marker_type'     => 'court',
         ];
     }

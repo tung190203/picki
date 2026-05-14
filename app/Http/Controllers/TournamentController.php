@@ -195,7 +195,7 @@ class TournamentController extends Controller
                     'tournaments/posters',
                     'poster_',
                     720,
-                    80
+                    65
                 );
                 $validated['poster'] = $savedPath;
             }
@@ -211,7 +211,7 @@ class TournamentController extends Controller
                     'tournaments/qr',
                     'qr_',
                     500,
-                    75
+                    60
                 );
                 $validated['qr_code_url'] = $qrUrl;
             }
@@ -330,7 +330,7 @@ class TournamentController extends Controller
                     'tournaments/posters',
                     'poster_',
                     720,
-                    80
+                    65
                 );
                 $this->imageService->deleteOldImage($tournament->poster);
                 $validated['poster'] = $newPosterPath;
@@ -348,7 +348,7 @@ class TournamentController extends Controller
                     'tournaments/qr',
                     'qr_',
                     500,
-                    75
+                    60
                 );
                 $validated['qr_code_url'] = $qrUrl;
                 $this->imageService->deleteOldImage($tournament->qr_code_url);
