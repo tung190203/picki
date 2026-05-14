@@ -13,7 +13,6 @@ use App\Events\SuperAdmin\DashboardStatUpdated;
 use App\Events\SuperAdmin\MiniTournamentCreated;
 use App\Events\SuperAdmin\MiniTournamentDeleted;
 use App\Events\SuperAdmin\MiniTournamentUpdated;
-use App\Jobs\OptimizeMiniTournamentImageJob;
 use App\Jobs\SendPushJob;
 use App\Helpers\ResponseHelper;
 use App\Http\Requests\StoreMiniTournamentRequest;
@@ -128,35 +127,22 @@ class MiniTournamentController extends Controller
             }
         }
 
-        // Handle poster file (synchronous optimize)
+        $imageService = app(ImageOptimizationService::class);
+
+        // Handle poster file: resize + convert WebP + lưu ngay
         $posterFile = $request->file('poster');
         if ($posterFile) {
-            $posterStoragePath = $posterFile->store('posters', 'public');
-            (new OptimizeMiniTournamentImageJob(
-                $miniTournament->id,
-                $posterStoragePath,
-                null,
-                false, null,
-                false, null
-            ))->handle(app(ImageOptimizationService::class));
-            $miniTournament->refresh();
+            $savedPath = $imageService->processAndSaveImage($posterFile, 'posters', 'poster_', 720, 80);
+            $miniTournament->update(['poster' => asset('storage/' . $savedPath)]);
         }
 
-        // Handle qr_code_url file (synchronous optimize)
+        // Handle qr_code_url file: resize + convert WebP + lưu ngay
         $qrUrl = null;
         if ($request->boolean('use_cached_qr') && Auth::user()->latest_used_qr) {
             $qrUrl = Auth::user()->latest_used_qr;
         } elseif ($qrFile = $request->file('qr_code_url')) {
-            $qrPath = $qrFile->store('qr_codes', 'public');
-            (new OptimizeMiniTournamentImageJob(
-                $miniTournament->id,
-                null,
-                $qrPath,
-                false, null,
-                false, null
-            ))->handle(app(ImageOptimizationService::class));
-            $miniTournament->refresh();
-            $qrUrl = $miniTournament->qr_code_url; // lấy URL đã được job update vào DB
+            $savedPath = $imageService->processAndSaveImage($qrFile, 'qr_codes', 'qr_', 500, 75);
+            $qrUrl = asset('storage/' . $savedPath);
         } elseif ($request->has('qr_code_url') && is_string($request->input('qr_code_url'))) {
             $qrUrl = $request->input('qr_code_url');
         }
@@ -389,17 +375,13 @@ class MiniTournamentController extends Controller
             }
         }
 
+        $imageService = app(ImageOptimizationService::class);
+
         if ($request->hasFile('poster')) {
             $oldPoster = $miniTournament->poster;
-            $posterStoragePath = $request->file('poster')->store('posters', 'public');
-            (new OptimizeMiniTournamentImageJob(
-                $miniTournament->id,
-                $posterStoragePath,
-                null,
-                true, $oldPoster,
-                false, null
-            ))->handle(app(ImageOptimizationService::class));
-            $miniTournament->refresh();
+            $savedPath = $imageService->processAndSaveImage($request->file('poster'), 'posters', 'poster_', 720, 80);
+            $imageService->deleteOldImage($oldPoster);
+            $miniTournament->update(['poster' => asset('storage/' . $savedPath)]);
         } elseif ($request->filled('poster') && is_string($request->input('poster'))) {
             $posterStr = trim((string) $request->input('poster'));
             if ($posterStr !== '' && filter_var($posterStr, FILTER_VALIDATE_URL)) {
@@ -409,15 +391,9 @@ class MiniTournamentController extends Controller
 
         if ($request->hasFile('qr_code_url')) {
             $oldQr = $miniTournament->qr_code_url;
-            $qrPath = $request->file('qr_code_url')->store('qr_codes', 'public');
-            (new OptimizeMiniTournamentImageJob(
-                $miniTournament->id,
-                null,
-                $qrPath,
-                false, null,
-                true, $oldQr
-            ))->handle(app(ImageOptimizationService::class));
-            $miniTournament->refresh();
+            $savedPath = $imageService->processAndSaveImage($request->file('qr_code_url'), 'qr_codes', 'qr_', 500, 75);
+            $imageService->deleteOldImage($oldQr);
+            $miniTournament->update(['qr_code_url' => asset('storage/' . $savedPath)]);
         }
 
         $miniTournament->loadFullRelations();

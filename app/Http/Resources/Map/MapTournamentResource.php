@@ -22,8 +22,6 @@ class MapTournamentResource extends JsonResource
             'type'         => 'tournament',
             'poster'       => $this->poster_url,
             'description'  => $this->description,
-            'lat'          => $location?->latitude,
-            'lng'          => $location?->longitude,
             'start_date'   => $this->start_date,
             'starts_at'    => $this->start_date,
             'start_time'   => $this->start_date ? \Carbon\Carbon::parse($this->start_date)->format('H:i') : null,
@@ -41,9 +39,11 @@ class MapTournamentResource extends JsonResource
             ]),
             // Nested competition_location
             'competition_location' => $location ? [
-                'id'      => $location->id,
-                'name'    => $location->name,
-                'address' => $location->address,
+                'id'       => $location->id,
+                'name'     => $location->name,
+                'latitude' => $location->latitude,
+                'longitude'=> $location->longitude,
+                'address'  => $location->address,
             ] : null,
             // Flat geo fields
             'location_name' => $location?->name,

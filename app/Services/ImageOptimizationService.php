@@ -84,17 +84,43 @@ class ImageOptimizationService
     /**
      * Chuyển đổi sang WebP
      */
-    public function convertToWebP($file, $path, $quality = 80)
+    public function convertToWebP($file, $path, $maxWidth = 1920, $quality = 80)
     {
         $filename = time() . '_' . pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME) . '.webp';
         $image = $this->manager->read($file);
 
-        $optimized = $image->scaleDown(width: 1920);
+        $optimized = $image->scaleDown(width: $maxWidth);
         $encoded = $optimized->toWebp(quality: $quality);
 
         Storage::put($path . '/' . $filename, $encoded);
 
         return $path . '/' . $filename;
+    }
+
+    /**
+     * Xử lý ảnh upload: resize + convert sang WebP + lưu vào storage.
+     * Dùng cho poster và QR code trong tournament/mini-tournament.
+     *
+     * @param mixed $file  UploadedFile hoặc file object
+     * @param string $folder  Thư mục lưu (e.g. 'posters', 'qr_codes', 'tournaments/posters')
+     * @param string $prefix  Prefix tên file (e.g. 'poster_', 'qr_')
+     * @param int $maxWidth  Chiều rộng tối đa (poster=1920, qr=800)
+     * @param int $quality  Chất lượng WebP (poster=80, qr=75)
+     * @return string  Relative path đã lưu (e.g. 'posters/poster_1234567890_abc.webp')
+     */
+    public function processAndSaveImage(
+        $file,
+        string $folder,
+        string $prefix = '',
+        int $maxWidth = 1920,
+        int $quality = 80
+    ): string {
+        $filename = $prefix . time() . '_' . uniqid() . '.webp';
+        $image = $this->manager->read($file);
+        $optimized = $image->scaleDown(width: $maxWidth);
+        $encoded = $optimized->toWebp(quality: $quality);
+        Storage::disk('public')->put($folder . '/' . $filename, $encoded);
+        return $folder . '/' . $filename;
     }
 
     /**
