@@ -601,42 +601,6 @@
                                 </template>
                             </div>
 
-                            <!-- Loại -->
-                            <div class="border-t pt-4">
-                                <p class="font-medium text-gray-900 mb-4 text-xl">Loại</p>
-                                <template v-if="matchTypeOptions.length">
-                                    <div class="grid grid-cols-2 gap-4">
-                                        <label v-for="item in matchTypeOptions" :key="item.value"
-                                            class="flex items-center gap-3 cursor-pointer relative select-none">
-                                            <input type="checkbox" v-model="selectedMatchType" :value="item.value"
-                                                class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
-                                                checked:bg-[#D72D36] checked:border-[#D72D36]" />
-                                            <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
-                                                opacity-0 peer-checked:opacity-100 pointer-events-none" />
-                                            <span>{{ item.label }}</span>
-                                        </label>
-                                    </div>
-                                </template>
-                            </div>
-
-                            <!-- Loại -->
-                            <div class="border-t pt-4">
-                                <p class="font-medium text-gray-900 mb-4 text-xl">Loại</p>
-                                <template v-if="matchTypeOptions.length">
-                                    <div class="grid grid-cols-2 gap-4">
-                                        <label v-for="item in matchTypeOptions" :key="item.value"
-                                            class="flex items-center gap-3 cursor-pointer relative select-none">
-                                            <input type="checkbox" v-model="selectedMatchType" :value="item.value"
-                                                class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
-                                                checked:bg-[#D72D36] checked:border-[#D72D36]" />
-                                            <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
-                                                opacity-0 peer-checked:opacity-100 pointer-events-none" />
-                                            <span>{{ item.label }}</span>
-                                        </label>
-                                    </div>
-                                </template>
-                            </div>
-
                             <!-- Loại kèo -->
                             <div class="border-t pt-4">
                                 <p class="font-medium text-gray-900 mb-4 text-xl">Loại kèo</p>
@@ -1450,7 +1414,7 @@ const subTab = ref('all');
 
 // Sub-tab options per tab — static config matching backend SearchFilterConfig
 const SUB_TAB_OPTIONS = {
-    match: [
+    'mini-tournament': [
         { value: 'all', label: 'Tất cả', badge: null },
         { value: 'mine', label: 'Của tôi', badge: null },
         { value: 'today', label: 'Hôm nay', badge: 'Hôm nay' },
@@ -1706,10 +1670,10 @@ const displayedListData = computed(() => {
 const searchResultText = computed(() => {
     const map = {
         court: `${quantityCourts.value ?? 0} Sân bãi được tìm thấy`,
-        match: `${quantityMatches.value ?? 0} Kèo đấu được tìm thấy`,
+        'mini-tournament': `${quantityMatches.value ?? 0} Kèo đấu được tìm thấy`,
         tournament: `${quantityMatches.value ?? 0} Giải đấu được tìm thấy`,
         user: `${quantityUsers.value ?? 0} Người chơi được tìm thấy`,
-        club: `${quantityClubs.value ?? 0} Câu lạc bộ được tìm thấy`,
+        club: `${quantityClubs.value ?? 0} Câu lạc bộ được tìm thếy`,
     }
 
     return map[activeTab.value] ?? '0 kết quả được tìm thấy'
@@ -1750,13 +1714,11 @@ const mergeData = (existingMap, newDataArray, isFiltered = false) => {
     if (isFiltered) {
         existingMap.clear();
         newDataArray.forEach(item => {
-            const key = item.competition_location?.id ?? item.id;
-            existingMap.set(key, item);
+            existingMap.set(item.id, item);
         });
     } else {
         newDataArray.forEach(item => {
-            const key = item.competition_location?.id ?? item.id;
-            existingMap.set(key, item);
+            existingMap.set(item.id, item);
         });
     }
 };
@@ -2261,7 +2223,7 @@ const selectLocation = async (location) => {
 const selectedMap = {
     court: selectedCourt,
     user: selectedUser,
-    match: selectedMatches,
+    'mini-tournament': selectedMatches,
     club: selectedClubItem,
 }
 
@@ -2312,7 +2274,7 @@ const searchValue = computed({
 
 const searchPlaceholder = computed(() => {
     const map = {
-        match: 'Tìm kèo đấu',
+        'mini-tournament': 'Tìm kèo đấu',
         tournament: 'Tìm giải đấu',
         club: 'Tìm câu lạc bộ',
         user: 'Tìm người chơi',
@@ -2388,8 +2350,6 @@ onMounted(async () => {
     await getListSports();
     await getListLocation();
     await getMyClubs();
-    // Load initial data for default tab
-    await loadTabContent(activeTab.value, null);
 });
 
 initMap(handleBoundsChange, handleBoundsChange);

@@ -606,369 +606,196 @@ export function useMap() {
     }
   };
 
-  const addMatchMarkers = (miniTournamentsData, router, onMarkerClick, shouldUpdate = false, defaultImage = '') => {
+  // --- MINI TOURNAMENT MARKERS ---
+  const addMiniTournamentMarkers = (miniTournamentsData, router, onMarkerClick, shouldUpdate = false, defaultImage = '') => {
     const dataToAdd = shouldUpdate ? updateMarkers(miniTournamentsData) : miniTournamentsData;
     const batchMarkers = [];
 
-    dataToAdd.forEach(miniTournament => {
-      const lat = miniTournament.lat ?? miniTournament.competition_location?.latitude;
-      const lng = miniTournament.lng ?? miniTournament.competition_location?.longitude;
+    dataToAdd.forEach(mini => {
+      const lat = mini.lat ?? mini.competition_location?.latitude;
+      const lng = mini.lng ?? mini.competition_location?.longitude;
       if (!lat || !lng || isNaN(lat) || isNaN(lng)) return;
 
-      const locationName = miniTournament.competition_location?.name || miniTournament.competition_location?.address || '';
-      const matchImage = miniTournament.poster || defaultImage;
+      const locationName = mini.competition_location?.name || mini.competition_location?.address || '';
+      const dateText = formatDateText(mini.starts_at);
+      const timeRange = formatTimeRange(mini.starts_at, mini.duration_minutes);
+      const organizer = mini.staff?.organizer?.[0]?.user || mini.creator || mini.user;
+      const organizerName = organizer?.full_name || organizer?.name || '';
+      const organizerAvatar = organizer?.avatar_url || organizer?.avatar || defaultImage;
+      const participants = mini.participants || [];
+      const joinedCount = mini.joined_count || 0;
 
-      let popupContent = '';
-
-      // Tournament Layout
-      if (miniTournament.type === 'tournament') {
-        const dateText = formatDateText(miniTournament.start_date || miniTournament.starts_at);
-        const description = miniTournament.description || miniTournament.rules || '';
-
-        popupContent = `
-          <div id="mini-tournament-popup-${miniTournament.id}" style="
-            overflow: hidden;
-            background: white;
-            cursor: pointer;
-            font-family: system-ui, -apple-system, sans-serif;
-            min-width: 280px;
-            max-width: 320px;
-          ">
-            <div style="display: flex; align-items: flex-start; padding: 12px; gap: 12px;">
-              <div style="
-                width: 112px;
-                height: 112px;
-                flex-shrink: 0;
-                background: #f3f4f6;
-                border-radius: 6px;
-                overflow: hidden;
-                border: 1px solid #f3f4f6;
-              ">
-                <img src="${matchImage}"
-                  onerror="this.onerror=null;this.src='${defaultImage}'"
-                  style="width: 100%; height: 100%; object-fit: cover;" />
-              </div>
-
-              <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 80px;">
-                <div>
-                  <h4 style="
-                    font-weight: 700;
-                    color: #111827;
-                    font-size: 14px;
-                    line-height: 1.25;
-                    margin: 0 0 4px 0;
-                    display: -webkit-box;
-                    -webkit-line-clamp: 2;
-                    -webkit-box-orient: vertical;
-                    overflow: hidden;
-                  ">${escapeHtml(miniTournament.name)}</h4>
-                </div>
-
-                <div style="display: flex; flex-direction: column; gap: 4px; padding-top: 8px;">
-                  ${locationName ? `
-                    <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #4b5563;">
-                      <span style="color: #4392e0; display: flex; align-items: center;">${mapPinIconSmall}</span>
-                      <span style="
-                        font-weight: 500;
-                        display: -webkit-box;
-                        -webkit-line-clamp: 1;
-                        -webkit-box-orient: vertical;
-                        overflow: hidden;
-                      ">${escapeHtml(locationName)}</span>
-                    </div>
-                  ` : ''}
-                  <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #4b5563;">
-                    <span style="color: #4392e0; display: flex; align-items: center;">${calendarIcon}</span>
-                    <span style="font-weight: 500; text-transform: capitalize;">${escapeHtml(dateText)}</span>
-                  </div>
-
-                  ${description ? `
-                    <p style="
-                      font-size: 12px;
-                      color: #6b7280;
-                      font-weight: 500;
-                      margin: 4px 0 0 0;
-                      display: -webkit-box;
-                      -webkit-line-clamp: 2;
-                      -webkit-box-orient: vertical;
-                      overflow: hidden;
-                    ">${escapeHtml(description)}</p>
-                  ` : ''}
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
+      // Badges
+      let badgesHtml = '';
+      if (mini.is_private !== undefined) {
+        badgesHtml += `
+          <span style="display:inline-flex;align-items:center;border-radius:9999px;padding:2px 8px;gap:4px;font-size:10px;font-weight:500;color:white;background:#1f2937;white-space:nowrap;margin-right:8px;">
+            ${mini.is_private ? lockIcon : lockOpenIcon}
+            ${mini.is_private ? 'Private' : 'Public'}
+          </span>`;
       }
-      // Mini Layout
-      else {
-        const dateText = formatDateText(miniTournament.starts_at);
-        const timeRange = formatTimeRange(miniTournament.starts_at, miniTournament.duration_minutes);
-        const organizer = miniTournament.staff?.organizer?.[0]?.user || miniTournament.creator || miniTournament.user;
-        const organizerName = organizer?.full_name || organizer?.name || '';
-        const organizerAvatar = organizer?.avatar_url || organizer?.avatar || defaultImage;
-        const participants = miniTournament.participants || [];
-        const joinedCount = miniTournament.joined_count || 0;
+      if (mini.min_rating !== null || mini.max_rating !== null) {
+        badgesHtml += `
+          <span style="display:inline-flex;align-items:center;gap:4px;border-radius:9999px;background:#1f2937;padding:2px 8px;font-size:10px;font-weight:500;color:white;white-space:nowrap;margin-right:8px;">
+            ${flagIcon} ${mini.min_rating || ''} - ${mini.max_rating || ''}
+          </span>`;
+      }
+      if (mini.is_dupr) {
+        badgesHtml += `
+          <span style="display:inline-flex;align-items:center;gap:4px;border-radius:9999px;background:#1f2937;padding:2px 8px;font-size:10px;font-weight:500;color:white;white-space:nowrap;margin-right:8px;">
+            ${starIcon} DUPR
+          </span>`;
+      }
+      if (mini.max_players) {
+        badgesHtml += `
+          <span style="display:inline-flex;align-items:center;gap:4px;border-radius:9999px;background:#1f2937;padding:2px 8px;font-size:10px;font-weight:500;color:white;white-space:nowrap;margin-right:8px;">
+            ${userGroupIcon} Max ${mini.max_players}
+          </span>`;
+      }
 
-        // Build badges HTML
-        let badgesHtml = '';
-        if (miniTournament.is_private !== undefined) {
-          badgesHtml += `
-            <span style="
-              display: inline-flex;
-              align-items: center;
-              border-radius: 9999px;
-              padding: 2px 8px;
-              gap: 4px;
-              font-size: 10px;
-              font-weight: 500;
-              color: white;
-              background: #1f2937;
-              white-space: nowrap;
-              margin-right: 8px;
-            ">
-              ${miniTournament.is_private ? lockIcon : lockOpenIcon}
-              ${miniTournament.is_private ? 'Private' : 'Public'}
-            </span>
-          `;
-        }
-        if (miniTournament.min_rating !== null || miniTournament.max_rating !== null) {
-          badgesHtml += `
-            <span style="
-              display: inline-flex;
-              align-items: center;
-              gap: 4px;
-              border-radius: 9999px;
-              background: #1f2937;
-              padding: 2px 8px;
-              font-size: 10px;
-              font-weight: 500;
-              color: white;
-              white-space: nowrap;
-              margin-right: 8px;
-            ">
-              ${flagIcon}
-              ${miniTournament.min_rating || ''} - ${miniTournament.max_rating || ''}
-            </span>
-          `;
-        }
-        if (miniTournament.is_dupr) {
-          badgesHtml += `
-            <span style="
-              display: inline-flex;
-              align-items: center;
-              gap: 4px;
-              border-radius: 9999px;
-              background: #1f2937;
-              padding: 2px 8px;
-              font-size: 10px;
-              font-weight: 500;
-              color: white;
-              white-space: nowrap;
-              margin-right: 8px;
-            ">
-              ${starIcon}
-              DUPR
-            </span>
-          `;
-        }
-        if (miniTournament.max_players) {
-          badgesHtml += `
-            <span style="
-              display: inline-flex;
-              align-items: center;
-              gap: 4px;
-              border-radius: 9999px;
-              background: #1f2937;
-              padding: 2px 8px;
-              font-size: 10px;
-              font-weight: 500;
-              color: white;
-              white-space: nowrap;
-              margin-right: 8px;
-            ">
-              ${userGroupIcon}
-              Max ${miniTournament.max_players}
-            </span>
-          `;
-        }
+      // Participants avatars
+      let participantsHtml = '';
+      if (participants.length > 0) {
+        const displayParticipants = participants.slice(0, 2);
+        participantsHtml = `
+          <div style="display:flex;overflow:hidden;padding:4px 0;">
+            ${displayParticipants.map((p, idx) => `
+              <img src="${p.avatar_url || defaultImage}"
+                onerror="this.onerror=null;this.src='${defaultImage}'"
+                style="width:40px;height:40px;border-radius:50%;border:2px solid white;object-fit:cover;${idx > 0 ? 'margin-left:-8px;' : ''}" />
+            `).join('')}
+            ${participants.length > 3 ? `
+              <div style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;border:2px solid white;background:#fef2f2;color:#D72D36;font-size:12px;font-weight:700;margin-left:-8px;">+${participants.length - 3}</div>
+            ` : ''}
+          </div>`;
+      } else if (joinedCount > 0) {
+        participantsHtml = `
+          <div style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:#fef2f2;color:#D72D36;font-size:12px;font-weight:700;border:1px solid #fee2e2;">+${joinedCount}</div>`;
+      }
 
-        // Build participants avatars HTML
-        let participantsHtml = '';
-        if (participants.length > 0) {
-          const displayParticipants = participants.slice(0, 2);
-          participantsHtml = `
-            <div style="display: flex; overflow: hidden; padding: 4px 0;">
-              ${displayParticipants.map((p, idx) => `
-                <img src="${p.avatar_url || defaultImage}"
-                  onerror="this.onerror=null;this.src='${defaultImage}'"
-                  style="
-                    width: 40px;
-                    height: 40px;
-                    border-radius: 50%;
-                    border: 2px solid white;
-                    object-fit: cover;
-                    ${idx > 0 ? 'margin-left: -8px;' : ''}
-                  " />
-              `).join('')}
-              ${participants.length > 3 ? `
-                <div style="
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  width: 32px;
-                  height: 32px;
-                  border-radius: 50%;
-                  border: 2px solid white;
-                  background: #fef2f2;
-                  color: #D72D36;
-                  font-size: 12px;
-                  font-weight: 700;
-                  margin-left: -8px;
-                ">
-                  +${participants.length - 3}
+      const popupContent = `
+        <div id="mini-popup-${mini.id}" style="overflow:hidden;background:white;cursor:pointer;font-family:system-ui,-apple-system,sans-serif;min-width:280px;max-width:320px;">
+          <div style="padding:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;">
+                <div>
+                  <h3 style="font-weight:700;color:#111827;font-size:16px;line-height:1.375;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(mini.name)}</h3>
+                  ${locationName ? `<div style="display:flex;align-items:center;gap:4px;margin-top:4px;font-size:12px;color:#3b82f6;font-weight:500;">${mapPinIconSmall}<span style="display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(locationName)}</span></div>` : ''}
                 </div>
-              ` : ''}
-            </div>
-          `;
-        } else if (joinedCount > 0) {
-          participantsHtml = `
-            <div style="
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              width: 32px;
-              height: 32px;
-              border-radius: 50%;
-              background: #fef2f2;
-              color: #D72D36;
-              font-size: 12px;
-              font-weight: 700;
-              border: 1px solid #fee2e2;
-            ">
-              +${joinedCount}
-            </div>
-          `;
-        }
-
-        popupContent = `
-          <div id="mini-tournament-popup-${miniTournament.id}" style="
-            overflow: hidden;
-            background: white;
-            cursor: pointer;
-            font-family: system-ui, -apple-system, sans-serif;
-            min-width: 280px;
-            max-width: 320px;
-          ">
-            <div style="padding-top: 12px;padding-bottom: 12px;">
-              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-                <!-- Left Content -->
-                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
-                  <div>
-                    <h3 style="
-                      font-weight: 700;
-                      color: #111827;
-                      font-size: 16px;
-                      line-height: 1.375;
-                      margin: 0;
-                      display: -webkit-box;
-                      -webkit-line-clamp: 2;
-                      -webkit-box-orient: vertical;
-                      overflow: hidden;
-                    ">${escapeHtml(miniTournament.name)}</h3>
-                    ${locationName ? `
-                      <div style="display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12px; color: #3b82f6; font-weight: 500;">
-                        ${mapPinIconSmall}
-                        <span style="
-                          display: -webkit-box;
-                          -webkit-line-clamp: 1;
-                          -webkit-box-orient: vertical;
-                          overflow: hidden;
-                        ">${escapeHtml(locationName)}</span>
-                      </div>
-                    ` : ''}
+                <div style="display:flex;flex-direction:column;gap:4px;">
+                  <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#4b5563;">
+                    <span style="color:#3b82f6;display:flex;align-items:center;">${calendarDaysIcon}</span>
+                    <span style="font-weight:500;text-transform:capitalize;">${escapeHtml(dateText)}</span>
                   </div>
-
-                  <!-- Date & Time -->
-                  <div style="display: flex; flex-direction: column; gap: 4px;">
-                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #4b5563;">
-                      <span style="color: #3b82f6; display: flex; align-items: center;">${calendarDaysIcon}</span>
-                      <span style="font-weight: 500; text-transform: capitalize;">${escapeHtml(dateText)}</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #4b5563;">
-                      <span style="color: #3b82f6; display: flex; align-items: center;">${clockIconSmall}</span>
-                      <span style="font-weight: 500;">${escapeHtml(timeRange)}</span>
-                    </div>
+                  <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#4b5563;">
+                    <span style="color:#3b82f6;display:flex;align-items:center;">${clockIconSmall}</span>
+                    <span style="font-weight:500;">${escapeHtml(timeRange)}</span>
                   </div>
                 </div>
-
-                <!-- Right: Participants -->
-                ${participantsHtml ? `
-                  <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 12px;">
-                    ${participantsHtml}
-                  </div>
+              </div>
+              ${participantsHtml ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:12px;">${participantsHtml}</div>` : ''}
+            </div>
+            <div style="display:flex;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid #f3f4f6;height:40px;">
+              <div style="display:flex;align-items:center;gap:8px;padding-right:8px;height:100%;overflow:hidden;">
+                ${organizerName ? `
+                  <img src="${organizerAvatar}" onerror="this.onerror=null;this.src='${defaultImage}'" style="width:24px;height:24px;border-radius:50%;object-fit:cover;border:1px solid #e5e7eb;" />
+                  <span style="font-size:12px;color:#374151;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(organizerName)}</span>
                 ` : ''}
               </div>
-
-              <!-- Creator & Badges Footer -->
-              <div style="display: flex; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f3f4f6; height: 40px;">
-                <div style="display: flex; align-items: center; gap: 8px; padding-right: 8px; height: 100%; overflow: hidden;">
-                  ${organizerName ? `
-                    <img src="${organizerAvatar}"
-                      onerror="this.onerror=null;this.src='${defaultImage}'"
-                      style="
-                        width: 24px;
-                        height: 24px;
-                        border-radius: 50%;
-                        object-fit: cover;
-                        border: 1px solid #e5e7eb;
-                      " />
-                    <span style="
-                      font-size: 12px;
-                      color: #374151;
-                      font-weight: 500;
-                      white-space: nowrap;
-                      overflow: hidden;
-                      text-overflow: ellipsis;
-                    ">${escapeHtml(organizerName)}</span>
-                  ` : ''}
-                </div>
-              </div>
-              <div style="overflow: hidden; display: flex; align-items: center; gap: 4px; padding-top:4px">
-                ${badgesHtml}
-              </div>
             </div>
+            <div style="overflow:hidden;display:flex;align-items:center;gap:4px;padding-top:4px">${badgesHtml}</div>
           </div>
-        `;
-      }
+        </div>`;
 
       const m = L.marker([lat, lng], { icon: defaultMarkerIcon })
         .bindPopup(popupContent, { maxWidth: 350, className: 'mini-tournament-popup' });
 
-      markers[miniTournament.id] = m;
+      markers[mini.id] = m;
       batchMarkers.push(m);
 
       if (onMarkerClick) {
-        m.on('click', () => onMarkerClick(miniTournament));
+        m.on('click', () => onMarkerClick(mini));
       }
 
       m.on('popupopen', () => {
-        const el = document.getElementById(`mini-tournament-popup-${miniTournament.id}`);
+        const el = document.getElementById(`mini-popup-${mini.id}`);
         if (el) {
-            el.onclick = () => {
-                if (miniTournament.type === 'mini_tournament') {
-                    router.push(`/mini-tournament-detail/${miniTournament.original_id || miniTournament.id}`);
-                } else if (miniTournament.type === 'tournament') {
-                    router.push(`/mini-tournament-detail/${miniTournament.original_id || miniTournament.id}`);
-                }
-            };
+          el.onclick = () => router.push(`/mini-tournament-detail/${mini.original_id || mini.id}`);
         }
       });
     });
+
     if (batchMarkers.length) {
       markerClusterGroup.addLayers(batchMarkers);
     }
   };
+
+  // --- TOURNAMENT MARKERS ---
+  const addTournamentMarkers = (tournamentsData, router, onMarkerClick, shouldUpdate = false, defaultImage = '') => {
+    const dataToAdd = shouldUpdate ? updateMarkers(tournamentsData) : tournamentsData;
+    const batchMarkers = [];
+
+    dataToAdd.forEach(tournament => {
+      const lat = tournament.lat ?? tournament.competition_location?.latitude;
+      const lng = tournament.lng ?? tournament.competition_location?.longitude;
+      if (!lat || !lng || isNaN(lat) || isNaN(lng)) return;
+
+      const locationName = tournament.competition_location?.name || tournament.competition_location?.address || '';
+      const tournamentImage = tournament.poster || tournamentImage || defaultImage;
+      const dateText = formatDateText(tournament.start_date || tournament.starts_at);
+      const description = tournament.description || tournament.rules || '';
+
+      const popupContent = `
+        <div id="tournament-popup-${tournament.id}" style="overflow:hidden;background:white;cursor:pointer;font-family:system-ui,-apple-system,sans-serif;min-width:280px;max-width:320px;">
+          <div style="display:flex;align-items:flex-start;padding:12px;gap:12px;">
+            <div style="width:112px;height:112px;flex-shrink:0;background:#f3f4f6;border-radius:6px;overflow:hidden;border:1px solid #f3f4f6;">
+              <img src="${tournamentImage}" onerror="this.onerror=null;this.src='${defaultImage}'" style="width:100%;height:100%;object-fit:cover;" />
+            </div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;height:80px;">
+              <div>
+                <h4 style="font-weight:700;color:#111827;font-size:14px;line-height:1.25;margin:0 0 4px 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(tournament.name)}</h4>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px;padding-top:8px;">
+                ${locationName ? `
+                  <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#4b5563;">
+                    <span style="color:#4392e0;display:flex;align-items:center;">${mapPinIconSmall}</span>
+                    <span style="font-weight:500;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(locationName)}</span>
+                  </div>
+                ` : ''}
+                <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#4b5563;">
+                  <span style="color:#4392e0;display:flex;align-items:center;">${calendarIcon}</span>
+                  <span style="font-weight:500;text-transform:capitalize;">${escapeHtml(dateText)}</span>
+                </div>
+                ${description ? `<p style="font-size:12px;color:#6b7280;font-weight:500;margin:4px 0 0 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(description)}</p>` : ''}
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+      const m = L.marker([lat, lng], { icon: defaultMarkerIcon })
+        .bindPopup(popupContent, { maxWidth: 350, className: 'tournament-popup' });
+
+      markers[tournament.id] = m;
+      batchMarkers.push(m);
+
+      if (onMarkerClick) {
+        m.on('click', () => onMarkerClick(tournament));
+      }
+
+      m.on('popupopen', () => {
+        const el = document.getElementById(`tournament-popup-${tournament.id}`);
+        if (el) {
+          el.onclick = () => router.push(`/tournament-detail/${tournament.original_id || tournament.id}`);
+        }
+      });
+    });
+
+    if (batchMarkers.length) {
+      markerClusterGroup.addLayers(batchMarkers);
+    }
+  };
+
+  const addMatchMarkers = addMiniTournamentMarkers;
 
   const addClubMarkers = (clubsData, router, onMarkerClick, shouldUpdate = false, defaultImage = '') => {
     const dataToAdd = shouldUpdate ? updateMarkers(clubsData) : clubsData;
@@ -1056,6 +883,8 @@ export function useMap() {
     focusItem,
     addCourtMarkers,
     addUserMarkers,
+    addMiniTournamentMarkers,
+    addTournamentMarkers,
     addMatchMarkers,
     addClubMarkers,
     markers

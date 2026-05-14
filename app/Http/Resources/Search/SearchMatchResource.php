@@ -38,7 +38,6 @@ class SearchMatchResource extends JsonResource
             'participants_count' => (int) ($this->participants_count ?? $participants?->count() ?? 0),
             'joined_count'      => (int) ($this->participants_count ?? $participants?->count() ?? 0),
             'slot_status'    => $this->computeSlotStatus(),
-            // Nested competition_location (flat fields)
             'competition_location' => $location ? [
                 'id'       => $location->id,
                 'name'     => $location->name,
@@ -48,8 +47,6 @@ class SearchMatchResource extends JsonResource
             ] : null,
             'location_name'  => $location?->name,
             'address'        => $location?->address,
-            'lat'            => $location?->latitude,
-            'lng'            => $location?->longitude,
             // Participants
             'participants'   => $participants ? $participants->map(fn($p) => [
                 'id'         => $p->id,
@@ -59,7 +56,6 @@ class SearchMatchResource extends JsonResource
                 'is_confirmed' => (bool) $p->is_confirmed,
                 'is_guest'   => (bool) $p->is_guest,
             ])->toArray() : [],
-                // Staff — organizers only
             'staff' => [
                 'organizer' => $staff ? $staff
                     ->filter(fn($s) => (int) ($s->pivot->role ?? null) === MiniTournamentStaff::ROLE_ORGANIZER)
@@ -67,9 +63,7 @@ class SearchMatchResource extends JsonResource
                         'user' => new UserResource($s->user),
                     ])->values()->toArray() : [],
             ],
-            // Created by
             'created_by' => new UserResource($this->whenLoaded('creator')),
-            // Badges
             'is_private'   => (bool) $this->is_private,
             'min_rating'   => $this->min_rating,
             'max_rating'   => $this->max_rating,
