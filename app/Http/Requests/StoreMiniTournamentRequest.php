@@ -164,9 +164,8 @@ class StoreMiniTournamentRequest extends FormRequest
                 $validator->errors()->add('included_in_club_fund', 'Không thể chọn đồng thời "Quỹ chi" và "Thu vào quỹ chung CLB". Vui lòng chỉ chọn một trong hai.');
             }
 
-            // Khi bật included_in_club_fund thì phải có club_id
-            // use_club_fund được tự động gán khi has_fee=false, nên chỉ check club_id khi use_club_fund được gửi rõ ràng từ client
-            if ($this->boolean('included_in_club_fund') || ($this->has('use_club_fund') && $this->boolean('use_club_fund'))) {
+            // Khi bật included_in_club_fund hoặc use_club_fund thì phải có club_id
+            if ($this->boolean('included_in_club_fund') || $this->boolean('use_club_fund')) {
                 if (!$this->filled('club_id')) {
                     $validator->errors()->add('club_id', 'Vui lòng chọn CLB khi sử dụng tùy chọn quỹ CLB.');
                 }
