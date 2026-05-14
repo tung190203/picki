@@ -194,7 +194,7 @@ class TournamentController extends Controller
                     $request->file('poster'),
                     'tournaments/posters',
                     'poster_',
-                    1920,
+                    720,
                     80
                 );
                 $validated['poster'] = $savedPath;
@@ -210,7 +210,7 @@ class TournamentController extends Controller
                     $request->file('qr_code_url'),
                     'tournaments/qr',
                     'qr_',
-                    800,
+                    500,
                     75
                 );
                 $validated['qr_code_url'] = $qrUrl;
@@ -329,7 +329,7 @@ class TournamentController extends Controller
                     $request->file('poster'),
                     'tournaments/posters',
                     'poster_',
-                    1920,
+                    720,
                     80
                 );
                 $this->imageService->deleteOldImage($tournament->poster);
@@ -347,7 +347,7 @@ class TournamentController extends Controller
                     $request->file('qr_code_url'),
                     'tournaments/qr',
                     'qr_',
-                    800,
+                    500,
                     75
                 );
                 $validated['qr_code_url'] = $qrUrl;

@@ -234,7 +234,7 @@ class ClubMiniTournamentController extends Controller
         // Poster: resize + convert WebP + lưu ngay
         $posterFile = $request->file('poster');
         if ($posterFile) {
-            $savedPath = $imageService->processAndSaveImage($posterFile, 'posters', 'poster_', 1920, 80);
+            $savedPath = $imageService->processAndSaveImage($posterFile, 'posters', 'poster_', 720, 80);
             $miniTournament->update(['poster' => asset('storage/' . $savedPath)]);
         }
 
@@ -242,7 +242,7 @@ class ClubMiniTournamentController extends Controller
         $qrUrl = null;
         $qrFile = $request->file('qr_code_url');
         if ($qrFile) {
-            $savedPath = $imageService->processAndSaveImage($qrFile, 'qr_codes', 'qr_', 800, 75);
+            $savedPath = $imageService->processAndSaveImage($qrFile, 'qr_codes', 'qr_', 500, 75);
             $qrUrl = asset('storage/' . $savedPath);
             $miniTournament->update(['qr_code_url' => $qrUrl]);
 
@@ -300,7 +300,7 @@ class ClubMiniTournamentController extends Controller
         $posterFile = $request->file('poster');
         if ($posterFile) {
             $oldPoster = $miniTournament->poster;
-            $savedPath = $imageService->processAndSaveImage($posterFile, 'posters', 'poster_', 1920, 80);
+            $savedPath = $imageService->processAndSaveImage($posterFile, 'posters', 'poster_', 720, 80);
             $imageService->deleteOldImage($oldPoster);
             $miniTournament->update(['poster' => asset('storage/' . $savedPath)]);
         } elseif ($request->filled('poster') && is_string($request->input('poster'))) {
@@ -313,7 +313,7 @@ class ClubMiniTournamentController extends Controller
         $qrFile = $request->file('qr_code_url');
         if ($qrFile) {
             $oldQr = $miniTournament->qr_code_url;
-            $savedPath = $imageService->processAndSaveImage($qrFile, 'qr_codes', 'qr_', 800, 75);
+            $savedPath = $imageService->processAndSaveImage($qrFile, 'qr_codes', 'qr_', 500, 75);
             $imageService->deleteOldImage($oldQr);
             $miniTournament->update(['qr_code_url' => asset('storage/' . $savedPath)]);
         }
