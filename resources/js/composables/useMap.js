@@ -480,6 +480,34 @@ export function useMap() {
       const genderText = user.gender_text || 'Khác';
       const ageGroup = user.age_group ? ' • ' + user.age_group : '';
 
+      // Build stats row
+      let statsHtml = '';
+      if (user.distance != null) {
+        statsHtml += `
+          <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; white-space: nowrap; background-color: #dbeafe; color: #1d4ed8;">
+            <span style="display: flex; align-items: center;">${mapPinIconSmall}</span>
+            ${user.distance} km
+          </span>`;
+      }
+      if (user.vndupr_score != null) {
+        statsHtml += `
+          <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; white-space: nowrap; background-color: #fff7ed; color: #c2410c;">
+            VNDUPR ${Number(user.vndupr_score).toFixed(1)}
+          </span>`;
+      }
+      if (user.win_rate != null) {
+        statsHtml += `
+          <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; white-space: nowrap; background-color: #f0fdf4; color: #15803d;">
+            ${Number(user.win_rate).toFixed(1)}%
+          </span>`;
+      }
+      if (user.total_matches != null && user.total_matches > 0) {
+        statsHtml += `
+          <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; white-space: nowrap; background-color: #f5f3ff; color: #6d28d9;">
+            ${user.total_matches} trận
+          </span>`;
+      }
+
       const popupContent = `
         <div id="user-popup-${user.id}" data-user-id="${user.id}" style="
           min-width: 250px; max-width: 300px; font-family: system-ui; padding: 0; margin: 0; cursor: pointer;
@@ -534,6 +562,7 @@ export function useMap() {
           </div>
 
           <div class="popup-body" style="padding: 15px; background-color: white;">
+            ${statsHtml ? `<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #f3f4f6;">${statsHtml}</div>` : ''}
             <div style="display: flex; flex-direction: column; gap: 8px;">
               <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #4b5563;">
                 <span style="color: #4392E0; flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px;">

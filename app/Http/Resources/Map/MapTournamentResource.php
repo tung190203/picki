@@ -46,6 +46,8 @@ class MapTournamentResource extends JsonResource
                 'address'  => $location->address,
             ] : null,
             // Flat geo fields
+            'lat'            => $location?->latitude,
+            'lng'            => $location?->longitude,
             'location_name' => $location?->name,
             'address'       => $location?->address,
             // Nested club

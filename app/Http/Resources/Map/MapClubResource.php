@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Map;
 
+use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -35,13 +36,13 @@ class MapClubResource extends JsonResource
             'id'               => $this->id,
             'name'             => $this->name,
             'address'          => $this->address ?? $this->whenLoaded('profile', fn() => $this->profile?->address),
-            'latitude'         => $this->latitude,
-            'longitude'        => $this->longitude,
+            'latitude'         => $this->latitude ?? $this->whenLoaded('profile', fn() => $this->profile?->latitude),
+            'longitude'        => $this->longitude ?? $this->whenLoaded('profile', fn() => $this->profile?->longitude),
             'logo_url'         => $this->logo_url,
             'status'           => $this->status->value,
             'is_verified'      => (bool) $this->is_verified,
             'is_public'        => (bool) ($this->is_public ?? true),
-            'created_by'       => new \App\Http\Resources\UserResource($this->whenLoaded('creator')),
+            'created_by'       => new UserResource($this->whenLoaded('creator')),
             'quantity_members' => (int) ($this->activeMembers_count ?? $this->activeMembers?->count() ?? 0),
             'is_admin'         => $isAdmin,
             'is_member'        => $isMember,

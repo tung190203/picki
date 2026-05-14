@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Search;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Http\Resources\UserSportResource;
@@ -10,6 +11,14 @@ class SearchPlayerResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $scores = $this->whenLoaded('sports',
+            fn() => $this->sports->firstWhere('sport_id', 1)?->scores ?? collect(),
+            fn() => collect()
+        );
+
+        $vnduprScore = $scores->firstWhere('score_type', 'vndupr_score');
+        $stats = User::getSportStats($this->id, 1);
+
         return [
             'id'          => $this->id,
             'full_name'   => $this->full_name,
@@ -22,6 +31,9 @@ class SearchPlayerResource extends JsonResource
             'is_online'  => (bool) $this->is_online,
             'is_verified' => (bool) $this->is_verified,
             'vn_rank'    => $this->vn_rank ?? null,
+            'vndupr_score' => $vnduprScore?->score_value ?? null,
+            'win_rate'   => $stats['win_rate'] ?? 0.0,
+            'total_matches' => $stats['total_matches'] ?? 0,
             'distance'    => $this->when(isset($this->distance), round($this->distance, 1)),
             'sports'      => $this->whenLoaded('sports', fn() =>
                 UserSportResource::collection($this->sports)

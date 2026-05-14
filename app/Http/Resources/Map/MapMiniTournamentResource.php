@@ -38,6 +38,8 @@ class MapMiniTournamentResource extends JsonResource
             ]),
             'location_name' => $location?->name,
             'address'       => $location?->address,
+            'lat'           => $location?->latitude,
+            'lng'           => $location?->longitude,
             'created_by'   => $creator ? [
                 'id'         => $creator->id,
                 'name'       => $creator->full_name,
