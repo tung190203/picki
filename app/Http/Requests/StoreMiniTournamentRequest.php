@@ -26,7 +26,7 @@ class StoreMiniTournamentRequest extends FormRequest
     public function rules(): array
     {
         $rules = [
-            'poster' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            'poster' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:5120',
             'sport_id' => 'required|exists:sports,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -164,9 +164,12 @@ class StoreMiniTournamentRequest extends FormRequest
                 $validator->errors()->add('included_in_club_fund', 'Không thể chọn đồng thời "Quỹ chi" và "Thu vào quỹ chung CLB". Vui lòng chỉ chọn một trong hai.');
             }
 
-            // Khi bật included_in_club_fund hoặc use_club_fund thì phải có club_id
-            if (($this->boolean('included_in_club_fund') || $this->boolean('use_club_fund')) && !$this->filled('club_id')) {
-                $validator->errors()->add('club_id', 'Vui lòng chọn CLB khi sử dụng tùy chọn quỹ CLB.');
+            // Khi bật included_in_club_fund thì phải có club_id
+            // use_club_fund được tự động gán khi has_fee=false, nên chỉ check club_id khi use_club_fund được gửi rõ ràng từ client
+            if ($this->boolean('included_in_club_fund') || ($this->has('use_club_fund') && $this->boolean('use_club_fund'))) {
+                if (!$this->filled('club_id')) {
+                    $validator->errors()->add('club_id', 'Vui lòng chọn CLB khi sử dụng tùy chọn quỹ CLB.');
+                }
             }
 
             if ($this->boolean('apply_rule')) {
@@ -347,7 +350,7 @@ class StoreMiniTournamentRequest extends FormRequest
             // Poster
             'poster.image' => 'Ảnh bìa kèo đấu phải là định dạng hình ảnh (jpeg, png, jpg, gif, svg)',
             'poster.mimes' => 'Ảnh bìa kèo đấu phải là định dạng jpeg, png, jpg, gif hoặc svg',
-            'poster.max' => 'Ảnh bìa kèo đấu không được vượt quá 2MB',
+            'poster.max' => 'Ảnh bìa kèo đấu không được vượt quá 5MB',
 
             // Thông tin cơ bản
             'sport_id.required' => 'Vui lòng chọn môn thể thao',

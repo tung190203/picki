@@ -17,7 +17,7 @@ return new class extends Migration
                 $table->string('tab', 20)->comment('match, tournament, club, user, court');
                 $table->string('keyword', 255)->nullable();
                 $table->string('filters_json', 500)->nullable();
-                $table->string('time_filter', 20)->nullable();
+                $table->string('sub_tab', 20)->nullable();
                 $table->string('result_count', 20)->nullable()->comment('cached approximate count');
                 $table->timestamp('searched_at')->useCurrent();
                 $table->index(['tab', 'searched_at']);

@@ -20,12 +20,12 @@ class TournamentSearchController extends Controller
         $filter = $this->buildFilter($request, 'tournament');
 
         $userId = auth()->check() ? auth()->id() : null;
-        $timeFilter = $request->input('time_filter');
+        $subTab = $request->input('sub_tab');
 
         $query = Tournament::withFullRelations()
             ->whereDate('start_date', '>=', now()->toDateString())
             ->filter($filter)
-            ->applyTimeline($timeFilter, $userId);
+            ->applyTimeline($subTab, $userId);
 
         $this->applyGeoFilters($query, $request, 'tournament');
 
