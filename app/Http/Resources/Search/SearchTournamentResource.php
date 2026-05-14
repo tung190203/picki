@@ -13,6 +13,7 @@ class SearchTournamentResource extends JsonResource
         $club = $this->whenLoaded('club');
         $participants = $this->whenLoaded('participants');
         $teams = $this->whenLoaded('teams');
+        $tournamentStaffs = $this->whenLoaded('tournamentStaffs');
 
         $participantsCount = (int) ($this->participants_count ?? $participants?->count() ?? 0);
 
@@ -64,6 +65,20 @@ class SearchTournamentResource extends JsonResource
                 'id'    => $team->id,
                 'name'  => $team->name,
                 'avatar'=> $team->avatar,
+            ])->toArray() : [],
+            'tournamentStaff' => $tournamentStaffs ? $tournamentStaffs
+                ->filter(fn($s) => (int) ($s->pivot->role ?? null) === \App\Models\TournamentStaff::ROLE_ORGANIZER)
+                ->map(fn($s) => [
+                    'user_id'    => $s->id,
+                    'full_name'  => $s->full_name,
+                    'avatar_url' => $s->avatar_url,
+                ])->values()->toArray() : [],
+            'tournamentParticipants' => $participants ? $participants->map(fn($p) => [
+                'id'         => $p->id,
+                'user_id'    => $p->user_id,
+                'full_name'  => $p->user?->full_name,
+                'avatar_url' => $p->user?->avatar_url,
+                'is_confirmed' => (bool) $p->is_confirmed,
             ])->toArray() : [],
             // Created by
             'created_by' => new \App\Http\Resources\UserResource($this->whenLoaded('createdBy')),
