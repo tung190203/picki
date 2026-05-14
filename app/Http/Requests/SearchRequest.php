@@ -17,7 +17,7 @@ class SearchRequest extends FormRequest
     {
         return [
             // Tab & timeline
-            'tab'          => 'nullable|string|in:match,tournament,club,user,court',
+            'tab'          => 'nullable|string|in:mini-tournament,tournament,club,user,court',
             'time_filter'  => 'nullable|string|in:' . implode(',', TimelineFilter::values()),
 
             // Geo
@@ -59,7 +59,7 @@ class SearchRequest extends FormRequest
         $validated = $this->validated();
 
         return array_merge([
-            'tab'         => 'match',
+            'tab'         => 'mini-tournament',
             'time_filter' => TimelineFilter::ALL->value,
             'page'        => 1,
             'per_page'    => 15,

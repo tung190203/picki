@@ -3,10 +3,10 @@ import { API_ENDPOINT } from "@/constants/index.js";
 
 /**
  * Unified search API v2 service.
- * Single endpoint for all tabs: match, tournament, club, user, court
+ * Single endpoint for all tabs: mini-tournament, tournament, club, user, court
  *
  * @param {Object} params
- * @param {string} [params.tab='match']           - match | tournament | club | user | court
+ * @param {string} [params.tab='mini-tournament'] - mini-tournament | tournament | club | user | court
  * @param {string} [params.time_filter='all']     - all | mine | today | this_week | this_month
  * @param {string} [params.keyword]              - search keyword
  * @param {number} [params.sport_id]              - filter by sport ID
@@ -35,7 +35,7 @@ export const search = async (params = {}) => {
 export const buildFilters = (tab, uiState) => {
     const filters = {};
 
-    if (tab === 'match' || tab === 'tournament') {
+    if (tab === 'mini-tournament' || tab === 'tournament') {
         // Distance range: [min_km, max_km]
         if (uiState.selectedRadiusValue === 'nearby' && uiState.radiusKm) {
             filters.distance = [0, uiState.radiusKm];
@@ -58,7 +58,7 @@ export const buildFilters = (tab, uiState) => {
             filters.fee = uiState.fee;
         }
         // Type (match only): 'single'|'double'
-        if (tab === 'match' && uiState.matchType) {
+        if (tab === 'mini-tournament' && uiState.matchType) {
             filters.type = uiState.matchType;
         }
         // Club type (match + tournament): 'thuong'|'clb'

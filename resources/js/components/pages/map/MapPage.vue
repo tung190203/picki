@@ -62,7 +62,7 @@
                         </div>
 
                         <!-- Match sub-tabs (only for match tab) -->
-                        <div v-if="activeTab === 'match'" class="grid grid-cols-2 gap-2">
+                        <div v-if="activeTab === 'mini-tournament'" class="grid grid-cols-2 gap-2">
                             <button @click="activeMatchTab = 'mini'" :class="[
                                 'py-1.5 text-sm font-medium rounded transition-colors',
                                 activeMatchTab === 'mini'
@@ -93,7 +93,7 @@
                                     :selected="selectedCourt?.competition_location?.id" :defaultImage="defaultImage" :toHourMinute="toHourMinute"
                                     @select="focusItemAuto" />
                             </template>
-                            <template v-else-if="activeTab === 'match' || activeTab === 'tournament'">
+                            <template v-else-if="activeTab === 'mini-tournament' || activeTab === 'tournament'">
                                 <MatchListItem v-for="(match, index) in displayedListData" :key="match.id ?? index"
                                     :match="match" :selected="selectedMatches" @select="focusItemAuto" :defaultImage="defaultImage"/>
                             </template>
@@ -109,7 +109,7 @@
                                     @select="focusItemAuto" />
                             </template>
 
-                            <div v-if="(activeTab === 'match' || activeTab === 'tournament') && isLoadingMoreMatches" class="text-center py-4 text-sm text-gray-500">
+                            <div v-if="(activeTab === 'mini-tournament' || activeTab === 'tournament') && isLoadingMoreMatches" class="text-center py-4 text-sm text-gray-500">
                                 <div class="flex items-center justify-center gap-2">
                                     <svg class="animate-spin h-4 w-4 text-[#4392E0]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -118,10 +118,10 @@
                                     <span>Đang tải thêm...</span>
                                 </div>
                             </div>
-                            <div v-else-if="activeTab !== 'match' && activeTab !== 'tournament' && visibleItems < listData.length" class="text-center py-2 text-sm text-gray-500">
+                            <div v-else-if="activeTab !== 'mini-tournament' && activeTab !== 'tournament' && visibleItems < listData.length" class="text-center py-2 text-sm text-gray-500">
                                 Đang tải thêm...
                             </div>
-                            <div v-else-if="(activeTab === 'match' || activeTab === 'tournament') &&
+                            <div v-else-if="(activeTab === 'mini-tournament' || activeTab === 'tournament') &&
                                 !isLoadingMoreMatches &&
                                 ((activeMatchTab === 'mini' && miniMatchPage >= miniMatchLastPage) ||
                                  (activeMatchTab === 'tournament' && tournamentPage >= tournamentLastPage)) &&
@@ -399,7 +399,7 @@
                 </div>
             </Transition>
         </template>
-        <template v-else-if="activeTab === 'match'">
+        <template v-else-if="activeTab === 'mini-tournament'">
             <Transition enter-active-class="transition ease-out duration-300" enter-from-class="translate-x-full"
                 enter-to-class="translate-x-0" leave-active-class="transition ease-in duration-200"
                 leave-from-class="translate-x-0" leave-to-class="translate-x-full">
@@ -1316,7 +1316,7 @@ const isInitialLoad = ref(true);
 const isLoadingMap = ref(false);
 
 // Tab state
-const activeTab = ref('match');
+const activeTab = ref('mini-tournament');
 const activeMatchTab = ref('mini');
 const timeFilter = ref('all');
 
@@ -1488,7 +1488,7 @@ const quantityClubs = ref(0);
 const myClub = ref([]);
 
 const tabs = [
-    { id: 'match', label: 'Kèo đấu' },
+    { id: 'mini-tournament', label: 'Kèo đấu' },
     { id: 'tournament', label: 'Giải đấu' },
     { id: 'club', label: 'Câu lạc bộ' },
     { id: 'user', label: 'Người chơi' },
@@ -1504,7 +1504,7 @@ const clubs = computed(() => Array.from(clubsMap.value.values()));
 // Convert Map sang Array
 const listData = computed(() => {
     if (activeTab.value === 'court') return courts.value;
-    if (activeTab.value === 'match') {
+    if (activeTab.value === 'mini-tournament') {
         if (activeMatchTab.value === 'mini') return matchesMini.value;
         if (activeMatchTab.value === 'tournament') return matchesTournament.value;
     }
@@ -1517,7 +1517,7 @@ const listData = computed(() => {
 const displayedListData = computed(() => {
     const data = listData.value;
     // For match/tournament tabs, show all loaded data (pagination handled by API)
-    if (activeTab.value === 'match' || activeTab.value === 'tournament') {
+    if (activeTab.value === 'mini-tournament' || activeTab.value === 'tournament') {
         return data;
     }
     // For other tabs, use visibleItems slicing
@@ -1542,8 +1542,8 @@ const handleScroll = async (event) => {
     const scrollPercentage = (target.scrollTop + target.clientHeight) / target.scrollHeight;
 
     // For match/tournament tabs, load more from API when scrolling
-    if ((activeTab.value === 'match' || activeTab.value === 'tournament') && scrollPercentage > 0.8) {
-        const hasMore = activeTab.value === 'match' && activeMatchTab.value === 'mini'
+    if ((activeTab.value === 'mini-tournament' || activeTab.value === 'tournament') && scrollPercentage > 0.8) {
+        const hasMore = activeTab.value === 'mini-tournament' && activeMatchTab.value === 'mini'
             ? miniMatchPage.value < miniMatchLastPage.value
             : tournamentPage.value < tournamentLastPage.value;
 
@@ -1635,9 +1635,9 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
     };
 
     // Pagination for match/tournament tabs
-    if (tab === 'match' || tab === 'tournament') {
+    if (tab === 'mini-tournament' || tab === 'tournament') {
         params.page = isLoadMore
-            ? (tab === 'match' ? miniMatchPage.value : tournamentPage.value)
+            ? (tab === 'mini-tournament' ? miniMatchPage.value : tournamentPage.value)
             : 1;
     } else {
         // Other tabs: map mode, load all at once
@@ -1672,10 +1672,10 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
         radiusKm: radiusKm.value,
         selectedRating: selectedRating.value,
         selectedTimePlay: selectedTimePlay.value,
-        slotStatus: tab === 'match' || tab === 'tournament' ? selectedSlotStatus.value : [],
-        fee: tab === 'match' || tab === 'tournament' ? selectedFee.value : null,
-        matchType: tab === 'match' ? selectedMatchType.value : null,
-        clubType: tab === 'match' || tab === 'tournament' ? selectedClubType.value : [],
+        slotStatus: tab === 'mini-tournament' || tab === 'tournament' ? selectedSlotStatus.value : [],
+        fee: tab === 'mini-tournament' || tab === 'tournament' ? selectedFee.value : null,
+        matchType: tab === 'mini-tournament' ? selectedMatchType.value : null,
+        clubType: tab === 'mini-tournament' || tab === 'tournament' ? selectedClubType.value : [],
         joinedOnly: joinedOnly.value,
         selectedGender: selectedGender.value,
         sameClubId: sameClubId.value,
@@ -1692,13 +1692,13 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
         const res = await SearchService.search(params);
 
         // ---- MATCH / TOURNAMENT TAB ----
-        if (tab === 'match' || tab === 'tournament') {
+        if (tab === 'mini-tournament' || tab === 'tournament') {
             const apiTab = tab;
             const items = res.data?.data || [];
 
             if (!isLoadMore) {
                 // Replace data
-                if (apiTab === 'match') {
+                if (apiTab === 'mini-tournament') {
                     matchesMini.value = items.map(m => ({ ...m, id: `mini_${m.id}`, original_id: m.id, type: 'mini' }));
                     matchesTournament.value = [];
                 } else {
@@ -1708,7 +1708,7 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
                 matchesMap.value.clear();
             } else {
                 // Append data
-                if (apiTab === 'match') {
+                if (apiTab === 'mini-tournament') {
                     const newItems = items.map(m => ({ ...m, id: `mini_${m.id}`, original_id: m.id, type: 'mini' }));
                     if (activeMatchTab.value === 'mini') {
                         matchesMini.value = [...matchesMini.value, ...newItems];
@@ -1724,7 +1724,7 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
             // Update pagination meta
             const meta = res.data?.meta;
             if (meta) {
-                if (apiTab === 'match') {
+                if (apiTab === 'mini-tournament') {
                     miniMatchLastPage.value = meta.last_page || 1;
                     miniMatchPage.value = meta.current_page || 1;
                 } else {
@@ -1788,7 +1788,7 @@ const loadMoreMatches = async () => {
     if (isLoadingMoreMatches.value) return;
     isLoadingMoreMatches.value = true;
     try {
-        if (activeTab.value === 'match' && activeMatchTab.value === 'mini') {
+        if (activeTab.value === 'mini-tournament' && activeMatchTab.value === 'mini') {
             miniMatchPage.value += 1;
         } else {
             tournamentPage.value += 1;
@@ -1801,7 +1801,7 @@ const loadMoreMatches = async () => {
 
 // Watch activeMatchTab to reload markers (only when on match tab)
 watch(activeMatchTab, () => {
-    if (activeTab.value !== 'match') return;
+    if (activeTab.value !== 'mini-tournament') return;
 
     // Reset pagination when switching sub-tabs
     miniMatchPage.value = 1;
@@ -1853,7 +1853,7 @@ const loadTabContent = async (tab, bounds = null) => {
     try {
         if (tab === 'court') {
             await doSearch(false, bounds);
-        } else if (tab === 'match' || tab === 'tournament') {
+        } else if (tab === 'mini-tournament' || tab === 'tournament') {
             await doSearch(false, bounds);
         } else if (tab === 'user') {
             await doSearch(false, bounds);
@@ -2096,7 +2096,7 @@ const selectTimeFilter = async (value) => {
     timeFilter.value = value;
     isInitialLoad.value = true;
     // Reset match pagination when changing time filter
-    if (activeTab.value === 'match' || activeTab.value === 'tournament') {
+    if (activeTab.value === 'mini-tournament' || activeTab.value === 'tournament') {
         miniMatchPage.value = 1;
         tournamentPage.value = 1;
     }

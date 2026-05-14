@@ -6,7 +6,7 @@ use App\Enums\TimelineFilter;
 
 class SearchFilterConfig
 {
-    public const TAB_MATCH      = 'match';
+    public const TAB_MATCH      = 'mini-tournament';
     public const TAB_TOURNAMENT = 'tournament';
     public const TAB_CLUB       = 'club';
     public const TAB_USER       = 'user';

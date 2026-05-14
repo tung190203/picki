@@ -28,10 +28,10 @@ class SearchV2Controller extends Controller
 
     /**
      * Unified search endpoint.
-     * GET /api/search/?tab=match&keyword=&time_filter=...
+     * GET /api/search/?tab=mini-tournament&keyword=&time_filter=...
      *
      * Alias routes (same handler, different default tab via route defaults):
-     * - GET /api/matches/search  (tab=match)
+     * - GET /api/matches/search  (tab=mini-tournament)
      * - GET /api/clubs/search    (tab=club)
      * - GET /api/players/search  (tab=user)
      * - GET /api/courts/search   (tab=court)
