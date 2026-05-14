@@ -619,9 +619,82 @@
                                 </template>
                             </div>
 
+                            <!-- Loại -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Loại</p>
+                                <template v-if="matchTypeOptions.length">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <label v-for="item in matchTypeOptions" :key="item.value"
+                                            class="flex items-center gap-3 cursor-pointer relative select-none">
+                                            <input type="checkbox" v-model="selectedMatchType" :value="item.value"
+                                                class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                                checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                            <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                                opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                            <span>{{ item.label }}</span>
+                                        </label>
+                                    </div>
+                                </template>
+                            </div>
+
                             <!-- Loại kèo -->
                             <div class="border-t pt-4">
                                 <p class="font-medium text-gray-900 mb-4 text-xl">Loại kèo</p>
+                                <div class="grid grid-cols-3 gap-4">
+                                    <label v-for="item in playModeOptions" :key="item.value"
+                                        class="flex items-center gap-3 cursor-pointer relative select-none">
+                                        <input type="checkbox" v-model="selectedPlayMode" :value="item.value"
+                                            class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                            checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                        <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                            opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                        <span>{{ item.label }}</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Giới tính -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Giới tính</p>
+                                <div class="grid grid-cols-3 gap-4">
+                                    <label v-for="item in genderMatchOptions" :key="item.value"
+                                        class="flex items-center gap-3 cursor-pointer relative select-none">
+                                        <input type="checkbox" v-model="selectedGenderMatch" :value="item.value"
+                                            class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                            checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                        <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                            opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                        <span>{{ item.label }}</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Trình độ (min/max) -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Trình độ</p>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm text-gray-500 mb-1">Từ</label>
+                                        <select v-model="selectedMinLevel"
+                                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D72D36]">
+                                            <option :value="null">Không giới hạn</option>
+                                            <option v-for="opt in levelOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm text-gray-500 mb-1">Đến</label>
+                                        <select v-model="selectedMaxLevel"
+                                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D72D36]">
+                                            <option :value="null">Không giới hạn</option>
+                                            <option v-for="opt in levelOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- CLB -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">CLB</p>
                                 <div class="grid grid-cols-2 gap-4">
                                     <label v-for="item in clubTypeOptions" :key="item.value"
                                         class="flex items-center gap-3 cursor-pointer relative select-none">
@@ -1239,9 +1312,64 @@
                                 </template>
                             </div>
 
-                            <!-- Loại giải -->
+                            <!-- Loại giải (age group) -->
                             <div class="border-t pt-4">
                                 <p class="font-medium text-gray-900 mb-4 text-xl">Loại giải</p>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <label v-for="item in tournamentTypeOptions" :key="item.value"
+                                        class="flex items-center gap-3 cursor-pointer relative select-none">
+                                        <input type="checkbox" v-model="selectedTournamentType" :value="item.value"
+                                            class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                            checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                        <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                            opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                        <span>{{ item.label }}</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Giới tính -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Giới tính</p>
+                                <div class="grid grid-cols-3 gap-4">
+                                    <label v-for="item in genderTourOptions" :key="item.value"
+                                        class="flex items-center gap-3 cursor-pointer relative select-none">
+                                        <input type="checkbox" v-model="selectedGenderTour" :value="item.value"
+                                            class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                            checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                        <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                            opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                        <span>{{ item.label }}</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Trình độ (min/max) -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Trình độ</p>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm text-gray-500 mb-1">Từ</label>
+                                        <select v-model="selectedMinLevel"
+                                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D72D36]">
+                                            <option :value="null">Không giới hạn</option>
+                                            <option v-for="opt in levelOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm text-gray-500 mb-1">Đến</label>
+                                        <select v-model="selectedMaxLevel"
+                                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D72D36]">
+                                            <option :value="null">Không giới hạn</option>
+                                            <option v-for="opt in levelOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- CLB -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">CLB</p>
                                 <div class="grid grid-cols-2 gap-4">
                                     <label v-for="item in clubTypeOptions" :key="item.value"
                                         class="flex items-center gap-3 cursor-pointer relative select-none">
@@ -1445,6 +1573,43 @@ const clubTypeOptions = [
     { label: 'Kèo CLB',    value: 'clb' },
 ];
 
+// Play mode filter (mini-tournament only)
+const selectedPlayMode = ref([]); // ['casual', 'competition', 'practice']
+const playModeOptions = [
+    { label: 'Kèo thường',  value: 'casual' },
+    { label: 'Kèo thi đấu', value: 'competition' },
+    { label: 'Kèo tập luyện', value: 'practice' },
+];
+
+// Gender filter (mini-tournament)
+const selectedGenderMatch = ref([]); // ['male', 'female', 'mixed']
+const genderMatchOptions = [
+    { label: 'Nam',      value: 'male' },
+    { label: 'Nữ',       value: 'female' },
+    { label: 'Nam nữ',   value: 'mixed' },
+];
+
+// Gender filter (tournament)
+const selectedGenderTour = ref([]); // ['male', 'female', 'mixed']
+const genderTourOptions = [
+    { label: 'Nam',      value: 'male' },
+    { label: 'Nữ',       value: 'female' },
+    { label: 'Nam nữ',   value: 'mixed' },
+];
+
+// Level range (mini-tournament + tournament)
+const selectedMinLevel = ref(null); // float
+const selectedMaxLevel = ref(null); // float
+
+// Tournament type filter (tournament only)
+const selectedTournamentType = ref([]); // ['all', 'youth', 'adult', 'senior']
+const tournamentTypeOptions = [
+    { label: 'Mọi lứa tuổi', value: 'all' },
+    { label: 'Dưới 18',      value: 'youth' },
+    { label: '18-55',         value: 'adult' },
+    { label: 'Trên 55',       value: 'senior' },
+];
+
 // Shared filter state
 const isRadiusDropdownOpen = ref(false);
 const selectedRadiusValue = ref(null);
@@ -1472,6 +1637,19 @@ const ratingOptions = [
     { label: '3+', value: 3 },
     { label: '4+', value: 4 },
     { label: '5+', value: 5 },
+];
+
+// Level options (for min/max level selects)
+const levelOptions = [
+    { label: '1.0', value: 1.0 },
+    { label: '1.5', value: 1.5 },
+    { label: '2.0', value: 2.0 },
+    { label: '2.5', value: 2.5 },
+    { label: '3.0', value: 3.0 },
+    { label: '3.5', value: 3.5 },
+    { label: '4.0', value: 4.0 },
+    { label: '4.5', value: 4.5 },
+    { label: '5.0', value: 5.0 },
 ];
 
 // Selection tracking (for highlighting on map)
@@ -1604,6 +1782,12 @@ const hasActiveFilters = computed(() => {
         selectedSlotStatus.value.length > 0 ||
         selectedFee.value.length > 0 ||
         selectedMatchType.value.length > 0 ||
+        selectedPlayMode.value.length > 0 ||
+        selectedGenderMatch.value.length > 0 ||
+        selectedGenderTour.value.length > 0 ||
+        selectedMinLevel.value != null ||
+        selectedMaxLevel.value != null ||
+        selectedTournamentType.value.length > 0 ||
         joinedOnly.value
     );
 });
@@ -1680,6 +1864,12 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
         joinedOnly: joinedOnly.value,
         selectedGender: selectedGender.value,
         sameClubId: sameClubId.value,
+        playMode: selectedPlayMode.value,
+        selectedGenderMatch: selectedGenderMatch.value,
+        selectedGenderTour: selectedGenderTour.value,
+        selectedMinLevel: selectedMinLevel.value,
+        selectedMaxLevel: selectedMaxLevel.value,
+        tournamentType: tab === 'tournament' ? selectedTournamentType.value : null,
     });
     if (filters) params.filters = filters;
 
@@ -1950,6 +2140,12 @@ const resetFilter = async () => {
     selectedFee.value = [];
     selectedMatchType.value = [];
     selectedClubType.value = [];
+    selectedPlayMode.value = [];
+    selectedGenderMatch.value = [];
+    selectedGenderTour.value = [];
+    selectedMinLevel.value = null;
+    selectedMaxLevel.value = null;
+    selectedTournamentType.value = [];
 
     // Reset pagination
     miniMatchPage.value = 1;

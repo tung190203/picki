@@ -65,6 +65,30 @@ export const buildFilters = (tab, uiState) => {
         if (uiState.clubType?.length) {
             filters.club_type = uiState.clubType;
         }
+        // Play mode (match only): 'casual'|'competition'|'practice'
+        if (tab === 'mini-tournament' && uiState.playMode?.length) {
+            filters.play_mode = uiState.playMode;
+        }
+        // Gender (match + tournament): 'male'|'female'|'mixed'
+        if (tab === 'mini-tournament' && uiState.selectedGenderMatch?.length) {
+            filters.gender = uiState.selectedGenderMatch;
+        }
+        if (tab === 'tournament' && uiState.selectedGenderTour?.length) {
+            filters.gender = uiState.selectedGenderTour;
+        }
+        // Level range (match + tournament): min_level / max_level as floats
+        if (tab === 'mini-tournament' || tab === 'tournament') {
+            if (uiState.selectedMinLevel != null) {
+                filters.min_level = uiState.selectedMinLevel;
+            }
+            if (uiState.selectedMaxLevel != null) {
+                filters.max_level = uiState.selectedMaxLevel;
+            }
+        }
+        // Tournament type (tournament only): 'all'|'youth'|'adult'|'senior'
+        if (tab === 'tournament' && uiState.tournamentType?.length) {
+            filters.tournament_type = uiState.tournamentType;
+        }
     }
 
     if (tab === 'club') {
