@@ -1709,8 +1709,10 @@ const buildTemplateSettings = () => {
         auto_split_fee: autoSplitCourtFee.value,
         fee_amount: hasFee.value ? feeAmount.value : null,
         fee_description: paymentNote.value || null,
-        use_club_fund: selectedClubId.value ? useClubFund.value : false,
-        included_in_club_fund: selectedClubId.value ? includedInClubFund.value : false,
+        ...(selectedClubId.value ? {
+            use_club_fund: useClubFund.value,
+            included_in_club_fund: includedInClubFund.value,
+        } : {}),
         min_rating: minLevel.value,
         max_rating: maxLevel.value,
         ...ruleSettings,
@@ -1855,8 +1857,10 @@ const handleSubmit = async () => {
             auto_split_fee: autoSplitCourtFee.value,
             fee_description: paymentNote.value || null,
             fee_amount: hasFee.value ? feeAmount.value : null,
-            use_club_fund: selectedClubId.value ? useClubFund.value : false,
-            included_in_club_fund: selectedClubId.value ? includedInClubFund.value : false,
+            ...(selectedClubId.value ? {
+                use_club_fund: useClubFund.value,
+                included_in_club_fund: includedInClubFund.value,
+            } : {}),
 
             min_rating: getNumericLevel(minLevel.value),
             max_rating: getNumericLevel(maxLevel.value),
