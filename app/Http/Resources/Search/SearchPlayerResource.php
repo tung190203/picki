@@ -4,6 +4,7 @@ namespace App\Http\Resources\Search;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use App\Http\Resources\UserSportResource;
 
 class SearchPlayerResource extends JsonResource
 {
@@ -21,14 +22,10 @@ class SearchPlayerResource extends JsonResource
             'is_online'  => (bool) $this->is_online,
             'is_verified' => (bool) $this->is_verified,
             'vn_rank'    => $this->vn_rank ?? null,
-            'distance'    => $this->when(isset($this->distance), (int) round($this->distance)),
-            'sports'      => $this->whenLoaded('sports', fn() => $this->sports->map(fn($s) => [
-                'id'         => $s->sport_id,
-                'name'       => $s->sport?->name,
-                'icon'       => $s->sport?->icon,
-                'sport_name' => $s->sport?->name,
-                'scores'     => $s->scores,
-            ])),
+            'distance'    => $this->when(isset($this->distance), round($this->distance, 1)),
+            'sports'      => $this->whenLoaded('sports', fn() =>
+                UserSportResource::collection($this->sports)
+            ),
             'clubs'       => $this->whenLoaded('clubs', fn() => $this->clubs->map(fn($c) => [
                 'id'       => $c->id,
                 'name'     => $c->name,

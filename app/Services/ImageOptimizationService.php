@@ -98,27 +98,50 @@ class ImageOptimizationService
     }
 
     /**
-     * Xử lý ảnh upload: resize + convert sang WebP + lưu vào storage.
+     * Xử lý ảnh upload: resize + lưu vào storage.
      * Dùng cho poster và QR code trong tournament/mini-tournament.
+     *
+     * Fast-path: nếu ảnh đã nhỏ hơn maxWidth và là JPEG → copy trực tiếp.
+     * Slow-path: resize + encode JPEG (không convert WebP để tăng tốc).
      *
      * @param mixed $file  UploadedFile hoặc file object
      * @param string $folder  Thư mục lưu (e.g. 'posters', 'qr_codes', 'tournaments/posters')
      * @param string $prefix  Prefix tên file (e.g. 'poster_', 'qr_')
-     * @param int $maxWidth  Chiều rộng tối đa (poster=1920, qr=800)
-     * @param int $quality  Chất lượng WebP (poster=80, qr=75)
-     * @return string  Relative path đã lưu (e.g. 'posters/poster_1234567890_abc.webp')
+     * @param int $maxWidth  Chiều rộng tối đa (poster=720, qr=500)
+     * @param int $quality  Chất lượng JPEG (poster=65, qr=60)
+     * @return string  Relative path đã lưu (e.g. 'posters/poster_1234567890_abc.jpg')
      */
     public function processAndSaveImage(
         $file,
         string $folder,
         string $prefix = '',
-        int $maxWidth = 1920,
-        int $quality = 80
+        int $maxWidth = 720,
+        int $quality = 65
     ): string {
-        $filename = $prefix . time() . '_' . uniqid() . '.webp';
+        $extension = strtolower($file->getClientOriginalExtension());
+        $isJpeg = in_array($extension, ['jpg', 'jpeg']);
+
+        // Fast path: ảnh đã nhỏ + đúng format → copy trực tiếp (bỏ qua resize/encode)
+        if ($isJpeg) {
+            $originalSize = @getimagesize($file->getRealPath());
+            $originalWidth = $originalSize[0] ?? 999999;
+            if ($originalWidth <= $maxWidth) {
+                $filename = $prefix . time() . '_' . uniqid() . '.jpg';
+                Storage::disk('public')->putFileAs($folder, $file, $filename);
+                return $folder . '/' . $filename;
+            }
+        }
+
+        // Slow path: resize + encode JPEG
+        $filename = $prefix . time() . '_' . uniqid() . '.jpg';
         $image = $this->manager->read($file);
-        $optimized = $image->scaleDown(width: $maxWidth);
-        $encoded = $optimized->toWebp(quality: $quality);
+        $originalSize = $originalSize ?? @getimagesize($file->getRealPath());
+        $originalWidth = ($originalSize[0] ?? 999999);
+
+        if ($originalWidth > $maxWidth) {
+            $image = $image->scaleDown(width: $maxWidth);
+        }
+        $encoded = $image->toJpeg(quality: $quality);
         Storage::disk('public')->put($folder . '/' . $filename, $encoded);
         return $folder . '/' . $filename;
     }

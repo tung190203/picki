@@ -63,7 +63,7 @@ class MapTournamentResource extends JsonResource
                 'gender'     => $createdBy->gender,
             ] : null,
             'slot_status'   => $this->computeSlotStatus(),
-            'distance'      => $this->when(isset($this->distance), (int) round($this->distance)),
+            'distance'      => $this->when(isset($this->distance), round($this->distance, 1)),
             'marker_type'   => 'tournament',
             // Membership
             'is_joined'     => $this->isJoinedBy(auth()->id()),

@@ -45,7 +45,7 @@ class MapMiniTournamentResource extends JsonResource
                 'gender'     => $creator->gender,
             ] : null,
             'slot_status'   => $this->computeSlotStatus(),
-            'distance'      => $this->when(isset($this->distance), (int) round($this->distance)),
+            'distance'      => $this->when(isset($this->distance), round($this->distance, 1)),
             'is_joined'     => auth()->check()
                 ? (($this->relationLoaded('participants') ? $this->participants : collect())
                     ->contains('user_id', auth()->id()))

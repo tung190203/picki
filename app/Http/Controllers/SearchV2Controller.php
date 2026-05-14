@@ -88,6 +88,7 @@ class SearchV2Controller extends Controller
                 ->filter($filters),
 
             SearchFilterConfig::TAB_TOURNAMENT => Tournament::withFullRelations()
+                ->with(['tournamentStaffs', 'participants'])
                 ->whereDate('start_date', '>=', now()->toDateString())
                 ->filter($filters),
 
@@ -99,6 +100,7 @@ class SearchV2Controller extends Controller
                 ->applyTimeline($subTab, $userId),
 
             SearchFilterConfig::TAB_CLUB => Club::withListRelations()
+                ->with(['creator', 'members'])
                 ->filter($filters),
 
             SearchFilterConfig::TAB_COURT => CompetitionLocation::withFullRelations()
