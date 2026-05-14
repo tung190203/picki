@@ -26,7 +26,7 @@ class StoreMiniTournamentRequest extends FormRequest
     public function rules(): array
     {
         $rules = [
-            'poster' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            'poster' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:5120',
             'sport_id' => 'required|exists:sports,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -347,7 +347,7 @@ class StoreMiniTournamentRequest extends FormRequest
             // Poster
             'poster.image' => 'Ảnh bìa kèo đấu phải là định dạng hình ảnh (jpeg, png, jpg, gif, svg)',
             'poster.mimes' => 'Ảnh bìa kèo đấu phải là định dạng jpeg, png, jpg, gif hoặc svg',
-            'poster.max' => 'Ảnh bìa kèo đấu không được vượt quá 2MB',
+            'poster.max' => 'Ảnh bìa kèo đấu không được vượt quá 5MB',
 
             // Thông tin cơ bản
             'sport_id.required' => 'Vui lòng chọn môn thể thao',
