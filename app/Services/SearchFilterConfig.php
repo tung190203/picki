@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
-use App\Enums\TimelineFilter;
+use App\Enums\SubTabFilter;
 
 class SearchFilterConfig
 {
-    public const TAB_MATCH      = 'match';
+    public const TAB_MATCH      = 'mini-tournament';
     public const TAB_TOURNAMENT = 'tournament';
     public const TAB_CLUB       = 'club';
     public const TAB_USER       = 'user';
@@ -29,15 +29,15 @@ class SearchFilterConfig
     ];
 
     /**
-     * Timeline chips available per tab.
-     * Null = tab doesn't support timeline filter.
+     * Sub-tab chips available per tab.
+     * Null = tab doesn't support sub-tab filter.
      */
-    public const TIMELINE_PER_TAB = [
-        self::TAB_MATCH      => [TimelineFilter::ALL, TimelineFilter::MINE, TimelineFilter::TODAY, TimelineFilter::THIS_WEEK, TimelineFilter::THIS_MONTH],
-        self::TAB_TOURNAMENT => [TimelineFilter::ALL, TimelineFilter::MINE, TimelineFilter::TODAY, TimelineFilter::THIS_WEEK, TimelineFilter::THIS_MONTH],
-        self::TAB_CLUB       => [TimelineFilter::ALL, TimelineFilter::MINE],
-        self::TAB_USER        => [TimelineFilter::ALL, TimelineFilter::MINE],
-        self::TAB_COURT       => [TimelineFilter::ALL],
+    public const SUB_TAB_PER_TAB = [
+        self::TAB_MATCH      => [SubTabFilter::ALL, SubTabFilter::MINE, SubTabFilter::TODAY, SubTabFilter::THIS_WEEK, SubTabFilter::THIS_MONTH],
+        self::TAB_TOURNAMENT => [SubTabFilter::ALL, SubTabFilter::MINE, SubTabFilter::TODAY, SubTabFilter::THIS_WEEK, SubTabFilter::THIS_MONTH],
+        self::TAB_CLUB       => [SubTabFilter::ALL, SubTabFilter::MINE, SubTabFilter::FRIENDS],
+        self::TAB_USER        => [SubTabFilter::ALL, SubTabFilter::FRIENDS],
+        self::TAB_COURT       => [SubTabFilter::ALL],
     ];
 
     /**
@@ -48,20 +48,28 @@ class SearchFilterConfig
     public const FILTERS_PER_TAB = [
         self::TAB_MATCH => [
             ['key' => 'distance',     'label' => 'Khoảng cách',  'type' => 'range',        'options' => null],
-            ['key' => 'rating',       'label' => 'Điểm rating',   'type' => 'range',        'options' => null],
+            ['key' => 'rating',        'label' => 'Điểm rating',   'type' => 'range', 'options' => null],
+            ['key' => 'min_level',     'label' => 'Từ rating',     'type' => 'range', 'options' => null],
+            ['key' => 'max_level',     'label' => 'Đến rating',    'type' => 'range', 'options' => null],
             ['key' => 'time_of_day',  'label' => 'Thời gian',      'type' => 'multi_select', 'options' => ['morning' => 'Sáng', 'afternoon' => 'Chiều', 'evening' => 'Tối']],
             ['key' => 'slot_status',  'label' => 'Tình trạng',   'type' => 'multi_select', 'options' => ['con_trong' => 'Còn trống', 'da_day' => 'Đã đầy']],
             ['key' => 'fee',          'label' => 'Phí',             'type' => 'multi_select', 'options' => ['free' => 'Miễn phí', 'paid' => 'Có phí']],
-            ['key' => 'type',         'label' => 'Loại',           'type' => 'multi_select', 'options' => ['single' => 'Đánh đơn', 'double' => 'Đánh đôi']],
-            ['key' => 'club_type',    'label' => 'Loại kèo',      'type' => 'multi_select', 'options' => ['thuong' => 'Kèo thường', 'clb' => 'Kèo CLB']],
+            ['key' => 'type',             'label' => 'Loại',             'type' => 'multi_select', 'options' => ['single' => 'Đánh đơn', 'double' => 'Đánh đôi']],
+            ['key' => 'play_mode',        'label' => 'Loại kèo',         'type' => 'multi_select', 'options' => ['casual' => 'Kèo thường', 'competition' => 'Kèo thi đấu', 'practice' => 'Kèo tập luyện']],
+            ['key' => 'gender',           'label' => 'Giới tính',         'type' => 'multi_select', 'options' => ['male' => 'Nam', 'female' => 'Nữ', 'mixed' => 'Nam nữ']],
+            ['key' => 'club_type',        'label' => 'CLB',               'type' => 'multi_select', 'options' => ['thuong' => 'Kèo thường', 'clb' => 'Kèo CLB']],
         ],
         self::TAB_TOURNAMENT => [
             ['key' => 'distance',     'label' => 'Khoảng cách',  'type' => 'range',        'options' => null],
-            ['key' => 'rating',       'label' => 'Điểm rating',   'type' => 'range',        'options' => null],
+            ['key' => 'rating',        'label' => 'Điểm rating',   'type' => 'range', 'options' => null],
+            ['key' => 'min_level',     'label' => 'Từ rating',     'type' => 'range', 'options' => null],
+            ['key' => 'max_level',     'label' => 'Đến rating',    'type' => 'range', 'options' => null],
             ['key' => 'time_of_day',  'label' => 'Thời gian',      'type' => 'multi_select', 'options' => ['morning' => 'Sáng', 'afternoon' => 'Chiều', 'evening' => 'Tối']],
             ['key' => 'slot_status',  'label' => 'Tình trạng',    'type' => 'multi_select', 'options' => ['con_trong' => 'Còn trống', 'da_day' => 'Đã đầy']],
-            ['key' => 'fee',          'label' => 'Phí',             'type' => 'multi_select', 'options' => ['free' => 'Miễn phí', 'paid' => 'Có phí']],
-            ['key' => 'club_type',    'label' => 'Loại giải',     'type' => 'multi_select', 'options' => ['thuong' => 'Giải thường', 'clb' => 'Giải CLB']],
+            ['key' => 'fee',             'label' => 'Phí',              'type' => 'multi_select', 'options' => ['free' => 'Miễn phí', 'paid' => 'Có phí']],
+            ['key' => 'tournament_type', 'label' => 'Loại giải',        'type' => 'multi_select', 'options' => ['all' => 'Mọi lứa tuổi', 'youth' => 'Dưới 18', 'adult' => '18-55', 'senior' => 'Trên 55']],
+            ['key' => 'gender',           'label' => 'Giới tính',         'type' => 'multi_select', 'options' => ['male' => 'Nam', 'female' => 'Nữ', 'mixed' => 'Nam nữ']],
+            ['key' => 'club_type',        'label' => 'CLB',              'type' => 'multi_select', 'options' => ['thuong' => 'Giải thường', 'clb' => 'Giải CLB']],
         ],
         self::TAB_CLUB => [
             ['key' => 'distance',    'label' => 'Khoảng cách', 'type' => 'range',   'options' => null],
@@ -93,9 +101,9 @@ class SearchFilterConfig
         return self::FILTERS_PER_TAB[$tab] ?? [];
     }
 
-    public static function getTimelineOptions(string $tab): array
+    public static function getSubTabOptions(string $tab): array
     {
-        $options = self::TIMELINE_PER_TAB[$tab] ?? [];
+        $options = self::SUB_TAB_PER_TAB[$tab] ?? [];
         return array_map(fn($enum) => [
             'value' => $enum->value,
             'label' => $enum->label(),
@@ -117,7 +125,7 @@ class SearchFilterConfig
             'tab'     => $tab,
             'label'   => self::TAB_LABELS[$tab] ?? $tab,
             'filters' => self::getFilters($tab),
-            'timeline' => self::getTimelineOptions($tab),
+            'sub_tabs' => self::getSubTabOptions($tab),
         ];
     }
 }

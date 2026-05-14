@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubMembershipStatus;
-use App\Enums\TimelineFilter;
+use App\Enums\SubTabFilter;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\ClubResource;
 use App\Http\Resources\Map\MapUserResource;
@@ -68,7 +68,7 @@ class UserController extends Controller
             'achievement' => 'nullable',
             'is_map' => 'nullable|boolean',
             'map_mode' => 'nullable|boolean',
-            'time_filter' => 'nullable|string|in:' . implode(',', TimelineFilter::values()),
+            'sub_tab' => 'nullable|string|in:' . implode(',', SubTabFilter::values()),
         ]);
 
         $sport = Sport::where('slug', 'pickleball')->first();
@@ -80,7 +80,7 @@ class UserController extends Controller
             ->visibleFor(auth()->user())
             ->withPickleballStats($sport?->id)
             ->withInteractionStatus(auth()->id())
-            ->applyTimeline($validated['time_filter'] ?? null, auth()->id());
+            ->applyTimeline($validated['sub_tab'] ?? null, auth()->id());
 
         $hasFilter = collect([
             'sport_id',

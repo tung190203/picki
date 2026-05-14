@@ -666,6 +666,42 @@ class MiniTournament extends Model
                     });
                 }
             )
+            ->when(
+                !empty($filter['play_mode']) && is_array($filter['play_mode']),
+                function ($q) use ($filter) {
+                    $modes = collect($filter['play_mode'])->map(fn($m) => match ($m) {
+                        'casual' => 1, 'competition' => 2, 'practice' => 3,
+                        default => null,
+                    })->filter()->values()->all();
+                    if (!empty($modes)) {
+                        $q->whereIn('play_mode', $modes);
+                    }
+                }
+            )
+            ->when(
+                !empty($filter['gender']) && is_array($filter['gender']),
+                function ($q) use ($filter) {
+                    $genders = collect($filter['gender'])->map(fn($g) => match ($g) {
+                        'male' => 1, 'female' => 2, 'mixed' => 3,
+                        default => null,
+                    })->filter()->values()->all();
+                    if (!empty($genders)) {
+                        $q->whereIn('gender', $genders);
+                    }
+                }
+            )
+            ->when(
+                !empty($filter['min_level']),
+                function ($q) use ($filter) {
+                    $q->whereRaw('CAST(min_rating AS DECIMAL(10,2)) <= ?', [(float) $filter['min_level']]);
+                }
+            )
+            ->when(
+                !empty($filter['max_level']),
+                function ($q) use ($filter) {
+                    $q->whereRaw('CAST(max_rating AS DECIMAL(10,2)) >= ?', [(float) $filter['max_level']]);
+                }
+            )
             ->when(true, function ($q) {
                 $userId = auth()->id();
 

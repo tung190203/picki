@@ -782,6 +782,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                     ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined->value)
                     ->pluck('club_id'));
             }),
+            'friends' => $query->whereIn('id', (new User)->find($userId)?->friends()?->pluck('id') ?? []),
             default => $query,
         };
     }

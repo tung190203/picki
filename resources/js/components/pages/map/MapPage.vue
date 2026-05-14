@@ -39,14 +39,14 @@
                         </div>
 
                         <!-- Timeline chips (only for tabs that support them) -->
-                        <div v-if="timelineOptions.length > 1" class="flex gap-2 overflow-x-auto pb-0.5">
+                        <div v-if="subTabOptions.length > 1" class="flex gap-2 overflow-x-auto pb-0.5">
                             <button
-                                v-for="opt in timelineOptions"
+                                v-for="opt in subTabOptions"
                                 :key="opt.value"
-                                @click="selectTimeFilter(opt.value)"
+                                @click="selectSubTab(opt.value)"
                                 :class="[
                                     'flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-all whitespace-nowrap',
-                                    timeFilter === opt.value
+                                    subTab === opt.value
                                         ? 'bg-[#D72D36] text-white border-[#D72D36]'
                                         : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
                                 ]"
@@ -54,7 +54,7 @@
                                 {{ opt.label }}
                                 <span v-if="opt.badge" :class="[
                                     'ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold',
-                                    timeFilter === opt.value ? 'bg-white/20 text-white' : 'bg-red-50 text-[#D72D36]'
+                                    subTab === opt.value ? 'bg-white/20 text-white' : 'bg-red-50 text-[#D72D36]'
                                 ]">
                                     {{ opt.badge }}
                                 </span>
@@ -62,7 +62,7 @@
                         </div>
 
                         <!-- Match sub-tabs (only for match tab) -->
-                        <div v-if="activeTab === 'match'" class="grid grid-cols-2 gap-2">
+                        <div v-if="activeTab === 'mini-tournament'" class="grid grid-cols-2 gap-2">
                             <button @click="activeMatchTab = 'mini'" :class="[
                                 'py-1.5 text-sm font-medium rounded transition-colors',
                                 activeMatchTab === 'mini'
@@ -93,7 +93,7 @@
                                     :selected="selectedCourt?.competition_location?.id" :defaultImage="defaultImage" :toHourMinute="toHourMinute"
                                     @select="focusItemAuto" />
                             </template>
-                            <template v-else-if="activeTab === 'match' || activeTab === 'tournament'">
+                            <template v-else-if="activeTab === 'mini-tournament' || activeTab === 'tournament'">
                                 <MatchListItem v-for="(match, index) in displayedListData" :key="match.id ?? index"
                                     :match="match" :selected="selectedMatches" @select="focusItemAuto" :defaultImage="defaultImage"/>
                             </template>
@@ -109,7 +109,7 @@
                                     @select="focusItemAuto" />
                             </template>
 
-                            <div v-if="(activeTab === 'match' || activeTab === 'tournament') && isLoadingMoreMatches" class="text-center py-4 text-sm text-gray-500">
+                            <div v-if="(activeTab === 'mini-tournament' || activeTab === 'tournament') && isLoadingMoreMatches" class="text-center py-4 text-sm text-gray-500">
                                 <div class="flex items-center justify-center gap-2">
                                     <svg class="animate-spin h-4 w-4 text-[#4392E0]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -118,10 +118,10 @@
                                     <span>Đang tải thêm...</span>
                                 </div>
                             </div>
-                            <div v-else-if="activeTab !== 'match' && activeTab !== 'tournament' && visibleItems < listData.length" class="text-center py-2 text-sm text-gray-500">
+                            <div v-else-if="activeTab !== 'mini-tournament' && activeTab !== 'tournament' && visibleItems < listData.length" class="text-center py-2 text-sm text-gray-500">
                                 Đang tải thêm...
                             </div>
-                            <div v-else-if="(activeTab === 'match' || activeTab === 'tournament') &&
+                            <div v-else-if="(activeTab === 'mini-tournament' || activeTab === 'tournament') &&
                                 !isLoadingMoreMatches &&
                                 ((activeMatchTab === 'mini' && miniMatchPage >= miniMatchLastPage) ||
                                  (activeMatchTab === 'tournament' && tournamentPage >= tournamentLastPage)) &&
@@ -399,7 +399,7 @@
                 </div>
             </Transition>
         </template>
-        <template v-else-if="activeTab === 'match'">
+        <template v-else-if="activeTab === 'mini-tournament'">
             <Transition enter-active-class="transition ease-out duration-300" enter-from-class="translate-x-full"
                 enter-to-class="translate-x-0" leave-active-class="transition ease-in duration-200"
                 leave-from-class="translate-x-0" leave-to-class="translate-x-full">
@@ -619,9 +619,82 @@
                                 </template>
                             </div>
 
+                            <!-- Loại -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Loại</p>
+                                <template v-if="matchTypeOptions.length">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <label v-for="item in matchTypeOptions" :key="item.value"
+                                            class="flex items-center gap-3 cursor-pointer relative select-none">
+                                            <input type="checkbox" v-model="selectedMatchType" :value="item.value"
+                                                class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                                checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                            <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                                opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                            <span>{{ item.label }}</span>
+                                        </label>
+                                    </div>
+                                </template>
+                            </div>
+
                             <!-- Loại kèo -->
                             <div class="border-t pt-4">
                                 <p class="font-medium text-gray-900 mb-4 text-xl">Loại kèo</p>
+                                <div class="grid grid-cols-3 gap-4">
+                                    <label v-for="item in playModeOptions" :key="item.value"
+                                        class="flex items-center gap-3 cursor-pointer relative select-none">
+                                        <input type="checkbox" v-model="selectedPlayMode" :value="item.value"
+                                            class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                            checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                        <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                            opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                        <span>{{ item.label }}</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Giới tính -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Giới tính</p>
+                                <div class="grid grid-cols-3 gap-4">
+                                    <label v-for="item in genderMatchOptions" :key="item.value"
+                                        class="flex items-center gap-3 cursor-pointer relative select-none">
+                                        <input type="checkbox" v-model="selectedGenderMatch" :value="item.value"
+                                            class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                            checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                        <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                            opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                        <span>{{ item.label }}</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Trình độ (min/max) -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Trình độ</p>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm text-gray-500 mb-1">Từ</label>
+                                        <select v-model="selectedMinLevel"
+                                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D72D36]">
+                                            <option :value="null">Không giới hạn</option>
+                                            <option v-for="opt in levelOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm text-gray-500 mb-1">Đến</label>
+                                        <select v-model="selectedMaxLevel"
+                                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D72D36]">
+                                            <option :value="null">Không giới hạn</option>
+                                            <option v-for="opt in levelOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- CLB -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">CLB</p>
                                 <div class="grid grid-cols-2 gap-4">
                                     <label v-for="item in clubTypeOptions" :key="item.value"
                                         class="flex items-center gap-3 cursor-pointer relative select-none">
@@ -1239,9 +1312,64 @@
                                 </template>
                             </div>
 
-                            <!-- Loại giải -->
+                            <!-- Loại giải (age group) -->
                             <div class="border-t pt-4">
                                 <p class="font-medium text-gray-900 mb-4 text-xl">Loại giải</p>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <label v-for="item in tournamentTypeOptions" :key="item.value"
+                                        class="flex items-center gap-3 cursor-pointer relative select-none">
+                                        <input type="checkbox" v-model="selectedTournamentType" :value="item.value"
+                                            class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                            checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                        <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                            opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                        <span>{{ item.label }}</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Giới tính -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Giới tính</p>
+                                <div class="grid grid-cols-3 gap-4">
+                                    <label v-for="item in genderTourOptions" :key="item.value"
+                                        class="flex items-center gap-3 cursor-pointer relative select-none">
+                                        <input type="checkbox" v-model="selectedGenderTour" :value="item.value"
+                                            class="peer appearance-none w-5 h-5 rounded border-2 border-[#D72D36]
+                                            checked:bg-[#D72D36] checked:border-[#D72D36]" />
+                                        <CheckIcon class="w-4 h-4 text-white absolute left-[2px]
+                                            opacity-0 peer-checked:opacity-100 pointer-events-none" />
+                                        <span>{{ item.label }}</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Trình độ (min/max) -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">Trình độ</p>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm text-gray-500 mb-1">Từ</label>
+                                        <select v-model="selectedMinLevel"
+                                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D72D36]">
+                                            <option :value="null">Không giới hạn</option>
+                                            <option v-for="opt in levelOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm text-gray-500 mb-1">Đến</label>
+                                        <select v-model="selectedMaxLevel"
+                                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D72D36]">
+                                            <option :value="null">Không giới hạn</option>
+                                            <option v-for="opt in levelOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- CLB -->
+                            <div class="border-t pt-4">
+                                <p class="font-medium text-gray-900 mb-4 text-xl">CLB</p>
                                 <div class="grid grid-cols-2 gap-4">
                                     <label v-for="item in clubTypeOptions" :key="item.value"
                                         class="flex items-center gap-3 cursor-pointer relative select-none">
@@ -1316,12 +1444,12 @@ const isInitialLoad = ref(true);
 const isLoadingMap = ref(false);
 
 // Tab state
-const activeTab = ref('match');
+const activeTab = ref('mini-tournament');
 const activeMatchTab = ref('mini');
-const timeFilter = ref('all');
+const subTab = ref('all');
 
-// Timeline options per tab — static config matching backend SearchFilterConfig
-const TIMELINE_OPTIONS = {
+// Sub-tab options per tab — static config matching backend SearchFilterConfig
+const SUB_TAB_OPTIONS = {
     match: [
         { value: 'all', label: 'Tất cả', badge: null },
         { value: 'mine', label: 'Của tôi', badge: null },
@@ -1339,17 +1467,18 @@ const TIMELINE_OPTIONS = {
     club: [
         { value: 'all', label: 'Tất cả', badge: null },
         { value: 'mine', label: 'Của tôi', badge: null },
+        { value: 'joined', label: 'Đã tham gia', badge: null },
     ],
     user: [
         { value: 'all', label: 'Tất cả', badge: null },
-        { value: 'mine', label: 'Của tôi', badge: null },
+        { value: 'friends', label: 'Bạn bè', badge: null },
     ],
     court: [
         { value: 'all', label: 'Tất cả', badge: null },
     ],
 };
 
-const timelineOptions = computed(() => TIMELINE_OPTIONS[activeTab.value] || []);
+const subTabOptions = computed(() => SUB_TAB_OPTIONS[activeTab.value] || []);
 
 const matchesMini = ref([]);
 const matchesTournament = ref([]);
@@ -1444,6 +1573,43 @@ const clubTypeOptions = [
     { label: 'Kèo CLB',    value: 'clb' },
 ];
 
+// Play mode filter (mini-tournament only)
+const selectedPlayMode = ref([]); // ['casual', 'competition', 'practice']
+const playModeOptions = [
+    { label: 'Kèo thường',  value: 'casual' },
+    { label: 'Kèo thi đấu', value: 'competition' },
+    { label: 'Kèo tập luyện', value: 'practice' },
+];
+
+// Gender filter (mini-tournament)
+const selectedGenderMatch = ref([]); // ['male', 'female', 'mixed']
+const genderMatchOptions = [
+    { label: 'Nam',      value: 'male' },
+    { label: 'Nữ',       value: 'female' },
+    { label: 'Nam nữ',   value: 'mixed' },
+];
+
+// Gender filter (tournament)
+const selectedGenderTour = ref([]); // ['male', 'female', 'mixed']
+const genderTourOptions = [
+    { label: 'Nam',      value: 'male' },
+    { label: 'Nữ',       value: 'female' },
+    { label: 'Nam nữ',   value: 'mixed' },
+];
+
+// Level range (mini-tournament + tournament)
+const selectedMinLevel = ref(null); // float
+const selectedMaxLevel = ref(null); // float
+
+// Tournament type filter (tournament only)
+const selectedTournamentType = ref([]); // ['all', 'youth', 'adult', 'senior']
+const tournamentTypeOptions = [
+    { label: 'Mọi lứa tuổi', value: 'all' },
+    { label: 'Dưới 18',      value: 'youth' },
+    { label: '18-55',         value: 'adult' },
+    { label: 'Trên 55',       value: 'senior' },
+];
+
 // Shared filter state
 const isRadiusDropdownOpen = ref(false);
 const selectedRadiusValue = ref(null);
@@ -1473,6 +1639,19 @@ const ratingOptions = [
     { label: '5+', value: 5 },
 ];
 
+// Level options (for min/max level selects)
+const levelOptions = [
+    { label: '1.0', value: 1.0 },
+    { label: '1.5', value: 1.5 },
+    { label: '2.0', value: 2.0 },
+    { label: '2.5', value: 2.5 },
+    { label: '3.0', value: 3.0 },
+    { label: '3.5', value: 3.5 },
+    { label: '4.0', value: 4.0 },
+    { label: '4.5', value: 4.5 },
+    { label: '5.0', value: 5.0 },
+];
+
 // Selection tracking (for highlighting on map)
 const selectedCourt = ref(null);
 const selectedUser = ref(null);
@@ -1488,7 +1667,7 @@ const quantityClubs = ref(0);
 const myClub = ref([]);
 
 const tabs = [
-    { id: 'match', label: 'Kèo đấu' },
+    { id: 'mini-tournament', label: 'Kèo đấu' },
     { id: 'tournament', label: 'Giải đấu' },
     { id: 'club', label: 'Câu lạc bộ' },
     { id: 'user', label: 'Người chơi' },
@@ -1504,7 +1683,7 @@ const clubs = computed(() => Array.from(clubsMap.value.values()));
 // Convert Map sang Array
 const listData = computed(() => {
     if (activeTab.value === 'court') return courts.value;
-    if (activeTab.value === 'match') {
+    if (activeTab.value === 'mini-tournament') {
         if (activeMatchTab.value === 'mini') return matchesMini.value;
         if (activeMatchTab.value === 'tournament') return matchesTournament.value;
     }
@@ -1517,7 +1696,7 @@ const listData = computed(() => {
 const displayedListData = computed(() => {
     const data = listData.value;
     // For match/tournament tabs, show all loaded data (pagination handled by API)
-    if (activeTab.value === 'match' || activeTab.value === 'tournament') {
+    if (activeTab.value === 'mini-tournament' || activeTab.value === 'tournament') {
         return data;
     }
     // For other tabs, use visibleItems slicing
@@ -1542,8 +1721,8 @@ const handleScroll = async (event) => {
     const scrollPercentage = (target.scrollTop + target.clientHeight) / target.scrollHeight;
 
     // For match/tournament tabs, load more from API when scrolling
-    if ((activeTab.value === 'match' || activeTab.value === 'tournament') && scrollPercentage > 0.8) {
-        const hasMore = activeTab.value === 'match' && activeMatchTab.value === 'mini'
+    if ((activeTab.value === 'mini-tournament' || activeTab.value === 'tournament') && scrollPercentage > 0.8) {
+        const hasMore = activeTab.value === 'mini-tournament' && activeMatchTab.value === 'mini'
             ? miniMatchPage.value < miniMatchLastPage.value
             : tournamentPage.value < tournamentLastPage.value;
 
@@ -1586,7 +1765,7 @@ const hasActiveFilters = computed(() => {
     return !!(
         searchKeyword.value?.trim() ||
         selectedSportId.value ||
-        timeFilter.value !== 'all' ||
+        subTab.value !== 'all' ||
         isShowMyFollow.value ||
         isShowFavoritePlayer.value ||
         isConnected.value ||
@@ -1603,6 +1782,12 @@ const hasActiveFilters = computed(() => {
         selectedSlotStatus.value.length > 0 ||
         selectedFee.value.length > 0 ||
         selectedMatchType.value.length > 0 ||
+        selectedPlayMode.value.length > 0 ||
+        selectedGenderMatch.value.length > 0 ||
+        selectedGenderTour.value.length > 0 ||
+        selectedMinLevel.value != null ||
+        selectedMaxLevel.value != null ||
+        selectedTournamentType.value.length > 0 ||
         joinedOnly.value
     );
 });
@@ -1627,7 +1812,7 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
     // Build base params for search-v2 API
     const params = {
         tab,
-        time_filter: timeFilter.value,
+        sub_tab: subTab.value,
         keyword: searchKeyword.value?.trim() || undefined,
         sport_id: selectedSportId.value || undefined,
         location_id: selectedLocationValue.value || undefined,
@@ -1635,9 +1820,9 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
     };
 
     // Pagination for match/tournament tabs
-    if (tab === 'match' || tab === 'tournament') {
+    if (tab === 'mini-tournament' || tab === 'tournament') {
         params.page = isLoadMore
-            ? (tab === 'match' ? miniMatchPage.value : tournamentPage.value)
+            ? (tab === 'mini-tournament' ? miniMatchPage.value : tournamentPage.value)
             : 1;
     } else {
         // Other tabs: map mode, load all at once
@@ -1672,13 +1857,19 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
         radiusKm: radiusKm.value,
         selectedRating: selectedRating.value,
         selectedTimePlay: selectedTimePlay.value,
-        slotStatus: tab === 'match' || tab === 'tournament' ? selectedSlotStatus.value : [],
-        fee: tab === 'match' || tab === 'tournament' ? selectedFee.value : null,
-        matchType: tab === 'match' ? selectedMatchType.value : null,
-        clubType: tab === 'match' || tab === 'tournament' ? selectedClubType.value : [],
+        slotStatus: tab === 'mini-tournament' || tab === 'tournament' ? selectedSlotStatus.value : [],
+        fee: tab === 'mini-tournament' || tab === 'tournament' ? selectedFee.value : null,
+        matchType: tab === 'mini-tournament' ? selectedMatchType.value : null,
+        clubType: tab === 'mini-tournament' || tab === 'tournament' ? selectedClubType.value : [],
         joinedOnly: joinedOnly.value,
         selectedGender: selectedGender.value,
         sameClubId: sameClubId.value,
+        playMode: selectedPlayMode.value,
+        selectedGenderMatch: selectedGenderMatch.value,
+        selectedGenderTour: selectedGenderTour.value,
+        selectedMinLevel: selectedMinLevel.value,
+        selectedMaxLevel: selectedMaxLevel.value,
+        tournamentType: tab === 'tournament' ? selectedTournamentType.value : null,
     });
     if (filters) params.filters = filters;
 
@@ -1692,13 +1883,13 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
         const res = await SearchService.search(params);
 
         // ---- MATCH / TOURNAMENT TAB ----
-        if (tab === 'match' || tab === 'tournament') {
+        if (tab === 'mini-tournament' || tab === 'tournament') {
             const apiTab = tab;
             const items = res.data?.data || [];
 
             if (!isLoadMore) {
                 // Replace data
-                if (apiTab === 'match') {
+                if (apiTab === 'mini-tournament') {
                     matchesMini.value = items.map(m => ({ ...m, id: `mini_${m.id}`, original_id: m.id, type: 'mini' }));
                     matchesTournament.value = [];
                 } else {
@@ -1708,7 +1899,7 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
                 matchesMap.value.clear();
             } else {
                 // Append data
-                if (apiTab === 'match') {
+                if (apiTab === 'mini-tournament') {
                     const newItems = items.map(m => ({ ...m, id: `mini_${m.id}`, original_id: m.id, type: 'mini' }));
                     if (activeMatchTab.value === 'mini') {
                         matchesMini.value = [...matchesMini.value, ...newItems];
@@ -1724,7 +1915,7 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
             // Update pagination meta
             const meta = res.data?.meta;
             if (meta) {
-                if (apiTab === 'match') {
+                if (apiTab === 'mini-tournament') {
                     miniMatchLastPage.value = meta.last_page || 1;
                     miniMatchPage.value = meta.current_page || 1;
                 } else {
@@ -1788,7 +1979,7 @@ const loadMoreMatches = async () => {
     if (isLoadingMoreMatches.value) return;
     isLoadingMoreMatches.value = true;
     try {
-        if (activeTab.value === 'match' && activeMatchTab.value === 'mini') {
+        if (activeTab.value === 'mini-tournament' && activeMatchTab.value === 'mini') {
             miniMatchPage.value += 1;
         } else {
             tournamentPage.value += 1;
@@ -1801,7 +1992,7 @@ const loadMoreMatches = async () => {
 
 // Watch activeMatchTab to reload markers (only when on match tab)
 watch(activeMatchTab, () => {
-    if (activeTab.value !== 'match') return;
+    if (activeTab.value !== 'mini-tournament') return;
 
     // Reset pagination when switching sub-tabs
     miniMatchPage.value = 1;
@@ -1853,7 +2044,7 @@ const loadTabContent = async (tab, bounds = null) => {
     try {
         if (tab === 'court') {
             await doSearch(false, bounds);
-        } else if (tab === 'match' || tab === 'tournament') {
+        } else if (tab === 'mini-tournament' || tab === 'tournament') {
             await doSearch(false, bounds);
         } else if (tab === 'user') {
             await doSearch(false, bounds);
@@ -1925,7 +2116,7 @@ const resetFilter = async () => {
     selectedLocationValue.value = null;
     selectedLocationLabel.value = 'Chọn địa điểm';
     locationSearchQuery.value = '';
-    timeFilter.value = 'all';
+    subTab.value = 'all';
 
     // Reset các trường của tab Players
     selectedTimePlay.value = [];
@@ -1949,6 +2140,12 @@ const resetFilter = async () => {
     selectedFee.value = [];
     selectedMatchType.value = [];
     selectedClubType.value = [];
+    selectedPlayMode.value = [];
+    selectedGenderMatch.value = [];
+    selectedGenderTour.value = [];
+    selectedMinLevel.value = null;
+    selectedMaxLevel.value = null;
+    selectedTournamentType.value = [];
 
     // Reset pagination
     miniMatchPage.value = 1;
@@ -2092,11 +2289,11 @@ const getMyClubs = async () => {
 };
 
 // Timeline helpers
-const selectTimeFilter = async (value) => {
-    timeFilter.value = value;
+const selectSubTab = async (value) => {
+    subTab.value = value;
     isInitialLoad.value = true;
     // Reset match pagination when changing time filter
-    if (activeTab.value === 'match' || activeTab.value === 'tournament') {
+    if (activeTab.value === 'mini-tournament' || activeTab.value === 'tournament') {
         miniMatchPage.value = 1;
         tournamentPage.value = 1;
     }
