@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Enums\TimelineFilter;
+use App\Enums\SubTabFilter;
 
 class SearchFilterConfig
 {
@@ -29,15 +29,15 @@ class SearchFilterConfig
     ];
 
     /**
-     * Timeline chips available per tab.
-     * Null = tab doesn't support timeline filter.
+     * Sub-tab chips available per tab.
+     * Null = tab doesn't support sub-tab filter.
      */
-    public const TIMELINE_PER_TAB = [
-        self::TAB_MATCH      => [TimelineFilter::ALL, TimelineFilter::MINE, TimelineFilter::TODAY, TimelineFilter::THIS_WEEK, TimelineFilter::THIS_MONTH],
-        self::TAB_TOURNAMENT => [TimelineFilter::ALL, TimelineFilter::MINE, TimelineFilter::TODAY, TimelineFilter::THIS_WEEK, TimelineFilter::THIS_MONTH],
-        self::TAB_CLUB       => [TimelineFilter::ALL, TimelineFilter::MINE],
-        self::TAB_USER        => [TimelineFilter::ALL, TimelineFilter::MINE],
-        self::TAB_COURT       => [TimelineFilter::ALL],
+    public const SUB_TAB_PER_TAB = [
+        self::TAB_MATCH      => [SubTabFilter::ALL, SubTabFilter::MINE, SubTabFilter::TODAY, SubTabFilter::THIS_WEEK, SubTabFilter::THIS_MONTH],
+        self::TAB_TOURNAMENT => [SubTabFilter::ALL, SubTabFilter::MINE, SubTabFilter::TODAY, SubTabFilter::THIS_WEEK, SubTabFilter::THIS_MONTH],
+        self::TAB_CLUB       => [SubTabFilter::ALL, SubTabFilter::MINE, SubTabFilter::FRIENDS],
+        self::TAB_USER        => [SubTabFilter::ALL, SubTabFilter::FRIENDS],
+        self::TAB_COURT       => [SubTabFilter::ALL],
     ];
 
     /**
@@ -93,9 +93,9 @@ class SearchFilterConfig
         return self::FILTERS_PER_TAB[$tab] ?? [];
     }
 
-    public static function getTimelineOptions(string $tab): array
+    public static function getSubTabOptions(string $tab): array
     {
-        $options = self::TIMELINE_PER_TAB[$tab] ?? [];
+        $options = self::SUB_TAB_PER_TAB[$tab] ?? [];
         return array_map(fn($enum) => [
             'value' => $enum->value,
             'label' => $enum->label(),
@@ -117,7 +117,7 @@ class SearchFilterConfig
             'tab'     => $tab,
             'label'   => self::TAB_LABELS[$tab] ?? $tab,
             'filters' => self::getFilters($tab),
-            'timeline' => self::getTimelineOptions($tab),
+            'sub_tabs' => self::getSubTabOptions($tab),
         ];
     }
 }

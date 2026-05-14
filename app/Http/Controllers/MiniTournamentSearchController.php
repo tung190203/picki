@@ -20,12 +20,12 @@ class MiniTournamentSearchController extends Controller
         $filter = $this->buildFilter($request, 'mini');
 
         $userId = auth()->check() ? auth()->id() : null;
-        $timeFilter = $request->input('time_filter');
+        $subTab = $request->input('sub_tab');
 
         $query = MiniTournament::withFullRelations()
             ->whereDate('start_time', '>=', now()->toDateString())
             ->filter($filter)
-            ->applyTimeline($timeFilter, $userId);
+            ->applyTimeline($subTab, $userId);
 
         $this->applyGeoFilters($query, $request, 'mini');
 

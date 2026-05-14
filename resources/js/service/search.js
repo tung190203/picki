@@ -7,7 +7,7 @@ import { API_ENDPOINT } from "@/constants/index.js";
  *
  * @param {Object} params
  * @param {string} [params.tab='mini-tournament'] - mini-tournament | tournament | club | user | court
- * @param {string} [params.time_filter='all']     - all | mine | today | this_week | this_month
+ * @param {string} [params.sub_tab='all']     - all | mine | friends | today | this_week | this_month
  * @param {string} [params.keyword]              - search keyword
  * @param {number} [params.sport_id]              - filter by sport ID
  * @param {number} [params.location_id]           - filter by location ID

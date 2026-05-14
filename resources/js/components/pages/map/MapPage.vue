@@ -46,7 +46,7 @@
                                 @click="selectTimeFilter(opt.value)"
                                 :class="[
                                     'flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-all whitespace-nowrap',
-                                    timeFilter === opt.value
+                                    subTab === opt.value
                                         ? 'bg-[#D72D36] text-white border-[#D72D36]'
                                         : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
                                 ]"
@@ -54,7 +54,7 @@
                                 {{ opt.label }}
                                 <span v-if="opt.badge" :class="[
                                     'ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold',
-                                    timeFilter === opt.value ? 'bg-white/20 text-white' : 'bg-red-50 text-[#D72D36]'
+                                    subTab === opt.value ? 'bg-white/20 text-white' : 'bg-red-50 text-[#D72D36]'
                                 ]">
                                     {{ opt.badge }}
                                 </span>
@@ -1318,10 +1318,10 @@ const isLoadingMap = ref(false);
 // Tab state
 const activeTab = ref('mini-tournament');
 const activeMatchTab = ref('mini');
-const timeFilter = ref('all');
+const subTab = ref('all');
 
-// Timeline options per tab — static config matching backend SearchFilterConfig
-const TIMELINE_OPTIONS = {
+// Sub-tab options per tab — static config matching backend SearchFilterConfig
+const SUB_TAB_OPTIONS = {
     match: [
         { value: 'all', label: 'Tất cả', badge: null },
         { value: 'mine', label: 'Của tôi', badge: null },
@@ -1339,17 +1339,18 @@ const TIMELINE_OPTIONS = {
     club: [
         { value: 'all', label: 'Tất cả', badge: null },
         { value: 'mine', label: 'Của tôi', badge: null },
+        { value: 'friends', label: 'Bạn bè', badge: null },
     ],
     user: [
         { value: 'all', label: 'Tất cả', badge: null },
-        { value: 'mine', label: 'Của tôi', badge: null },
+        { value: 'friends', label: 'Bạn bè', badge: null },
     ],
     court: [
         { value: 'all', label: 'Tất cả', badge: null },
     ],
 };
 
-const timelineOptions = computed(() => TIMELINE_OPTIONS[activeTab.value] || []);
+const subTabOptions = computed(() => SUB_TAB_OPTIONS[activeTab.value] || []);
 
 const matchesMini = ref([]);
 const matchesTournament = ref([]);
@@ -1495,6 +1496,8 @@ const tabs = [
     { id: 'court', label: 'Sân bãi' },
 ];
 
+const timelineOptions = ref([]);
+
 // Convert Map sang Array
 const courts = computed(() => Array.from(courtsMap.value.values()));
 const users = computed(() => Array.from(usersMap.value.values()));
@@ -1586,7 +1589,7 @@ const hasActiveFilters = computed(() => {
     return !!(
         searchKeyword.value?.trim() ||
         selectedSportId.value ||
-        timeFilter.value !== 'all' ||
+        subTab.value !== 'all' ||
         isShowMyFollow.value ||
         isShowFavoritePlayer.value ||
         isConnected.value ||
@@ -1627,7 +1630,7 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
     // Build base params for search-v2 API
     const params = {
         tab,
-        time_filter: timeFilter.value,
+        sub_tab: subTab.value,
         keyword: searchKeyword.value?.trim() || undefined,
         sport_id: selectedSportId.value || undefined,
         location_id: selectedLocationValue.value || undefined,
@@ -1925,7 +1928,7 @@ const resetFilter = async () => {
     selectedLocationValue.value = null;
     selectedLocationLabel.value = 'Chọn địa điểm';
     locationSearchQuery.value = '';
-    timeFilter.value = 'all';
+    subTab.value = 'all';
 
     // Reset các trường của tab Players
     selectedTimePlay.value = [];
@@ -2092,8 +2095,8 @@ const getMyClubs = async () => {
 };
 
 // Timeline helpers
-const selectTimeFilter = async (value) => {
-    timeFilter.value = value;
+const selectSubTab = async (value) => {
+    subTab.value = value;
     isInitialLoad.value = true;
     // Reset match pagination when changing time filter
     if (activeTab.value === 'mini-tournament' || activeTab.value === 'tournament') {

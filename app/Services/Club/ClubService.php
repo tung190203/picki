@@ -430,8 +430,8 @@ class ClubService
             $query->nearBy($filters['lat'], $filters['lng'], $filters['radius']);
         }
 
-        if (!empty($filters['time_filter']) && $filters['time_filter'] !== 'all') {
-            $query->applyTimeline($filters['time_filter'], $userId);
+        if (!empty($filters['sub_tab']) && $filters['sub_tab'] !== 'all') {
+            $query->applyTimeline($filters['sub_tab'], $userId);
         }
 
         $perPage = $filters['per_page'] ?? $filters['perPage'] ?? Club::PER_PAGE;

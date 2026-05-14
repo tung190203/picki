@@ -342,10 +342,12 @@ class Club extends Model
         $userId = $userId ?? auth()->id();
 
         return match ($timeFilter) {
-            'mine' => $query->whereHas('members', fn($m) => $m
+            'mine' => $query->where('owner_id', $userId),
+            'joined' => $query->whereHas('members', fn($m) => $m
                 ->where('user_id', $userId)
                 ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined->value)
             ),
+            'friends' => $query->whereIn('owner_id', \App\Models\User::find($userId)?->friends()?->pluck('id') ?? []),
             default => $query,
         };
     }

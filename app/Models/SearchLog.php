@@ -17,7 +17,7 @@ class SearchLog extends Model
         'tab',
         'keyword',
         'filters_json',
-        'time_filter',
+        'sub_tab',
         'result_count',
         'searched_at',
     ];

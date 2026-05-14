@@ -2,13 +2,14 @@
 
 namespace App\Enums;
 
-enum TimelineFilter: string
+enum SubTabFilter: string
 {
     case ALL = 'all';
     case MINE = 'mine';
     case TODAY = 'today';
     case THIS_WEEK = 'this_week';
     case THIS_MONTH = 'this_month';
+    case FRIENDS = 'friends';
 
     public function label(): string
     {
@@ -18,6 +19,7 @@ enum TimelineFilter: string
             self::TODAY => 'Hôm nay',
             self::THIS_WEEK => 'Tuần này',
             self::THIS_MONTH => 'Tháng này',
+            self::FRIENDS => 'Bạn bè',
         };
     }
 
