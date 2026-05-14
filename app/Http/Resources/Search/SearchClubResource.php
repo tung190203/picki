@@ -2,6 +2,10 @@
 
 namespace App\Http\Resources\Search;
 
+use App\Http\Resources\UserResource;
+use App\Enums\ClubMembershipStatus;
+use App\Enums\ClubMemberRole;
+use App\Enums\ClubMemberStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -25,10 +29,10 @@ class SearchClubResource extends JsonResource
                 $status = $membership->membership_status ?? null;
                 $role = $membership->role ?? null;
 
-                $isMember = $status === \App\Enums\ClubMembershipStatus::Joined->value
-                    && $membership->status !== \App\Enums\ClubMemberStatus::Suspended->value;
-                $isAdmin = in_array($role, [\App\Enums\ClubMemberRole::Admin->value, \App\Enums\ClubMemberRole::Manager->value, \App\Enums\ClubMemberRole::Secretary->value]);
-                $hasPendingRequest = $status === \App\Enums\ClubMembershipStatus::Pending->value;
+                $isMember = $status === ClubMembershipStatus::Joined->value
+                    && $membership->status !== ClubMemberStatus::Suspended->value;
+                $isAdmin = in_array($role, [ClubMemberRole::Admin->value, ClubMemberRole::Manager->value, ClubMemberRole::Secretary->value]);
+                $hasPendingRequest = $status === ClubMembershipStatus::Pending->value;
             }
         }
 
@@ -42,7 +46,7 @@ class SearchClubResource extends JsonResource
             'status'           => $this->status->value,
             'is_verified'      => (bool) $this->is_verified,
             'is_public'        => (bool) ($this->is_public ?? true),
-            'created_by'       => new \App\Http\Resources\UserResource($this->whenLoaded('creator')),
+            'created_by'       => new UserResource($this->whenLoaded('creator')),
             'quantity_members' => (int) ($this->activeMembers_count ?? $this->activeMembers?->count() ?? 0),
             'is_admin'         => $isAdmin,
             'is_member'        => $isMember,

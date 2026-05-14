@@ -59,16 +59,12 @@ class SearchMatchResource extends JsonResource
                 'is_confirmed' => (bool) $p->is_confirmed,
                 'is_guest'   => (bool) $p->is_guest,
             ])->toArray() : [],
-            // Staff — organizers only
+                // Staff — organizers only
             'staff' => [
                 'organizer' => $staff ? $staff
                     ->filter(fn($s) => (int) ($s->pivot->role ?? null) === MiniTournamentStaff::ROLE_ORGANIZER)
                     ->map(fn($s) => [
-                        'user' => [
-                            'id'         => $s->id,
-                            'full_name'  => $s->full_name,
-                            'avatar_url' => $s->avatar_url,
-                        ],
+                        'user' => new UserResource($s->user),
                     ])->values()->toArray() : [],
             ],
             // Created by
