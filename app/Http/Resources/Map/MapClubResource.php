@@ -38,7 +38,7 @@ class MapClubResource extends JsonResource
             'latitude'         => $this->latitude,
             'longitude'        => $this->longitude,
             'logo_url'         => $this->logo_url,
-            'status'           => (int) $this->status,
+            'status'           => $this->status->value,
             'is_verified'      => (bool) $this->is_verified,
             'is_public'        => (bool) ($this->is_public ?? true),
             'created_by'       => new \App\Http\Resources\UserResource($this->whenLoaded('creator')),
