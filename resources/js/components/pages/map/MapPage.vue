@@ -89,8 +89,8 @@
                     <div class="flex-1 overflow-y-auto px-4 py-1" @scroll="handleScroll">
                         <div class="space-y-3">
                             <template v-if="activeTab === 'court'">
-                                <CourtListItem v-for="court in displayedListData" :key="court.competition_location?.id" :court="court"
-                                    :selected="selectedCourt?.competition_location?.id" :defaultImage="defaultImage" :toHourMinute="toHourMinute"
+                                <CourtListItem v-for="court in displayedListData" :key="court.id" :court="court"
+                                    :selected="selectedCourt?.id" :defaultImage="defaultImage" :toHourMinute="toHourMinute"
                                     @select="focusItemAuto" />
                             </template>
                             <template v-else-if="activeTab === 'mini-tournament' || activeTab === 'tournament'">
