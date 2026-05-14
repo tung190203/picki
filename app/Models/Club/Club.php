@@ -339,15 +339,17 @@ class Club extends Model
             return $query;
         }
 
-        $userId = $userId ?? auth()->id();
+        if (!$userId || $userId < 1) {
+            $userId = auth()->id();
+        }
 
         return match ($timeFilter) {
-            'mine' => $query->where('owner_id', $userId),
+            'mine' => $query->where('created_by', $userId),
             'joined' => $query->whereHas('members', fn($m) => $m
                 ->where('user_id', $userId)
                 ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined->value)
             ),
-            'friends' => $query->whereIn('owner_id', \App\Models\User::find($userId)?->friends()?->pluck('id') ?? []),
+            'friends' => $query->whereIn('created_by', \App\Models\User::find($userId)?->friends()?->pluck('id') ?? []),
             default => $query,
         };
     }

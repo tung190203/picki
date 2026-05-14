@@ -39,11 +39,11 @@
                         </div>
 
                         <!-- Timeline chips (only for tabs that support them) -->
-                        <div v-if="timelineOptions.length > 1" class="flex gap-2 overflow-x-auto pb-0.5">
+                        <div v-if="subTabOptions.length > 1" class="flex gap-2 overflow-x-auto pb-0.5">
                             <button
-                                v-for="opt in timelineOptions"
+                                v-for="opt in subTabOptions"
                                 :key="opt.value"
-                                @click="selectTimeFilter(opt.value)"
+                                @click="selectSubTab(opt.value)"
                                 :class="[
                                     'flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-all whitespace-nowrap',
                                     subTab === opt.value
@@ -1339,7 +1339,7 @@ const SUB_TAB_OPTIONS = {
     club: [
         { value: 'all', label: 'Tất cả', badge: null },
         { value: 'mine', label: 'Của tôi', badge: null },
-        { value: 'friends', label: 'Bạn bè', badge: null },
+        { value: 'joined', label: 'Đã tham gia', badge: null },
     ],
     user: [
         { value: 'all', label: 'Tất cả', badge: null },
@@ -1495,8 +1495,6 @@ const tabs = [
     { id: 'user', label: 'Người chơi' },
     { id: 'court', label: 'Sân bãi' },
 ];
-
-const timelineOptions = ref([]);
 
 // Convert Map sang Array
 const courts = computed(() => Array.from(courtsMap.value.values()));

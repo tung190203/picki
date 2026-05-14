@@ -10,6 +10,7 @@ enum SubTabFilter: string
     case THIS_WEEK = 'this_week';
     case THIS_MONTH = 'this_month';
     case FRIENDS = 'friends';
+    case JOINED = 'joined';
 
     public function label(): string
     {
@@ -20,6 +21,7 @@ enum SubTabFilter: string
             self::THIS_WEEK => 'Tuần này',
             self::THIS_MONTH => 'Tháng này',
             self::FRIENDS => 'Bạn bè',
+            self::JOINED => 'Đã tham gia',
         };
     }
 
