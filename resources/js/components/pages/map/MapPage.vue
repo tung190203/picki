@@ -95,17 +95,17 @@
                             </template>
                             <template v-else-if="activeTab === 'mini-tournament' || activeTab === 'tournament'">
                                 <MatchListItem v-for="(match, index) in displayedListData" :key="match.id ?? index"
-                                    :match="match" :selected="selectedMatches" @select="focusItemAuto" :defaultImage="defaultImage"/>
+                                    :match="match" :selected="selectedMatches?.value" @select="focusItemAuto" :defaultImage="defaultImage"/>
                             </template>
                             <template v-else-if="activeTab === 'user'">
                                 <UserListItem v-for="user in displayedListData" :key="user.id" :user="user"
-                                    :selected="selectedUser" :defaultImage="defaultImage" :maleIcon="maleIcon"
+                                    :selected="selectedUser?.id" :defaultImage="defaultImage" :maleIcon="maleIcon"
                                     :femaleIcon="femaleIcon" :getUserRating="getUserRating"
                                     :getVisibilityText="getVisibilityText" @select="focusItemAuto" />
                             </template>
                             <template v-else-if="activeTab === 'club'">
                                 <ClubListItem v-for="club in displayedListData" :key="club.id" :club="club"
-                                    :selected="selectedClubItem" :defaultImage="defaultImage"
+                                    :selected="selectedClubItem?.id" :defaultImage="defaultImage"
                                     @select="focusItemAuto" />
                             </template>
 
@@ -2231,7 +2231,8 @@ const focusItemAuto = (item) => {
     const selectedRef = selectedMap[activeTab.value]
     if (!selectedRef) return
 
-    const itemId = item.competition_location?.id ?? item.id
+    // Mini-tournament/tournament items have competition_location but we need their own id (which was transformed: "mini_X", "tour_X")
+    const itemId = item.id
     selectedRef.value = itemId
     focusItem(itemId)
 }
