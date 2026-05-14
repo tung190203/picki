@@ -157,9 +157,6 @@ class StoreMiniTournamentRequest extends FormRequest
                 }
             }
 
-            // use_club_fund = true và included_in_club_fund = true loại trừ nhau
-            // use_club_fund = true và included_in_club_fund = true loại trừ nhau
-            // use_club_fund = true: CLB chi tiền → không thu từ member → KHÔNG tạo collection
             if ($this->boolean('use_club_fund') && $this->boolean('included_in_club_fund')) {
                 $validator->errors()->add('included_in_club_fund', 'Không thể chọn đồng thời "Quỹ chi" và "Thu vào quỹ chung CLB". Vui lòng chỉ chọn một trong hai.');
             }
@@ -299,7 +296,9 @@ class StoreMiniTournamentRequest extends FormRequest
         // use_club_fund = true: kèo miễn phí cho member, CLB chi tiền. Không thu phí từ member.
         // has_fee và fee_amount vẫn giữ nguyên (số tiền CLB chi cho kèo đấu).
         // use_club_fund = true thì included_in_club_fund phải = false (loại trừ nhau)
-        if ($this->boolean('use_club_fund')) {
+        if (!$this->filled('club_id')) {
+            $this->merge(['use_club_fund' => false, 'included_in_club_fund' => false]);
+        } elseif ($this->boolean('use_club_fund')) {
             $this->merge(['included_in_club_fund' => false]);
         }
 
