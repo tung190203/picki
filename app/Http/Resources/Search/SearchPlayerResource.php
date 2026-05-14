@@ -22,7 +22,7 @@ class SearchPlayerResource extends JsonResource
             'is_online'  => (bool) $this->is_online,
             'is_verified' => (bool) $this->is_verified,
             'vn_rank'    => $this->vn_rank ?? null,
-            'distance'    => $this->when(isset($this->distance), (int) round($this->distance)),
+            'distance'    => $this->when(isset($this->distance), round($this->distance, 1)),
             'sports'      => $this->whenLoaded('sports', fn() =>
                 UserSportResource::collection($this->sports)
             ),

@@ -300,7 +300,7 @@ class Club extends Model
             ->select('*')
             ->selectRaw("
                 (
-                    6371000 * acos(
+                    6371 * acos(
                         cos(radians(?))
                         * cos(radians(latitude))
                         * cos(radians(longitude) - radians(?))

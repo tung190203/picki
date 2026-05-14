@@ -78,7 +78,7 @@ class SearchMatchResource extends JsonResource
             'min_rating'   => $this->min_rating,
             'max_rating'   => $this->max_rating,
             'is_dupr'      => (bool) ($this->is_dupr ?? false),
-            'distance'     => $this->when(isset($this->distance), (int) round($this->distance)),
+            'distance'     => $this->when(isset($this->distance), round($this->distance, 1)),
             'marker_type'  => 'mini_tournament',
             // Membership
             'is_joined'    => $this->isJoinedBy(auth()->id()),

@@ -24,7 +24,7 @@ class MapCourtResource extends JsonResource
                     'icon' => $sport->icon,
                 ] : null;
             }),
-            'distance'     => $this->when(isset($this->distance), (int) round($this->distance)),
+            'distance'     => $this->when(isset($this->distance), round($this->distance, 1)),
             'marker_type'  => 'court',
         ];
     }

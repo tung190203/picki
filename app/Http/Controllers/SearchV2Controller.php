@@ -100,6 +100,7 @@ class SearchV2Controller extends Controller
                 ->applyTimeline($subTab, $userId),
 
             SearchFilterConfig::TAB_CLUB => Club::withListRelations()
+                ->with(['creator', 'members'])
                 ->filter($filters),
 
             SearchFilterConfig::TAB_COURT => CompetitionLocation::withFullRelations()
