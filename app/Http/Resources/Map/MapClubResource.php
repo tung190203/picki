@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources\Map;
 
-use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -42,7 +41,7 @@ class MapClubResource extends JsonResource
             'status'           => $this->status->value,
             'is_verified'      => (bool) $this->is_verified,
             'is_public'        => (bool) ($this->is_public ?? true),
-            'created_by'       => new UserResource($this->whenLoaded('creator')),
+            'created_by'       => $this->creator?->id,
             'quantity_members' => (int) ($this->activeMembers_count ?? $this->activeMembers?->count() ?? 0),
             'is_admin'         => $isAdmin,
             'is_member'        => $isMember,
