@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Search;
 
+use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -44,9 +45,11 @@ class SearchTournamentResource extends JsonResource
             'slot_status'    => $this->computeSlotStatus(),
             // Nested competition_location
             'competition_location' => $location ? [
-                'id'      => $location->id,
-                'name'    => $location->name,
-                'address' => $location->address,
+                'id'       => $location->id,
+                'name'     => $location->name,
+                'address'  => $location->address,
+                'latitude' => $location->latitude,
+                'longitude'=> $location->longitude,
             ] : null,
             // Flat geo fields
             'location_name'  => $location?->name,
@@ -81,7 +84,7 @@ class SearchTournamentResource extends JsonResource
                 'is_confirmed' => (bool) $p->is_confirmed,
             ])->toArray() : [],
             // Created by
-            'created_by' => new \App\Http\Resources\UserResource($this->whenLoaded('createdBy')),
+            'created_by' => new UserResource($this->whenLoaded('createdBy')),
             'distance'     => $this->when(isset($this->distance), round($this->distance, 1)),
             'marker_type'  => 'tournament',
             // Membership
