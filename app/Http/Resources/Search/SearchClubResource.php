@@ -2,6 +2,9 @@
 
 namespace App\Http\Resources\Search;
 
+use App\Enums\ClubMembershipStatus;
+use App\Enums\ClubMemberRole;
+use App\Enums\ClubMemberStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -25,10 +28,10 @@ class SearchClubResource extends JsonResource
                 $status = $membership->membership_status ?? null;
                 $role = $membership->role ?? null;
 
-                $isMember = $status === \App\Enums\ClubMembershipStatus::Joined->value
-                    && $membership->status !== \App\Enums\ClubMemberStatus::Suspended->value;
-                $isAdmin = in_array($role, [\App\Enums\ClubMemberRole::Admin->value, \App\Enums\ClubMemberRole::Manager->value, \App\Enums\ClubMemberRole::Secretary->value]);
-                $hasPendingRequest = $status === \App\Enums\ClubMembershipStatus::Pending->value;
+                $isMember = $status === ClubMembershipStatus::Joined->value
+                    && $membership->status !== ClubMemberStatus::Suspended->value;
+                $isAdmin = in_array($role, [ClubMemberRole::Admin->value, ClubMemberRole::Manager->value, ClubMemberRole::Secretary->value]);
+                $hasPendingRequest = $status === ClubMembershipStatus::Pending->value;
             }
         }
 
@@ -36,13 +39,13 @@ class SearchClubResource extends JsonResource
             'id'               => $this->id,
             'name'             => $this->name,
             'address'          => $this->address ?? $this->whenLoaded('profile', fn() => $this->profile?->address),
-            'latitude'         => $this->latitude,
-            'longitude'        => $this->longitude,
+            'latitude'         => $this->latitude ?? $this->whenLoaded('profile', fn() => $this->profile?->latitude),
+            'longitude'        => $this->longitude ?? $this->whenLoaded('profile', fn() => $this->profile?->longitude),
             'logo_url'         => $this->logo_url,
             'status'           => $this->status->value,
             'is_verified'      => (bool) $this->is_verified,
             'is_public'        => (bool) ($this->is_public ?? true),
-            'created_by'       => new \App\Http\Resources\UserResource($this->whenLoaded('creator')),
+            'created_by'       => $this->creator?->id,
             'quantity_members' => (int) ($this->activeMembers_count ?? $this->activeMembers?->count() ?? 0),
             'is_admin'         => $isAdmin,
             'is_member'        => $isMember,

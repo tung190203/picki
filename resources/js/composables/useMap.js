@@ -469,16 +469,44 @@ export function useMap() {
     };
 
     dataToAdd.forEach(user => {
-      if (!user.lat && !user.lng || isNaN(user.lat) || isNaN(user.lng)) return;
+      if (!user.latitude && !user.longitude || isNaN(user.latitude) || isNaN(user.longitude)) return;
 
-      const lat = user.lat ?? user.latitude;
-      const lng = user.lng ?? user.longitude;
+      const lat = user.latitude;
+      const lng = user.longitude;
 
       const rating = getUserRating(user);
       const genderIconHtml = getGenderIconHtml(user.gender);
       const visibilityBadgeHtml = getVisibilityBadgeHtml(user.visibility);
       const genderText = user.gender_text || 'Khác';
       const ageGroup = user.age_group ? ' • ' + user.age_group : '';
+
+      // Build stats row
+      let statsHtml = '';
+      if (user.distance != null) {
+        statsHtml += `
+          <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; white-space: nowrap; background-color: #dbeafe; color: #1d4ed8;">
+            <span style="display: flex; align-items: center;">${mapPinIconSmall}</span>
+            ${user.distance} km
+          </span>`;
+      }
+      if (user.vndupr_score != null) {
+        statsHtml += `
+          <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; white-space: nowrap; background-color: #fff7ed; color: #c2410c;">
+            VNDUPR ${Number(user.vndupr_score).toFixed(1)}
+          </span>`;
+      }
+      if (user.win_rate != null) {
+        statsHtml += `
+          <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; white-space: nowrap; background-color: #f0fdf4; color: #15803d;">
+            ${Number(user.win_rate).toFixed(1)}%
+          </span>`;
+      }
+      if (user.total_matches != null && user.total_matches > 0) {
+        statsHtml += `
+          <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; white-space: nowrap; background-color: #f5f3ff; color: #6d28d9;">
+            ${user.total_matches} trận
+          </span>`;
+      }
 
       const popupContent = `
         <div id="user-popup-${user.id}" data-user-id="${user.id}" style="
@@ -534,6 +562,7 @@ export function useMap() {
           </div>
 
           <div class="popup-body" style="padding: 15px; background-color: white;">
+            ${statsHtml ? `<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #f3f4f6;">${statsHtml}</div>` : ''}
             <div style="display: flex; flex-direction: column; gap: 8px;">
               <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #4b5563;">
                 <span style="color: #4392E0; flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px;">
@@ -577,381 +606,206 @@ export function useMap() {
     }
   };
 
-  const addMatchMarkers = (matchesData, router, onMarkerClick, shouldUpdate = false, defaultImage = '') => {
-    const dataToAdd = shouldUpdate ? updateMarkers(matchesData) : matchesData;
+  // --- MINI TOURNAMENT MARKERS ---
+  const addMiniTournamentMarkers = (miniTournamentsData, router, onMarkerClick, shouldUpdate = false, defaultImage = '') => {
+    const dataToAdd = shouldUpdate ? updateMarkers(miniTournamentsData) : miniTournamentsData;
     const batchMarkers = [];
 
-    dataToAdd.forEach(match => {
-      // Handle lat/lng from API (map resources) with fallback to competition_location
-      const lat = match.lat ?? match.competition_location?.latitude;
-      const lng = match.lng ?? match.competition_location?.longitude;
-
+    dataToAdd.forEach(mini => {
+      const lat = mini.lat ?? mini.competition_location?.latitude;
+      const lng = mini.lng ?? mini.competition_location?.longitude;
       if (!lat || !lng || isNaN(lat) || isNaN(lng)) return;
 
-      const locationName = match.competition_location?.name || match.competition_location?.address || '';
-      const matchImage = match.poster || defaultImage;
+      const locationName = mini.competition_location?.name || mini.competition_location?.address || '';
+      const dateText = formatDateText(mini.starts_at);
+      const timeRange = formatTimeRange(mini.starts_at, mini.duration_minutes);
+      const organizer = mini.staff?.organizer?.[0]?.user || mini.creator || mini.user;
+      const organizerName = organizer?.full_name || organizer?.name || '';
+      const organizerAvatar = organizer?.avatar_url || organizer?.avatar || defaultImage;
+      const participants = mini.participants || [];
+      const joinedCount = mini.joined_count || 0;
 
-      let popupContent = '';
-
-      // Tournament Layout
-      if (match.type === 'tournament') {
-        const dateText = formatDateText(match.start_date || match.starts_at);
-        const description = match.description || match.rules || '';
-
-        popupContent = `
-          <div id="match-popup-${match.id}" style="
-            overflow: hidden;
-            background: white;
-            cursor: pointer;
-            font-family: system-ui, -apple-system, sans-serif;
-            min-width: 280px;
-            max-width: 320px;
-          ">
-            <div style="display: flex; align-items: flex-start; padding: 12px; gap: 12px;">
-              <div style="
-                width: 112px;
-                height: 112px;
-                flex-shrink: 0;
-                background: #f3f4f6;
-                border-radius: 6px;
-                overflow: hidden;
-                border: 1px solid #f3f4f6;
-              ">
-                <img src="${matchImage}"
-                  onerror="this.onerror=null;this.src='${defaultImage}'"
-                  style="width: 100%; height: 100%; object-fit: cover;" />
-              </div>
-
-              <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 80px;">
-                <div>
-                  <h4 style="
-                    font-weight: 700;
-                    color: #111827;
-                    font-size: 14px;
-                    line-height: 1.25;
-                    margin: 0 0 4px 0;
-                    display: -webkit-box;
-                    -webkit-line-clamp: 2;
-                    -webkit-box-orient: vertical;
-                    overflow: hidden;
-                  ">${escapeHtml(match.name)}</h4>
-                </div>
-
-                <div style="display: flex; flex-direction: column; gap: 4px; padding-top: 8px;">
-                  ${locationName ? `
-                    <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #4b5563;">
-                      <span style="color: #4392e0; display: flex; align-items: center;">${mapPinIconSmall}</span>
-                      <span style="
-                        font-weight: 500;
-                        display: -webkit-box;
-                        -webkit-line-clamp: 1;
-                        -webkit-box-orient: vertical;
-                        overflow: hidden;
-                      ">${escapeHtml(locationName)}</span>
-                    </div>
-                  ` : ''}
-                  <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #4b5563;">
-                    <span style="color: #4392e0; display: flex; align-items: center;">${calendarIcon}</span>
-                    <span style="font-weight: 500; text-transform: capitalize;">${escapeHtml(dateText)}</span>
-                  </div>
-
-                  ${description ? `
-                    <p style="
-                      font-size: 12px;
-                      color: #6b7280;
-                      font-weight: 500;
-                      margin: 4px 0 0 0;
-                      display: -webkit-box;
-                      -webkit-line-clamp: 2;
-                      -webkit-box-orient: vertical;
-                      overflow: hidden;
-                    ">${escapeHtml(description)}</p>
-                  ` : ''}
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
+      // Badges
+      let badgesHtml = '';
+      if (mini.is_private !== undefined) {
+        badgesHtml += `
+          <span style="display:inline-flex;align-items:center;border-radius:9999px;padding:2px 8px;gap:4px;font-size:10px;font-weight:500;color:white;background:#1f2937;white-space:nowrap;margin-right:8px;">
+            ${mini.is_private ? lockIcon : lockOpenIcon}
+            ${mini.is_private ? 'Private' : 'Public'}
+          </span>`;
       }
-      // Mini Layout
-      else {
-        const dateText = formatDateText(match.starts_at);
-        const timeRange = formatTimeRange(match.starts_at, match.duration_minutes);
-        const organizer = match.staff?.organizer?.[0]?.user || match.creator || match.user;
-        const organizerName = organizer?.full_name || organizer?.name || '';
-        const organizerAvatar = organizer?.avatar_url || organizer?.avatar || defaultImage;
-        const participants = match.participants || [];
-        const joinedCount = match.joined_count || 0;
+      if (mini.min_rating !== null || mini.max_rating !== null) {
+        badgesHtml += `
+          <span style="display:inline-flex;align-items:center;gap:4px;border-radius:9999px;background:#1f2937;padding:2px 8px;font-size:10px;font-weight:500;color:white;white-space:nowrap;margin-right:8px;">
+            ${flagIcon} ${mini.min_rating || ''} - ${mini.max_rating || ''}
+          </span>`;
+      }
+      if (mini.is_dupr) {
+        badgesHtml += `
+          <span style="display:inline-flex;align-items:center;gap:4px;border-radius:9999px;background:#1f2937;padding:2px 8px;font-size:10px;font-weight:500;color:white;white-space:nowrap;margin-right:8px;">
+            ${starIcon} DUPR
+          </span>`;
+      }
+      if (mini.max_players) {
+        badgesHtml += `
+          <span style="display:inline-flex;align-items:center;gap:4px;border-radius:9999px;background:#1f2937;padding:2px 8px;font-size:10px;font-weight:500;color:white;white-space:nowrap;margin-right:8px;">
+            ${userGroupIcon} Max ${mini.max_players}
+          </span>`;
+      }
 
-        // Build badges HTML
-        let badgesHtml = '';
-        if (match.is_private !== undefined) {
-          badgesHtml += `
-            <span style="
-              display: inline-flex;
-              align-items: center;
-              border-radius: 9999px;
-              padding: 2px 8px;
-              gap: 4px;
-              font-size: 10px;
-              font-weight: 500;
-              color: white;
-              background: #1f2937;
-              white-space: nowrap;
-              margin-right: 8px;
-            ">
-              ${match.is_private ? lockIcon : lockOpenIcon}
-              ${match.is_private ? 'Private' : 'Public'}
-            </span>
-          `;
-        }
-        if (match.min_rating !== null || match.max_rating !== null) {
-          badgesHtml += `
-            <span style="
-              display: inline-flex;
-              align-items: center;
-              gap: 4px;
-              border-radius: 9999px;
-              background: #1f2937;
-              padding: 2px 8px;
-              font-size: 10px;
-              font-weight: 500;
-              color: white;
-              white-space: nowrap;
-              margin-right: 8px;
-            ">
-              ${flagIcon}
-              ${match.min_rating || ''} - ${match.max_rating || ''}
-            </span>
-          `;
-        }
-        if (match.is_dupr) {
-          badgesHtml += `
-            <span style="
-              display: inline-flex;
-              align-items: center;
-              gap: 4px;
-              border-radius: 9999px;
-              background: #1f2937;
-              padding: 2px 8px;
-              font-size: 10px;
-              font-weight: 500;
-              color: white;
-              white-space: nowrap;
-              margin-right: 8px;
-            ">
-              ${starIcon}
-              DUPR
-            </span>
-          `;
-        }
-        if (match.max_players) {
-          badgesHtml += `
-            <span style="
-              display: inline-flex;
-              align-items: center;
-              gap: 4px;
-              border-radius: 9999px;
-              background: #1f2937;
-              padding: 2px 8px;
-              font-size: 10px;
-              font-weight: 500;
-              color: white;
-              white-space: nowrap;
-              margin-right: 8px;
-            ">
-              ${userGroupIcon}
-              Max ${match.max_players}
-            </span>
-          `;
-        }
+      // Participants avatars
+      let participantsHtml = '';
+      if (participants.length > 0) {
+        const displayParticipants = participants.slice(0, 2);
+        participantsHtml = `
+          <div style="display:flex;overflow:hidden;padding:4px 0;">
+            ${displayParticipants.map((p, idx) => `
+              <img src="${p.avatar_url || defaultImage}"
+                onerror="this.onerror=null;this.src='${defaultImage}'"
+                style="width:40px;height:40px;border-radius:50%;border:2px solid white;object-fit:cover;${idx > 0 ? 'margin-left:-8px;' : ''}" />
+            `).join('')}
+            ${participants.length > 3 ? `
+              <div style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;border:2px solid white;background:#fef2f2;color:#D72D36;font-size:12px;font-weight:700;margin-left:-8px;">+${participants.length - 3}</div>
+            ` : ''}
+          </div>`;
+      } else if (joinedCount > 0) {
+        participantsHtml = `
+          <div style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:#fef2f2;color:#D72D36;font-size:12px;font-weight:700;border:1px solid #fee2e2;">+${joinedCount}</div>`;
+      }
 
-        // Build participants avatars HTML
-        let participantsHtml = '';
-        if (participants.length > 0) {
-          const displayParticipants = participants.slice(0, 2);
-          participantsHtml = `
-            <div style="display: flex; overflow: hidden; padding: 4px 0;">
-              ${displayParticipants.map((p, idx) => `
-                <img src="${p.user?.avatar_url || defaultImage}"
-                  onerror="this.onerror=null;this.src='${defaultImage}'"
-                  style="
-                    width: 40px;
-                    height: 40px;
-                    border-radius: 50%;
-                    border: 2px solid white;
-                    object-fit: cover;
-                    ${idx > 0 ? 'margin-left: -8px;' : ''}
-                  " />
-              `).join('')}
-              ${participants.length > 3 ? `
-                <div style="
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  width: 32px;
-                  height: 32px;
-                  border-radius: 50%;
-                  border: 2px solid white;
-                  background: #fef2f2;
-                  color: #D72D36;
-                  font-size: 12px;
-                  font-weight: 700;
-                  margin-left: -8px;
-                ">
-                  +${participants.length - 3}
+      const popupContent = `
+        <div id="mini-popup-${mini.id}" style="overflow:hidden;background:white;cursor:pointer;font-family:system-ui,-apple-system,sans-serif;min-width:280px;max-width:320px;">
+          <div style="padding:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;">
+                <div>
+                  <h3 style="font-weight:700;color:#111827;font-size:16px;line-height:1.375;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(mini.name)}</h3>
+                  ${locationName ? `<div style="display:flex;align-items:center;gap:4px;margin-top:4px;font-size:12px;color:#3b82f6;font-weight:500;">${mapPinIconSmall}<span style="display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(locationName)}</span></div>` : ''}
                 </div>
-              ` : ''}
-            </div>
-          `;
-        } else if (joinedCount > 0) {
-          participantsHtml = `
-            <div style="
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              width: 32px;
-              height: 32px;
-              border-radius: 50%;
-              background: #fef2f2;
-              color: #D72D36;
-              font-size: 12px;
-              font-weight: 700;
-              border: 1px solid #fee2e2;
-            ">
-              +${joinedCount}
-            </div>
-          `;
-        }
-
-        popupContent = `
-          <div id="match-popup-${match.id}" style="
-            overflow: hidden;
-            background: white;
-            cursor: pointer;
-            font-family: system-ui, -apple-system, sans-serif;
-            min-width: 280px;
-            max-width: 320px;
-          ">
-            <div style="padding-top: 12px;padding-bottom: 12px;">
-              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-                <!-- Left Content -->
-                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
-                  <div>
-                    <h3 style="
-                      font-weight: 700;
-                      color: #111827;
-                      font-size: 16px;
-                      line-height: 1.375;
-                      margin: 0;
-                      display: -webkit-box;
-                      -webkit-line-clamp: 2;
-                      -webkit-box-orient: vertical;
-                      overflow: hidden;
-                    ">${escapeHtml(match.name)}</h3>
-                    ${locationName ? `
-                      <div style="display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12px; color: #3b82f6; font-weight: 500;">
-                        ${mapPinIconSmall}
-                        <span style="
-                          display: -webkit-box;
-                          -webkit-line-clamp: 1;
-                          -webkit-box-orient: vertical;
-                          overflow: hidden;
-                        ">${escapeHtml(locationName)}</span>
-                      </div>
-                    ` : ''}
+                <div style="display:flex;flex-direction:column;gap:4px;">
+                  <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#4b5563;">
+                    <span style="color:#3b82f6;display:flex;align-items:center;">${calendarDaysIcon}</span>
+                    <span style="font-weight:500;text-transform:capitalize;">${escapeHtml(dateText)}</span>
                   </div>
-
-                  <!-- Date & Time -->
-                  <div style="display: flex; flex-direction: column; gap: 4px;">
-                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #4b5563;">
-                      <span style="color: #3b82f6; display: flex; align-items: center;">${calendarDaysIcon}</span>
-                      <span style="font-weight: 500; text-transform: capitalize;">${escapeHtml(dateText)}</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #4b5563;">
-                      <span style="color: #3b82f6; display: flex; align-items: center;">${clockIconSmall}</span>
-                      <span style="font-weight: 500;">${escapeHtml(timeRange)}</span>
-                    </div>
+                  <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#4b5563;">
+                    <span style="color:#3b82f6;display:flex;align-items:center;">${clockIconSmall}</span>
+                    <span style="font-weight:500;">${escapeHtml(timeRange)}</span>
                   </div>
                 </div>
-
-                <!-- Right: Participants -->
-                ${participantsHtml ? `
-                  <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 12px;">
-                    ${participantsHtml}
-                  </div>
+              </div>
+              ${participantsHtml ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:12px;">${participantsHtml}</div>` : ''}
+            </div>
+            <div style="display:flex;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid #f3f4f6;height:40px;">
+              <div style="display:flex;align-items:center;gap:8px;padding-right:8px;height:100%;overflow:hidden;">
+                ${organizerName ? `
+                  <img src="${organizerAvatar}" onerror="this.onerror=null;this.src='${defaultImage}'" style="width:24px;height:24px;border-radius:50%;object-fit:cover;border:1px solid #e5e7eb;" />
+                  <span style="font-size:12px;color:#374151;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(organizerName)}</span>
                 ` : ''}
               </div>
-
-              <!-- Creator & Badges Footer -->
-              <div style="display: flex; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f3f4f6; height: 40px;">
-                <div style="display: flex; align-items: center; gap: 8px; padding-right: 8px; height: 100%; overflow: hidden;">
-                  ${organizerName ? `
-                    <img src="${organizerAvatar}"
-                      onerror="this.onerror=null;this.src='${defaultImage}'"
-                      style="
-                        width: 24px;
-                        height: 24px;
-                        border-radius: 50%;
-                        object-fit: cover;
-                        border: 1px solid #e5e7eb;
-                      " />
-                    <span style="
-                      font-size: 12px;
-                      color: #374151;
-                      font-weight: 500;
-                      white-space: nowrap;
-                      overflow: hidden;
-                      text-overflow: ellipsis;
-                    ">${escapeHtml(organizerName)}</span>
-                  ` : ''}
-                </div>
-              </div>
-              <div style="overflow: hidden; display: flex; align-items: center; gap: 4px; padding-top:4px">
-                ${badgesHtml}
-              </div>
             </div>
+            <div style="overflow:hidden;display:flex;align-items:center;gap:4px;padding-top:4px">${badgesHtml}</div>
           </div>
-        `;
-      }
+        </div>`;
 
       const m = L.marker([lat, lng], { icon: defaultMarkerIcon })
-        .bindPopup(popupContent, { maxWidth: 350, className: 'match-popup' });
+        .bindPopup(popupContent, { maxWidth: 350, className: 'mini-tournament-popup' });
 
-      markers[match.id] = m;
+      markers[mini.id] = m;
       batchMarkers.push(m);
 
       if (onMarkerClick) {
-        m.on('click', () => onMarkerClick(match));
+        m.on('click', () => onMarkerClick(mini));
       }
 
       m.on('popupopen', () => {
-        const el = document.getElementById(`match-popup-${match.id}`);
+        const el = document.getElementById(`mini-popup-${mini.id}`);
         if (el) {
-            el.onclick = () => {
-                if (match.type === 'mini') {
-                    router.push(`/mini-tournament-detail/${match.original_id || match.id}`);
-                } else if (match.type === 'tournament') {
-                    router.push(`/tournament-detail/${match.original_id || match.id}`);
-                }
-            };
+          el.onclick = () => router.push(`/mini-tournament-detail/${mini.original_id || mini.id}`);
         }
       });
     });
+
     if (batchMarkers.length) {
       markerClusterGroup.addLayers(batchMarkers);
     }
   };
+
+  // --- TOURNAMENT MARKERS ---
+  const addTournamentMarkers = (tournamentsData, router, onMarkerClick, shouldUpdate = false, defaultImage = '') => {
+    const dataToAdd = shouldUpdate ? updateMarkers(tournamentsData) : tournamentsData;
+    const batchMarkers = [];
+
+    dataToAdd.forEach(tournament => {
+      const lat = tournament.lat ?? tournament.competition_location?.latitude;
+      const lng = tournament.lng ?? tournament.competition_location?.longitude;
+      if (!lat || !lng || isNaN(lat) || isNaN(lng)) return;
+
+      const locationName = tournament.competition_location?.name || tournament.competition_location?.address || '';
+      const tournamentImage = tournament.poster || tournamentImage || defaultImage;
+      const dateText = formatDateText(tournament.start_date || tournament.starts_at);
+      const description = tournament.description || tournament.rules || '';
+
+      const popupContent = `
+        <div id="tournament-popup-${tournament.id}" style="overflow:hidden;background:white;cursor:pointer;font-family:system-ui,-apple-system,sans-serif;min-width:280px;max-width:320px;">
+          <div style="display:flex;align-items:flex-start;padding:12px;gap:12px;">
+            <div style="width:112px;height:112px;flex-shrink:0;background:#f3f4f6;border-radius:6px;overflow:hidden;border:1px solid #f3f4f6;">
+              <img src="${tournamentImage}" onerror="this.onerror=null;this.src='${defaultImage}'" style="width:100%;height:100%;object-fit:cover;" />
+            </div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;height:80px;">
+              <div>
+                <h4 style="font-weight:700;color:#111827;font-size:14px;line-height:1.25;margin:0 0 4px 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(tournament.name)}</h4>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px;padding-top:8px;">
+                ${locationName ? `
+                  <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#4b5563;">
+                    <span style="color:#4392e0;display:flex;align-items:center;">${mapPinIconSmall}</span>
+                    <span style="font-weight:500;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(locationName)}</span>
+                  </div>
+                ` : ''}
+                <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#4b5563;">
+                  <span style="color:#4392e0;display:flex;align-items:center;">${calendarIcon}</span>
+                  <span style="font-weight:500;text-transform:capitalize;">${escapeHtml(dateText)}</span>
+                </div>
+                ${description ? `<p style="font-size:12px;color:#6b7280;font-weight:500;margin:4px 0 0 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(description)}</p>` : ''}
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+      const m = L.marker([lat, lng], { icon: defaultMarkerIcon })
+        .bindPopup(popupContent, { maxWidth: 350, className: 'tournament-popup' });
+
+      markers[tournament.id] = m;
+      batchMarkers.push(m);
+
+      if (onMarkerClick) {
+        m.on('click', () => onMarkerClick(tournament));
+      }
+
+      m.on('popupopen', () => {
+        const el = document.getElementById(`tournament-popup-${tournament.id}`);
+        if (el) {
+          el.onclick = () => router.push(`/tournament-detail/${tournament.original_id || tournament.id}`);
+        }
+      });
+    });
+
+    if (batchMarkers.length) {
+      markerClusterGroup.addLayers(batchMarkers);
+    }
+  };
+
+  const addMatchMarkers = addMiniTournamentMarkers;
 
   const addClubMarkers = (clubsData, router, onMarkerClick, shouldUpdate = false, defaultImage = '') => {
     const dataToAdd = shouldUpdate ? updateMarkers(clubsData) : clubsData;
     const batchMarkers = [];
 
     dataToAdd.forEach(club => {
-      if (!club.lat || !club.lng || isNaN(club.lat) || isNaN(club.lng)) return;
+      if (!club.latitude || !club.longitude || isNaN(club.latitude) || isNaN(club.longitude)) return;
 
-      const lat = club.lat ?? club.latitude;
-      const lng = club.lng ?? club.longitude;
+      const lat = club.latitude;
+      const lng = club.longitude;
 
       const popupContent = `
         <div id="club-popup-${club.id}" style="
@@ -1029,6 +883,8 @@ export function useMap() {
     focusItem,
     addCourtMarkers,
     addUserMarkers,
+    addMiniTournamentMarkers,
+    addTournamentMarkers,
     addMatchMarkers,
     addClubMarkers,
     markers
