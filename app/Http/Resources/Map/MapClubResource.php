@@ -21,13 +21,14 @@ class MapClubResource extends JsonResource
                 ->first();
 
             if ($membership) {
-                $status = $membership->membership_status ?? null;
-                $role = $membership->role ?? null;
+                $status = $membership->membership_status;
+                $role = $membership->role;
 
-                $isMember = $status === \App\Enums\ClubMembershipStatus::Joined->value
-                    && $membership->status !== \App\Enums\ClubMemberStatus::Suspended->value;
-                $isAdmin = in_array($role, [\App\Enums\ClubMemberRole::Admin->value, \App\Enums\ClubMemberRole::Manager->value, \App\Enums\ClubMemberRole::Secretary->value]);
-                $hasPendingRequest = $status === \App\Enums\ClubMembershipStatus::Pending->value;
+                $isMember = $status === \App\Enums\ClubMembershipStatus::Joined
+                    && $membership->status !== \App\Enums\ClubMemberStatus::Suspended;
+                $isAdmin = $this->created_by === $userId
+                    || in_array($role, [\App\Enums\ClubMemberRole::Admin->value, \App\Enums\ClubMemberRole::Manager->value, \App\Enums\ClubMemberRole::Secretary->value]);
+                $hasPendingRequest = $status === \App\Enums\ClubMembershipStatus::Pending;
             }
         }
 
@@ -54,6 +55,11 @@ class MapClubResource extends JsonResource
             ]),
             'distance'         => $this->when(isset($this->distance), round($this->distance, 1)),
             'marker_type'      => 'club',
+            'unread_notification_count' => $this->when(
+                isset($this->unread_notification_count),
+                fn () => (int) $this->unread_notification_count,
+                0
+            ),
         ];
     }
 }

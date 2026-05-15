@@ -10,6 +10,7 @@ use App\Mail\ResetPasswordMail;
 use App\Models\DeviceToken;
 use App\Models\User;
 use App\Notifications\VerifyEmailNotification;
+use App\Services\Club\ClubService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,8 @@ use Firebase\JWT\JWK;
 
 class AuthController extends Controller
 {
+    public function __construct(protected ClubService $clubService) {}
+
     public function login(Request $request)
     {
         $request->validate([
@@ -735,6 +738,10 @@ class AuthController extends Controller
                 'status_code' => 'USER_BANNED',
                 'ban_reason' => $user->ban_reason,
             ]);
+        }
+        $clubs = $user->clubs;
+        if ($clubs->isNotEmpty()) {
+            $this->clubService->attachUnreadNotificationCount($clubs, $user->id);
         }
         return ResponseHelper::success(new UserResource($user), 'Lấy thông tin người dùng thành công', 200);
     }
