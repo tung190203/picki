@@ -173,7 +173,7 @@ class UserController extends Controller
         }
 
         $authUserId = auth()->id();
-        if ($authUserId) {
+        if ($authUserId && (int) $id === (int) $authUserId) {
             $clubs = $user->clubs;
             if ($clubs->isNotEmpty()) {
                 $this->clubService->attachUnreadNotificationCount($clubs, $authUserId);
@@ -215,7 +215,7 @@ class UserController extends Controller
             ->paginate($validated['per_page'] ?? 20);
 
         $authUserId = auth()->id();
-        if ($authUserId) {
+        if ($authUserId && (int) $id === (int) $authUserId) {
             $this->clubService->attachUnreadNotificationCount($clubs->items(), $authUserId);
         }
 

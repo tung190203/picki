@@ -35,8 +35,8 @@ class SearchMatchResource extends JsonResource
             'has_fee'        => (bool) $this->has_fee,
             'fee_amount'     => $this->has_fee ? (float) $this->fee_amount : null,
             'max_players'    => $this->max_players,
-            'participants_count' => (int) ($this->participants_count ?? $participants?->count() ?? 0),
-            'joined_count'      => (int) ($this->participants_count ?? $participants?->count() ?? 0),
+            'participants_count' => (int) ($this->participants_count ?? $participants?->where('is_confirmed', true)->count() ?? 0),
+            'joined_count'      => (int) ($this->participants_count ?? $participants?->where('is_confirmed', true)->count() ?? 0),
             'slot_status'    => $this->computeSlotStatus(),
             'competition_location' => $location ? [
                 'id'       => $location->id,

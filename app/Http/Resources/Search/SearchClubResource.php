@@ -25,13 +25,14 @@ class SearchClubResource extends JsonResource
                 ->first();
 
             if ($membership) {
-                $status = $membership->membership_status ?? null;
-                $role = $membership->role ?? null;
+                $status = $membership->membership_status;
+                $role = $membership->role;
 
-                $isMember = $status === ClubMembershipStatus::Joined->value
-                    && $membership->status !== ClubMemberStatus::Suspended->value;
-                $isAdmin = in_array($role, [ClubMemberRole::Admin->value, ClubMemberRole::Manager->value, ClubMemberRole::Secretary->value]);
-                $hasPendingRequest = $status === ClubMembershipStatus::Pending->value;
+                $isMember = $status === ClubMembershipStatus::Joined
+                    && $membership->status !== ClubMemberStatus::Suspended;
+                $isAdmin = $this->created_by === $userId
+                    || in_array($role, [ClubMemberRole::Admin->value, ClubMemberRole::Manager->value, ClubMemberRole::Secretary->value]);
+                $hasPendingRequest = $status === ClubMembershipStatus::Pending;
             }
         }
 
@@ -58,6 +59,11 @@ class SearchClubResource extends JsonResource
             ]),
             'distance'         => $this->when(isset($this->distance), round($this->distance, 1)),
             'marker_type'      => 'club',
+            'unread_notification_count' => $this->when(
+                isset($this->unread_notification_count),
+                fn () => (int) $this->unread_notification_count,
+                0
+            ),
         ];
     }
 }
