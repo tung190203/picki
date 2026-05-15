@@ -12,6 +12,7 @@ class MapTournamentResource extends JsonResource
         $location = $this->whenLoaded('competitionLocation');
         $club = $this->whenLoaded('club');
         $participants = $this->whenLoaded('participants');
+        $teams = $this->whenLoaded('teams');
         $createdBy = $this->whenLoaded('createdBy');
 
         $participantsCount = (int) ($this->participants_count ?? $participants?->count() ?? 0);
@@ -30,8 +31,8 @@ class MapTournamentResource extends JsonResource
             'has_fee'      => $this->has_fee,
             'fee_amount'   => $this->has_fee ? (float) $this->fee_amount : null,
             'max_players'  => $this->max_player,
-            'participants_count' => $participantsCount,
-            'joined_count' => $participantsCount,
+            'max_team'       => $this->max_team,
+            'participated_team' => $teams ? $teams->count() : 0,
             'sport'        => $this->whenLoaded('sport', fn() => [
                 'id'   => $this->sport->id,
                 'name' => $this->sport->name,
