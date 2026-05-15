@@ -29,9 +29,9 @@ class StoreTournamentRequest extends FormRequest
             'enable_vndupr' => 'nullable|boolean',
             'min_level' => 'nullable',
             'max_level' => 'nullable',
-            'age_group' => 'nullable|string',
+            'age_group' => 'nullable|integer',
             'age_group_text' => 'nullable|string',
-            'gender_policy' => 'nullable|string',
+            'gender_policy' => 'nullable|integer',
             'gender_policy_text' => 'nullable|string',
             'participant' => 'nullable|in:team,user',
             'max_team' => 'nullable|integer|required_if:participant,team',
@@ -130,9 +130,9 @@ class StoreTournamentRequest extends FormRequest
             'duration.integer' => 'Thời lượng phải là số nguyên (phút)',
 
             // Trình độ
-            'age_group.string' => 'Nhóm tuổi phải là chuỗi ký tự',
+            'age_group.integer' => 'Nhóm tuổi phải là số nguyên',
             'age_group_text.string' => 'Ghi chú nhóm tuổi phải là chuỗi ký tự',
-            'gender_policy.string' => 'Chính sách giới tính phải là chuỗi ký tự',
+            'gender_policy.integer' => 'Chính sách giới tính phải là số nguyên',
             'gender_policy_text.string' => 'Ghi chú chính sách giới tính phải là chuỗi ký tự',
 
             // Hình thức tham gia
