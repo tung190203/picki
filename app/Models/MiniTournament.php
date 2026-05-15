@@ -59,6 +59,8 @@ class MiniTournament extends Model
     ];
 
     protected $casts = [
+        'start_time' => 'datetime',
+        'end_time' => 'datetime',
         'auto_approve' => 'boolean',
         'use_club_fund' => 'bool',
         'included_in_club_fund' => 'bool',

@@ -533,7 +533,10 @@ class ClubService
             $broadcastUnread = DB::table('club_notifications')
                 ->where('club_id', $club->id)
                 ->where('status', 'sent')
-                ->whereDoesntHave('recipients')
+                ->whereRaw('NOT EXISTS (
+                    select 1 from club_notification_recipients
+                    where club_notification_recipients.club_notification_id = club_notifications.id
+                )')
                 ->where('sent_at', '>=', $memberJoinDates[$club->id] ?? now()->subYear())
                 ->count();
 

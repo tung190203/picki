@@ -89,6 +89,29 @@ class MiniTournamentService
             $this->createBatchOccurrencesForNewSeries($miniTournament, $userId);
         }
 
+        if ($miniTournament->club_id) {
+            $club = \App\Models\Club\Club::find($miniTournament->club_id);
+            if ($club) {
+                app(\App\Services\Club\ClubNotificationService::class)->createNotification(
+                    $club,
+                    [
+                        'club_notification_type_id' => 2,
+                        'title' => "Kèo mới: {$miniTournament->name}",
+                        'content' => "CLB {$club->name} tổ chức kèo mới \"{$miniTournament->name}\". "
+                            . "Thời gian: " . ($miniTournament->start_time ? $miniTournament->start_time->format('H:i d/m/Y') : 'N/A') . ". "
+                            . ($miniTournament->address ? "Địa điểm: {$miniTournament->address}" : ''),
+                        'priority' => \App\Enums\ClubNotificationPriority::Normal,
+                        'status' => \App\Enums\ClubNotificationStatus::Sent,
+                        'metadata' => [
+                            'entity_type' => 'mini_tournament',
+                            'entity_id' => $miniTournament->id,
+                        ],
+                    ],
+                    $userId
+                );
+            }
+        }
+
         return $miniTournament;
     }
 
