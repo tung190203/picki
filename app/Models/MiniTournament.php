@@ -59,6 +59,8 @@ class MiniTournament extends Model
     ];
 
     protected $casts = [
+        'start_time' => 'datetime',
+        'end_time' => 'datetime',
         'auto_approve' => 'boolean',
         'use_club_fund' => 'bool',
         'included_in_club_fund' => 'bool',
@@ -355,7 +357,7 @@ class MiniTournament extends Model
     public function staff()
     {
         return $this->belongsToMany(User::class, 'mini_tournament_staff')
-            ->withPivot('role', 'id')
+            ->withPivot('role', 'id', 'mini_tournament_id')
             ->withTimestamps();
     }
 

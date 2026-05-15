@@ -12,6 +12,8 @@ use App\Enums\ClubWalletTransactionStatus;
 use App\Enums\PaymentMethod;
 use App\Models\Club\Club;
 use App\Jobs\SendPushJob;
+use App\Enums\ClubNotificationPriority;
+use App\Enums\ClubNotificationStatus;
 use App\Models\Club\ClubActivity;
 use App\Models\Club\ClubActivityParticipant;
 use App\Models\Club\ClubWalletTransaction;
@@ -388,6 +390,24 @@ class ClubActivityService
         if ($activity->isRecurring() && $seriesId) {
             $this->createBatchOccurrencesForNewSeries($activity, $userId);
         }
+
+        app(\App\Services\Club\ClubNotificationService::class)->createNotification(
+            $club,
+            [
+                'club_notification_type_id' => 2,
+                'title' => "Hoạt động mới: {$activity->title}",
+                'content' => "CLB {$club->name} có hoạt động mới \"{$activity->title}\". "
+                    . "Thời gian: " . ($activity->start_time ? $activity->start_time->format('H:i d/m/Y') : 'N/A') . ". "
+                    . ($activity->address ? "Địa điểm: {$activity->address}" : ''),
+                'priority' => ClubNotificationPriority::Normal,
+                'status' => ClubNotificationStatus::Sent,
+                'metadata' => [
+                    'entity_type' => 'activity',
+                    'entity_id' => $activity->id,
+                ],
+            ],
+            $userId
+        );
 
         return $activity;
     }
