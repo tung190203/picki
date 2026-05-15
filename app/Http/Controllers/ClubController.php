@@ -57,6 +57,10 @@ class ClubController extends Controller
 
         $clubs = $this->clubService->searchClubs($request->validated(), $userId);
 
+        if ($userId && $clubs->isNotEmpty()) {
+            $this->clubService->attachUnreadNotificationCount($clubs->items(), $userId);
+        }
+
         $data = [
             'clubs' => ClubListResource::collection($clubs),
         ];
@@ -105,6 +109,9 @@ class ClubController extends Controller
         try {
             $club = $this->clubService->getClubDetail($club, $userId);
             $club->rank = $this->leaderboardService->calculateClubRank($club);
+            if ($userId) {
+                $this->clubService->attachUnreadNotificationCount(collect([$club]), $userId);
+            }
             return ResponseHelper::success(new ClubResource($club), 'Lấy thông tin câu lạc bộ thành công');
         } catch (\Exception $e) {
             $statusCode = str_contains($e->getMessage(), 'đăng nhập') ? 401 : 403;
@@ -243,6 +250,10 @@ class ClubController extends Controller
         }
 
         $clubs = $query->withFullRelations()->get();
+
+        if ($userId) {
+            $this->clubService->attachUnreadNotificationCount($clubs, $userId);
+        }
 
         return ResponseHelper::success(ClubResource::collection($clubs), 'Lấy danh sách câu lạc bộ của tôi thành công');
     }

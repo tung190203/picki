@@ -501,6 +501,51 @@ class ClubService
         return $clubs;
     }
 
+    public function attachUnreadNotificationCount(Collection|array $clubs, int $userId): Collection|array
+    {
+        if (empty($clubs)) {
+            return $clubs;
+        }
+
+        $clubIds = collect($clubs)->pluck('id')->toArray();
+        if (empty($clubIds)) {
+            return $clubs;
+        }
+
+        $unreadCounts = DB::table('club_notifications as cn')
+            ->join('club_notification_recipients as cnr', 'cnr.club_notification_id', '=', 'cn.id')
+            ->whereIn('cn.club_id', $clubIds)
+            ->where('cnr.user_id', $userId)
+            ->where('cnr.is_read', false)
+            ->where('cn.status', 'sent')
+            ->groupBy('cn.club_id')
+            ->select('cn.club_id', DB::raw('COUNT(*) as unread_count'))
+            ->pluck('unread_count', 'club_id');
+
+        $memberJoinDates = DB::table('club_members')
+            ->whereIn('club_id', $clubIds)
+            ->where('user_id', $userId)
+            ->where('membership_status', ClubMembershipStatus::Joined->value)
+            ->where('status', ClubMemberStatus::Active->value)
+            ->pluck('joined_at', 'club_id');
+
+        foreach ($clubs as $club) {
+            $broadcastUnread = DB::table('club_notifications')
+                ->where('club_id', $club->id)
+                ->where('status', 'sent')
+                ->whereRaw('NOT EXISTS (
+                    select 1 from club_notification_recipients
+                    where club_notification_recipients.club_notification_id = club_notifications.id
+                )')
+                ->where('sent_at', '>=', $memberJoinDates[$club->id] ?? now()->subYear())
+                ->count();
+
+            $club->unread_notification_count = (int) (($unreadCounts[$club->id] ?? 0) + $broadcastUnread);
+        }
+
+        return $clubs;
+    }
+
     private function attachUserMembershipStatus(array $clubs, int $userId): void
     {
         $clubIds = array_map(fn ($c) => $c->id, $clubs);

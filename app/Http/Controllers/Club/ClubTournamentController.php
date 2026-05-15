@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Club;
 
 use App\Enums\ClubMemberRole;
+use App\Enums\ClubNotificationPriority;
+use App\Enums\ClubNotificationStatus;
 use App\Enums\PaymentStatusEnum;
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
@@ -16,6 +18,7 @@ use App\Models\Tournament;
 use App\Models\TournamentStaff;
 use App\Models\TournamentParticipantPayment;
 use App\Services\ImageOptimizationService;
+use App\Services\Club\ClubNotificationService;
 use App\Services\TournamentFundService;
 use App\Services\TournamentService;
 use Illuminate\Http\Request;
@@ -127,6 +130,24 @@ class ClubTournamentController extends Controller
 
         $tournament = Tournament::withFullRelations()->find($tournament->id);
         Cache::increment('club_content_version:' . $club->id);
+
+        app(ClubNotificationService::class)->createNotification(
+            $club,
+            [
+                'club_notification_type_id' => 2,
+                'title' => "Giải đấu mới: {$tournament->name}",
+                'content' => "CLB {$club->name} tổ chức giải đấu mới \"{$tournament->name}\". "
+                    . "Thời gian: " . ($tournament->start_date ? \Carbon\Carbon::parse($tournament->start_date)->format('d/m/Y') : 'N/A') . ". "
+                    . ($tournament->address ? "Địa điểm: {$tournament->address}" : ''),
+                'priority' => ClubNotificationPriority::Normal,
+                'status' => ClubNotificationStatus::Sent,
+                'metadata' => [
+                    'entity_type' => 'tournament',
+                    'entity_id' => $tournament->id,
+                ],
+            ],
+            $userId
+        );
 
         return ResponseHelper::success(new TournamentResource($tournament), 'Tạo giải đấu cho CLB thành công', 201);
     }

@@ -60,7 +60,9 @@ class SearchMatchResource extends JsonResource
                 'organizer' => $staff ? $staff
                     ->filter(fn($s) => (int) ($s->pivot->role ?? null) === MiniTournamentStaff::ROLE_ORGANIZER)
                     ->map(fn($s) => [
-                        'user' => new UserResource($s->user),
+                        'mini_tournament_id' => (int) ($s->pivot->mini_tournament_id ?? $this->id),
+                        'user_id' => $s->id,
+                        'user' => new UserResource($s),
                     ])->values()->toArray() : [],
             ],
             'created_by' => new UserResource($this->whenLoaded('creator')),
