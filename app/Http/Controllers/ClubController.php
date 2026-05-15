@@ -111,6 +111,7 @@ class ClubController extends Controller
             $club->rank = $this->leaderboardService->calculateClubRank($club);
             if ($userId) {
                 $this->clubService->attachUnreadNotificationCount(collect([$club]), $userId);
+                $club->unread_notification_count = 0;
             }
             return ResponseHelper::success(new ClubResource($club), 'Lấy thông tin câu lạc bộ thành công');
         } catch (\Exception $e) {

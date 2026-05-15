@@ -12,66 +12,42 @@ class MapMiniTournamentResource extends JsonResource
     public function toArray(Request $request): array
     {
         $location = $this->whenLoaded('competitionLocation');
-        $creator = $this->whenLoaded('creator');
         $participants = $this->whenLoaded('participants');
         $staff = $this->whenLoaded('staff');
 
         return [
-            'id'           => $this->id,
-            'name'         => $this->name,
-            'type'         => 'mini',
-            'poster'       => $this->poster && !str_starts_with($this->poster, 'http')
+            'id'             => $this->id,
+            'name'           => $this->name,
+            'type'           => 'mini',
+            'poster'         => $this->poster && !str_starts_with($this->poster, 'http')
                 ? asset('storage/' . ltrim($this->poster, '/'))
                 : $this->poster,
-            'competition_location' => $location ? [
-                'id'       => $location->id,
-                'name'     => $location->name,
-                'latitude' => $location->latitude,
-                'longitude'=> $location->longitude,
-                'address'  => $location->address,
-            ] : null,
-            'start_time'   => $this->start_time,
-            'starts_at'    => $this->start_time,
-            'end_time'    => $this->end_time,
-            'duration_minutes' => (int) ($this->duration ?? 0),
-            'status'       => $this->status,
-            'has_fee'      => (bool) $this->has_fee,
-            'fee_amount'   => $this->has_fee ? (float) $this->fee_amount : null,
-            'max_players'  => $this->max_players,
-            'participants_count' => (int) ($this->participants_count ?? $participants?->count() ?? 0),
-            'joined_count' => (int) ($this->participants_count ?? $participants?->count() ?? 0),
-            'sport'        => $this->whenLoaded('sport', fn() => [
+            'sport'          => $this->whenLoaded('sport', fn() => [
                 'id'   => $this->sport->id,
                 'name' => $this->sport->name,
                 'icon' => $this->sport->icon,
             ]),
-            'location_name' => $location?->name,
-            'address'       => $location?->address,
-            'created_by'   => $creator ? [
-                'id'         => $creator->id,
-                'name'       => $creator->full_name,
-                'avatar_url' => $creator->avatar_url,
-                'gender'     => $creator->gender,
+            'start_time'     => $this->start_time,
+            'starts_at'      => $this->start_time,
+            'end_time'       => $this->end_time,
+            'duration_minutes' => (int) ($this->duration ?? 0),
+            'status'         => $this->status,
+            'has_fee'        => (bool) $this->has_fee,
+            'fee_amount'     => $this->has_fee ? (float) $this->fee_amount : null,
+            'max_players'    => $this->max_players,
+            'participants_count' => (int) ($this->participants_count ?? $participants?->where('is_confirmed', true)->count() ?? 0),
+            'joined_count'      => (int) ($this->participants_count ?? $participants?->where('is_confirmed', true)->count() ?? 0),
+            'slot_status'    => $this->computeSlotStatus(),
+            'competition_location' => $location ? [
+                'id'       => $location->id,
+                'name'     => $location->name,
+                'address'  => $location->address,
+                'latitude' => $location->latitude,
+                'longitude'=> $location->longitude,
             ] : null,
-            'staff' => [
-                'organizer' => $staff ? $staff
-                    ->filter(fn($s) => (int) ($s->pivot->role ?? null) === MiniTournamentStaff::ROLE_ORGANIZER)
-                    ->map(fn($s) => [
-                        'user' => new UserResource($s->user),
-                    ])->values()->toArray() : [],
-            ],
-            'slot_status'   => $this->computeSlotStatus(),
-            'distance'      => $this->when(isset($this->distance), round($this->distance, 1)),
-            'is_private'   => (bool) $this->is_private,
-            'min_rating'   => $this->min_rating,
-            'max_rating'   => $this->max_rating,
-            'is_dupr'      => (bool) ($this->is_dupr ?? false),
-            'is_joined'    => auth()->check()
-                ? (($this->relationLoaded('participants') ? $this->participants : collect())
-                    ->contains('user_id', auth()->id()))
-                : false,
-            'is_registered' => $this->isRegisteredBy(auth()->id()),
-            'participants' => $participants ? $participants->map(fn($p) => [
+            'location_name'  => $location?->name,
+            'address'        => $location?->address,
+            'participants'   => $participants ? $participants->map(fn($p) => [
                 'id'         => $p->id,
                 'user_id'    => $p->user_id,
                 'full_name'  => $p->user?->full_name,
@@ -79,7 +55,24 @@ class MapMiniTournamentResource extends JsonResource
                 'is_confirmed' => (bool) $p->is_confirmed,
                 'is_guest'   => (bool) $p->is_guest,
             ])->toArray() : [],
-            'marker_type'   => 'mini_tournament',
+            'staff' => [
+                'organizer' => $staff ? $staff
+                    ->filter(fn($s) => (int) ($s->pivot->role ?? null) === MiniTournamentStaff::ROLE_ORGANIZER)
+                    ->map(fn($s) => [
+                        'mini_tournament_id' => (int) ($s->pivot->mini_tournament_id ?? $this->id),
+                        'user_id' => $s->id,
+                        'user' => new UserResource($s),
+                    ])->values()->toArray() : [],
+            ],
+            'created_by' => new UserResource($this->whenLoaded('creator')),
+            'is_private'   => (bool) $this->is_private,
+            'min_rating'   => $this->min_rating,
+            'max_rating'   => $this->max_rating,
+            'is_dupr'      => (bool) ($this->is_dupr ?? false),
+            'distance'     => $this->when(isset($this->distance), round($this->distance, 1)),
+            'marker_type'  => 'mini_tournament',
+            'is_joined'    => $this->isJoinedBy(auth()->id()),
+            'is_registered' => $this->isRegisteredBy(auth()->id()),
         ];
     }
 

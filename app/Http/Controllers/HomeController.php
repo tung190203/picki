@@ -18,12 +18,15 @@ use App\Models\Tournament;
 use App\Models\User;
 use App\Models\UserSportScore;
 use App\Models\VnduprHistory;
+use App\Services\Club\ClubService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class HomeController extends Controller
 {
+    public function __construct(protected ClubService $clubService) {}
+
     public function index(Request $request)
     {
         $validated = $request->validate([
@@ -260,6 +263,10 @@ class HomeController extends Controller
             ->whereHas('members', fn($q) => $q->where('user_id', $userId))
             ->take($validated['club_per_page'] ?? Club::PER_PAGE)
             ->get();
+
+        if ($myClub->isNotEmpty()) {
+            $this->clubService->attachUnreadNotificationCount($myClub, $userId);
+        }
     
         // Leaderboard club
         $leaderboardClub = Club::with(['members.user.vnduprScores'])
