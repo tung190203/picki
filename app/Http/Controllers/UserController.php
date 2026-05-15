@@ -18,6 +18,7 @@ use App\Models\Sport;
 use App\Models\Tournament;
 use App\Models\TournamentType;
 use App\Models\User;
+use App\Services\Club\ClubService;
 use App\Services\GeocodingService;
 use App\Services\ImageOptimizationService;
 use Illuminate\Http\Request;
@@ -32,7 +33,7 @@ class UserController extends Controller
 {
     protected $imageService;
 
-    public function __construct(ImageOptimizationService $imageService)
+    public function __construct(ImageOptimizationService $imageService, protected ClubService $clubService)
     {
         $this->imageService = $imageService;
     }
@@ -170,6 +171,15 @@ class UserController extends Controller
         if (!$user) {
             return ResponseHelper::error('Người dùng không tồn tại', 404);
         }
+
+        $authUserId = auth()->id();
+        if ($authUserId) {
+            $clubs = $user->clubs;
+            if ($clubs->isNotEmpty()) {
+                $this->clubService->attachUnreadNotificationCount($clubs, $authUserId);
+            }
+        }
+
         return ResponseHelper::success(new UserResource($user), 'Lấy thông tin người dùng thành công');
     }
 
@@ -203,6 +213,11 @@ class UserController extends Controller
 
         $clubs = $query->withFullRelations()
             ->paginate($validated['per_page'] ?? 20);
+
+        $authUserId = auth()->id();
+        if ($authUserId) {
+            $this->clubService->attachUnreadNotificationCount($clubs, $authUserId);
+        }
 
         return ResponseHelper::success(
             ClubResource::collection($clubs),
