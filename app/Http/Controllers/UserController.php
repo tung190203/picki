@@ -216,7 +216,7 @@ class UserController extends Controller
 
         $authUserId = auth()->id();
         if ($authUserId) {
-            $this->clubService->attachUnreadNotificationCount($clubs, $authUserId);
+            $this->clubService->attachUnreadNotificationCount($clubs->items(), $authUserId);
         }
 
         return ResponseHelper::success(
