@@ -57,6 +57,10 @@ class ClubController extends Controller
 
         $clubs = $this->clubService->searchClubs($request->validated(), $userId);
 
+        if ($userId && $clubs->isNotEmpty()) {
+            $this->clubService->attachUnreadNotificationCount($clubs->items(), $userId);
+        }
+
         $data = [
             'clubs' => ClubListResource::collection($clubs),
         ];
@@ -243,6 +247,10 @@ class ClubController extends Controller
         }
 
         $clubs = $query->withFullRelations()->get();
+
+        if ($userId) {
+            $this->clubService->attachUnreadNotificationCount($clubs, $userId);
+        }
 
         return ResponseHelper::success(ClubResource::collection($clubs), 'Lấy danh sách câu lạc bộ của tôi thành công');
     }

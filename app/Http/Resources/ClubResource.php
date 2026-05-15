@@ -89,6 +89,11 @@ class ClubResource extends JsonResource
             ]),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
+            'unread_notification_count' => $this->when(
+                isset($this->unread_notification_count),
+                fn () => (int) $this->unread_notification_count,
+                0
+            ),
         ];
     }
 
@@ -138,6 +143,11 @@ class ClubResource extends JsonResource
                 'zalo_link_enabled' => (bool) (($profile?->settings ?? [])['zalo_link_enabled'] ?? false),
                 'qr_zalo_enabled' => (bool) (($profile?->settings ?? [])['qr_zalo_enabled'] ?? false),
             ],
+            'unread_notification_count' => $this->when(
+                isset($this->unread_notification_count),
+                fn () => (int) $this->unread_notification_count,
+                0
+            ),
         ];
     }
 
