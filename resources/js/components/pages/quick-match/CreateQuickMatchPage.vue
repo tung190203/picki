@@ -361,7 +361,19 @@
                         </button>
                     </div>
 
-                    <div v-if="createdMatch?.qr_code_url" class="flex flex-col items-center gap-4">
+                    <!-- Đã confirmed/completed -->
+                    <div v-if="createdMatch?.status === 'confirmed' || createdMatch?.status === 'completed'" class="flex flex-col items-center gap-4">
+                        <div class="w-20 h-20 bg-[#E8F5E9] rounded-full flex items-center justify-center">
+                            <svg class="w-10 h-10 text-green-500" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <p class="text-[16px] font-semibold text-[#2D3139]">Trận đấu đã được xác nhận!</p>
+                        <p class="text-[14px] text-[#6B6F80] text-center">Trận đấu đã được tất cả người chơi xác nhận.</p>
+                    </div>
+
+                    <!-- Chưa confirm → hiện QR + nút xác nhận -->
+                    <div v-else class="flex flex-col items-center gap-4">
                         <div class="bg-white p-4 rounded-[12px] border border-[#DCDEE6]">
                             <QrcodeVue :value="qrScanUrl" :size="200" level="M" />
                         </div>
@@ -381,15 +393,19 @@
                                 Sao chép
                             </button>
                         </div>
-                    </div>
-                    <div v-else class="flex flex-col items-center gap-4">
-                        <div class="w-20 h-20 bg-[#F2F7FC] rounded-full flex items-center justify-center">
-                            <svg class="w-10 h-10 text-[#4392E0]" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                        </div>
-                        <p class="text-[16px] font-semibold text-[#2D3139]">Trận đấu đã được xác nhận!</p>
-                        <p class="text-[14px] text-[#6B6F80] text-center">Trận đấu đã được tạo và xác nhận tự động.</p>
+                        <button
+                            @click="confirmMatch"
+                            :disabled="isConfirming"
+                            :class="[
+                                'w-full py-3 rounded-[4px] text-[16px] font-semibold text-white flex items-center justify-center gap-2 transition-all',
+                                isConfirming
+                                    ? 'bg-gray-400 cursor-not-allowed'
+                                    : 'bg-[#27AE60] hover:bg-[#219a52] shadow-md'
+                            ]"
+                        >
+                            <span v-if="isConfirming">Đang xác nhận...</span>
+                            <span v-else>Xác nhận đã quét QR</span>
+                        </button>
                     </div>
 
                     <button
@@ -471,6 +487,7 @@ const selectingTeam = ref(null)
 const showQrModal = ref(false)
 const showRefereeScreen = ref(false)
 const createdMatch = ref(null)
+const isConfirming = ref(false)
 
 // QuickMatchUserModal emits the user directly (not wrapped)
 const onUserSelected = (user) => {
@@ -545,6 +562,26 @@ const copyQrUrl = async () => {
     }
 }
 
+const confirmMatch = async () => {
+    if (!createdMatch.value?.qr_code_url) return
+
+    isConfirming.value = true
+    try {
+        const qrCode = createdMatch.value.qr_code_url.split('/confirm/').pop()
+        const res = await quickMatchService.confirm(qrCode)
+        const updated = res.data?.data
+        if (updated) {
+            createdMatch.value = { ...createdMatch.value, ...updated }
+        }
+        toast.success('Đã lưu điểm và hoàn tất trận đấu!')
+    } catch (error) {
+        const msg = error.response?.data?.message || 'Không thể hoàn tất trận đấu'
+        toast.error(msg)
+    } finally {
+        isConfirming.value = false
+    }
+}
+
 const goToMatchDetail = () => {
     if (createdMatch.value?.id) {
         showQrModal.value = false
@@ -573,14 +610,10 @@ const submitMatch = async () => {
             match_type: form.matchType,
             team_a: teamAUsers.value.map(u => u.id),
             team_b: teamBUsers.value.map(u => u.id),
-        }
-
-        const hasScores = scoreSets.value.some(s => s.team_a > 0 || s.team_b > 0)
-        if (hasScores) {
-            payload.score = {
+            score: {
                 team_a: scoreSets.value.map(s => s.team_a),
                 team_b: scoreSets.value.map(s => s.team_b),
-            }
+            },
         }
 
         const res = await quickMatchService.create(payload)

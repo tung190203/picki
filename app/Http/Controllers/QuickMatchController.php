@@ -30,6 +30,11 @@ class QuickMatchController extends Controller
             'team_b.*' => 'integer|exists:users,id',
             'scheduled_at' => 'nullable|date',
             'competition_location_id' => 'nullable|integer|exists:competition_locations,id',
+            'score' => 'nullable|array',
+            'score.team_a' => 'nullable|array',
+            'score.team_a.*' => 'integer|min:0',
+            'score.team_b' => 'nullable|array',
+            'score.team_b.*' => 'integer|min:0',
         ]);
 
         $creator = Auth::user();
@@ -38,14 +43,20 @@ class QuickMatchController extends Controller
         $matchType = $validated['match_type'] ?? QuickMatch::MATCH_TYPE_RANK;
 
         $quickMatch = DB::transaction(function () use ($validated, $creator, $isSuperAdmin, $matchType) {
+            $score = $validated['score'] ?? null;
+            $winner = $score ? (new QuickMatch())->determineWinner($score) : null;
+            $status = $score && $isSuperAdmin ? QuickMatch::STATUS_COMPLETED : ($isSuperAdmin ? QuickMatch::STATUS_CONFIRMED : QuickMatch::STATUS_PENDING);
+
             $data = [
                 'name' => $validated['name'] ?? null,
                 'note' => $validated['note'] ?? null,
                 'team_a' => $validated['team_a'],
                 'team_b' => $validated['team_b'],
                 'match_type' => $matchType,
-                'status' => $isSuperAdmin ? QuickMatch::STATUS_CONFIRMED : QuickMatch::STATUS_PENDING,
-                'qr_code' => $isSuperAdmin ? null : Str::random(32),
+                'status' => $status,
+                'qr_code' => $status === QuickMatch::STATUS_PENDING ? Str::random(32) : null,
+                'score' => $score,
+                'winner' => $winner,
                 'created_by' => $creator->id,
                 'scheduled_at' => $validated['scheduled_at'] ?? null,
                 'competition_location_id' => $validated['competition_location_id'] ?? null,
@@ -102,7 +113,7 @@ class QuickMatchController extends Controller
         ]);
     }
 
-    public function confirmViaQr(string $qrCode): JsonResponse
+    public function confirmViaQr(Request $request, string $qrCode): JsonResponse
     {
         $user = Auth::user();
         $userId = $user->id;
@@ -114,22 +125,51 @@ class QuickMatchController extends Controller
         }
 
         $teamBUserIds = $quickMatch->team_b ?? [];
-        if (!in_array($userId, $teamBUserIds)) {
-            return ResponseHelper::error('Bạn không có quyền xác nhận trận đấu này.', 403);
-        }
 
-        if ($quickMatch->status === QuickMatch::STATUS_CONFIRMED) {
-            return ResponseHelper::error('Trận đấu đã được xác nhận trước đó.', 400);
-        }
+        if (in_array($userId, $teamBUserIds)) {
+            if ($quickMatch->status === QuickMatch::STATUS_CONFIRMED) {
+                return ResponseHelper::error('Trận đấu đã được xác nhận trước đó.', 400);
+            }
+            if ($quickMatch->status === QuickMatch::STATUS_COMPLETED) {
+                return ResponseHelper::error('Trận đấu đã hoàn tất, không thể xác nhận.', 400);
+            }
 
-        if ($quickMatch->status === QuickMatch::STATUS_COMPLETED) {
-            return ResponseHelper::error('Trận đấu đã hoàn tất, không thể xác nhận.', 400);
-        }
+            DB::transaction(function () use ($quickMatch) {
+                $quickMatch->update([
+                    'status' => QuickMatch::STATUS_COMPLETED,
+                    'confirmed_at' => now(),
+                ]);
+                $this->saveMatchHistories($quickMatch);
+            });
+        } else {
+            if ($quickMatch->status === QuickMatch::STATUS_CONFIRMED) {
+                return ResponseHelper::error('Trận đấu đã được xác nhận trước đó.', 400);
+            }
+            if ($quickMatch->status === QuickMatch::STATUS_COMPLETED) {
+                return ResponseHelper::error('Trận đấu đã hoàn tất, không thể xác nhận.', 400);
+            }
 
-        DB::transaction(function () use ($quickMatch) {
-            $quickMatch->update(['status' => QuickMatch::STATUS_CONFIRMED]);
-            $this->saveMatchHistories($quickMatch);
-        });
+            $validated = $request->validate([
+                'score' => 'nullable|array',
+                'score.team_a' => 'nullable|array',
+                'score.team_a.*' => 'integer|min:0',
+                'score.team_b' => 'nullable|array',
+                'score.team_b.*' => 'integer|min:0',
+            ]);
+
+            $score = $validated['score'] ?? $quickMatch->score;
+            $winner = $score ? (new QuickMatch())->determineWinner($score) : $quickMatch->winner;
+
+            DB::transaction(function () use ($quickMatch, $score, $winner) {
+                $quickMatch->update([
+                    'status' => QuickMatch::STATUS_COMPLETED,
+                    'score' => $score,
+                    'winner' => $winner,
+                    'confirmed_at' => now(),
+                ]);
+                $this->saveMatchHistories($quickMatch);
+            });
+        }
 
         $quickMatch->load('creator', 'competitionLocation');
 
@@ -165,12 +205,21 @@ class QuickMatchController extends Controller
             return ResponseHelper::error('Trận đấu đã hoàn tất, không thể cập nhật điểm.', 400);
         }
 
-        DB::transaction(function () use ($quickMatch, $validated) {
-            $quickMatch->update(['score' => $validated['score']]);
+        if ($quickMatch->status === QuickMatch::STATUS_CONFIRMED) {
+            return ResponseHelper::error('Trận đấu đã được xác nhận, không thể thay đổi điểm.', 400);
+        }
 
-            if ($quickMatch->status === QuickMatch::STATUS_CONFIRMED) {
-                $quickMatch->update(['status' => QuickMatch::STATUS_COMPLETED]);
-            }
+        $score = $validated['score'];
+
+        DB::transaction(function () use ($quickMatch, $score) {
+            $quickMatch->update(['score' => $score]);
+
+            // Khi có score mới từ trạng thái pending -> confirmed, chuyển sang completed luôn
+            $winner = $quickMatch->determineWinner($score);
+            $quickMatch->update([
+                'status' => QuickMatch::STATUS_COMPLETED,
+                'winner' => $winner,
+            ]);
         });
 
         $quickMatch->refresh();

@@ -36,6 +36,8 @@ class QuickMatchResource extends JsonResource
                 'team_b' => $teamBScore,
             ],
 
+            'winner' => $this->winner,
+
             'qr_code_url' => $this->qr_code
                 ? url("/api/quick-matches/confirm/{$this->qr_code}")
                 : null,
