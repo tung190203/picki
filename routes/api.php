@@ -68,6 +68,7 @@ use App\Http\Controllers\Admin\DisputeController;
 use App\Http\Controllers\Admin\SearchController;
 use App\Http\Controllers\Admin\AdminNotificationController;
 use App\Http\Controllers\Admin\AuditLogController;
+use App\Http\Controllers\QuickMatchController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
 
@@ -824,4 +825,14 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     Route::prefix('banners')->group(function () {
         Route::post('/store', [BannerController::class, 'store']);
     });
+
+    // Quick Match Routes
+    Route::prefix('quick-matches')->group(function () {
+        Route::post('/', [QuickMatchController::class, 'store']);
+        Route::get('/{id}', [QuickMatchController::class, 'show']);
+        Route::put('/{id}/score', [QuickMatchController::class, 'updateScore']);
+        Route::post('/confirm/{qr_code}', [QuickMatchController::class, 'confirmViaQr']);
+    });
+    // QR scan — no auth required (app scans this endpoint to preview before confirming)
+    Route::get('/quick-matches/qr/{qr_code}', [QuickMatchController::class, 'scanQr']);
 });
