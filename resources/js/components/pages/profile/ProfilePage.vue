@@ -180,6 +180,20 @@
                 </div>
             </section>
 
+            <!-- Match History -->
+            <section>
+                <div class="flex items-center justify-start mb-4 mx-10">
+                    <h2 class="text-xl font-semibold text-gray-800">Lịch sử đấu</h2>
+                </div>
+
+                <div class="mx-10 mb-10">
+                    <MatchHistorySection
+                        v-if="user.id"
+                        :userId="user.id"
+                    />
+                </div>
+            </section>
+
             <!-- Clubs -->
             <section>
                 <div class="flex items-center justify-start mb-4 mx-10">
@@ -279,6 +293,7 @@ import {
 import SportLevelCard from "@/components/molecules/SportLevelCard.vue";
 import SportSelectCard from "@/components/molecules/SportSelectCard.vue";
 import ImageCropperModal from "@/components/molecules/ImageCropperModal.vue";
+import MatchHistorySection from "@/components/organisms/MatchHistorySection.vue";
 import { useRoute, useRouter } from "vue-router";
 import { toast } from "vue3-toastify";
 import { useUserStore } from "@/store/auth";
