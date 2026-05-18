@@ -444,16 +444,6 @@ class UserMatchStatsController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        if ($histories->isEmpty()) {
-            return response()->json([
-                'data' => [],
-                'current_page' => 1,
-                'per_page' => $perPage,
-                'total' => 0,
-                'last_page' => 1
-            ]);
-        }
-
         $matchIds = $histories->pluck('match_id')->filter()->unique();
         $miniIds = $histories->pluck('mini_match_id')->filter()->unique();
 
@@ -722,8 +712,8 @@ class UserMatchStatsController extends Controller
         // ========== QUICK MATCHES ==========
         $quickMatches = \App\Models\QuickMatch::where('status', \App\Models\QuickMatch::STATUS_COMPLETED)
             ->where(function ($q) use ($userId) {
-                $q->whereJsonContains('team_a', $userId)
-                  ->orWhereJsonContains('team_b', $userId);
+                $q->whereJsonContains('team_a', (int) $userId)
+                  ->orWhereJsonContains('team_b', (int) $userId);
             })
             ->get();
 
