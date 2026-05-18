@@ -7,6 +7,7 @@ use App\Http\Resources\CompetitionLocationResource;
 use App\Http\Resources\QuickMatchResource;
 use App\Models\MatchHistory;
 use App\Models\QuickMatch;
+use App\Notifications\QuickMatchInvitationNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -54,6 +55,9 @@ class QuickMatchController extends Controller
 
             if ($isSuperAdmin) {
                 $this->saveMatchHistories($quickMatch);
+            } else {
+                // Gửi notification cho team B
+                $this->sendInvitationNotifications($quickMatch, $creator->id);
             }
 
             return $quickMatch;
@@ -196,6 +200,18 @@ class QuickMatchController extends Controller
                     'played_at' => $playedAt,
                 ]
             );
+        }
+    }
+
+    private function sendInvitationNotifications(QuickMatch $quickMatch, int $invitedBy): void
+    {
+        $teamBUserIds = $quickMatch->team_b ?? [];
+
+        foreach ($teamBUserIds as $userId) {
+            $user = \App\Models\User::find($userId);
+            if ($user) {
+                $user->notify(new QuickMatchInvitationNotification($quickMatch, $invitedBy));
+            }
         }
     }
 }

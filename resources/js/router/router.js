@@ -22,6 +22,7 @@ import TournamentDetail from '@/components/pages/tournament/TournamentDetail.vue
 import MiniTournamentDetail from '@/components/pages/mini-tournament/detail/MiniTournamentDetail.vue'
 import PrivacyPolicyPage from '@/components/pages/legal/PrivacyPolicyPage.vue'
 import CreateMiniTournamentPage from '@/components/pages/mini-tournament/create/CreateMiniTournamentPage.vue'
+import CreateQuickMatchPage from '@/components/pages/quick-match/CreateQuickMatchPage.vue'
 import CreateTournamentPage from '@/components/pages/tournament/CreateTournamentPage.vue'
 import ForbiddenPage from '@/components/pages/common/error/ForbiddenPage.vue'
 import AdminDashboard from '@/components/pages/admin/AdminDashboard.vue'
@@ -344,6 +345,14 @@ export const route = [
             component: CreateMiniTournamentPage
           }
         ]
+      },
+      {
+        path: '/quick-match/create',
+        name: 'create-quick-match',
+        component: CreateQuickMatchPage,
+        meta: {
+          role: [ROLE.PLAYER, ROLE.ADMIN]
+        }
       },
       {
         path: '/mini-tournament-detail',
