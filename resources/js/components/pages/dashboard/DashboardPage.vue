@@ -524,7 +524,7 @@ const scrollToLeaderboard = () => {
 
 const features = [
   { label: "CLB", icon: UserGroupIcon, route: '/club' },
-  { label: "Tạo trận", icon: PlusCircleIcon, route: '/mini-tournament/create' },
+  { label: "Tạo trận đấu nhanh", icon: PlusCircleIcon, route: '/quick-match/create' },
   { label: "Tìm sân", icon: MapPinIconOutline, route: '/map' },
   { label: "Xếp hạng", icon: ChartBarIcon, action: scrollToLeaderboard },
 ];

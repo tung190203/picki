@@ -719,6 +719,123 @@ class UserMatchStatsController extends Controller
         // Sort theo created_at giảm dần
         $allMatches = $allMatches->sortByDesc('created_at')->values();
 
+        // ========== QUICK MATCHES ==========
+        $quickMatches = \App\Models\QuickMatch::where('status', \App\Models\QuickMatch::STATUS_COMPLETED)
+            ->where(function ($q) use ($userId) {
+                $q->whereJsonContains('team_a', $userId)
+                  ->orWhereJsonContains('team_b', $userId);
+            })
+            ->get();
+
+        if ($quickMatches->isNotEmpty()) {
+            $qmUserIds = $quickMatches
+                ->flatMap(fn($qm) => array_merge($qm->team_a ?? [], $qm->team_b ?? []))
+                ->unique()
+                ->values();
+
+            $qmUsers = \App\Models\User::whereIn('id', $qmUserIds)->get()->keyBy('id');
+
+            foreach ($quickMatches as $qm) {
+                $isMyTeamA = in_array($userId, $qm->team_a ?? []);
+                $teamAUserIds = $qm->team_a ?? [];
+                $teamBUserIds = $qm->team_b ?? [];
+
+                $teamAUsers = collect($teamAUserIds)->map(fn($id) => $qmUsers[$id] ?? null)->filter()->values();
+                $teamBUsers = collect($teamBUserIds)->map(fn($id) => $qmUsers[$id] ?? null)->filter()->values();
+
+                if ($isMyTeamA) {
+                    $myTeamUsers = $teamAUsers;
+                    $oppTeamUsers = $teamBUsers;
+                    $myTeamName = 'Team A';
+                    $oppTeamName = 'Team B';
+                } else {
+                    $myTeamUsers = $teamBUsers;
+                    $oppTeamUsers = $teamAUsers;
+                    $myTeamName = 'Team B';
+                    $oppTeamName = 'Team A';
+                }
+
+                $scores = [];
+                $teamAScores = $qm->score['team_a'] ?? [];
+                $teamBScores = $qm->score['team_b'] ?? [];
+                $maxSets = max(count($teamAScores), count($teamBScores));
+
+                for ($i = 0; $i < $maxSets; $i++) {
+                    if ($isMyTeamA) {
+                        $scores[] = [
+                            'my_score' => $teamAScores[$i] ?? 0,
+                            'opponent_score' => $teamBScores[$i] ?? 0,
+                            'set_number' => $i + 1,
+                        ];
+                    } else {
+                        $scores[] = [
+                            'my_score' => $teamBScores[$i] ?? 0,
+                            'opponent_score' => $teamAScores[$i] ?? 0,
+                            'set_number' => $i + 1,
+                        ];
+                    }
+                }
+
+                $teamSide = $isMyTeamA ? 'team_a' : 'team_b';
+
+                $allMatches->push([
+                    'type' => 'quick_match',
+                    'format' => 'quick',
+                    'id' => $qm->id,
+                    'match_name' => $qm->name,
+                    'team_side' => $teamSide,
+                    'my_team' => [
+                        'id' => null,
+                        'name' => $myTeamName,
+                        'members' => $myTeamUsers->map(fn($u) => [
+                            'id' => $u->id,
+                            'team_id' => null,
+                            'full_name' => $u->full_name,
+                            'avatar_url' => $u->avatar_url,
+                            'is_guest' => (bool) ($u->is_guest ?? false),
+                            'visibility' => $u->visibility ?? 'open',
+                            'user' => [
+                                'id' => $u->id,
+                                'full_name' => $u->full_name,
+                                'avatar_url' => $u->avatar_url,
+                                'visibility' => $u->visibility ?? 'open',
+                                'sports' => [],
+                            ],
+                        ])->values()->all(),
+                    ],
+                    'opponent_team' => [
+                        'id' => null,
+                        'name' => $oppTeamName,
+                        'members' => $oppTeamUsers->map(fn($u) => [
+                            'id' => $u->id,
+                            'team_id' => null,
+                            'full_name' => $u->full_name,
+                            'avatar_url' => $u->avatar_url,
+                            'is_guest' => (bool) ($u->is_guest ?? false),
+                            'visibility' => $u->visibility ?? 'open',
+                            'user' => [
+                                'id' => $u->id,
+                                'full_name' => $u->full_name,
+                                'avatar_url' => $u->avatar_url,
+                                'visibility' => $u->visibility ?? 'open',
+                                'sports' => [],
+                            ],
+                        ])->values()->all(),
+                    ],
+                    'my_team_id' => null,
+                    'opponent_team_id' => null,
+                    'scores' => $scores,
+                    'is_win' => $qm->winner === $teamSide,
+                    'status' => $qm->status,
+                    'match_date' => $qm->updated_at,
+                    'created_at' => $qm->updated_at,
+                ]);
+            }
+
+            // Sort lại sau khi thêm quick matches
+            $allMatches = $allMatches->sortByDesc('created_at')->values();
+        }
+
         // Phân trang thủ công
         $total = $allMatches->count();
         $lastPage = ceil($total / $perPage);
