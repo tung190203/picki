@@ -13,8 +13,8 @@ use App\Services\ImageOptimizationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -84,6 +84,7 @@ class QuickMatchController extends Controller
 
             if ($isSuperAdmin) {
                 $this->saveMatchHistories($quickMatch);
+                Broadcast::event(new QuickMatchConfirmed($quickMatch));
             } else {
                 // Gửi notification cho team B
                 $this->sendInvitationNotifications($quickMatch, $creator->id);
@@ -162,7 +163,7 @@ class QuickMatchController extends Controller
 
         $quickMatch->load('creator', 'competitionLocation');
 
-        QuickMatchConfirmed::dispatch($quickMatch);
+        Broadcast::event(new QuickMatchConfirmed($quickMatch));
 
         return ResponseHelper::success(
             new QuickMatchResource($quickMatch),

@@ -305,7 +305,7 @@
                         <div class="text-right">
                             <p class="text-[14px] font-bold text-[#838799]">Quét mã QR</p>
                             <p class="text-[12px] text-[#6B6F80] leading-tight">
-                                Kết quả kèo đấu được ghi nhận khi tất cả người chơi đã quét mã QR
+                                Đối thủ (Team B) quét mã QR để xác nhận tham gia trận đấu
                             </p>
                         </div>
                         <div class="w-10 h-10 bg-[#4392E0] rounded-[4px] flex items-center justify-center shrink-0">
@@ -463,11 +463,15 @@ import QrcodeVue from 'qrcode.vue'
 import QuickMatchUserModal from '@/components/molecules/QuickMatchUserModal.vue'
 import RefereeScoringScreen from '@/components/molecules/referee-scoring/RefereeScoringScreen.vue'
 import { useUserStore } from '@/store/auth'
+import { storeToRefs } from 'pinia'
 import { quickMatchService } from '@/service/quickMatch.js'
 
 const router = useRouter()
 const userStore = useUserStore()
-const currentUser = userStore.getUser
+// Use storeToRefs for reactive state + direct access for computed getUser
+// In script: userStore.getUser.value gives the actual User object
+// In template: Vue auto-unwraps ComputedRef<User> → User, so {{ getUser.id }} works
+const { getUser } = storeToRefs(userStore)
 
 const defaultAvatar = '/images/default-avatar.png'
 
@@ -503,7 +507,7 @@ const form = reactive({
     matchType: 'rank',
 })
 
-const teamAUsers = ref(currentUser ? [{ ...currentUser }] : [])
+const teamAUsers = ref(getUser.value ? [{ ...getUser.value }] : [])
 const teamBUsers = ref([])
 const scoreSets = ref([{ team_a: 0, team_b: 0 }])
 const isSubmitting = ref(false)
@@ -515,7 +519,7 @@ const createdMatch = ref(null)
 const isConfirming = ref(false)
 
 const isMatchDone = computed(() => {
-    return createdMatch.value?.status === 'confirmed' || createdMatch.value?.status === 'completed'
+    return createdMatch.value?.status === 'completed'
 })
 
 // QuickMatchUserModal emits the user directly (not wrapped)
@@ -541,7 +545,7 @@ const removeUser = (team, idx) => {
     if (team === 'team_a') {
         const user = teamAUsers.value[idx]
         // Không cho xóa chính mình khỏi team A
-        if (user.id === currentUser?.id) {
+        if (user.id === getUser.value?.id) {
             return
         }
         teamAUsers.value.splice(idx, 1)
@@ -632,16 +636,12 @@ watch(showQrModal, (isOpen) => {
         echoChannel.value = null
     }
 
-    const channelName = `quick-match.${createdMatch.value.id}`
     echoChannel.value = window.Echo.private(channelName)
+
     echoChannel.value.listen('.quick_match.confirmed', (data) => {
-        console.log('[QuickMatch] Received quick_match.confirmed', data)
         if (data.quick_match) {
             createdMatch.value = { ...createdMatch.value, ...data.quick_match }
         }
-    })
-    echoChannel.value.on('subscription_cancelled', () => {
-        console.log('[QuickMatch] Subscription cancelled for', channelName)
     })
 }, { immediate: true })
 
