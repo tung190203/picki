@@ -17,6 +17,7 @@ class QuickMatchResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'avatar_url' => $this->avatar_url,
             'note' => $this->note,
             'match_type' => $this->match_type,
             'status' => $this->status,

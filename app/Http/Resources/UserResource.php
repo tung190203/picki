@@ -66,6 +66,7 @@ class UserResource extends JsonResource
             'is_super_admin' => (bool)$this->is_super_admin,
             'is_banned' => (bool)$this->is_banned,
             'is_guest' => (bool)$this->is_guest,
+            'latest_used_qr' => $this->latest_used_qr,
             'created_at' => $this->created_at?->toISOString(),
         ];
     }

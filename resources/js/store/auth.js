@@ -50,6 +50,9 @@ export const useUserStore = defineStore("user", () => {
     localStorage.setItem(LOCAL_STORAGE_USER.USER, JSON.stringify(response.user));
     localStorage.setItem(LOCAL_STORAGE_KEY.LOGIN_TOKEN, response.token.access_token);
     localStorage.setItem(LOCAL_STORAGE_KEY.REFRESH_TOKEN, response.token.refresh_token);
+    if (window.initEcho) {
+        window.initEcho(response.token.access_token);
+    }
     return response;
   }
 
