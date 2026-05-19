@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\QuickMatchConfirmed;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\CompetitionLocationResource;
 use App\Http\Resources\QuickMatchResource;
@@ -188,6 +189,8 @@ class QuickMatchController extends Controller
         }
 
         $quickMatch->load('creator', 'competitionLocation');
+
+        QuickMatchConfirmed::dispatch($quickMatch);
 
         return ResponseHelper::success(
             new QuickMatchResource($quickMatch),

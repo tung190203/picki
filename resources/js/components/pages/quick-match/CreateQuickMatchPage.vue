@@ -431,7 +431,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { toast } from 'vue3-toastify'
 import QrcodeVue from 'qrcode.vue'
@@ -590,6 +590,45 @@ const goToMatchDetail = () => {
 }
 
 const goBack = () => router.back()
+
+// ─── Socket: realtime QR confirmation ───
+const echoChannel = ref(null)
+
+watch(showQrModal, (isOpen) => {
+    if (!isOpen || !createdMatch.value?.id) return
+
+    // Leave previous channel if any
+    if (echoChannel.value) {
+        echoChannel.value.stopListening('.quick_match.confirmed')
+        echoChannel.value.unsubscribe()
+        echoChannel.value = null
+    }
+
+    // Join quick-match channel
+    echoChannel.value = window.Echo.private(`quick-match.${createdMatch.value.id}`)
+    echoChannel.value.listen('.quick_match.confirmed', (data) => {
+        if (data.quick_match) {
+            createdMatch.value = { ...createdMatch.value, ...data.quick_match }
+        }
+    })
+}, { immediate: true })
+
+// Cleanup when modal closes
+watch(showQrModal, (isOpen) => {
+    if (isOpen) return
+    if (echoChannel.value) {
+        echoChannel.value.stopListening('.quick_match.confirmed')
+        echoChannel.value.unsubscribe()
+        echoChannel.value = null
+    }
+})
+
+onUnmounted(() => {
+    if (echoChannel.value) {
+        echoChannel.value.stopListening('.quick_match.confirmed')
+        echoChannel.value.unsubscribe()
+    }
+})
 
 const submitMatch = async () => {
     if (teamAUsers.value.length === 0) {

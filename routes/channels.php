@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\MiniTournament;
+use App\Models\QuickMatch;
 use App\Models\Tournament;
 use Illuminate\Support\Facades\Broadcast;
 
@@ -36,6 +37,18 @@ Broadcast::channel('tournament.{tournamentId}', function ($user, $tournamentId) 
 
 Broadcast::channel('chat.{userId}', function ($user, $userId) {
     return (int) $user->id === (int) $userId;
+});
+
+Broadcast::channel('quick-match.{id}', function ($user, $id) {
+    $quickMatch = QuickMatch::find($id);
+    if (!$quickMatch) return false;
+
+    if ((int) $user->id === (int) $quickMatch->created_by) {
+        return true;
+    }
+
+    $allPlayerIds = array_merge($quickMatch->team_a ?? [], $quickMatch->team_b ?? []);
+    return in_array($user->id, $allPlayerIds);
 });
 
 /*
