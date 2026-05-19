@@ -13,10 +13,16 @@
                     </svg>
                 </button>
                 <h1 class="text-[20px] font-bold text-[#3E414C] tracking-[-0.5px]">Quick Match</h1>
+                <span
+                    v-if="isMatchDone"
+                    class="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-[12px] font-semibold rounded-full"
+                >
+                    Đã xác nhận
+                </span>
             </div>
 
             <!-- Form -->
-            <div class="space-y-4">
+            <div class="space-y-4" :class="{ 'opacity-40 pointer-events-none select-none': isMatchDone }">
 
                 <!-- Name + Note -->
                 <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-4">
@@ -313,27 +319,28 @@
 
             </div>
 
-            <!-- Bottom CTA -->
-            <div class="mt-6">
-                <button
-                    @click="submitMatch"
-                    :disabled="isSubmitting"
-                    :class="[
-                        'w-full py-3 rounded-[4px] text-[16px] font-semibold text-white flex items-center justify-center gap-2 transition-all',
-                        isSubmitting
-                            ? 'bg-gray-400 cursor-not-allowed'
-                            : 'bg-[#D72D36] hover:bg-[#c02630] shadow-md'
-                    ]"
-                >
-                    <span v-if="isSubmitting">Đang tạo...</span>
-                    <template v-else>
-                        Hoàn tất & Hiện mã QR
-                        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                        </svg>
-                    </template>
-                </button>
-            </div>
+                <!-- Bottom CTA -->
+                <div class="mt-6" :class="{ 'opacity-40 pointer-events-none select-none': isMatchDone }">
+                    <button
+                        @click="submitMatch"
+                        :disabled="isSubmitting || isMatchDone"
+                        :class="[
+                            'w-full py-3 rounded-[4px] text-[16px] font-semibold text-white flex items-center justify-center gap-2 transition-all',
+                            isSubmitting || isMatchDone
+                                ? 'bg-gray-400 cursor-not-allowed'
+                                : 'bg-[#D72D36] hover:bg-[#c02630] shadow-md'
+                        ]"
+                    >
+                        <span v-if="isSubmitting">Đang tạo...</span>
+                        <span v-else-if="isMatchDone">Trận đấu đã hoàn tất</span>
+                        <template v-else>
+                            Hoàn tất & Hiện mã QR
+                            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                            </svg>
+                        </template>
+                    </button>
+                </div>
 
         </div>
 
@@ -362,14 +369,32 @@
                     </div>
 
                     <!-- Đã confirmed/completed -->
-                    <div v-if="createdMatch?.status === 'confirmed' || createdMatch?.status === 'completed'" class="flex flex-col items-center gap-4">
+                    <div v-if="isMatchDone" class="flex flex-col items-center gap-4">
                         <div class="w-20 h-20 bg-[#E8F5E9] rounded-full flex items-center justify-center">
                             <svg class="w-10 h-10 text-green-500" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         </div>
-                        <p class="text-[16px] font-semibold text-[#2D3139]">Trận đấu đã được xác nhận!</p>
-                        <p class="text-[14px] text-[#6B6F80] text-center">Trận đấu đã được tất cả người chơi xác nhận.</p>
+                        <div class="text-center">
+                            <p class="text-[16px] font-semibold text-[#2D3139]">Trận đấu đã được xác nhận!</p>
+                            <p class="text-[14px] text-[#6B6F80] mt-1">Trận đấu đã được tất cả người chơi xác nhận.</p>
+                        </div>
+                        <!-- Score summary -->
+                        <div v-if="createdMatch?.score" class="flex items-center gap-3 bg-[#F7F8FA] rounded-[8px] px-4 py-2">
+                            <div class="text-center">
+                                <p class="text-[20px] font-bold text-[#2D3139]">
+                                    {{ createdMatch.score.team_a?.join(' - ') || '0' }}
+                                </p>
+                                <p class="text-[10px] text-[#838799] uppercase">Team A</p>
+                            </div>
+                            <span class="text-[12px] text-[#838799] font-semibold">vs</span>
+                            <div class="text-center">
+                                <p class="text-[20px] font-bold text-[#2D3139]">
+                                    {{ createdMatch.score.team_b?.join(' - ') || '0' }}
+                                </p>
+                                <p class="text-[10px] text-[#838799] uppercase">Team B</p>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Chưa confirm → hiện QR + nút xác nhận -->
@@ -489,6 +514,10 @@ const showRefereeScreen = ref(false)
 const createdMatch = ref(null)
 const isConfirming = ref(false)
 
+const isMatchDone = computed(() => {
+    return createdMatch.value?.status === 'confirmed' || createdMatch.value?.status === 'completed'
+})
+
 // QuickMatchUserModal emits the user directly (not wrapped)
 const onUserSelected = (user) => {
     if (!user) return
@@ -597,19 +626,22 @@ const echoChannel = ref(null)
 watch(showQrModal, (isOpen) => {
     if (!isOpen || !createdMatch.value?.id) return
 
-    // Leave previous channel if any
     if (echoChannel.value) {
         echoChannel.value.stopListening('.quick_match.confirmed')
         echoChannel.value.unsubscribe()
         echoChannel.value = null
     }
 
-    // Join quick-match channel
-    echoChannel.value = window.Echo.private(`quick-match.${createdMatch.value.id}`)
+    const channelName = `quick-match.${createdMatch.value.id}`
+    echoChannel.value = window.Echo.private(channelName)
     echoChannel.value.listen('.quick_match.confirmed', (data) => {
+        console.log('[QuickMatch] Received quick_match.confirmed', data)
         if (data.quick_match) {
             createdMatch.value = { ...createdMatch.value, ...data.quick_match }
         }
+    })
+    echoChannel.value.on('subscription_cancelled', () => {
+        console.log('[QuickMatch] Subscription cancelled for', channelName)
     })
 }, { immediate: true })
 
