@@ -14,6 +14,11 @@ class QuickMatchResource extends JsonResource
         $teamAScore = $score['team_a'] ?? [];
         $teamBScore = $score['team_b'] ?? [];
 
+        $teamANames = $this->teamAMembers()->pluck('full_name')->toArray();
+        $teamBNames = $this->teamBMembers()->pluck('full_name')->toArray();
+        $teamAName = implode(' & ', $teamANames);
+        $teamBName = implode(' & ', $teamBNames);
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -24,17 +29,19 @@ class QuickMatchResource extends JsonResource
             'created_by' => $this->created_by,
 
             'team_a' => [
-                'user_ids' => $this->team_a ?? [],
+                'user_ids' => array_map('intval', $this->team_a ?? []),
+                'team_name' => $teamAName ?: null,
                 'users' => UserListResource::collection($this->teamAMembers()),
             ],
             'team_b' => [
-                'user_ids' => $this->team_b ?? [],
+                'user_ids' => array_map('intval', $this->team_b ?? []),
+                'team_name' => $teamBName ?: null,
                 'users' => UserListResource::collection($this->teamBMembers()),
             ],
 
             'score' => [
-                'team_a' => $teamAScore,
-                'team_b' => $teamBScore,
+                'team_a' => array_map('intval', $teamAScore),
+                'team_b' => array_map('intval', $teamBScore),
             ],
 
             'winner' => $this->winner,

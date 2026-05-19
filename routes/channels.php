@@ -41,14 +41,15 @@ Broadcast::channel('chat.{userId}', function ($user, $userId) {
 
 Broadcast::channel('quick-match.{id}', function ($user, $id) {
     $quickMatch = QuickMatch::find($id);
-    if (!$quickMatch) return false;
-
-    if ((int) $user->id === (int) $quickMatch->created_by) {
-        return true;
+    if (!$quickMatch) {
+        return false;
     }
 
+    $isCreator = (int) $user->id === (int) $quickMatch->created_by;
     $allPlayerIds = array_merge($quickMatch->team_a ?? [], $quickMatch->team_b ?? []);
-    return in_array($user->id, $allPlayerIds);
+    $isPlayer = in_array($user->id, $allPlayerIds);
+
+    return $isCreator || $isPlayer;
 });
 
 /*
@@ -62,10 +63,6 @@ Broadcast::channel('super_admin', function ($user) {
 });
 
 Broadcast::channel('DashboardAdminChannel', function ($user) {
-    \Log::info('[Broadcast Channel] DashboardAdminChannel authorization check', [
-        'user_id' => $user?->id,
-        'is_super_admin' => $user?->is_super_admin,
-    ]);
     return $user && $user->is_super_admin;
 });
 
