@@ -61,7 +61,8 @@ class QuickMatchController extends Controller
         $quickMatch = DB::transaction(function () use ($validated, $creator, $isSuperAdmin, $matchType, $avatarPath) {
             $score = $validated['score'] ?? null;
             $winner = $score ? (new QuickMatch())->determineWinner($score) : null;
-            $status = $score && $isSuperAdmin ? QuickMatch::STATUS_COMPLETED : ($isSuperAdmin ? QuickMatch::STATUS_CONFIRMED : QuickMatch::STATUS_PENDING);
+            // Super admin tạo luôn completed (không cần quét QR), user thường thì pending (cần quét QR xác nhận)
+            $status = $isSuperAdmin ? QuickMatch::STATUS_COMPLETED : QuickMatch::STATUS_PENDING;
 
             $data = [
                 'name' => $validated['name'] ?? null,
@@ -143,50 +144,21 @@ class QuickMatchController extends Controller
 
         $teamBUserIds = $quickMatch->team_b ?? [];
 
-        if (in_array($userId, $teamBUserIds)) {
-            if ($quickMatch->status === QuickMatch::STATUS_CONFIRMED) {
-                return ResponseHelper::error('Trận đấu đã được xác nhận trước đó.', 400);
-            }
-            if ($quickMatch->status === QuickMatch::STATUS_COMPLETED) {
-                return ResponseHelper::error('Trận đấu đã hoàn tất, không thể xác nhận.', 400);
-            }
-
-            DB::transaction(function () use ($quickMatch) {
-                $quickMatch->update([
-                    'status' => QuickMatch::STATUS_COMPLETED,
-                    'confirmed_at' => now(),
-                ]);
-                $this->saveMatchHistories($quickMatch);
-            });
-        } else {
-            if ($quickMatch->status === QuickMatch::STATUS_CONFIRMED) {
-                return ResponseHelper::error('Trận đấu đã được xác nhận trước đó.', 400);
-            }
-            if ($quickMatch->status === QuickMatch::STATUS_COMPLETED) {
-                return ResponseHelper::error('Trận đấu đã hoàn tất, không thể xác nhận.', 400);
-            }
-
-            $validated = $request->validate([
-                'score' => 'nullable|array',
-                'score.team_a' => 'nullable|array',
-                'score.team_a.*' => 'integer|min:0',
-                'score.team_b' => 'nullable|array',
-                'score.team_b.*' => 'integer|min:0',
-            ]);
-
-            $score = $validated['score'] ?? $quickMatch->score;
-            $winner = $score ? (new QuickMatch())->determineWinner($score) : $quickMatch->winner;
-
-            DB::transaction(function () use ($quickMatch, $score, $winner) {
-                $quickMatch->update([
-                    'status' => QuickMatch::STATUS_COMPLETED,
-                    'score' => $score,
-                    'winner' => $winner,
-                    'confirmed_at' => now(),
-                ]);
-                $this->saveMatchHistories($quickMatch);
-            });
+        if (!in_array($userId, $teamBUserIds)) {
+            return ResponseHelper::error('Bạn không thuộc trận đấu này và không có quyền xác nhận.', 403);
         }
+
+        if ($quickMatch->status === QuickMatch::STATUS_COMPLETED) {
+            return ResponseHelper::error('Trận đấu đã hoàn tất, không thể xác nhận.', 400);
+        }
+
+        DB::transaction(function () use ($quickMatch) {
+            $quickMatch->update([
+                'status' => QuickMatch::STATUS_COMPLETED,
+                'confirmed_at' => now(),
+            ]);
+            $this->saveMatchHistories($quickMatch);
+        });
 
         $quickMatch->load('creator', 'competitionLocation');
 
@@ -222,10 +194,6 @@ class QuickMatchController extends Controller
 
         if ($quickMatch->status === QuickMatch::STATUS_COMPLETED) {
             return ResponseHelper::error('Trận đấu đã hoàn tất, không thể cập nhật điểm.', 400);
-        }
-
-        if ($quickMatch->status === QuickMatch::STATUS_CONFIRMED) {
-            return ResponseHelper::error('Trận đấu đã được xác nhận, không thể thay đổi điểm.', 400);
         }
 
         $score = $validated['score'];
