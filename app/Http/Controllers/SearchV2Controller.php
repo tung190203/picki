@@ -97,7 +97,6 @@ class SearchV2Controller extends Controller
 
             SearchFilterConfig::TAB_USER => User::query()
                 ->with(['sports.sport', 'sports.scores', 'clubs'])
-                ->when($userId, fn($q) => $q->where('id', '!=', $userId))
                 ->when($user, fn($q) => $q->visibleFor($user))
                 ->filter($filters)
                 ->applyTimeline($subTab, $userId),

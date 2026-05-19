@@ -12,6 +12,7 @@ use App\Enums\ClubWalletTransactionStatus;
 use App\Enums\PaymentMethod;
 use App\Models\Club\Club;
 use App\Jobs\SendPushJob;
+use App\Enums\ClubNotificationType;
 use App\Enums\ClubNotificationPriority;
 use App\Enums\ClubNotificationStatus;
 use App\Models\Club\ClubActivity;
@@ -394,7 +395,7 @@ class ClubActivityService
         app(\App\Services\Club\ClubNotificationService::class)->createNotification(
             $club,
             [
-                'club_notification_type_id' => 2,
+                'club_notification_type_id' => ClubNotificationType::Event->value,
                 'title' => "Hoạt động mới: {$activity->title}",
                 'content' => "CLB {$club->name} có hoạt động mới \"{$activity->title}\". "
                     . "Thời gian: " . ($activity->start_time ? $activity->start_time->format('H:i d/m/Y') : 'N/A') . ". "

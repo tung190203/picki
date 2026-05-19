@@ -24,7 +24,6 @@ use App\Services\Club\ClubService;
 use App\Services\GeocodingService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class ClubController extends Controller
 {
@@ -221,12 +220,7 @@ class ClubController extends Controller
     public function myClubs(Request $request)
     {
         $userId = auth()->id();
-        $validated = $request->validate([
-            'role' => ['sometimes', 'array'],
-            'role.*' => [Rule::enum(ClubMemberRole::class)],
-        ]);
 
-        // Luôn bao gồm: clubs user tạo + clubs user là Admin
         $query = Club::where(function ($q) use ($userId) {
             $q->where('created_by', $userId)
               ->orWhereHas('members', function ($q2) use ($userId) {
@@ -236,19 +230,6 @@ class ClubController extends Controller
                      ->where('role', ClubMemberRole::Admin);
               });
         });
-
-        // Nếu filter theo role cụ thể (không phải Admin) -> thêm clubs đó vào kết quả
-        if (!empty($validated['role'])) {
-            $rolesToAdd = array_filter($validated['role'], fn($r) => $r !== ClubMemberRole::Admin);
-            if (!empty($rolesToAdd)) {
-                $query->orWhereHas('members', function ($q) use ($userId, $rolesToAdd) {
-                    $q->where('user_id', $userId)
-                      ->where('membership_status', ClubMembershipStatus::Joined)
-                      ->where('status', \App\Enums\ClubMemberStatus::Active)
-                      ->whereIn('role', $rolesToAdd);
-                });
-            }
-        }
 
         $clubs = $query->withFullRelations()->get();
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Club;
 
 use App\Enums\ClubMemberRole;
+use App\Enums\ClubNotificationType;
 use App\Enums\ClubNotificationPriority;
 use App\Enums\ClubNotificationStatus;
 use App\Enums\PaymentStatusEnum;
@@ -134,7 +135,7 @@ class ClubTournamentController extends Controller
         app(ClubNotificationService::class)->createNotification(
             $club,
             [
-                'club_notification_type_id' => 2,
+                'club_notification_type_id' => ClubNotificationType::Event->value,
                 'title' => "Giải đấu mới: {$tournament->name}",
                 'content' => "CLB {$club->name} tổ chức giải đấu mới \"{$tournament->name}\". "
                     . "Thời gian: " . ($tournament->start_date ? \Carbon\Carbon::parse($tournament->start_date)->format('d/m/Y') : 'N/A') . ". "
