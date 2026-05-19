@@ -76,14 +76,7 @@ class MiniTournamentResource extends JsonResource
             'duration' => $this->duration,
 
             'competition_location' => new CompetitionLocationResource($this->whenLoaded('competitionLocation')),
-            'created_by' => $this->whenLoaded('creator', function () {
-                return [
-                    'id' => $this->creator->id,
-                    'name' => $this->creator->full_name,
-                    'avatar_url' => $this->creator->avatar_url,
-                    'gender' => $this->creator->gender,
-                ];
-            }),
+            'created_by' => new UserResource($this->whenLoaded('creator')),
             'is_private' => $this->is_private,
 
             // Updated fee fields
