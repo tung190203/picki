@@ -4,7 +4,6 @@ namespace App\Events;
 
 use App\Http\Resources\QuickMatchResource;
 use App\Models\QuickMatch;
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -24,9 +23,7 @@ class QuickMatchConfirmed implements ShouldBroadcast
 
     public function broadcastOn(): array
     {
-        return [
-            new PrivateChannel('quick-match.' . $this->quickMatch->id),
-        ];
+        return [new PrivateChannel('quick-match.' . $this->quickMatch->id)];
     }
 
     public function broadcastAs(): string

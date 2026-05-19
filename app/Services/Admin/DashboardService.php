@@ -2,6 +2,8 @@
 
 namespace App\Services\Admin;
 
+use App\Http\Resources\MiniTournamentResource;
+use App\Http\Resources\TournamentResource;
 use App\Http\Resources\UserResource;
 use App\Models\Matches;
 use App\Models\MiniMatch;
@@ -92,7 +94,8 @@ class DashboardService
         $openMiniTournaments = MiniTournament::with([
             'competitionLocation',
             'sport',
-            'creator',
+            'creator.sports.sport',
+            'creator.sports.scores',
             'club',
             'participants.user',
             'miniTournamentStaffs.user',
@@ -129,7 +132,8 @@ class DashboardService
         $openTournaments = Tournament::with([
             'competitionLocation',
             'sport',
-            'createdBy',
+            'createdBy.sports.sport',
+            'createdBy.sports.scores',
             'club',
             'participants.user',
             'tournamentStaffs.user',
@@ -212,8 +216,8 @@ class DashboardService
 
             // Data lists
             'recent_new_users' => $recentNewUsers,
-            'open_mini_tournaments' => $openMiniTournaments,
-            'open_tournaments' => $openTournaments,
+            'open_mini_tournaments' => collect(MiniTournamentResource::collection($openMiniTournaments)->resolve()),
+            'open_tournaments' => collect(TournamentResource::collection($openTournaments)->resolve()),
 
             // Charts
             'user_growth' => $userGrowth,
@@ -275,7 +279,8 @@ class DashboardService
         $query = MiniTournament::with([
             'competitionLocation',
             'sport',
-            'creator',
+            'creator.sports.sport',
+            'creator.sports.scores',
             'club',
             'participants.user',
             'miniTournamentStaffs.user',
@@ -310,7 +315,11 @@ class DashboardService
             $query->where('mini_tournaments.name', 'like', "%{$keyword}%");
         }
 
-        return $query->paginate($limit, ['*'], 'page', $page);
+        $paginated = $query->paginate($limit, ['*'], 'page', $page);
+
+        return $paginated->setCollection(
+            collect(MiniTournamentResource::collection($paginated->getCollection())->resolve())
+        );
     }
 
     private function getOpenTournamentsList(int $page, int $limit, ?string $keyword)
@@ -318,7 +327,8 @@ class DashboardService
         $query = Tournament::with([
             'competitionLocation',
             'sport',
-            'createdBy',
+            'createdBy.sports.sport',
+            'createdBy.sports.scores',
             'club',
             'participants.user',
             'tournamentStaffs.user',
@@ -358,7 +368,11 @@ class DashboardService
             $query->where('tournaments.name', 'like', "%{$keyword}%");
         }
 
-        return $query->paginate($limit, ['*'], 'page', $page);
+        $paginated = $query->paginate($limit, ['*'], 'page', $page);
+
+        return $paginated->setCollection(
+            collect(TournamentResource::collection($paginated->getCollection())->resolve())
+        );
     }
 
     private function getUsersList(int $page, int $limit, ?string $keyword)
@@ -401,7 +415,8 @@ class DashboardService
         $query = MiniTournament::with([
             'competitionLocation',
             'sport',
-            'creator',
+            'creator.sports.sport',
+            'creator.sports.scores',
             'club',
             'participants.user',
             'miniTournamentStaffs.user',
@@ -435,7 +450,11 @@ class DashboardService
             $query->where('mini_tournaments.name', 'like', "%{$keyword}%");
         }
 
-        return $query->paginate($limit, ['*'], 'page', $page);
+        $paginated = $query->paginate($limit, ['*'], 'page', $page);
+
+        return $paginated->setCollection(
+            collect(MiniTournamentResource::collection($paginated->getCollection())->resolve())
+        );
     }
 
     private function getTournamentsList(int $page, int $limit, ?string $keyword)
@@ -443,7 +462,8 @@ class DashboardService
         $query = Tournament::with([
             'competitionLocation',
             'sport',
-            'createdBy',
+            'createdBy.sports.sport',
+            'createdBy.sports.scores',
             'club',
             'participants.user',
             'tournamentStaffs.user',
@@ -482,6 +502,10 @@ class DashboardService
             $query->where('tournaments.name', 'like', "%{$keyword}%");
         }
 
-        return $query->paginate($limit, ['*'], 'page', $page);
+        $paginated = $query->paginate($limit, ['*'], 'page', $page);
+
+        return $paginated->setCollection(
+            collect(TournamentResource::collection($paginated->getCollection())->resolve())
+        );
     }
 }

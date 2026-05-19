@@ -69,14 +69,7 @@ class TournamentResource extends JsonResource
             'status_text' => $this->status_text,
             'is_completed' => (int) $this->status === 3,
             'description' => $this->description,
-            'created_by' => $this->whenLoaded('createdBy', function () {
-                return [
-                    'id' => $this->createdBy->id,
-                    'name' => $this->createdBy->full_name,
-                    'avatar_url' => $this->createdBy->avatar_url,
-                    'gender' => $this->createdBy->gender,
-                ];
-            }),
+            'created_by' => new UserResource($this->whenLoaded('createdBy')),
             'club' => $this->whenLoaded('club', function () {
                 return [
                     'id' => $this->club->id,

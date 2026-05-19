@@ -37,7 +37,6 @@ class QuickMatch extends Model
     ];
 
     const STATUS_PENDING = 'pending';
-    const STATUS_CONFIRMED = 'confirmed';
     const STATUS_COMPLETED = 'completed';
 
     const MATCH_TYPE_RANK = 'rank';
