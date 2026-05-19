@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ClubNotificationType;
 use App\Models\MiniTournament;
 use App\Models\MiniMatch;
 use App\Models\MiniParticipant;
@@ -95,7 +96,7 @@ class MiniTournamentService
                 app(\App\Services\Club\ClubNotificationService::class)->createNotification(
                     $club,
                     [
-                        'club_notification_type_id' => 2,
+                        'club_notification_type_id' => ClubNotificationType::Event->value,
                         'title' => "Kèo mới: {$miniTournament->name}",
                         'content' => "CLB {$club->name} tổ chức kèo mới \"{$miniTournament->name}\". "
                             . "Thời gian: " . ($miniTournament->start_time ? $miniTournament->start_time->format('H:i d/m/Y') : 'N/A') . ". "

@@ -636,7 +636,7 @@ watch(showQrModal, (isOpen) => {
         echoChannel.value = null
     }
 
-    echoChannel.value = window.Echo.private(channelName)
+    echoChannel.value = window.Echo.private(`quick-match.${createdMatch.value.id}`)
 
     echoChannel.value.listen('.quick_match.confirmed', (data) => {
         if (data.quick_match) {
