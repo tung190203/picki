@@ -13,6 +13,7 @@ class QuickMatch extends Model
 
     protected $fillable = [
         'name',
+        'avatar_url',
         'note',
         'team_a',
         'team_b',

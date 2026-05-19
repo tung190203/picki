@@ -8,6 +8,7 @@ use App\Http\Resources\QuickMatchResource;
 use App\Models\MatchHistory;
 use App\Models\QuickMatch;
 use App\Notifications\QuickMatchInvitationNotification;
+use App\Services\ImageOptimizationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,10 +19,15 @@ use Illuminate\Validation\Rule;
 
 class QuickMatchController extends Controller
 {
+    public function __construct(protected ImageOptimizationService $imageService)
+    {
+    }
+
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'name' => 'nullable|string|max:255',
+            'avatar_url' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
             'note' => 'nullable|string|max:1000',
             'match_type' => ['nullable', Rule::in([QuickMatch::MATCH_TYPE_RANK, QuickMatch::MATCH_TYPE_CASUAL])],
             'team_a' => 'required|array|min:1|max:2',
@@ -30,10 +36,10 @@ class QuickMatchController extends Controller
             'team_b.*' => 'integer|exists:users,id',
             'scheduled_at' => 'nullable|date',
             'competition_location_id' => 'nullable|integer|exists:competition_locations,id',
-            'score' => 'nullable|array',
-            'score.team_a' => 'nullable|array',
+            'score' => 'required|array',
+            'score.team_a' => 'required|array',
             'score.team_a.*' => 'integer|min:0',
-            'score.team_b' => 'nullable|array',
+            'score.team_b' => 'required|array',
             'score.team_b.*' => 'integer|min:0',
         ]);
 
@@ -42,13 +48,23 @@ class QuickMatchController extends Controller
 
         $matchType = $validated['match_type'] ?? QuickMatch::MATCH_TYPE_RANK;
 
-        $quickMatch = DB::transaction(function () use ($validated, $creator, $isSuperAdmin, $matchType) {
+        $avatarPath = null;
+        if ($request->hasFile('avatar_url')) {
+            $avatarPath = $this->imageService->optimizeThumbnail(
+                $request->file('avatar_url'),
+                'quick-matches/avatars',
+                80
+            );
+        }
+
+        $quickMatch = DB::transaction(function () use ($validated, $creator, $isSuperAdmin, $matchType, $avatarPath) {
             $score = $validated['score'] ?? null;
             $winner = $score ? (new QuickMatch())->determineWinner($score) : null;
             $status = $score && $isSuperAdmin ? QuickMatch::STATUS_COMPLETED : ($isSuperAdmin ? QuickMatch::STATUS_CONFIRMED : QuickMatch::STATUS_PENDING);
 
             $data = [
                 'name' => $validated['name'] ?? null,
+                'avatar_url' => $avatarPath,
                 'note' => $validated['note'] ?? null,
                 'team_a' => $validated['team_a'],
                 'team_b' => $validated['team_b'],
