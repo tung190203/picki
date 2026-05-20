@@ -1528,32 +1528,57 @@ class MatchesController extends Controller
         // =====================================================
         $sportId = $tournament->sport_id;
 
-        $getAverageRating = function ($team, $sportId) {
+        $allMemberIds = $match->homeTeam->members->pluck('id')
+            ->merge($match->awayTeam->members->pluck('id'))
+            ->unique()
+            ->values();
+
+        // Batch load all user_sport records for both teams
+        $userSportRecords = DB::table('user_sport')
+            ->whereIn('user_id', $allMemberIds)
+            ->where('sport_id', $sportId)
+            ->get()
+            ->keyBy('user_id');
+
+        $userSportIds = $userSportRecords->pluck('id')->values();
+
+        // Batch load all user_sport_scores for all user_sport ids
+        $scoreMap = DB::table('user_sport_scores')
+            ->whereIn('user_sport_id', $userSportIds)
+            ->where('score_type', 'vndupr_score')
+            ->get()
+            ->keyBy('user_sport_id');
+
+        // Batch load all VnduprHistory for all members (used in K-factor calculation)
+        $historyMap = VnduprHistory::whereIn('user_id', $allMemberIds)
+            ->orderByDesc('id')
+            ->take(15 * $allMemberIds->count())
+            ->get()
+            ->groupBy('user_id')
+            ->map(fn($col) => $col->sortBy('id')->values());
+
+        $getAverageRating = function ($team) use ($userSportRecords, $scoreMap) {
             $members = $team->members;
             if ($members->isEmpty()) return 0;
 
             $total = 0;
+            $count = 0;
             foreach ($members as $member) {
-                $userSport = DB::table('user_sport')
-                    ->where('user_id', $member->id)
-                    ->where('sport_id', $sportId)
-                    ->first();
-
+                $userSport = $userSportRecords->get($member->id);
                 if ($userSport) {
-                    $score = DB::table('user_sport_scores')
-                        ->where('user_sport_id', $userSport->id)
-                        ->where('score_type', 'vndupr_score')
-                        ->value('score_value');
-
-                    $total += (float) ($score ?? 0);
+                    $score = $scoreMap->get($userSport->id);
+                    if ($score) {
+                        $total += (float) $score->score_value;
+                        $count++;
+                    }
                 }
             }
 
-            return $total / $members->count();
+            return $count > 0 ? $total / $count : 0;
         };
 
-        $homeRating = $getAverageRating($match->homeTeam, $sportId);
-        $awayRating = $getAverageRating($match->awayTeam, $sportId);
+        $homeRating = $getAverageRating($match->homeTeam);
+        $awayRating = $getAverageRating($match->awayTeam);
 
         $E_home = 1 / (1 + pow(10, ($awayRating - $homeRating)));
         $E_away = 1 / (1 + pow(10, ($homeRating - $awayRating)));
@@ -1582,23 +1607,11 @@ class MatchesController extends Controller
                 $user->total_matches = ($user->total_matches ?? 0) + 1;
                 $user->save();
 
-                // Lấy R_old
-                $userSport = DB::table('user_sport')
-                    ->where('user_id', $user->id)
-                    ->where('sport_id', $sportId)
-                    ->first();
+                $userSport = $userSportRecords->get($user->id);
+                $scoreRecord = $userSport ? $scoreMap->get($userSport->id) : null;
+                $R_old = $scoreRecord ? (float) $scoreRecord->score_value : 0;
 
-                $R_old = DB::table('user_sport_scores')
-                    ->where('user_sport_id', $userSport?->id)
-                    ->where('score_type', 'vndupr_score')
-                    ->value('score_value') ?? 0;
-
-                $history = VnduprHistory::where('user_id', $user->id)
-                    ->orderByDesc('id')
-                    ->take(15)
-                    ->get()
-                    ->sortBy('id')
-                    ->values();
+                $history = $historyMap->get($user->id, collect());
 
                 $K = 0.3;
 
@@ -1620,9 +1633,6 @@ class MatchesController extends Controller
                     }
                 }
 
-                // $R_new = $hasAnchorInMatch
-                //     ? $R_old + ($W * $K * ($S - $E))
-                //     : $R_old;
                 $R_new = $R_old + ($W * $K * ($S - $E));
 
                 VnduprHistory::create([
