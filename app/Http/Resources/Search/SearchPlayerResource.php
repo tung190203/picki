@@ -42,6 +42,8 @@ class SearchPlayerResource extends JsonResource
             'win_rate'   => $stats['win_rate'] ?? 0.0,
             'total_matches' => $stats['total_matches'] ?? 0,
             'distance'    => $this->when(isset($this->distance), round($this->distance, 1)),
+            'latitude'    => $this->latitude ?? null,
+            'longitude'   => $this->longitude ?? null,
             'sports'      => $this->whenLoaded('sports', fn() =>
                 UserSportResource::collection($this->sports)
             ),

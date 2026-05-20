@@ -91,7 +91,7 @@ class SearchV2Controller extends Controller
                 ->filter($filters),
 
             SearchFilterConfig::TAB_TOURNAMENT => Tournament::withFullRelations()
-                ->with(['tournamentStaffs', 'participants'])
+                ->with(['tournamentStaffs', 'participants', 'competitionLocation'])
                 ->whereDate('start_date', '>=', now()->toDateString())
                 ->filter($filters),
 
