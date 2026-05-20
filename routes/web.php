@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\MetaPreviewController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Broadcast;
 
 /*
 |--------------------------------------------------------------------------
@@ -13,6 +14,15 @@ use Illuminate\Support\Facades\Route;
 | be assigned to the "web" middleware group. Make something great!
 |
 */
+
+/*
+|--------------------------------------------------------------------------
+| Broadcast Auth - Pusher calls /broadcasting/auth (not /api/broadcasting/auth)
+|--------------------------------------------------------------------------
+*/
+Route::post('/broadcasting/auth', function () {
+    return Broadcast::auth(request());
+})->middleware('auth:api');
 
 /*
 |--------------------------------------------------------------------------
