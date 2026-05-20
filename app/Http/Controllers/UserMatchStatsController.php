@@ -283,8 +283,8 @@ class UserMatchStatsController extends Controller
                                 }
                             }
                             $scores[] = [
-                                'my_score' => $my_set_score,
-                                'opponent_score' => $opponent_set_score
+                                'my_score' => (int) $my_set_score,
+                                'opponent_score' => (int) $opponent_set_score
                             ];
                         }
                     }
@@ -324,8 +324,8 @@ class UserMatchStatsController extends Controller
                             }
 
                             $scores[] = [
-                                'my_score' => $my_set_score,
-                                'opponent_score' => $opponent_set_score
+                                'my_score' => (int) $my_set_score,
+                                'opponent_score' => (int) $opponent_set_score
                             ];
                         }
                     }
@@ -567,8 +567,8 @@ class UserMatchStatsController extends Controller
                     }
 
                     $scores[] = [
-                        'my_score' => $myScore,
-                        'opponent_score' => $opponentScore,
+                        'my_score' => (int) $myScore,
+                        'opponent_score' => (int) $opponentScore,
                         'set_number' => $setNumber
                     ];
                 }
@@ -678,8 +678,8 @@ class UserMatchStatsController extends Controller
                     }
 
                     $scores[] = [
-                        'my_score' => $myScore,
-                        'opponent_score' => $opponentScore,
+                        'my_score' => (int) $myScore,
+                        'opponent_score' => (int) $opponentScore,
                         'set_number' => $setNumber
                     ];
                 }
@@ -755,14 +755,14 @@ class UserMatchStatsController extends Controller
                 for ($i = 0; $i < $maxSets; $i++) {
                     if ($isMyTeamA) {
                         $scores[] = [
-                            'my_score' => $teamAScores[$i] ?? 0,
-                            'opponent_score' => $teamBScores[$i] ?? 0,
+                            'my_score' => (int) ($teamAScores[$i] ?? 0),
+                            'opponent_score' => (int) ($teamBScores[$i] ?? 0),
                             'set_number' => $i + 1,
                         ];
                     } else {
                         $scores[] = [
-                            'my_score' => $teamBScores[$i] ?? 0,
-                            'opponent_score' => $teamAScores[$i] ?? 0,
+                            'my_score' => (int) ($teamBScores[$i] ?? 0),
+                            'opponent_score' => (int) ($teamAScores[$i] ?? 0),
                             'set_number' => $i + 1,
                         ];
                     }
