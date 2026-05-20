@@ -259,7 +259,7 @@ class UpdateMiniTournamentRequest extends FormRequest
             'is_private', 'has_fee', 'auto_split_fee',
             'apply_rule', 'allow_cancellation', 'auto_approve',
             'allow_participant_add_friends',
-            'use_club_fund', 'included_in_club_fund',
+            'use_club_fund', 'included_in_club_fund', 'use_cached_qr',
         ];
         $boolNormalized = [];
         foreach ($boolKeys as $key) {

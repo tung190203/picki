@@ -524,15 +524,7 @@ class GuestController extends Controller
 
         // === Kèo thuộc CLB: kiểm tra club_id và quyền staff ===
         if ($miniTournament->club_id) {
-            $clubId = $request->input('club_id');
-
-            if (!$clubId) {
-                return ResponseHelper::error('Kèo thuộc CLB. Vui lòng truyền club_id trong body.', 422);
-            }
-
-            if ((int) $miniTournament->club_id !== (int) $clubId) {
-                return ResponseHelper::error('Kèo không thuộc CLB này', 403);
-            }
+            $clubId = $miniTournament->club_id;
 
             $club = Club::find($clubId);
             if (!$club) {
@@ -603,15 +595,7 @@ class GuestController extends Controller
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
 
         if ($miniTournament->club_id) {
-            $clubId = $request->input('club_id');
-
-            if (!$clubId) {
-                return ResponseHelper::error('Kèo thuộc CLB. Vui lòng truyền club_id trong body.', 422);
-            }
-
-            if ((int) $miniTournament->club_id !== (int) $clubId) {
-                return ResponseHelper::error('Kèo không thuộc CLB này', 403);
-            }
+            $clubId = $miniTournament->club_id;
 
             $club = Club::find($clubId);
             if (!$club) {

@@ -394,6 +394,9 @@ class MiniTournamentController extends Controller
             $savedPath = $imageService->processAndSaveImage($request->file('qr_code_url'), 'qr_codes', 'qr_', 500, 60);
             $imageService->deleteOldImage($oldQr);
             $miniTournament->update(['qr_code_url' => asset('storage/' . $savedPath)]);
+        } elseif ($request->boolean('use_cached_qr') && Auth::user()->latest_used_qr) {
+            $miniTournament->update(['qr_code_url' => Auth::user()->latest_used_qr]);
+            Auth::user()->update(['latest_used_qr' => Auth::user()->latest_used_qr]);
         }
 
         $miniTournament->loadFullRelations();
