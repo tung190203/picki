@@ -22,6 +22,7 @@ use App\Http\Resources\MiniParticipantPaymentResource;
 use App\Http\Resources\MiniParticipantResource;
 use App\Http\Resources\MiniTournamentResource;
 use App\Models\Club\Club;
+use App\Models\Club\ClubExpense;
 use App\Models\Club\ClubFundCollection;
 use App\Models\Club\ClubFundContribution;
 use App\Models\MiniMatch;
@@ -123,6 +124,57 @@ class MiniTournamentController extends Controller
                 $user = User::find($userId);
                 if ($user) {
                     $user->notify(new MiniTournamentInvitationNotification($miniTournament, Auth::id()));
+                }
+            }
+        }
+
+        // === use_club_fund = true: trừ quỹ CLB ===
+        if ($miniTournament->use_club_fund && $miniTournament->club_id) {
+            $club = Club::with('mainWallet')->find($miniTournament->club_id);
+            if ($club) {
+                $feeAmount = (float) ($miniTournament->fee_amount ?? 0);
+                if ($feeAmount > 0) {
+                    $currentBalance = (float) ($club->mainWallet?->balance ?? 0);
+                    if ($currentBalance < $feeAmount) {
+                        $miniTournament->forceDelete();
+                        return ResponseHelper::error('Số dư quỹ CLB hiện tại (' . number_format($currentBalance) . 'đ) không đủ để chi trả phí kèo (' . number_format($feeAmount) . 'đ). Vui lòng nạp thêm quỹ.', 422);
+                    }
+
+                    DB::transaction(function () use ($miniTournament, $club, $feeAmount) {
+                        $clubExpense = ClubExpense::create([
+                            'club_id' => $club->id,
+                            'mini_tournament_id' => $miniTournament->id,
+                            'title' => $miniTournament->name,
+                            'amount' => $feeAmount,
+                            'spent_by' => Auth::id(),
+                            'spent_at' => now(),
+                            'note' => "Quỹ chi kèo CLB. Kèo ID: {$miniTournament->id}.",
+                        ]);
+
+                        $mainWallet = $club->mainWallet;
+                        if (!$mainWallet) {
+                            $mainWallet = \App\Models\Club\ClubWallet::create([
+                                'club_id' => $club->id,
+                                'currency' => 'VND',
+                            ]);
+                        }
+
+                        $transaction = $mainWallet->transactions()->create([
+                            'direction' => ClubWalletTransactionDirection::Out,
+                            'amount' => $feeAmount,
+                            'source_type' => ClubWalletTransactionSourceType::TournamentFee,
+                            'source_id' => $clubExpense->id,
+                            'payment_method' => \App\Enums\PaymentMethod::Other,
+                            'status' => ClubWalletTransactionStatus::Confirmed,
+                            'description' => "Quỹ chi kèo: {$miniTournament->name}",
+                            'created_by' => Auth::id(),
+                            'confirmed_by' => Auth::id(),
+                            'confirmed_at' => now(),
+                            'included_in_club_fund' => true,
+                        ]);
+
+                        $clubExpense->updateQuietly(['wallet_transaction_id' => $transaction->id]);
+                    });
                 }
             }
         }

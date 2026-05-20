@@ -11,6 +11,11 @@ export const storeMiniTournament = async (data) => {
     .then((response) => response.data.data);
 }
 
+export const storeMiniTournamentByClub = async (clubId, data) => {
+  return axiosInstance.post(`/clubs/${clubId}/mini-tournaments`, data)
+    .then((response) => response.data.data);
+}
+
 export const getMiniTournamentById = async (id) => {
   return axiosInstance.get(`${miniTournamentEndpoint}/${id}`)
     .then((response) => response.data.data);

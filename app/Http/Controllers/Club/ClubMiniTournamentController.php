@@ -84,6 +84,17 @@ class ClubMiniTournamentController extends Controller
         // === use_club_fund = true: tạo khoản chi từ quỹ CLB ===
         // CLB chi tiền cho kèo đấu → trừ quỹ chung + hiển thị trong lịch sử thu chi
         if ($miniTournament->use_club_fund) {
+            $feeAmount = (float) ($miniTournament->fee_amount ?? 0);
+            if ($feeAmount > 0) {
+                $currentBalance = (float) ($club->mainWallet?->balance ?? 0);
+                if ($currentBalance < $feeAmount) {
+                    $miniTournament->delete();
+                    return ResponseHelper::error(
+                        "Số dư quỹ CLB hiện tại (" . number_format($currentBalance) . "đ) không đủ để chi trả phí kèo (" . number_format($feeAmount) . "đ). Vui lòng nạp thêm quỹ.",
+                        422
+                    );
+                }
+            }
             $this->createClubExpenseForTournament($miniTournament, $club, $userId);
         }
 
