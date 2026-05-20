@@ -119,90 +119,81 @@ class UserMatchStatsController extends Controller
             return ResponseHelper::error('Có lỗi xảy ra trong quá trình thực thi', 400);
         }
 
-        // Lấy VnduprHistory 365 ngày (Tournament + MiniTournament)
-        $vnduprHistories = VnduprHistory::where('user_id', $userId)
-            ->where('created_at', '>=', now()->subYear())
-            ->orderBy('created_at', 'asc')
-            ->get();
+        $since = now()->subYear();
 
-        // Lấy MatchHistory 365 ngày (Quick Match)
-        $matchHistories = MatchHistory::where('user_id', $userId)
-            ->where('played_at', '>=', now()->subYear())
-            ->orderBy('played_at', 'asc')
-            ->get()
-            ->filter(fn($h) => $h->quick_match_id !== null);
+        // ========== 1. TOURNAMENT MATCHES ==========
+        // team_members → teams → matches (home/away) → tournament_types → tournaments
+        $teamIds = DB::table('team_members')->where('user_id', $userId)->pluck('team_id');
 
-        // Merge hai nguồn thành một collection
-        $allHistories = $vnduprHistories->map(fn($h) => (object) [
-            'match_id'       => $h->match_id,
-            'mini_match_id'  => $h->mini_match_id,
-            'quick_match_id' => null,
-            'created_at'     => $h->created_at,
-            'played_at'      => $h->created_at,
-        ])->merge($matchHistories->map(fn($h) => (object) [
-            'match_id'       => null,
-            'mini_match_id'  => null,
-            'quick_match_id' => $h->quick_match_id,
-            'created_at'     => $h->played_at,
-            'played_at'      => $h->played_at,
-        ]))->values();
+        $matchIds = DB::table('matches')
+            ->whereIn('home_team_id', $teamIds)
+            ->orWhereIn('away_team_id', $teamIds)
+            ->whereNotNull('winner_id')
+            ->where('updated_at', '>=', $since)
+            ->pluck('id')
+            ->unique();
 
-        if ($allHistories->isEmpty()) {
-            return response()->json(['data' => []]);
-        }
-
-        $matchIds  = $vnduprHistories->pluck('match_id')->filter()->unique();
-        $miniIds   = $vnduprHistories->pluck('mini_match_id')->filter()->unique();
-        $quickIds  = $matchHistories->pluck('quick_match_id')->filter()->unique();
-
-        // ========== LOAD MATCHES ==========
-        $matches = Matches::with([
-                'homeTeam.members:id',
-                'awayTeam.members:id',
-                'tournamentType.tournament'
-            ])
-            ->whereIn('id', $matchIds)
-            ->whereHas('tournamentType.tournament', fn($q) => $q->where('sport_id', $sportId))
-            ->get()
-            ->keyBy('id');
-
-        // ========== LOAD MINI MATCHES ==========
-        $minis = MiniMatch::with([
-                'team1.members:id',
-                'team2.members:id',
-                'miniTournament'
-            ])
-            ->whereIn('id', $miniIds)
-            ->whereHas('miniTournament', fn($q) => $q->where('sport_id', $sportId))
-            ->get()
-            ->keyBy('id');
-
-        // ========== LOAD QUICK MATCHES (filter by sport via competition_location) ==========
-        $quickMatches = collect();
-        if ($quickIds->isNotEmpty()) {
-            $quickMatches = QuickMatch::with('competitionLocation')
-                ->whereIn('id', $quickIds)
-                ->where('status', QuickMatch::STATUS_COMPLETED)
+        $matches = collect();
+        if ($matchIds->isNotEmpty()) {
+            $matches = Matches::with([
+                    'homeTeam.members:id',
+                    'awayTeam.members:id',
+                    'tournamentType.tournament',
+                ])
+                ->whereIn('id', $matchIds)
+                ->whereHas('tournamentType.tournament', fn($q) => $q->where('sport_id', $sportId))
                 ->get()
-                ->filter(function ($qm) use ($sportId) {
-                    if (!$qm->competitionLocation) {
-                        return true; // không có location → cho hiển thị
-                    }
-                    return $qm->competitionLocation->sports->contains('id', $sportId);
-                })
                 ->keyBy('id');
         }
 
-        // Lấy kết quả
         $matchResults = MatchResult::whereIn('match_id', $matches->keys())
             ->get()
             ->groupBy('match_id');
+
+        // ========== 2. MINI TOURNAMENT MATCHES ==========
+        // 2a. Đánh đơn: user nằm trong mini_participants (is_confirmed, user_id direct)
+        $singleTournamentIds = DB::table('mini_participants')
+            ->where('user_id', $userId)
+            ->where('is_confirmed', 1)
+            ->whereNotNull('mini_tournament_id')
+            ->pluck('mini_tournament_id')
+            ->unique();
+
+        // 2b. Đánh đôi/team: user nằm trong mini_team_members
+        $teamMatchTournamentIds = DB::table('mini_team_members')
+            ->join('mini_teams', 'mini_team_members.mini_team_id', '=', 'mini_teams.id')
+            ->where('mini_team_members.user_id', $userId)
+            ->pluck('mini_teams.mini_tournament_id')
+            ->unique();
+
+        $allMiniTournamentIds = $singleTournamentIds->merge($teamMatchTournamentIds)->unique();
+
+        $miniMatchIds = collect();
+        if ($allMiniTournamentIds->isNotEmpty()) {
+            $miniMatchIds = DB::table('mini_matches')
+                ->whereIn('mini_tournament_id', $allMiniTournamentIds)
+                ->whereNotNull('team_win_id')
+                ->where('updated_at', '>=', $since)
+                ->pluck('id');
+        }
+
+        $minis = collect();
+        if ($miniMatchIds->isNotEmpty()) {
+            $minis = MiniMatch::with([
+                    'team1.members:id',
+                    'team2.members:id',
+                    'miniTournament',
+                ])
+                ->whereIn('id', $miniMatchIds)
+                ->whereHas('miniTournament', fn($q) => $q->where('sport_id', $sportId))
+                ->get()
+                ->keyBy('id');
+        }
 
         $miniResults = MiniMatchResult::whereIn('mini_match_id', $minis->keys())
             ->get()
             ->groupBy('mini_match_id');
 
-        // ========== MINI_TEAM_MEMBERS ==========
         $miniTeamMembersByTeam = collect();
         if ($minis->isNotEmpty()) {
             $miniTeamMembersByTeam = DB::table('mini_team_members')
@@ -218,9 +209,73 @@ class UserMatchStatsController extends Controller
                 ->map(fn($rows) => $rows->pluck('user_id')->all());
         }
 
+        // ========== 3. QUICK MATCHES ==========
+        $matchHistories = MatchHistory::where('user_id', $userId)
+            ->where('played_at', '>=', $since)
+            ->whereNotNull('quick_match_id')
+            ->get()
+            ->keyBy('quick_match_id');
+
+        $quickMatchIds = $matchHistories->pluck('quick_match_id')->unique();
+
+        $quickMatches = collect();
+        if ($quickMatchIds->isNotEmpty()) {
+            $quickMatches = QuickMatch::with('competitionLocation')
+                ->whereIn('id', $quickMatchIds)
+                ->where('status', QuickMatch::STATUS_COMPLETED)
+                ->get()
+                ->filter(fn($qm) => $qm->competitionLocation
+                    ? $qm->competitionLocation->sports->contains('id', $sportId)
+                    : true)
+                ->keyBy('id');
+        }
+
+        // ========== BUILD UNIFIED HISTORIES ==========
+        $allHistories = collect();
+
+        foreach ($matches as $match) {
+            $allHistories->push((object) [
+                'type'         => 'match',
+                'id'           => $match->id,
+                'created_at'    => $match->updated_at,
+                'match_id'     => $match->id,
+                'mini_match_id'  => null,
+                'quick_match_id' => null,
+            ]);
+        }
+
+        foreach ($minis as $mini) {
+            $allHistories->push((object) [
+                'type'          => 'mini_match',
+                'id'            => $mini->id,
+                'created_at'    => $mini->updated_at,
+                'match_id'      => null,
+                'mini_match_id' => $mini->id,
+                'quick_match_id'=> null,
+            ]);
+        }
+
+        foreach ($matchHistories as $history) {
+            if (!$quickMatches->has($history->quick_match_id)) continue;
+            $allHistories->push((object) [
+                'type'          => 'quick_match',
+                'id'            => $history->quick_match_id,
+                'created_at'    => $history->played_at,
+                'match_id'      => null,
+                'mini_match_id' => null,
+                'quick_match_id'=> $history->quick_match_id,
+            ]);
+        }
+
+        $allHistories = $allHistories->sortBy('created_at')->values();
+
+        if ($allHistories->isEmpty()) {
+            return response()->json(['data' => []]);
+        }
+
         // ========== HELPER: CHECK WIN ==========
         $checkWin = function ($item) use ($matches, $minis, $quickMatches, $miniTeamMembersByTeam, $userId) {
-            if ($item->match_id && $matches->has($item->match_id)) {
+            if ($item->type === 'match' && $matches->has($item->match_id)) {
                 $match = $matches[$item->match_id];
                 $homeUserIds = $match->homeTeam->members->pluck('id')->all();
                 $awayUserIds = $match->awayTeam->members->pluck('id')->all();
@@ -230,7 +285,7 @@ class UserMatchStatsController extends Controller
                 );
             }
 
-            if ($item->mini_match_id && $minis->has($item->mini_match_id)) {
+            if ($item->type === 'mini_match' && $minis->has($item->mini_match_id)) {
                 $mini = $minis[$item->mini_match_id];
                 $isTeam1 = in_array($userId, $miniTeamMembersByTeam[$mini->team1_id] ?? []);
                 $isTeam2 = in_array($userId, $miniTeamMembersByTeam[$mini->team2_id] ?? []);
@@ -239,7 +294,7 @@ class UserMatchStatsController extends Controller
                 return false;
             }
 
-            if ($item->quick_match_id && $quickMatches->has($item->quick_match_id)) {
+            if ($item->type === 'quick_match' && $quickMatches->has($item->quick_match_id)) {
                 $qm = $quickMatches[$item->quick_match_id];
                 if (!$qm->winner) return false;
                 $userInTeamA = in_array($userId, $qm->team_a ?? []);
@@ -256,9 +311,7 @@ class UserMatchStatsController extends Controller
             $unique = collect();
             $seen = [];
             foreach ($collection as $item) {
-                $key = $item->match_id
-                    ? 'm_' . $item->match_id
-                    : ($item->mini_match_id ? 'mini_' . $item->mini_match_id : 'q_' . $item->quick_match_id);
+                $key = $item->type . '_' . $item->id;
                 if (!isset($seen[$key])) {
                     $seen[$key] = true;
                     $unique->push($item);
@@ -273,11 +326,10 @@ class UserMatchStatsController extends Controller
             $weekLabels = [];
 
             foreach ($collection as $item) {
-                $createdAt = $item->played_at ?? $item->created_at;
                 $scores = [];
                 $isWin = false;
 
-                if ($item->match_id && $matches->has($item->match_id)) {
+                if ($item->type === 'match' && $matches->has($item->match_id)) {
                     $match = $matches->get($item->match_id);
                     $homeUserIds = $match->homeTeam->members->pluck('id')->all();
                     $awayUserIds = $match->awayTeam->members->pluck('id')->all();
@@ -290,7 +342,7 @@ class UserMatchStatsController extends Controller
                             $myScore = 0;
                             $oppScore = 0;
                             foreach ($setResults as $r) {
-                                if ($r->team_id == $myTeamId)      $myScore += $r->score;
+                                if ($r->team_id == $myTeamId)        $myScore += $r->score;
                                 elseif ($r->team_id == $opponentTeamId) $oppScore += $r->score;
                             }
                             $scores[] = ['my_score' => (int) $myScore, 'opponent_score' => (int) $oppScore];
@@ -298,7 +350,7 @@ class UserMatchStatsController extends Controller
                     }
                     $isWin = $match->winner_id == $myTeamId;
 
-                } elseif ($item->mini_match_id && $minis->has($item->mini_match_id)) {
+                } elseif ($item->type === 'mini_match' && $minis->has($item->mini_match_id)) {
                     $mini = $minis->get($item->mini_match_id);
                     $t1Members = $miniTeamMembersByTeam[$mini->team1_id] ?? [];
                     $t2Members = $miniTeamMembersByTeam[$mini->team2_id] ?? [];
@@ -312,7 +364,7 @@ class UserMatchStatsController extends Controller
                             $oppScore = 0;
                             foreach ($setResults as $r) {
                                 if ($r->team_id !== null && $r->team_id > 0) {
-                                    if ($r->team_id == $myTeamId)      $myScore += $r->score;
+                                    if ($r->team_id == $myTeamId)        $myScore += $r->score;
                                     elseif ($r->team_id == $opponentTeamId) $oppScore += $r->score;
                                 }
                             }
@@ -321,7 +373,7 @@ class UserMatchStatsController extends Controller
                     }
                     $isWin = $mini->team_win_id == $myTeamId;
 
-                } elseif ($item->quick_match_id && $quickMatches->has($item->quick_match_id)) {
+                } elseif ($item->type === 'quick_match' && $quickMatches->has($item->quick_match_id)) {
                     $qm = $quickMatches->get($item->quick_match_id);
                     $userInTeamA = in_array($userId, $qm->team_a ?? []);
                     $teamAScores = $qm->score['team_a'] ?? [];
@@ -340,23 +392,19 @@ class UserMatchStatsController extends Controller
                     }
                 }
 
-                $weekLabels[] = Carbon::parse($createdAt)->toDateString();
+                $weekLabels[] = Carbon::parse($item->created_at)->toDateString();
                 $weekData[] = ['scores' => $scores, 'is_win' => $isWin];
             }
 
             return ['labels' => $weekLabels, 'data' => $weekData];
         };
 
-        // ========== HELPER: CALCULATE WIN RATE BY GROUP ==========
+        // ========== HELPER: WIN RATE BY GROUP ==========
         $calculateWinRateByGroup = function ($collection, $groupByFormat) use ($checkWin) {
             $groups = [];
             foreach ($collection as $item) {
-                $createdAt = $item->played_at ?? $item->created_at;
-                $groupKey = Carbon::parse($createdAt)->format($groupByFormat);
-                $matchKey = $item->match_id
-                    ? 'm_' . $item->match_id
-                    : ($item->mini_match_id ? 'mini_' . $item->mini_match_id : 'q_' . $item->quick_match_id);
-
+                $groupKey = Carbon::parse($item->created_at)->format($groupByFormat);
+                $matchKey = $item->type . '_' . $item->id;
                 if (!isset($groups[$groupKey])) $groups[$groupKey] = [];
                 if (!isset($groups[$groupKey][$matchKey])) $groups[$groupKey][$matchKey] = $item;
             }
@@ -376,17 +424,17 @@ class UserMatchStatsController extends Controller
         $chart = [];
 
         // ========== 1. WEEK ==========
-        $weekHistories = $allHistories->filter(fn($h) => Carbon::parse($h->played_at ?? $h->created_at)->gte(now()->subDays(7)));
+        $weekHistories = $allHistories->filter(fn($h) => Carbon::parse($h->created_at)->gte(now()->subDays(7)));
         $uniqueWeek = $removeDuplicates($weekHistories);
         $chart['week'] = [
-            'labels'    => $processWeekData($uniqueWeek)['labels'],
-            'datasets'  => $processWeekData($uniqueWeek)['data'],
-            'win_rate'  => $this->calculateStats($uniqueWeek, $checkWin)['win_rate'],
+            'labels'      => $processWeekData($uniqueWeek)['labels'],
+            'datasets'    => $processWeekData($uniqueWeek)['data'],
+            'win_rate'    => $this->calculateStats($uniqueWeek, $checkWin)['win_rate'],
             'performance' => $this->calculateStats($uniqueWeek, $checkWin)['performance'],
         ];
 
         // ========== 2. 30 DAYS ==========
-        $monthHistories = $allHistories->filter(fn($h) => Carbon::parse($h->played_at ?? $h->created_at)->gte(now()->subDays(30)));
+        $monthHistories = $allHistories->filter(fn($h) => Carbon::parse($h->created_at)->gte(now()->subDays(30)));
         $uniqueMonth = $removeDuplicates($monthHistories);
         $monthData = $calculateWinRateByGroup($monthHistories, 'Y-m-d');
         $chart['30days'] = [
@@ -397,7 +445,7 @@ class UserMatchStatsController extends Controller
         ];
 
         // ========== 3. 90 DAYS ==========
-        $quarterHistories = $allHistories->filter(fn($h) => Carbon::parse($h->played_at ?? $h->created_at)->gte(now()->subDays(90)));
+        $quarterHistories = $allHistories->filter(fn($h) => Carbon::parse($h->created_at)->gte(now()->subDays(90)));
         $uniqueQuarter = $removeDuplicates($quarterHistories);
         $quarterData = $calculateWinRateByGroup($quarterHistories, 'Y-W');
         $chart['90days'] = [
