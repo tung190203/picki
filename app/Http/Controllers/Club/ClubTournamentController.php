@@ -78,7 +78,9 @@ class ClubTournamentController extends Controller
 
             // QR code: resize + convert WebP + lưu ngay
             $qrUrl = null;
-            if ($request->hasFile('qr_code_url')) {
+            if ($request->boolean('use_cached_qr') && Auth::user()->latest_used_qr) {
+                $qrUrl = Auth::user()->latest_used_qr;
+            } elseif ($request->hasFile('qr_code_url')) {
                 $qrFile = $request->file('qr_code_url');
                 if ($qrFile && $qrFile->isValid()) {
                     $qrUrl = $imageService->processAndSaveImage($qrFile, 'tournaments/qr', 'qr_', 500, 60);
@@ -97,6 +99,11 @@ class ClubTournamentController extends Controller
                 ...$validated,
                 'created_by' => $userId,
             ]);
+
+            // Lưu lại QR vừa dùng vào user
+            if ($qrUrl) {
+                Auth::user()->update(['latest_used_qr' => $qrUrl]);
+            }
 
             TournamentStaff::create([
                 'tournament_id' => $tournament->id,
@@ -211,6 +218,8 @@ class ClubTournamentController extends Controller
                 );
                 $imageService->deleteOldImage($tournament->qr_code_url);
                 $validated['qr_code_url'] = $qrUrl;
+            } elseif ($request->boolean('use_cached_qr') && Auth::user()->latest_used_qr) {
+                $validated['qr_code_url'] = Auth::user()->latest_used_qr;
             } elseif ($request->filled('qr_code_url') && is_string($request->input('qr_code_url'))) {
                 $qrStr = trim((string) $request->input('qr_code_url'));
                 if ($qrStr !== '' && filter_var($qrStr, FILTER_VALIDATE_URL)) {

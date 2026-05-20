@@ -98,7 +98,7 @@ class UpdateTournamentRequest extends FormRequest
                 $qrInput = $this->input('qr_code_url');
                 $hasQrString = is_string($qrInput) && trim($qrInput) !== '';
 
-                if (!$hasQrFile && !$hasQrString) {
+                if (!$hasQrFile && !$hasQrString && !$this->boolean('use_cached_qr')) {
                     $tournamentId = $this->route('id');
                     if ($tournamentId) {
                         $tournament = \App\Models\Tournament::find($tournamentId);
@@ -198,6 +198,7 @@ class UpdateTournamentRequest extends FormRequest
         $boolKeys = [
             'enable_dupr', 'enable_vndupr', 'is_private', 'auto_approve',
             'has_financial_management', 'has_fee', 'auto_split_fee', 'creator_join',
+            'use_cached_qr',
         ];
 
         $prepared = [];

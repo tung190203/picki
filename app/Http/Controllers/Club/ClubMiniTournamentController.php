@@ -63,15 +63,18 @@ class ClubMiniTournamentController extends Controller
         $data = $request->safe()->except(['invite_user', 'poster', 'qr_code_url']);
         $data['club_id'] = $club->id;
 
-        // === Xử lý QR code: nếu CLB có mã QR chung và use_club_fund = true thì gán luôn ===
+        // === Xử lý QR code: ưu tiên use_cached_qr, nếu không thì dùng club wallet (khi use_club_fund=true) ===
         $qrFile = $request->file('qr_code_url');
-        if (!$qrFile && $request->boolean('use_club_fund')) {
-            $clubQrWallet = $club->activeQrWallet();
-            if ($clubQrWallet && $clubQrWallet->qr_code_url) {
-                $qrUrl = str_starts_with($clubQrWallet->qr_code_url, 'http')
-                    ? $clubQrWallet->qr_code_url
-                    : asset('storage/' . $clubQrWallet->qr_code_url);
-                $data['qr_code_url'] = $qrUrl;
+        if (!$qrFile) {
+            if ($request->boolean('use_cached_qr') && Auth::user()->latest_used_qr) {
+                $data['qr_code_url'] = Auth::user()->latest_used_qr;
+            } elseif ($request->boolean('use_club_fund')) {
+                $clubQrWallet = $club->activeQrWallet();
+                if ($clubQrWallet && $clubQrWallet->qr_code_url) {
+                    $data['qr_code_url'] = str_starts_with($clubQrWallet->qr_code_url, 'http')
+                        ? $clubQrWallet->qr_code_url
+                        : asset('storage/' . $clubQrWallet->qr_code_url);
+                }
             }
         }
 
@@ -81,6 +84,17 @@ class ClubMiniTournamentController extends Controller
         // === use_club_fund = true: tạo khoản chi từ quỹ CLB ===
         // CLB chi tiền cho kèo đấu → trừ quỹ chung + hiển thị trong lịch sử thu chi
         if ($miniTournament->use_club_fund) {
+            $feeAmount = (float) ($miniTournament->fee_amount ?? 0);
+            if ($feeAmount > 0) {
+                $currentBalance = (float) ($club->mainWallet?->balance ?? 0);
+                if ($currentBalance < $feeAmount) {
+                    $miniTournament->delete();
+                    return ResponseHelper::error(
+                        "Số dư quỹ CLB hiện tại (" . number_format($currentBalance) . "đ) không đủ để chi trả phí kèo (" . number_format($feeAmount) . "đ). Vui lòng nạp thêm quỹ.",
+                        422
+                    );
+                }
+            }
             $this->createClubExpenseForTournament($miniTournament, $club, $userId);
         }
 
@@ -316,6 +330,8 @@ class ClubMiniTournamentController extends Controller
             $savedPath = $imageService->processAndSaveImage($qrFile, 'qr_codes', 'qr_', 500, 60);
             $imageService->deleteOldImage($oldQr);
             $miniTournament->update(['qr_code_url' => asset('storage/' . $savedPath)]);
+        } elseif ($request->boolean('use_cached_qr') && Auth::user()->latest_used_qr) {
+            $miniTournament->update(['qr_code_url' => Auth::user()->latest_used_qr]);
         }
 
         $miniTournament->loadFullRelations();

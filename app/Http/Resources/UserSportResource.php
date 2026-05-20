@@ -4,7 +4,6 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\DB;
 use App\Models\User;
 
 class UserSportResource extends JsonResource
@@ -24,7 +23,7 @@ class UserSportResource extends JsonResource
             $formattedScores[$type] = number_format($scoreValue, 3);
         }
 
-        $stats = User::getSportStats($this->user_id, $this->sport_id);
+        $stats = User::getSportStats($this->user_id, $this->sport_id, $request->user()?->id === $this->user_id);
 
         return [
             'sport_id'   => $this->sport_id,

@@ -3,7 +3,6 @@
 namespace App\Http\Resources;
 
 use App\Models\User;
-use App\Models\MiniMatch;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +25,6 @@ class UserMiniTournamentResource extends JsonResource
             : null;
 
         return [
-            // Mini Tournament info
             'id' => $this->id,
             'name' => $this->name,
             'poster' => $posterUrl,

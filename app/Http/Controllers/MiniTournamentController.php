@@ -22,6 +22,7 @@ use App\Http\Resources\MiniParticipantPaymentResource;
 use App\Http\Resources\MiniParticipantResource;
 use App\Http\Resources\MiniTournamentResource;
 use App\Models\Club\Club;
+use App\Models\Club\ClubExpense;
 use App\Models\Club\ClubFundCollection;
 use App\Models\Club\ClubFundContribution;
 use App\Models\MiniMatch;
@@ -123,6 +124,57 @@ class MiniTournamentController extends Controller
                 $user = User::find($userId);
                 if ($user) {
                     $user->notify(new MiniTournamentInvitationNotification($miniTournament, Auth::id()));
+                }
+            }
+        }
+
+        // === use_club_fund = true: trừ quỹ CLB ===
+        if ($miniTournament->use_club_fund && $miniTournament->club_id) {
+            $club = Club::with('mainWallet')->find($miniTournament->club_id);
+            if ($club) {
+                $feeAmount = (float) ($miniTournament->fee_amount ?? 0);
+                if ($feeAmount > 0) {
+                    $currentBalance = (float) ($club->mainWallet?->balance ?? 0);
+                    if ($currentBalance < $feeAmount) {
+                        $miniTournament->forceDelete();
+                        return ResponseHelper::error('Số dư quỹ CLB hiện tại (' . number_format($currentBalance) . 'đ) không đủ để chi trả phí kèo (' . number_format($feeAmount) . 'đ). Vui lòng nạp thêm quỹ.', 422);
+                    }
+
+                    DB::transaction(function () use ($miniTournament, $club, $feeAmount) {
+                        $clubExpense = ClubExpense::create([
+                            'club_id' => $club->id,
+                            'mini_tournament_id' => $miniTournament->id,
+                            'title' => $miniTournament->name,
+                            'amount' => $feeAmount,
+                            'spent_by' => Auth::id(),
+                            'spent_at' => now(),
+                            'note' => "Quỹ chi kèo CLB. Kèo ID: {$miniTournament->id}.",
+                        ]);
+
+                        $mainWallet = $club->mainWallet;
+                        if (!$mainWallet) {
+                            $mainWallet = \App\Models\Club\ClubWallet::create([
+                                'club_id' => $club->id,
+                                'currency' => 'VND',
+                            ]);
+                        }
+
+                        $transaction = $mainWallet->transactions()->create([
+                            'direction' => ClubWalletTransactionDirection::Out,
+                            'amount' => $feeAmount,
+                            'source_type' => ClubWalletTransactionSourceType::TournamentFee,
+                            'source_id' => $clubExpense->id,
+                            'payment_method' => \App\Enums\PaymentMethod::Other,
+                            'status' => ClubWalletTransactionStatus::Confirmed,
+                            'description' => "Quỹ chi kèo: {$miniTournament->name}",
+                            'created_by' => Auth::id(),
+                            'confirmed_by' => Auth::id(),
+                            'confirmed_at' => now(),
+                            'included_in_club_fund' => true,
+                        ]);
+
+                        $clubExpense->updateQuietly(['wallet_transaction_id' => $transaction->id]);
+                    });
                 }
             }
         }
@@ -394,6 +446,9 @@ class MiniTournamentController extends Controller
             $savedPath = $imageService->processAndSaveImage($request->file('qr_code_url'), 'qr_codes', 'qr_', 500, 60);
             $imageService->deleteOldImage($oldQr);
             $miniTournament->update(['qr_code_url' => asset('storage/' . $savedPath)]);
+        } elseif ($request->boolean('use_cached_qr') && Auth::user()->latest_used_qr) {
+            $miniTournament->update(['qr_code_url' => Auth::user()->latest_used_qr]);
+            Auth::user()->update(['latest_used_qr' => Auth::user()->latest_used_qr]);
         }
 
         $miniTournament->loadFullRelations();
@@ -497,22 +552,7 @@ class MiniTournamentController extends Controller
         }
     }
 
-    /**
-     * Sync trạng thái thanh toán của participants khi thay đổi phí
-     *
-     * Cac truong hop xu ly:
-     * 1. has_fee: true → false (co phi → mien phi) → CANCELLED
-     * 2. has_fee: false → true (mien phi → co phi)
-     * 3. auto_split_fee thay doi (gia co dinh / chia tu dong)
-     * 4. fee_amount thay doi
-     *
-     * Confirmed payments:
-     *   - Organizer (chu keo)
-     *   - Guest duoc chinh organizer bao lan
-     * Pending payments:
-     *   - Member thuong
-     *   - Guest duoc member khac (khong phai organizer) bao lan
-     */
+
     private function syncParticipantsPaymentStatus(MiniTournament $miniTournament, bool $isNowPaid): void
     {
         $organizerIds = $miniTournament->staff()->pluck('user_id')->toArray();
@@ -632,19 +672,9 @@ class MiniTournamentController extends Controller
 
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
 
-        // === Kèo thuộc CLB: kiểm tra club_id và quyền staff ===
+        // === Kèo thuộc CLB: lấy club_id từ kèo đấu ===
         if ($miniTournament->club_id) {
-            $clubId = $request->input('club_id');
-
-            if (!$clubId) {
-                return ResponseHelper::error('Kèo thuộc CLB. Vui lòng truyền club_id trong body.', 422);
-            }
-
-            if ((int) $miniTournament->club_id !== (int) $clubId) {
-                return ResponseHelper::error('Kèo không thuộc CLB này', 403);
-            }
-
-            $club = Club::find($clubId);
+            $club = Club::find($miniTournament->club_id);
             if (!$club) {
                 return ResponseHelper::error('CLB không tồn tại', 404);
             }
@@ -726,19 +756,9 @@ class MiniTournamentController extends Controller
 
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
 
-        // === Kèo thuộc CLB: kiểm tra club_id và quyền staff ===
+        // === Kèo thuộc CLB: lấy club_id từ kèo đấu ===
         if ($miniTournament->club_id) {
-            $clubId = $request->input('club_id');
-
-            if (!$clubId) {
-                return ResponseHelper::error('Kèo thuộc CLB. Vui lòng truyền club_id trong body.', 422);
-            }
-
-            if ((int) $miniTournament->club_id !== (int) $clubId) {
-                return ResponseHelper::error('Kèo không thuộc CLB này', 403);
-            }
-
-            $club = Club::find($clubId);
+            $club = Club::find($miniTournament->club_id);
             if (!$club) {
                 return ResponseHelper::error('CLB không tồn tại', 404);
             }

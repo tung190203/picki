@@ -51,7 +51,8 @@ class ClubExpenseController extends Controller
 
             return ResponseHelper::success(new ClubExpenseResource($expense), 'Tạo chi phí thành công', 201);
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            $isInsufficientFund = str_contains($e->getMessage(), 'Số dư quỹ');
+            return ResponseHelper::error($e->getMessage(), $isInsufficientFund ? 422 : 403);
         }
     }
 

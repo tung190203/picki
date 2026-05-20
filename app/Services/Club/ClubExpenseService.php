@@ -53,6 +53,16 @@ class ClubExpenseService
             throw new \Exception('Chỉ admin/manager/secretary/treasurer mới có quyền tạo chi phí');
         }
 
+        $amount = (float) ($data['amount'] ?? 0);
+        if ($amount > 0) {
+            $currentBalance = (float) ($club->mainWallet?->balance ?? 0);
+            if ($currentBalance < $amount) {
+                throw new \Exception(
+                    "Số dư quỹ CLB hiện tại (" . number_format($currentBalance) . "đ) không đủ để tạo chi phí (" . number_format($amount) . "đ). Vui lòng nạp thêm quỹ."
+                );
+            }
+        }
+
         $description = (string) ($data['description'] ?? $data['title'] ?? '');
         $activityId = $data['activity_id'] ?? null;
 

@@ -43,15 +43,7 @@ class TournamentController extends Controller
     protected function authorizeMarkParticipantAttendance(Request $request, Tournament $tournament, int $userId): ?\Illuminate\Http\JsonResponse
     {
         if ($tournament->club_id) {
-            $clubId = $request->input('club_id');
-
-            if (!$clubId) {
-                return ResponseHelper::error('Giải đấu thuộc CLB. Vui lòng truyền club_id trong body.', 422);
-            }
-
-            if ((int) $tournament->club_id !== (int) $clubId) {
-                return ResponseHelper::error('Giải đấu không thuộc CLB này', 403);
-            }
+            $clubId = $tournament->club_id;
 
             $club = Club::find($clubId);
             if (!$club) {
@@ -200,31 +192,10 @@ class TournamentController extends Controller
                 $validated['poster'] = $savedPath;
             }
 
-            // QR code: resize + convert WebP + lưu ngay
-            $qrUrl = null;
-            if ($request->boolean('use_cached_qr') && auth()->user()->latest_used_qr) {
-                $qrUrl = auth()->user()->latest_used_qr;
-                $validated['qr_code_url'] = $qrUrl;
-            } elseif ($request->hasFile('qr_code_url')) {
-                $qrUrl = $this->imageService->processAndSaveImage(
-                    $request->file('qr_code_url'),
-                    'tournaments/qr',
-                    'qr_',
-                    500,
-                    60
-                );
-                $validated['qr_code_url'] = $qrUrl;
-            }
-
             $tournament = Tournament::create([
                 ...$validated,
                 'created_by' => auth()->id(),
             ]);
-
-            // Lưu lại QR vừa dùng vào user
-            if ($qrUrl) {
-                auth()->user()->update(['latest_used_qr' => $qrUrl]);
-            }
 
             TournamentStaff::create([
                 'tournament_id' => $tournament->id,
@@ -253,6 +224,24 @@ class TournamentController extends Controller
                 $this->fundService->createTournamentFundCollection($tournament, $validated);
             }
         });
+
+        $qrUrl = null;
+        if ($request->boolean('use_cached_qr') && auth()->user()->latest_used_qr) {
+            $qrUrl = auth()->user()->latest_used_qr;
+        } elseif ($request->hasFile('qr_code_url')) {
+            $qrUrl = $this->imageService->processAndSaveImage(
+                $request->file('qr_code_url'),
+                'tournaments/qr',
+                'qr_',
+                500,
+                60
+            );
+        }
+
+        if ($qrUrl) {
+            $tournament->update(['qr_code_url' => $qrUrl]);
+            auth()->user()->update(['latest_used_qr' => $qrUrl]);
+        }
 
         if ($tournament) {
             $tournament = Tournament::with([
@@ -352,6 +341,8 @@ class TournamentController extends Controller
                 );
                 $validated['qr_code_url'] = $qrUrl;
                 $this->imageService->deleteOldImage($tournament->qr_code_url);
+            } elseif ($request->boolean('use_cached_qr') && auth()->user()->latest_used_qr) {
+                $validated['qr_code_url'] = auth()->user()->latest_used_qr;
             } elseif ($request->filled('qr_code_url')) {
                 // Keep existing or string value
             } else {

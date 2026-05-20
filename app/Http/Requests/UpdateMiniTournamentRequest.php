@@ -183,7 +183,8 @@ class UpdateMiniTournamentRequest extends FormRequest
             // Only validate QR when user explicitly chose has_fee=true AND use_club_fund=false.
             // If use_club_fund was not sent, skip — the club may have a shared QR wallet.
             // If use_club_fund=true, QR is not needed (club fund handles it).
-            if ($this->boolean('has_fee') && $this->has('use_club_fund') && !$this->boolean('use_club_fund') && !$this->getClubHasQrWallet()) {
+            // If use_cached_qr=true, skip — the controller will use latest_used_qr.
+            if ($this->boolean('has_fee') && $this->has('use_club_fund') && !$this->boolean('use_club_fund') && !$this->boolean('use_cached_qr') && !$this->getClubHasQrWallet()) {
                 $qrValue = $this->input('qr_code_url');
                 $qrFile = $this->file('qr_code_url');
                 $hasQrInput = $qrFile !== null || ($qrValue !== null && $qrValue !== '');
@@ -258,7 +259,7 @@ class UpdateMiniTournamentRequest extends FormRequest
             'is_private', 'has_fee', 'auto_split_fee',
             'apply_rule', 'allow_cancellation', 'auto_approve',
             'allow_participant_add_friends',
-            'use_club_fund', 'included_in_club_fund',
+            'use_club_fund', 'included_in_club_fund', 'use_cached_qr',
         ];
         $boolNormalized = [];
         foreach ($boolKeys as $key) {

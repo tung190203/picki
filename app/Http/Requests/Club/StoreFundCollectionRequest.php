@@ -58,10 +58,11 @@ class StoreFundCollectionRequest extends FormRequest
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'qr_code_url' => 'nullable|string',
             'qr_image' => [
-                // Chỉ yêu cầu qr_image nếu không bật thu vào quỹ chung VÀ không có qr_code_url (URL cũ)
-                \Illuminate\Validation\Rule::requiredIf(fn () => 
-                    $this->input('included_in_club_fund') === false && 
-                    empty($this->input('qr_code_url'))
+                // Chỉ yêu cầu qr_image nếu không bật thu vào quỹ chung VÀ không có qr_code_url (URL cũ) VÀ không dùng cached QR
+                \Illuminate\Validation\Rule::requiredIf(fn () =>
+                    $this->input('included_in_club_fund') === false &&
+                    empty($this->input('qr_code_url')) &&
+                    empty($this->input('use_cached_qr'))
                 ),
                 'nullable', 'image', 'mimes:png,jpg,jpeg,gif', 'max:5120',
             ],

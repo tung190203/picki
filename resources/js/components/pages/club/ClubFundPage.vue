@@ -296,12 +296,12 @@
                                     <div>
                                         <p class="font-bold text-[#1F2937] text-[15px] whitespace-pre-line">{{ item.description || 'Chưa có mô tả' }}</p>
                                         <p class="text-[12px] text-[#838799] font-normal mt-0.5">
-                                            {{ item.source_type === 'income' ? 'Thu' : 'Chi' }} ngày {{ formatDatetime(item.created_at, '/') }}
+                                            {{ item.direction === 'in' ? 'Thu' : 'Chi' }} ngày {{ formatDatetime(item.created_at, '/') }}
                                         </p>
                                     </div>
                                 </div>
-                                <span :class="['font-bold text-[16px]', item.source_type === 'expense' ? 'text-[#D72D36]' : 'text-[#10B981]']">
-                                   <span>{{ item.source_type === 'expense' ? '-' : '+' }}</span> {{ formatCurrency(item.amount) }}
+                                <span :class="['font-bold text-[16px]', item.direction === 'out' ? 'text-[#D72D36]' : 'text-[#10B981]']">
+                                   <span>{{ item.direction === 'out' ? '-' : '+' }}</span> {{ formatCurrency(item.amount) }}
                                 </span>
                             </div>
 
@@ -924,6 +924,7 @@ const filters = ref({
 const sourceTypeOptions = [
     { value: 'monthly_fee', label: 'Quỹ tháng' },
     { value: 'fund_collection', label: 'Đợt thu' },
+    { value: 'tournament_fee', label: 'Phí kèo đấu CLB' },
     { value: 'expense', label: 'Chi phí' },
     { value: 'donation', label: 'Quyên góp' },
     { value: 'adjustment', label: 'Điều chỉnh' },
