@@ -131,6 +131,7 @@ export default {
             text_team2.value = 'Team 2'
             scores.value = [{ team1: 0, team2: 0 }]
             currentMatchId.value = null
+            showRefereeScreen.value = false
         }
 
         const hasScores = computed(() => {
@@ -255,7 +256,7 @@ export default {
             () => props.modelValue,
             (val) => {
                 if (val && !props.editMatch) {
-                    miniMatchName.value = defaultMatchName.value
+                    resetForm()
                 }
             }
         )

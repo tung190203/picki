@@ -497,22 +497,7 @@ class MiniTournamentController extends Controller
         }
     }
 
-    /**
-     * Sync trạng thái thanh toán của participants khi thay đổi phí
-     *
-     * Cac truong hop xu ly:
-     * 1. has_fee: true → false (co phi → mien phi) → CANCELLED
-     * 2. has_fee: false → true (mien phi → co phi)
-     * 3. auto_split_fee thay doi (gia co dinh / chia tu dong)
-     * 4. fee_amount thay doi
-     *
-     * Confirmed payments:
-     *   - Organizer (chu keo)
-     *   - Guest duoc chinh organizer bao lan
-     * Pending payments:
-     *   - Member thuong
-     *   - Guest duoc member khac (khong phai organizer) bao lan
-     */
+
     private function syncParticipantsPaymentStatus(MiniTournament $miniTournament, bool $isNowPaid): void
     {
         $organizerIds = $miniTournament->staff()->pluck('user_id')->toArray();
@@ -632,19 +617,9 @@ class MiniTournamentController extends Controller
 
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
 
-        // === Kèo thuộc CLB: kiểm tra club_id và quyền staff ===
+        // === Kèo thuộc CLB: lấy club_id từ kèo đấu ===
         if ($miniTournament->club_id) {
-            $clubId = $request->input('club_id');
-
-            if (!$clubId) {
-                return ResponseHelper::error('Kèo thuộc CLB. Vui lòng truyền club_id trong body.', 422);
-            }
-
-            if ((int) $miniTournament->club_id !== (int) $clubId) {
-                return ResponseHelper::error('Kèo không thuộc CLB này', 403);
-            }
-
-            $club = Club::find($clubId);
+            $club = Club::find($miniTournament->club_id);
             if (!$club) {
                 return ResponseHelper::error('CLB không tồn tại', 404);
             }
@@ -726,19 +701,9 @@ class MiniTournamentController extends Controller
 
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
 
-        // === Kèo thuộc CLB: kiểm tra club_id và quyền staff ===
+        // === Kèo thuộc CLB: lấy club_id từ kèo đấu ===
         if ($miniTournament->club_id) {
-            $clubId = $request->input('club_id');
-
-            if (!$clubId) {
-                return ResponseHelper::error('Kèo thuộc CLB. Vui lòng truyền club_id trong body.', 422);
-            }
-
-            if ((int) $miniTournament->club_id !== (int) $clubId) {
-                return ResponseHelper::error('Kèo không thuộc CLB này', 403);
-            }
-
-            $club = Club::find($clubId);
+            $club = Club::find($miniTournament->club_id);
             if (!$club) {
                 return ResponseHelper::error('CLB không tồn tại', 404);
             }
