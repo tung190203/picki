@@ -3,11 +3,9 @@
 namespace App\Http\Resources;
 
 use App\Models\Sport;
-use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\DB;
 use App\Http\Resources\ClubResource;
 
 class UserResource extends JsonResource
@@ -21,7 +19,6 @@ class UserResource extends JsonResource
 
         $vnRank = $this->vn_rank;
 
-        // Fallback for single user requests or when attributes are missing
         if (is_null($vnRank)) {
             $sport = Sport::where('slug', 'pickleball')->first();
             if ($sport) {
@@ -61,8 +58,6 @@ class UserResource extends JsonResource
             'vn_rank' => $vnRank ?? null,
             'last_login' => $this->last_login?->toISOString(),
             'is_online' => $this->isOnline(),
-            'total_tournaments' => (int) $this->total_tournaments,
-            'total_mini_tournaments' => (int) $this->total_mini_tournaments,
             'is_super_admin' => (bool)$this->is_super_admin,
             'is_banned' => (bool)$this->is_banned,
             'is_guest' => (bool)$this->is_guest,

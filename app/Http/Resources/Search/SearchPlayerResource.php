@@ -17,7 +17,14 @@ class SearchPlayerResource extends JsonResource
         );
 
         $vnduprScore = $scores->firstWhere('score_type', 'vndupr_score');
-        $stats = User::getSportStats($this->id, 1);
+
+        // Use preloaded batch stats if available (set by SearchV2Controller::paginate),
+        // otherwise fall back to the per-row query for backward compatibility.
+        if (isset($this->preloaded_sport_stats)) {
+            $stats = $this->preloaded_sport_stats;
+        } else {
+            $stats = User::getSportStats($this->id, 1, false);
+        }
 
         return [
             'id'          => $this->id,
@@ -35,6 +42,8 @@ class SearchPlayerResource extends JsonResource
             'win_rate'   => $stats['win_rate'] ?? 0.0,
             'total_matches' => $stats['total_matches'] ?? 0,
             'distance'    => $this->when(isset($this->distance), round($this->distance, 1)),
+            'latitude'    => $this->latitude ?? null,
+            'longitude'   => $this->longitude ?? null,
             'sports'      => $this->whenLoaded('sports', fn() =>
                 UserSportResource::collection($this->sports)
             ),

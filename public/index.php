@@ -5,6 +5,9 @@ use Illuminate\Http\Request;
 
 define('LARAVEL_START', microtime(true));
 
+ini_set('max_execution_time', '300');
+ini_set('default_socket_timeout', '300');
+
 /*
 |--------------------------------------------------------------------------
 | Check If The Application Is Under Maintenance

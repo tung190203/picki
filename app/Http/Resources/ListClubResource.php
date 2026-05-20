@@ -43,6 +43,7 @@ class ListClubResource extends JsonResource
                     'max' => round($scores->max(), 3),
                 ];
             }, null),
+            'unread_notification_count' => (int) ($this->unread_notification_count ?? 0),
         ];
     }
 

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\SuperAdminDraft;
 use App\Models\Club\Club;
+use App\Models\QuickMatch;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -826,144 +827,269 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     /**
      * Tính thống kê sport (total_matches, total_tournaments, win_rate, performance)
      * cho một user + sport_id cụ thể.
+     *
+     * @param bool $isOwnProfile Nếu true: tính cả tournament private của chính mình và không loại ongoing.
+     *                           Nếu false: loại bỏ tournament private (khi xem profile người khác),
+     *                           đồng thời loại bỏ ongoing tournament để align với list API.
      */
-    public static function getSportStats(int $userId, int $sportId): array
+    public static function getSportStats(int $userId, int $sportId, bool $isOwnProfile = true): array
     {
-        // total_matches: trận đã hoàn tất - dùng team_members thay vì participants.team_id
-        $matchCount = DB::table('matches as m')
-            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
-            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
-            ->join('team_members as tm', function ($join) {
-                $join->on('tm.team_id', '=', 'm.home_team_id');
-            })
-            ->where('tm.user_id', $userId)
-            ->where('t.sport_id', $sportId)
-            ->where('m.status', 'completed')
-            ->count(DB::raw('DISTINCT m.id'));
+        // Filter: private & ongoing — chỉ áp dụng khi isOwnProfile = false
+        $tPrivateFilter = $isOwnProfile ? '' : ' AND t.is_private = 0';
+        $mntPrivateFilter = $isOwnProfile ? '' : ' AND mnt.is_private = 0';
+        $ongoingT = $isOwnProfile ? '' : ' AND NOT (t.status = 2 AND t.start_date <= NOW() AND t.end_date IS NOT NULL AND t.end_date >= NOW())';
+        $ongoingMnt = $isOwnProfile ? '' : ' AND NOT (mnt.status = 2 AND mnt.start_time <= NOW() AND mnt.end_time IS NOT NULL AND mnt.end_time >= NOW())';
 
-        $awayMatchCount = DB::table('matches as m')
-            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
-            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
-            ->join('team_members as tm', function ($join) {
-                $join->on('tm.team_id', '=', 'm.away_team_id');
-            })
-            ->where('tm.user_id', $userId)
-            ->where('t.sport_id', $sportId)
-            ->where('m.status', 'completed')
-            ->count(DB::raw('DISTINCT m.id'));
+        // 1 query duy nhất cho tất cả stats dạng match
+        // matches + mini_matches + quick_matches trong 1 subquery, dùng SUM(CASE...) để tách từng loại
+        $matchStats = DB::select("
+            SELECT
+                SUM(t_matches) AS total_tournament_matches,
+                SUM(w_t_matches) AS tournament_wins,
+                SUM(mini_matches) AS total_mini_matches,
+                SUM(w_mini_matches) AS mini_wins,
+                SUM(qm_matches) AS total_qm_matches,
+                SUM(w_qm_matches) AS qm_wins
+            FROM (
+                -- Tournament matches: home side
+                SELECT
+                    1 AS t_matches, 0 AS mini_matches, 0 AS qm_matches,
+                    CASE WHEN m.winner_id = tm.team_id THEN 1 ELSE 0 END AS w_t_matches,
+                    0 AS w_mini_matches, 0 AS w_qm_matches
+                FROM matches m
+                JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                JOIN tournaments t ON tt.tournament_id = t.id
+                JOIN team_members tm ON tm.team_id = m.home_team_id
+                WHERE tm.user_id = ? AND t.sport_id = ? AND m.status = 'completed'
+                {$tPrivateFilter}
 
-        $matchCount = $matchCount + $awayMatchCount;
+                UNION ALL
 
-        $miniMatchCount = DB::table('mini_matches as mm')
-            ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
-            ->join('mini_team_members as mtm', function ($join) {
-                $join->on('mtm.mini_team_id', '=', 'mm.team1_id');
-            })
-            ->where('mtm.user_id', $userId)
-            ->where('mnt.sport_id', $sportId)
-            ->where('mm.status', 'completed')
-            ->count(DB::raw('DISTINCT mm.id'));
+                -- Tournament matches: away side
+                SELECT
+                    1, 0, 0,
+                    CASE WHEN m.winner_id = tm.team_id THEN 1 ELSE 0 END, 0, 0
+                FROM matches m
+                JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                JOIN tournaments t ON tt.tournament_id = t.id
+                JOIN team_members tm ON tm.team_id = m.away_team_id
+                WHERE tm.user_id = ? AND t.sport_id = ? AND m.status = 'completed'
+                {$tPrivateFilter}
 
-        $awayMiniMatchCount = DB::table('mini_matches as mm')
-            ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
-            ->join('mini_team_members as mtm', function ($join) {
-                $join->on('mtm.mini_team_id', '=', 'mm.team2_id');
-            })
-            ->where('mtm.user_id', $userId)
-            ->where('mnt.sport_id', $sportId)
-            ->where('mm.status', 'completed')
-            ->count(DB::raw('DISTINCT mm.id'));
+                UNION ALL
 
-        $miniMatchCount = $miniMatchCount + $awayMiniMatchCount;
+                -- Mini tournament matches: team1 side
+                SELECT
+                    0, 1, 0, 0,
+                    CASE WHEN mm.team_win_id = mtm.mini_team_id THEN 1 ELSE 0 END, 0
+                FROM mini_matches mm
+                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id
+                WHERE mtm.user_id = ? AND mnt.sport_id = ? AND mm.status = 'completed'
+                {$mntPrivateFilter}
 
-        $totalMatches = $matchCount + $miniMatchCount;
+                UNION ALL
 
-        // total_tournaments: distinct tournament đã bắt đầu (participant + staff/organizer, loại trừ upcoming)
-        $participantTournamentIds = DB::table('participants as p')
-            ->where('p.user_id', $userId)
-            ->whereRaw('EXISTS (SELECT 1 FROM tournaments t WHERE t.id = p.tournament_id AND t.sport_id = ? AND t.status != 1 AND t.start_date <= NOW())', [$sportId])
-            ->pluck('p.tournament_id');
+                -- Mini tournament matches: team2 side
+                SELECT
+                    0, 1, 0, 0,
+                    CASE WHEN mm.team_win_id = mtm.mini_team_id THEN 1 ELSE 0 END, 0
+                FROM mini_matches mm
+                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id
+                WHERE mtm.user_id = ? AND mnt.sport_id = ? AND mm.status = 'completed'
+                {$mntPrivateFilter}
 
-        $staffTournamentIds = DB::table('tournament_staff as ts')
-            ->where('ts.user_id', $userId)
-            ->whereIn('ts.role', [1, 2])
-            ->whereRaw('EXISTS (SELECT 1 FROM tournaments t WHERE t.id = ts.tournament_id AND t.sport_id = ? AND t.status != 1 AND t.start_date <= NOW())', [$sportId])
-            ->pluck('ts.tournament_id');
+                UNION ALL
 
-        $totalTournaments = $participantTournamentIds->merge($staffTournamentIds)->unique()->count();
+                -- Quick matches: completed, user is in team_a
+                SELECT
+                    0, 0, 1, 0, 0,
+                    CASE WHEN qm.winner = 'team_a' THEN 1 ELSE 0 END
+                FROM match_histories mh
+                JOIN quick_matches qm ON mh.quick_match_id = qm.id
+                LEFT JOIN competition_location_sport cls ON qm.competition_location_id = cls.competition_location_id
+                LEFT JOIN users u ON qm.created_by = u.id
+                LEFT JOIN user_sport usc ON u.id = usc.user_id
+                WHERE mh.user_id = ?
+                  AND qm.status = 'completed'
+                  AND JSON_CONTAINS(qm.team_a, ?)
+                  AND (cls.sport_id = ? OR (qm.competition_location_id IS NULL AND usc.sport_id = ?))
 
-        // total_mini_tournaments: distinct mini_tournament đã bắt đầu (participant + staff/organizer, loại trừ upcoming)
-        $participantMiniTournamentIds = DB::table('mini_participants as mp')
-            ->where('mp.user_id', $userId)
-            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments mt WHERE mt.id = mp.mini_tournament_id AND mt.sport_id = ? AND mt.status != 1 AND mt.start_time <= NOW())', [$sportId])
-            ->pluck('mp.mini_tournament_id');
+                UNION ALL
 
-        $staffMiniTournamentIds = DB::table('mini_tournament_staff as mts')
-            ->where('mts.user_id', $userId)
-            ->whereIn('mts.role', [1])
-            ->whereRaw('EXISTS (SELECT 1 FROM mini_tournaments mt WHERE mt.id = mts.mini_tournament_id AND mt.sport_id = ? AND mt.status != 1 AND mt.start_time <= NOW())', [$sportId])
-            ->pluck('mts.mini_tournament_id');
+                -- Quick matches: completed, user is in team_b
+                SELECT
+                    0, 0, 1, 0, 0,
+                    CASE WHEN qm.winner = 'team_b' THEN 1 ELSE 0 END
+                FROM match_histories mh
+                JOIN quick_matches qm ON mh.quick_match_id = qm.id
+                LEFT JOIN competition_location_sport cls ON qm.competition_location_id = cls.competition_location_id
+                LEFT JOIN users u ON qm.created_by = u.id
+                LEFT JOIN user_sport usc ON u.id = usc.user_id
+                WHERE mh.user_id = ?
+                  AND qm.status = 'completed'
+                  AND JSON_CONTAINS(qm.team_b, ?)
+                  AND (cls.sport_id = ? OR (qm.competition_location_id IS NULL AND usc.sport_id = ?))
+            ) AS all_matches
+        ", [
+            // Tournament home: userId, sportId
+            $userId, $sportId,
+            // Tournament away: userId, sportId
+            $userId, $sportId,
+            // Mini team1: userId, sportId
+            $userId, $sportId,
+            // Mini team2: userId, sportId
+            $userId, $sportId,
+            // QM team_a: userId, userId(json), sportId(cls), sportId(usc)
+            $userId, $userId, $sportId, $sportId,
+            // QM team_b: userId, userId(json), sportId(cls), sportId(usc)
+            $userId, $userId, $sportId, $sportId,
+        ]);
 
-        $totalMiniTournaments = $participantMiniTournamentIds->merge($staffMiniTournamentIds)->unique()->count();
+        $row = $matchStats[0] ?? null;
+        $tournamentMatches = (int) ($row->total_tournament_matches ?? 0);
+        $tournamentWins = (int) ($row->tournament_wins ?? 0);
+        $miniMatches = (int) ($row->total_mini_matches ?? 0);
+        $miniWins = (int) ($row->mini_wins ?? 0);
+        $qmMatches = (int) ($row->total_qm_matches ?? 0);
+        $qmWins = (int) ($row->qm_wins ?? 0);
 
-        // win_rate
-        $totalWin = 0;
-        if ($totalMatches > 0) {
-            $wins = DB::table('matches as m')
-                ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
-                ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
-                ->join('team_members as tm', function ($join) use ($userId) {
-                    $join->on('tm.team_id', '=', 'm.winner_id')
-                        ->where('tm.user_id', $userId);
-                })
-                ->where('t.sport_id', $sportId)
-                ->where('m.status', 'completed')
-                ->whereNotNull('m.winner_id')
-                ->count(DB::raw('DISTINCT m.id'));
+        $totalMatches = $tournamentMatches + $miniMatches + $qmMatches;
+        $totalWins = $tournamentWins + $miniWins + $qmWins;
+        $winRate = $totalMatches > 0 ? round(($totalWins / $totalMatches) * 100, 2) : 0;
 
-            $miniWins = DB::table('mini_matches as mm')
-                ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
-                ->join('mini_team_members as mtm', function ($join) use ($userId) {
-                    $join->on('mtm.mini_team_id', '=', 'mm.team_win_id')
-                        ->where('mtm.user_id', $userId);
-                })
-                ->where('mnt.sport_id', $sportId)
-                ->where('mm.status', 'completed')
-                ->whereNotNull('mm.team_win_id')
-                ->count(DB::raw('DISTINCT mm.id'));
+        // Performance: wins trong 10 trận gần nhất (tournament + mini + quick)
+        $performanceRows = DB::select("
+            SELECT wins FROM (
+                -- Tournament recent wins
+                SELECT
+                    CASE WHEN m.winner_id = tm.team_id THEN 1 ELSE 0 END AS wins,
+                    m.scheduled_at AS dt
+                FROM matches m
+                JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                JOIN tournaments t ON tt.tournament_id = t.id
+                JOIN team_members tm ON tm.team_id = m.winner_id
+                WHERE tm.user_id = ? AND t.sport_id = ? AND m.status = 'completed'
+                  AND m.winner_id IS NOT NULL {$tPrivateFilter}
 
-            $totalWin = $wins + $miniWins;
+                UNION ALL
+
+                -- Mini tournament recent wins
+                SELECT
+                    CASE WHEN mm.team_win_id = mtm.mini_team_id THEN 1 ELSE 0 END AS wins,
+                    mm.created_at AS dt
+                FROM mini_matches mm
+                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team_win_id
+                WHERE mtm.user_id = ? AND mnt.sport_id = ? AND mm.status = 'completed'
+                  AND mm.team_win_id IS NOT NULL {$mntPrivateFilter}
+
+                UNION ALL
+
+                -- Quick match recent wins (team_a user)
+                SELECT
+                    CASE WHEN qm.winner = 'team_a' THEN 1 ELSE 0 END AS wins,
+                    qm.confirmed_at AS dt
+                FROM match_histories mh
+                JOIN quick_matches qm ON mh.quick_match_id = qm.id
+                LEFT JOIN competition_location_sport cls ON qm.competition_location_id = cls.competition_location_id
+                LEFT JOIN users u ON qm.created_by = u.id
+                LEFT JOIN user_sport usc ON u.id = usc.user_id
+                WHERE mh.user_id = ? AND qm.status = 'completed'
+                  AND qm.winner IS NOT NULL
+                  AND JSON_CONTAINS(qm.team_a, ?)
+                  AND (cls.sport_id = ? OR (qm.competition_location_id IS NULL AND usc.sport_id = ?))
+
+                UNION ALL
+
+                -- Quick match recent wins (team_b user)
+                SELECT
+                    CASE WHEN qm.winner = 'team_b' THEN 1 ELSE 0 END AS wins,
+                    qm.confirmed_at AS dt
+                FROM match_histories mh
+                JOIN quick_matches qm ON mh.quick_match_id = qm.id
+                LEFT JOIN competition_location_sport cls ON qm.competition_location_id = cls.competition_location_id
+                LEFT JOIN users u ON qm.created_by = u.id
+                LEFT JOIN user_sport usc ON u.id = usc.user_id
+                WHERE mh.user_id = ? AND qm.status = 'completed'
+                  AND qm.winner IS NOT NULL
+                  AND JSON_CONTAINS(qm.team_b, ?)
+                  AND (cls.sport_id = ? OR (qm.competition_location_id IS NULL AND usc.sport_id = ?))
+            ) AS recent
+            ORDER BY dt DESC
+            LIMIT 10
+        ", [
+            // Tournament: userId, sportId
+            $userId, $sportId,
+            // Mini: userId, sportId
+            $userId, $sportId,
+            // QM team_a: userId, userId(json), sportId(cls), sportId(usc)
+            $userId, $userId, $sportId, $sportId,
+            // QM team_b: userId, userId(json), sportId(cls), sportId(usc)
+            $userId, $userId, $sportId, $sportId,
+        ]);
+
+        $performance = 0;
+        foreach ($performanceRows as $r) {
+            $performance += (int) $r->wins;
         }
 
-        $winRate = $totalMatches > 0 ? round(($totalWin / $totalMatches) * 100, 2) : 0;
+        // total_tournaments: participant + staff, distinct, align filter với getUserTournamentOverview
+        $tournamentRows = DB::select("
+            SELECT DISTINCT id FROM (
+                SELECT p.tournament_id AS id FROM participants p
+                JOIN tournaments t ON t.id = p.tournament_id
+                WHERE p.user_id = ? AND p.is_confirmed = 1
+                  AND t.sport_id = ? AND t.status != 1 AND t.start_date <= NOW()
+                  {$ongoingT} {$tPrivateFilter}
+                  AND (
+                    EXISTS (SELECT 1 FROM tournament_types tt
+                      JOIN `groups` g ON g.tournament_type_id = tt.id
+                      JOIN matches m ON m.group_id = g.id
+                      WHERE tt.tournament_id = t.id AND tt.format = 2 AND m.round = 4
+                        AND EXISTS (SELECT 1 FROM match_results mr WHERE mr.match_id = m.id))
+                    OR NOT EXISTS (SELECT 1 FROM tournament_types tt WHERE tt.tournament_id = t.id AND tt.format = 2)
+                    OR NOT EXISTS (SELECT 1 FROM tournament_types tt JOIN `groups` g ON g.tournament_type_id = tt.id JOIN matches m ON m.group_id = g.id WHERE tt.tournament_id = t.id)
+                  )
+                UNION
+                SELECT ts.tournament_id AS id FROM tournament_staff ts
+                JOIN tournaments t ON t.id = ts.tournament_id
+                WHERE ts.user_id = ? AND ts.role IN (1,2)
+                  AND t.sport_id = ? AND t.status != 1 AND t.start_date <= NOW()
+                  {$ongoingT} {$tPrivateFilter}
+                  AND (
+                    EXISTS (SELECT 1 FROM tournament_types tt
+                      JOIN `groups` g ON g.tournament_type_id = tt.id
+                      JOIN matches m ON m.group_id = g.id
+                      WHERE tt.tournament_id = t.id AND tt.format = 2 AND m.round = 4
+                        AND EXISTS (SELECT 1 FROM match_results mr WHERE mr.match_id = m.id))
+                    OR NOT EXISTS (SELECT 1 FROM tournament_types tt WHERE tt.tournament_id = t.id AND tt.format = 2)
+                    OR NOT EXISTS (SELECT 1 FROM tournament_types tt JOIN `groups` g ON g.tournament_type_id = tt.id JOIN matches m ON m.group_id = g.id WHERE tt.tournament_id = t.id)
+                  )
+            ) AS combined
+        ", [$userId, $sportId, $userId, $sportId]);
 
-        // performance: thắng trong 10 trận gần nhất
-        $performance = DB::table('matches as m')
-            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
-            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
-            ->join('team_members as tm', function ($join) use ($userId) {
-                $join->on('tm.team_id', '=', 'm.winner_id')
-                    ->where('tm.user_id', $userId);
-            })
-            ->where('t.sport_id', $sportId)
-            ->where('m.status', 'completed')
-            ->whereNotNull('m.winner_id')
-            ->orderByDesc('m.scheduled_at')
-            ->limit(10)
-            ->count(DB::raw('DISTINCT m.id'));
+        $totalTournaments = count($tournamentRows);
 
-        $miniPerformance = DB::table('mini_matches as mm')
-            ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
-            ->join('mini_team_members as mtm', function ($join) use ($userId) {
-                $join->on('mtm.mini_team_id', '=', 'mm.team_win_id')
-                    ->where('mtm.user_id', $userId);
-            })
-            ->where('mnt.sport_id', $sportId)
-            ->where('mm.status', 'completed')
-            ->whereNotNull('mm.team_win_id')
-            ->orderByDesc('mm.scheduled_at')
-            ->limit(10)
-            ->count(DB::raw('DISTINCT mm.id'));
+        // total_mini_tournaments: participant + staff, distinct, align filter với getUserMiniTournamentOverview
+        $miniTournamentRows = DB::select("
+            SELECT DISTINCT id FROM (
+                SELECT mp.mini_tournament_id AS id FROM mini_participants mp
+                JOIN mini_tournaments mnt ON mnt.id = mp.mini_tournament_id
+                WHERE mp.user_id = ? AND mp.is_confirmed = 1
+                  AND mnt.sport_id = ? AND mnt.status != 1 AND mnt.start_time <= NOW()
+                  {$ongoingMnt} {$mntPrivateFilter}
+                UNION
+                SELECT mts.mini_tournament_id AS id FROM mini_tournament_staff mts
+                JOIN mini_tournaments mnt ON mnt.id = mts.mini_tournament_id
+                WHERE mts.user_id = ? AND mts.role = 1
+                  AND mnt.sport_id = ? AND mnt.status != 1 AND mnt.start_time <= NOW()
+                  {$ongoingMnt} {$mntPrivateFilter}
+            ) AS combined
+        ", [$userId, $sportId, $userId, $sportId]);
+
+        $totalMiniTournaments = count($miniTournamentRows);
 
         return [
             'total_matches' => $totalMatches,
@@ -971,7 +1097,287 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             'total_mini_tournaments' => $totalMiniTournaments,
             'total_prizes' => 0,
             'win_rate' => $winRate,
-            'performance' => $performance + $miniPerformance,
+            'performance' => $performance,
         ];
+    }
+
+    /**
+     * Fetch sport stats for multiple users in a single query (avoids N+1).
+     * Returns an array keyed by user_id.
+     */
+    public static function getBatchSportStats(array $userIds, int $sportId, bool $isOwnProfile = true): array
+    {
+        if (empty($userIds)) {
+            return [];
+        }
+
+        $userIds = array_values(array_unique($userIds));
+        // Used in raw SQL: tm.user_id IN ({$userIdsCsv}) — safe, IDs are validated ints
+        $userIdsCsv = implode(',', $userIds);
+
+        // Filter strings
+        $tPrivateFilter = $isOwnProfile ? '' : ' AND t.is_private = 0';
+        $mntPrivateFilter = $isOwnProfile ? '' : ' AND mnt.is_private = 0';
+        $ongoingT = $isOwnProfile ? '' : ' AND NOT (t.status = 2 AND t.start_date <= NOW() AND t.end_date IS NOT NULL AND t.end_date >= NOW())';
+        $ongoingMnt = $isOwnProfile ? '' : ' AND NOT (mnt.status = 2 AND mnt.start_time <= NOW() AND mnt.end_time IS NOT NULL AND mnt.end_time >= NOW())';
+        $tPrivateAndOngoing = $tPrivateFilter . $ongoingT;
+        $mntPrivateAndOngoing = $mntPrivateFilter . $ongoingMnt;
+
+        // Main stats query — SUM aggregates grouped by user
+        $statsRowsSql = "
+            SELECT
+                user_id,
+                SUM(t_matches) AS total_tournament_matches,
+                SUM(w_t_matches) AS tournament_wins,
+                SUM(mini_matches) AS total_mini_matches,
+                SUM(w_mini_matches) AS mini_wins,
+                SUM(qm_matches) AS total_qm_matches,
+                SUM(w_qm_matches) AS qm_wins
+            FROM (
+                SELECT tm.user_id AS user_id,
+                    1 AS t_matches, 0 AS mini_matches, 0 AS qm_matches,
+                    CASE WHEN m.winner_id = tm.team_id THEN 1 ELSE 0 END AS w_t_matches,
+                    0 AS w_mini_matches, 0 AS w_qm_matches
+                FROM matches m
+                JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                JOIN tournaments t ON tt.tournament_id = t.id
+                JOIN team_members tm ON tm.team_id = m.home_team_id
+                WHERE tm.user_id IN ({$userIdsCsv}) AND t.sport_id = ? AND m.status = 'completed'
+                " . $tPrivateAndOngoing . "
+
+                UNION ALL
+
+                SELECT tm.user_id,
+                    1, 0, 0,
+                    CASE WHEN m.winner_id = tm.team_id THEN 1 ELSE 0 END, 0, 0
+                FROM matches m
+                JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                JOIN tournaments t ON tt.tournament_id = t.id
+                JOIN team_members tm ON tm.team_id = m.away_team_id
+                WHERE tm.user_id IN ({$userIdsCsv}) AND t.sport_id = ? AND m.status = 'completed'
+                " . $tPrivateAndOngoing . "
+
+                UNION ALL
+
+                SELECT mtm.user_id,
+                    0, 1, 0, 0,
+                    CASE WHEN mm.team_win_id = mtm.mini_team_id THEN 1 ELSE 0 END, 0
+                FROM mini_matches mm
+                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id
+                WHERE mtm.user_id IN ({$userIdsCsv}) AND mnt.sport_id = ? AND mm.status = 'completed'
+                " . $mntPrivateAndOngoing . "
+
+                UNION ALL
+
+                SELECT mtm.user_id,
+                    0, 1, 0, 0,
+                    CASE WHEN mm.team_win_id = mtm.mini_team_id THEN 1 ELSE 0 END, 0
+                FROM mini_matches mm
+                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id
+                WHERE mtm.user_id IN ({$userIdsCsv}) AND mnt.sport_id = ? AND mm.status = 'completed'
+                " . $mntPrivateAndOngoing . "
+
+                UNION ALL
+
+                SELECT mh.user_id,
+                    0, 0, 1, 0, 0,
+                    CASE WHEN qm.winner = 'team_a' THEN 1 ELSE 0 END
+                FROM match_histories mh
+                JOIN quick_matches qm ON mh.quick_match_id = qm.id
+                LEFT JOIN competition_location_sport cls ON qm.competition_location_id = cls.competition_location_id
+                LEFT JOIN users u ON qm.created_by = u.id
+                LEFT JOIN user_sport usc ON u.id = usc.user_id
+                WHERE mh.user_id IN ({$userIdsCsv})
+                  AND qm.status = 'completed'
+                  AND JSON_CONTAINS(qm.team_a, CAST(mh.user_id AS CHAR))
+                  AND (cls.sport_id = ? OR (qm.competition_location_id IS NULL AND usc.sport_id = ?))
+
+                UNION ALL
+
+                SELECT mh.user_id,
+                    0, 0, 1, 0, 0,
+                    CASE WHEN qm.winner = 'team_b' THEN 1 ELSE 0 END
+                FROM match_histories mh
+                JOIN quick_matches qm ON mh.quick_match_id = qm.id
+                LEFT JOIN competition_location_sport cls ON qm.competition_location_id = cls.competition_location_id
+                LEFT JOIN users u ON qm.created_by = u.id
+                LEFT JOIN user_sport usc ON u.id = usc.user_id
+                WHERE mh.user_id IN ({$userIdsCsv})
+                  AND qm.status = 'completed'
+                  AND JSON_CONTAINS(qm.team_b, CAST(mh.user_id AS CHAR))
+                  AND (cls.sport_id = ? OR (qm.competition_location_id IS NULL AND usc.sport_id = ?))
+            ) AS all_matches
+            GROUP BY user_id
+        ";
+        $statsRows = DB::select($statsRowsSql, [
+            $sportId, $sportId, $sportId, $sportId,
+            $sportId, $sportId, $sportId, $sportId,
+        ]);
+
+        // Performance: wins in last 10 matches per user
+        $perfRowsSql = "
+            SELECT user_id, SUM(wins) AS wins
+            FROM (
+                SELECT tm.user_id,
+                    CASE WHEN m.winner_id = tm.team_id THEN 1 ELSE 0 END AS wins,
+                    m.scheduled_at AS dt
+                FROM matches m
+                JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                JOIN tournaments t ON tt.tournament_id = t.id
+                JOIN team_members tm ON tm.team_id = m.winner_id
+                WHERE tm.user_id IN ({$userIdsCsv}) AND t.sport_id = ? AND m.status = 'completed'
+                  AND m.winner_id IS NOT NULL " . $tPrivateAndOngoing . "
+
+                UNION ALL
+
+                SELECT mtm.user_id,
+                    CASE WHEN mm.team_win_id = mtm.mini_team_id THEN 1 ELSE 0 END AS wins,
+                    mm.created_at AS dt
+                FROM mini_matches mm
+                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team_win_id
+                WHERE mtm.user_id IN ({$userIdsCsv}) AND mnt.sport_id = ? AND mm.status = 'completed'
+                  AND mm.team_win_id IS NOT NULL " . $mntPrivateAndOngoing . "
+
+                UNION ALL
+
+                SELECT mh.user_id,
+                    CASE WHEN qm.winner = 'team_a' THEN 1 ELSE 0 END AS wins,
+                    qm.confirmed_at AS dt
+                FROM match_histories mh
+                JOIN quick_matches qm ON mh.quick_match_id = qm.id
+                LEFT JOIN competition_location_sport cls ON qm.competition_location_id = cls.competition_location_id
+                LEFT JOIN users u ON qm.created_by = u.id
+                LEFT JOIN user_sport usc ON u.id = usc.user_id
+                WHERE mh.user_id IN ({$userIdsCsv}) AND qm.status = 'completed'
+                  AND qm.winner IS NOT NULL
+                  AND JSON_CONTAINS(qm.team_a, CAST(mh.user_id AS CHAR))
+                  AND (cls.sport_id = ? OR (qm.competition_location_id IS NULL AND usc.sport_id = ?))
+
+                UNION ALL
+
+                SELECT mh.user_id,
+                    CASE WHEN qm.winner = 'team_b' THEN 1 ELSE 0 END AS wins,
+                    qm.confirmed_at AS dt
+                FROM match_histories mh
+                JOIN quick_matches qm ON mh.quick_match_id = qm.id
+                LEFT JOIN competition_location_sport cls ON qm.competition_location_id = cls.competition_location_id
+                LEFT JOIN users u ON qm.created_by = u.id
+                LEFT JOIN user_sport usc ON u.id = usc.user_id
+                WHERE mh.user_id IN ({$userIdsCsv}) AND qm.status = 'completed'
+                  AND qm.winner IS NOT NULL
+                  AND JSON_CONTAINS(qm.team_b, CAST(mh.user_id AS CHAR))
+                  AND (cls.sport_id = ? OR (qm.competition_location_id IS NULL AND usc.sport_id = ?))
+            ) AS recent
+            GROUP BY user_id
+        ";
+        $perfRows = DB::select($perfRowsSql, [$sportId, $sportId, $sportId, $sportId, $sportId, $sportId]);
+
+        // Tournament counts
+        $tournamentSql = "
+            SELECT user_id, COUNT(*) AS cnt FROM (
+                SELECT p.user_id, p.tournament_id AS id FROM participants p
+                JOIN tournaments t ON t.id = p.tournament_id
+                WHERE p.user_id IN ({$userIdsCsv}) AND p.is_confirmed = 1
+                  AND t.sport_id = ? AND t.status != 1 AND t.start_date <= NOW()
+                  " . $tPrivateAndOngoing . "
+                  AND (
+                    EXISTS (SELECT 1 FROM tournament_types tt
+                      JOIN `groups` g ON g.tournament_type_id = tt.id
+                      JOIN matches m ON m.group_id = g.id
+                      WHERE tt.tournament_id = t.id AND tt.format = 2 AND m.round = 4
+                        AND EXISTS (SELECT 1 FROM match_results mr WHERE mr.match_id = m.id))
+                    OR NOT EXISTS (SELECT 1 FROM tournament_types tt WHERE tt.tournament_id = t.id AND tt.format = 2)
+                    OR NOT EXISTS (SELECT 1 FROM tournament_types tt JOIN `groups` g ON g.tournament_type_id = tt.id JOIN matches m ON m.group_id = g.id WHERE tt.tournament_id = t.id)
+                  )
+                UNION
+                SELECT ts.user_id, ts.tournament_id AS id FROM tournament_staff ts
+                JOIN tournaments t ON t.id = ts.tournament_id
+                WHERE ts.user_id IN ({$userIdsCsv}) AND ts.role IN (1,2)
+                  AND t.sport_id = ? AND t.status != 1 AND t.start_date <= NOW()
+                  " . $tPrivateAndOngoing . "
+                  AND (
+                    EXISTS (SELECT 1 FROM tournament_types tt
+                      JOIN `groups` g ON g.tournament_type_id = tt.id
+                      JOIN matches m ON m.group_id = g.id
+                      WHERE tt.tournament_id = t.id AND tt.format = 2 AND m.round = 4
+                        AND EXISTS (SELECT 1 FROM match_results mr WHERE mr.match_id = m.id))
+                    OR NOT EXISTS (SELECT 1 FROM tournament_types tt WHERE tt.tournament_id = t.id AND tt.format = 2)
+                    OR NOT EXISTS (SELECT 1 FROM tournament_types tt JOIN `groups` g ON g.tournament_type_id = tt.id JOIN matches m ON m.group_id = g.id WHERE tt.tournament_id = t.id)
+                  )
+            ) AS combined GROUP BY user_id
+        ";
+        $tournamentRows = DB::select($tournamentSql, [$sportId, $sportId]);
+
+        // Mini-tournament counts
+        $miniTournamentSql = "
+            SELECT user_id, COUNT(*) AS cnt FROM (
+                SELECT mp.user_id, mp.mini_tournament_id AS id FROM mini_participants mp
+                JOIN mini_tournaments mnt ON mnt.id = mp.mini_tournament_id
+                WHERE mp.user_id IN ({$userIdsCsv}) AND mp.is_confirmed = 1
+                  AND mnt.sport_id = ? AND mnt.status != 1 AND mnt.start_time <= NOW()
+                  " . $mntPrivateAndOngoing . "
+                UNION
+                SELECT mts.user_id, mts.mini_tournament_id AS id FROM mini_tournament_staff mts
+                JOIN mini_tournaments mnt ON mnt.id = mts.mini_tournament_id
+                WHERE mts.user_id IN ({$userIdsCsv}) AND mts.role = 1
+                  AND mnt.sport_id = ? AND mnt.status != 1 AND mnt.start_time <= NOW()
+                  " . $mntPrivateAndOngoing . "
+            ) AS combined GROUP BY user_id
+        ";
+        $miniTournamentRows = DB::select($miniTournamentSql, [$sportId, $sportId]);
+
+        // Build lookup maps
+        $perfMap = [];
+        foreach ($perfRows as $r) {
+            $perfMap[$r->user_id] = (int) $r->wins;
+        }
+
+        $tournamentMap = [];
+        foreach ($tournamentRows as $r) {
+            $tournamentMap[$r->user_id] = (int) $r->cnt;
+        }
+
+        $miniTournamentMap = [];
+        foreach ($miniTournamentRows as $r) {
+            $miniTournamentMap[$r->user_id] = (int) $r->cnt;
+        }
+
+        // Assemble results
+        $result = [];
+        foreach ($userIds as $uid) {
+            $result[$uid] = [
+                'total_matches' => 0,
+                'total_tournaments' => $tournamentMap[$uid] ?? 0,
+                'total_mini_tournaments' => $miniTournamentMap[$uid] ?? 0,
+                'total_prizes' => 0,
+                'win_rate' => 0.0,
+                'performance' => $perfMap[$uid] ?? 0,
+            ];
+        }
+
+        foreach ($statsRows as $row) {
+            $uid = $row->user_id;
+            if (!isset($result[$uid])) {
+                continue;
+            }
+            $tournamentMatches = (int) ($row->total_tournament_matches ?? 0);
+            $tournamentWins = (int) ($row->tournament_wins ?? 0);
+            $miniMatches = (int) ($row->total_mini_matches ?? 0);
+            $miniWins = (int) ($row->mini_wins ?? 0);
+            $qmMatches = (int) ($row->total_qm_matches ?? 0);
+            $qmWins = (int) ($row->qm_wins ?? 0);
+
+            $totalMatches = $tournamentMatches + $miniMatches + $qmMatches;
+            $totalWins = $tournamentWins + $miniWins + $qmWins;
+            $winRate = $totalMatches > 0 ? round(($totalWins / $totalMatches) * 100, 2) : 0;
+
+            $result[$uid]['total_matches'] = $totalMatches;
+            $result[$uid]['win_rate'] = $winRate;
+        }
+
+        return $result;
     }
 }

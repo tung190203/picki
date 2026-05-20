@@ -156,20 +156,25 @@ class LeaderboardController extends Controller
                     ->where('m.status', 'completed')
                     ->whereNotNull('m.winner_id')
                     ->select('m.away_team_id as team_id', 'm.winner_id', 'm.round')
-            )
+            );
+
+        $statsRaw = DB::table(DB::raw("({$matches->toSql()}) as combined"))
+            ->mergeBindings($matches->getQuery())
+            ->select('team_id')
+            ->selectRaw('COUNT(*) as total')
+            ->selectRaw('SUM(CASE WHEN winner_id = team_id THEN 1 ELSE 0 END) as wins')
+            ->selectRaw('MAX(round) as last_round')
+            ->groupBy('team_id')
             ->get();
 
         $stats = [];
         foreach ($teamIds as $teamId) {
-            $teamMatches = $matches->filter(fn($m) => $teamId == $m->team_id);
-            $total = $teamMatches->count();
-            $wins = $teamMatches->filter(fn($m) => $m->winner_id == $teamId)->count();
-            $lastRound = $teamMatches->max('round');
+            $row = $statsRaw->first(fn($r) => $r->team_id == $teamId);
             $stats[$teamId] = [
-                'total_matches' => $total,
-                'win_rate'      => $total > 0 ? round(($wins / $total) * 100, 2) : 0,
+                'total_matches' => (int) ($row->total ?? 0),
+                'win_rate'      => $row && $row->total > 0 ? round(($row->wins / $row->total) * 100, 2) : 0,
                 'vndupr_avg'    => 0,
-                'last_round'   => $lastRound,
+                'last_round'    => $row->last_round ?? null,
             ];
         }
 
@@ -191,18 +196,38 @@ class LeaderboardController extends Controller
 
     private function loadVnduprAvg(array &$stats, $teamIds, int $sportId): void
     {
+        if (empty($stats)) return;
+
         $teams = Team::with(['members.sports' => function ($q) use ($sportId) {
             $q->where('sport_id', $sportId);
         }])->whereIn('id', $teamIds)->get();
 
+        $allUserSportIds = collect();
+        $memberToSports = [];
+
+        foreach ($teams as $team) {
+            foreach ($team->members as $member) {
+                foreach ($member->sports as $us) {
+                    $allUserSportIds->push($us->id);
+                    $memberToSports[$member->id][] = $us->id;
+                }
+            }
+        }
+
+        if ($allUserSportIds->isEmpty()) return;
+
+        $scoreMap = UserSportScore::whereIn('user_sport_id', $allUserSportIds)
+            ->where('score_type', UserSportScore::VNDUPR_SCORE)
+            ->get()
+            ->groupBy('user_sport_id')
+            ->map(fn($col) => $col->sortByDesc('created_at')->first());
+
         foreach ($teams as $team) {
             $scores = [];
             foreach ($team->members as $member) {
-                foreach ($member->sports as $userSport) {
-                    $latest = $userSport->scores
-                        ->where('score_type', 'vndupr_score')
-                        ->sortByDesc('created_at')
-                        ->first();
+                $sportIds = $memberToSports[$member->id] ?? [];
+                foreach ($sportIds as $usId) {
+                    $latest = $scoreMap->get($usId);
                     if ($latest) {
                         $scores[] = (float) $latest->score_value;
                     }
@@ -392,7 +417,7 @@ class LeaderboardController extends Controller
         if (!$user) {
             return ['items' => [], 'total' => 0, 'last_page' => 1];
         }
-
+        /** @var \App\Models\User $user */
         $friendIds = $user->friends()->pluck('users.id');
         if ($friendIds->isEmpty()) {
             return ['items' => [], 'total' => 0, 'last_page' => 1];

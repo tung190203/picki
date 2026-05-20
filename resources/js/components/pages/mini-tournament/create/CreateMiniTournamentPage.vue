@@ -338,7 +338,7 @@
                                 <!-- Số tiền input -->
                                 <div>
                                     <label class="text-sm text-gray-600 block mb-1" for="fee-amount-input">
-                                        {{ autoSplitCourtFee ? 'Tổng tiền sân (VNĐ)' : 'Tiền cố định/người (VNĐ)' }}
+                                        {{ (autoSplitCourtFee || useClubFund) ? 'Tổng tiền (VNĐ)' : 'Tiền cố định/người (VNĐ)' }}
                                     </label>
                                     <input id="fee-amount-input" v-model="formattedFeeAmount" @input="handleFeeInput"
                                         type="text" inputmode="numeric" placeholder="Nhập số tiền…"
@@ -1934,7 +1934,12 @@ const updateMiniTournament = async (id, data) => {
 
 const createMiniTournament = async (data) => {
     try {
-        const res = await MiniTournamentService.storeMiniTournament(data)
+        let res
+        if (data.club_id) {
+            res = await MiniTournamentService.storeMiniTournamentByClub(data.club_id, data)
+        } else {
+            res = await MiniTournamentService.storeMiniTournament(data)
+        }
         toast.success('Tạo kèo đấu thành công.')
         resetFormState()
         if (res && res.id) {
