@@ -10,6 +10,7 @@ use App\Models\MiniMatch;
 use App\Models\MiniMatchResult;
 use App\Models\MiniParticipant;
 use App\Models\MiniTeam;
+use App\Models\MiniTeamMember;
 use App\Models\MiniTournament;
 use App\Models\User;
 use App\Models\VnduprHistory;
@@ -321,12 +322,29 @@ class MiniMatchController extends Controller
     {
         $team->members()->delete();
 
-        foreach ($userIds as $userId) {
-            $isGuest = MiniParticipant::where('mini_tournament_id', $team->mini_tournament_id)
-                ->where('user_id', $userId)
-                ->value('is_guest') ?? false;
-            $team->members()->create(['user_id' => $userId, 'is_guest' => $isGuest]);
+        if (empty($userIds)) {
+            return;
         }
+
+        // Batch load is_guest flags for all users in one query
+        $guestMap = DB::table('mini_participants')
+            ->where('mini_tournament_id', $team->mini_tournament_id)
+            ->whereIn('user_id', $userIds)
+            ->pluck('is_guest', 'user_id');
+
+        $records = [];
+        $now = now();
+        foreach ($userIds as $userId) {
+            $records[] = [
+                'mini_team_id' => $team->id,
+                'user_id' => $userId,
+                'is_guest' => $guestMap->get($userId, false),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        MiniTeamMember::insert($records);
     }
 
     /**
@@ -747,70 +765,94 @@ class MiniMatchController extends Controller
         $match->status = MiniMatch::STATUS_COMPLETED;
         $match->save();
 
-        foreach ($match->results as $r) {
-            $r->update(['status' => MiniMatchResult::STATUS_APPROVED]);
-        }
+        // Batch update result statuses
+        $resultIds = $match->results->pluck('id');
+        MiniMatchResult::whereIn('id', $resultIds)
+            ->update(['status' => MiniMatchResult::STATUS_APPROVED]);
 
-        // ===== ANCHOR MATCH LOGIC (CHỈ CHẠY 1 LẦN / MINI MATCH) =====
-
-        // Lấy toàn bộ user trong mini match
-        $allUsersInMatch = collect()
-            ->merge($match->team1->members->pluck('user'))
-            ->merge($match->team2->members->pluck('user'))
-            ->unique('id')
+        // ===== ANCHOR MATCH LOGIC =====
+        $allMemberIds = $match->team1->members->pluck('id')
+            ->merge($match->team2->members->pluck('id'))
+            ->unique()
             ->values();
 
-        // Kiểm tra trong trận có anchor không
-        $hasAnchorInMatch = $allUsersInMatch->contains(function ($user) {
-            return $user->is_anchor
-                || ($user->total_matches_has_anchor ?? 0) >= 10;
-        });
+        $hasAnchorInMatch = User::whereIn('id', $allMemberIds)
+            ->where(function ($q) {
+                $q->where('is_anchor', true)
+                    ->orWhere('total_matches_has_anchor', '>=', 10);
+            })
+            ->exists();
 
-        // Nếu có anchor → cộng cho người KHÔNG phải anchor
         if ($hasAnchorInMatch) {
-            foreach ($allUsersInMatch as $user) {
-                $isAnchor = $user->is_anchor
-                    || ($user->total_matches_has_anchor ?? 0) >= 10;
+            $nonAnchorIds = User::whereIn('id', $allMemberIds)
+                ->where('is_anchor', false)
+                ->where(function ($q) {
+                    $q->whereNull('total_matches_has_anchor')
+                        ->orWhere('total_matches_has_anchor', '<', 10);
+                })
+                ->pluck('id');
 
-                if (!$isAnchor) {
-                    $user->total_matches_has_anchor =
-                        ($user->total_matches_has_anchor ?? 0) + 1;
-                    $user->save();
-                }
+            if ($nonAnchorIds->isNotEmpty()) {
+                DB::table('users')->whereIn('id', $nonAnchorIds)
+                    ->increment('total_matches_has_anchor');
             }
         }
 
-        // B. Tính toán S (Actual Score) & R (Average Rating)
+        // B. Tính toán S (Actual Score)
         $scores = $match->results->groupBy('team_id')->map->sum('score');
         $t1Score = $scores->get($match->team1_id, 0);
         $t2Score = $scores->get($match->team2_id, 0);
         $totalScore = $t1Score + $t2Score;
 
-        // S_match (thắng / thua)
         $winnerTeamId = $match->team_win_id;
-
         $S_match_t1 = $winnerTeamId === $match->team1_id ? 1.0 : 0.0;
         $S_match_t2 = $winnerTeamId === $match->team2_id ? 1.0 : 0.0;
-
-        // S_points (tỷ lệ điểm)
         $S_points_t1 = $totalScore > 0 ? $t1Score / $totalScore : 0;
         $S_points_t2 = $totalScore > 0 ? $t2Score / $totalScore : 0;
-
-        // S_final
         $S_t1 = (0.5 * $S_match_t1) + (0.5 * $S_points_t1);
         $S_t2 = (0.5 * $S_match_t2) + (0.5 * $S_points_t2);
 
         // =====================================================
-        // D. TÍNH RATING TRUNG BÌNH (E)
+        // C. Batch load all data for rating calculation
         // =====================================================
-        $calcAvgRating = function ($team) use ($sportId) {
-            $ratings = $team->members->map(function ($member) use ($sportId) {
-                $userSport = $member->user->sports()->where('sport_id', $sportId)->first();
-                if (!$userSport) return 0;
-                $scoreRecord = $userSport->scores()->where('score_type', 'vndupr_score')->first();
-                return $scoreRecord ? (float)$scoreRecord->score_value : 0;
-            });
-            return $ratings->count() > 0 ? $ratings->avg() : 0;
+        $userSportRecords = DB::table('user_sport')
+            ->whereIn('user_id', $allMemberIds)
+            ->where('sport_id', $sportId)
+            ->get()
+            ->keyBy('user_id');
+
+        $userSportIds = $userSportRecords->pluck('id')->values();
+
+        $scoreMap = DB::table('user_sport_scores')
+            ->whereIn('user_sport_id', $userSportIds)
+            ->where('score_type', 'vndupr_score')
+            ->get()
+            ->keyBy('user_sport_id');
+
+        $historyMap = VnduprHistory::whereIn('user_id', $allMemberIds)
+            ->orderByDesc('id')
+            ->take(15 * $allMemberIds->count())
+            ->get()
+            ->groupBy('user_id')
+            ->map(fn($col) => $col->sortBy('id')->values());
+
+        // =====================================================
+        // D. TÍNH RATING TRUNG BÌNH (E) — no N+1
+        // =====================================================
+        $calcAvgRating = function ($team) use ($userSportRecords, $scoreMap) {
+            $total = 0;
+            $count = 0;
+            foreach ($team->members as $member) {
+                $userSport = $userSportRecords->get($member->id);
+                if ($userSport) {
+                    $score = $scoreMap->get($userSport->id);
+                    if ($score) {
+                        $total += (float) $score->score_value;
+                        $count++;
+                    }
+                }
+            }
+            return $count > 0 ? $total / $count : 0;
         };
 
         $R_t1 = $calcAvgRating($match->team1);
@@ -819,35 +861,29 @@ class MiniMatchController extends Controller
         $E_t1 = 1 / (1 + pow(10, ($R_t2 - $R_t1)));
         $E_t2 = 1 / (1 + pow(10, ($R_t1 - $R_t2)));
 
-        // C. Cập nhật điểm cho từng Player
         $teamData = [
             ['team' => $match->team1, 'S' => $S_t1, 'E' => $E_t1],
             ['team' => $match->team2, 'S' => $S_t2, 'E' => $E_t2],
         ];
 
-        $W = 0.2;
+        // =====================================================
+        // E. Batch operations — no individual queries per user
+        // =====================================================
+        DB::table('users')->whereIn('id', $allMemberIds)->increment('total_matches');
+
+        $vnduprHistoryRecords = [];
+        $scoreUpserts = [];
 
         foreach ($teamData as $data) {
             foreach ($data['team']->members as $member) {
                 $user = $member->user;
+                $userSport = $userSportRecords->get($user->id);
+                $scoreRecord = $userSport ? $scoreMap->get($userSport->id) : null;
+                $R_old = $scoreRecord ? (float) $scoreRecord->score_value : 0;
 
-                // 1. Cập nhật số trận
-                $user->increment('total_matches');
-
-                // 2. Lấy R_old từ relation
-                $userSport = $user->sports()->where('sport_id', $sportId)->first();
-                $R_old = 0;
-                if ($userSport) {
-                    $scoreRecord = $userSport->scores()->where('score_type', 'vndupr_score')->first();
-                    $R_old = $scoreRecord ? (float)$scoreRecord->score_value : 0;
-                }
-
-                // 3. Tính K & Turbo
-                $history = VnduprHistory::where('user_id', $user->id)->latest('id')->take(15)->get()->reverse();
+                $history = $historyMap->get($user->id, collect());
 
                 $K = 0.3;
-
-                // 4. Chuẩn bị K theo total_matches
                 if ($user->is_anchor) {
                     $K = 0.1;
                 } else {
@@ -864,29 +900,37 @@ class MiniMatchController extends Controller
                     }
                 }
 
-                // 5. Tính R_new
-                // if ($hasAnchorInMatch) {
-                //     $R_new = $R_old + ($W * $K * ($data['S'] - $data['E']));
-                // } else {
-                //     $R_new = $R_old;
-                // }
-                $R_new = $R_old + ($W * $K * ($data['S'] - $data['E']));
+                $R_new = $R_old + (0.2 * $K * ($data['S'] - $data['E']));
 
-                // 6. Lưu History & Update Score
-                VnduprHistory::create([
+                $vnduprHistoryRecords[] = [
                     'user_id' => $user->id,
                     'mini_match_id' => $match->id,
                     'score_before' => $R_old,
                     'score_after' => $R_new,
-                ]);
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
 
                 if ($userSport) {
-                    DB::table('user_sport_scores')->updateOrInsert(
-                        ['user_sport_id' => $userSport->id, 'score_type' => 'vndupr_score'],
-                        ['score_value' => $R_new, 'updated_at' => now()]
-                    );
+                    $scoreUpserts[] = [
+                        'user_sport_id' => $userSport->id,
+                        'score_type' => 'vndupr_score',
+                        'score_value' => $R_new,
+                        'updated_at' => now(),
+                    ];
                 }
             }
+        }
+
+        if (!empty($vnduprHistoryRecords)) {
+            VnduprHistory::insert($vnduprHistoryRecords);
+        }
+
+        foreach ($scoreUpserts as $upsert) {
+            DB::table('user_sport_scores')->updateOrInsert(
+                ['user_sport_id' => $upsert['user_sport_id'], 'score_type' => $upsert['score_type']],
+                ['score_value' => $upsert['score_value'], 'updated_at' => $upsert['updated_at']]
+            );
         }
     }
 

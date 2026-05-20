@@ -51,6 +51,20 @@ return new class extends Migration
                 $table->index(['user_sport_id', 'score_type', 'score_value'], 'idx_uss_user_sport_score');
             }
         });
+
+        // vndupr_history: composite index for user rating history queries
+        Schema::table('vndupr_history', function (Blueprint $table) {
+            if (! $this->indexExists('vndupr_history', 'idx_vndupr_history_user_created')) {
+                $table->index(['user_id', 'created_at'], 'idx_vndupr_history_user_created');
+            }
+        });
+
+        // participants: composite index for tournament user lookups and authorization checks
+        Schema::table('participants', function (Blueprint $table) {
+            if (! $this->indexExists('participants', 'idx_participants_tournament_user')) {
+                $table->index(['tournament_id', 'user_id'], 'idx_participants_tournament_user');
+            }
+        });
     }
 
     public function down(): void
@@ -74,6 +88,14 @@ return new class extends Migration
 
         Schema::table('user_sport_scores', function (Blueprint $table) {
             $table->dropIndex('idx_uss_user_sport_score');
+        });
+
+        Schema::table('vndupr_history', function (Blueprint $table) {
+            $table->dropIndex('idx_vndupr_history_user_created');
+        });
+
+        Schema::table('participants', function (Blueprint $table) {
+            $table->dropIndex('idx_participants_tournament_user');
         });
     }
 
