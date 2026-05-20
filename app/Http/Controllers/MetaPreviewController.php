@@ -85,7 +85,7 @@ class MetaPreviewController extends Controller
         $title = $miniTournament->name;
         $description = $miniTournament->description
             ? \Str::limit(strip_tags($miniTournament->description), 160)
-            : "Giải đấu {$miniTournament->name} trên PICKI";
+            : "Kèo đấu {$miniTournament->name} trên PICKI";
         $image = $miniTournament->poster
             ? $this->absoluteUrl(asset('storage/' . $miniTournament->poster))
             : $this->absoluteUrl(asset('favicon.png'));
