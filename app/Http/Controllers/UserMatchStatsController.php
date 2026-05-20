@@ -710,11 +710,13 @@ class UserMatchStatsController extends Controller
         $allMatches = $allMatches->sortByDesc('created_at')->values();
 
         // ========== QUICK MATCHES ==========
+        $quickMatchIds = \App\Models\MatchHistory::where('user_id', $userId)
+            ->whereNotNull('quick_match_id')
+            ->pluck('quick_match_id')
+            ->unique();
+
         $quickMatches = \App\Models\QuickMatch::where('status', \App\Models\QuickMatch::STATUS_COMPLETED)
-            ->where(function ($q) use ($userId) {
-                $q->whereJsonContains('team_a', (int) $userId)
-                  ->orWhereJsonContains('team_b', (int) $userId);
-            })
+            ->whereIn('id', $quickMatchIds)
             ->get();
 
         if ($quickMatches->isNotEmpty()) {

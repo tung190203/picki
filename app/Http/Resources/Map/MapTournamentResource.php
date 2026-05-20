@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Map;
 
+use App\Http\Resources\UserSportResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -33,12 +34,9 @@ class MapTournamentResource extends JsonResource
             'max_players'  => $this->max_player,
             'max_team'       => $this->max_team,
             'participated_team' => $teams ? $teams->count() : 0,
-            'sport'        => $this->whenLoaded('sport', fn() => [
-                'id'   => $this->sport->id,
-                'name' => $this->sport->name,
-                'icon' => $this->sport->icon,
-            ]),
-            // Nested competition_location
+            'sports'      => $this->whenLoaded('sports', fn() =>
+                UserSportResource::collection($this->sports)
+            ),
             'competition_location' => $location ? [
                 'id'       => $location->id,
                 'name'     => $location->name,

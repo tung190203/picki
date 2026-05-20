@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Tournament;
+use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class TournamentService
 {
@@ -164,10 +166,63 @@ class TournamentService
      */
     public function updateParticipantsRatingStats(Tournament $tournament): void
     {
+        $sportId = $tournament->sport_id;
+
         $participants = $tournament->participants()
             ->whereNotNull('user_id')
             ->with('user')
             ->get();
+
+        if ($participants->isEmpty()) {
+            return;
+        }
+
+        $userIds = $participants->pluck('user_id');
+
+        // Batch load all user_sport records for the tournament sport
+        $userSportRecords = DB::table('user_sport')
+            ->whereIn('user_id', $userIds)
+            ->where('sport_id', $sportId)
+            ->get()
+            ->keyBy('user_id');
+
+        $userSportIds = $userSportRecords->pluck('id')->values();
+
+        // Batch load all vndupr scores
+        $scoreMap = DB::table('user_sport_scores')
+            ->whereIn('user_sport_id', $userSportIds)
+            ->where('score_type', 'vndupr_score')
+            ->get()
+            ->keyBy('user_sport_id');
+
+        // Batch compute rank for all users: COUNT users with higher score + 1
+        $scoreMapByUser = $userSportRecords->mapWithKeys(function ($us) use ($scoreMap) {
+            $score = $scoreMap->get($us->id);
+            return [$us->user_id => $score ? (float) $score->score_value : null];
+        });
+
+        $rankMap = DB::table('users')
+            ->where('is_anchor', false)
+            ->select([
+                'users.id',
+                DB::raw('(
+                    SELECT COUNT(DISTINCT us_inner.user_id) + 1
+                    FROM user_sport us_inner
+                    JOIN user_sport_scores uss_inner ON uss_inner.user_sport_id = us_inner.id
+                    WHERE us_inner.sport_id = ' . (int) $sportId . '
+                      AND uss_inner.score_type = "vndupr_score"
+                      AND uss_inner.score_value > COALESCE(
+                          (SELECT uss2.score_value FROM user_sport_scores uss2
+                           JOIN user_sport us2 ON us2.id = uss2.user_sport_id
+                           WHERE us2.user_id = users.id AND us2.sport_id = ' . (int) $sportId . '
+                           AND uss2.score_type = "vndupr_score" LIMIT 1),
+                          0
+                      )
+                ) as `rank`')
+            ])
+            ->whereIn('id', $userIds)
+            ->get()
+            ->keyBy('id');
 
         foreach ($participants as $participant) {
             $user = $participant->user;
@@ -175,14 +230,14 @@ class TournamentService
                 continue;
             }
 
-            $userSport = $user->sports()
-                ->where('sport_id', $tournament->sport_id)
-                ->first();
-            $currentScore = $userSport
-                ? $userSport->scores()->where('score_type', 'vndupr_score')->value('score_value')
-                : null;
+            $userSport = $userSportRecords->get($user->id);
+            $currentScore = null;
+            if ($userSport) {
+                $scoreRecord = $scoreMap->get($userSport->id);
+                $currentScore = $scoreRecord ? (float) $scoreRecord->score_value : null;
+            }
 
-            $currentRank = $user->getVNRank($tournament->sport_id);
+            $currentRank = $rankMap->get($user->id)?->rank;
 
             $updateData = [
                 'rating_after' => $currentScore,

@@ -213,6 +213,8 @@ class QuickMatchController extends Controller
         $quickMatch->refresh();
         $quickMatch->load('creator', 'competitionLocation');
 
+        Broadcast::event(new QuickMatchConfirmed($quickMatch));
+
         return ResponseHelper::success(
             new QuickMatchResource($quickMatch),
             'Cập nhật điểm thành công.'

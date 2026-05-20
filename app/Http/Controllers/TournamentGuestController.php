@@ -435,15 +435,7 @@ class TournamentGuestController extends Controller
         $tournament = Tournament::findOrFail($tournamentId);
 
         if ($tournament->club_id) {
-            $clubId = $request->input('club_id');
-
-            if (!$clubId) {
-                return ResponseHelper::error('Giải đấu thuộc CLB. Vui lòng truyền club_id trong body.', 422);
-            }
-
-            if ((int) $tournament->club_id !== (int) $clubId) {
-                return ResponseHelper::error('Giải đấu không thuộc CLB này', 403);
-            }
+            $clubId = $tournament->club_id;
 
             $club = ModelsClub::find($clubId);
             if (!$club) {

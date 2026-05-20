@@ -86,7 +86,7 @@ class StoreTournamentRequest extends FormRequest
             $hasFee = $this->boolean('has_fee');
 
             // QR code required khi có phí + quản lý tài chính
-            if ($hasFee && $hasFinancialMgmt && !$this->hasFile('qr_code_url') && !$this->input('qr_code_url')) {
+            if ($hasFee && $hasFinancialMgmt && !$this->boolean('use_cached_qr') && !$this->hasFile('qr_code_url') && !$this->input('qr_code_url')) {
                 $validator->errors()->add(
                     'qr_code_url',
                     'Mã QR thanh toán là bắt buộc khi bật thu phí và quản lý tài chính.'
@@ -171,6 +171,7 @@ class StoreTournamentRequest extends FormRequest
         $boolKeys = [
             'enable_dupr', 'enable_vndupr', 'is_private', 'auto_approve',
             'has_financial_management', 'has_fee', 'auto_split_fee', 'creator_join',
+            'use_cached_qr',
         ];
 
         $prepared = [];

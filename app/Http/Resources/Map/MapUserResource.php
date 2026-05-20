@@ -18,7 +18,13 @@ class MapUserResource extends JsonResource
         $vnduprScore = $scores->firstWhere('score_type', 'vndupr_score');
         $duprScore   = $scores->firstWhere('score_type', 'dupr_score');
 
-        $stats = User::getSportStats($this->id, 1);
+        // Use preloaded batch stats if available (set by SearchV2Controller::mapResponse),
+        // otherwise fall back to the per-row query for backward compatibility.
+        if (isset($this->preloaded_sport_stats)) {
+            $stats = $this->preloaded_sport_stats;
+        } else {
+            $stats = User::getSportStats($this->id, 1, false);
+        }
 
         return [
             'id'           => $this->id,
