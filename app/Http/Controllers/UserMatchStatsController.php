@@ -14,6 +14,8 @@ use App\Models\Matches;
 use App\Models\MiniMatch;
 use App\Models\MatchResult;
 use App\Models\MiniMatchResult;
+use App\Models\MatchHistory;
+use App\Models\QuickMatch;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -117,20 +119,43 @@ class UserMatchStatsController extends Controller
             return ResponseHelper::error('Có lỗi xảy ra trong quá trình thực thi', 400);
         }
 
-        // Lấy VnduprHistory 365 ngày
-        $histories = VnduprHistory::where('user_id', $userId)
+        // Lấy VnduprHistory 365 ngày (Tournament + MiniTournament)
+        $vnduprHistories = VnduprHistory::where('user_id', $userId)
             ->where('created_at', '>=', now()->subYear())
             ->orderBy('created_at', 'asc')
             ->get();
 
-        if ($histories->isEmpty()) {
+        // Lấy MatchHistory 365 ngày (Quick Match)
+        $matchHistories = MatchHistory::where('user_id', $userId)
+            ->where('played_at', '>=', now()->subYear())
+            ->orderBy('played_at', 'asc')
+            ->get()
+            ->filter(fn($h) => $h->quick_match_id !== null);
+
+        // Merge hai nguồn thành một collection
+        $allHistories = $vnduprHistories->map(fn($h) => (object) [
+            'match_id'       => $h->match_id,
+            'mini_match_id'  => $h->mini_match_id,
+            'quick_match_id' => null,
+            'created_at'     => $h->created_at,
+            'played_at'      => $h->created_at,
+        ])->merge($matchHistories->map(fn($h) => (object) [
+            'match_id'       => null,
+            'mini_match_id'  => null,
+            'quick_match_id' => $h->quick_match_id,
+            'created_at'     => $h->played_at,
+            'played_at'      => $h->played_at,
+        ]))->values();
+
+        if ($allHistories->isEmpty()) {
             return response()->json(['data' => []]);
         }
 
-        $matchIds = $histories->pluck('match_id')->filter()->unique();
-        $miniIds  = $histories->pluck('mini_match_id')->filter()->unique();
+        $matchIds  = $vnduprHistories->pluck('match_id')->filter()->unique();
+        $miniIds   = $vnduprHistories->pluck('mini_match_id')->filter()->unique();
+        $quickIds  = $matchHistories->pluck('quick_match_id')->filter()->unique();
 
-        // ========== TỐI ƯU: FILTER BẰNG whereHas, CHỈ LOAD RELATIONS CẦN THIẾT ==========
+        // ========== LOAD MATCHES ==========
         $matches = Matches::with([
                 'homeTeam.members:id',
                 'awayTeam.members:id',
@@ -141,6 +166,7 @@ class UserMatchStatsController extends Controller
             ->get()
             ->keyBy('id');
 
+        // ========== LOAD MINI MATCHES ==========
         $minis = MiniMatch::with([
                 'team1.members:id',
                 'team2.members:id',
@@ -151,6 +177,22 @@ class UserMatchStatsController extends Controller
             ->get()
             ->keyBy('id');
 
+        // ========== LOAD QUICK MATCHES (filter by sport via competition_location) ==========
+        $quickMatches = collect();
+        if ($quickIds->isNotEmpty()) {
+            $quickMatches = QuickMatch::with('competitionLocation')
+                ->whereIn('id', $quickIds)
+                ->where('status', QuickMatch::STATUS_COMPLETED)
+                ->get()
+                ->filter(function ($qm) use ($sportId) {
+                    if (!$qm->competitionLocation) {
+                        return true; // không có location → cho hiển thị
+                    }
+                    return $qm->competitionLocation->sports->contains('id', $sportId);
+                })
+                ->keyBy('id');
+        }
+
         // Lấy kết quả
         $matchResults = MatchResult::whereIn('match_id', $matches->keys())
             ->get()
@@ -160,7 +202,7 @@ class UserMatchStatsController extends Controller
             ->get()
             ->groupBy('mini_match_id');
 
-        // ========== CHỈ QUERY 1 LẦN CHO MINI_TEAM_MEMBERS ==========
+        // ========== MINI_TEAM_MEMBERS ==========
         $miniTeamMembersByTeam = collect();
         if ($minis->isNotEmpty()) {
             $miniTeamMembersByTeam = DB::table('mini_team_members')
@@ -176,261 +218,228 @@ class UserMatchStatsController extends Controller
                 ->map(fn($rows) => $rows->pluck('user_id')->all());
         }
 
-        // Helper function để check win
-        $checkWin = function ($history) use ($matches, $minis, $miniTeamMembersByTeam, $userId) {
-            if ($history->match_id && $matches->has($history->match_id)) {
-                $match = $matches[$history->match_id];
-
-                // Lấy danh sách user_id từ members collection
+        // ========== HELPER: CHECK WIN ==========
+        $checkWin = function ($item) use ($matches, $minis, $quickMatches, $miniTeamMembersByTeam, $userId) {
+            if ($item->match_id && $matches->has($item->match_id)) {
+                $match = $matches[$item->match_id];
                 $homeUserIds = $match->homeTeam->members->pluck('id')->all();
                 $awayUserIds = $match->awayTeam->members->pluck('id')->all();
-
                 return (
                     ($match->winner_id == $match->home_team_id && in_array($userId, $homeUserIds)) ||
                     ($match->winner_id == $match->away_team_id && in_array($userId, $awayUserIds))
                 );
             }
 
-            if ($history->mini_match_id && $minis->has($history->mini_match_id)) {
-                $mini = $minis[$history->mini_match_id];
-
+            if ($item->mini_match_id && $minis->has($item->mini_match_id)) {
+                $mini = $minis[$item->mini_match_id];
                 $isTeam1 = in_array($userId, $miniTeamMembersByTeam[$mini->team1_id] ?? []);
                 $isTeam2 = in_array($userId, $miniTeamMembersByTeam[$mini->team2_id] ?? []);
-
                 if ($isTeam1 && $mini->team_win_id == $mini->team1_id) return true;
                 if ($isTeam2 && $mini->team_win_id == $mini->team2_id) return true;
+                return false;
+            }
+
+            if ($item->quick_match_id && $quickMatches->has($item->quick_match_id)) {
+                $qm = $quickMatches[$item->quick_match_id];
+                if (!$qm->winner) return false;
+                $userInTeamA = in_array($userId, $qm->team_a ?? []);
+                $userInTeamB = in_array($userId, $qm->team_b ?? []);
+                return ($qm->winner === QuickMatch::WINNER_TEAM_A && $userInTeamA)
+                    || ($qm->winner === QuickMatch::WINNER_TEAM_B && $userInTeamB);
             }
 
             return false;
         };
 
-        // Helper function tính win_rate và performance
-        $calculateStats = function ($historiesCollection) use ($checkWin) {
-            // Sắp xếp theo thời gian mới nhất
-            $sortedHistories = $historiesCollection->sortByDesc('created_at')->values();
-            $totalMatches = $sortedHistories->count();
-
-            if ($totalMatches == 0) {
-                return ['win_rate' => 0, 'performance' => 0];
-            }
-
-            // Tính win_rate
-            $winCount = 0;
-            foreach ($sortedHistories as $match) {
-                if ($checkWin($match)) {
-                    $winCount++;
-                }
-            }
-            $win_rate = round(($winCount / $totalMatches) * 100, 2);
-
-            // Tính performance
-            $points = 0;
-            foreach ($sortedHistories as $index => $match) {
-                if ($checkWin($match)) {
-                    $multiplier = $index < 3 ? 1.5 : 1.0;
-                    $points += 10 * $multiplier;
-                }
-            }
-
-            $recent3Max = min(3, $totalMatches) * 10 * 1.5;
-            $older7Max = max(0, $totalMatches - 3) * 10 * 1.0;
-            $maxPoints = $recent3Max + $older7Max;
-
-            $performance = $maxPoints > 0 ? round(($points / $maxPoints) * 100, 2) : 0;
-
-            return ['win_rate' => $win_rate, 'performance' => $performance];
-        };
-
         // ========== HELPER: REMOVE DUPLICATES ==========
-        $removeDuplicates = function ($historiesCollection) {
+        $removeDuplicates = function ($collection) {
             $unique = collect();
             $seen = [];
-
-            foreach ($historiesCollection as $h) {
-                $key = $h->match_id ? 'match_' . $h->match_id : 'mini_' . $h->mini_match_id;
+            foreach ($collection as $item) {
+                $key = $item->match_id
+                    ? 'm_' . $item->match_id
+                    : ($item->mini_match_id ? 'mini_' . $item->mini_match_id : 'q_' . $item->quick_match_id);
                 if (!isset($seen[$key])) {
                     $seen[$key] = true;
-                    $unique->push($h);
+                    $unique->push($item);
                 }
             }
             return $unique;
         };
 
-        // ========== HELPER: PROCESS WEEK DATA (CHI TIẾT SCORES) ==========
-        $processWeekData = function ($historiesCollection) use ($matches, $minis, $matchResults, $miniResults, $miniTeamMembersByTeam, $userId) {
+        // ========== HELPER: PROCESS WEEK DATA ==========
+        $processWeekData = function ($collection) use ($matches, $minis, $quickMatches, $matchResults, $miniResults, $miniTeamMembersByTeam, $userId) {
             $weekData = [];
             $weekLabels = [];
 
-            foreach ($historiesCollection as $history) {
-                if ($history->match_id && $matches->has($history->match_id)) {
-                    $match = $matches->get($history->match_id);
+            foreach ($collection as $item) {
+                $createdAt = $item->played_at ?? $item->created_at;
+                $scores = [];
+                $isWin = false;
+
+                if ($item->match_id && $matches->has($item->match_id)) {
+                    $match = $matches->get($item->match_id);
                     $homeUserIds = $match->homeTeam->members->pluck('id')->all();
                     $awayUserIds = $match->awayTeam->members->pluck('id')->all();
                     $isHome = in_array($userId, $homeUserIds);
                     $myTeamId = $isHome ? $match->home_team_id : $match->away_team_id;
                     $opponentTeamId = $isHome ? $match->away_team_id : $match->home_team_id;
-                    $scores = [];
-                    if ($matchResults->has($history->match_id)) {
-                        $resultsBySet = $matchResults[$history->match_id]->groupBy('set_number');
-                        foreach ($resultsBySet as $setNumber => $setResults) {
-                            $my_set_score = 0;
-                            $opponent_set_score = 0;
+
+                    if ($matchResults->has($item->match_id)) {
+                        foreach ($matchResults[$item->match_id]->groupBy('set_number') as $setResults) {
+                            $myScore = 0;
+                            $oppScore = 0;
                             foreach ($setResults as $r) {
-                                if ($r->team_id == $myTeamId) {
-                                    $my_set_score += $r->score;
-                                } elseif ($r->team_id == $opponentTeamId) {
-                                    $opponent_set_score += $r->score;
-                                }
+                                if ($r->team_id == $myTeamId)      $myScore += $r->score;
+                                elseif ($r->team_id == $opponentTeamId) $oppScore += $r->score;
                             }
-                            $scores[] = [
-                                'my_score' => (int) $my_set_score,
-                                'opponent_score' => (int) $opponent_set_score
-                            ];
+                            $scores[] = ['my_score' => (int) $myScore, 'opponent_score' => (int) $oppScore];
                         }
                     }
+                    $isWin = $match->winner_id == $myTeamId;
 
-                    $weekLabels[] = Carbon::parse($history->created_at)->toDateString();
-                    $weekData[] = [
-                        'scores' => $scores,
-                        'is_win' => $match->winner_id == $myTeamId
-                    ];
-                } elseif ($history->mini_match_id && $minis->has($history->mini_match_id)) {
-                    $mini = $minis->get($history->mini_match_id);
-
-                    $team1Members = $miniTeamMembersByTeam[$mini->team1_id] ?? [];
-                    $team2Members = $miniTeamMembersByTeam[$mini->team2_id] ?? [];
-
-                    $isTeam1 = in_array($userId, $team1Members);
+                } elseif ($item->mini_match_id && $minis->has($item->mini_match_id)) {
+                    $mini = $minis->get($item->mini_match_id);
+                    $t1Members = $miniTeamMembersByTeam[$mini->team1_id] ?? [];
+                    $t2Members = $miniTeamMembersByTeam[$mini->team2_id] ?? [];
+                    $isTeam1 = in_array($userId, $t1Members);
                     $myTeamId = $isTeam1 ? $mini->team1_id : $mini->team2_id;
                     $opponentTeamId = $isTeam1 ? $mini->team2_id : $mini->team1_id;
-                    $scores = [];
-                    if ($miniResults->has($history->mini_match_id)) {
-                        $resultsBySet = $miniResults[$history->mini_match_id]->groupBy('set_number');
 
-                        foreach ($resultsBySet as $setNumber => $setResults) {
-                            $my_set_score = 0;
-                            $opponent_set_score = 0;
-
+                    if ($miniResults->has($item->mini_match_id)) {
+                        foreach ($miniResults[$item->mini_match_id]->groupBy('set_number') as $setResults) {
+                            $myScore = 0;
+                            $oppScore = 0;
                             foreach ($setResults as $r) {
-
-                                // ✅ FIX: Dùng team_id thay vì team_id
                                 if ($r->team_id !== null && $r->team_id > 0) {
-                                    if ($r->team_id == $myTeamId) {
-                                        $my_set_score += $r->score;
-                                    } elseif ($r->team_id == $opponentTeamId) {
-                                        $opponent_set_score += $r->score;
-                                    }
+                                    if ($r->team_id == $myTeamId)      $myScore += $r->score;
+                                    elseif ($r->team_id == $opponentTeamId) $oppScore += $r->score;
                                 }
                             }
-
-                            $scores[] = [
-                                'my_score' => (int) $my_set_score,
-                                'opponent_score' => (int) $opponent_set_score
-                            ];
+                            $scores[] = ['my_score' => (int) $myScore, 'opponent_score' => (int) $oppScore];
                         }
                     }
+                    $isWin = $mini->team_win_id == $myTeamId;
 
-                    $weekLabels[] = Carbon::parse($history->created_at)->toDateString();
-                    $weekData[] = [
-                        'scores' => $scores,
-                        'is_win' => $mini->team_win_id == $myTeamId
-                    ];
+                } elseif ($item->quick_match_id && $quickMatches->has($item->quick_match_id)) {
+                    $qm = $quickMatches->get($item->quick_match_id);
+                    $userInTeamA = in_array($userId, $qm->team_a ?? []);
+                    $teamAScores = $qm->score['team_a'] ?? [];
+                    $teamBScores = $qm->score['team_b'] ?? [];
+                    $maxSets = max(count($teamAScores), count($teamBScores));
+
+                    for ($i = 0; $i < $maxSets; $i++) {
+                        $myScore = $userInTeamA ? ($teamAScores[$i] ?? 0) : ($teamBScores[$i] ?? 0);
+                        $oppScore = $userInTeamA ? ($teamBScores[$i] ?? 0) : ($teamAScores[$i] ?? 0);
+                        $scores[] = ['my_score' => (int) $myScore, 'opponent_score' => (int) $oppScore];
+                    }
+
+                    if ($qm->winner) {
+                        $isWin = ($qm->winner === QuickMatch::WINNER_TEAM_A && $userInTeamA)
+                            || ($qm->winner === QuickMatch::WINNER_TEAM_B && !$userInTeamA);
+                    }
                 }
+
+                $weekLabels[] = Carbon::parse($createdAt)->toDateString();
+                $weekData[] = ['scores' => $scores, 'is_win' => $isWin];
             }
 
             return ['labels' => $weekLabels, 'data' => $weekData];
         };
 
         // ========== HELPER: CALCULATE WIN RATE BY GROUP ==========
-        $calculateWinRateByGroup = function ($historiesCollection, $groupByFormat) use ($checkWin) {
+        $calculateWinRateByGroup = function ($collection, $groupByFormat) use ($checkWin) {
             $groups = [];
-            foreach ($historiesCollection as $h) {
-                $groupKey = Carbon::parse($h->created_at)->format($groupByFormat);
-                $matchKey = $h->match_id ? 'match_' . $h->match_id : 'mini_' . $h->mini_match_id;
+            foreach ($collection as $item) {
+                $createdAt = $item->played_at ?? $item->created_at;
+                $groupKey = Carbon::parse($createdAt)->format($groupByFormat);
+                $matchKey = $item->match_id
+                    ? 'm_' . $item->match_id
+                    : ($item->mini_match_id ? 'mini_' . $item->mini_match_id : 'q_' . $item->quick_match_id);
 
-                if (!isset($groups[$groupKey])) {
-                    $groups[$groupKey] = [];
-                }
-                if (!isset($groups[$groupKey][$matchKey])) {
-                    $groups[$groupKey][$matchKey] = $h;
-                }
+                if (!isset($groups[$groupKey])) $groups[$groupKey] = [];
+                if (!isset($groups[$groupKey][$matchKey])) $groups[$groupKey][$matchKey] = $item;
             }
 
             $result = [];
             foreach ($groups as $groupKey => $items) {
                 $winCount = 0;
-                $totalCount = count($items);
-
-                foreach ($items as $h) {
-                    if ($checkWin($h)) $winCount++;
+                foreach ($items as $item) {
+                    if ($checkWin($item)) $winCount++;
                 }
-
-                $result[$groupKey] = $totalCount > 0 ? round(($winCount / $totalCount) * 100, 2) : 0;
+                $total = count($items);
+                $result[$groupKey] = $total > 0 ? round(($winCount / $total) * 100, 2) : 0;
             }
-
             return $result;
         };
 
         $chart = [];
 
         // ========== 1. WEEK ==========
-        $weekHistories = $histories->filter(fn($h) => Carbon::parse($h->created_at)->gte(now()->subDays(7)));
+        $weekHistories = $allHistories->filter(fn($h) => Carbon::parse($h->played_at ?? $h->created_at)->gte(now()->subDays(7)));
         $uniqueWeek = $removeDuplicates($weekHistories);
-        $weekStats = $calculateStats($uniqueWeek);
-        $weekResult = $processWeekData($uniqueWeek);
-
         $chart['week'] = [
-            'labels' => $weekResult['labels'],
-            'datasets' => $weekResult['data'],
-            'win_rate' => $weekStats['win_rate'],
-            'performance' => $weekStats['performance']
+            'labels'    => $processWeekData($uniqueWeek)['labels'],
+            'datasets'  => $processWeekData($uniqueWeek)['data'],
+            'win_rate'  => $this->calculateStats($uniqueWeek, $checkWin)['win_rate'],
+            'performance' => $this->calculateStats($uniqueWeek, $checkWin)['performance'],
         ];
 
         // ========== 2. 30 DAYS ==========
-        $monthHistories = $histories->filter(fn($h) => Carbon::parse($h->created_at)->gte(now()->subDays(30)));
+        $monthHistories = $allHistories->filter(fn($h) => Carbon::parse($h->played_at ?? $h->created_at)->gte(now()->subDays(30)));
         $uniqueMonth = $removeDuplicates($monthHistories);
-        $monthStats = $calculateStats($uniqueMonth);
         $monthData = $calculateWinRateByGroup($monthHistories, 'Y-m-d');
-
         $chart['30days'] = [
-            'labels' => array_map(fn($date) => Carbon::parse($date)->format('d/m'), array_keys($monthData)),
-            'datasets' => array_values($monthData),
-            'win_rate' => $monthStats['win_rate'],
-            'performance' => $monthStats['performance']
+            'labels'      => array_map(fn($d) => Carbon::parse($d)->format('d/m'), array_keys($monthData)),
+            'datasets'    => array_values($monthData),
+            'win_rate'    => $this->calculateStats($uniqueMonth, $checkWin)['win_rate'],
+            'performance' => $this->calculateStats($uniqueMonth, $checkWin)['performance'],
         ];
 
         // ========== 3. 90 DAYS ==========
-        $quarterHistories = $histories->filter(fn($h) => Carbon::parse($h->created_at)->gte(now()->subDays(90)));
+        $quarterHistories = $allHistories->filter(fn($h) => Carbon::parse($h->played_at ?? $h->created_at)->gte(now()->subDays(90)));
         $uniqueQuarter = $removeDuplicates($quarterHistories);
-        $quarterStats = $calculateStats($uniqueQuarter);
         $quarterData = $calculateWinRateByGroup($quarterHistories, 'Y-W');
-
         $chart['90days'] = [
-            'labels' => array_map(function ($week) {
-                $parts = explode('-', $week);
-                return ltrim($parts[1], '0') . '/' . $parts[0];
-            }, array_keys($quarterData)),
-            'datasets' => array_values($quarterData),
-            'win_rate' => $quarterStats['win_rate'],
-            'performance' => $quarterStats['performance']
+            'labels'      => array_map(fn($w) => ltrim(explode('-', $w)[1], '0') . '/' . explode('-', $w)[0], array_keys($quarterData)),
+            'datasets'    => array_values($quarterData),
+            'win_rate'    => $this->calculateStats($uniqueQuarter, $checkWin)['win_rate'],
+            'performance' => $this->calculateStats($uniqueQuarter, $checkWin)['performance'],
         ];
 
         // ========== 4. 365 DAYS ==========
-        $uniqueYear = $removeDuplicates($histories);
-        $yearStats = $calculateStats($uniqueYear);
-        $yearData = $calculateWinRateByGroup($histories, 'Y-m');
-
+        $uniqueYear = $removeDuplicates($allHistories);
+        $yearData = $calculateWinRateByGroup($allHistories, 'Y-m');
         $chart['365days'] = [
-            'labels' => array_map(function ($month) {
-                $parts = explode('-', $month);
-                return $parts[1] . '/' . $parts[0];
-            }, array_keys($yearData)),
-            'datasets' => array_values($yearData),
-            'win_rate' => $yearStats['win_rate'],
-            'performance' => $yearStats['performance']
+            'labels'      => array_map(fn($m) => explode('-', $m)[1] . '/' . explode('-', $m)[0], array_keys($yearData)),
+            'datasets'    => array_values($yearData),
+            'win_rate'    => $this->calculateStats($uniqueYear, $checkWin)['win_rate'],
+            'performance' => $this->calculateStats($uniqueYear, $checkWin)['performance'],
         ];
 
         return ResponseHelper::success($chart, 'Lấy dữ liệu thành công');
+    }
+
+    private function calculateStats($uniqueCollection, $checkWin): array
+    {
+        $sorted = $uniqueCollection->sortBy(fn($h) => $h->played_at ?? $h->created_at, SORT_REGULAR, true)->values();
+        $total = $sorted->count();
+        if ($total == 0) return ['win_rate' => 0, 'performance' => 0];
+
+        $winCount = $sorted->filter(fn($h) => $checkWin($h))->count();
+        $winRate = round(($winCount / $total) * 100, 2);
+
+        $points = 0;
+        foreach ($sorted as $i => $item) {
+            if ($checkWin($item)) {
+                $points += 10 * ($i < 3 ? 1.5 : 1.0);
+            }
+        }
+        $recent3Max = min(3, $total) * 10 * 1.5;
+        $olderMax = max(0, $total - 3) * 10 * 1.0;
+        $performance = ($recent3Max + $olderMax) > 0 ? round(($points / ($recent3Max + $olderMax)) * 100, 2) : 0;
+
+        return ['win_rate' => $winRate, 'performance' => $performance];
     }
 
     public function matchesBySportId(Request $request)
@@ -710,14 +719,19 @@ class UserMatchStatsController extends Controller
         $allMatches = $allMatches->sortByDesc('created_at')->values();
 
         // ========== QUICK MATCHES ==========
-        $quickMatchIds = \App\Models\MatchHistory::where('user_id', $userId)
+        $quickMatchHistories = \App\Models\MatchHistory::where('user_id', $userId)
             ->whereNotNull('quick_match_id')
-            ->pluck('quick_match_id')
-            ->unique();
+            ->get()
+            ->keyBy('quick_match_id');
+        $quickMatchIds = $quickMatchHistories->pluck('quick_match_id')->unique();
 
-        $quickMatches = \App\Models\QuickMatch::where('status', \App\Models\QuickMatch::STATUS_COMPLETED)
+        $quickMatches = \App\Models\QuickMatch::with('competitionLocation')
+            ->where('status', \App\Models\QuickMatch::STATUS_COMPLETED)
             ->whereIn('id', $quickMatchIds)
-            ->get();
+            ->get()
+            ->filter(fn($qm) => $qm->competitionLocation
+                ? $qm->competitionLocation->sports->contains('id', $sportId)
+                : true);
 
         if ($quickMatches->isNotEmpty()) {
             $qmUserIds = $quickMatches
@@ -728,6 +742,8 @@ class UserMatchStatsController extends Controller
             $qmUsers = \App\Models\User::whereIn('id', $qmUserIds)->get()->keyBy('id');
 
             foreach ($quickMatches as $qm) {
+                $history = $quickMatchHistories[$qm->id] ?? null;
+                $playedAt = $history ? $history->played_at : $qm->updated_at;
                 $isMyTeamA = in_array($userId, $qm->team_a ?? []);
                 $teamAUserIds = $qm->team_a ?? [];
                 $teamBUserIds = $qm->team_b ?? [];
@@ -819,8 +835,8 @@ class UserMatchStatsController extends Controller
                     'scores' => $scores,
                     'is_win' => $qm->winner === $teamSide,
                     'status' => $qm->status,
-                    'match_date' => $qm->updated_at,
-                    'created_at' => $qm->updated_at,
+                    'match_date' => $playedAt,
+                    'created_at' => $playedAt,
                 ]);
             }
 
