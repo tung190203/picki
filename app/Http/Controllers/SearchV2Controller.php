@@ -161,6 +161,25 @@ class SearchV2Controller extends Controller
         $perPage = min(200, max(1, (int) ($params['per_page'] ?? 15)));
 
         $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+        $tab = $params['tab'];
+
+        // Eager-load batch stats for user tab to avoid N+1 (getSportStats is expensive)
+        if ($tab === SearchFilterConfig::TAB_USER) {
+            $userIds = $paginator->getCollection()->pluck('id')->all();
+            if (!empty($userIds)) {
+                $batchStats = User::getBatchSportStats($userIds, 1, false);
+                foreach ($paginator->getCollection() as $user) {
+                    $user->preloaded_sport_stats = $batchStats[$user->id] ?? [
+                        'total_matches' => 0,
+                        'total_tournaments' => 0,
+                        'total_mini_tournaments' => 0,
+                        'total_prizes' => 0,
+                        'win_rate' => 0.0,
+                        'performance' => 0,
+                    ];
+                }
+            }
+        }
 
         $resourceClass = $this->searchService->resolveListResourceClass($params['tab']);
 
@@ -177,9 +196,31 @@ class SearchV2Controller extends Controller
 
     private function mapResponse($query, string $tab): \Illuminate\Http\JsonResponse
     {
-        $resourceClass = $this->searchService->resolveResourceClass($tab);
         $items = $query->get();
+
+        // Eager-load batch stats for user tab to avoid N+1
+        if ($tab === SearchFilterConfig::TAB_USER) {
+            $userIds = $items->pluck('id')->all();
+            if (!empty($userIds)) {
+                $batchStats = User::getBatchSportStats($userIds, 1, false);
+                foreach ($items as $user) {
+                    $user->preloaded_sport_stats = $batchStats[$user->id] ?? [
+                        'total_matches' => 0,
+                        'total_tournaments' => 0,
+                        'total_mini_tournaments' => 0,
+                        'total_prizes' => 0,
+                        'win_rate' => 0.0,
+                        'performance' => 0,
+                    ];
+                }
+            }
+        }
+
         $bounds = $this->searchService->computeBounds($items, $tab);
+        // Use list resource (has sports field) for user tab, map resource for others
+        $resourceClass = $tab === SearchFilterConfig::TAB_USER
+            ? $this->searchService->resolveListResourceClass($tab)
+            : $this->searchService->resolveResourceClass($tab);
 
         return ResponseHelper::success([
             'data'   => $resourceClass::collection($items),
@@ -197,6 +238,25 @@ class SearchV2Controller extends Controller
         $perPage = min(200, max(1, (int) ($params['per_page'] ?? 15)));
 
         $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+
+        // Eager-load batch stats for user tab to avoid N+1
+        if ($tab === SearchFilterConfig::TAB_USER) {
+            $userIds = $paginator->getCollection()->pluck('id')->all();
+            if (!empty($userIds)) {
+                $batchStats = User::getBatchSportStats($userIds, 1, false);
+                foreach ($paginator->getCollection() as $user) {
+                    $user->preloaded_sport_stats = $batchStats[$user->id] ?? [
+                        'total_matches' => 0,
+                        'total_tournaments' => 0,
+                        'total_mini_tournaments' => 0,
+                        'total_prizes' => 0,
+                        'win_rate' => 0.0,
+                        'performance' => 0,
+                    ];
+                }
+            }
+        }
+
         $resourceClass = $this->searchService->resolveListResourceClass($tab);
 
         $this->logSearch(
