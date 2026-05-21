@@ -26,6 +26,7 @@ class QuickMatch extends Model
         'created_by',
         'scheduled_at',
         'competition_location_id',
+        'is_referee_scoring',
     ];
 
     protected $casts = [
@@ -34,6 +35,7 @@ class QuickMatch extends Model
         'score' => 'array',
         'confirmed_at' => 'datetime',
         'scheduled_at' => 'datetime',
+        'is_referee_scoring' => 'boolean',
     ];
 
     const STATUS_PENDING = 'pending';
