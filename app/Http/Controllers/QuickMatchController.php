@@ -37,6 +37,7 @@ class QuickMatchController extends Controller
             'team_b.*' => 'integer|exists:users,id',
             'scheduled_at' => 'nullable|date',
             'competition_location_id' => 'nullable|integer|exists:competition_locations,id',
+            'is_referee_scoring' => 'nullable|boolean',
             'score' => 'required|array',
             'score.team_a' => 'required|array',
             'score.team_a.*' => 'integer|min:0',
@@ -46,6 +47,7 @@ class QuickMatchController extends Controller
 
         $creator = Auth::user();
         $isSuperAdmin = (bool) ($creator->is_super_admin ?? false);
+        $isRefereeScoring = (bool) ($validated['is_referee_scoring'] ?? false);
 
         $matchType = $validated['match_type'] ?? QuickMatch::MATCH_TYPE_RANK;
 
@@ -58,11 +60,12 @@ class QuickMatchController extends Controller
             );
         }
 
-        $quickMatch = DB::transaction(function () use ($validated, $creator, $isSuperAdmin, $matchType, $avatarPath) {
+        $quickMatch = DB::transaction(function () use ($validated, $creator, $isSuperAdmin, $isRefereeScoring, $matchType, $avatarPath) {
             $score = $validated['score'] ?? null;
             $winner = $score ? (new QuickMatch())->determineWinner($score) : null;
-            // Super admin tạo luôn completed (không cần quét QR), user thường thì pending (cần quét QR xác nhận)
-            $status = $isSuperAdmin ? QuickMatch::STATUS_COMPLETED : QuickMatch::STATUS_PENDING;
+            $status = $isSuperAdmin || $isRefereeScoring
+                ? QuickMatch::STATUS_COMPLETED
+                : QuickMatch::STATUS_PENDING;
 
             $data = [
                 'name' => $validated['name'] ?? null,
@@ -78,12 +81,17 @@ class QuickMatchController extends Controller
                 'created_by' => $creator->id,
                 'scheduled_at' => $validated['scheduled_at'] ?? null,
                 'competition_location_id' => $validated['competition_location_id'] ?? null,
+                'is_referee_scoring' => $isRefereeScoring,
             ];
 
             $quickMatch = QuickMatch::create($data);
 
             if ($isSuperAdmin) {
-                $this->saveMatchHistories($quickMatch);
+                $this->saveMatchHistories($quickMatch); // tất cả players
+                Broadcast::event(new QuickMatchConfirmed($quickMatch));
+            } elseif ($isRefereeScoring) {
+                // Luồng trọng tài nhập điểm: chỉ lưu vào profile thằng user request
+                $this->saveMatchHistories($quickMatch, [$creator->id]);
                 Broadcast::event(new QuickMatchConfirmed($quickMatch));
             } else {
                 // Gửi notification cho team B
@@ -97,8 +105,7 @@ class QuickMatchController extends Controller
 
         return ResponseHelper::success(
             new QuickMatchResource($quickMatch),
-            $isSuperAdmin ? 'Tạo trận đấu nhanh thành công (đã xác nhận)' : 'Tạo trận đấu nhanh thành công',
-            201
+            $isSuperAdmin || $isRefereeScoring ? 'Tạo trận đấu nhanh thành công (đã xác nhận)' : 'Tạo trận đấu nhanh thành công',
         );
     }
 
@@ -221,12 +228,12 @@ class QuickMatchController extends Controller
         );
     }
 
-    private function saveMatchHistories(QuickMatch $quickMatch): void
+    private function saveMatchHistories(QuickMatch $quickMatch, ?array $targetUserIds = null): void
     {
-        $allUserIds = $quickMatch->allPlayerIds();
+        $userIds = $targetUserIds ?? $quickMatch->allPlayerIds();
         $playedAt = now();
 
-        foreach ($allUserIds as $userId) {
+        foreach ($userIds as $userId) {
             $teamSide = $quickMatch->isPlayerInTeamA($userId) ? 'team_a' : 'team_b';
 
             MatchHistory::updateOrCreate(
