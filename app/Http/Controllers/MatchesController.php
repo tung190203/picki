@@ -1598,6 +1598,11 @@ class MatchesController extends Controller
         $vnduprHistoryRecords = [];
         $scoreUpserts = [];
 
+        $teams = collect([
+            ['team' => $match->homeTeam, 'S' => $S_home, 'E' => $E_home],
+            ['team' => $match->awayTeam, 'S' => $S_away, 'E' => $E_away],
+        ]);
+
         foreach ($teams as $data) {
             foreach ($data['team']->members as $user) {
                 $userSport = $userSportRecords->get($user->id);
