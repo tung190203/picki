@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Helpers\ResponseHelper;
+use App\Http\Resources\MiniTournamentResource;
 use App\Models\MiniTournament;
 use App\Services\Admin\MiniTournamentManagementService;
 use Illuminate\Http\Request;
@@ -32,7 +33,7 @@ class AdminMiniTournamentController extends Controller
         );
 
         return ResponseHelper::paginated(
-            $data->items(),
+            MiniTournamentResource::collection($data->items()),
             [
                 'current_page' => $data->currentPage(),
                 'per_page' => $data->perPage(),

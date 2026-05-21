@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\TournamentResource;
 use App\Helpers\ResponseHelper;
 use App\Models\Tournament;
 use App\Services\Admin\TournamentManagementService;
@@ -31,7 +32,7 @@ class TournamentManagementController extends Controller
         );
 
         return ResponseHelper::paginated(
-            $data->items(),
+            TournamentResource::collection($data->items()),
             [
                 'current_page' => $data->currentPage(),
                 'per_page' => $data->perPage(),

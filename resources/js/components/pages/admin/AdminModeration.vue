@@ -423,7 +423,7 @@ const paginatedUsers = computed(() => {
     avatar: u.avatar_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(u.full_name ?? '?'),
     location: u.location_id || '—',
     reliability: u.trust_score ? Math.round(u.trust_score) : 0,
-    matches: u.total_matches || 0,
+    matches: (u.sports?.reduce((sum, s) => sum + (s.total_matches || 0), 0)) || 0,
     status: u.is_banned ? 'Banned' : 'Active',
     reliabilityClass: u.is_banned ? 'text-error' : 'text-on-surface',
     progressClass: u.is_banned ? 'bg-error' : 'bg-tertiary',
