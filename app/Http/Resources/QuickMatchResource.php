@@ -62,6 +62,8 @@ class QuickMatchResource extends JsonResource
                 ? (bool) ($this->creator->is_super_admin ?? false)
                 : false,
 
+            'is_referee_scoring' => (bool) ($this->is_referee_scoring ?? false),
+
             'scheduled_at' => $this->scheduled_at?->toIso8601String(),
             'competition_location' => new CompetitionLocationResource(
                 $this->whenLoaded('competitionLocation')
