@@ -43,6 +43,7 @@ class UserResource extends JsonResource
             'role' => $this->role,
             'email_verified_at' => $this->email_verified_at,
             'is_profile_completed' => $this->is_profile_completed,
+            'trust_score' => (float) $this->trust_score,
             'gender' => $this->gender,
             'gender_text' => $this->gender_text,
             'date_of_birth' => Carbon::parse($this->date_of_birth)->format('d-m-Y'),

@@ -179,10 +179,10 @@ class DashboardService
 
         // ---------- Mini Match Growth ----------
         $todayActive = MiniTournament::whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
-            ->whereDate('created_at', Carbon::today())
+            ->where('end_time', '>', Carbon::today()->endOfDay())
             ->count();
         $yesterdayActive = MiniTournament::whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
-            ->whereDate('created_at', Carbon::yesterday())
+            ->where('end_time', '>', Carbon::yesterday()->endOfDay())
             ->count();
         $growthPercent = $yesterdayActive > 0
             ? round((($todayActive - $yesterdayActive) / $yesterdayActive) * 100, 2)
