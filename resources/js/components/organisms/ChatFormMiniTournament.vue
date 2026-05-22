@@ -321,7 +321,7 @@ const addIsOwn = (message) => ({
 // REALTIME LISTENER
 let echoChannel = null
 const setupRealtime = () => {
-  if (!props.miniTournamentId) return
+  if (!props.miniTournamentId || !window.Echo) return
   echoChannel = window.Echo.private(`mini-tournament.${props.miniTournamentId}`)
   echoChannel.listen('.mini-tournament-sent', async (e) => {
     const messageWithOwnership = addIsOwn(e.message)
@@ -343,12 +343,12 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  if (echoChannel) window.Echo.leave(`private-mini-tournament.${props.miniTournamentId}`)
+  if (echoChannel && window.Echo) window.Echo.leave(`private-mini-tournament.${props.miniTournamentId}`)
 })
 
 // WATCH MINI TOURNAMENT CHANGE
 watch(() => props.miniTournamentId, async (newId, oldId) => {
-  if (oldId && echoChannel) window.Echo.leave(`private-mini-tournament.${oldId}`)
+  if (oldId && echoChannel && window.Echo) window.Echo.leave(`private-mini-tournament.${oldId}`)
   page.value = 1
   await fetchMessages()
   await nextTick()
