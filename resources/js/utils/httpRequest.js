@@ -96,6 +96,10 @@ axiosInstance.interceptors.response.use(
         axiosInstance.defaults.headers.common.Authorization =
           "Bearer " + newAccessToken;
 
+        if (typeof window.initEcho === 'function') {
+          window.initEcho(newAccessToken);
+        }
+
         processQueue(null, newAccessToken);
 
         return axiosInstance(originalRequest);

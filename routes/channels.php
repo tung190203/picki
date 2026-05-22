@@ -4,6 +4,7 @@ use App\Models\MiniTournament;
 use App\Models\QuickMatch;
 use App\Models\Tournament;
 use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\Cache;
 
 /*
 |--------------------------------------------------------------------------
@@ -40,7 +41,12 @@ Broadcast::channel('chat.{userId}', function ($user, $userId) {
 });
 
 Broadcast::channel('quick-match.{id}', function ($user, $id) {
-    $quickMatch = QuickMatch::find($id);
+    $quickMatch = Cache::remember(
+        "quick_match_channel:{$id}",
+        now()->addSeconds(30),
+        fn () => QuickMatch::find($id)
+    );
+
     if (!$quickMatch) {
         return false;
     }
