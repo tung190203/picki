@@ -628,7 +628,7 @@ const goBack = () => router.back()
 const echoChannel = ref(null)
 
 watch(showQrModal, (isOpen) => {
-    if (!isOpen || !createdMatch.value?.id) return
+    if (!isOpen || !createdMatch.value?.id || !window.Echo) return
 
     if (echoChannel.value) {
         echoChannel.value.stopListening('.quick_match.confirmed')
