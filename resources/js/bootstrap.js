@@ -10,6 +10,15 @@ import Pusher from 'pusher-js';
 window.Pusher = Pusher;
 
 function initEcho(token) {
+    if (window.Echo) {
+        window.Echo.disconnectInstrumentNotifications?.();
+        window.Echo.disconnect?.();
+        if (window.Echo.connector?.pusher) {
+            window.Echo.connector.pusher.disconnect();
+        }
+        window.Echo = null;
+    }
+
     window.Echo = new Echo({
         broadcaster: 'pusher',
         key: import.meta.env.VITE_PUSHER_APP_KEY,

@@ -3,21 +3,82 @@
 namespace App\Http\Resources;
 
 use App\Http\Resources\CompetitionLocationResource;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class QuickMatchResource extends JsonResource
 {
+    protected ?array $preResolvedTeamA = null;
+    protected ?array $preResolvedTeamB = null;
+
+    public function withResolvedTeam(?array $teamA, ?array $teamB): static
+    {
+        $clone = clone $this;
+        $clone->preResolvedTeamA = $teamA;
+        $clone->preResolvedTeamB = $teamB;
+        return $clone;
+    }
+
     public function toArray(Request $request): array
     {
         $score = $this->score ?? [];
         $teamAScore = $score['team_a'] ?? [];
         $teamBScore = $score['team_b'] ?? [];
 
-        $teamANames = $this->teamAMembers()->pluck('full_name')->toArray();
-        $teamBNames = $this->teamBMembers()->pluck('full_name')->toArray();
+        $teamANames = $this->preResolvedTeamA
+            ? array_column($this->preResolvedTeamA, 'full_name')
+            : $this->teamAMembers()->pluck('full_name')->toArray();
+        $teamBNames = $this->preResolvedTeamB
+            ? array_column($this->preResolvedTeamB, 'full_name')
+            : $this->teamBMembers()->pluck('full_name')->toArray();
         $teamAName = implode(' & ', $teamANames);
         $teamBName = implode(' & ', $teamBNames);
+
+        $teamAUsers = $this->preResolvedTeamA
+            ?? User::whereIn('id', $this->team_a ?? [])->get([
+                'id', 'full_name', 'avatar_url', 'gender', 'visibility',
+                'is_anchor', 'total_matches_has_anchor',
+            ])->map(fn ($u) => [
+                'id' => $u->id,
+                'full_name' => $u->full_name,
+                'visibility' => $u->visibility,
+                'avatar_url' => $u->avatar_url,
+                'thumbnail' => $u->thumbnail,
+                'gender' => $u->gender,
+                'gender_text' => $u->gender_text,
+                'play_times' => [],
+                'sports' => [],
+                'is_manager' => false,
+                'rank_in_club' => null,
+                'is_anchor' => (bool) $u->is_anchor,
+                'is_verify' => (bool) ($u->total_matches_has_anchor >= 10),
+                'is_guest' => false,
+                'guest_name' => null,
+                'guest_avatar' => null,
+            ])->toArray();
+        $teamBUsers = $this->preResolvedTeamB
+            ?? User::whereIn('id', $this->team_b ?? [])->get([
+                'id', 'full_name', 'avatar_url', 'gender', 'visibility',
+                'is_anchor', 'total_matches_has_anchor',
+            ])->map(fn ($u) => [
+                'id' => $u->id,
+                'full_name' => $u->full_name,
+                'visibility' => $u->visibility,
+                'avatar_url' => $u->avatar_url,
+                'thumbnail' => $u->thumbnail,
+                'gender' => $u->gender,
+                'gender_text' => $u->gender_text,
+                'play_times' => [],
+                'sports' => [],
+                'is_manager' => false,
+                'rank_in_club' => null,
+                'is_anchor' => (bool) $u->is_anchor,
+                'is_verify' => (bool) ($u->total_matches_has_anchor >= 10),
+                'is_guest' => false,
+                'guest_name' => null,
+                'guest_avatar' => null,
+            ])->toArray();
 
         return [
             'id' => $this->id,
@@ -31,12 +92,12 @@ class QuickMatchResource extends JsonResource
             'team_a' => [
                 'user_ids' => array_map('intval', $this->team_a ?? []),
                 'team_name' => $teamAName ?: null,
-                'users' => UserListResource::collection($this->teamAMembers()),
+                'users' => $teamAUsers,
             ],
             'team_b' => [
                 'user_ids' => array_map('intval', $this->team_b ?? []),
                 'team_name' => $teamBName ?: null,
-                'users' => UserListResource::collection($this->teamBMembers()),
+                'users' => $teamBUsers,
             ],
 
             'score' => [
