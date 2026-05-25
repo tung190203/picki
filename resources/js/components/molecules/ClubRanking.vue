@@ -2,33 +2,7 @@
     <div>
         <!-- Header -->
         <div class="flex justify-between items-center mb-8">
-            <div class="relative">
-                <button @click="showMonthPicker = !showMonthPicker"
-                    class="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-full text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
-                    {{ filters.month ? `Tháng ${filters.month}/${filters.year}` : 'Chọn thời gian' }}
-                    <ChevronDownIcon class="w-4 h-4 text-gray-400" />
-                </button>
-
-                <!-- Simple Month Picker Dropdown -->
-                <div v-if="showMonthPicker" class="absolute left-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4">
-                    <div class="flex items-center justify-between mb-4">
-                        <button @click="changeYear(-1)" class="p-1 hover:bg-gray-100 rounded">
-                            <ChevronLeftIcon class="w-4 h-4" />
-                        </button>
-                        <span class="font-bold text-gray-800">{{ tempYear }}</span>
-                        <button @click="changeYear(1)" class="p-1 hover:bg-gray-100 rounded">
-                            <ChevronRightIcon class="w-4 h-4" />
-                        </button>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button v-for="m in 12" :key="m" @click="selectMonth(m)"
-                            class="py-2 text-sm rounded-lg transition-colors"
-                            :class="m === tempMonth ? 'bg-[#D72D36] text-white' : 'hover:bg-gray-100 text-gray-600'">
-                            Tháng {{ m }}
-                        </button>
-                    </div>
-                </div>
-            </div>
+            <div></div>
             <span class="text-xs text-gray-400 italic">Cập nhật lúc: {{ formattedUpdateTime }}</span>
         </div>
 
@@ -42,7 +16,7 @@
                         class="w-20 h-20 rounded-full border-2 border-[#4F80FF] shadow-lg object-cover" />
                     <div
                         class="absolute -bottom-24 left-1/2 -translate-x-1/2 px-3 py-1 bg-[#4F80FF] text-[10px] text-white rounded-full font-bold whitespace-nowrap">
-                        Win {{ topThree[1].monthly_stats?.win_rate || 0 }}%
+                        Win {{ topThree[1].all_time_stats?.win_rate || 0 }}%
                     </div>
                 </div>
                 <div class="text-center">
@@ -65,7 +39,7 @@
                         class="w-24 h-24 rounded-full border-2 border-[#D72D36] shadow-xl object-cover" />
                     <div
                         class="absolute -bottom-[103px] left-1/2 -translate-x-1/2 px-3 py-1 bg-[#D72D36] text-[10px] text-white rounded-full font-bold whitespace-nowrap">
-                        Win {{ topThree[0].monthly_stats?.win_rate || 0 }}%
+                        Win {{ topThree[0].all_time_stats?.win_rate || 0 }}%
                     </div>
                 </div>
                 <div class="text-center">
@@ -82,7 +56,7 @@
                         class="w-20 h-20 rounded-full border-2 border-[#FFB84F] shadow-lg object-cover" />
                     <div
                         class="absolute -bottom-24 left-1/2 -translate-x-1/2 px-3 py-1 bg-[#FFB84F] text-[10px] text-white rounded-full font-bold whitespace-nowrap">
-                        Win {{ topThree[2].monthly_stats?.win_rate || 0 }}%
+                        Win {{ topThree[2].all_time_stats?.win_rate || 0 }}%
                     </div>
                 </div>
                 <div class="text-center">
@@ -118,13 +92,13 @@
                                 <div>
                                     <h4 class="font-bold text-gray-800 line-clamp-1">{{ item.user.full_name }}</h4>
                                     <div class="flex items-center gap-2">
-                                        <span class="text-xs text-gray-400">{{ item.monthly_stats?.matches_played || 0 }} Trận • Win {{ item.monthly_stats?.win_rate || 0 }}%</span>
-                                        <div v-if="item.monthly_stats?.score_change" :class="[
+                                        <span class="text-xs text-gray-400">{{ item.all_time_stats?.matches_played || 0 }} Trận • Win {{ item.all_time_stats?.win_rate || 0 }}%</span>
+                                        <div v-if="item.all_time_stats?.score_change" :class="[
                                             'px-1.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5',
-                                            item.monthly_stats.score_change >= 0 ? 'bg-[#00B377] text-white' : 'bg-[#D72D36] text-white'
+                                            item.all_time_stats.score_change >= 0 ? 'bg-[#00B377] text-white' : 'bg-[#D72D36] text-white'
                                         ]">
-                                            <component :is="item.monthly_stats.score_change >= 0 ? TriangleUp : TriangleDown" class="w-2 h-2" />
-                                            {{ Math.abs(item.monthly_stats.score_change) }}
+                                            <component :is="item.all_time_stats.score_change >= 0 ? TriangleUp : TriangleDown" class="w-2 h-2" />
+                                            {{ Math.abs(item.all_time_stats.score_change) }}
                                         </div>
                                     </div>
                                 </div>
@@ -148,10 +122,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import TriangleUp from '@/assets/images/triangle_up.svg'
 import TriangleDown from '@/assets/images/triangle_down.svg'
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/vue/20/solid'
 import Pagination from '@/components/molecules/Pagination.vue'
 import dayjs from 'dayjs'
 
@@ -172,48 +145,23 @@ const props = defineProps({
             total: 0
         })
     },
-    filters: {
-        type: Object,
-        default: () => ({
-            month: dayjs().month() + 1,
-            year: dayjs().year()
-        })
-    },
     loading: {
         type: Boolean,
         default: false
     }
 })
 
-const emit = defineEmits(['filter', 'page-change'])
+const emit = defineEmits(['page-change'])
 
 const defaultAvatar = 'https://picki.vn/images/default-avatar.png'
-const showMonthPicker = ref(false)
-const tempMonth = ref(props.filters.month)
-const tempYear = ref(props.filters.year)
 
 const formattedUpdateTime = computed(() => {
     return dayjs().format('HH:mm')
 })
-
-const selectMonth = (month) => {
-    tempMonth.value = month
-    emit('filter', { month: tempMonth.value, year: tempYear.value })
-    showMonthPicker.value = false
-}
-
-const changeYear = (delta) => {
-    tempYear.value += delta
-}
 
 const changePage = (page) => {
     if (page >= 1 && page <= props.meta.last_page) {
         emit('page-change', page)
     }
 }
-
-watch(() => props.filters, (newFilters) => {
-    tempMonth.value = newFilters.month
-    tempYear.value = newFilters.year
-}, { deep: true })
 </script>

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ClubMembershipStatus;
 use App\Models\SuperAdminDraft;
 use App\Models\Club\Club;
 use App\Models\QuickMatch;
@@ -778,9 +779,9 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
         return match ($timeFilter) {
             'mine' => $query->whereHas('clubs', function ($q) use ($userId) {
-                $q->whereIn('clubs.id', \DB::table('club_members')
+                $q->whereIn('clubs.id', DB::table('club_members')
                     ->where('user_id', $userId)
-                    ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined->value)
+                    ->where('membership_status', ClubMembershipStatus::Joined->value)
                     ->pluck('club_id'));
             }),
             'friends' => $query->whereIn('id', (new User)->find($userId)?->friends()?->pluck('id') ?? []),
@@ -834,45 +835,55 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
      */
     public static function getSportStats(int $userId, int $sportId, bool $isOwnProfile = true): array
     {
-        // Dùng VnduprHistory làm nguồn đếm chuẩn — giống hệt matchesBySportId
-        // để đảm bảo total_matches trong /api/me khớp 100% với matches list
-        $histories = DB::table('vndupr_history')
-            ->where('user_id', $userId)
-            ->get();
-
-        $matchIds = $histories->pluck('match_id')->filter()->unique()->values();
-        $miniIds = $histories->pluck('mini_match_id')->filter()->unique()->values();
-
-        // Tournament matches: filter sport_id
-        $matches = DB::table('matches as m')
+        // Tournament matches - tách home và away
+        $homeMatches = DB::table('matches as m')
             ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
             ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
-            ->join('team_members as tm', function ($join) use ($userId) {
-                $join->on(function ($q) use ($userId) {
-                    $q->where(function ($q2) use ($userId) {
-                        $q2->where('tm.team_id', '=', 'm.home_team_id')
-                            ->orWhere('tm.team_id', '=', 'm.away_team_id');
-                    })
-                        ->where('tm.user_id', '=', $userId);
-                });
-            })
-            ->whereIn('m.id', $matchIds)
+            ->join('team_members as tm', 'tm.team_id', '=', 'm.home_team_id')
+            ->where('tm.user_id', $userId)
+            ->whereColumn('tm.team_id', 'm.home_team_id')
             ->where('t.sport_id', $sportId)
             ->where('m.status', 'completed')
             ->select('m.id', 'm.winner_id', 'm.home_team_id', 'm.away_team_id')
-            ->distinct()
             ->get()
             ->keyBy('id');
 
-        // Mini tournament matches: filter sport_id
-        $minis = DB::table('mini_matches as mm')
+        $awayMatches = DB::table('matches as m')
+            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
+            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
+            ->join('team_members as tm', 'tm.team_id', '=', 'm.away_team_id')
+            ->where('tm.user_id', $userId)
+            ->whereColumn('tm.team_id', 'm.away_team_id')
+            ->where('t.sport_id', $sportId)
+            ->where('m.status', 'completed')
+            ->select('m.id', 'm.winner_id', 'm.home_team_id', 'm.away_team_id')
+            ->get()
+            ->keyBy('id');
+
+        $matches = $homeMatches->merge($awayMatches)->unique('id');
+
+        // Mini tournament matches - tách team1 và team2
+        $minisTeam1 = DB::table('mini_matches as mm')
             ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
-            ->whereIn('mm.id', $miniIds)
+            ->join('mini_team_members as mtm', 'mtm.mini_team_id', '=', 'mm.team1_id')
             ->where('mnt.sport_id', $sportId)
             ->where('mm.status', 'completed')
+            ->where('mtm.user_id', $userId)
             ->select('mm.id', 'mm.team_win_id', 'mm.participant_win_id', 'mm.team1_id', 'mm.team2_id', 'mm.participant1_id', 'mm.participant2_id')
             ->get()
             ->keyBy('id');
+
+        $minisTeam2 = DB::table('mini_matches as mm')
+            ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
+            ->join('mini_team_members as mtm', 'mtm.mini_team_id', '=', 'mm.team2_id')
+            ->where('mnt.sport_id', $sportId)
+            ->where('mm.status', 'completed')
+            ->where('mtm.user_id', $userId)
+            ->select('mm.id', 'mm.team_win_id', 'mm.participant_win_id', 'mm.team1_id', 'mm.team2_id', 'mm.participant1_id', 'mm.participant2_id')
+            ->get()
+            ->keyBy('id');
+
+        $minis = $minisTeam1->merge($minisTeam2)->unique('id');
 
         // Xác định user thuộc mini match nào (team-based hoặc solo)
         $miniTeamMemberRows = DB::table('mini_team_members')
@@ -993,37 +1004,54 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         // Performance: 10 trận gần nhất, đếm số wins
         $recentMatches = [];
 
-        // Tournament
-        $tRecent = DB::table('matches as m')
+        // Tournament - tách home và away
+        $tRecentHome = DB::table('matches as m')
             ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
             ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
-            ->join('team_members as tm', function ($join) use ($userId) {
-                $join->on(function ($q) use ($userId) {
-                    $q->where(function ($q2) use ($userId) {
-                        $q2->where('tm.team_id', '=', 'm.home_team_id')
-                            ->orWhere('tm.team_id', '=', 'm.away_team_id');
-                    })
-                        ->where('tm.user_id', '=', $userId);
-                });
-            })
-            ->whereIn('m.id', $matchIds)
+            ->join('team_members as tm', 'tm.team_id', '=', 'm.home_team_id')
+            ->where('tm.user_id', $userId)
+            ->whereColumn('tm.team_id', 'm.home_team_id')
             ->where('t.sport_id', $sportId)
             ->where('m.status', 'completed')
             ->select('m.id', 'm.winner_id', 'm.home_team_id', 'm.away_team_id', 'm.scheduled_at as dt')
-            ->distinct()
             ->get();
+
+        $tRecentAway = DB::table('matches as m')
+            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
+            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
+            ->join('team_members as tm', 'tm.team_id', '=', 'm.away_team_id')
+            ->where('tm.user_id', $userId)
+            ->whereColumn('tm.team_id', 'm.away_team_id')
+            ->where('t.sport_id', $sportId)
+            ->where('m.status', 'completed')
+            ->select('m.id', 'm.winner_id', 'm.home_team_id', 'm.away_team_id', 'm.scheduled_at as dt')
+            ->get();
+
+        $tRecent = $tRecentHome->merge($tRecentAway)->unique('id');
         foreach ($tRecent as $m) {
             $recentMatches[] = ['type' => 't', 'dt' => $m->dt, 'is_win' => self::isUserWinTournamentMatch($m, $userId)];
         }
 
-        // Mini
-        $mRecent = DB::table('mini_matches as mm')
+        // Mini - tách team1 và team2
+        $mRecentTeam1 = DB::table('mini_matches as mm')
             ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
-            ->whereIn('mm.id', $miniIds)
+            ->join('mini_team_members as mtm', 'mtm.mini_team_id', '=', 'mm.team1_id')
             ->where('mnt.sport_id', $sportId)
             ->where('mm.status', 'completed')
+            ->where('mtm.user_id', $userId)
             ->select('mm.id', 'mm.team_win_id', 'mm.participant_win_id', 'mm.team1_id', 'mm.team2_id', 'mm.participant1_id', 'mm.participant2_id', 'mm.created_at as dt')
             ->get();
+
+        $mRecentTeam2 = DB::table('mini_matches as mm')
+            ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
+            ->join('mini_team_members as mtm', 'mtm.mini_team_id', '=', 'mm.team2_id')
+            ->where('mnt.sport_id', $sportId)
+            ->where('mm.status', 'completed')
+            ->where('mtm.user_id', $userId)
+            ->select('mm.id', 'mm.team_win_id', 'mm.participant_win_id', 'mm.team1_id', 'mm.team2_id', 'mm.participant1_id', 'mm.participant2_id', 'mm.created_at as dt')
+            ->get();
+
+        $mRecent = $mRecentTeam1->merge($mRecentTeam2)->unique('id');
         foreach ($mRecent as $mm) {
             $recentMatches[] = ['type' => 'mnt', 'dt' => $mm->dt, 'is_win' => self::isUserWinMiniMatch($mm, $userId, $miniTeamMemberRows, $miniParticipantRows)];
         }
