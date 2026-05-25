@@ -88,10 +88,9 @@ class ClubLeaderboardService
     }
 
     /**
-     * Bảng xếp hạng all-time (không theo tháng).
-     * Vẫn nhận month, year từ FE để tương thích nhưng không dùng để tính.
+     * Bảng xếp hạng all-time của câu lạc bộ.
      */
-    public function getMonthlyLeaderboard(Club $club, int $month, int $year): Collection
+    public function getLeaderboard(Club $club): Collection
     {
         $members = $club->joinedMembers()->with(['user.sports.scores'])->get();
 
@@ -104,7 +103,6 @@ class ClubLeaderboardService
         $sport = Sport::where('slug', 'pickleball')->first();
         $sportId = $sport?->id ?? 1;
 
-        // Toàn bộ lịch sử (all-time) cho vndupr_score
         $allHistories = VnduprHistory::whereIn('user_id', $memberIds)
             ->orderBy('created_at', 'asc')
             ->get()
@@ -115,10 +113,9 @@ class ClubLeaderboardService
         });
 
         $sorted = $leaderboardData->sortByDesc('vndupr_score')->values();
-        $verified = $sorted->filter(fn($item) => ($item['monthly_stats']['matches_played'] ?? 0) >= 10);
-        $unverified = $sorted->filter(fn($item) => ($item['monthly_stats']['matches_played'] ?? 0) < 10);
+        $verified = $sorted->filter(fn($item) => ($item['all_time_stats']['matches_played'] ?? 0) >= 10);
+        $unverified = $sorted->filter(fn($item) => ($item['all_time_stats']['matches_played'] ?? 0) < 10);
 
-        // Top 3: chỉ user đã verified (>= 10 trận), giữ nguyên thứ tự score
         $topThree = $verified->take(3)->values();
         $rest = $verified->skip(3)->concat($unverified)->values();
 
@@ -156,7 +153,7 @@ class ClubLeaderboardService
             'user_id' => $userId,
             'user' => $member->user,
             'vndupr_score' => round($finalScore, 3),
-            'monthly_stats' => $stats,
+            'all_time_stats' => $stats,
         ];
     }
 }

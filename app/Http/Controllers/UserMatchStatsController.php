@@ -496,17 +496,50 @@ class UserMatchStatsController extends Controller
         $sportId = 1; // Luôn luôn dùng sport_id = 1
         $perPage = $request->query('per_page', 15);
 
-        // Lấy tất cả VnduprHistory của user
-        $histories = VnduprHistory::where('user_id', $userId)
-            ->orderBy('created_at', 'desc')
-            ->get();
+        // Lấy tournament match IDs trực tiếp từ team_members + matches + tournaments
+        // Tách thành 2 query (home và away) rồi merge
+        $homeMatchIds = DB::table('matches as m')
+            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
+            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
+            ->join('team_members as tm', 'tm.team_id', '=', 'm.home_team_id')
+            ->where('tm.user_id', $userId)
+            ->whereColumn('tm.team_id', 'm.home_team_id')
+            ->where('t.sport_id', $sportId)
+            ->where('m.status', 'completed')
+            ->select('m.id')
+            ->pluck('id');
 
-        $matchIds = $histories->pluck('match_id')->filter()->unique();
-        $miniIds = $histories->pluck('mini_match_id')->filter()->unique();
+        $awayMatchIds = DB::table('matches as m')
+            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
+            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
+            ->join('team_members as tm', 'tm.team_id', '=', 'm.away_team_id')
+            ->where('tm.user_id', $userId)
+            ->whereColumn('tm.team_id', 'm.away_team_id')
+            ->where('t.sport_id', $sportId)
+            ->where('m.status', 'completed')
+            ->select('m.id')
+            ->pluck('id');
+
+        $tournamentMatchIds = $homeMatchIds->merge($awayMatchIds)->unique();
+
+        // Lấy mini match IDs từ mini_team_members
+        $miniIds = DB::table('mini_team_members')
+            ->join('mini_teams', 'mini_team_members.mini_team_id', '=', 'mini_teams.id')
+            ->join('mini_matches', function ($join) {
+                $join->on('mini_matches.team1_id', '=', 'mini_teams.id')
+                    ->orOn('mini_matches.team2_id', '=', 'mini_teams.id');
+            })
+            ->join('mini_tournaments', 'mini_matches.mini_tournament_id', '=', 'mini_tournaments.id')
+            ->where('mini_team_members.user_id', $userId)
+            ->where('mini_tournaments.sport_id', $sportId)
+            ->where('mini_matches.status', 'completed')
+            ->select('mini_matches.id')
+            ->distinct()
+            ->pluck('id');
 
         // Lấy Matches với filter sport_id
         $matches = Matches::withFullRelations()
-            ->whereIn('id', $matchIds)
+            ->whereIn('id', $tournamentMatchIds)
             ->get()
             ->filter(fn($m) => $m->tournamentType &&
                 $m->tournamentType->tournament &&
@@ -568,9 +601,6 @@ class UserMatchStatsController extends Controller
 
         // Xử lý Matches
         foreach ($matches as $match) {
-            $history = $histories->where('match_id', $match->id)->first();
-            if (!$history) continue;
-
             // Lấy members từ các team
             $homeMembers = $teamMembersByTeam[$match->home_team_id] ?? [];
             $awayMembers = $teamMembersByTeam[$match->away_team_id] ?? [];
@@ -655,7 +685,7 @@ class UserMatchStatsController extends Controller
                 'is_win' => $is_win,
                 'status' => $match->status,
                 'match_date' => $match->match_date,
-                'created_at' => $history->created_at
+                'created_at' => $match->updated_at
             ]);
         }
 
@@ -676,9 +706,6 @@ class UserMatchStatsController extends Controller
         }
 
         foreach ($minis as $mini) {
-            $history = $histories->where('mini_match_id', $mini->id)->first();
-            if (!$history) continue;
-
             $team1Members = $miniTeamMembersByTeam[$mini->team1_id] ?? [];
             $team2Members = $miniTeamMembersByTeam[$mini->team2_id] ?? [];
 
@@ -759,7 +786,7 @@ class UserMatchStatsController extends Controller
                 'is_win' => $is_win,
                 'status' => $mini->status,
                 'match_date' => $mini->match_date,
-                'created_at' => $history->created_at
+                'created_at' => $mini->updated_at
             ]);
         }
 

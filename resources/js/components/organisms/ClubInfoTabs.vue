@@ -83,9 +83,7 @@
                         :top-three="topThree"
                         :leaderboard="leaderboard"
                         :meta="leaderboardMeta"
-                        :filters="leaderboardFilters"
                         :loading="leaderboardLoading"
-                        @filter="$emit('leaderboard-filter', $event)"
                         @page-change="$emit('leaderboard-page-change', $event)"
                     />
                 </div>
@@ -134,10 +132,6 @@ const props = defineProps({
         type: Object,
         default: () => ({})
     },
-    leaderboardFilters: {
-        type: Object,
-        default: () => ({})
-    },
     leaderboardLoading: {
         type: Boolean,
         default: false
@@ -148,7 +142,7 @@ const props = defineProps({
     }
 })
 
-const emit = defineEmits(['leaderboard-filter', 'leaderboard-page-change', 'tab-change', 'refresh-club', 'update-intro'])
+const emit = defineEmits(['leaderboard-page-change', 'tab-change', 'refresh-club', 'update-intro'])
 
 const tabs = computed(() => [
     { id: 'intro', name: 'Giới thiệu' },
