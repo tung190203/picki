@@ -7,7 +7,7 @@ use App\Enums\ClubMembershipStatus;
 use App\Enums\ClubStatus;
 use App\Helpers\ResponseHelper;
 use App\Http\Requests\Club\GetClubsRequest;
-use App\Http\Requests\Club\GetMonthlyLeaderboardRequest;
+use App\Http\Requests\Club\GetLeaderboardRequest;
 use App\Http\Requests\Club\LeaveClubRequest;
 use App\Http\Requests\Club\StoreClubRequest;
 use App\Http\Requests\Club\UpdateClubFundRequest;
@@ -334,20 +334,13 @@ class ClubController extends Controller
         return ResponseHelper::success($result, 'Lấy chi tiết địa điểm thành công');
     }
 
-    public function getMonthlyLeaderboard(GetMonthlyLeaderboardRequest $request, $clubId)
+    public function getLeaderboard(GetLeaderboardRequest $request, $clubId)
     {
         $club = Club::findOrFail($clubId);
 
-        $month = $request->input('month', now()->month);
-        $year = $request->input('year', now()->year);
         $perPage = $request->input('per_page', 50);
 
-        $requestedDate = Carbon::create($year, $month, 1);
-        if ($requestedDate->isFuture() && !$requestedDate->isCurrentMonth()) {
-            return ResponseHelper::error('Không thể xem bảng xếp hạng của tháng trong tương lai', 400);
-        }
-
-        $rankedLeaderboard = $this->leaderboardService->getMonthlyLeaderboard($club, $month, $year);
+        $rankedLeaderboard = $this->leaderboardService->getLeaderboard($club);
 
         if ($rankedLeaderboard->isEmpty()) {
             return ResponseHelper::success([
@@ -356,17 +349,11 @@ class ClubController extends Controller
                     'name' => $club->name,
                     'member_count' => 0,
                 ],
-                'period' => [
-                    'month' => $month,
-                    'year' => $year,
-                    'label' => "Tháng {$month}/{$year}",
-                ],
                 'updated_at' => now()->toISOString(),
                 'leaderboard' => [],
             ], 'Bảng xếp hạng câu lạc bộ');
         }
 
-        // Paginate manually
         $total = $rankedLeaderboard->count();
         $currentPage = max(1, (int) $request->query('page', 1));
         $lastPage = ceil($total / $perPage);
@@ -378,11 +365,6 @@ class ClubController extends Controller
                 'id' => $club->id,
                 'name' => $club->name,
                 'member_count' => $total,
-            ],
-            'period' => [
-                'month' => $month,
-                'year' => $year,
-                'label' => "Tháng {$month}/{$year}",
             ],
             'updated_at' => now()->toISOString(),
             'leaderboard' => ClubLeaderboardResource::collection($paginatedData),

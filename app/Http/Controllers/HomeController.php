@@ -138,84 +138,14 @@ class HomeController extends Controller
         // B. FIX SCORE (CHUẨN leaderboard)
         // ==========================
 
-        $vnduprScore = UserSportScore::query()
-            ->join('user_sport', 'user_sport_scores.user_sport_id', '=', 'user_sport.id')
-            ->where('user_sport.user_id', $userId)
-            ->where('user_sport.sport_id', $sport->id)
-            ->where('user_sport_scores.score_type', 'vndupr_score')
-            ->max('score_value') ?? 0;
+        $userSports = $user->sports()
+            ->with('sport', 'scores')
+            ->get();
 
-        $duprScore = UserSportScore::query()
-            ->join('user_sport', 'user_sport_scores.user_sport_id', '=', 'user_sport.id')
-            ->where('user_sport.user_id', $userId)
-            ->where('user_sport.sport_id', $sport->id)
-            ->where('user_sport_scores.score_type', 'dupr_score')
-            ->max('score_value') ?? 0;
-
-        $personalScore = UserSportScore::query()
-            ->join('user_sport', 'user_sport_scores.user_sport_id', '=', 'user_sport.id')
-            ->where('user_sport.user_id', $userId)
-            ->where('user_sport.sport_id', $sport->id)
-            ->where('user_sport_scores.score_type', 'personal_score')
-            ->max('score_value') ?? 0;
-
-        $scores = [
-            'personal_score' => number_format($personalScore, 3),
-            'dupr_score' => number_format($duprScore, 3),
-            'vndupr_score' => number_format($vnduprScore, 3),
-        ];
-        // A. Matches
-        $matchCount = DB::table('vndupr_history')
-            ->join('matches', 'vndupr_history.match_id', '=', 'matches.id')
-            ->join('tournament_types', 'matches.tournament_type_id', '=', 'tournament_types.id')
-            ->join('tournaments', 'tournament_types.tournament_id', '=', 'tournaments.id')
-            ->where('vndupr_history.user_id', $userId)
-            ->where('tournaments.sport_id', $sport->id)
-            ->count();
-
-        // B. Mini matches
-        $miniMatchCount = DB::table('vndupr_history')
-            ->join('mini_matches', 'vndupr_history.mini_match_id', '=', 'mini_matches.id')
-            ->join('mini_tournaments', 'mini_matches.mini_tournament_id', '=', 'mini_tournaments.id')
-            ->where('vndupr_history.user_id', $userId)
-            ->where('mini_tournaments.sport_id', $sport->id)
-            ->count();
-    
-        $totalMatchesAll = $matchCount + $miniMatchCount;
-    
-        $matchIds = DB::table('vndupr_history')
-            ->where('user_id', $userId)
-            ->whereNotNull('match_id')
-            ->pluck('match_id')
-            ->toArray();
-
-        $tournamentsCount = 0;
-        if (!empty($matchIds)) {
-            $tournamentsCount = DB::table('matches as m')
-                ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
-                ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
-                ->whereIn('m.id', $matchIds)
-                ->where('t.sport_id', $sport->id)
-                ->distinct()
-                ->count('t.id');
-        }
-
-        $sports = [
-            [
-                'sport_id'   => $sport->id,
-                'sport_icon' => $sport->icon,
-                'sport_name' => $sport->name,
-                'scores' => $scores,
-                'total_matches' => $totalMatchesAll,
-                'total_tournament' => $tournamentsCount,
-                'total_prizes' => 0
-            ]
-        ];
-        // User info
         $userInfo = [
             'win_rate'    => round($winRate, 2),
             'performance' => round($performance, 2),
-            'sports'      => $sports,
+            'sports'      => UserSportResource::collection($userSports),
             'is_anchor' => (bool) $user->is_anchor,
             'is_verify' => (bool) ($user->total_matches_has_anchor >= 10),
         ];

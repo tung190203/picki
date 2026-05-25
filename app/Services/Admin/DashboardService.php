@@ -172,9 +172,14 @@ class DashboardService
             ->get();
 
         // ---------- User Growth ----------
+        $totalActive = User::where('is_guest', false)
+            ->where('last_login', '>=', Carbon::now()->subMinutes(5))
+            ->count();
+
         $userGrowth = [
             'total' => $totalUsers,
             'new_this_week' => $newUsersThisWeek,
+            'total_active' => $totalActive,
         ];
 
         // ---------- Mini Match Growth ----------

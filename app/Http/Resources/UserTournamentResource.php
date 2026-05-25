@@ -389,10 +389,12 @@ class UserTournamentResource extends JsonResource
 
     /**
      * Vòng cuối cùng mà team tham gia trong giải (final round user participated).
+     * Fallback: dùng tournament_rank từ team_rankings làm lower bound khi match data không đầy đủ.
      */
     protected function getFinalRound(int $teamId): ?string
     {
-        $maxRound = $this->tournamentTypes()
+        // Lấy vòng cao nhất từ matches đã ghi nhận
+        $maxMatchRound = $this->tournamentTypes()
             ->with('groups.matches')
             ->get()
             ->flatMap(fn($type) => $type->groups)
@@ -403,7 +405,29 @@ class UserTournamentResource extends JsonResource
             )
             ->max('round');
 
-        return $this->roundName($maxRound ?: null);
+        // Fallback từ team_rankings khi match data không đầy đủ
+        $rank = $this->getTournamentRank($teamId);
+        $minRoundByRank = null;
+
+        if ($rank !== null) {
+            $minRoundByRank = match (true) {
+                $rank === 1 => 4,          // Vô địch -> Chung kết (round 4)
+                $rank === 2 => 4,          // Á quân -> Chung kết (round 4)
+                $rank === 3, $rank === 4 => 3, // Hạng 3/4 -> Bán kết (round 3)
+                $rank <= 8 => 2,           // Tứ kết
+                $rank <= 16 => 1,          // Vòng 1/8
+                default => 0,              // Vòng bảng
+            };
+        }
+
+        // Dùng round cao hơn giữa match thực tế và suy ra từ rank
+        $effectiveRound = max($maxMatchRound ?? -1, $minRoundByRank ?? -1);
+
+        if ($effectiveRound < 0) {
+            return null;
+        }
+
+        return $this->roundName($effectiveRound ?: null);
     }
 
     /**

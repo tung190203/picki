@@ -299,9 +299,8 @@
                     </div>
                     <ClubInfoTabs :club="club" :isJoined="is_joined" :currentUserRole="currentUserRole"
                         :top-three="topThree" :leaderboard="leaderboard" :leaderboard-meta="leaderboardMeta"
-                        :leaderboard-filters="leaderboardFilters" :leaderboard-loading="isLeaderboardLoading"
+                        :leaderboard-loading="isLeaderboardLoading"
                         :is-saving="isUpdatingIntro"
-                        @leaderboard-filter="handleLeaderboardFilter"
                         @leaderboard-page-change="handleLeaderboardPageChange" @tab-change="handleTabChange"
                         @refresh-club="getClubDetail" @update-intro="handleUpdateIntro" />
                 </div>
@@ -663,8 +662,6 @@ const topThree = ref([])
 const leaderboard = ref([])
 const leaderboardMeta = ref({})
 const leaderboardFilters = ref({
-    month: dayjs().month() + 1,
-    year: dayjs().year(),
     page: 1,
     per_page: 10
 })
@@ -1479,8 +1476,6 @@ const getClubLeaderBoard = async () => {
     isLeaderboardLoading.value = true
     try {
         const response = await ClubService.getClubLeaderBoard(clubId.value, {
-            month: leaderboardFilters.value.month,
-            year: leaderboardFilters.value.year,
             per_page: leaderboardFilters.value.per_page,
             page: leaderboardFilters.value.page,
         })
@@ -1534,11 +1529,6 @@ const rejectJoinRequest = async (requestId) => {
     } catch (error) {
         toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi từ chối yêu cầu tham gia')
     }
-}
-
-const handleLeaderboardFilter = (filters) => {
-    leaderboardFilters.value = { ...leaderboardFilters.value, ...filters, page: 1 }
-    getClubLeaderBoard()
 }
 
 const handleLeaderboardPageChange = (page) => {
