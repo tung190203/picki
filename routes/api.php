@@ -167,7 +167,7 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
             Route::get('/fund/overview', [ClubWalletController::class, 'getFundOverview']);
             Route::get('/fund/qr-code', [ClubWalletController::class, 'getFundQrCode']);
             Route::get('/dashboard', [ClubDashboardController::class, 'index']);
-            Route::get('/leaderboard', [ClubController::class, 'getMonthlyLeaderboard']);
+            Route::get('/leaderboard', [ClubController::class, 'getLeaderboard']);
             Route::post('/report', [ClubReportController::class, 'store']);
             Route::get('/reports', [ClubReportController::class, 'index']);
 
@@ -517,7 +517,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
             Route::get('/fund/overview', [ClubWalletController::class, 'getFundOverview']);
             Route::get('/fund/qr-code', [ClubWalletController::class, 'getFundQrCode']);
             Route::get('/dashboard', [ClubDashboardController::class, 'index']);
-            Route::get('/leaderboard', [ClubController::class, 'getMonthlyLeaderboard']);
+            Route::get('/leaderboard', [ClubController::class, 'getLeaderboard']);
             Route::post('/report', [ClubReportController::class, 'store']);
             Route::get('/reports', [ClubReportController::class, 'index']);
 

@@ -29,12 +29,12 @@ class ClubLeaderboardResource extends JsonResource
                 'is_anchor' => (bool) ($data['user']->is_anchor ?? false),
             ],
             'vndupr_score' => round($data['vndupr_score'], 3),
-            'monthly_stats' => [
-                'matches_played' => $data['monthly_stats']['matches_played'],
-                'wins' => $data['monthly_stats']['wins'],
-                'losses' => $data['monthly_stats']['losses'],
-                'win_rate' => round($data['monthly_stats']['win_rate'], 2),
-                'score_change' => round($data['monthly_stats']['score_change'], 3),
+            'all_time_stats' => [
+                'matches_played' => $data['all_time_stats']['matches_played'],
+                'wins' => $data['all_time_stats']['wins'],
+                'losses' => $data['all_time_stats']['losses'],
+                'win_rate' => round($data['all_time_stats']['win_rate'], 2),
+                'score_change' => round($data['all_time_stats']['score_change'], 3),
             ],
         ];
     }
