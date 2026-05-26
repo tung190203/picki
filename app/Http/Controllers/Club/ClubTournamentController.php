@@ -315,6 +315,10 @@ class ClubTournamentController extends Controller
             return ResponseHelper::error('Giải đấu không thuộc CLB này', 404);
         }
 
+        if ($tournament->status === Tournament::CANCELLED) {
+            return ResponseHelper::success(new TournamentResource($tournament), 'Giải đấu đã bị hủy', 410);
+        }
+
         return ResponseHelper::success(new TournamentResource($tournament), 'Lấy chi tiết giải đấu thành công');
     }
 
