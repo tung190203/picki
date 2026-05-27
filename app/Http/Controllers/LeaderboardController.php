@@ -159,7 +159,7 @@ class LeaderboardController extends Controller
             );
 
         $statsRaw = DB::table(DB::raw("({$matches->toSql()}) as combined"))
-            ->mergeBindings($matches->getQuery())
+            ->mergeBindings($matches)
             ->select('team_id')
             ->selectRaw('COUNT(*) as total')
             ->selectRaw('SUM(CASE WHEN winner_id = team_id THEN 1 ELSE 0 END) as wins')

@@ -87,12 +87,10 @@ class SearchV2Controller extends Controller
 
         $query = match ($tab) {
             SearchFilterConfig::TAB_MATCH => MiniTournament::withFullRelations()
-                ->whereDate('start_time', '>=', now()->toDateString())
                 ->filter($filters),
 
             SearchFilterConfig::TAB_TOURNAMENT => Tournament::withFullRelations()
                 ->with(['tournamentStaffs', 'participants', 'competitionLocation'])
-                ->whereDate('start_date', '>=', now()->toDateString())
                 ->filter($filters),
 
             SearchFilterConfig::TAB_USER => User::query()
@@ -111,9 +109,34 @@ class SearchV2Controller extends Controller
             default => throw new \InvalidArgumentException("Unknown tab: {$tab}"),
         };
 
-        // Sub-tab filter (except user which has its own logic in the query above)
+        // Sub-tab filter & sort
         if ($tab !== SearchFilterConfig::TAB_USER && $tab !== SearchFilterConfig::TAB_COURT) {
             $query = $query->applyTimeline($subTab, $userId);
+
+            if ($subTab === 'all') {
+                $isMiniTournament = $tab === SearchFilterConfig::TAB_MATCH;
+                $endColumn = $isMiniTournament ? 'end_time' : 'end_date';
+                $startColumn = $isMiniTournament ? 'start_time' : 'start_date';
+
+                // Only open tournaments
+                $query = $query
+                    ->where(function ($q) use ($endColumn) {
+                        $q->where($endColumn, '>=', now())
+                            ->orWhereNull($endColumn);
+                    })
+                    ->orderBy($startColumn, 'asc');
+            }
+
+            if ($subTab === 'mine') {
+                $isMiniTournament = $tab === SearchFilterConfig::TAB_MATCH;
+                $endColumn = $isMiniTournament ? 'end_time' : 'end_date';
+                $startColumn = $isMiniTournament ? 'start_time' : 'start_date';
+
+                // Open tournaments first, then past (sorted by most recent first)
+                $query = $query
+                    ->orderByRaw("CASE WHEN COALESCE({$endColumn}, DATE_ADD(NOW(), INTERVAL 1 YEAR)) >= NOW() THEN 0 ELSE 1 END")
+                    ->orderByDesc($startColumn);
+            }
         }
 
         // Geo filters
