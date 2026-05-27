@@ -306,6 +306,20 @@ class MiniTournament extends Model
         };
     }
 
+    public function getIsCompletedAttribute(): bool
+    {
+        if ($this->status === self::STATUS_CLOSED) {
+            return true;
+        }
+        if ($this->end_time) {
+            $endTime = $this->end_time instanceof \Carbon\Carbon
+                ? $this->end_time
+                : \Carbon\Carbon::parse($this->end_time);
+            return $endTime->isPast();
+        }
+        return false;
+    }
+
     public function participants()
     {
         return $this->hasMany(MiniParticipant::class);
