@@ -311,6 +311,20 @@ class Tournament extends Model
         };
     }
 
+    public function getIsCompletedAttribute(): bool
+    {
+        if ($this->status === self::CLOSED) {
+            return true;
+        }
+        if ($this->end_date) {
+            $endDate = $this->end_date instanceof \Carbon\Carbon
+                ? $this->end_date
+                : \Carbon\Carbon::parse($this->end_date);
+            return $endDate->isPast();
+        }
+        return false;
+    }
+
     public function getPosterUrlAttribute()
     {
         if (!array_key_exists('poster', $this->attributes) || !$this->attributes['poster']) {

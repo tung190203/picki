@@ -34,6 +34,7 @@ class SearchTournamentResource extends JsonResource
             'start_time'     => $this->start_date ? \Carbon\Carbon::parse($this->start_date)->format('H:i') : null,
             'end_date'       => $this->end_date,
             'status'         => $this->status,
+            'is_completed'   => $this->is_completed,
             'has_fee'        => (bool) $this->has_fee,
             'fee_amount'     => $this->has_fee ? (float) $this->fee_amount : null,
             'min_level'      => $this->min_level,
@@ -88,7 +89,7 @@ class SearchTournamentResource extends JsonResource
             'marker_type'  => 'tournament',
             // Membership
             'is_joined'    => $this->isJoinedBy(auth()->id()),
-            'is_registered' => $this->isRegisteredBy(auth()->id()),
+            'is_registered' => $this->isRegisteredBy(auth()->id())
         ];
     }
 
