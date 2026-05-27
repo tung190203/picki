@@ -167,7 +167,11 @@ class ClubTournamentController extends Controller
     public function update(UpdateTournamentRequest $request, int $clubId, int $tournamentId)
     {
         $club = Club::findOrFail($clubId);
-        $tournament = Tournament::findOrFail($tournamentId);
+        $tournament = Tournament::find($tournamentId);
+        if (!$tournament) {
+            return ResponseHelper::error('Giải đấu không tồn tại', 404);
+        }
+
         $userId = Auth::id();
 
         if (!$userId) {
@@ -328,10 +332,17 @@ class ClubTournamentController extends Controller
      */
     public function destroy(Request $request, int $clubId, int $tournamentId)
     {
-        $club = Club::findOrFail($clubId);
-        $tournament = Tournament::findOrFail($tournamentId);
-        $userId = Auth::id();
+        $club = Club::find($clubId);
+        if (!$club) {
+            return ResponseHelper::error('CLB không tồn tại', 404);
+        }
 
+        $tournament = Tournament::find($tournamentId);
+        if (!$tournament) {
+            return ResponseHelper::error('Giải đấu không tồn tại', 404);
+        }
+
+        $userId = Auth::id();
         if (!$userId) {
             return ResponseHelper::error('Bạn cần đăng nhập', 401);
         }
@@ -357,12 +368,31 @@ class ClubTournamentController extends Controller
             return ResponseHelper::error('Không thể hủy giải. Đã có trận đấu hoàn thành thuộc giải này.', 400);
         }
 
-        $tournament->update([
-            'status' => Tournament::CANCELLED,
-            'cancelled_reason' => $request->input('cancellation_reason', 'Hủy giải đấu'),
-        ]);
+        $cancelledReason = $request->input('cancellation_reason', 'Hủy giải đấu');
+
+        DB::transaction(function () use ($tournament, $cancelledReason) {
+            $tournament->update([
+                'status' => Tournament::CANCELLED,
+                'cancelled_reason' => $cancelledReason,
+            ]);
+
+            $this->syncParticipantsPaymentStatus($tournament, false);
+        });
 
         Cache::increment('club_content_version:' . $club->id);
+
+        // Notify confirmed participants about the cancellation
+        $participantUserIds = $tournament->participants()
+            ->where('is_confirmed', true)
+            ->pluck('user_id')
+            ->toArray();
+
+        foreach ($participantUserIds as $participantUserId) {
+            $participantUser = \App\Models\User::find($participantUserId);
+            if ($participantUser) {
+                $participantUser->notify(new \App\Notifications\TournamentCancelledNotification($tournament, $cancelledReason));
+            }
+        }
 
         return ResponseHelper::success(null, 'Hủy giải đấu thành công');
     }
@@ -373,8 +403,16 @@ class ClubTournamentController extends Controller
      */
     public function markCheckIn(int $clubId, int $tournamentId, int $participantId)
     {
-        $club = Club::findOrFail($clubId);
-        $tournament = Tournament::with('staff')->findOrFail($tournamentId);
+        $club = Club::find($clubId);
+        if (!$club) {
+            return ResponseHelper::error('CLB không tồn tại', 404);
+        }
+
+        $tournament = Tournament::with('staff')->find($tournamentId);
+        if (!$tournament) {
+            return ResponseHelper::error('Giải đấu không tồn tại', 404);
+        }
+
         $userId = Auth::id();
 
         if (!$userId) {
@@ -421,8 +459,16 @@ class ClubTournamentController extends Controller
      */
     public function markAbsent(int $clubId, int $tournamentId, int $participantId)
     {
-        $club = Club::findOrFail($clubId);
-        $tournament = Tournament::with('staff')->findOrFail($tournamentId);
+        $club = Club::find($clubId);
+        if (!$club) {
+            return ResponseHelper::error('CLB không tồn tại', 404);
+        }
+
+        $tournament = Tournament::with('staff')->find($tournamentId);
+        if (!$tournament) {
+            return ResponseHelper::error('Giải đấu không tồn tại', 404);
+        }
+
         $userId = Auth::id();
 
         if (!$userId) {
