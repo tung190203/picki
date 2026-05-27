@@ -32,20 +32,13 @@ class UserManagementService
                 'created_at',
                 'is_guest',
             ])
+            ->when($keyword, fn($q) => $q->keyword($keyword))
+            ->when($status === 'banned', fn($q) => $q->banned())
+            ->when($status === 'active', fn($q) => $q->notBanned())
+            ->when($status === 'verified', fn($q) => $q->where('is_verified', true))
             ->where('is_guest', false)
+            ->orderByRaw("CASE WHEN last_login >= DATE_SUB(NOW(), INTERVAL 15 MINUTE) THEN 1 ELSE 0 END DESC")
             ->orderBy('created_at', 'desc');
-
-        if ($keyword) {
-            $query->keyword($keyword);
-        }
-
-        if ($status === 'banned') {
-            $query->banned();
-        } elseif ($status === 'active') {
-            $query->notBanned();
-        } elseif ($status === 'verified') {
-            $query->where('is_verified', true);
-        }
 
         $paginated = $query->paginate($limit, ['*'], 'page', $page);
 

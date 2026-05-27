@@ -32,6 +32,7 @@ class SearchMatchResource extends JsonResource
             'end_time'       => $this->end_time,
             'duration_minutes' => (int) ($this->duration ?? 0),
             'status'         => $this->status,
+            'is_completed'   => $this->is_completed,
             'has_fee'        => (bool) $this->has_fee,
             'fee_amount'     => $this->has_fee ? (float) $this->fee_amount : null,
             'max_players'    => $this->max_players,
