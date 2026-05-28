@@ -131,8 +131,9 @@ class ClubNotificationController extends Controller
                 return ResponseHelper::error('Bạn không có quyền xem thông báo này', 403);
             }
 
-            $isRecipient = $notification->recipients()->where('user_id', $userId)->exists();
-            if (!$isRecipient) {
+            // Kiểm tra quyền xem cho thành viên bình thường
+            $hasAccess = $this->notificationService->canMemberViewNotification($notification, $userId, $member);
+            if (!$hasAccess) {
                 return ResponseHelper::error('Bạn không có quyền xem thông báo này', 403);
             }
         }

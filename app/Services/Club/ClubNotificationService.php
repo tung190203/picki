@@ -18,6 +18,27 @@ use Illuminate\Support\Facades\Storage;
 
 class ClubNotificationService
 {
+    /**
+     * Kiểm tra thành viên có quyền xem thông báo hay không
+     */
+    public function canMemberViewNotification(ClubNotification $notification, int $userId, $member): bool
+    {
+        // Là recipient rõ ràng
+        if ($notification->recipients()->where('user_id', $userId)->exists()) {
+            return true;
+        }
+
+        // Thông báo broadcast (không có recipients cụ thể)
+        if (!$notification->recipients()->exists() && $member) {
+            // Chỉ xem được nếu gửi sau khi user gia nhập club
+            if ($notification->sent_at && $member->joined_at) {
+                return !$notification->sent_at->lt($member->joined_at);
+            }
+        }
+
+        return false;
+    }
+
     public function getUnreadCount(Club $club, ?int $userId): int
     {
         if (!$userId) {

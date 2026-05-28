@@ -6,6 +6,7 @@ use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MiniTeamResource;
 use App\Http\Resources\TeamResource;
+use App\Models\MiniTournament;
 use App\Support\MiniTournamentTeamMemberHydrator;
 use App\Support\TournamentTeamMemberHydrator;
 use Illuminate\Http\Request;
@@ -560,6 +561,32 @@ class UserMatchStatsController extends Controller
             ->get()
             ->groupBy('mini_match_id');
 
+        // Load vndupr score change (batch để tránh N+1)
+        $vnduprByMatch = VnduprHistory::where('user_id', $userId)
+            ->whereIn('match_id', $matches->pluck('id')->filter())
+            ->get()
+            ->groupBy('match_id')
+            ->map(fn($col) => $col->first());
+
+        $vnduprByMini = VnduprHistory::where('user_id', $userId)
+            ->whereIn('mini_match_id', $minis->pluck('id')->filter())
+            ->get()
+            ->groupBy('mini_match_id')
+            ->map(fn($col) => $col->first());
+
+        // Quick match IDs để load vndupr
+        $qmHistories = MatchHistory::where('user_id', $userId)
+            ->whereNotNull('quick_match_id')
+            ->get()
+            ->keyBy('quick_match_id');
+        $qmIds = $qmHistories->keys();
+
+        $vnduprByQm = VnduprHistory::where('user_id', $userId)
+            ->whereIn('quick_match_id', $qmIds)
+            ->get()
+            ->groupBy('quick_match_id')
+            ->map(fn($col) => $col->first());
+
         // ========== TEAM MEMBERS CHO MINI MATCHES (TEAM-BASED) ==========
         $miniTeamMembersByTeam = DB::table('mini_team_members')
             ->whereIn(
@@ -664,13 +691,23 @@ class UserMatchStatsController extends Controller
                 $is_win = ($match->winner_id == $myTeamId);
             }
 
+            $vndupr = $vnduprByMatch->get($match->id);
+            $vnduprChange = $vndupr !== null
+                ? round((float) $vndupr->score_after - (float) $vndupr->score_before, 3)
+                : null;
+            $roundName = $this->roundName($match->round);
+            $tournamentName = $match->tournamentType->tournament->name ?? null;
+            $matchName = $roundName
+                ? "{$tournamentName} - {$roundName}"
+                : $tournamentName;
+
             $allMatches->push([
-                'type' => 'match',
+                'type' => 'tournament',
                 'format' => 'team',
                 'id' => $match->id,
                 'tournament_id' => $match->tournamentType->tournament->id ?? null,
                 'tournament_name' => $match->tournamentType->tournament->name ?? null,
-                'match_name' => $match->name_of_match,
+                'match_name' => $matchName,
                 'my_team' => $this->teamResourceWithTournamentHydrated(
                     $myTeam,
                     $match->tournamentType->tournament->id ?? null
@@ -685,7 +722,9 @@ class UserMatchStatsController extends Controller
                 'is_win' => $is_win,
                 'status' => $match->status,
                 'match_date' => $match->match_date,
-                'created_at' => $match->updated_at
+                'created_at' => $match->updated_at,
+                'match_type' => $this->getMatchTypeFromTournament($match),
+                'vndupr_score_change' => $vnduprChange,
             ]);
         }
 
@@ -771,8 +810,13 @@ class UserMatchStatsController extends Controller
                 $is_win = ($mini->team_win_id == $myTeamId);
             }
 
+            $vndupr = $vnduprByMini->get($mini->id);
+            $vnduprChange = $vndupr !== null
+                ? round((float) $vndupr->score_after - (float) $vndupr->score_before, 3)
+                : null;
+
             $allMatches->push([
-                'type' => 'mini_match',
+                'type' => 'mini_tournament',
                 'format' => 'team',
                 'id' => $mini->id,
                 'mini_tournament_id' => $mini->miniTournament->id ?? null,
@@ -786,7 +830,9 @@ class UserMatchStatsController extends Controller
                 'is_win' => $is_win,
                 'status' => $mini->status,
                 'match_date' => $mini->match_date,
-                'created_at' => $mini->updated_at
+                'created_at' => $mini->updated_at,
+                'match_type' => $this->getMatchTypeFromMiniTournament($mini),
+                'vndupr_score_change' => $vnduprChange,
             ]);
         }
 
@@ -912,6 +958,10 @@ class UserMatchStatsController extends Controller
                     'status' => $qm->status,
                     'match_date' => $playedAt,
                     'created_at' => $playedAt,
+                    'match_type' => $this->getMatchTypeFromQuickMatch($qm),
+                    'vndupr_score_change' => $vnduprByQm->has($qm->id)
+                        ? round((float) $vnduprByQm[$qm->id]->score_after - (float) $vnduprByQm[$qm->id]->score_before, 3)
+                        : null,
                 ]);
             }
 
@@ -953,5 +1003,41 @@ class UserMatchStatsController extends Controller
         }
 
         return new TeamResource($team);
+    }
+
+    // ========== HELPERS CHO STATS ==========
+
+    private function getMatchTypeFromTournament(?Matches $match): string
+    {
+        $playerPerTeam = $match?->tournamentType?->tournament?->player_per_team;
+        return $playerPerTeam == 1 ? 'single' : 'double';
+    }
+
+    private function getMatchTypeFromMiniTournament(?MiniMatch $mini): string
+    {
+        $format = $mini?->miniTournament?->format;
+        return $format == MiniTournament::FORMAT_SINGLE ? 'single' : 'double';
+    }
+
+    private function getMatchTypeFromQuickMatch(QuickMatch $qm): string
+    {
+        $count = count($qm->team_a ?? []);
+        return $count == 1 ? 'single' : 'double';
+    }
+
+    private function roundName(?int $round): ?string
+    {
+        if ($round === null || $round === 0) {
+            return null;
+        }
+        $map = [
+            1 => 'Vòng bảng',
+            2 => 'Vòng 1/8',
+            3 => 'Tứ kết',
+            4 => 'Bán kết',
+            5 => 'Chung kết',
+            6 => 'Tranh hạng 3',
+        ];
+        return $map[$round] ?? "Vòng {$round}";
     }
 }

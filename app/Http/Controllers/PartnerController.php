@@ -18,20 +18,25 @@ class PartnerController extends Controller
     public function topPartners(Request $request): JsonResponse
     {
         $userId = $request->query('user_id') ? (int) $request->query('user_id') : auth()->id();
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = min(50, max(1, (int) $request->query('per_page', 10)));
 
-        $stats = $this->partnerService->getTopPartners($userId);
+        $result = $this->partnerService->getTopPartners($userId, $page, $perPage);
 
-        if (empty($stats)) {
-            return ResponseHelper::success(['partners' => []], 'Không có partner nào');
+        if (empty($result['data'])) {
+            return ResponseHelper::success([
+                'partners' => [],
+                'meta' => ['current_page' => $page, 'last_page' => 1, 'per_page' => $perPage, 'total' => 0],
+            ], 'Không có partner nào');
         }
 
-        $userIds = collect($stats)->pluck('user_id')->all();
+        $userIds = collect($result['data'])->pluck('user_id')->all();
         $users = User::with(['sports.sport', 'sports.scores', 'clubs'])
             ->whereIn('id', $userIds)
             ->get()
             ->keyBy('id');
 
-        $result = collect($stats)->map(function ($stat) use ($users) {
+        $partners = collect($result['data'])->map(function ($stat) use ($users) {
             $user = $users->get($stat['user_id']);
             return [
                 'user'          => $user ? (new UserResource($user))->resolve() : null,
@@ -42,26 +47,42 @@ class PartnerController extends Controller
             ];
         })->filter(fn($item) => $item['user'] !== null)->values();
 
-        return ResponseHelper::success(['partners' => $result], 'Lấy top partner thành công');
+        $total = $result['total'];
+        $lastPage = (int) ceil($total / $perPage);
+
+        return ResponseHelper::success([
+            'partners' => $partners,
+            'meta' => [
+                'current_page' => $page,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+            ],
+        ], 'Lấy top partner thành công');
     }
 
     public function topOpponents(Request $request): JsonResponse
     {
         $userId = $request->query('user_id') ? (int) $request->query('user_id') : auth()->id();
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = min(50, max(1, (int) $request->query('per_page', 10)));
 
-        $stats = $this->partnerService->getTopOpponents($userId);
+        $result = $this->partnerService->getTopOpponents($userId, $page, $perPage);
 
-        if (empty($stats)) {
-            return ResponseHelper::success(['opponents' => []], 'Không có opponent nào');
+        if (empty($result['data'])) {
+            return ResponseHelper::success([
+                'opponents' => [],
+                'meta' => ['current_page' => $page, 'last_page' => 1, 'per_page' => $perPage, 'total' => 0],
+            ], 'Không có opponent nào');
         }
 
-        $userIds = collect($stats)->pluck('user_id')->all();
+        $userIds = collect($result['data'])->pluck('user_id')->all();
         $users = User::with(['sports.sport', 'sports.scores', 'clubs'])
             ->whereIn('id', $userIds)
             ->get()
             ->keyBy('id');
 
-        $result = collect($stats)->map(function ($stat) use ($users) {
+        $opponents = collect($result['data'])->map(function ($stat) use ($users) {
             $user = $users->get($stat['user_id']);
             return [
                 'user'          => $user ? (new UserResource($user))->resolve() : null,
@@ -72,6 +93,17 @@ class PartnerController extends Controller
             ];
         })->filter(fn($item) => $item['user'] !== null)->values();
 
-        return ResponseHelper::success(['opponents' => $result], 'Lấy top opponent thành công');
+        $total = $result['total'];
+        $lastPage = (int) ceil($total / $perPage);
+
+        return ResponseHelper::success([
+            'opponents' => $opponents,
+            'meta' => [
+                'current_page' => $page,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+            ],
+        ], 'Lấy top opponent thành công');
     }
 }
