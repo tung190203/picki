@@ -574,18 +574,7 @@ class UserMatchStatsController extends Controller
             ->groupBy('mini_match_id')
             ->map(fn($col) => $col->first());
 
-        // Quick match IDs để load vndupr
-        $qmHistories = MatchHistory::where('user_id', $userId)
-            ->whereNotNull('quick_match_id')
-            ->get()
-            ->keyBy('quick_match_id');
-        $qmIds = $qmHistories->keys();
-
-        $vnduprByQm = VnduprHistory::where('user_id', $userId)
-            ->whereIn('quick_match_id', $qmIds)
-            ->get()
-            ->groupBy('quick_match_id')
-            ->map(fn($col) => $col->first());
+        // Quick match IDs (vndupr không được ghi cho quick match nên bỏ qua)
 
         // ========== TEAM MEMBERS CHO MINI MATCHES (TEAM-BASED) ==========
         $miniTeamMembersByTeam = DB::table('mini_team_members')
@@ -959,9 +948,7 @@ class UserMatchStatsController extends Controller
                     'match_date' => $playedAt,
                     'created_at' => $playedAt,
                     'match_type' => $this->getMatchTypeFromQuickMatch($qm),
-                    'vndupr_score_change' => $vnduprByQm->has($qm->id)
-                        ? round((float) $vnduprByQm[$qm->id]->score_after - (float) $vnduprByQm[$qm->id]->score_before, 3)
-                        : null,
+                    'vndupr_score_change' => null, // vndupr không được ghi cho quick match
                 ]);
             }
 
@@ -971,13 +958,25 @@ class UserMatchStatsController extends Controller
 
         // Phân trang thủ công
         $total = $allMatches->count();
+        $totalWin = $allMatches->filter(fn($m) => $m['is_win'] === true)->count();
+        $totalLose = $allMatches->filter(fn($m) => $m['is_win'] === false)->count();
+        $winRate = $total > 0 ? round(($totalWin / $total) * 100, 2) : 0;
+
         $lastPage = ceil($total / $perPage);
         $currentPage = max(1, min($request->query('page', 1), $lastPage));
 
         $offset = ($currentPage - 1) * $perPage;
         $paginatedData = $allMatches->slice($offset, $perPage)->values();
 
+        $overview = [
+            'total_matches' => $total,
+            'total_win' => $totalWin,
+            'total_lose' => $totalLose,
+            'win_rate' => $winRate,
+        ];
+
         $matches = [
+            'overview' => $overview,
             'matches' => $paginatedData
         ];
 
