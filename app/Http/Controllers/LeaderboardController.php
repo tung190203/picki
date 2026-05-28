@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\ResponseHelper;
+use App\Http\Resources\ListClubResource;
 use App\Http\Resources\TeamLeaderboardResource;
 use App\Models\Club\Club;
 use App\Models\Participant;
@@ -243,7 +244,7 @@ class LeaderboardController extends Controller
     public function getLeaderboard(Request $request)
     {
         $validated = $request->validate([
-            'scope'    => 'required|in:all,club,friend',
+            'scope'    => 'required|in:all,club,friend,allClubs',
             'club_id'  => 'required_if:scope,club|integer|exists:clubs,id',
             'per_page' => 'sometimes|integer|min:1|max:100',
             'page'     => 'sometimes|integer|min:1',
@@ -269,6 +270,21 @@ class LeaderboardController extends Controller
                     'last_page' => $leaderboardData['last_page'],
                 ],
             ], 'Lấy bảng xếp hạng thành công');
+        }
+
+        if ($scope === 'allClubs') {
+            $leaderboardData = $this->getAllClubsLeaderboard($perPage, $page);
+
+            return ResponseHelper::success([
+                'scope'       => $scope,
+                'leaderboard' => $leaderboardData['items'],
+                'meta'        => [
+                    'total'     => $leaderboardData['total'],
+                    'per_page'  => $perPage,
+                    'page'      => $page,
+                    'last_page' => $leaderboardData['last_page'],
+                ],
+            ], 'Lấy bảng xếp hạng club thành công');
         }
 
         $leaderboardData = match ($scope) {
@@ -476,6 +492,29 @@ class LeaderboardController extends Controller
             'items'    => $items,
             'total'    => $total,
             'last_page' => $lastPage,
+        ];
+    }
+
+    private function getAllClubsLeaderboard(int $perPage, int $page): array
+    {
+        $query = Club::allClubs()
+            ->with(['members.user.vnduprScores'])
+            ->get()
+            ->map(function ($club) {
+                $club->max_score = $club->members
+                    ->map(fn($m) => $m->user?->vnduprScores?->max('score_value') ?? 0)
+                    ->max() ?? 0;
+                return $club;
+            })
+            ->sortByDesc('max_score');
+
+        $total = $query->count();
+        $paginated = $query->forPage($page, $perPage)->values();
+
+        return [
+            'items'     => ListClubResource::collection($paginated),
+            'total'     => $total,
+            'last_page' => (int) ceil($total / $perPage),
         ];
     }
 }

@@ -16,6 +16,7 @@ use App\Models\MiniTournament;
 use App\Models\Sport;
 use App\Models\Tournament;
 use App\Models\User;
+use App\Models\UserSport;
 use App\Models\UserSportScore;
 use App\Models\VnduprHistory;
 use App\Services\Club\ClubService;
@@ -138,7 +139,7 @@ class HomeController extends Controller
         // B. FIX SCORE (CHUẨN leaderboard)
         // ==========================
 
-        $userSports = $user->sports()
+        $userSports = UserSport::where('user_id', $userId)
             ->with('sport', 'scores')
             ->get();
 
@@ -199,7 +200,8 @@ class HomeController extends Controller
         }
     
         // Leaderboard club
-        $leaderboardClub = Club::with(['members.user.vnduprScores'])
+        $leaderboardClub = Club::allClubs()
+            ->with(['members.user.vnduprScores'])
             ->get()
             ->map(function ($club) {
                 $club->members_max_vndupr_score = $club->members

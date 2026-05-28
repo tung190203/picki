@@ -359,4 +359,10 @@ class Club extends Model
             default => $query,
         };
     }
+
+    public function scopeAllClubs($query)
+    {
+        return $query->where('is_public', true)
+            ->where('status', '!=', ClubStatus::Suspended);
+    }
 }
