@@ -42,13 +42,8 @@ class UserPartnerService
     {
         $stats = [];
 
-        // Quick matches
         $this->accumulateQuickMatchPartners($userId, $stats);
-
-        // Tournament matches
         $this->accumulateTournamentPartners($userId, $stats);
-
-        // Mini-tournament matches
         $this->accumulateMiniTournamentPartners($userId, $stats);
 
         return collect($stats)->map(function ($data) {
@@ -64,13 +59,8 @@ class UserPartnerService
     {
         $stats = [];
 
-        // Quick matches
         $this->accumulateQuickMatchOpponents($userId, $stats);
-
-        // Tournament matches
         $this->accumulateTournamentOpponents($userId, $stats);
-
-        // Mini-tournament matches
         $this->accumulateMiniTournamentOpponents($userId, $stats);
 
         return collect($stats)->map(function ($data) {

@@ -14,7 +14,8 @@ class StoreExpenseRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'description' => 'required|string|max:65535',
+            'title' => 'sometimes|string|max:65535',
+            'description' => 'required_without:title|string|max:65535',
             'amount' => 'required|numeric|min:0.01',
             'payment_method' => 'required|in:cash,bank_transfer,qr_code,other',
             'activity_id' => ['nullable', 'exists:club_activities,id'],
