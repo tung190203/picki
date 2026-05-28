@@ -32,7 +32,7 @@ class DashboardService
         $activeMatches = MiniTournament::whereIn('status', [
             MiniTournament::STATUS_DRAFT,
             MiniTournament::STATUS_OPEN,
-        ])->count();
+        ])->where('end_time', '>', Carbon::now())->count();
 
         $thisWeekMatches = MiniTournament::where('created_at', '>=', Carbon::now()->startOfWeek())->count();
         $lastWeekMatches = MiniTournament::whereBetween('created_at', [
@@ -43,7 +43,7 @@ class DashboardService
             ? round((($thisWeekMatches - $lastWeekMatches) / $lastWeekMatches) * 100, 1)
             : ($thisWeekMatches > 0 ? 100 : 0);
 
-        $activeTournaments = Tournament::whereIn('status', [Tournament::DRAFT, Tournament::OPEN])->count();
+        $activeTournaments = Tournament::whereIn('status', [Tournament::DRAFT, Tournament::OPEN])->where('end_date', '>', Carbon::now())->count();
         $tournamentsThisMonth = Tournament::whereMonth('created_at', Carbon::now()->month)->count();
 
         $openDisputesCount = DB::table('disputes')->where('status', 'open')->count();
@@ -101,6 +101,7 @@ class DashboardService
             'miniTournamentStaffs.user',
         ])
             ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+            ->where('end_time', '>', Carbon::now())
             ->select([
                 'id',
                 'poster',
@@ -139,6 +140,7 @@ class DashboardService
             'tournamentStaffs.user',
         ])
             ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
+            ->where('end_date', '>', Carbon::now())
             ->select([
                 'id',
                 'poster',
@@ -202,6 +204,7 @@ class DashboardService
         // ---------- Top Active Locations ----------
         $topLocations = MiniTournament::join('competition_locations', 'competition_locations.id', '=', 'mini_tournaments.competition_location_id')
             ->whereIn('mini_tournaments.status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+            ->where('mini_tournaments.end_time', '>', Carbon::now())
             ->select('competition_locations.id', 'competition_locations.name', DB::raw('COUNT(*) as match_count'))
             ->groupBy('competition_locations.id', 'competition_locations.name')
             ->orderByDesc('match_count')
@@ -291,6 +294,7 @@ class DashboardService
             'miniTournamentStaffs.user',
         ])
             ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+            ->where('end_time', '>', Carbon::now())
             ->select([
                 'mini_tournaments.id',
                 'mini_tournaments.poster',
@@ -339,6 +343,7 @@ class DashboardService
             'tournamentStaffs.user',
         ])
             ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
+            ->where('end_date', '>', Carbon::now())
             ->select([
                 'tournaments.id',
                 'tournaments.poster',

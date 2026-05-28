@@ -113,7 +113,11 @@ class SearchV2Controller extends Controller
         if ($tab !== SearchFilterConfig::TAB_USER && $tab !== SearchFilterConfig::TAB_COURT) {
             $query = $query->applyTimeline($subTab, $userId);
 
-            if ($subTab === 'all') {
+            // Only apply open/past sort for tournament tabs (TAB_MATCH, TAB_TOURNAMENT)
+            // TAB_CLUB and TAB_COURT don't have end_date/end_time columns
+            $isTournamentTab = $tab === SearchFilterConfig::TAB_MATCH || $tab === SearchFilterConfig::TAB_TOURNAMENT;
+
+            if ($subTab === 'all' && $isTournamentTab) {
                 $isMiniTournament = $tab === SearchFilterConfig::TAB_MATCH;
                 $endColumn = $isMiniTournament ? 'end_time' : 'end_date';
                 $startColumn = $isMiniTournament ? 'start_time' : 'start_date';
@@ -121,13 +125,12 @@ class SearchV2Controller extends Controller
                 // Only open tournaments
                 $query = $query
                     ->where(function ($q) use ($endColumn) {
-                        $q->where($endColumn, '>=', now())
-                            ->orWhereNull($endColumn);
+                        $q->whereRaw("COALESCE({$endColumn}, DATE_ADD(NOW(), INTERVAL 1 YEAR)) >= NOW()");
                     })
                     ->orderBy($startColumn, 'asc');
             }
 
-            if ($subTab === 'mine') {
+            if ($subTab === 'mine' && $isTournamentTab) {
                 $isMiniTournament = $tab === SearchFilterConfig::TAB_MATCH;
                 $endColumn = $isMiniTournament ? 'end_time' : 'end_date';
                 $startColumn = $isMiniTournament ? 'start_time' : 'start_date';
