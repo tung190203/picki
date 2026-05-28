@@ -15,26 +15,38 @@ class UserPartnerService
 {
     private const SPORT_ID = 1;
 
-    public function getTopPartners(int $userId, int $limit = 3): array
+    public function getTopPartners(int $userId, int $page = 1, int $perPage = 10): array
     {
         $stats = $this->buildPartnerStats($userId);
 
-        return $stats
+        $sorted = $stats
             ->sortByDesc(fn($p) => [$p['win_rate'], $p['total_matches']])
-            ->take($limit)
-            ->values()
-            ->all();
+            ->values();
+
+        $total = $sorted->count();
+        $offset = ($page - 1) * $perPage;
+
+        return [
+            'data' => $sorted->slice($offset, $perPage)->values()->all(),
+            'total' => $total,
+        ];
     }
 
-    public function getTopOpponents(int $userId, int $limit = 3): array
+    public function getTopOpponents(int $userId, int $page = 1, int $perPage = 10): array
     {
         $stats = $this->buildOpponentStats($userId);
 
-        return $stats
+        $sorted = $stats
             ->sortByDesc(fn($o) => [$o['win_rate'], $o['total_matches']])
-            ->take($limit)
-            ->values()
-            ->all();
+            ->values();
+
+        $total = $sorted->count();
+        $offset = ($page - 1) * $perPage;
+
+        return [
+            'data' => $sorted->slice($offset, $perPage)->values()->all(),
+            'total' => $total,
+        ];
     }
 
     private function buildPartnerStats(int $userId): Collection
