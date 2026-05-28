@@ -101,6 +101,7 @@ class SearchV2Controller extends Controller
 
             SearchFilterConfig::TAB_CLUB => Club::withListRelations()
                 ->with(['creator', 'members'])
+                ->where('is_public', true)
                 ->filter($filters),
 
             SearchFilterConfig::TAB_COURT => CompetitionLocation::withFullRelations()
