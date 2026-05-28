@@ -19,7 +19,7 @@ class PartnerController extends Controller
     {
         $userId = $request->query('user_id') ? (int) $request->query('user_id') : auth()->id();
         $page = max(1, (int) $request->query('page', 1));
-        $perPage = min(50, max(1, (int) $request->query('per_page', 10)));
+        $perPage = 3; // Luôn chỉ lấy top 3
 
         $result = $this->partnerService->getTopPartners($userId, $page, $perPage);
 
@@ -58,14 +58,14 @@ class PartnerController extends Controller
                 'per_page' => $perPage,
                 'total' => $total,
             ],
-        ], 'Lấy top partner thành công');
+        ], 'Lấy top 3 partner thành công');
     }
 
     public function topOpponents(Request $request): JsonResponse
     {
         $userId = $request->query('user_id') ? (int) $request->query('user_id') : auth()->id();
         $page = max(1, (int) $request->query('page', 1));
-        $perPage = min(50, max(1, (int) $request->query('per_page', 10)));
+        $perPage = 3; // Luôn chỉ lấy top 3
 
         $result = $this->partnerService->getTopOpponents($userId, $page, $perPage);
 
@@ -104,6 +104,6 @@ class PartnerController extends Controller
                 'per_page' => $perPage,
                 'total' => $total,
             ],
-        ], 'Lấy top opponent thành công');
+        ], 'Lấy top 3 opponent thành công');
     }
 }
