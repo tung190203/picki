@@ -37,7 +37,7 @@ class UserPartnerService
         $stats = $this->buildOpponentStats($userId);
 
         $sorted = $stats
-            ->sortByDesc(fn($o) => [$o['win_rate'], $o['total_matches']])
+            ->sortBy(fn($o) => [$o['win_rate'], -$o['total_matches']])
             ->values();
 
         $total = $sorted->count();
