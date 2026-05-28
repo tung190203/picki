@@ -6,6 +6,10 @@ use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MiniTeamResource;
 use App\Http\Resources\TeamResource;
+use App\Models\MiniParticipant;
+use App\Models\MiniTournament;
+use App\Models\TeamRanking;
+use App\Models\User;
 use App\Support\MiniTournamentTeamMemberHydrator;
 use App\Support\TournamentTeamMemberHydrator;
 use Illuminate\Http\Request;
@@ -665,7 +669,7 @@ class UserMatchStatsController extends Controller
             }
 
             $allMatches->push([
-                'type' => 'match',
+                'type' => 'tournament',
                 'format' => 'team',
                 'id' => $match->id,
                 'tournament_id' => $match->tournamentType->tournament->id ?? null,
@@ -685,7 +689,9 @@ class UserMatchStatsController extends Controller
                 'is_win' => $is_win,
                 'status' => $match->status,
                 'match_date' => $match->match_date,
-                'created_at' => $match->updated_at
+                'created_at' => $match->updated_at,
+                'match_type' => $this->getMatchTypeFromTournament($match),
+                'stats' => $this->getTournamentStats($userId, $sportId, $match, $myTeamId),
             ]);
         }
 
@@ -772,7 +778,7 @@ class UserMatchStatsController extends Controller
             }
 
             $allMatches->push([
-                'type' => 'mini_match',
+                'type' => 'mini_tournament',
                 'format' => 'team',
                 'id' => $mini->id,
                 'mini_tournament_id' => $mini->miniTournament->id ?? null,
@@ -786,7 +792,9 @@ class UserMatchStatsController extends Controller
                 'is_win' => $is_win,
                 'status' => $mini->status,
                 'match_date' => $mini->match_date,
-                'created_at' => $mini->updated_at
+                'created_at' => $mini->updated_at,
+                'match_type' => $this->getMatchTypeFromMiniTournament($mini),
+                'stats' => $this->getMiniTournamentStats($userId, $sportId, $mini, $myTeamId),
             ]);
         }
 
@@ -912,6 +920,8 @@ class UserMatchStatsController extends Controller
                     'status' => $qm->status,
                     'match_date' => $playedAt,
                     'created_at' => $playedAt,
+                    'match_type' => $this->getMatchTypeFromQuickMatch($qm),
+                    'stats' => $this->getQuickMatchStats($userId, $sportId, $qm->winner === $teamSide),
                 ]);
             }
 
@@ -953,5 +963,252 @@ class UserMatchStatsController extends Controller
         }
 
         return new TeamResource($team);
+    }
+
+    // ========== HELPERS CHO STATS ==========
+
+    private function getMatchTypeFromTournament(?Matches $match): string
+    {
+        $playerPerTeam = $match?->tournamentType?->tournament?->player_per_team;
+        return $playerPerTeam == 1 ? 'single' : 'double';
+    }
+
+    private function getMatchTypeFromMiniTournament(?MiniMatch $mini): string
+    {
+        $format = $mini?->miniTournament?->format;
+        return $format == MiniTournament::FORMAT_SINGLE ? 'single' : 'double';
+    }
+
+    private function getMatchTypeFromQuickMatch(QuickMatch $qm): string
+    {
+        $count = count($qm->team_a ?? []);
+        return $count == 1 ? 'single' : 'double';
+    }
+
+    private function getTournamentStats(int $userId, int $sportId, Matches $match, int $myTeamId): array
+    {
+        $tournamentType = $match->tournamentType;
+        $tournament = $tournamentType?->tournament;
+        $typeId = $tournamentType?->id;
+        $tournamentId = $tournament?->id;
+        $isCompleted = (int) $tournament?->status === 3;
+
+        // total_win
+        $totalWin = $typeId ? (int) DB::table('matches')
+            ->where('tournament_type_id', $typeId)
+            ->where('status', 'completed')
+            ->where('winner_id', $myTeamId)
+            ->where(function ($q) use ($myTeamId) {
+                $q->where('home_team_id', $myTeamId)->orWhere('away_team_id', $myTeamId);
+            })
+            ->count() : 0;
+
+        // total_lose
+        $totalCompleted = $typeId ? (int) DB::table('matches')
+            ->where('tournament_type_id', $typeId)
+            ->where('status', 'completed')
+            ->whereNotNull('winner_id')
+            ->where(function ($q) use ($myTeamId) {
+                $q->where('home_team_id', $myTeamId)->orWhere('away_team_id', $myTeamId);
+            })
+            ->count() : 0;
+        $totalLose = $totalCompleted - $totalWin;
+
+        // current_rating
+        $currentRating = $this->getUserRating($userId, $sportId);
+        $currentRank = $this->getUserRank($userId, $sportId);
+
+        // rank_change
+        $rankChange = null;
+        if ($tournamentId) {
+            $participant = DB::table('participants')
+                ->where('tournament_id', $tournamentId)
+                ->where('user_id', $userId)
+                ->where('is_confirmed', 1)
+                ->first();
+            $rankChange = $participant?->rank_change;
+        }
+
+        $stats = [
+            'role' => 'participant',
+            'total_win' => $totalWin,
+            'total_lose' => $totalLose,
+            'current_rating' => $currentRating,
+            'current_rank' => $currentRank,
+        ];
+
+        if ($isCompleted) {
+            $stats['tournament_rank'] = $this->getTournamentRankForTeam($typeId, $myTeamId);
+            $stats['final_round'] = $this->getTournamentFinalRound($typeId, $myTeamId);
+            $stats['rank_change'] = $rankChange;
+        } else {
+            $stats['current_round'] = $this->getTournamentCurrentRound($typeId);
+            $stats['total_matches_left'] = $this->getTournamentMatchesLeft($typeId);
+            $stats['tournament_rank'] = $this->getTournamentRankForTeam($typeId, $myTeamId);
+        }
+
+        return $stats;
+    }
+
+    private function getTournamentRankForTeam(?int $typeId, int $myTeamId): ?int
+    {
+        if (!$typeId) {
+            return null;
+        }
+        $rank = (int) TeamRanking::where('tournament_type_id', $typeId)
+            ->where('team_id', $myTeamId)->value('rank');
+        return $rank ?: null;
+    }
+
+    private function getTournamentFinalRound(?int $typeId, int $myTeamId): ?string
+    {
+        if (!$typeId) {
+            return null;
+        }
+
+        // Round cao nhất từ matches đã completed mà team tham gia
+        $maxMatchRound = DB::table('matches')
+            ->where('tournament_type_id', $typeId)
+            ->where(function ($q) use ($myTeamId) {
+                $q->where('home_team_id', $myTeamId)->orWhere('away_team_id', $myTeamId);
+            })
+            ->where('status', 'completed')
+            ->max('round');
+
+        // Fallback từ tournament_rank (team bị loại sớm không có match ở vòng cao)
+        $rank = $this->getTournamentRankForTeam($typeId, $myTeamId);
+        $minRoundByRank = null;
+
+        if ($rank !== null) {
+            $minRoundByRank = match (true) {
+                $rank === 1 => 4,          // Vô địch -> Chung kết
+                $rank === 2 => 4,          // Á quân -> Chung kết
+                $rank === 3, $rank === 4 => 3, // Hạng 3/4 -> Bán kết
+                $rank <= 8 => 2,           // Tứ kết
+                $rank <= 16 => 1,          // Vòng 1/8
+                default => 0,              // Vòng bảng
+            };
+        }
+
+        // Dùng round cao hơn giữa match thực tế và suy ra từ rank
+        $effectiveRound = max($maxMatchRound ?? -1, $minRoundByRank ?? -1);
+
+        if ($effectiveRound < 0) {
+            return null;
+        }
+
+        return $this->roundName($effectiveRound ?: null);
+    }
+
+    private function getTournamentCurrentRound(?int $typeId): ?string
+    {
+        if (!$typeId) {
+            return null;
+        }
+        $maxRound = DB::table('matches')
+            ->where('tournament_type_id', $typeId)
+            ->where('status', '!=', 'completed')
+            ->max('round');
+        return $this->roundName($maxRound);
+    }
+
+    private function getTournamentMatchesLeft(?int $typeId): int
+    {
+        if (!$typeId) {
+            return 0;
+        }
+        return (int) DB::table('matches')
+            ->where('tournament_type_id', $typeId)
+            ->where('status', 'pending')
+            ->count();
+    }
+
+    private function getMiniTournamentStats(int $userId, int $sportId, MiniMatch $mini, int $myTeamId): array
+    {
+        $miniTournament = $mini->miniTournament;
+        $miniTournamentId = $miniTournament?->id;
+
+        $allMatchIds = DB::table('mini_matches')
+            ->where('mini_tournament_id', $miniTournamentId)
+            ->where('status', 'completed')
+            ->whereNotNull('team_win_id')
+            ->pluck('id');
+
+        $totalWin = 0;
+        $totalLose = 0;
+
+        if ($allMatchIds->isNotEmpty()) {
+            $miniAllResults = MiniMatchResult::whereIn('mini_match_id', $allMatchIds)->get()->groupBy('mini_match_id');
+            foreach ($miniAllResults as $matchId => $results) {
+                $winnerId = DB::table('mini_matches')->where('id', $matchId)->value('team_win_id');
+                if ($winnerId == $myTeamId) {
+                    $totalWin++;
+                } else {
+                    $totalLose++;
+                }
+            }
+        }
+
+        $currentRating = $this->getUserRating($userId, $sportId);
+        $currentRank = $this->getUserRank($userId, $sportId);
+
+        // rank_change
+        $rankChange = null;
+        if ($miniTournamentId) {
+            $rankChange = (int) DB::table('mini_participants')
+                ->where('mini_tournament_id', $miniTournamentId)
+                ->where('user_id', $userId)
+                ->where('is_confirmed', 1)
+                ->value('rank_change');
+        }
+
+        return [
+            'role' => 'participant',
+            'total_win' => $totalWin,
+            'total_lose' => $totalLose,
+            'current_rating' => $currentRating,
+            'current_rank' => $currentRank,
+            'rank_change' => $rankChange ?: null,
+        ];
+    }
+
+    private function getQuickMatchStats(int $userId, int $sportId, bool $isWin): array
+    {
+        return [
+            'role' => 'participant',
+            'total_win' => $isWin ? 1 : 0,
+            'total_lose' => $isWin ? 0 : 1,
+            'current_rating' => $this->getUserRating($userId, $sportId),
+            'current_rank' => $this->getUserRank($userId, $sportId),
+        ];
+    }
+
+    private function getUserRating(int $userId, int $sportId): ?float
+    {
+        $user = User::find($userId);
+        if (!$user) { return null; }
+        $score = $user->vnduprScoresBySport($sportId)->max('score_value');
+        return $score ? (float) $score : null;
+    }
+
+    private function getUserRank(int $userId, int $sportId): ?int
+    {
+        $user = User::find($userId);
+        if (!$user) { return null; }
+        $rank = $user->getVNRank($sportId);
+        return $rank ? (int) $rank : null;
+    }
+
+    private function roundName(?int $round): ?string
+    {
+        $map = [
+            0 => 'Vòng bảng',
+            1 => 'Vòng 1/8',
+            2 => 'Tứ kết',
+            3 => 'Bán kết',
+            4 => 'Chung kết',
+            5 => 'Tranh hạng 3',
+        ];
+        return $map[$round] ?? ($round !== null ? "Vòng {$round}" : null);
     }
 }
