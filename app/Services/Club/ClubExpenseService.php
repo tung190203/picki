@@ -5,6 +5,7 @@ namespace App\Services\Club;
 use App\Enums\ClubWalletTransactionDirection;
 use App\Enums\ClubWalletTransactionSourceType;
 use App\Enums\ClubWalletTransactionStatus;
+use App\Enums\PaymentMethod;
 use App\Models\Club\Club;
 use App\Models\Club\ClubActivity;
 use App\Models\Club\ClubExpense;
@@ -47,9 +48,9 @@ class ClubExpenseService
         return $query->orderBy('spent_at', 'desc')->paginate($perPage);
     }
 
-    public function createExpense(Club $club, array $data, int $userId): ClubExpense
+    public function createExpense(Club $club, array $data, int $userId, bool $skipPermissionCheck = false): ClubExpense
     {
-        if (!$club->canManageFinance($userId)) {
+        if (!$skipPermissionCheck && !$club->canManageFinance($userId)) {
             throw new \Exception('Chỉ admin/manager/secretary/treasurer mới có quyền tạo chi phí');
         }
 
@@ -63,13 +64,14 @@ class ClubExpenseService
             }
         }
 
-        $description = (string) ($data['description'] ?? $data['title'] ?? '');
+        $description = (string) ($data['title'] ?? $data['description'] ?? '');
         $activityId = $data['activity_id'] ?? null;
 
         return DB::transaction(function () use ($club, $data, $userId, $description, $activityId) {
             $expense = ClubExpense::create([
                 'club_id' => $club->id,
                 'club_activity_id' => $activityId,
+                'mini_tournament_id' => $data['mini_tournament_id'] ?? null,
                 'title' => $description,
                 'amount' => $data['amount'],
                 'spent_by' => $userId,
@@ -89,7 +91,7 @@ class ClubExpenseService
                 'amount' => $data['amount'],
                 'source_type' => ClubWalletTransactionSourceType::Expense,
                 'source_id' => $expense->id,
-                'payment_method' => $data['payment_method'],
+                'payment_method' => $data['payment_method'] ?? PaymentMethod::Other,
                 'status' => ClubWalletTransactionStatus::Confirmed,
                 'reference_code' => $data['reference_code'] ?? null,
                 'description' => $description,
