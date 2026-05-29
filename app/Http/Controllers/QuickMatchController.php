@@ -8,6 +8,8 @@ use App\Http\Resources\CompetitionLocationResource;
 use App\Http\Resources\QuickMatchResource;
 use App\Models\MatchHistory;
 use App\Models\QuickMatch;
+use App\Models\User;
+use App\Models\VnduprHistory;
 use App\Notifications\QuickMatchInvitationNotification;
 use App\Services\ImageOptimizationService;
 use Illuminate\Http\JsonResponse;
@@ -38,6 +40,7 @@ class QuickMatchController extends Controller
             'scheduled_at' => 'nullable|date',
             'competition_location_id' => 'nullable|integer|exists:competition_locations,id',
             'is_referee_scoring' => 'nullable|boolean',
+            'sport_id' => 'nullable|integer|exists:sports,id',
             'score' => 'required|array',
             'score.team_a' => 'required|array',
             'score.team_a.*' => 'integer|min:0',
@@ -82,16 +85,19 @@ class QuickMatchController extends Controller
                 'scheduled_at' => $validated['scheduled_at'] ?? null,
                 'competition_location_id' => $validated['competition_location_id'] ?? null,
                 'is_referee_scoring' => $isRefereeScoring,
+                'sport_id' => $validated['sport_id'] ?? QuickMatch::DEFAULT_SPORT_ID,
             ];
 
             $quickMatch = QuickMatch::create($data);
 
             if ($isSuperAdmin) {
                 $this->saveMatchHistories($quickMatch); // tất cả players
+                $this->processVnduprScoring($quickMatch);
                 Broadcast::event(new QuickMatchConfirmed($quickMatch));
             } elseif ($isRefereeScoring) {
                 // Luồng trọng tài nhập điểm: chỉ lưu vào profile thằng user request
                 $this->saveMatchHistories($quickMatch, [$creator->id]);
+                $this->processVnduprScoring($quickMatch, [$creator->id]);
                 Broadcast::event(new QuickMatchConfirmed($quickMatch));
             } else {
                 // Gửi notification cho team B
@@ -166,6 +172,7 @@ class QuickMatchController extends Controller
                 'confirmed_at' => now(),
             ]);
             $this->saveMatchHistories($quickMatch);
+            $this->processVnduprScoring($quickMatch);
         });
 
         $quickMatch->load('creator', 'competitionLocation');
@@ -209,12 +216,13 @@ class QuickMatchController extends Controller
         DB::transaction(function () use ($quickMatch, $score) {
             $quickMatch->update(['score' => $score]);
 
-            // Khi có score mới từ trạng thái pending -> confirmed, chuyển sang completed luôn
             $winner = $quickMatch->determineWinner($score);
             $quickMatch->update([
                 'status' => QuickMatch::STATUS_COMPLETED,
                 'winner' => $winner,
             ]);
+            $this->saveMatchHistories($quickMatch);
+            $this->processVnduprScoring($quickMatch);
         });
 
         $quickMatch->refresh();
@@ -246,6 +254,159 @@ class QuickMatchController extends Controller
                     'played_at' => $playedAt,
                 ]
             );
+        }
+    }
+
+    private function processVnduprScoring(QuickMatch $quickMatch, ?array $targetUserIds = null): void
+    {
+        if (!$quickMatch->shouldCalculateVndupr()) {
+            return;
+        }
+
+        $allMemberIds = $targetUserIds ?? $quickMatch->allPlayerIds();
+        $sportId = $quickMatch->sport_id ?? QuickMatch::DEFAULT_SPORT_ID;
+        $score = $quickMatch->score ?? [];
+
+        $teamAScores = $score['team_a'] ?? [];
+        $teamBScores = $score['team_b'] ?? [];
+        $t1Score = array_sum($teamAScores);
+        $t2Score = array_sum($teamBScores);
+        $totalScore = $t1Score + $t2Score;
+
+        $winnerTeamId = $quickMatch->winner;
+        $S_match_t1 = $winnerTeamId === QuickMatch::WINNER_TEAM_A ? 1.0 : 0.0;
+        $S_match_t2 = $winnerTeamId === QuickMatch::WINNER_TEAM_B ? 1.0 : 0.0;
+        $S_points_t1 = $totalScore > 0 ? $t1Score / $totalScore : 0;
+        $S_points_t2 = $totalScore > 0 ? $t2Score / $totalScore : 0;
+        $S_t1 = (0.5 * $S_match_t1) + (0.5 * $S_points_t1);
+        $S_t2 = (0.5 * $S_match_t2) + (0.5 * $S_points_t2);
+
+        $userSportRecords = DB::table('user_sport')
+            ->whereIn('user_id', $allMemberIds)
+            ->where('sport_id', $sportId)
+            ->get()
+            ->keyBy('user_id');
+
+        $userSportIds = $userSportRecords->pluck('id')->values();
+
+        $scoreMap = DB::table('user_sport_scores')
+            ->whereIn('user_sport_id', $userSportIds)
+            ->where('score_type', 'vndupr_score')
+            ->get()
+            ->keyBy('user_sport_id');
+
+        $historyMap = VnduprHistory::whereIn('user_id', $allMemberIds)
+            ->orderByDesc('id')
+            ->take(15 * count($allMemberIds))
+            ->get()
+            ->groupBy('user_id')
+            ->map(fn($col) => $col->sortBy('id')->values());
+
+        $calcAvgRating = function (array $memberIds) use ($userSportRecords, $scoreMap) {
+            $total = 0;
+            $count = 0;
+            foreach ($memberIds as $userId) {
+                $userSport = $userSportRecords->get($userId);
+                if ($userSport) {
+                    $scoreRecord = $scoreMap->get($userSport->id);
+                    if ($scoreRecord) {
+                        $total += (float) $scoreRecord->score_value;
+                        $count++;
+                    }
+                }
+            }
+            return $count > 0 ? $total / $count : 0;
+        };
+
+        $teamAIds = $quickMatch->team_a ?? [];
+        $teamBIds = $quickMatch->team_b ?? [];
+        $R_t1 = $calcAvgRating($teamAIds);
+        $R_t2 = $calcAvgRating($teamBIds);
+
+        $E_t1 = 1 / (1 + pow(10, ($R_t2 - $R_t1)));
+        $E_t2 = 1 / (1 + pow(10, ($R_t1 - $R_t2)));
+
+        $teamData = [
+            ['memberIds' => $teamAIds, 'S' => $S_t1, 'E' => $E_t1],
+            ['memberIds' => $teamBIds, 'S' => $S_t2, 'E' => $E_t2],
+        ];
+
+        DB::table('users')->whereIn('id', $allMemberIds)->increment('total_matches');
+
+        $vnduprHistoryRecords = [];
+        $scoreUpserts = [];
+        $matchHistoryUpdates = [];
+
+        foreach ($teamData as $data) {
+            foreach ($data['memberIds'] as $userId) {
+                $user = User::find($userId);
+                if (!$user) {
+                    continue;
+                }
+
+                $userSport = $userSportRecords->get($userId);
+                $scoreRecord = $userSport ? $scoreMap->get($userSport->id) : null;
+                $R_old = $scoreRecord ? (float) $scoreRecord->score_value : 0;
+
+                $history = $historyMap->get($userId, collect());
+
+                $K = 0.3;
+                if ($user->is_anchor) {
+                    $K = 0.1;
+                } else {
+                    if ($user->total_matches <= 10) {
+                        $K = 1;
+                    } elseif ($user->total_matches <= 50) {
+                        $K = 0.6;
+                    }
+                }
+
+                if ($history->count() >= 2) {
+                    if (($history->first()->score_before - $history->last()->score_after) > 0.5) {
+                        $K = 1;
+                    }
+                }
+
+                $R_new = $R_old + (0.2 * $K * ($data['S'] - $data['E']));
+                $scoreChange = $R_new - $R_old;
+
+                $vnduprHistoryRecords[] = [
+                    'user_id' => $userId,
+                    'quick_match_id' => $quickMatch->id,
+                    'score_before' => $R_old,
+                    'score_after' => $R_new,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+
+                if ($userSport) {
+                    $scoreUpserts[] = [
+                        'user_sport_id' => $userSport->id,
+                        'score_type' => 'vndupr_score',
+                        'score_value' => $R_new,
+                        'updated_at' => now(),
+                    ];
+                }
+
+                $matchHistoryUpdates[$userId] = $scoreChange;
+            }
+        }
+
+        if (!empty($vnduprHistoryRecords)) {
+            VnduprHistory::insert($vnduprHistoryRecords);
+        }
+
+        foreach ($scoreUpserts as $upsert) {
+            DB::table('user_sport_scores')->updateOrInsert(
+                ['user_sport_id' => $upsert['user_sport_id'], 'score_type' => $upsert['score_type']],
+                ['score_value' => $upsert['score_value'], 'updated_at' => $upsert['updated_at']]
+            );
+        }
+
+        foreach ($matchHistoryUpdates as $userId => $scoreChange) {
+            MatchHistory::where('user_id', $userId)
+                ->where('quick_match_id', $quickMatch->id)
+                ->update(['vndupr_score_change' => $scoreChange]);
         }
     }
 

@@ -956,7 +956,7 @@ class UserMatchStatsController extends Controller
                     'match_date' => $playedAt,
                     'created_at' => $playedAt,
                     'match_type' => $this->getMatchTypeFromQuickMatch($qm),
-                    'vndupr_score_change' => null, // vndupr không được ghi cho quick match
+                    'vndupr_score_change' => $history?->vndupr_score_change,
                 ]);
             }
 
