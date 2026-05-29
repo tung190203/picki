@@ -12,10 +12,12 @@ class MatchHistory extends Model
         'quick_match_id',
         'team_side',
         'played_at',
+        'vndupr_score_change',
     ];
 
     protected $casts = [
         'played_at' => 'datetime',
+        'vndupr_score_change' => 'decimal:2',
     ];
 
     public function user(): BelongsTo
