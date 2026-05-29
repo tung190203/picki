@@ -21,6 +21,8 @@ class MiniTournamentManagementService
 
     public function search(int $page, int $limit, mixed $status, ?string $keyword): LengthAwarePaginator
     {
+        $nowVN = now('Asia/Ho_Chi_Minh');
+
         $query = MiniTournament::with([
             'competitionLocation',
             'sport',
@@ -30,6 +32,23 @@ class MiniTournamentManagementService
             'miniTournamentStaffs.user',
         ])
             ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+            ->where(function ($q) use ($nowVN) {
+                // Chỉ hiển thị kèo chưa bắt đầu (start_time > now) HOẶC đang trong thời gian diễn ra (start_time <= now < end_time)
+                $q->where('start_time', '>', $nowVN)
+                    ->orWhere(function ($q2) use ($nowVN) {
+                        $q2->where('start_time', '<=', $nowVN)
+                            ->where(function ($q3) use ($nowVN) {
+                                // Có end_time: so sánh với end_time
+                                $q3->whereNotNull('end_time')
+                                    ->where('end_time', '>', $nowVN);
+                            })
+                            ->orWhere(function ($q3) use ($nowVN) {
+                                // Không có end_time: vẫn hiển thị nếu start_time trong ngày hôm nay
+                                $q3->whereNull('end_time')
+                                    ->whereDate('start_time', $nowVN->toDateString());
+                            });
+                    });
+            })
             ->select([
                 'mini_tournaments.id',
                 'mini_tournaments.poster',
