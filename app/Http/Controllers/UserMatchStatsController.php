@@ -552,6 +552,14 @@ class UserMatchStatsController extends Controller
             ->filter(fn($m) => $m->miniTournament &&
                 $m->miniTournament->sport_id == $sportId);
 
+        // Load play_mode cho mini_tournaments (batch để tránh N+1)
+        $miniPlayModes = collect();
+        if ($minis->isNotEmpty()) {
+            $miniPlayModes = DB::table('mini_tournaments')
+                ->whereIn('id', $minis->pluck('mini_tournament_id')->filter()->unique())
+                ->pluck('play_mode', 'id');
+        }
+
         // Lấy kết quả
         $matchResults = MatchResult::whereIn('match_id', $matches->pluck('id'))
             ->get()
@@ -691,7 +699,7 @@ class UserMatchStatsController extends Controller
                 : $tournamentName;
 
             $allMatches->push([
-                'type' => 'tournament',
+                'type_text' => 'Giải đấu',
                 'format' => 'team',
                 'id' => $match->id,
                 'tournament_id' => $match->tournamentType->tournament->id ?? null,
@@ -805,7 +813,7 @@ class UserMatchStatsController extends Controller
                 : null;
 
             $allMatches->push([
-                'type' => 'mini_tournament',
+                'type_text' => $this->getTypeText('mini_tournament', $miniPlayModes[$mini->mini_tournament_id] ?? null),
                 'format' => 'team',
                 'id' => $mini->id,
                 'mini_tournament_id' => $mini->miniTournament->id ?? null,
@@ -897,7 +905,7 @@ class UserMatchStatsController extends Controller
                 $teamSide = $isMyTeamA ? 'team_a' : 'team_b';
 
                 $allMatches->push([
-                    'type' => 'quick_match',
+                    'type_text' => 'Quick Match',
                     'format' => 'quick',
                     'id' => $qm->id,
                     'match_name' => $qm->name,
@@ -1038,5 +1046,25 @@ class UserMatchStatsController extends Controller
             6 => 'Tranh hạng 3',
         ];
         return $map[$round] ?? "Vòng {$round}";
+    }
+
+    private function getTypeText(string $type, mixed $playMode = null): string
+    {
+        if ($type !== 'mini_tournament') {
+            return match ($type) {
+                'tournament' => 'Giải đấu',
+                'quick_match' => 'Quick Match',
+                default => $type,
+            };
+        }
+
+        $mode = $playMode !== null ? (int) $playMode : null;
+
+        return match ($mode) {
+            MiniTournament::PLAY_MODE_CASUAL => 'Vui vẻ',
+            MiniTournament::PLAY_MODE_COMPETITION => 'Thi đấu',
+            MiniTournament::PLAY_MODE_PRACTICE => 'Luyện tập',
+            default => 'mini_tournament',
+        };
     }
 }
