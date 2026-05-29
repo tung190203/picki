@@ -663,15 +663,26 @@ class UserController extends Controller
             ->orderBy('start_date', 'ASC')
             ->first();
 
-        $tournaments = $query->get();
+        $page = (int) ($validated['page'] ?? 1);
+        $perPage = min(200, max(1, (int) ($validated['per_page'] ?? 15)));
+
+        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+        $tournaments = UserTournamentResource::collection($paginator->getCollection());
 
         $data = [
             'overview'            => $overview,
             'current_tournament' => $ongoingTournament ? new UserTournamentResource($ongoingTournament) : null,
-            'tournaments'        => UserTournamentResource::collection($tournaments),
+            'tournaments'        => $tournaments,
         ];
 
-        return ResponseHelper::success($data, 'Lấy lịch sử giải đấu thành công');
+        $meta = [
+            'current_page' => $paginator->currentPage(),
+            'last_page'    => $paginator->lastPage(),
+            'per_page'    => $paginator->perPage(),
+            'total'       => $paginator->total(),
+        ];
+
+        return ResponseHelper::paginated($data, $meta, 'Lấy lịch sử giải đấu thành công');
     }
 
     /**
@@ -775,15 +786,26 @@ class UserController extends Controller
             ->orderBy('start_time', 'ASC')
             ->first();
 
-        $miniTournaments = $query->get();
+        $page = (int) ($validated['page'] ?? 1);
+        $perPage = min(200, max(1, (int) ($validated['per_page'] ?? 15)));
+
+        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+        $miniTournaments = UserMiniTournamentResource::collection($paginator->getCollection());
 
         $data = [
-            'overview'              => $overview,
+            'overview'                 => $overview,
             'current_mini_tournament' => $ongoingMiniTournament ? new UserMiniTournamentResource($ongoingMiniTournament) : null,
-            'mini_tournaments'     => UserMiniTournamentResource::collection($miniTournaments),
+            'mini_tournaments'        => $miniTournaments,
         ];
 
-        return ResponseHelper::success($data, 'Lấy lịch sử mini tournament thành công');
+        $meta = [
+            'current_page' => $paginator->currentPage(),
+            'last_page'    => $paginator->lastPage(),
+            'per_page'    => $paginator->perPage(),
+            'total'       => $paginator->total(),
+        ];
+
+        return ResponseHelper::paginated($data, $meta, 'Lấy lịch sử mini tournament thành công');
     }
 
     private function getUserTournamentOverview(int $userId, bool $isOwnProfile): array
