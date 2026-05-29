@@ -14,6 +14,7 @@ class VnduprHistory extends Model
         'user_id',
         'match_id',
         'mini_match_id',
+        'quick_match_id',
         'score_before',
         'score_after',
     ];
@@ -28,5 +29,9 @@ class VnduprHistory extends Model
     public function miniMatch()
     {
         return $this->belongsTo(MiniMatch::class, 'mini_match_id');
+    }
+    public function quickMatch()
+    {
+        return $this->belongsTo(QuickMatch::class, 'quick_match_id');
     }
 }

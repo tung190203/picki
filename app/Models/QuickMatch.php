@@ -27,6 +27,7 @@ class QuickMatch extends Model
         'scheduled_at',
         'competition_location_id',
         'is_referee_scoring',
+        'sport_id',
     ];
 
     protected $casts = [
@@ -36,6 +37,7 @@ class QuickMatch extends Model
         'confirmed_at' => 'datetime',
         'scheduled_at' => 'datetime',
         'is_referee_scoring' => 'boolean',
+        'sport_id' => 'integer',
     ];
 
     const STATUS_PENDING = 'pending';
@@ -43,6 +45,8 @@ class QuickMatch extends Model
 
     const MATCH_TYPE_RANK = 'rank';
     const MATCH_TYPE_CASUAL = 'casual';
+
+    const DEFAULT_SPORT_ID = 1;
 
     const WINNER_TEAM_A = 'team_a';
     const WINNER_TEAM_B = 'team_b';
@@ -126,5 +130,15 @@ class QuickMatch extends Model
     public function isEditable(): bool
     {
         return $this->status === self::STATUS_PENDING;
+    }
+
+    public function isRankMatch(): bool
+    {
+        return $this->match_type === self::MATCH_TYPE_RANK;
+    }
+
+    public function shouldCalculateVndupr(): bool
+    {
+        return $this->isRankMatch() && $this->status === self::STATUS_COMPLETED;
     }
 }
