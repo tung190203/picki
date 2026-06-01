@@ -225,6 +225,15 @@ class MiniParticipantController extends Controller
 
         $this->checkMaxPlayers($miniTournament);
 
+        $declined = $miniTournament->participants()
+            ->where('user_id', $validated['user_id'])
+            ->whereNotNull('declined_at')
+            ->exists();
+
+        if ($declined) {
+            return ResponseHelper::error('Người chơi này đã từ chối lời mời trong kèo đấu này trước đó.', 400);
+        }
+
         $exists = $miniTournament->participants()
             ->where('user_id', $validated['user_id'])
             ->exists();
@@ -479,7 +488,7 @@ class MiniParticipantController extends Controller
             ]
         );
 
-        $participant->delete();
+        $participant->update(['declined_at' => now()]);
 
         return ResponseHelper::success(null, 'Bạn đã từ chối lời mời tham gia kèo đấu');
     }
@@ -517,7 +526,13 @@ class MiniParticipantController extends Controller
                     ->delete();
             }
 
-            $participant->delete();
+            if ($participant->is_confirmed) {
+                // Đã confirmed → xoá record bình thường
+                $participant->delete();
+            } else {
+                // Chưa confirmed (đang chờ / invited) → ghi nhận declined
+                $participant->update(['declined_at' => now()]);
+            }
         });
 
         $participant->user?->notify(
@@ -698,7 +713,18 @@ class MiniParticipantController extends Controller
 
         foreach ($validated['user_ids'] as $userId) {
             try {
-                // Check if user already exists
+                // Check: user đã từ chối lời mời trong kèo này chưa?
+                $declined = $miniTournament->participants()
+                    ->where('user_id', $userId)
+                    ->whereNotNull('declined_at')
+                    ->exists();
+
+                if ($declined) {
+                    $errors[] = "User ID {$userId} đã từ chối lời mời trước đó";
+                    continue;
+                }
+
+                // Check if user already exists (pending or confirmed participant)
                 $exists = $miniTournament->participants()
                     ->where('user_id', $userId)
                     ->exists();
@@ -864,8 +890,7 @@ class MiniParticipantController extends Controller
             'friend_only' => 'sometimes|boolean',
             'lat'         => 'sometimes|numeric',
             'lng'         => 'sometimes|numeric',
-            'radius_start' => 'sometimes|numeric|min:1|max:200',
-            'radius_max'   => 'sometimes|numeric|min:1|max:500',
+            'radius_start' => 'sometimes|numeric|min:1|max:50',
             'source'       => 'sometimes|in:venue,user',
         ]);
 
@@ -888,34 +913,23 @@ class MiniParticipantController extends Controller
             return ResponseHelper::error('Không có thông tin toạ độ. Vui lòng truyền lat/lng hoặc đảm bảo sân đấu có toạ độ.', 422);
         }
 
+        $maxInvite = 30;
         $radiusStart = (float) ($validated['radius_start'] ?? 1);
-        $friendOnly = $validated['friend_only'] ?? false;
-        $radiusMax = (float) ($validated['radius_max'] ?? 200);
+        $radiusMax = 50.0;
         $radiusStep = 5.0;
-
-        // Tính số người cần mời = max_players - confirmed participants
-        $confirmedCount = $miniTournament->participants()
-            ->where('is_confirmed', true)
-            ->count();
-
-        $needed = $miniTournament->max_players - $confirmedCount;
-
-        if ($needed <= 0) {
-            return ResponseHelper::success([
-                'invited_count' => 0,
-                'failed_count' => 0,
-                'total_found' => 0,
-                'reached_max_radius' => false,
-                'already_full' => true,
-                'results' => [],
-            ], 'Kèo đấu đã đủ số lượng người chơi.');
-        }
+        $friendOnly = $validated['friend_only'] ?? false;
 
         // Collect IDs cần loại trừ
         $excludedUserIds = collect([
             $miniTournament->participants->pluck('user_id'),
             $miniTournament->miniTournamentStaffs->pluck('user_id'),
         ])->flatten()->filter()->unique()->toArray();
+
+        // Loại trừ user đã từ chối lời mời trong kèo này
+        $declinedUserIds = MiniParticipant::where('mini_tournament_id', $tournamentId)
+            ->whereNotNull('declined_at')
+            ->pluck('user_id')
+            ->toArray();
 
         $invitedUserIds = [];
         $failedUserIds = [];
@@ -981,8 +995,8 @@ class MiniParticipantController extends Controller
                 $query->whereNotIn('users.id', $invitedUserIds);
             }
 
-            // Exclude already invited in current run from excluded set
-            $allExcluded = array_unique(array_merge($excludedUserIds, $invitedUserIds));
+            // Exclude already invited in current run from excluded set (bao gồm cả đã declined)
+            $allExcluded = array_unique(array_merge($excludedUserIds, $invitedUserIds, $declinedUserIds));
             if (!empty($allExcluded)) {
                 $query->whereNotIn('users.id', $allExcluded);
             }
@@ -1028,19 +1042,11 @@ class MiniParticipantController extends Controller
             }
 
             foreach ($candidates as $candidate) {
-                if (count($invitedUserIds) >= $needed) {
-                    break 2;
-                }
-
-                // Check max_players one more time before inviting
-                $currentConfirmed = $miniTournament->participants()->where('is_confirmed', true)->count();
-                if ($currentConfirmed >= $miniTournament->max_players) {
+                if (count($invitedUserIds) >= $maxInvite) {
                     break 2;
                 }
 
                 try {
-                    $isSuperAdmin = SuperAdminDraft::where('user_id', Auth::id())->exists();
-
                     $paymentStatus = PaymentStatusEnum::CONFIRMED;
                     $isPaidBySystem = false;
                     if ($miniTournament->use_club_fund) {
@@ -1052,7 +1058,7 @@ class MiniParticipantController extends Controller
 
                     $participant = $miniTournament->participants()->create([
                         'user_id' => $candidate->id,
-                        'is_confirmed' => $isSuperAdmin,
+                        'is_confirmed' => false,
                         'is_invited' => true,
                         'invited_by' => Auth::id(),
                         'payment_status' => $paymentStatus,
@@ -1114,7 +1120,7 @@ class MiniParticipantController extends Controller
                 }
             }
 
-            if (count($invitedUserIds) >= $needed) {
+            if (count($invitedUserIds) >= $maxInvite) {
                 break;
             }
 
@@ -1378,7 +1384,7 @@ class MiniParticipantController extends Controller
                         'performance'       => $stats['performance'],
                     ];
                 }),
-                'is_friend' => $user && $u && $user->isFriendWith($u),
+                'is_friend' => ($user instanceof User && $u instanceof User) ? $user->isFriendWith($u) : false,
                 'is_mini_participant' => in_array($u->id, $excludedUserIds),
             ];
         });

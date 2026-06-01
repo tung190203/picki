@@ -304,15 +304,15 @@ export default {
             )
         })
 
-        // Chờ xác nhận: người tự xin (is_invited=false) + người được mời (is_invited=true) chưa xác nhận
+        // Chờ xác nhận: người tự xin (is_invited=false) + người được mời (is_invited=true) chưa xác nhận, chưa declined
         const pendingParticipants = computed(() => {
             if (!mini.value?.participants) return []
-            return mini.value.participants.filter(p => p.is_confirmed === false && p.is_invited === false)
+            return mini.value.participants.filter(p => p.is_confirmed === false && p.is_invited === false && !p.is_declined)
         })
 
         const invitedParticipants = computed(() => {
             if (!mini.value?.participants) return []
-            return mini.value.participants.filter(p => p.is_confirmed === false && p.is_invited === true)
+            return mini.value.participants.filter(p => p.is_confirmed === false && p.is_invited === true && !p.is_declined)
         })
 
         // Gộp: chờ xác nhận = pending (tự xin) + invited (được mời)
