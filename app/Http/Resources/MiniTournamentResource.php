@@ -70,9 +70,9 @@ class MiniTournamentResource extends JsonResource
                 ? new ClubResource($this->club)
                 : null,
 
-            // Updated time fields
-            'start_time' => $this->start_time,
-            'end_time' => $this->end_time,
+            // Updated time fields (converted to GMT+7)
+            'start_time' => $this->start_time ? $this->start_time->timezone('Asia/Ho_Chi_Minh')->format('Y-m-d\TH:i:s') : null,
+            'end_time' => $this->end_time ? $this->end_time->timezone('Asia/Ho_Chi_Minh')->format('Y-m-d\TH:i:s') : null,
             'duration' => $this->duration,
 
             'competition_location' => new CompetitionLocationResource($this->whenLoaded('competitionLocation')),
