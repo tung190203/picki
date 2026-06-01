@@ -18,6 +18,7 @@ class MiniParticipant extends Model
         'is_confirmed',
         'is_invited',
         'invited_by',
+        'declined_at',
         'payment_status',
         'is_guest',
         'guest_name',
@@ -47,6 +48,7 @@ class MiniParticipant extends Model
         'rank_after' => 'integer',
         'rank_change' => 'integer',
         'checked_in_at' => 'datetime',
+        'declined_at' => 'datetime',
         'is_pending_confirmation' => 'boolean',
     ];
 

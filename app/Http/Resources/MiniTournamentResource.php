@@ -34,7 +34,7 @@ class MiniTournamentResource extends JsonResource
 
         $currentUserId = $request->user()?->id;
 
-        // Tính has_invitation: user hiện tại có lời mời đang chờ (is_invited=true, is_confirmed=false)
+        // Tính has_invitation: user hiện tại có lời mời đang chờ (is_invited=true, is_confirmed=false, chưa declined)
         $hasInvitation = false;
         $invitedBy = null;
         if ($currentUserId) {
@@ -42,6 +42,7 @@ class MiniTournamentResource extends JsonResource
                 (int) $p->user_id === (int) $currentUserId
                 && (bool) $p->is_invited === true
                 && (bool) $p->is_confirmed === false
+                && $p->declined_at === null
             );
             if ($myParticipant) {
                 $hasInvitation = true;
@@ -70,9 +71,9 @@ class MiniTournamentResource extends JsonResource
                 ? new ClubResource($this->club)
                 : null,
 
-            // Updated time fields
-            'start_time' => $this->start_time,
-            'end_time' => $this->end_time,
+            // Updated time fields (converted to GMT+7)
+            'start_time' => $this->start_time ? $this->start_time->timezone('Asia/Ho_Chi_Minh')->format('Y-m-d\TH:i:s') : null,
+            'end_time' => $this->end_time ? $this->end_time->timezone('Asia/Ho_Chi_Minh')->format('Y-m-d\TH:i:s') : null,
             'duration' => $this->duration,
 
             'competition_location' => new CompetitionLocationResource($this->whenLoaded('competitionLocation')),
