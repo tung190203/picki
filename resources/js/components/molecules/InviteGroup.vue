@@ -122,8 +122,8 @@
                         <div class="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2">
                             <div class="flex items-center justify-between">
                                 <span class="text-sm font-medium text-gray-700">
-                                    Cần mời:
-                                    <span class="font-bold text-red-600">{{ neededCount }}</span> người
+                                    Tối đa mời:
+                                    <span class="font-bold text-red-600">30</span> người
                                 </span>
                                 <button
                                     v-if="!isAutoInviting && !autoInviteResult"
@@ -399,11 +399,7 @@ const isAutoInviting = ref(false)
 const autoInviteResult = ref(null)
 const autoInviteProgress = ref(0)
 
-const neededCount = computed(() => {
-    if (props.tournamentMaxPlayers == null) return 0
-    const remaining = props.tournamentMaxPlayers - props.currentParticipantsCount
-    return Math.max(0, remaining)
-})
+const neededCount = computed(() => 30)
 
 const autoInviteProgressPercent = computed(() => {
     if (neededCount.value <= 0) return 100
@@ -485,7 +481,7 @@ const handleAutoInvite = async () => {
         friend_only: friendOnly.value,
         source: locationSource.value,
         radius_start: localRadius.value,
-        radius_max: 200,
+        radius_max: 50,
     }
 
     // Only send lat/lng when source is "user"
