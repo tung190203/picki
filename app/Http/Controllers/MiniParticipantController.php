@@ -225,6 +225,15 @@ class MiniParticipantController extends Controller
 
         $this->checkMaxPlayers($miniTournament);
 
+        $declined = $miniTournament->participants()
+            ->where('user_id', $validated['user_id'])
+            ->whereNotNull('declined_at')
+            ->exists();
+
+        if ($declined) {
+            return ResponseHelper::error('Người chơi này đã từ chối lời mời trong kèo đấu này trước đó.', 400);
+        }
+
         $exists = $miniTournament->participants()
             ->where('user_id', $validated['user_id'])
             ->exists();
@@ -479,7 +488,7 @@ class MiniParticipantController extends Controller
             ]
         );
 
-        $participant->delete();
+        $participant->update(['declined_at' => now()]);
 
         return ResponseHelper::success(null, 'Bạn đã từ chối lời mời tham gia kèo đấu');
     }
@@ -517,7 +526,13 @@ class MiniParticipantController extends Controller
                     ->delete();
             }
 
-            $participant->delete();
+            if ($participant->is_confirmed) {
+                // Đã confirmed → xoá record bình thường
+                $participant->delete();
+            } else {
+                // Chưa confirmed (đang chờ / invited) → ghi nhận declined
+                $participant->update(['declined_at' => now()]);
+            }
         });
 
         $participant->user?->notify(
@@ -698,7 +713,18 @@ class MiniParticipantController extends Controller
 
         foreach ($validated['user_ids'] as $userId) {
             try {
-                // Check if user already exists
+                // Check: user đã từ chối lời mời trong kèo này chưa?
+                $declined = $miniTournament->participants()
+                    ->where('user_id', $userId)
+                    ->whereNotNull('declined_at')
+                    ->exists();
+
+                if ($declined) {
+                    $errors[] = "User ID {$userId} đã từ chối lời mời trước đó";
+                    continue;
+                }
+
+                // Check if user already exists (pending or confirmed participant)
                 $exists = $miniTournament->participants()
                     ->where('user_id', $userId)
                     ->exists();
@@ -899,6 +925,12 @@ class MiniParticipantController extends Controller
             $miniTournament->miniTournamentStaffs->pluck('user_id'),
         ])->flatten()->filter()->unique()->toArray();
 
+        // Loại trừ user đã từ chối lời mời trong kèo này
+        $declinedUserIds = MiniParticipant::where('mini_tournament_id', $tournamentId)
+            ->whereNotNull('declined_at')
+            ->pluck('user_id')
+            ->toArray();
+
         $invitedUserIds = [];
         $failedUserIds = [];
         $totalFound = 0;
@@ -963,8 +995,8 @@ class MiniParticipantController extends Controller
                 $query->whereNotIn('users.id', $invitedUserIds);
             }
 
-            // Exclude already invited in current run from excluded set
-            $allExcluded = array_unique(array_merge($excludedUserIds, $invitedUserIds));
+            // Exclude already invited in current run from excluded set (bao gồm cả đã declined)
+            $allExcluded = array_unique(array_merge($excludedUserIds, $invitedUserIds, $declinedUserIds));
             if (!empty($allExcluded)) {
                 $query->whereNotIn('users.id', $allExcluded);
             }

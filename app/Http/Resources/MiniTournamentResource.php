@@ -34,7 +34,7 @@ class MiniTournamentResource extends JsonResource
 
         $currentUserId = $request->user()?->id;
 
-        // Tính has_invitation: user hiện tại có lời mời đang chờ (is_invited=true, is_confirmed=false)
+        // Tính has_invitation: user hiện tại có lời mời đang chờ (is_invited=true, is_confirmed=false, chưa declined)
         $hasInvitation = false;
         $invitedBy = null;
         if ($currentUserId) {
@@ -42,6 +42,7 @@ class MiniTournamentResource extends JsonResource
                 (int) $p->user_id === (int) $currentUserId
                 && (bool) $p->is_invited === true
                 && (bool) $p->is_confirmed === false
+                && $p->declined_at === null
             );
             if ($myParticipant) {
                 $hasInvitation = true;
