@@ -462,4 +462,38 @@ class ClubMiniTournamentController extends Controller
             'mini_tournament_id' => $miniTournament->id,
         ], $userId, skipPermissionCheck: true);
     }
+
+    /**
+     * Hủy toàn bộ chuỗi lặp lại của kèo thuộc CLB.
+     */
+    public function cancelRecurrenceSeries(int $clubId, int $miniTournamentId)
+    {
+        $club = Club::find($clubId);
+        if (!$club) {
+            return ResponseHelper::error('CLB không tồn tại', 404);
+        }
+
+        $userId = Auth::id();
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        $miniTournament = MiniTournament::find($miniTournamentId);
+        if (!$miniTournament || (int) $miniTournament->club_id !== $club->id) {
+            return ResponseHelper::error('Kèo đấu không tồn tại hoặc không thuộc CLB này', 404);
+        }
+
+        try {
+            $count = $this->tournamentService->cancelRecurrenceSeriesForClub($club, (string) $miniTournamentId, $userId);
+            return ResponseHelper::success(
+                ['deleted_count' => $count],
+                'Đã xóa các kèo hợp lệ trong chuỗi lặp lại',
+                200
+            );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
+        } catch (\Exception $e) {
+            return ResponseHelper::error('Có lỗi xảy ra khi hủy chuỗi kèo đấu', 403);
+        }
+    }
 }

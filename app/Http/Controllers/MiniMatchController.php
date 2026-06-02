@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Events\SuperAdmin\MiniMatchUpdated;
+use App\Exceptions\BusinessException;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MiniMatchResource;
 use App\Jobs\SendPushJob;

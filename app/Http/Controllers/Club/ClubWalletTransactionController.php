@@ -3,7 +3,13 @@
 namespace App\Http\Controllers\Club;
 
 use App\Enums\ClubWalletTransactionDirection;
+use App\Enums\ClubWalletTransactionSourceType;
+use App\Enums\ClubWalletTransactionStatus;
+use App\Enums\PaymentMethod;
 use App\Exceptions\BusinessException;
+use App\Helpers\ResponseHelper;
+use App\Http\Controllers\Controller;
+use App\Http\Resources\Club\ClubWalletTransactionResource;
 use App\Models\Club\Club;
 use App\Models\Club\ClubActivity;
 use App\Models\Club\ClubActivityParticipant;
@@ -27,7 +33,10 @@ class ClubWalletTransactionController extends Controller
     public function index(Request $request, $clubId)
     {
         $this->normalizeFilterArrayParams($request);
-        $club = Club::findOrFail($clubId);
+        $club = Club::find($clubId);
+        if (!$club) {
+            return ResponseHelper::error('CLB không tồn tại', 404);
+        }
         $validated = $request->validate(array_merge($this->transactionFilterRules(), [
             'wallet_id' => 'sometimes|exists:club_wallets,id',
         ]));
@@ -70,7 +79,10 @@ class ClubWalletTransactionController extends Controller
 
     public function store(Request $request, $clubId)
     {
-        $club = Club::findOrFail($clubId);
+        $club = Club::find($clubId);
+        if (!$club) {
+            return ResponseHelper::error('CLB không tồn tại', 404);
+        }
         $userId = auth()->id();
 
         if (!$club->canManageFinance($userId)) {
