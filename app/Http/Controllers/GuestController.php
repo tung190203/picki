@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ClubMemberRole;
 use App\Enums\PaymentStatusEnum;
+use App\Exceptions\BusinessException;
 use App\Events\SuperAdmin\MiniTournamentMemberAdded;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MiniParticipantResource;
@@ -461,7 +462,7 @@ class GuestController extends Controller
             DB::commit();
         } catch (\Throwable $e) {
             DB::rollBack();
-            return ResponseHelper::error($e->getMessage());
+            return ResponseHelper::error('Có lỗi xảy ra khi xác nhận guest');
         }
 
         $participant->load(['user', 'guarantor']);

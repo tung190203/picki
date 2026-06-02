@@ -3,10 +3,7 @@
 namespace App\Http\Controllers\Club;
 
 use App\Enums\ClubMonthlyFeePaymentStatus;
-use App\Enums\PaymentMethod;
-use App\Helpers\ResponseHelper;
-use App\Http\Controllers\Controller;
-use App\Http\Resources\Club\ClubMonthlyFeePaymentResource;
+use App\Exceptions\BusinessException;
 use App\Models\Club\Club;
 use App\Models\Club\ClubMonthlyFeePayment;
 use App\Services\Club\ClubMonthlyFeePaymentService;
@@ -64,8 +61,10 @@ class ClubMonthlyFeePaymentController extends Controller
             $payment = $this->paymentService->createPayment($club, $validated, $userId);
             $payment->load(['user', 'monthlyFee', 'walletTransaction']);
             return ResponseHelper::success(new ClubMonthlyFeePaymentResource($payment), 'Thanh toán phí thành công', 201);
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 409);
+            return ResponseHelper::error('Có lỗi xảy ra khi thanh toán phí', 409);
         }
     }
 

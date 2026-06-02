@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Club;
 
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
+use App\Exceptions\BusinessException;
 use App\Http\Requests\Club\GetExpenseStatisticsRequest;
 use App\Http\Requests\Club\GetExpensesRequest;
 use App\Http\Requests\Club\StoreExpenseRequest;
@@ -50,9 +51,10 @@ class ClubExpenseController extends Controller
             $expense->load(['spender', 'walletTransaction']);
 
             return ResponseHelper::success(new ClubExpenseResource($expense), 'Tạo chi phí thành công', 201);
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $isInsufficientFund = str_contains($e->getMessage(), 'Số dư quỹ');
-            return ResponseHelper::error($e->getMessage(), $isInsufficientFund ? 422 : 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi tạo chi phí', 403);
         }
     }
 
@@ -79,8 +81,10 @@ class ClubExpenseController extends Controller
             $expense->load(['spender', 'walletTransaction']);
 
             return ResponseHelper::success(new ClubExpenseResource($expense), 'Cập nhật chi phí thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi cập nhật chi phí', 403);
         }
     }
 
@@ -96,8 +100,10 @@ class ClubExpenseController extends Controller
         try {
             $this->expenseService->deleteExpense($expense, $userId);
             return ResponseHelper::success('Xóa chi phí thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi xóa chi phí', 403);
         }
     }
 

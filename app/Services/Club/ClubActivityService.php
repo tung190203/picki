@@ -3,6 +3,7 @@
 namespace App\Services\Club;
 
 use App\Enums\ClubActivityFeeSplitType;
+use App\Exceptions\BusinessException;
 use App\Enums\ClubActivityParticipantStatus;
 use App\Enums\ClubActivityStatus;
 use App\Enums\ClubMemberRole;
@@ -308,7 +309,7 @@ class ClubActivityService
     {
         $member = $club->activeMembers()->where('user_id', $userId)->first();
         if (!$member || !in_array($member->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary])) {
-            throw new \Exception('Chỉ admin/manager/secretary mới có quyền tạo hoạt động');
+            throw new BusinessException('Chỉ admin/manager/secretary mới có quyền tạo hoạt động');
         }
 
         $endTime = $data['end_time'] ?? null;
@@ -528,15 +529,15 @@ class ClubActivityService
         $club = $activity->club;
         $member = $club->activeMembers()->where('user_id', $userId)->first();
         if (!$member || !in_array($member->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary]) || $activity->created_by !== $userId) {
-            throw new \Exception('Không có quyền cập nhật hoạt động này');
+            throw new BusinessException('Không có quyền cập nhật hoạt động này');
         }
 
         if ($activity->status === ClubActivityStatus::Cancelled) {
-            throw new \Exception('Không thể cập nhật sự kiện đã bị hủy');
+            throw new BusinessException('Không thể cập nhật sự kiện đã bị hủy');
         }
 
         if ($activity->status === ClubActivityStatus::Completed) {
-            throw new \Exception('Không thể cập nhật sự kiện đã hoàn thành');
+            throw new BusinessException('Không thể cập nhật sự kiện đã hoàn thành');
         }
 
         if (isset($data['duration']) && isset($data['start_time'])) {
@@ -689,11 +690,11 @@ class ClubActivityService
         $club = $activity->club;
         $member = $club->activeMembers()->where('user_id', $userId)->first();
         if (!$member || !in_array($member->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary]) || $activity->created_by !== $userId) {
-            throw new \Exception('Không có quyền xóa hoạt động này');
+            throw new BusinessException('Không có quyền xóa hoạt động này');
         }
 
         if (!$activity->canBeCancelled()) {
-            throw new \Exception('Chỉ có thể xóa hoạt động đang scheduled');
+            throw new BusinessException('Chỉ có thể xóa hoạt động đang scheduled');
         }
 
         $activity->delete();
@@ -704,11 +705,11 @@ class ClubActivityService
         $club = $activity->club;
         $member = $club->activeMembers()->where('user_id', $userId)->first();
         if (!$member || !in_array($member->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary])) {
-            throw new \Exception('Chỉ admin/manager/secretary mới có quyền đánh dấu hoàn thành');
+            throw new BusinessException('Chỉ admin/manager/secretary mới có quyền đánh dấu hoàn thành');
         }
 
         if (!$activity->isScheduled() && !$activity->isOngoing()) {
-            throw new \Exception('Chỉ có thể đánh dấu hoàn thành sự kiện đang scheduled hoặc ongoing');
+            throw new BusinessException('Chỉ có thể đánh dấu hoàn thành sự kiện đang scheduled hoặc ongoing');
         }
 
         $activity->markAsCompleted();
@@ -731,11 +732,11 @@ class ClubActivityService
         $club = $activity->club;
         $member = $club->activeMembers()->where('user_id', $userId)->first();
         if (!$member || !in_array($member->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary])) {
-            throw new \Exception('Chỉ admin/manager/secretary mới có quyền hủy sự kiện');
+            throw new BusinessException('Chỉ admin/manager/secretary mới có quyền hủy sự kiện');
         }
 
         if (!$activity->canBeCancelled()) {
-            throw new \Exception('Chỉ có thể hủy sự kiện đang scheduled hoặc ongoing');
+            throw new BusinessException('Chỉ có thể hủy sự kiện đang scheduled hoặc ongoing');
         }
 
         return DB::transaction(function () use ($activity, $club, $userId, $cancellationReason, $cancelTransactions) {
@@ -748,7 +749,7 @@ class ClubActivityService
             if ($cancelTransactions) {
                 $mainWallet = $club->mainWallet;
                 if (!$mainWallet) {
-                    throw new \Exception('CLB chưa có ví chính');
+                    throw new BusinessException('CLB chưa có ví chính');
                 }
 
                 $participants = $activity->acceptedParticipants()
@@ -1095,7 +1096,7 @@ class ClubActivityService
     {
         $member = $club->activeMembers()->where('user_id', $userId)->first();
         if (!$member || !in_array($member->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary])) {
-            throw new \Exception('Chỉ admin/manager/secretary mới có quyền hủy chuỗi hoạt động');
+            throw new BusinessException('Chỉ admin/manager/secretary mới có quyền hủy chuỗi hoạt động');
         }
 
         $seriesId = Str::isUuid($seriesIdOrActivityId)
@@ -1103,7 +1104,7 @@ class ClubActivityService
             : ClubActivity::where('club_id', $club->id)->where('id', $seriesIdOrActivityId)->value('recurrence_series_id');
 
         if (!$seriesId) {
-            throw new \Exception('Chuỗi hoạt động không tồn tại');
+            throw new BusinessException('Chuỗi hoạt động không tồn tại');
         }
 
         $now = Carbon::now();

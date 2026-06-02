@@ -3,6 +3,7 @@
 namespace App\Services\Club;
 
 use App\Models\Club\Club;
+use App\Exceptions\BusinessException;
 use App\Models\Club\ClubMonthlyFee;
 use Illuminate\Support\Collection;
 
@@ -39,7 +40,7 @@ class ClubMonthlyFeeService
     public function deleteFee(ClubMonthlyFee $fee): void
     {
         if ($fee->payments()->exists()) {
-            throw new \Exception('Không thể xóa vì có payments');
+            throw new BusinessException('Không thể xóa vì có payments');
         }
 
         $fee->delete();

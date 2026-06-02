@@ -582,17 +582,18 @@ class ParticipantController extends Controller
             }
         }
 
-        DB::table('team_members')
-            ->where('user_id', $userNeedRemove)
-            ->whereIn('team_id', $teamIdsInTournament)
-            ->delete();
+        DB::transaction(function () use ($userNeedRemove, $teamIdsInTournament, $participant, $tournamentId) {
+            DB::table('team_members')
+                ->where('user_id', $userNeedRemove)
+                ->whereIn('team_id', $teamIdsInTournament)
+                ->delete();
 
-        // Xóa payment record của user trong giải đấu này
-        TournamentParticipantPayment::where('tournament_id', $tournamentId)
-            ->where('user_id', $userNeedRemove)
-            ->delete();
+            TournamentParticipantPayment::where('tournament_id', $tournamentId)
+                ->where('user_id', $userNeedRemove)
+                ->delete();
 
-        $participant->delete();
+            $participant->delete();
+        });
 
         $participant->user?->notify(new TournamentRemovedNotification($participant));
 

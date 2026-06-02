@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubMembershipStatus;
 use App\Enums\ClubStatus;
+use App\Exceptions\BusinessException;
 use App\Helpers\ResponseHelper;
 use App\Http\Requests\Club\GetClubsRequest;
 use App\Http\Requests\Club\GetLeaderboardRequest;
@@ -89,8 +90,10 @@ class ClubController extends Controller
                 : 'Tạo câu lạc bộ thành công';
 
             return ResponseHelper::success(new ClubResource($club), $message);
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 400);
+            return ResponseHelper::error('Có lỗi xảy ra khi tạo câu lạc bộ', 400);
         }
     }
 
@@ -113,9 +116,10 @@ class ClubController extends Controller
                 $club->unread_notification_count = 0;
             }
             return ResponseHelper::success(new ClubResource($club), 'Lấy thông tin câu lạc bộ thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'đăng nhập') ? 401 : 403;
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi lấy thông tin câu lạc bộ', 403);
         }
     }
 
@@ -147,9 +151,10 @@ class ClubController extends Controller
         try {
             $club = $this->clubService->updateClub($club, $request->validated(), $userId);
             return ResponseHelper::success(new ClubResource($club), 'Cập nhật câu lạc bộ thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'quyền') ? 403 : 400;
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi cập nhật câu lạc bộ', 400);
         }
     }
 
@@ -165,8 +170,10 @@ class ClubController extends Controller
         try {
             $this->clubService->deleteClub($club, $userId);
             return ResponseHelper::success([], 'Xóa câu lạc bộ thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi xóa câu lạc bộ', 403);
         }
     }
 
@@ -185,8 +192,10 @@ class ClubController extends Controller
                 new ClubResource($club),
                 'Khôi phục câu lạc bộ thành công. Lưu ý: Tên CLB đã được thay đổi để tránh trùng lặp. Bạn có thể cập nhật lại tên nếu cần.'
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi khôi phục câu lạc bộ', 403);
         }
     }
 
@@ -211,9 +220,10 @@ class ClubController extends Controller
             }
 
             return ResponseHelper::success([], 'Bạn đã rời CLB');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'không phải thành viên') ? 404 : 400;
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi rời câu lạc bộ', 400);
         }
     }
 
@@ -285,9 +295,10 @@ class ClubController extends Controller
         try {
             $result = $this->clubService->updateFund($club, $request->input('qr_code_url'), $userId);
             return ResponseHelper::success($result, 'Cập nhật thông tin quỹ CLB thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'quyền') ? 403 : 404;
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi cập nhật quỹ câu lạc bộ', 404);
         }
     }
 

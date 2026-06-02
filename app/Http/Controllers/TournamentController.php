@@ -425,13 +425,20 @@ class TournamentController extends Controller
             );
         }
 
-        $tournament->update([
-            'status' => Tournament::CANCELLED,
-        ]);
+        $tournamentName = $tournament->name;
+        $tournamentId = $tournament->id;
 
+        DB::transaction(function () use ($tournament) {
+            // tournament_types cascade xóa participants, groups → matches
+            // tournament_fund_collections cascade xóa contributions, collection_members
+            // tournament_participant_payments đã có cascade qua participants
+            $tournament->delete();
+        });
+
+        TournamentDeleted::dispatch($tournamentId, $tournamentName);
         DashboardStatUpdated::dispatch('active_tournaments', 1, 'decremented');
 
-        return ResponseHelper::success(null, 'Hủy giải đấu thành công');
+        return ResponseHelper::success(null, 'Xóa giải đấu thành công');
     }
 
     /**
@@ -508,13 +515,10 @@ class TournamentController extends Controller
             } else {
                 return $this->tournamentTypeController->getBracket($tournamentType);
             }
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Throwable $e) {
-            Log::error('Error in getBracket', [
-                'id' => $id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return ResponseHelper::error('Lỗi khi lấy bracket: ' . $e->getMessage(), 500);
+            return ResponseHelper::error('Có lỗi xảy ra khi lấy bracket giải đấu', 500);
         }
     }
 

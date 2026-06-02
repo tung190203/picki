@@ -276,19 +276,19 @@ export default {
         // Tất cả người tham gia (confirmed, chưa checkin, chưa vắng) - base cho các section
         const allParticipants = computed(() => {
             if (!mini.value?.participants) return []
-            return mini.value.participants.filter(p => p.is_confirmed && !p.checked_in_at && !p.is_absent)
+            return mini.value.participants.filter(p => p.is_confirmed && !p.checked_in_at && !p.is_absent && !p.is_declined)
         })
 
         // Đã check-in (confirmed + checked_in + not absent)
         const checkedInParticipants = computed(() => {
             if (!mini.value?.participants) return []
-            return mini.value.participants.filter(p => p.is_confirmed && p.checked_in_at && !p.is_absent)
+            return mini.value.participants.filter(p => p.is_confirmed && p.checked_in_at && !p.is_absent && !p.is_declined)
         })
 
         // Đã báo vắng (is_absent = true)
         const absentParticipants = computed(() => {
             if (!mini.value?.participants) return []
-            return mini.value.participants.filter(p => p.is_absent)
+            return mini.value.participants.filter(p => p.is_absent && !p.is_declined)
         })
 
         // Người tham gia: tất cả user + guest đã thanh toán (payment_status = confirmed) - dùng cho hiển thị
@@ -300,7 +300,7 @@ export default {
         const unpaidParticipants = computed(() => {
             if (!mini.value?.participants) return []
             return mini.value.participants.filter(
-                p => p.is_confirmed === true && p.payment_status !== 'confirmed'
+                p => p.is_confirmed === true && p.payment_status !== 'confirmed' && !p.is_declined
             )
         })
 

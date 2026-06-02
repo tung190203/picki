@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Club;
 use App\Enums\ClubFundCollectionStatus;
 use App\Enums\ClubFundContributionStatus;
 use App\Enums\ClubMemberRole;
+use App\Exceptions\BusinessException;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatusEnum;
 use App\Helpers\ResponseHelper;
@@ -185,7 +186,6 @@ class ClubMiniTournamentController extends Controller
                         Log::warning('ClubMiniTournamentController: Failed to create organizer exempt contribution', [
                             'tournament_id' => $miniTournament->id,
                             'user_id' => $participant->user_id,
-                            'error' => $e->getMessage(),
                         ]);
                     }
                 } else {
@@ -294,13 +294,15 @@ class ClubMiniTournamentController extends Controller
         if ($editScope === 'entire_series' && !empty($miniTournament->recurrence_series_id)) {
             try {
                 $updated = $this->tournamentService->updateTournamentAsNewSeries($miniTournament, $data, $userId);
-                return ResponseHelper::success(
-                    new MiniTournamentResource($updated->loadFullRelations()),
-                    'Cập nhật chuỗi kèo đấu thành công'
-                );
-            } catch (\Exception $e) {
-                return ResponseHelper::error($e->getMessage(), 400);
-            }
+            return ResponseHelper::success(
+                new MiniTournamentResource($updated->loadFullRelations()),
+                'Cập nhật chuỗi kèo đấu thành công'
+            );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
+        } catch (\Exception $e) {
+            return ResponseHelper::error('Có lỗi xảy ra khi cập nhật chuỗi kèo đấu', 400);
+        }
         }
 
         unset($data['edit_scope']);
