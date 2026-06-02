@@ -508,13 +508,10 @@ class TournamentController extends Controller
             } else {
                 return $this->tournamentTypeController->getBracket($tournamentType);
             }
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Throwable $e) {
-            Log::error('Error in getBracket', [
-                'id' => $id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return ResponseHelper::error('Lỗi khi lấy bracket: ' . $e->getMessage(), 500);
+            return ResponseHelper::error('Có lỗi xảy ra khi lấy bracket giải đấu', 500);
         }
     }
 

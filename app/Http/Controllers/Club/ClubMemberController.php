@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Club;
 
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
+use App\Exceptions\BusinessException;
 use App\Http\Requests\Club\GetMembersRequest;
 use App\Http\Requests\Club\InviteMemberRequest;
 use App\Http\Requests\Club\UpdateMemberRequest;
@@ -63,8 +64,10 @@ class ClubMemberController extends Controller
                     : 'Đã gửi lời mời tham gia CLB, chờ user đồng ý',
                 201
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 409);
+            return ResponseHelper::error('Có lỗi xảy ra khi gửi lời mời', 409);
         }
     }
 
@@ -103,11 +106,10 @@ class ClubMemberController extends Controller
             $member->load(['user' => User::FULL_RELATIONS, 'reviewer']);
 
             return ResponseHelper::success(new ClubMemberResource($member), 'Cập nhật thành viên thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            if ($e->getMessage() === 'DELETED') {
-                return ResponseHelper::success([], 'Đã từ chối thành viên');
-            }
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi cập nhật thành viên', 403);
         }
     }
 
@@ -137,8 +139,10 @@ class ClubMemberController extends Controller
 
             $this->memberManagementService->kickMember($member, $userId);
             return ResponseHelper::success([], 'Đã đuổi thành viên khỏi CLB');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 400);
+            return ResponseHelper::error('Có lỗi xảy ra khi đuổi thành viên', 403);
         }
     }
 

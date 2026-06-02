@@ -212,7 +212,7 @@ class MiniMatchController extends Controller
             return ResponseHelper::success(new MiniMatchResource($match->loadFullRelations()), 'Tạo trận đấu thành công', 201);
         } catch (\Throwable $e) {
             DB::rollBack();
-            return ResponseHelper::error($e->getMessage());
+            return ResponseHelper::error('Có lỗi xảy ra khi tạo trận đấu', 500);
         }
     }
     /**
@@ -312,9 +312,11 @@ class MiniMatchController extends Controller
                 new MiniMatchResource($match->loadFullRelations()),
                 'Cập nhật trận đấu thành công'
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Throwable $e) {
             DB::rollBack();
-            return ResponseHelper::error($e->getMessage());
+            return ResponseHelper::error('Có lỗi xảy ra khi cập nhật trận đấu', 500);
         }
     }
 
@@ -1229,7 +1231,7 @@ class MiniMatchController extends Controller
             );
         } catch (\Throwable $e) {
             DB::rollBack();
-            return ResponseHelper::error($e->getMessage());
+            return ResponseHelper::error('Có lỗi xảy ra khi tạo trận đấu', 500);
         }
     }
 

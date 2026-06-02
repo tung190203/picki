@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Jobs\SendPushJob;
+use App\Exceptions\BusinessException;
 use App\Models\Club\Club;
 use App\Notifications\PromotionNotification;
 use App\Models\Club\ClubActivity;
@@ -246,21 +247,21 @@ class PromotionService
             case self::PROMOTABLE_CLUB_ACTIVITY:
                 $activity = ClubActivity::with('club')->findOrFail($promotableId);
                 if (!$activity->club->isMember($userId) && $activity->created_by !== $userId) {
-                    throw new \Exception('Chỉ thành viên CLB hoặc người tạo sự kiện mới có quyền quảng bá');
+                    throw new BusinessException('Chỉ thành viên CLB hoặc người tạo sự kiện mới có quyền quảng bá');
                 }
                 break;
 
             case self::PROMOTABLE_CLUB:
                 $club = Club::findOrFail($promotableId);
                 if (!$club->isMember($userId)) {
-                    throw new \Exception('Chỉ thành viên CLB mới có quyền quảng bá');
+                    throw new BusinessException('Chỉ thành viên CLB mới có quyền quảng bá');
                 }
                 break;
 
             case self::PROMOTABLE_MINI_TOURNAMENT:
                 $miniTournament = MiniTournament::with('staff')->findOrFail($promotableId);
                 if (!$miniTournament->hasOrganizer($userId)) {
-                    throw new \Exception('Chỉ organizer mới có quyền quảng bá kèo đấu');
+                    throw new BusinessException('Chỉ organizer mới có quyền quảng bá kèo đấu');
                 }
                 break;
         }

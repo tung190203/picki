@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Club;
 
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
+use App\Exceptions\BusinessException;
 use App\Http\Resources\Club\ClubMonthlyFeeResource;
 use App\Models\Club\Club;
 use App\Models\Club\ClubMonthlyFee;
@@ -91,8 +92,10 @@ class ClubMonthlyFeeController extends Controller
         try {
             $this->feeService->deleteFee($fee);
             return ResponseHelper::success('Xóa cấu hình phí thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 422);
+            return ResponseHelper::error('Có lỗi xảy ra khi xóa cấu hình phí', 422);
         }
     }
 }

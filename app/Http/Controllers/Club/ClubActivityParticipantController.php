@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Club;
 
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
+use App\Exceptions\BusinessException;
 use App\Http\Requests\Club\CheckInRequest;
 use App\Http\Requests\Club\GetParticipantsRequest;
 use App\Http\Requests\Club\InviteParticipantsRequest;
@@ -67,10 +68,10 @@ class ClubActivityParticipantController extends Controller
                 $message,
                 201
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'đã tham gia') ? 409 :
-                         (str_contains($e->getMessage(), 'đủ số lượng') ? 422 : 403);
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi tham gia hoạt động', 403);
         }
     }
 
@@ -98,8 +99,10 @@ class ClubActivityParticipantController extends Controller
             Cache::increment('club_content_version:' . $clubId);
 
             return ResponseHelper::success($data, 'Đã mời thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi mời thành viên', 403);
         }
     }
 
@@ -125,8 +128,10 @@ class ClubActivityParticipantController extends Controller
                 new ClubActivityParticipantResource($participant),
                 'Cập nhật trạng thái thành công'
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 400);
+            return ResponseHelper::error('Có lỗi xảy ra khi cập nhật trạng thái', 400);
         }
     }
 
@@ -147,8 +152,10 @@ class ClubActivityParticipantController extends Controller
             $this->participantService->deleteParticipant($participant, $userId);
             Cache::increment('club_content_version:' . $clubId);
             return ResponseHelper::success('Xóa người tham gia thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi xóa người tham gia', 403);
         }
     }
 
@@ -176,9 +183,10 @@ class ClubActivityParticipantController extends Controller
                 new ClubActivityParticipantResource($participant),
                 'Đã duyệt yêu cầu tham gia'
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'pending') || str_contains($e->getMessage(), 'đủ số lượng') ? 422 : 403;
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi duyệt yêu cầu', 403);
         }
     }
 
@@ -206,9 +214,10 @@ class ClubActivityParticipantController extends Controller
                 new ClubActivityParticipantResource($participant),
                 'Đã từ chối yêu cầu tham gia'
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'pending') ? 422 : 403;
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi từ chối yêu cầu', 403);
         }
     }
 
@@ -236,9 +245,10 @@ class ClubActivityParticipantController extends Controller
                 new ClubActivityParticipantResource($participant),
                 'Đã chấp nhận tham gia sự kiện'
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'invited') || str_contains($e->getMessage(), 'đủ số lượng') ? 422 : 403;
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi chấp nhận tham gia', 403);
         }
     }
 
@@ -266,9 +276,10 @@ class ClubActivityParticipantController extends Controller
                 new ClubActivityParticipantResource($participant),
                 'Đã từ chối lời mời tham gia'
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'invited') ? 422 : 403;
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi từ chối lời mời', 403);
         }
     }
 
@@ -319,9 +330,10 @@ class ClubActivityParticipantController extends Controller
                 new ClubActivityParticipantResource($result['participant']),
                 $result['message']
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'scheduled') || str_contains($e->getMessage(), 'chấp nhận') ? 422 : 403;
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi rút khỏi hoạt động', 403);
         }
     }
 
@@ -354,11 +366,10 @@ class ClubActivityParticipantController extends Controller
                 new ClubActivityParticipantResource($participant),
                 'Đã check-in hoạt động'
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'đã bị hủy') ||
-                         str_contains($e->getMessage(), 'kết thúc') ||
-                         str_contains($e->getMessage(), 'được duyệt') ? 422 : 403;
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi check-in hoạt động', 403);
         }
     }
 
@@ -391,10 +402,10 @@ class ClubActivityParticipantController extends Controller
                 new ClubActivityParticipantResource($participant),
                 'Đã báo vắng cho người tham gia'
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'đã bị hủy') ||
-                         str_contains($e->getMessage(), 'kết thúc') ? 422 : 403;
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi báo vắng', 403);
         }
     }
 
@@ -426,11 +437,10 @@ class ClubActivityParticipantController extends Controller
                 new ClubActivityParticipantResource($participant),
                 $message
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'bị hủy') ||
-                         str_contains($e->getMessage(), 'chưa tham gia') ||
-                         str_contains($e->getMessage(), 'được duyệt') ? 422 : 403;
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi check-in hoạt động', 403);
         }
     }
 
@@ -453,8 +463,10 @@ class ClubActivityParticipantController extends Controller
             ];
 
             return ResponseHelper::success($data, 'Lấy danh sách check-in thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi lấy danh sách check-in', 403);
         }
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Services\Club;
 
 use App\Enums\ClubWalletTransactionDirection;
+use App\Exceptions\BusinessException;
 use App\Enums\ClubWalletTransactionSourceType;
 use App\Enums\ClubWalletTransactionStatus;
 use App\Models\Club\Club;
@@ -120,7 +121,7 @@ class ClubWalletTransactionService
     public function updateTransaction(ClubWalletTransaction $transaction, array $data): ClubWalletTransaction
     {
         if ($transaction->status !== ClubWalletTransactionStatus::Pending) {
-            throw new \Exception('Chỉ có thể cập nhật giao dịch đang pending');
+            throw new BusinessException('Chỉ có thể cập nhật giao dịch đang pending');
         }
 
         $transaction->update($data);
@@ -130,7 +131,7 @@ class ClubWalletTransactionService
     public function confirmTransaction(ClubWalletTransaction $transaction, int $confirmerId): ClubWalletTransaction
     {
         if ($transaction->status !== ClubWalletTransactionStatus::Pending) {
-            throw new \Exception('Chỉ có thể xác nhận giao dịch đang pending');
+            throw new BusinessException('Chỉ có thể xác nhận giao dịch đang pending');
         }
 
         $transaction->confirm($confirmerId);
@@ -140,7 +141,7 @@ class ClubWalletTransactionService
     public function rejectTransaction(ClubWalletTransaction $transaction, int $rejecterId): ClubWalletTransaction
     {
         if ($transaction->status !== ClubWalletTransactionStatus::Pending) {
-            throw new \Exception('Chỉ có thể từ chối giao dịch đang pending');
+            throw new BusinessException('Chỉ có thể từ chối giao dịch đang pending');
         }
 
         $transaction->reject($rejecterId);

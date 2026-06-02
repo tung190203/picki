@@ -523,14 +523,15 @@ class TournamentPaymentController extends Controller
                 new TournamentParticipantPaymentResource($payment->load(['user', 'confirmer'])),
                 $message
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('TournamentPaymentController::store error', [
                 'tournament_id' => $tournamentId,
                 'user_id' => $userId,
-                'error' => $e->getMessage(),
             ]);
-            return ResponseHelper::error($e->getMessage());
+            return ResponseHelper::error('Có lỗi xảy ra khi xử lý thanh toán');
         }
     }
 
