@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\ClubFundCollectionStatus;
 use App\Enums\ClubFundContributionStatus;
 use App\Enums\ClubMemberRole;
+use App\Exceptions\BusinessException;
 use App\Enums\ClubWalletTransactionDirection;
 use App\Enums\ClubWalletTransactionSourceType;
 use App\Enums\ClubWalletTransactionStatus;
@@ -404,8 +405,10 @@ class MiniTournamentController extends Controller
                     new MiniTournamentResource($updatedTournament->loadFullRelations()),
                     'Cập nhật chuỗi kèo đấu thành công'
                 );
+            } catch (BusinessException $e) {
+                return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
             } catch (\Exception $e) {
-                return ResponseHelper::error($e->getMessage(), 400);
+                return ResponseHelper::error('Có lỗi xảy ra khi cập nhật kèo đấu', 400);
             }
         }
 
@@ -652,8 +655,10 @@ class MiniTournamentController extends Controller
                 'Đã xóa các kèo hợp lệ trong chuỗi lặp lại',
                 200
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi hủy chuỗi kèo đấu', 403);
         }
     }
 
@@ -712,6 +717,10 @@ class MiniTournamentController extends Controller
         $participant = $miniTournament->participants()->where('id', $participantId)->first();
         if (!$participant) {
             return ResponseHelper::error('Thành viên không tồn tại trong kèo đấu này', 404);
+        }
+
+        if (!$participant->is_confirmed) {
+            return ResponseHelper::error('Người này chưa được xác nhận tham gia kèo đấu. Không thể check-in.', 422);
         }
 
         if ($participant->checked_in_at) {
@@ -796,6 +805,10 @@ class MiniTournamentController extends Controller
         $participant = $miniTournament->participants()->where('id', $participantId)->first();
         if (!$participant) {
             return ResponseHelper::error('Thành viên không tồn tại trong kèo đấu này', 404);
+        }
+
+        if (!$participant->is_confirmed) {
+            return ResponseHelper::error('Người này chưa được xác nhận tham gia kèo đấu. Không thể đánh dấu vắng mặt.', 422);
         }
 
         if ($participant->is_absent) {

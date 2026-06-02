@@ -3,6 +3,7 @@
 namespace App\Services\Club;
 
 use App\Enums\ClubFundContributionStatus;
+use App\Exceptions\BusinessException;
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
@@ -53,12 +54,12 @@ class ClubJoinRequestService
     {
         if (!$club->canSendJoinRequest($userId)) {
             if ($club->hasMember($userId)) {
-                throw new \Exception('Bạn đã là thành viên của CLB này');
+                throw new BusinessException('Bạn đã là thành viên của CLB này');
             }
             if ($club->hasPendingRequest($userId)) {
-                throw new \Exception('Bạn đã gửi yêu cầu tham gia. Vui lòng chờ duyệt');
+                throw new BusinessException('Bạn đã gửi yêu cầu tham gia. Vui lòng chờ duyệt');
             }
-            throw new \Exception('Bạn không thể gửi yêu cầu tham gia');
+            throw new BusinessException('Bạn không thể gửi yêu cầu tham gia');
         }
 
         $member = DB::transaction(function () use ($club, $userId, $message) {
@@ -69,11 +70,11 @@ class ClubJoinRequestService
 
             if ($existing) {
                 if ($existing->membership_status === ClubMembershipStatus::Joined) {
-                    throw new \Exception('Bạn đã là thành viên của CLB này');
+                    throw new BusinessException('Bạn đã là thành viên của CLB này');
                 }
 
                 if ($existing->membership_status === ClubMembershipStatus::Pending) {
-                    throw new \Exception('Bạn đã gửi yêu cầu tham gia. Vui lòng chờ duyệt');
+                    throw new BusinessException('Bạn đã gửi yêu cầu tham gia. Vui lòng chờ duyệt');
                 }
 
                 if (in_array($existing->membership_status, [ClubMembershipStatus::Rejected, ClubMembershipStatus::Left, ClubMembershipStatus::Cancelled], true)) {
@@ -91,7 +92,7 @@ class ClubJoinRequestService
                     return $existing->fresh(['user' => User::FULL_RELATIONS, 'club']);
                 }
 
-                throw new \Exception('Không thể gửi yêu cầu tham gia');
+                throw new BusinessException('Không thể gửi yêu cầu tham gia');
             }
 
             return ClubMember::create([
@@ -143,7 +144,7 @@ class ClubJoinRequestService
             ->first();
 
         if (!$member) {
-            throw new \Exception('Không tìm thấy yêu cầu tham gia nào của bạn');
+            throw new BusinessException('Không tìm thấy yêu cầu tham gia nào của bạn');
         }
 
         $member->update([
@@ -158,7 +159,7 @@ class ClubJoinRequestService
     public function approveRequest(ClubMember $member, int $reviewerId, ?string $role = null): ClubMember
     {
         if ($member->invited_by !== null) {
-            throw new \Exception('Đây là lời mời từ admin, chỉ người được mời mới có thể đồng ý hoặc từ chối qua mục Lời mời của tôi.');
+            throw new BusinessException('Đây là lời mời từ admin, chỉ người được mời mới có thể đồng ý hoặc từ chối qua mục Lời mời của tôi.');
         }
 
         $member->update([
@@ -191,7 +192,7 @@ class ClubJoinRequestService
     public function rejectRequest(ClubMember $member, int $reviewerId, ?string $rejectionReason = null): void
     {
         if ($member->invited_by !== null) {
-            throw new \Exception('Đây là lời mời từ admin, chỉ người được mời mới có thể đồng ý hoặc từ chối qua mục Lời mời của tôi.');
+            throw new BusinessException('Đây là lời mời từ admin, chỉ người được mời mới có thể đồng ý hoặc từ chối qua mục Lời mời của tôi.');
         }
 
         $member->update([
@@ -236,7 +237,7 @@ class ClubJoinRequestService
             ->first();
 
         if (!$member) {
-            throw new \Exception('Không tìm thấy lời mời tham gia CLB này');
+            throw new BusinessException('Không tìm thấy lời mời tham gia CLB này');
         }
 
         $member->update([
@@ -266,7 +267,7 @@ class ClubJoinRequestService
             ->first();
 
         if (!$member) {
-            throw new \Exception('Không tìm thấy lời mời tham gia CLB này');
+            throw new BusinessException('Không tìm thấy lời mời tham gia CLB này');
         }
 
         $club = $member->club;

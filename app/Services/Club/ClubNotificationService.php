@@ -5,6 +5,7 @@ namespace App\Services\Club;
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubNotificationPriority;
 use App\Enums\ClubNotificationStatus;
+use App\Exceptions\BusinessException;
 use App\Jobs\SendPushJob;
 use App\Models\Club\Club;
 use App\Models\Club\ClubNotification;
@@ -182,7 +183,7 @@ class ClubNotificationService
     public function sendNotification(ClubNotification $notification, Club $club): ClubNotification
     {
         if ($notification->status === ClubNotificationStatus::Sent) {
-            throw new \Exception('Thông báo đã được gửi');
+            throw new BusinessException('Thông báo đã được gửi');
         }
 
         $notification->update([
@@ -268,7 +269,7 @@ class ClubNotificationService
                     ['is_read' => true, 'read_at' => now()]
                 );
             } else {
-                throw new \Exception('Bạn không có quyền đánh dấu đọc thông báo này');
+                throw new BusinessException('Bạn không có quyền đánh dấu đọc thông báo này');
             }
         } else {
             $recipient->markAsRead();

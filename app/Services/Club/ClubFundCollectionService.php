@@ -4,6 +4,7 @@ namespace App\Services\Club;
 
 use App\Enums\ClubActivityParticipantStatus;
 use App\Enums\ClubFundCollectionStatus;
+use App\Exceptions\BusinessException;
 use App\Enums\ClubFundContributionStatus;
 use App\Jobs\SendPushJob;
 use App\Models\Club\Club;
@@ -66,7 +67,7 @@ class ClubFundCollectionService
     public function createCollection(Club $club, array $data, int $userId): ClubFundCollection
     {
         if (!$club->canManageFinance($userId)) {
-            throw new \Exception('Chỉ admin/manager/secretary/treasurer mới có quyền tạo đợt thu');
+            throw new BusinessException('Chỉ admin/manager/secretary/treasurer mới có quyền tạo đợt thu');
         }
 
         $activityId = $data['activity_id'] ?? null;
@@ -200,11 +201,11 @@ class ClubFundCollectionService
     {
         $club = $collection->club;
         if (!$club->canManageFinance($userId) || $collection->created_by !== $userId) {
-            throw new \Exception('Không có quyền cập nhật đợt thu này');
+            throw new BusinessException('Không có quyền cập nhật đợt thu này');
         }
 
         if ($collection->status !== ClubFundCollectionStatus::Active) {
-            throw new \Exception('Chỉ có thể cập nhật đợt thu đang active');
+            throw new BusinessException('Chỉ có thể cập nhật đợt thu đang active');
         }
 
         if (array_key_exists('amount_per_member', $data) && $data['amount_per_member'] !== null) {
@@ -222,11 +223,11 @@ class ClubFundCollectionService
     {
         $club = $collection->club;
         if (!$club->canManageFinance($userId)) {
-            throw new \Exception('Chỉ admin/manager/secretary/treasurer mới có quyền hủy đợt thu');
+            throw new BusinessException('Chỉ admin/manager/secretary/treasurer mới có quyền hủy đợt thu');
         }
 
         if ($collection->status !== ClubFundCollectionStatus::Active) {
-            throw new \Exception('Chỉ có thể hủy đợt thu đang active');
+            throw new BusinessException('Chỉ có thể hủy đợt thu đang active');
         }
 
         $collectionTitle = $collection->title ?: $collection->description ?: 'Đợt thu quỹ';
@@ -266,7 +267,7 @@ class ClubFundCollectionService
     public function deleteQrCode(Club $club, int $qrCodeId, int $userId): void
     {
         if (!$club->canManageFinance($userId)) {
-            throw new \Exception('Chỉ admin/manager/secretary/treasurer mới có quyền xóa mã QR');
+            throw new BusinessException('Chỉ admin/manager/secretary/treasurer mới có quyền xóa mã QR');
         }
 
         $collection = $club->fundCollections()
@@ -275,12 +276,12 @@ class ClubFundCollectionService
             ->findOrFail($qrCodeId);
 
         if ($collection->status !== ClubFundCollectionStatus::Pending) {
-            throw new \Exception('Chỉ có thể xóa mã QR chưa gắn với đợt thu (trạng thái Pending)');
+            throw new BusinessException('Chỉ có thể xóa mã QR chưa gắn với đợt thu (trạng thái Pending)');
         }
 
         if ($collection->contributions()->exists()) {
             $count = $collection->contributions()->count();
-            throw new \Exception("Mã QR đã có {$count} lượt nộp tiền, không thể xóa.");
+            throw new BusinessException("Mã QR đã có {$count} lượt nộp tiền, không thể xóa.");
         }
 
         $collection->delete();
@@ -290,11 +291,11 @@ class ClubFundCollectionService
     {
         $club = $collection->club;
         if (!$club->canManageFinance($requesterId)) {
-            throw new \Exception('Chỉ admin/manager/secretary/treasurer mới có quyền nhắc nhở');
+            throw new BusinessException('Chỉ admin/manager/secretary/treasurer mới có quyền nhắc nhở');
         }
 
         if ($collection->status !== ClubFundCollectionStatus::Active) {
-            throw new \Exception('Chỉ có thể nhắc nhở cho đợt thu đang active');
+            throw new BusinessException('Chỉ có thể nhắc nhở cho đợt thu đang active');
         }
 
         $detail = $this->getCollectionDetail($collection);
@@ -302,7 +303,7 @@ class ClubFundCollectionService
         $targetItem = $noPaymentYet->firstWhere('user.id', $targetUserId);
 
         if (!$targetItem) {
-            throw new \Exception('Thành viên này không thuộc danh sách chưa đóng hoặc đã đóng khoản thu');
+            throw new BusinessException('Thành viên này không thuộc danh sách chưa đóng hoặc đã đóng khoản thu');
         }
 
         $user = \App\Models\User::findOrFail($targetUserId);
@@ -344,7 +345,7 @@ class ClubFundCollectionService
     public function upsertMainWalletQr(Club $club, array $data, int $userId): ClubWallet
     {
         if (!$club->canManageFinance($userId)) {
-            throw new \Exception('Chỉ admin/manager/secretary/treasurer mới có quyền cập nhật mã QR');
+            throw new BusinessException('Chỉ admin/manager/secretary/treasurer mới có quyền cập nhật mã QR');
         }
 
         $wallet = ClubWallet::firstOrCreate(
@@ -368,13 +369,13 @@ class ClubFundCollectionService
     public function deleteMainWalletQr(Club $club, int $userId): void
     {
         if (!$club->canManageFinance($userId)) {
-            throw new \Exception('Chỉ admin/manager/secretary/treasurer mới có quyền xóa mã QR');
+            throw new BusinessException('Chỉ admin/manager/secretary/treasurer mới có quyền xóa mã QR');
         }
 
         $wallet = ClubWallet::where('club_id', $club->id)->first();
 
         if (!$wallet || empty($wallet->qr_code_url)) {
-            throw new \Exception('CLB chưa có mã QR thanh toán quỹ.');
+            throw new BusinessException('CLB chưa có mã QR thanh toán quỹ.');
         }
 
         $wallet->update([
@@ -386,7 +387,7 @@ class ClubFundCollectionService
     public function createOrAttachQrCode(Club $club, array $data, int $userId): ClubFundCollection
     {
         if (!$club->canManageFinance($userId)) {
-            throw new \Exception('Chỉ admin/manager/secretary/treasurer mới có quyền tạo/gắn mã QR');
+            throw new BusinessException('Chỉ admin/manager/secretary/treasurer mới có quyền tạo/gắn mã QR');
         }
 
         $qrCodeUrl = $this->imageService->optimizeThumbnail($data['image'], 'qr_codes', 90);
@@ -403,7 +404,7 @@ class ClubFundCollectionService
         $collection = $club->fundCollections()->findOrFail($collectionId);
 
         if ($collection->status !== ClubFundCollectionStatus::Active) {
-            throw new \Exception('Chỉ có thể gắn mã QR vào đợt thu đang active');
+            throw new BusinessException('Chỉ có thể gắn mã QR vào đợt thu đang active');
         }
 
         $collection->update(['qr_code_url' => $qrCodeUrl]);

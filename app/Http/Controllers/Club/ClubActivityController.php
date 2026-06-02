@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Club;
 
 use App\Enums\ClubActivityParticipantStatus;
 use App\Enums\ClubMemberRole;
+use App\Exceptions\BusinessException;
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Club\CancelActivityRequest;
@@ -339,8 +340,10 @@ class ClubActivityController extends Controller
             $activity->loadSum(self::ACTIVITY_COLLECTED_SUM, 'amount');
 
             return ResponseHelper::success(new ClubActivityResource($activity), 'Tạo hoạt động thành công', 201);
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi tạo hoạt động', 403);
         }
     }
 
@@ -384,8 +387,10 @@ class ClubActivityController extends Controller
             $activity->loadSum(self::ACTIVITY_COLLECTED_SUM, 'amount');
 
             return ResponseHelper::success(new ClubActivityResource($activity), 'Cập nhật hoạt động thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi cập nhật hoạt động', 403);
         }
     }
 
@@ -402,9 +407,10 @@ class ClubActivityController extends Controller
             $this->activityService->deleteActivity($activity, $userId);
             Cache::increment('club_content_version:' . $clubId);
             return ResponseHelper::success('Xóa hoạt động thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'scheduled') ? 422 : 403;
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi xóa hoạt động', 403);
         }
     }
 
@@ -429,8 +435,10 @@ class ClubActivityController extends Controller
             $activity->loadSum(self::ACTIVITY_COLLECTED_SUM, 'amount');
 
             return ResponseHelper::success(new ClubActivityResource($activity), 'Hoạt động đã được đánh dấu hoàn thành');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi đánh dấu hoàn thành', 403);
         }
     }
 
@@ -460,14 +468,10 @@ class ClubActivityController extends Controller
             $activity->loadSum(self::ACTIVITY_COLLECTED_SUM, 'amount');
 
             return ResponseHelper::success(new ClubActivityResource($activity), 'Sự kiện đã được hủy');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = 403;
-            if (str_contains($e->getMessage(), 'scheduled')) {
-                $statusCode = 422;
-            } elseif (str_contains($e->getMessage(), 'ví chính')) {
-                $statusCode = 404;
-            }
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi hủy hoạt động', 403);
         }
     }
 
@@ -488,8 +492,10 @@ class ClubActivityController extends Controller
                 'Đã hủy toàn bộ chuỗi lặp lại',
                 200
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi hủy chuỗi hoạt động', 403);
         }
     }
 

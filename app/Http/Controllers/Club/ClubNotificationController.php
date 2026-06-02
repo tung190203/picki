@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Club;
 
 use App\Enums\ClubMemberRole;
+use App\Exceptions\BusinessException;
 use App\Enums\ClubNotificationPriority;
 use App\Enums\ClubNotificationStatus;
 use App\Helpers\ResponseHelper;
@@ -234,8 +235,10 @@ class ClubNotificationController extends Controller
         try {
             $this->notificationService->markAsRead($notification, $userId, $canManage);
             return ResponseHelper::success([], 'Đã đánh dấu đọc');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi đánh dấu đọc thông báo', 403);
         }
     }
 
@@ -278,8 +281,10 @@ class ClubNotificationController extends Controller
             $notification = $this->notificationService->sendNotification($notification, $club);
             $notification->load(['type', 'creator', 'recipients.user']);
             return ResponseHelper::success(new ClubNotificationResource($notification), 'Gửi thông báo thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 422);
+            return ResponseHelper::error('Có lỗi xảy ra khi gửi thông báo', 422);
         }
     }
 }

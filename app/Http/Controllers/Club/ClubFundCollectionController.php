@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Club;
 
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
+use App\Exceptions\BusinessException;
 use App\Http\Requests\Club\StoreFundCollectionRequest;
 use App\Http\Requests\Club\UpdateFundCollectionRequest;
 use App\Http\Resources\Club\ClubFundCollectionResource;
@@ -108,8 +109,10 @@ class ClubFundCollectionController extends Controller
                 'Tạo đợt thu thành công',
                 201
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi tạo đợt thu', 403);
         }
     }
 
@@ -161,9 +164,10 @@ class ClubFundCollectionController extends Controller
             $collection->load(['creator', 'club', 'contributions.user']);
 
             return ResponseHelper::success(new ClubFundCollectionResource($collection), 'Cập nhật đợt thu thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'active') ? 422 : 403;
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi cập nhật đợt thu', 403);
         }
     }
 
@@ -179,9 +183,10 @@ class ClubFundCollectionController extends Controller
         try {
             $this->collectionService->cancelCollection($collection, $userId);
             return ResponseHelper::success('Đợt thu đã được hủy');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'active') ? 422 : 403;
-            return ResponseHelper::error($e->getMessage(), $statusCode);
+            return ResponseHelper::error('Có lỗi xảy ra khi hủy đợt thu', 403);
         }
     }
 
@@ -200,8 +205,10 @@ class ClubFundCollectionController extends Controller
         try {
             $this->collectionService->sendReminder($collection, (int) $userId, $requesterId);
             return ResponseHelper::success(null, 'Đã gửi nhắc nhở thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 422);
+            return ResponseHelper::error('Có lỗi xảy ra khi gửi nhắc nhở', 422);
         }
     }
 
@@ -264,8 +271,10 @@ class ClubFundCollectionController extends Controller
             return ResponseHelper::success(null, 'Xóa mã QR thành công');
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return ResponseHelper::error('Mã QR không tồn tại', 404);
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 422);
+            return ResponseHelper::error('Có lỗi xảy ra khi xóa mã QR', 422);
         }
     }
 
@@ -316,8 +325,10 @@ class ClubFundCollectionController extends Controller
                 'qr_code_url' => $wallet->qr_code_url,
                 'qr_note'     => $wallet->qr_note,
             ], 'Cập nhật mã QR thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 422);
+            return ResponseHelper::error('Có lỗi xảy ra khi tạo mã QR', 422);
         }
     }
 
@@ -333,8 +344,10 @@ class ClubFundCollectionController extends Controller
         try {
             $this->collectionService->deleteMainWalletQr($club, $userId);
             return ResponseHelper::success(null, 'Xóa mã QR thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 422);
+            return ResponseHelper::error('Có lỗi xảy ra khi xóa mã QR', 422);
         }
     }
 

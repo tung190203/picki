@@ -3,6 +3,7 @@
 namespace App\Services\Club;
 
 use App\Enums\ClubWalletTransactionDirection;
+use App\Exceptions\BusinessException;
 use App\Enums\ClubWalletTransactionSourceType;
 use App\Enums\ClubWalletTransactionStatus;
 use App\Enums\PaymentMethod;
@@ -51,14 +52,14 @@ class ClubExpenseService
     public function createExpense(Club $club, array $data, int $userId, bool $skipPermissionCheck = false): ClubExpense
     {
         if (!$skipPermissionCheck && !$club->canManageFinance($userId)) {
-            throw new \Exception('Chỉ admin/manager/secretary/treasurer mới có quyền tạo chi phí');
+            throw new BusinessException('Chỉ admin/manager/secretary/treasurer mới có quyền tạo chi phí');
         }
 
         $amount = (float) ($data['amount'] ?? 0);
         if ($amount > 0) {
             $currentBalance = (float) ($club->mainWallet?->balance ?? 0);
             if ($currentBalance < $amount) {
-                throw new \Exception(
+                throw new BusinessException(
                     "Số dư quỹ CLB hiện tại (" . number_format($currentBalance) . "đ) không đủ để tạo chi phí (" . number_format($amount) . "đ). Vui lòng nạp thêm quỹ."
                 );
             }
@@ -115,7 +116,7 @@ class ClubExpenseService
     {
         $club = $expense->club;
         if (!$club->canManageFinance($userId)) {
-            throw new \Exception('Chỉ admin/manager/secretary/treasurer mới có quyền cập nhật');
+            throw new BusinessException('Chỉ admin/manager/secretary/treasurer mới có quyền cập nhật');
         }
 
         if (isset($data['description'])) {
@@ -135,7 +136,7 @@ class ClubExpenseService
     {
         $club = $expense->club;
         if (!$club->canManageFinance($userId)) {
-            throw new \Exception('Chỉ admin/manager/secretary/treasurer mới có quyền xóa');
+            throw new BusinessException('Chỉ admin/manager/secretary/treasurer mới có quyền xóa');
         }
 
         $transaction = $expense->walletTransaction;

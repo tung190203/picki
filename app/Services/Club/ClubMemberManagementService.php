@@ -5,6 +5,7 @@ namespace App\Services\Club;
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
+use App\Exceptions\BusinessException;
 use App\Models\Club\Club;
 use App\Models\Club\ClubMember;
 use App\Models\SuperAdminDraft;
@@ -79,7 +80,7 @@ class ClubMemberManagementService
     public function inviteMember(Club $club, array $data, int $inviterId): ClubMember
     {
         if ($club->hasMember($data['user_id'])) {
-            throw new \Exception('Người dùng đã là thành viên của CLB này');
+            throw new BusinessException('Người dùng đã là thành viên của CLB này');
         }
 
         $isSuperAdminDraft = SuperAdminDraft::where('user_id', $inviterId)->exists();
@@ -160,7 +161,7 @@ class ClubMemberManagementService
                 ]);
             } elseif (isset($data['rejection_reason']) && $member->membership_status === ClubMembershipStatus::Pending) {
                 $member->delete();
-                throw new \Exception('DELETED');
+                throw new BusinessException('DELETED');
             } else {
                 $member->update($data);
             }
@@ -178,11 +179,11 @@ class ClubMemberManagementService
     public function kickMember(ClubMember $member, int $kickerId): void
     {
         if ($member->user_id === $kickerId) {
-            throw new \Exception('Bạn không thể đuổi chính mình khỏi CLB. Vui lòng sử dụng chức năng Rời CLB');
+            throw new BusinessException('Bạn không thể đuổi chính mình khỏi CLB. Vui lòng sử dụng chức năng Rời CLB');
         }
 
         if ($member->role === ClubMemberRole::Admin && !$member->club->hasAtLeastOneAdminAfterRemoving($member->id)) {
-            throw new \Exception('Không thể đuổi admin này vì sẽ không còn admin nào trong CLB. Vui lòng chỉ định admin khác trước');
+            throw new BusinessException('Không thể đuổi admin này vì sẽ không còn admin nào trong CLB. Vui lòng chỉ định admin khác trước');
         }
 
         $member->update([
@@ -206,7 +207,7 @@ class ClubMemberManagementService
     public function cancelInvitation(ClubMember $member, int $inviterId): void
     {
         if ($member->membership_status !== ClubMembershipStatus::Pending || $member->invited_by !== $inviterId) {
-            throw new \Exception('Chỉ có thể hủy lời mời do chính bạn gửi');
+            throw new BusinessException('Chỉ có thể hủy lời mời do chính bạn gửi');
         }
 
         $club = $member->club;
@@ -232,20 +233,20 @@ class ClubMemberManagementService
         $canUpdateRole = in_array($currentRoleValue, [ClubMemberRole::Admin->value, ClubMemberRole::Secretary->value], true);
 
         if (!$canUpdateRole) {
-            throw new \Exception('Chỉ admin hoặc thư ký mới có quyền thay đổi role của thành viên');
+            throw new BusinessException('Chỉ admin hoặc thư ký mới có quyền thay đổi role của thành viên');
         }
 
         if ($currentRoleValue === ClubMemberRole::Secretary->value && $newRole === ClubMemberRole::Admin->value) {
-            throw new \Exception('Thư ký không có quyền chỉ định role Quản trị viên');
+            throw new BusinessException('Thư ký không có quyền chỉ định role Quản trị viên');
         }
 
         if ($isSelfUpdate) {
-            throw new \Exception('Bạn không thể thay đổi role của chính mình');
+            throw new BusinessException('Bạn không thể thay đổi role của chính mình');
         }
 
         $isDowngradingAdmin = $member->role === ClubMemberRole::Admin && !in_array($newRole, [ClubMemberRole::Admin->value, ClubMemberRole::Manager->value], true);
         if ($isDowngradingAdmin && !$club->hasAtLeastOneAdminAfterRemoving($member->id)) {
-            throw new \Exception('Không thể thay đổi role của admin này vì sẽ không còn admin nào trong CLB');
+            throw new BusinessException('Không thể thay đổi role của admin này vì sẽ không còn admin nào trong CLB');
         }
     }
 
@@ -258,7 +259,7 @@ class ClubMemberManagementService
                 $message = $isSelfUpdate
                     ? 'Bạn không thể tự suspend chính mình vì sẽ không còn admin nào trong CLB'
                     : 'Không thể suspend admin này vì sẽ không còn admin nào trong CLB';
-                throw new \Exception($message);
+                throw new BusinessException($message);
             }
         }
     }

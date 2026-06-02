@@ -356,10 +356,6 @@ class ClubTournamentController extends Controller
             return ResponseHelper::error('Chỉ admin/manager/secretary mới có quyền hủy giải của CLB', 403);
         }
 
-        if ($tournament->status === Tournament::CANCELLED) {
-            return ResponseHelper::error('Giải đấu đã bị hủy trước đó rồi', 422);
-        }
-
         $hasCompletedMatch = \App\Models\Matches::whereHas('tournamentType', fn($q) => $q->where('tournament_id', $tournament->id))
             ->where('status', \App\Models\Matches::STATUS_COMPLETED)
             ->exists();
@@ -368,33 +364,32 @@ class ClubTournamentController extends Controller
             return ResponseHelper::error('Không thể hủy giải. Đã có trận đấu hoàn thành thuộc giải này.', 400);
         }
 
+        // Lấy thông tin trước khi xóa (hard delete cascade)
         $cancelledReason = $request->input('cancellation_reason', 'Hủy giải đấu');
+        $tournamentName = $tournament->name;
+        $deletedTournamentId = $tournament->id;
+        $deletedTournamentClubId = $tournament->club_id;
 
-        DB::transaction(function () use ($tournament, $cancelledReason) {
-            $tournament->update([
-                'status' => Tournament::CANCELLED,
-                'cancelled_reason' => $cancelledReason,
-            ]);
-
-            $this->syncParticipantsPaymentStatus($tournament, false);
-        });
-
-        Cache::increment('club_content_version:' . $club->id);
-
-        // Notify confirmed participants about the cancellation
+        // Lấy user IDs để gửi notification (participants bị cascade xóa theo tournament)
         $participantUserIds = $tournament->participants()
             ->where('is_confirmed', true)
             ->pluck('user_id')
             ->toArray();
 
+        DB::transaction(function () use ($tournament) {
+            $tournament->delete();
+        });
+
+        Cache::increment('club_content_version:' . $club->id);
+
         foreach ($participantUserIds as $participantUserId) {
             $participantUser = \App\Models\User::find($participantUserId);
             if ($participantUser) {
-                $participantUser->notify(new \App\Notifications\TournamentCancelledNotification($tournament, $cancelledReason));
+                $participantUser->notify(new \App\Notifications\TournamentCancelledNotification($deletedTournamentId, $tournamentName, $cancelledReason, $deletedTournamentClubId));
             }
         }
 
-        return ResponseHelper::success(null, 'Hủy giải đấu thành công');
+        return ResponseHelper::success(null, 'Xóa giải đấu thành công');
     }
 
     /**

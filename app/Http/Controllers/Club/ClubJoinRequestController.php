@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Club;
 
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
+use App\Exceptions\BusinessException;
 use App\Http\Requests\Club\ApproveJoinRequestRequest;
 use App\Http\Requests\Club\GetJoinRequestsRequest;
 use App\Http\Requests\Club\RejectJoinRequestRequest;
@@ -62,8 +63,10 @@ class ClubJoinRequestController extends Controller
             $member->load(['user' => User::FULL_RELATIONS, 'club']);
 
             return ResponseHelper::success(new ClubMemberResource($member), 'Yêu cầu tham gia đã được gửi', 201);
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 409);
+            return ResponseHelper::error('Có lỗi xảy ra khi gửi yêu cầu tham gia', 409);
         }
     }
 
@@ -91,8 +94,10 @@ class ClubJoinRequestController extends Controller
         try {
             $this->joinRequestService->cancelMyRequest(Club::findOrFail($clubId), $userId);
             return ResponseHelper::success('Yêu cầu đã được hủy');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 404);
+            return ResponseHelper::error('Có lỗi xảy ra khi hủy yêu cầu', 404);
         }
     }
 
@@ -133,8 +138,10 @@ class ClubJoinRequestController extends Controller
             $member->load(['user' => User::FULL_RELATIONS, 'reviewer']);
 
             return ResponseHelper::success(new ClubMemberResource($member), 'Yêu cầu đã được duyệt');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi duyệt yêu cầu', 403);
         }
     }
 
@@ -173,8 +180,10 @@ class ClubJoinRequestController extends Controller
         try {
             $this->joinRequestService->rejectRequest($member, $reviewerId, $request->input('rejection_reason'));
             return ResponseHelper::success([], 'Yêu cầu đã bị từ chối');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi từ chối yêu cầu', 403);
         }
     }
 
@@ -210,8 +219,10 @@ class ClubJoinRequestController extends Controller
             $member->load(['user' => User::FULL_RELATIONS, 'club', 'inviter']);
 
             return ResponseHelper::success(new ClubMemberResource($member), 'Bạn đã tham gia CLB thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 404);
+            return ResponseHelper::error('Có lỗi xảy ra khi tham gia CLB', 404);
         }
     }
 
@@ -230,8 +241,10 @@ class ClubJoinRequestController extends Controller
         try {
             $this->joinRequestService->rejectInvitation($clubId, $userId);
             return ResponseHelper::success('Đã từ chối lời mời tham gia CLB');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 404);
+            return ResponseHelper::error('Có lỗi xảy ra khi từ chối lời mời', 404);
         }
     }
 }

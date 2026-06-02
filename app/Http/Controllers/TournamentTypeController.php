@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\TournamentTypeResource;
+use App\Exceptions\BusinessException;
 use App\Models\Group;
 use App\Models\Matches;
 use App\Models\PoolAdvancementRule;
@@ -112,9 +113,11 @@ const PAIRING_MODE_MANUAL = 'manual';
 
             DB::commit();
             return ResponseHelper::success(new TournamentTypeResource($type), 'Tạo thể thức thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Throwable $e) {
             DB::rollBack();
-            return ResponseHelper::error('Lỗi khi tạo thể thức: ' . $e->getMessage(), 500);
+            return ResponseHelper::error('Có lỗi xảy ra khi tạo thể thức giải đấu', 500);
         }
     }
 
@@ -151,9 +154,11 @@ const PAIRING_MODE_MANUAL = 'manual';
                 new TournamentTypeResource($tournamentType->fresh()),
                 'Tự động tạo lịch thi đấu thành công'
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Throwable $e) {
             DB::rollBack();
-            return ResponseHelper::error('Lỗi: ' . $e->getMessage(), 500);
+            return ResponseHelper::error('Có lỗi xảy ra khi tạo lịch thi đấu', 500);
         }
     }
 
@@ -311,9 +316,11 @@ const PAIRING_MODE_MANUAL = 'manual';
 
             DB::commit();
             return ResponseHelper::success(new TournamentTypeResource($tournamentType->fresh()), 'Cập nhật thể thức thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Throwable $e) {
             DB::rollBack();
-            return ResponseHelper::error('Lỗi khi cập nhật thể thức: ' . $e->getMessage(), 500);
+            return ResponseHelper::error('Có lỗi xảy ra khi cập nhật thể thức giải đấu', 500);
         }
     }
 
@@ -1367,8 +1374,10 @@ const PAIRING_MODE_MANUAL = 'manual';
                 default:
                     return ResponseHelper::error('Format không hợp lệ', 400);
             }
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Throwable $e) {
-            return ResponseHelper::error('Lỗi khi lấy bracket: ' . $e->getMessage(), 500);
+            return ResponseHelper::error('Có lỗi xảy ra khi lấy bracket giải đấu', 500);
         }
     }
 
@@ -1851,8 +1860,10 @@ const PAIRING_MODE_MANUAL = 'manual';
             }
 
             return $this->getMixedBracketNew($tournamentType);
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Throwable $e) {
-            return ResponseHelper::error('Lỗi khi lấy bracket: ' . $e->getMessage(), 500);
+            return ResponseHelper::error('Có lỗi xảy ra khi lấy bracket giải đấu', 500);
         }
     }
 
@@ -2566,9 +2577,11 @@ const PAIRING_MODE_MANUAL = 'manual';
                 new TournamentTypeResource($tournamentType->fresh()),
                 'Chia lại cặp đấu thành công.'
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Throwable $e) {
             DB::rollBack();
-            return ResponseHelper::error('Lỗi khi chia lại cặp đấu: ' . $e->getMessage(), 500);
+            return ResponseHelper::error('Có lỗi xảy ra khi chia lại cặp đấu', 500);
         }
     }
     /**
@@ -2636,9 +2649,11 @@ const PAIRING_MODE_MANUAL = 'manual';
                     ? 'Đã lưu tiến trình sắp xếp đội'
                     : 'Sắp xếp đội và tạo lịch thi đấu thành công'
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Throwable $e) {
             DB::rollBack();
-            return ResponseHelper::error('Lỗi: ' . $e->getMessage(), 500);
+            return ResponseHelper::error('Có lỗi xảy ra khi sắp xếp đội', 500);
         }
     }
 
