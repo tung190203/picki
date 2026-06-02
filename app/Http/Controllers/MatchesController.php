@@ -2084,9 +2084,11 @@ class MatchesController extends Controller
                 'Đã chọn đội thắng và tiến vào vòng trong thành công',
                 200
             );
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
             DB::rollBack();
-            return ResponseHelper::error('Có lỗi xảy ra: ' . $e->getMessage(), 500);
+            return ResponseHelper::error('Có lỗi xảy ra khi xử lý trận đấu', 500);
         }
     }
     private function handleLoserAdvancement(Matches $match)

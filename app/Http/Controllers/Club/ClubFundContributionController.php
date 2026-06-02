@@ -3,9 +3,7 @@
 namespace App\Http\Controllers\Club;
 
 use App\Enums\ClubFundContributionStatus;
-use App\Helpers\ResponseHelper;
-use App\Http\Controllers\Controller;
-use App\Http\Resources\Club\ClubFundContributionResource;
+use App\Exceptions\BusinessException;
 use App\Models\Club\ClubFundCollection;
 use App\Models\Club\ClubFundContribution;
 use App\Services\Club\ClubFundContributionService;
@@ -76,8 +74,10 @@ class ClubFundContributionController extends Controller
 
             $contribution->load(['user', 'walletTransaction']);
             return ResponseHelper::success(new ClubFundContributionResource($contribution), 'Đã gửi biên lai', 201);
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 422);
+            return ResponseHelper::error('Có lỗi xảy ra khi gửi biên lai', 422);
         }
     }
 
@@ -103,8 +103,10 @@ class ClubFundContributionController extends Controller
             );
             $contribution->load(['user', 'walletTransaction']);
             return ResponseHelper::success(new ClubFundContributionResource($contribution), 'Đã đánh dấu thành viên đã đóng');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 422);
+            return ResponseHelper::error('Có lỗi xảy ra khi đánh dấu thành viên đã đóng', 422);
         }
     }
 
@@ -145,8 +147,10 @@ class ClubFundContributionController extends Controller
             $contribution = $this->contributionService->confirmContribution($contribution, $userId);
             $contribution->load(['user', 'walletTransaction']);
             return ResponseHelper::success(new ClubFundContributionResource($contribution), 'Đóng góp đã được xác nhận');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 422);
+            return ResponseHelper::error('Có lỗi xảy ra khi xác nhận đóng góp', 422);
         }
     }
 

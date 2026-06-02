@@ -6,6 +6,7 @@ use App\Enums\ClubMemberRole;
 use App\Enums\ClubMembershipStatus;
 use App\Enums\ClubMemberStatus;
 use App\Enums\ClubStatus;
+use App\Exceptions\BusinessException;
 use App\Jobs\SendPushJob;
 use App\Models\Club\Club;
 use App\Models\Club\ClubMember;
@@ -89,11 +90,11 @@ class ClubService
     public function updateClub(Club $club, array $data, int $userId): Club
     {
         if (!$club->canManage($userId)) {
-            throw new \Exception('Chỉ admin/manager/secretary mới có quyền cập nhật CLB');
+            throw new BusinessException('Chỉ admin/manager/secretary mới có quyền cập nhật CLB');
         }
 
         if (array_key_exists('footer', $data) && !$club->canEditFooter($userId)) {
-            throw new \Exception('Chỉ admin và thư ký mới có quyền sửa thông tin footer');
+            throw new BusinessException('Chỉ admin và thư ký mới có quyền sửa thông tin footer');
         }
 
         if (isset($data['qr_code_enabled']) && $data['qr_code_enabled']) {
@@ -101,7 +102,7 @@ class ClubService
             $hasExistingImage = $club->profile && $club->profile->qr_code_image_url;
 
             if (!$hasNewImage && !$hasExistingImage) {
-                throw new \Exception('Vui lòng tải lên ảnh QR code khi bật tính năng này');
+                throw new BusinessException('Vui lòng tải lên ảnh QR code khi bật tính năng này');
             }
         }
 
@@ -289,7 +290,7 @@ class ClubService
     public function deleteClub(Club $club, int $userId): void
     {
         if (!$club->canManage($userId)) {
-            throw new \Exception('Chỉ admin/manager/secretary mới có quyền xóa CLB');
+            throw new BusinessException('Chỉ admin/manager/secretary mới có quyền xóa CLB');
         }
 
         DB::transaction(function () use ($club, $userId) {
@@ -329,7 +330,7 @@ class ClubService
         $isSystemAdmin = User::isAdmin($userId);
 
         if (!$isCreator && !$isSystemAdmin) {
-            throw new \Exception('Chỉ người tạo CLB hoặc admin hệ thống mới có quyền khôi phục CLB');
+            throw new BusinessException('Chỉ người tạo CLB hoặc admin hệ thống mới có quyền khôi phục CLB');
         }
 
         $club->restore();
@@ -354,10 +355,10 @@ class ClubService
 
         if (!$club->is_public) {
             if (!$userId) {
-                throw new \Exception('CLB này là riêng tư. Bạn cần đăng nhập để xem');
+                throw new BusinessException('CLB này là riêng tư. Bạn cần đăng nhập để xem');
             }
             if (!$isMember) {
-                throw new \Exception('Bạn không có quyền xem CLB riêng tư này');
+                throw new BusinessException('Bạn không có quyền xem CLB riêng tư này');
             }
         }
 
@@ -575,7 +576,7 @@ class ClubService
         $member = $club->activeMembers()->where('user_id', $userId)->first();
 
         if (!$member) {
-            throw new \Exception('Bạn không phải thành viên active của CLB này');
+            throw new BusinessException('Bạn không phải thành viên active của CLB này');
         }
 
         if ($member->role === ClubMemberRole::Admin) {
@@ -583,7 +584,7 @@ class ClubService
 
             if ($adminCount === 1) {
                 if (!$transferToUserId) {
-                    throw new \Exception('Bạn là admin duy nhất của CLB. Vui lòng nhượng lại quyền quản lý cho thành viên khác trước khi rời.');
+                    throw new BusinessException('Bạn là admin duy nhất của CLB. Vui lòng nhượng lại quyền quản lý cho thành viên khác trước khi rời.');
                 }
 
                 $newAdmin = $club->activeMembers()
@@ -593,7 +594,7 @@ class ClubService
                     ->first();
 
                 if (!$newAdmin) {
-                    throw new \Exception('Người được nhượng quyền phải là thành viên active của CLB và không phải chính bạn');
+                    throw new BusinessException('Người được nhượng quyền phải là thành viên active của CLB và không phải chính bạn');
                 }
 
                 return DB::transaction(function () use ($member, $newAdmin) {
@@ -637,12 +638,12 @@ class ClubService
     public function updateFund(Club $club, string $qrCodeUrl, int $userId): array
     {
         if (!$club->canManageFinance($userId)) {
-            throw new \Exception('Chỉ admin/manager/secretary/treasurer mới có quyền cập nhật quỹ');
+            throw new BusinessException('Chỉ admin/manager/secretary/treasurer mới có quyền cập nhật quỹ');
         }
 
         $mainWallet = $club->mainWallet;
         if (!$mainWallet) {
-            throw new \Exception('CLB chưa có ví chính');
+            throw new BusinessException('CLB chưa có ví chính');
         }
 
         $mainWallet->update(['qr_code_url' => $qrCodeUrl]);

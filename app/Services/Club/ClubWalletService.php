@@ -3,6 +3,7 @@
 namespace App\Services\Club;
 
 use App\Enums\ClubFundCollectionStatus;
+use App\Exceptions\BusinessException;
 use App\Enums\ClubWalletTransactionDirection;
 use App\Enums\ClubWalletTransactionStatus;
 use App\Models\Club\Club;
@@ -21,7 +22,7 @@ class ClubWalletService
     public function createWallet(Club $club, array $data): ClubWallet
     {
         if ($club->wallet()->exists()) {
-            throw new \Exception('CLB đã có ví quỹ');
+            throw new BusinessException('CLB đã có ví quỹ');
         }
 
         return ClubWallet::create([
@@ -39,7 +40,7 @@ class ClubWalletService
     public function deleteWallet(ClubWallet $wallet): void
     {
         if ($wallet->transactions()->exists()) {
-            throw new \Exception('Không thể xóa ví vì có giao dịch');
+            throw new BusinessException('Không thể xóa ví vì có giao dịch');
         }
 
         $wallet->delete();

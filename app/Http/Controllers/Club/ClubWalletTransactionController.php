@@ -3,12 +3,7 @@
 namespace App\Http\Controllers\Club;
 
 use App\Enums\ClubWalletTransactionDirection;
-use App\Enums\ClubWalletTransactionSourceType;
-use App\Enums\ClubWalletTransactionStatus;
-use App\Enums\PaymentMethod;
-use App\Helpers\ResponseHelper;
-use App\Http\Controllers\Controller;
-use App\Http\Resources\Club\ClubWalletTransactionResource;
+use App\Exceptions\BusinessException;
 use App\Models\Club\Club;
 use App\Models\Club\ClubActivity;
 use App\Models\Club\ClubActivityParticipant;
@@ -175,8 +170,10 @@ class ClubWalletTransactionController extends Controller
             $transaction = $this->transactionService->updateTransaction($transaction, $validated);
             $transaction->load(['wallet', 'creator', 'confirmer']);
             return ResponseHelper::success(new ClubWalletTransactionResource($transaction), 'Cập nhật giao dịch thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 422);
+            return ResponseHelper::error('Có lỗi xảy ra khi cập nhật giao dịch', 422);
         }
     }
 
@@ -197,8 +194,10 @@ class ClubWalletTransactionController extends Controller
             $transaction->load(['wallet', 'creator', 'confirmer']);
             $this->notifyParticipantOnPaymentConfirmed($club, $transaction);
             return ResponseHelper::success(new ClubWalletTransactionResource($transaction), 'Giao dịch đã được xác nhận');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 422);
+            return ResponseHelper::error('Có lỗi xảy ra khi xác nhận giao dịch', 422);
         }
     }
 
@@ -218,8 +217,10 @@ class ClubWalletTransactionController extends Controller
             $transaction = $this->transactionService->rejectTransaction($transaction, $userId);
             $transaction->load(['wallet', 'creator', 'confirmer']);
             return ResponseHelper::success(new ClubWalletTransactionResource($transaction), 'Giao dịch đã bị từ chối');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 422);
+            return ResponseHelper::error('Có lỗi xảy ra khi từ chối giao dịch', 422);
         }
     }
 

@@ -6,6 +6,7 @@ use App\Enums\ClubWalletTransactionDirection;
 use App\Enums\ClubWalletTransactionStatus;
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
+use App\Exceptions\BusinessException;
 use App\Http\Resources\Club\ClubWalletResource;
 use App\Http\Resources\Club\ClubWalletTransactionResource;
 use App\Models\Club\Club;
@@ -40,8 +41,10 @@ class ClubWalletController extends Controller
         try {
             $wallet = $this->walletService->createWallet($club, ['currency' => 'VND']);
             return ResponseHelper::success(new ClubWalletResource($wallet), 'Tạo ví thành công', 201);
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 409);
+            return ResponseHelper::error('Có lỗi xảy ra khi tạo ví', 409);
         }
     }
 
@@ -96,8 +99,10 @@ class ClubWalletController extends Controller
         try {
             $this->walletService->deleteWallet($wallet);
             return ResponseHelper::success('Xóa ví thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 422);
+            return ResponseHelper::error('Có lỗi xảy ra khi xóa ví', 422);
         }
     }
 

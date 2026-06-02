@@ -3,6 +3,7 @@
 namespace App\Services\Club;
 
 use App\Enums\ClubFundCollectionStatus;
+use App\Exceptions\BusinessException;
 use App\Enums\ClubFundContributionStatus;
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
@@ -63,7 +64,7 @@ class ClubFundContributionService
                 ClubFundCollectionStatus::Cancelled => 'Đợt thu đã bị hủy.',
                 default => 'Đợt thu không còn hoạt động.',
             };
-            throw new \Exception($message);
+            throw new BusinessException($message);
         }
 
         $existingPending = $collection->contributions()
@@ -72,7 +73,7 @@ class ClubFundContributionService
             ->first();
 
         if ($existingPending) {
-            throw new \Exception('Đóng góp của bạn đang chờ xác nhận');
+            throw new BusinessException('Đóng góp của bạn đang chờ xác nhận');
         }
 
         $assigned = $collection->assignedMembers()->where('user_id', $userId)->first();
@@ -81,7 +82,7 @@ class ClubFundContributionService
         }
 
         if ($amountDue <= 0) {
-            throw new \Exception('Số tiền cần đóng không hợp lệ');
+            throw new BusinessException('Số tiền cần đóng không hợp lệ');
         }
 
         $receiptUrl = $this->imageService->optimizeThumbnail($image, 'fund_contribution_receipts', 90);
@@ -133,7 +134,7 @@ class ClubFundContributionService
     public function confirmContribution(ClubFundContribution $contribution, int $confirmerId): ClubFundContribution
     {
         if ($contribution->status !== ClubFundContributionStatus::Pending) {
-            throw new \Exception('Chỉ có thể xác nhận đóng góp đang pending');
+            throw new BusinessException('Chỉ có thể xác nhận đóng góp đang pending');
         }
 
         $contribution = DB::transaction(function () use ($contribution, $confirmerId) {
@@ -212,12 +213,12 @@ class ClubFundContributionService
     {
         $assigned = $collection->assignedMembers()->where('user_id', $memberUserId)->first();
         if (!$assigned) {
-            throw new \Exception('Thành viên không có trong danh sách thu');
+            throw new BusinessException('Thành viên không có trong danh sách thu');
         }
 
         $amountDue = (float) ($assigned->pivot?->amount_due ?? $collection->amount_per_member ?? 0);
         if ($amountDue <= 0) {
-            throw new \Exception('Số tiền cần đóng không hợp lệ');
+            throw new BusinessException('Số tiền cần đóng không hợp lệ');
         }
 
         $existing = $collection->contributions()->where('user_id', $memberUserId)->first();
@@ -232,7 +233,7 @@ class ClubFundContributionService
                 }
                 return $this->confirmContribution($existing, $confirmerId);
             }
-            throw new \Exception('Đóng góp đã bị từ chối, không thể đánh dấu đã đóng');
+            throw new BusinessException('Đóng góp đã bị từ chối, không thể đánh dấu đã đóng');
         }
 
         return DB::transaction(function () use ($collection, $memberUserId, $amountDue, $confirmerId, $receiptUrl) {

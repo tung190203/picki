@@ -10,7 +10,10 @@ use Symfony\Component\HttpFoundation\Response;
 
 class UpdateLastLoginMiddleware
 {
-    /** Chỉ cập nhật last_login nếu đã quá X phút (tránh ghi DB liên tục). */
+    /**
+     * Chỉ cập nhật last_login / last_active_at nếu đã quá X phút (tránh ghi DB liên tục).
+     * last_active_at: cập nhật thường xuyên hơn để track hoạt động thực tế.
+     */
     private const THROTTLE_MINUTES = 5;
 
     public function handle(Request $request, Closure $next): Response
@@ -22,7 +25,10 @@ class UpdateLastLoginMiddleware
                 || $lastLogin->diffInMinutes(now()) >= self::THROTTLE_MINUTES;
 
             if ($shouldUpdate) {
-                $user->update(['last_login' => now()]);
+                $user->update([
+                    'last_login' => now(),
+                    'last_active_at' => now(),
+                ]);
             }
         }
 

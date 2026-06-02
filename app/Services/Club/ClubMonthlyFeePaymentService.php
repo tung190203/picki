@@ -3,6 +3,7 @@
 namespace App\Services\Club;
 
 use App\Enums\ClubMonthlyFeePaymentStatus;
+use App\Exceptions\BusinessException;
 use App\Models\Club\Club;
 use App\Models\Club\ClubMonthlyFeePayment;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -39,7 +40,7 @@ class ClubMonthlyFeePaymentService
             ->exists();
 
         if ($exists) {
-            throw new \Exception('Đã thanh toán phí cho tháng này');
+            throw new BusinessException('Đã thanh toán phí cho tháng này');
         }
 
         return DB::transaction(function () use ($club, $data, $userId) {

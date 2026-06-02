@@ -3,6 +3,7 @@
 namespace App\Services\Club;
 
 use App\Enums\ClubActivityParticipantStatus;
+use App\Exceptions\BusinessException;
 use App\Enums\ClubActivityStatus;
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
@@ -58,18 +59,18 @@ class ClubActivityParticipantService
     public function joinActivity(ClubActivity $activity, int $userId): ClubActivityParticipant
     {
         if ($activity->status === ClubActivityStatus::Cancelled) {
-            throw new \Exception('Sự kiện đã bị hủy');
+            throw new BusinessException('Sự kiện đã bị hủy');
         }
 
         if ($activity->status === ClubActivityStatus::Completed) {
-            throw new \Exception('Sự kiện đã kết thúc');
+            throw new BusinessException('Sự kiện đã kết thúc');
         }
 
         $club = $activity->club;
         $member = $club->activeMembers()->where('user_id', $userId)->first();
 
         if (!$member) {
-            throw new \Exception('Bạn không phải thành viên CLB');
+            throw new BusinessException('Bạn không phải thành viên CLB');
         }
 
         $isCreator = (int) $activity->created_by === (int) $userId;
@@ -86,7 +87,7 @@ class ClubActivityParticipantService
                 ClubActivityParticipantStatus::Accepted,
                 ClubActivityParticipantStatus::Attended,
             ])) {
-                throw new \Exception('Bạn đã tham gia hoạt động này');
+                throw new BusinessException('Bạn đã tham gia hoạt động này');
             }
 
             // If status is Declined or Absent, allow rejoin
@@ -108,7 +109,7 @@ class ClubActivityParticipantService
         }
 
         if ($activity->max_participants !== null && $activity->acceptedParticipants()->count() >= $activity->max_participants) {
-            throw new \Exception('Sự kiện đã đủ số lượng người tham gia');
+            throw new BusinessException('Sự kiện đã đủ số lượng người tham gia');
         }
 
         $initialStatus = $shouldAutoAccept ? ClubActivityParticipantStatus::Accepted : ClubActivityParticipantStatus::Pending;
@@ -159,25 +160,25 @@ class ClubActivityParticipantService
     public function inviteUsers(ClubActivity $activity, array $userIds, int $inviterId): array
     {
         if ($activity->status === ClubActivityStatus::Cancelled) {
-            throw new \Exception('Sự kiện đã bị hủy');
+            throw new BusinessException('Sự kiện đã bị hủy');
         }
 
         if ($activity->status === ClubActivityStatus::Completed) {
-            throw new \Exception('Sự kiện đã kết thúc');
+            throw new BusinessException('Sự kiện đã kết thúc');
         }
 
         $club = $activity->club;
         $member = $club->activeMembers()->where('user_id', $inviterId)->first();
 
         if (!$member) {
-            throw new \Exception('Bạn không phải thành viên CLB');
+            throw new BusinessException('Bạn không phải thành viên CLB');
         }
 
         $canInvite = in_array($member->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary])
             || $activity->allow_member_invite;
 
         if (!$canInvite) {
-            throw new \Exception('Chỉ admin/manager/secretary hoặc khi sự kiện cho phép thành viên mời mới có quyền mời');
+            throw new BusinessException('Chỉ admin/manager/secretary hoặc khi sự kiện cho phép thành viên mời mới có quyền mời');
         }
 
         $currentCount = $activity->participants()->count();
@@ -231,25 +232,25 @@ class ClubActivityParticipantService
     {
         $activity = $participant->activity;
         if ($activity->status === ClubActivityStatus::Cancelled) {
-            throw new \Exception('Sự kiện đã bị hủy');
+            throw new BusinessException('Sự kiện đã bị hủy');
         }
         if ($activity->status === ClubActivityStatus::Completed) {
-            throw new \Exception('Sự kiện đã kết thúc');
+            throw new BusinessException('Sự kiện đã kết thúc');
         }
 
         $club = $activity->club;
         $member = $club->activeMembers()->where('user_id', $approverId)->first();
 
         if (!$member || !in_array($member->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary])) {
-            throw new \Exception('Chỉ admin/manager/secretary mới có quyền duyệt yêu cầu');
+            throw new BusinessException('Chỉ admin/manager/secretary mới có quyền duyệt yêu cầu');
         }
 
         if ($participant->status !== ClubActivityParticipantStatus::Pending) {
-            throw new \Exception('Chỉ có thể duyệt yêu cầu đang pending');
+            throw new BusinessException('Chỉ có thể duyệt yêu cầu đang pending');
         }
 
         if ($activity->max_participants !== null && $activity->acceptedParticipants()->count() >= $activity->max_participants) {
-            throw new \Exception('Sự kiện đã đủ số lượng người tham gia');
+            throw new BusinessException('Sự kiện đã đủ số lượng người tham gia');
         }
 
         $participant = DB::transaction(function () use ($participant) {
@@ -277,18 +278,18 @@ class ClubActivityParticipantService
     {
         $activity = $participant->activity;
         if ($activity->status === ClubActivityStatus::Cancelled) {
-            throw new \Exception('Sự kiện đã bị hủy');
+            throw new BusinessException('Sự kiện đã bị hủy');
         }
 
         $club = $activity->club;
         $member = $club->activeMembers()->where('user_id', $rejecterId)->first();
 
         if (!$member || !in_array($member->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary])) {
-            throw new \Exception('Chỉ admin/manager/secretary mới có quyền từ chối yêu cầu');
+            throw new BusinessException('Chỉ admin/manager/secretary mới có quyền từ chối yêu cầu');
         }
 
         if ($participant->status !== ClubActivityParticipantStatus::Pending) {
-            throw new \Exception('Chỉ có thể từ chối yêu cầu đang pending');
+            throw new BusinessException('Chỉ có thể từ chối yêu cầu đang pending');
         }
 
         $participant->decline();
@@ -310,23 +311,23 @@ class ClubActivityParticipantService
     public function acceptInvite(ClubActivityParticipant $participant, int $userId): ClubActivityParticipant
     {
         if ($participant->user_id !== $userId) {
-            throw new \Exception('Chỉ có thể chấp nhận lời mời của chính mình');
+            throw new BusinessException('Chỉ có thể chấp nhận lời mời của chính mình');
         }
 
         if ($participant->status !== ClubActivityParticipantStatus::Invited) {
-            throw new \Exception('Chỉ có thể chấp nhận lời mời đang invited');
+            throw new BusinessException('Chỉ có thể chấp nhận lời mời đang invited');
         }
 
         $activity = $participant->activity;
         if ($activity->status === ClubActivityStatus::Cancelled) {
-            throw new \Exception('Sự kiện đã bị hủy');
+            throw new BusinessException('Sự kiện đã bị hủy');
         }
         if ($activity->status === ClubActivityStatus::Completed) {
-            throw new \Exception('Sự kiện đã kết thúc');
+            throw new BusinessException('Sự kiện đã kết thúc');
         }
 
         if ($activity->max_participants !== null && $activity->acceptedParticipants()->count() >= $activity->max_participants) {
-            throw new \Exception('Sự kiện đã đủ số lượng người tham gia');
+            throw new BusinessException('Sự kiện đã đủ số lượng người tham gia');
         }
 
         return DB::transaction(function () use ($participant) {
@@ -339,11 +340,11 @@ class ClubActivityParticipantService
     public function declineInvite(ClubActivityParticipant $participant, int $userId): ClubActivityParticipant
     {
         if ($participant->user_id !== $userId) {
-            throw new \Exception('Chỉ có thể từ chối lời mời của chính mình');
+            throw new BusinessException('Chỉ có thể từ chối lời mời của chính mình');
         }
 
         if ($participant->status !== ClubActivityParticipantStatus::Invited) {
-            throw new \Exception('Chỉ có thể từ chối lời mời đang invited');
+            throw new BusinessException('Chỉ có thể từ chối lời mời đang invited');
         }
 
         $participant->decline();
@@ -354,11 +355,11 @@ class ClubActivityParticipantService
     public function cancelRequest(ClubActivityParticipant $participant, int $userId): void
     {
         if ($participant->user_id !== $userId) {
-            throw new \Exception('Chỉ có thể hủy yêu cầu của chính mình');
+            throw new BusinessException('Chỉ có thể hủy yêu cầu của chính mình');
         }
 
         if ($participant->status !== ClubActivityParticipantStatus::Pending) {
-            throw new \Exception('Chỉ có thể hủy yêu cầu đang pending');
+            throw new BusinessException('Chỉ có thể hủy yêu cầu đang pending');
         }
 
         $participant->delete();
@@ -367,17 +368,17 @@ class ClubActivityParticipantService
     public function withdraw(ClubActivityParticipant $participant, int $userId): array
     {
         if ($participant->user_id !== $userId) {
-            throw new \Exception('Chỉ có thể rút khỏi sự kiện của chính mình');
+            throw new BusinessException('Chỉ có thể rút khỏi sự kiện của chính mình');
         }
 
         $activity = $participant->activity;
 
         if (!$activity->isScheduled()) {
-            throw new \Exception('Chỉ có thể rút khỏi sự kiện đang scheduled');
+            throw new BusinessException('Chỉ có thể rút khỏi sự kiện đang scheduled');
         }
 
         if ($participant->status !== ClubActivityParticipantStatus::Accepted) {
-            throw new \Exception('Chỉ có thể rút khỏi sự kiện khi đã chấp nhận tham gia');
+            throw new BusinessException('Chỉ có thể rút khỏi sự kiện khi đã chấp nhận tham gia');
         }
 
         return DB::transaction(function () use ($participant, $activity) {
@@ -434,7 +435,7 @@ class ClubActivityParticipantService
         $member = $club->activeMembers()->where('user_id', $deleterId)->first();
 
         if (!$member || !in_array($member->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary])) {
-            throw new \Exception('Chỉ admin/manager/secretary mới có quyền xóa');
+            throw new BusinessException('Chỉ admin/manager/secretary mới có quyền xóa');
         }
 
         $participant->delete();
@@ -443,24 +444,24 @@ class ClubActivityParticipantService
     public function checkIn(ClubActivity $activity, string $token, int $userId): ClubActivityParticipant
     {
         if ($activity->status === ClubActivityStatus::Cancelled) {
-            throw new \Exception('Sự kiện đã bị hủy');
+            throw new BusinessException('Sự kiện đã bị hủy');
         }
 
         if ($activity->status === ClubActivityStatus::Completed) {
-            throw new \Exception('Sự kiện đã kết thúc, không thể check-in');
+            throw new BusinessException('Sự kiện đã kết thúc, không thể check-in');
         }
 
         if ($activity->end_time && $activity->end_time->isPast()) {
-            throw new \Exception('Sự kiện đã qua giờ kết thúc, không thể check-in');
+            throw new BusinessException('Sự kiện đã qua giờ kết thúc, không thể check-in');
         }
 
         if (!$activity->check_in_token || $activity->check_in_token !== $token) {
-            throw new \Exception('Mã check-in không hợp lệ');
+            throw new BusinessException('Mã check-in không hợp lệ');
         }
 
         $member = $activity->club->activeMembers()->where('user_id', $userId)->first();
         if (!$member) {
-            throw new \Exception('Bạn không phải thành viên CLB');
+            throw new BusinessException('Bạn không phải thành viên CLB');
         }
 
         $participant = ClubActivityParticipant::where('club_activity_id', $activity->id)
@@ -469,7 +470,7 @@ class ClubActivityParticipantService
             ->first();
 
         if (!$participant) {
-            throw new \Exception('Bạn chưa tham gia hoạt động này');
+            throw new BusinessException('Bạn chưa tham gia hoạt động này');
         }
 
         if ($participant->status === ClubActivityParticipantStatus::Attended) {
@@ -477,7 +478,7 @@ class ClubActivityParticipantService
         }
 
         if ($participant->status !== ClubActivityParticipantStatus::Accepted) {
-            throw new \Exception('Chỉ có thể check-in khi đã được duyệt tham gia');
+            throw new BusinessException('Chỉ có thể check-in khi đã được duyệt tham gia');
         }
 
         $participant->update([
@@ -494,19 +495,19 @@ class ClubActivityParticipantService
         $activity = $participant->activity;
 
         if ($activity->status === ClubActivityStatus::Cancelled) {
-            throw new \Exception('Sự kiện đã bị hủy');
+            throw new BusinessException('Sự kiện đã bị hủy');
         }
 
         if ($activity->status === ClubActivityStatus::Completed) {
-            throw new \Exception('Sự kiện đã kết thúc, không thể check-in');
+            throw new BusinessException('Sự kiện đã kết thúc, không thể check-in');
         }
 
         if ($activity->end_time && $activity->end_time->isPast()) {
-            throw new \Exception('Sự kiện đã qua giờ kết thúc, không thể check-in');
+            throw new BusinessException('Sự kiện đã qua giờ kết thúc, không thể check-in');
         }
 
         if ($participant->user_id !== $userId) {
-            throw new \Exception('Chỉ có thể check-in cho chính mình');
+            throw new BusinessException('Chỉ có thể check-in cho chính mình');
         }
 
         if ($participant->status === ClubActivityParticipantStatus::Attended) {
@@ -514,7 +515,7 @@ class ClubActivityParticipantService
         }
 
         if ($participant->status !== ClubActivityParticipantStatus::Accepted) {
-            throw new \Exception('Chỉ có thể check-in khi người tham gia đã được duyệt');
+            throw new BusinessException('Chỉ có thể check-in khi người tham gia đã được duyệt');
         }
 
         $participant->update([
@@ -531,19 +532,19 @@ class ClubActivityParticipantService
         $activity = $participant->activity;
 
         if ($activity->status === ClubActivityStatus::Cancelled) {
-            throw new \Exception('Sự kiện đã bị hủy');
+            throw new BusinessException('Sự kiện đã bị hủy');
         }
 
         if ($activity->status === ClubActivityStatus::Completed) {
-            throw new \Exception('Sự kiện đã kết thúc, không thể báo vắng');
+            throw new BusinessException('Sự kiện đã kết thúc, không thể báo vắng');
         }
 
         if ($participant->user_id !== $userId) {
-            throw new \Exception('Chỉ có thể báo vắng cho chính mình');
+            throw new BusinessException('Chỉ có thể báo vắng cho chính mình');
         }
 
         if (!in_array($participant->status, [ClubActivityParticipantStatus::Accepted, ClubActivityParticipantStatus::Attended])) {
-            throw new \Exception('Chỉ có thể báo vắng khi đã được duyệt tham gia');
+            throw new BusinessException('Chỉ có thể báo vắng khi đã được duyệt tham gia');
         }
 
         // Báo vắng chỉ set cờ is_absent, không đổi status - user vẫn là participant, vẫn có thể check-in
@@ -557,7 +558,7 @@ class ClubActivityParticipantService
         $member = $activity->club->activeMembers()->where('user_id', $requesterId)->first();
 
         if (!$member || !in_array($member->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary])) {
-            throw new \Exception('Chỉ admin/manager/secretary mới có quyền xem danh sách check-in');
+            throw new BusinessException('Chỉ admin/manager/secretary mới có quyền xem danh sách check-in');
         }
 
         $checkedIn = $activity->participants()

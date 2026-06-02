@@ -13,6 +13,7 @@ use App\Models\Club\ClubFundContribution;
 use App\Services\Club\ClubFundContributionService;
 use App\Enums\PaymentStatusEnum;
 use App\Enums\ClubFundContributionStatus;
+use App\Exceptions\BusinessException;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -335,7 +336,7 @@ class MiniTournamentService
             : MiniTournament::where('id', $seriesIdOrTournamentId)->value('recurrence_series_id');
 
         if (!$seriesId) {
-            throw new \Exception('Chuỗi kèo đấu không tồn tại');
+            throw new BusinessException('Chuỗi kèo đấu không tồn tại');
         }
 
         $tournamentIds = MiniTournament::where('recurrence_series_id', $seriesId)
@@ -348,7 +349,7 @@ class MiniTournamentService
             ->exists();
 
         if (!$hasPermission) {
-            throw new \Exception('Chỉ organizer mới có quyền hủy chuỗi kèo đấu');
+            throw new BusinessException('Chỉ organizer mới có quyền hủy chuỗi kèo đấu');
         }
 
         $now = Carbon::now();
@@ -396,13 +397,13 @@ class MiniTournamentService
     {
         $seriesId = $tournament->recurrence_series_id;
         if (!$seriesId) {
-            throw new \Exception('Kèo đấu này không thuộc chuỗi lặp lại');
+            throw new BusinessException('Kèo đấu này không thuộc chuỗi lặp lại');
         }
 
         $allTournaments = MiniTournament::where('recurrence_series_id', $seriesId)->get();
 
         if ($allTournaments->isEmpty()) {
-            throw new \Exception('Chuỗi kèo đấu không tồn tại');
+            throw new BusinessException('Chuỗi kèo đấu không tồn tại');
         }
 
         // Lấy recurring_schedule mới (nếu có thay đổi)

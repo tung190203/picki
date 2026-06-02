@@ -2,7 +2,6 @@
 
 namespace App\Notifications;
 
-use App\Models\Tournament;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
@@ -12,8 +11,10 @@ class TournamentCancelledNotification extends Notification implements ShouldQueu
     use Queueable;
 
     public function __construct(
-        public Tournament $tournament,
-        public string $reason = ''
+        public int $tournamentId,
+        public string $tournamentName,
+        public string $reason = '',
+        public ?int $clubId = null
     ) {
     }
 
@@ -25,11 +26,11 @@ class TournamentCancelledNotification extends Notification implements ShouldQueu
     public function toDatabase(object $notifiable): array
     {
         return [
-            'tournament_id' => $this->tournament->id,
+            'tournament_id' => $this->tournamentId,
             'title' => 'Giải đấu đã bị hủy',
-            'message' => "Giải đấu \"{$this->tournament->name}\" đã bị hủy."
+            'message' => "Giải đấu \"{$this->tournamentName}\" đã bị hủy."
                 . ($this->reason ? " Lý do: {$this->reason}" : ''),
-            'club_id' => $this->tournament->club_id,
+            'club_id' => $this->clubId,
         ];
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Helpers\ResponseHelper;
 use App\Services\PromotionService;
+use App\Exceptions\BusinessException;
 use Illuminate\Http\Request;
 
 class PromotionController extends Controller
@@ -40,8 +41,10 @@ class PromotionController extends Controller
                 'recipients' => $data,
                 'total' => count($data),
             ], 'Lấy danh sách người nhận thành công');
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi gửi quảng bá', 403);
         }
     }
 
@@ -69,8 +72,10 @@ class PromotionController extends Controller
                 'sent_count' => $result['sent_count'],
                 'recipients' => $result['recipients'],
             ], "Đã gửi quảng bá tới {$result['sent_count']} người");
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error($e->getMessage(), 403);
+            return ResponseHelper::error('Có lỗi xảy ra khi gửi quảng bá', 403);
         }
     }
 }

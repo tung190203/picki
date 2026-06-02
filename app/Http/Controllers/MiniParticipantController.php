@@ -75,6 +75,10 @@ class MiniParticipantController extends Controller
      */
     public function join($tournamentId)
     {
+        if (!Auth::id()) {
+            return ResponseHelper::error('Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.', 401);
+        }
+
         $miniTournament = MiniTournament::with('staff')->findOrFail($tournamentId);
 
         $this->checkMaxPlayers($miniTournament);
@@ -99,18 +103,36 @@ class MiniParticipantController extends Controller
 
         $isConfirmed = $miniTournament->auto_approve && !$miniTournament->is_private;
 
-        $participant = MiniParticipant::create([
-            'mini_tournament_id' => $tournamentId,
-            'user_id' => Auth::id(),
-            'is_confirmed' => $isConfirmed,
-            'is_invited' => false,
-            'payment_status' => $paymentStatus,
-        ]);
+        $participant = DB::transaction(function () use ($tournamentId, $miniTournament, $isConfirmed, $paymentStatus) {
+            $participant = MiniParticipant::create([
+                'mini_tournament_id' => $tournamentId,
+                'user_id' => Auth::id(),
+                'is_confirmed' => $isConfirmed,
+                'is_invited' => false,
+                'payment_status' => $paymentStatus,
+            ]);
 
-        $organizerIds = $miniTournament->staff
-        ->where('role', MiniTournamentStaff::ROLE_ORGANIZER)
-        ->pluck('user_id')
-        ->toArray();
+            if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
+                MiniParticipantPayment::firstOrCreate(
+                    [
+                        'mini_tournament_id' => $miniTournament->id,
+                        'participant_id' => $participant->id,
+                    ],
+                    [
+                        'user_id' => Auth::id(),
+                        'amount' => $miniTournament->fee_amount,
+                        'status' => MiniParticipantPayment::STATUS_PENDING,
+                    ]
+                );
+            }
+
+            if ($isConfirmed) {
+                $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, Auth::id());
+            }
+
+            return $participant;
+        });
+
         if (!$participant->is_confirmed) {
             $this->notifyOrganizersJoinRequest($miniTournament, $participant);
 
@@ -138,12 +160,10 @@ class MiniParticipantController extends Controller
                 ]
             );
 
-            // Gửi notification cho user được auto-approve
             auth()->user()->notify(
                 new MiniTournamentJoinConfirmedNotification($participant, Auth::id())
             );
 
-            // Gửi push notification cho user
             $this->pushToUsers(
                 [Auth::id()],
                 'Đã được duyệt tham gia',
@@ -155,35 +175,11 @@ class MiniParticipantController extends Controller
                 ]
             );
 
-            // Gửi notification cho chủ kèo
             foreach ($miniTournament->staff as $organizer) {
                 $organizer->notify(
                     new MiniTournamentMemberJoinedNotification($participant)
                 );
             }
-
-            // Gắn thanh toán pending cho người chơi nếu kèo có thu phí VÀ KHÔNG phải auto_split_fee VÀ KHÔNG phải use_club_fund
-            // use_club_fund = true: CLB chi tiền, không thu phí từ member
-            // auto_split_fee = true: KHÔNG tạo payment ở đây, sẽ tạo khi kèo kết thúc
-            if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
-                // Tiền cố định mỗi người
-                $feePerPerson = $miniTournament->fee_amount;
-
-                MiniParticipantPayment::firstOrCreate(
-                    [
-                        'mini_tournament_id' => $miniTournament->id,
-                        'participant_id' => $participant->id,
-                    ],
-                    [
-                        'user_id' => Auth::id(),
-                        'amount' => $feePerPerson,
-                        'status' => MiniParticipantPayment::STATUS_PENDING,
-                    ]
-                );
-            }
-
-            // Gắn user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
-            $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, Auth::id());
         }
 
         $currentUser = Auth::user();
@@ -526,13 +522,8 @@ class MiniParticipantController extends Controller
                     ->delete();
             }
 
-            if ($participant->is_confirmed) {
-                // Đã confirmed → xoá record bình thường
-                $participant->delete();
-            } else {
-                // Chưa confirmed (đang chờ / invited) → ghi nhận declined
-                $participant->update(['declined_at' => now()]);
-            }
+            // Xóa hẳn bản ghi participant (hard delete)
+            $participant->delete();
         });
 
         $participant->user?->notify(
@@ -776,7 +767,7 @@ class MiniParticipantController extends Controller
 
                 $invitedCount++;
             } catch (\Exception $e) {
-                $errors[] = "Lỗi khi mời user {$userId}: " . $e->getMessage();
+                $errors[] = "Lỗi khi mời user ID {$userId}";
             }
         }
 
@@ -1161,7 +1152,7 @@ class MiniParticipantController extends Controller
             ->count();
 
         if ($confirmed >= $miniTournament->max_players) {
-            abort(ResponseHelper::error('Kèo đã đủ số lượng người chơi.', 400));
+            return ResponseHelper::error('Kèo đã đủ số lượng người chơi.', 400);
         }
     }
 

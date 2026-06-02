@@ -475,7 +475,7 @@ class MiniTournamentPaymentController extends Controller
             );
         } catch (\Throwable $e) {
             DB::rollBack();
-            return ResponseHelper::error($e->getMessage());
+            return ResponseHelper::error('Có lỗi xảy ra khi xử lý thanh toán');
         }
     }
 
@@ -596,7 +596,7 @@ class MiniTournamentPaymentController extends Controller
             );
         } catch (\Throwable $e) {
             DB::rollBack();
-            return ResponseHelper::error($e->getMessage());
+            return ResponseHelper::error('Có lỗi xảy ra khi xác nhận thanh toán');
         }
     }
 
@@ -696,7 +696,7 @@ class MiniTournamentPaymentController extends Controller
             );
         } catch (\Throwable $e) {
             DB::rollBack();
-            return ResponseHelper::error($e->getMessage());
+            return ResponseHelper::error('Có lỗi xảy ra khi xác nhận thanh toán');
         }
     }
 
@@ -910,7 +910,7 @@ class MiniTournamentPaymentController extends Controller
                 );
             } catch (\Throwable $e) {
                 DB::rollBack();
-                return ResponseHelper::error($e->getMessage());
+                return ResponseHelper::error('Có lỗi xảy ra khi xác nhận thanh toán');
             }
         }
 
