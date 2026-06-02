@@ -75,6 +75,10 @@ class MiniParticipantController extends Controller
      */
     public function join($tournamentId)
     {
+        if (!Auth::id()) {
+            return ResponseHelper::error('Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.', 401);
+        }
+
         $miniTournament = MiniTournament::with('staff')->findOrFail($tournamentId);
 
         $this->checkMaxPlayers($miniTournament);
@@ -527,11 +531,11 @@ class MiniParticipantController extends Controller
             }
 
             if ($participant->is_confirmed) {
-                // Đã confirmed → xoá record bình thường
-                $participant->delete();
-            } else {
-                // Chưa confirmed (đang chờ / invited) → ghi nhận declined
+                // Đã confirmed (tự approve hoặc admin approve) → ghi nhận declined, không mời lại
                 $participant->update(['declined_at' => now()]);
+            } else {
+                // Chưa confirmed → xoá hẳn bản ghi, user có thể được mời lại
+                $participant->delete();
             }
         });
 

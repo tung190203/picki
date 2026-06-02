@@ -714,6 +714,10 @@ class MiniTournamentController extends Controller
             return ResponseHelper::error('Thành viên không tồn tại trong kèo đấu này', 404);
         }
 
+        if (!$participant->is_confirmed) {
+            return ResponseHelper::error('Người này chưa được xác nhận tham gia kèo đấu. Không thể check-in.', 422);
+        }
+
         if ($participant->checked_in_at) {
             return ResponseHelper::error('Thành viên đã check-in rồi. Không thể check-in lại.', 422);
         }
@@ -796,6 +800,10 @@ class MiniTournamentController extends Controller
         $participant = $miniTournament->participants()->where('id', $participantId)->first();
         if (!$participant) {
             return ResponseHelper::error('Thành viên không tồn tại trong kèo đấu này', 404);
+        }
+
+        if (!$participant->is_confirmed) {
+            return ResponseHelper::error('Người này chưa được xác nhận tham gia kèo đấu. Không thể đánh dấu vắng mặt.', 422);
         }
 
         if ($participant->is_absent) {
