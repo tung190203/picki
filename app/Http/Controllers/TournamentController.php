@@ -425,13 +425,20 @@ class TournamentController extends Controller
             );
         }
 
-        $tournament->update([
-            'status' => Tournament::CANCELLED,
-        ]);
+        $tournamentName = $tournament->name;
+        $tournamentId = $tournament->id;
 
+        DB::transaction(function () use ($tournament) {
+            // tournament_types cascade xóa participants, groups → matches
+            // tournament_fund_collections cascade xóa contributions, collection_members
+            // tournament_participant_payments đã có cascade qua participants
+            $tournament->delete();
+        });
+
+        TournamentDeleted::dispatch($tournamentId, $tournamentName);
         DashboardStatUpdated::dispatch('active_tournaments', 1, 'decremented');
 
-        return ResponseHelper::success(null, 'Hủy giải đấu thành công');
+        return ResponseHelper::success(null, 'Xóa giải đấu thành công');
     }
 
     /**

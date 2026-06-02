@@ -522,13 +522,8 @@ class MiniParticipantController extends Controller
                     ->delete();
             }
 
-            if ($participant->is_confirmed) {
-                // Đã confirmed (tự approve hoặc admin approve) → ghi nhận declined, không mời lại
-                $participant->update(['declined_at' => now()]);
-            } else {
-                // Chưa confirmed → xoá hẳn bản ghi, user có thể được mời lại
-                $participant->delete();
-            }
+            // Xóa hẳn bản ghi participant (hard delete)
+            $participant->delete();
         });
 
         $participant->user?->notify(

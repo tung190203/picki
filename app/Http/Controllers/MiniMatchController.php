@@ -487,8 +487,10 @@ class MiniMatchController extends Controller
             }
         }
 
-        MiniMatchResult::whereIn('mini_match_id', $ids)->delete();
-        MiniMatch::whereIn('id', $ids)->delete();
+        DB::transaction(function () use ($ids) {
+            MiniMatchResult::whereIn('mini_match_id', $ids)->delete();
+            MiniMatch::whereIn('id', $ids)->delete();
+        });
 
         return ResponseHelper::success(null, 'Xoá thành công');
     }
