@@ -343,6 +343,18 @@ class MiniTournament extends Model
         return $this->participants()->where('user_id', $userId)->exists();
     }
 
+    public function isPrivateAccessible(?int $userId): bool
+    {
+        if (!$userId || !$this->is_private || !$this->club_id) {
+            return false;
+        }
+
+        return \App\Models\Club\ClubMember::where('club_id', $this->club_id)
+            ->where('user_id', $userId)
+            ->where('membership_status', 'joined')
+            ->exists();
+    }
+
     public function sport()
     {
         return $this->belongsTo(Sport::class);
@@ -722,7 +734,7 @@ class MiniTournament extends Model
                 $userId = auth()->id();
 
                 $q->where(function ($sub) use ($userId) {
-                    // Kèo công khai, không private, không ở trạng thái draft/cancelled/closed
+                    // Public tournaments (not private, not draft/closed/cancelled)
                     $sub->where(function ($publicSub) {
                         $publicSub->where('is_private', '!=', 1)
                             ->whereNotIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_CLOSED, MiniTournament::STATUS_CANCELLED]);
@@ -742,6 +754,18 @@ class MiniTournament extends Model
                             $partSub->whereHas('participants', function ($partQuery) use ($userId) {
                                 $partQuery->where('user_id', $userId);
                             });
+                        });
+
+                        // Club member: thấy kèo private của club mình tham gia
+                        $sub->orWhere(function ($clubSub) use ($userId) {
+                            $clubSub->where('is_private', 1)
+                                ->whereNotIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_CLOSED, MiniTournament::STATUS_CANCELLED])
+                                ->whereHas('club', function ($clubQuery) use ($userId) {
+                                    $clubQuery->whereHas('members', function ($memberQuery) use ($userId) {
+                                        $memberQuery->where('user_id', $userId)
+                                            ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined);
+                                    });
+                                });
                         });
                     }
                 });

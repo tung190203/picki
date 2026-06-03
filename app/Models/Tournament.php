@@ -465,6 +465,18 @@ class Tournament extends Model
         );
     }
 
+    public function isPrivateAccessible(?int $userId): bool
+    {
+        if (!$userId || !$this->is_private || !$this->club_id) {
+            return false;
+        }
+
+        return \App\Models\Club\ClubMember::where('club_id', $this->club_id)
+            ->where('user_id', $userId)
+            ->where('membership_status', 'joined')
+            ->exists();
+    }
+
     public function scopeFilter($query, $filters)
     {
         return $query
@@ -637,10 +649,14 @@ class Tournament extends Model
                 $userId = auth()->id();
 
                 $q->where(function ($sub) use ($userId) {
-                    $sub->where('is_private', '!=', self::DRAFT)
-                        ->whereNotIn('status', [self::DRAFT, self::CLOSED, self::CANCELLED]);
+                    // Public tournaments (not private, not draft/closed/cancelled)
+                    $sub->where(function ($publicSub) {
+                        $publicSub->where('is_private', '!=', self::DRAFT)
+                            ->whereNotIn('status', [self::DRAFT, self::CLOSED, self::CANCELLED]);
+                    });
 
                     if($userId) {
+                        // Organizer: thấy tất cả giải mình tổ chức (kể cả draft)
                         $sub->orWhere(function ($visible) use ($userId){
                             $visible->orWhereHas('tournamentStaffs', function ($staffQuery) use ($userId){
                                 $staffQuery->where('user_id', $userId)
@@ -649,6 +665,18 @@ class Tournament extends Model
                             ->orWhereHas('participants', function ($participantQuery) use ($userId){
                                 $participantQuery->where('user_id', $userId);
                             });
+                        });
+
+                        // Club member: thấy giải private của club mình tham gia
+                        $sub->orWhere(function ($clubSub) use ($userId) {
+                            $clubSub->where('is_private', '!=', self::DRAFT)
+                                ->whereNotIn('status', [self::DRAFT, self::CLOSED, self::CANCELLED])
+                                ->whereHas('club', function ($clubQuery) use ($userId) {
+                                    $clubQuery->whereHas('members', function ($memberQuery) use ($userId) {
+                                        $memberQuery->where('user_id', $userId)
+                                            ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined);
+                                    });
+                                });
                         });
                     }
                 });

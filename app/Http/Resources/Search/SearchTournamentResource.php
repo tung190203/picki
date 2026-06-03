@@ -20,6 +20,8 @@ class SearchTournamentResource extends JsonResource
 
         return [
             'id'             => $this->id,
+            'club_id'       => $this->club_id,
+            'is_private'    => (bool) $this->is_private,
             'name'           => $this->name,
             'type'           => 'tournament',
             'poster'         => $this->poster_url,
@@ -58,10 +60,8 @@ class SearchTournamentResource extends JsonResource
             'lng'            => $location?->longitude,
             // Nested club
             'club' => $club ? [
-                'id'            => $club->id,
-                'name'          => $club->name,
-                'logo_url'      => $club->logo_url,
-                'members_count' => (int) ($club->members_count ?? 0),
+                'id'   => $club->id,
+                'name' => $club->name,
             ] : null,
             // Participated teams
             'participated_teams' => $teams ? $teams->map(fn($team) => [
