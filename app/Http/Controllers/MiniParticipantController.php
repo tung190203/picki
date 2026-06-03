@@ -488,7 +488,10 @@ class MiniParticipantController extends Controller
             ]
         );
 
-        $participant->update(['declined_at' => now()]);
+        $participant->update([
+            'declined_at' => now(),
+            'is_invited' => false,
+        ]);
 
         return ResponseHelper::success(null, 'Bạn đã từ chối lời mời tham gia kèo đấu');
     }

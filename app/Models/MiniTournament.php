@@ -56,6 +56,7 @@ class MiniTournament extends Model
         'use_club_fund',
         'club_fund_collection_id',
         'included_in_club_fund',
+        'zalo_link',
     ];
 
     protected $casts = [

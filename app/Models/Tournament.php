@@ -53,6 +53,7 @@ class Tournament extends Model
         'final_fee_per_person',
         'auto_payment_created',
         'cancelled_reason',
+        'zalo_link',
     ];
 
     protected $casts = [

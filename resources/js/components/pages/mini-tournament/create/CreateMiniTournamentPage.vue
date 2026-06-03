@@ -446,6 +446,18 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Liên kết Zalo -->
+                <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
+                    <h3 class="font-bold text-[#838799] text-[14px] uppercase tracking-wide mb-4">Liên kết</h3>
+                    <div>
+                        <p class="text-sm text-gray-600 font-medium block mb-1">Link Zalo</p>
+                        <input v-model="zaloLink" type="url"
+                            placeholder="https://zalo.me/..."
+                            class="w-full px-3 py-2 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]" />
+                    </div>
+                </div>
+
                 <!-- Trình độ & Luật thi đấu buttons -->
                 <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
                     <div class="grid grid-cols-2 gap-3">
@@ -942,6 +954,7 @@ const qrCodeImage = ref(null)
 const qrCodePreview = ref(null)
 const qrCodeFile = ref(null) // File object for upload
 const useCachedQr = ref(false)
+const zaloLink = ref('')
 const isSubmitting = ref(false)
 const qrFileInput = ref(null)
 
@@ -1360,6 +1373,9 @@ const applyTemplate = (template) => {
     if (s.fee_description !== undefined) {
         paymentNote.value = s.fee_description || ''
     }
+    if (s.zalo_link !== undefined) {
+        zaloLink.value = s.zalo_link || ''
+    }
 
     // CLB fund options
     if (s.club_id !== undefined && s.club_id !== null) {
@@ -1709,6 +1725,8 @@ const buildTemplateSettings = () => {
         auto_split_fee: autoSplitCourtFee.value,
         fee_amount: hasFee.value ? feeAmount.value : null,
         fee_description: paymentNote.value || null,
+        qr_code_url: qrCodeImage.value || null,
+        zalo_link: zaloLink.value || null,
         ...(selectedClubId.value ? {
             use_club_fund: useClubFund.value,
             included_in_club_fund: includedInClubFund.value,
@@ -1857,6 +1875,7 @@ const handleSubmit = async () => {
             auto_split_fee: autoSplitCourtFee.value,
             fee_description: paymentNote.value || null,
             fee_amount: hasFee.value ? feeAmount.value : null,
+            zalo_link: zaloLink.value || null,
             ...(selectedClubId.value ? {
                 use_club_fund: useClubFund.value,
                 included_in_club_fund: includedInClubFund.value,
@@ -2069,6 +2088,7 @@ const prefillForm = (data) => {
     paymentNote.value = data?.fee_description || '';
     qrCodePreview.value = data?.qr_code_url || null;
     qrCodeImage.value = data?.qr_code_url || null;
+    zaloLink.value = data?.zalo_link || '';
     feeAmount.value = data?.fee_amount || 0;
     if (feeAmount.value) {
         formattedFeeAmount.value = feeAmount.value.toLocaleString('vi-VN');
