@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Notifications\FollowNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class FollowController extends Controller
@@ -210,6 +211,19 @@ class FollowController extends Controller
 
         // Tìm giao = bạn bè
         $friendIds = $followingIds->intersect($followerIds)->values();
+
+        // Thêm users cùng club active
+        $sameClubIds = DB::table('club_members as cm1')
+            ->join('club_members as cm2', 'cm1.club_id', '=', 'cm2.club_id')
+            ->where('cm1.user_id', $userId)
+            ->where('cm1.membership_status', 'joined')
+            ->where('cm1.status', 'active')
+            ->where('cm2.user_id', '!=', $userId)
+            ->where('cm2.membership_status', 'joined')
+            ->where('cm2.status', 'active')
+            ->pluck('cm2.user_id');
+
+        $friendIds = $friendIds->merge($sameClubIds)->unique()->values();
 
         $query = User::whereIn('id', $friendIds);
 

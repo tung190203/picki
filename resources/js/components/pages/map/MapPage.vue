@@ -61,6 +61,23 @@
                             </button>
                         </div>
 
+                        <!-- Club dropdown for same_club sub-tab -->
+                        <div v-if="activeTab === 'user' && subTab === 'same_club'" class="mt-2">
+                            <select
+                                v-model="selectedClubIdForSameClub"
+                                @change="onSameClubChange"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:border-[#D72D36]"
+                            >
+                                <option :value="null" disabled>-- Chọn CLB --</option>
+                                <option v-for="club in getUser.clubs" :key="club.id" :value="club.id">
+                                    {{ club.name }}
+                                </option>
+                            </select>
+                            <p v-if="!getUser.clubs?.length" class="text-xs text-gray-400 mt-1">
+                                Chưa có CLB nào. Tham gia CLB để sử dụng tính năng này.
+                            </p>
+                        </div>
+
                         <!-- Match sub-tabs (only for match tab) -->
                         <div v-if="activeTab === 'mini-tournament'" class="grid grid-cols-2 gap-2">
                             <button @click="activeMatchTab = 'mini'" :class="[
@@ -1000,9 +1017,9 @@
                             <div class="border-t pt-4">
                                 <p class="font-medium text-gray-900 mb-4 text-xl">Câu lạc bộ chung</p>
 
-                                <template v-if="myClub?.length">
+                                <template v-if="getUser.clubs?.length">
                                     <div class="grid grid-cols-1 gap-4">
-                                        <label v-for="item in myClub" :key="item.id"
+                                        <label v-for="item in getUser.clubs" :key="item.id"
                                             class="flex items-center justify-between gap-3 cursor-pointer relative select-none">
                                             <div class="flex gap-4">
                                                 <img :src="item.logo_url || defaultImage" alt=""
@@ -1022,7 +1039,7 @@
 
                                 <template v-else>
                                     <div class="text-gray-400 italic text-sm flex justify-center">
-                                        Bạn chưa tham gia câu lạc bộ nào
+                                        Chưa có CLB nào
                                     </div>
                                 </template>
                             </div>
@@ -1369,6 +1386,7 @@
 <script setup>
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { storeToRefs } from 'pinia';
 import { FunnelIcon, MagnifyingGlassIcon, XMarkIcon, ArrowPathIcon, ChevronRightIcon } from '@heroicons/vue/24/outline';
 import { toast } from 'vue3-toastify';
 import * as MapService from '@/service/map.js';
@@ -1376,7 +1394,7 @@ import * as SearchService from '@/service/search.js';
 import * as UserService from '@/service/auth.js';
 import * as SportService from '@/service/sport.js';
 import * as LocationService from '@/service/location.js';
-import * as ClubService from '@/service/club.js'
+import { useUserStore } from '@/store/auth.js';
 import { useTimeFormat } from '@/composables/formatTime.js';
 import { getVisibilityText } from "@/composables/formatVisibilityText";
 import defaultImage from '@/assets/images/default-image.jpeg';
@@ -1399,6 +1417,8 @@ import ClubListItem from '@/components/molecules/ClubListItem.vue';
 const router = useRouter();
 const { toHourMinute } = useTimeFormat();
 const { initMap, clearAllMarkers, addCourtMarkers, addUserMarkers, addMatchMarkers, addClubMarkers, focusItem } = useMap();
+const userStore = useUserStore();
+const { getUser } = storeToRefs(userStore);
 const currentBounds = ref(null);
 const courtsMap = ref(new Map());
 const usersMap = ref(new Map());
@@ -1436,6 +1456,7 @@ const SUB_TAB_OPTIONS = {
     user: [
         { value: 'all', label: 'Tất cả', badge: null },
         { value: 'friends', label: 'Bạn bè', badge: null },
+        { value: 'same_club', label: 'Cùng CLB', badge: null },
     ],
     court: [
         { value: 'all', label: 'Tất cả', badge: null },
@@ -1509,6 +1530,7 @@ const onlineRecently = [{ label: 'Online gần đây', value: false }];
 // Club-only state
 const joinedOnly = ref(false);
 const sameClubId = ref(null);
+const selectedClubIdForSameClub = ref(null);
 
 // Tournament-only state
 const selectedSlotStatus = ref([]); // ['con_trong', 'da_day']
@@ -1627,8 +1649,6 @@ const quantityCourts = ref(0);
 const quantityUsers = ref(0);
 const quantityMatches = ref(0);
 const quantityClubs = ref(0);
-
-const myClub = ref([]);
 
 const tabs = [
     { id: 'mini-tournament', label: 'Kèo đấu' },
@@ -1780,6 +1800,11 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
         location_id: selectedLocationValue.value || undefined,
         per_page: 200, // load enough for list view
     };
+
+    // club_id for same_club sub-tab
+    if (subTab.value === 'same_club' && selectedClubIdForSameClub.value) {
+        params.club_id = selectedClubIdForSameClub.value;
+    }
 
     // Pagination for match/tournament tabs
     if (tab === 'mini-tournament' || tab === 'tournament') {
@@ -2242,17 +2267,19 @@ const getUserRating = (user) => {
     return typeof score === 'number' ? score.toFixed(1) : "0";
 };
 
-const getMyClubs = async () => {
-    try {
-        const response = await ClubService.myClubs();
-        myClub.value = response || [];
-    } catch (e) {
-        toast.error(e.response?.data?.message || "Lấy danh sách câu lạc bộ không thành công");
+// Timeline helpers
+const onSameClubChange = async () => {
+    if (selectedClubIdForSameClub.value) {
+        usersMap.value.clear();
+        clearAllMarkers();
+        await loadTabContent(activeTab.value, currentBounds.value);
     }
 };
 
-// Timeline helpers
 const selectSubTab = async (value) => {
+    if (value !== 'same_club') {
+        selectedClubIdForSameClub.value = null;
+    }
     subTab.value = value;
     isInitialLoad.value = true;
     // Reset match pagination when changing time filter
@@ -2350,7 +2377,6 @@ const handleBoundsChange = (bounds) => {
 onMounted(async () => {
     await getListSports();
     await getListLocation();
-    await getMyClubs();
 });
 
 initMap(handleBoundsChange, handleBoundsChange);
