@@ -105,6 +105,7 @@ class TournamentResource extends JsonResource
                     'rank_change' => $participant->rank_change,
                 ];
             }),
+            'zalo_link' => $this->zalo_link,
         ];
     }
 }
