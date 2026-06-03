@@ -79,6 +79,7 @@ class UserMiniTournamentResource extends JsonResource
             'max_players' => $this->max_players,
             'play_mode' => $this->play_mode,
             'format' => $this->format,
+            'zalo_link' => $this->zalo_link,
         ];
     }
 

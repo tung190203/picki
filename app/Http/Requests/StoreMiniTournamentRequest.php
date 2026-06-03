@@ -110,6 +110,7 @@ class StoreMiniTournamentRequest extends FormRequest
 
             'invite_user' => 'nullable|array',
             'invite_user.*' => 'distinct|exists:users,id',
+            'zalo_link' => 'nullable|url',
         ];
 
             // Custom validation: if has_fee is true, require fee_amount

@@ -498,6 +498,14 @@
                                     placeholder="VD: STK, tên TK, nội dung chuyển khoản..."
                                     class="w-full px-3 py-2 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2] resize-none"></textarea>
                             </div>
+
+                            <!-- Zalo Link -->
+                            <div>
+                                <p class="text-sm text-gray-600 font-medium block mb-1">Link Zalo</p>
+                                <input v-model="zaloLink" type="url"
+                                    placeholder="https://zalo.me/..."
+                                    class="w-full px-3 py-2 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]" />
+                            </div>
                         </template>
                     </div>
                 </div>
@@ -861,6 +869,7 @@ const qrCodePreview = ref(null)
 const qrCodeImage = ref(null)
 const qrFileInput = ref(null)
 const useCachedQr = ref(false)
+const zaloLink = ref('')
 const posterFile = ref(null)
 const posterPreview = ref(null)
 const posterInputRef = ref(null)
@@ -1198,6 +1207,7 @@ const handleSubmit = async () => {
         auto_split_fee: autoSplitFee.value,
         fee_description: feeDescription.value || null,
         qr_code_url: qrCodeImage.value || null,
+        zalo_link: zaloLink.value || null,
         is_public_branch: isPublicBranch.value,
         is_own_score: isOwnScore.value,
         creator_join: creatorJoin.value,
@@ -1299,6 +1309,7 @@ const prefillForm = (data) => {
     feeDescription.value = data.fee_description || ''
     qrCodeImage.value = data.qr_code_url || null
     qrCodePreview.value = buildImageUrl(data.qr_code_url)
+    zaloLink.value = data.zalo_link || ''
 
     posterPreview.value = buildImageUrl(data.poster)
 
@@ -1361,6 +1372,7 @@ const applyTemplate = (template) => {
     feeDescription.value = s.fee_description || ''
     qrCodeImage.value = s.qr_code_url || null
     qrCodePreview.value = buildImageUrl(s.qr_code_url)
+    zaloLink.value = s.zalo_link || ''
 
     isPrivate.value = !!s.is_private
     autoApprove.value = !!s.auto_approve
@@ -1406,6 +1418,7 @@ const buildTemplateSettings = () => {
         auto_split_fee: autoSplitFee.value,
         fee_description: feeDescription.value || null,
         qr_code_url: qrCodeImage.value || null,
+        zalo_link: zaloLink.value || null,
         is_public_branch: isPublicBranch.value,
         is_own_score: isOwnScore.value,
     }
