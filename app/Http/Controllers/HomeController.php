@@ -156,7 +156,7 @@ class HomeController extends Controller
         $upcomingMiniTournaments = MiniTournament::withFullRelations()
             ->whereDate('start_time', '>=', $nowVN)
             ->where(function ($query) use ($userId) {
-                $query->whereHas('participants', fn($p) => $p->where('user_id', $userId))
+                $query->whereHas('participants', fn($p) => $p->where('user_id', $userId)->whereNull('declined_at'))
                       ->orWhereHas('staff', fn($s) => $s->where('user_id', $userId));
             })
             ->orderBy('start_time', 'asc')

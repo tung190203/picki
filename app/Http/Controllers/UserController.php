@@ -725,7 +725,7 @@ class UserController extends Controller
                 'miniTournamentStaffs',
             ])
             ->where(function ($q) use ($userId) {
-                $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId)->where('is_confirmed', true))
+                $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId)->where('is_confirmed', true)->whereNull('declined_at'))
                   ->orWhereHas('miniTournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1]));
             })
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
@@ -777,7 +777,7 @@ class UserController extends Controller
                 'miniTournamentStaffs',
             ])
             ->where(function ($q) use ($userId) {
-                $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId)->where('is_confirmed', true))
+                $q->whereHas('participants', fn($pq) => $pq->where('user_id', $userId)->where('is_confirmed', true)->whereNull('declined_at'))
                   ->orWhereHas('miniTournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1]));
             })
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
@@ -912,6 +912,7 @@ class UserController extends Controller
         $miniTournamentIdsAsParticipant = DB::table('mini_participants')
             ->where('user_id', $userId)
             ->where('is_confirmed', true)
+            ->whereNull('declined_at')
             ->whereRaw("EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_participants.mini_tournament_id AND mini_tournaments.sport_id = 1 AND mini_tournaments.status != 1 AND mini_tournaments.start_time <= NOW() AND {$ongoingCondition}" . ($isOwnProfile ? '' : ' AND mini_tournaments.is_private = false') . ")")
             ->pluck('mini_tournament_id');
 
