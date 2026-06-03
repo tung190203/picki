@@ -12,11 +12,14 @@ class MapMiniTournamentResource extends JsonResource
     public function toArray(Request $request): array
     {
         $location = $this->whenLoaded('competitionLocation');
+        $club = $this->whenLoaded('club');
         $participants = $this->whenLoaded('participants');
         $staff = $this->whenLoaded('staff');
 
         return [
             'id'             => $this->id,
+            'club_id'       => $this->club_id,
+            'is_private'    => (bool) $this->is_private,
             'name'           => $this->name,
             'type'           => 'mini',
             'poster'         => $this->poster && !str_starts_with($this->poster, 'http')
@@ -47,6 +50,10 @@ class MapMiniTournamentResource extends JsonResource
             ] : null,
             'location_name'  => $location?->name,
             'address'        => $location?->address,
+            'club' => $club ? [
+                'id'   => $club->id,
+                'name' => $club->name,
+            ] : null,
             'participants'   => $participants ? $participants->map(fn($p) => [
                 'id'         => $p->id,
                 'user_id'    => $p->user_id,
