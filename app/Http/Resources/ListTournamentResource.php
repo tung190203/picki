@@ -42,6 +42,7 @@ class ListTournamentResource extends JsonResource
             'is_joined' => $participants && auth()->check()
                 ? ($participants->contains('user_id', auth()->id()) ?? false)
                 : false,
+            'zalo_link' => $this->zalo_link,
         ];
     }
 }

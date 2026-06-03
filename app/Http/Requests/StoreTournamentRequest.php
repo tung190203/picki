@@ -76,6 +76,7 @@ class StoreTournamentRequest extends FormRequest
                     }
                 },
             ],
+            'zalo_link' => 'nullable|url',
         ];
     }
 

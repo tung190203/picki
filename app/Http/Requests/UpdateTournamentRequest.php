@@ -79,6 +79,7 @@ class UpdateTournamentRequest extends FormRequest
                     }
                 },
             ],
+            'zalo_link' => 'nullable|url',
         ];
     }
 
