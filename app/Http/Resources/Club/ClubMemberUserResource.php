@@ -12,12 +12,6 @@ class ClubMemberUserResource extends UserResource
         $data = parent::toArray($request);
         unset($data['clubs']);
 
-        // User đang gọi API = đang online
-        if ($request->user() && $this->id === $request->user()->id) {
-            $data['is_online'] = true;
-            $data['last_login'] = now()->toISOString();
-        }
-
         return $data;
     }
 }

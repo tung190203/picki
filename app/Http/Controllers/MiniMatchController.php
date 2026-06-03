@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Events\SuperAdmin\MiniMatchUpdated;
+use App\Exceptions\BusinessException;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MiniMatchResource;
 use App\Jobs\SendPushJob;
@@ -775,12 +776,13 @@ class MiniMatchController extends Controller
             ->update(['status' => MiniMatchResult::STATUS_APPROVED]);
 
         // ===== ANCHOR MATCH LOGIC =====
-        $allMemberIds = $match->team1->members->pluck('id')
-            ->merge($match->team2->members->pluck('id'))
+        // FIX: dùng user_id thay vì member id (mini_team_member.id)
+        $allMemberUserIds = $match->team1->members->pluck('user_id')
+            ->merge($match->team2->members->pluck('user_id'))
             ->unique()
             ->values();
 
-        $hasAnchorInMatch = User::whereIn('id', $allMemberIds)
+        $hasAnchorInMatch = User::whereIn('id', $allMemberUserIds)
             ->where(function ($q) {
                 $q->where('is_anchor', true)
                     ->orWhere('total_matches_has_anchor', '>=', 10);
@@ -788,7 +790,7 @@ class MiniMatchController extends Controller
             ->exists();
 
         if ($hasAnchorInMatch) {
-            $nonAnchorIds = User::whereIn('id', $allMemberIds)
+            $nonAnchorIds = User::whereIn('id', $allMemberUserIds)
                 ->where('is_anchor', false)
                 ->where(function ($q) {
                     $q->whereNull('total_matches_has_anchor')
@@ -820,7 +822,7 @@ class MiniMatchController extends Controller
         // C. Batch load all data for rating calculation
         // =====================================================
         $userSportRecords = DB::table('user_sport')
-            ->whereIn('user_id', $allMemberIds)
+            ->whereIn('user_id', $allMemberUserIds)
             ->where('sport_id', $sportId)
             ->get()
             ->keyBy('user_id');
@@ -833,9 +835,9 @@ class MiniMatchController extends Controller
             ->get()
             ->keyBy('user_sport_id');
 
-        $historyMap = VnduprHistory::whereIn('user_id', $allMemberIds)
+        $historyMap = VnduprHistory::whereIn('user_id', $allMemberUserIds)
             ->orderByDesc('id')
-            ->take(15 * $allMemberIds->count())
+            ->take(15 * $allMemberUserIds->count())
             ->get()
             ->groupBy('user_id')
             ->map(fn($col) => $col->sortBy('id')->values());
@@ -847,7 +849,8 @@ class MiniMatchController extends Controller
             $total = 0;
             $count = 0;
             foreach ($team->members as $member) {
-                $userSport = $userSportRecords->get($member->id);
+                // FIX: dùng user_id để lookup, không phải member->id (mini_team_member.id)
+                $userSport = $userSportRecords->get($member->user_id);
                 if ($userSport) {
                     $score = $scoreMap->get($userSport->id);
                     if ($score) {
@@ -873,7 +876,7 @@ class MiniMatchController extends Controller
         // =====================================================
         // E. Batch operations — no individual queries per user
         // =====================================================
-        DB::table('users')->whereIn('id', $allMemberIds)->increment('total_matches');
+        DB::table('users')->whereIn('id', $allMemberUserIds)->increment('total_matches');
 
         $vnduprHistoryRecords = [];
         $scoreUpserts = [];
@@ -883,7 +886,20 @@ class MiniMatchController extends Controller
                 $user = $member->user;
                 $userSport = $userSportRecords->get($user->id);
                 $scoreRecord = $userSport ? $scoreMap->get($userSport->id) : null;
-                $R_old = $scoreRecord ? (float) $scoreRecord->score_value : 0;
+
+                // Lấy rating cũ: ưu tiên vndupr_score, fallback sang history gần nhất
+                $R_old = null;
+                if ($scoreRecord) {
+                    $R_old = (float) $scoreRecord->score_value;
+                }
+                // FIX: user chưa có vndupr_score → fallback từ history
+                if ($R_old === null) {
+                    $history = $historyMap->get($user->id, collect());
+                    if ($history->isNotEmpty()) {
+                        $R_old = (float) $history->last()->score_after;
+                    }
+                }
+                $R_old = $R_old ?? 0;
 
                 $history = $historyMap->get($user->id, collect());
 

@@ -84,6 +84,7 @@ class AuthController extends Controller
         $accessToken = JWTAuth::claims(['type' => 'access'])->fromUser($user);
         $refreshToken = JWTAuth::claims(['type' => 'refresh', 'exp' => now()->addDays(30)->timestamp])->fromUser($user);
         $user->last_login = now();
+        $user->last_active_at = now();
         $user->save();
 
         if($request->token && $request->platform) {
@@ -249,7 +250,7 @@ class AuthController extends Controller
                 ]);
             }
 
-            $user->update(['last_login' => now()]);
+            $user->update(['last_login' => now(), 'last_active_at' => now()]);
 
             $newAccessToken = JWTAuth::claims(['type' => 'access'])->fromUser($user);
             return ResponseHelper::success([
@@ -330,6 +331,7 @@ class AuthController extends Controller
             $accessToken = JWTAuth::claims(['type' => 'access'])->fromUser($user);
             $refreshToken = JWTAuth::claims(['type' => 'refresh', 'exp' => now()->addDays(30)->timestamp])->fromUser($user);
             $user->last_login = now();
+            $user->last_active_at = now();
             $user->save();
 
             if ($request->header('User-Agent') && strpos($request->header('User-Agent'), 'MobileApp') !== false) {
@@ -412,6 +414,7 @@ class AuthController extends Controller
         $accessToken = JWTAuth::claims(['type' => 'access'])->fromUser($user);
         $refreshToken = JWTAuth::claims(['type' => 'refresh', 'exp' => now()->addDays(30)->timestamp])->fromUser($user);
         $user->last_login = now();
+        $user->last_active_at = now();
         $user->save();
 
         if($request->token && $request->platform) {
@@ -506,6 +509,7 @@ class AuthController extends Controller
 
             // Cập nhật last_login
             $user->last_login = now();
+            $user->last_active_at = now();
             $user->save();
             if($request->token && $request->platform) {
                 $this->handleDeviceLogin($user, $request->token, $request->platform);
@@ -570,6 +574,7 @@ class AuthController extends Controller
             $accessToken = JWTAuth::claims(['type' => 'access'])->fromUser($user);
             $refreshToken = JWTAuth::claims(['type' => 'refresh', 'exp' => now()->addDays(30)->timestamp])->fromUser($user);
             $user->last_login = now();
+            $user->last_active_at = now();
             $user->save();
 
             if ($request->header('User-Agent') && strpos($request->header('User-Agent'), 'MobileApp') !== false) {
@@ -632,6 +637,7 @@ class AuthController extends Controller
             $accessToken = JWTAuth::claims(['type' => 'access'])->fromUser($user);
             $refreshToken = JWTAuth::claims(['type' => 'refresh', 'exp' => now()->addDays(30)->timestamp])->fromUser($user);
             $user->last_login = now();
+            $user->last_active_at = now();
             $user->save();
 
             if ($request->header('User-Agent') && strpos($request->header('User-Agent'), 'MobileApp') !== false) {
@@ -717,6 +723,7 @@ class AuthController extends Controller
             $accessToken = JWTAuth::claims(['type' => 'access'])->fromUser($user);
             $refreshToken = JWTAuth::claims(['type' => 'refresh', 'exp' => now()->addDays(30)->timestamp])->fromUser($user);
             $user->last_login = now();
+            $user->last_active_at = now();
             $user->save();
 
             if($request->token && $request->platform) {
