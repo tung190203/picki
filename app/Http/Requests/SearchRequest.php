@@ -38,6 +38,7 @@ class SearchRequest extends FormRequest
             'keyword'      => 'nullable|string|max:255',
             'sport_id'     => 'nullable|integer|exists:sports,id',
             'location_id'  => 'nullable|integer|exists:locations,id',
+            'club_id'      => 'nullable|integer|exists:clubs,id',
 
             // Filters bundle (V2 structured format)
             'filters'      => 'nullable|array',
