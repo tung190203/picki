@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ClubMembershipStatus;
+use App\Enums\ClubMemberStatus;
 use App\Models\SuperAdminDraft;
 use App\Models\Club\Club;
 use App\Models\QuickMatch;
@@ -414,17 +415,34 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
             $q->orWhere(function ($q2) use ($currentUser) {
                 $q2->where('visibility', 'friend-only')
-                    ->whereExists(function ($sub) use ($currentUser) {
-                        $sub->select(DB::raw(1))
-                            ->from('follows as f1')
-                            ->join('follows as f2', function ($join) {
-                                $join->on('f1.user_id', '=', 'f2.followable_id')
-                                    ->on('f1.followable_id', '=', 'f2.user_id')
-                                    ->where('f1.followable_type', User::class)
-                                    ->where('f2.followable_type', User::class);
-                            })
-                            ->where('f1.user_id', $currentUser->id)
-                            ->whereColumn('f1.followable_id', 'users.id');
+                    ->where(function ($q3) use ($currentUser) {
+                        // Mutual follow
+                        $q3->whereExists(function ($sub) use ($currentUser) {
+                            $sub->select(DB::raw(1))
+                                ->from('follows as f1')
+                                ->join('follows as f2', function ($join) {
+                                    $join->on('f1.user_id', '=', 'f2.followable_id')
+                                        ->on('f1.followable_id', '=', 'f2.user_id')
+                                        ->where('f1.followable_type', User::class)
+                                        ->where('f2.followable_type', User::class);
+                                })
+                                ->where('f1.user_id', $currentUser->id)
+                                ->whereColumn('f1.followable_id', 'users.id');
+                        });
+                        // OR same active club
+                        $q3->orWhere(function ($q4) use ($currentUser) {
+                            $q4->whereExists(function ($clubSub) use ($currentUser) {
+                                $clubSub->select(DB::raw(1))
+                                    ->from('club_members as cm1')
+                                    ->join('club_members as cm2', 'cm1.club_id', '=', 'cm2.club_id')
+                                    ->whereColumn('cm1.user_id', 'users.id')
+                                    ->where('cm1.membership_status', ClubMembershipStatus::Joined->value)
+                                    ->where('cm1.status', ClubMemberStatus::Active->value)
+                                    ->where('cm2.user_id', $currentUser->id)
+                                    ->where('cm2.membership_status', ClubMembershipStatus::Joined->value)
+                                    ->where('cm2.status', ClubMemberStatus::Active->value);
+                            });
+                        });
                     });
             });
         });
@@ -642,16 +660,46 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             ->orderBy('distance', 'asc');
     }
     // User.php
+    public function sharesAnyClubWith(User $otherUser): bool
+    {
+        if (!$this->id || !$otherUser->id) {
+            return false;
+        }
+
+        $myClubIds = DB::table('club_members')
+            ->where('user_id', $this->id)
+            ->where('membership_status', ClubMembershipStatus::Joined->value)
+            ->where('status', ClubMemberStatus::Active->value)
+            ->pluck('club_id');
+
+        if ($myClubIds->isEmpty()) {
+            return false;
+        }
+
+        return DB::table('club_members')
+            ->where('user_id', $otherUser->id)
+            ->where('membership_status', ClubMembershipStatus::Joined->value)
+            ->where('status', ClubMemberStatus::Active->value)
+            ->whereIn('club_id', $myClubIds)
+            ->exists();
+    }
+
     public function isFriendWith(User $otherUser): bool
     {
-        return $this->followings()
-            ->where('followable_id', $otherUser->id)
-            ->where('followable_type', User::class)
-            ->exists()
+        $mutualFollow = $this->followings()
+                ->where('followable_id', $otherUser->id)
+                ->where('followable_type', User::class)
+                ->exists()
             && $otherUser->followings()
                 ->where('followable_id', $this->id)
                 ->where('followable_type', User::class)
                 ->exists();
+
+        if ($mutualFollow) {
+            return true;
+        }
+
+        return $this->sharesAnyClubWith($otherUser);
     }
 
     public function isFollowing(?User $otherUser): bool
@@ -671,19 +719,36 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         $userId = $this->id;
 
         return User::query()
-            ->whereExists(function ($q) use ($userId, $userClass) {
-                $q->select(DB::raw(1))
-                    ->from('follows as f1')
-                    ->whereColumn('f1.followable_id', 'users.id')
-                    ->where('f1.user_id', $userId)
-                    ->where('followable_type', $userClass); // không alias ở đây
+            ->where(function ($q) use ($userId, $userClass) {
+                $q->whereExists(function ($sub) use ($userId, $userClass) {
+                    $sub->select(DB::raw(1))
+                        ->from('follows as f1')
+                        ->whereColumn('f1.followable_id', 'users.id')
+                        ->where('f1.user_id', $userId)
+                        ->where('followable_type', $userClass);
+                })
+                ->whereExists(function ($sub) use ($userId, $userClass) {
+                    $sub->select(DB::raw(1))
+                        ->from('follows as f2')
+                        ->whereColumn('f2.user_id', 'users.id')
+                        ->where('f2.followable_id', $userId)
+                        ->where('followable_type', $userClass);
+                });
             })
-            ->whereExists(function ($q) use ($userId, $userClass) {
-                $q->select(DB::raw(1))
-                    ->from('follows as f2')
-                    ->whereColumn('f2.user_id', 'users.id')
-                    ->where('f2.followable_id', $userId)
-                    ->where('followable_type', $userClass); // không alias ở đây
+            ->orWhere(function ($q) use ($userId) {
+                $q->where('id', '!=', $userId)
+                    ->whereExists(function ($sub) use ($userId) {
+                        $sub->select(DB::raw(1))
+                            ->from('club_members as cm1')
+                            ->join('club_members as cm2', 'cm1.club_id', '=', 'cm2.club_id')
+                            ->whereColumn('cm1.user_id', 'users.id')
+                            ->where('cm1.user_id', '!=', $userId)
+                            ->where('cm1.membership_status', ClubMembershipStatus::Joined->value)
+                            ->where('cm1.status', ClubMemberStatus::Active->value)
+                            ->where('cm2.user_id', $userId)
+                            ->where('cm2.membership_status', ClubMembershipStatus::Joined->value)
+                            ->where('cm2.status', ClubMemberStatus::Active->value);
+                    });
             });
     }
 
