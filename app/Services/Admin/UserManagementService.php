@@ -29,6 +29,7 @@ class UserManagementService
                 'is_verified',
                 'is_anchor',
                 'last_login',
+                'last_active_at',
                 'created_at',
                 'is_guest',
             ])
@@ -37,8 +38,8 @@ class UserManagementService
             ->when($status === 'active', fn($q) => $q->notBanned())
             ->when($status === 'verified', fn($q) => $q->where('is_verified', true))
             ->where('is_guest', false)
-            ->orderByRaw("CASE WHEN last_login >= DATE_SUB(NOW(), INTERVAL 15 MINUTE) THEN 1 ELSE 0 END DESC")
-            ->orderBy('created_at', 'desc');
+            ->orderByRaw("CASE WHEN last_active_at >= DATE_SUB(NOW(), INTERVAL 15 MINUTE) THEN 1 ELSE 0 END DESC")
+            ->orderByDesc('last_active_at');
 
         $paginated = $query->paginate($limit, ['*'], 'page', $page);
 

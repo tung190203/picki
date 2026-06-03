@@ -219,10 +219,10 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     public function isOnline(int $minutesThreshold = 15): bool
     {
-        if (!$this->last_login) {
+        if (!$this->last_active_at) {
             return false;
         }
-        return $this->last_login->diffInMinutes(now()) <= $minutesThreshold;
+        return $this->last_active_at->diffInMinutes(now()) <= $minutesThreshold;
     }
 
     public function follows()
@@ -563,7 +563,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             ->when(
                 !empty($filters['online_recently']) && $filters['online_recently'] == true,
                 fn($query) => $query->where(
-                    'last_login',
+                    'last_active_at',
                     '>=',
                     Carbon::now()->subMinutes($filters['online_before_minutes'] ?? 30)
                 )

@@ -79,13 +79,18 @@ class MiniParticipantController extends Controller
             return ResponseHelper::error('Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.', 401);
         }
 
+        $currentUser = Auth::user();
+        if (!$currentUser) {
+            return ResponseHelper::error('Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.', 401);
+        }
+
         $miniTournament = MiniTournament::with('staff')->findOrFail($tournamentId);
 
         $this->checkMaxPlayers($miniTournament);
         $organizerIds = $miniTournament->staff->where('role', MiniTournamentStaff::ROLE_ORGANIZER)->pluck('user_id')->unique()->toArray();
 
         $exists = MiniParticipant::where('mini_tournament_id', $tournamentId)
-            ->where('user_id', Auth::id())
+            ->where('user_id', $currentUser->id)
             ->exists();
 
         if ($exists) {
@@ -103,10 +108,10 @@ class MiniParticipantController extends Controller
 
         $isConfirmed = $miniTournament->auto_approve && !$miniTournament->is_private;
 
-        $participant = DB::transaction(function () use ($tournamentId, $miniTournament, $isConfirmed, $paymentStatus) {
+        $participant = DB::transaction(function () use ($tournamentId, $miniTournament, $isConfirmed, $paymentStatus, $currentUser) {
             $participant = MiniParticipant::create([
                 'mini_tournament_id' => $tournamentId,
-                'user_id' => Auth::id(),
+                'user_id' => $currentUser->id,
                 'is_confirmed' => $isConfirmed,
                 'is_invited' => false,
                 'payment_status' => $paymentStatus,
@@ -119,7 +124,7 @@ class MiniParticipantController extends Controller
                         'participant_id' => $participant->id,
                     ],
                     [
-                        'user_id' => Auth::id(),
+                        'user_id' => $currentUser->id,
                         'amount' => $miniTournament->fee_amount,
                         'status' => MiniParticipantPayment::STATUS_PENDING,
                     ]
@@ -127,7 +132,7 @@ class MiniParticipantController extends Controller
             }
 
             if ($isConfirmed) {
-                $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, Auth::id());
+                $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $currentUser->id);
             }
 
             return $participant;
@@ -139,7 +144,7 @@ class MiniParticipantController extends Controller
             $this->pushToUsers(
                 $organizerIds,
                 'Yêu cầu tham gia mới',
-                auth()->user()->full_name . ' vừa gửi yêu cầu tham gia kèo đấu "' . $miniTournament->name . '".',
+                $currentUser->full_name . ' vừa gửi yêu cầu tham gia kèo đấu "' . $miniTournament->name . '".',
                 [
                     'type' => 'MINI_TOURNAMENT_JOIN_REQUEST',
                     'mini_tournament_id' => $miniTournament->id,
@@ -152,7 +157,7 @@ class MiniParticipantController extends Controller
             $this->pushToUsers(
                 $organizerIds,
                 'Người tham gia mới',
-                auth()->user()->full_name . ' đã tham gia kèo đấu "' . $miniTournament->name . '".',
+                $currentUser->full_name . ' đã tham gia kèo đấu "' . $miniTournament->name . '".',
                 [
                     'type' => 'MINI_TOURNAMENT_JOINED',
                     'mini_tournament_id' => $miniTournament->id,
@@ -160,12 +165,12 @@ class MiniParticipantController extends Controller
                 ]
             );
 
-            auth()->user()->notify(
-                new MiniTournamentJoinConfirmedNotification($participant, Auth::id())
+            $currentUser?->notify(
+                new MiniTournamentJoinConfirmedNotification($participant, $currentUser->id)
             );
 
             $this->pushToUsers(
-                [Auth::id()],
+                [$currentUser->id],
                 'Đã được duyệt tham gia',
                 'Bạn đã được duyệt tham gia kèo đấu "' . $miniTournament->name . '"',
                 [
@@ -182,7 +187,6 @@ class MiniParticipantController extends Controller
             }
         }
 
-        $currentUser = Auth::user();
         MiniTournamentMemberAdded::dispatch(
             $miniTournament->id,
             $miniTournament->name,
@@ -424,7 +428,7 @@ class MiniParticipantController extends Controller
         $this->pushToUsers(
             $organizerIds,
             'Lời mời được chấp nhận',
-            auth()->user()->full_name . ' đã chấp nhận lời mời tham gia kèo đấu "' . ($participant->miniTournament->name ?? '') . '".',
+            $participant->user->full_name . ' đã chấp nhận lời mời tham gia kèo đấu "' . ($participant->miniTournament->name ?? '') . '".',
             [
                 'type' => 'MINI_TOURNAMENT_INVITE_ACCEPTED',
                 'mini_tournament_id' => $participant->mini_tournament_id,
@@ -477,7 +481,7 @@ class MiniParticipantController extends Controller
         $this->pushToUsers(
             $organizerIds,
             'Lời mời bị từ chối',
-            auth()->user()->full_name . ' đã từ chối lời mời tham gia kèo đấu "' . ($participant->miniTournament->name ?? '') . '".',
+            $participant->user->full_name . ' đã từ chối lời mời tham gia kèo đấu "' . ($participant->miniTournament->name ?? '') . '".',
             [
                 'type' => 'MINI_TOURNAMENT_INVITE_DECLINED',
                 'mini_tournament_id' => $participant->mini_tournament_id,
@@ -677,6 +681,7 @@ class MiniParticipantController extends Controller
      */
     public function inviteFriends(Request $request, $tournamentId)
     {
+        $currentUser = Auth::user();
         $miniTournament = MiniTournament::with('staff')->findOrFail($tournamentId);
 
         // Check if allow_participant_add_friends is enabled
@@ -756,7 +761,7 @@ class MiniParticipantController extends Controller
                     $this->pushToUsers(
                         [$userId],
                         'Lời mời tham gia kèo đấu',
-                        auth()->user()->full_name . ' mời bạn tham gia kèo đấu "' . $miniTournament->name . '"',
+                        ($currentUser->full_name ?? 'Một người') . ' mời bạn tham gia kèo đấu "' . $miniTournament->name . '"',
                         [
                             'type' => 'MINI_TOURNAMENT_INVITED',
                             'mini_tournament_id' => $miniTournament->id,
