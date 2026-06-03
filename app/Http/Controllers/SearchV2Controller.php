@@ -97,7 +97,15 @@ class SearchV2Controller extends Controller
                 ->with(['sports.sport', 'sports.scores', 'clubs'])
                 ->when($user, fn($q) => $q->visibleFor($user))
                 ->filter($filters)
-                ->applyTimeline($subTab, $userId),
+                ->applyTimeline($subTab, $userId)
+                ->when($subTab === 'same_club', function ($q) use ($params) {
+                    $clubId = $params['club_id'] ?? null;
+                    if ($clubId) {
+                        $q->whereHas('clubs', fn($cq) => $cq->where('clubs.id', $clubId));
+                    } else {
+                        $q->whereRaw('1 = 0');
+                    }
+                }),
 
             SearchFilterConfig::TAB_CLUB => Club::withListRelations()
                 ->with(['creator', 'members'])

@@ -12,11 +12,13 @@ class SearchMatchResource extends JsonResource
     public function toArray(Request $request): array
     {
         $location = $this->whenLoaded('competitionLocation');
+        $club = $this->whenLoaded('club');
         $participants = $this->whenLoaded('participants');
         $staff = $this->whenLoaded('staff');
 
         return [
             'id'             => $this->id,
+            'club_id'       => $this->club_id,
             'name'           => $this->name,
             'type'           => 'mini',
             'poster'         => $this->poster && !str_starts_with($this->poster, 'http')
@@ -48,6 +50,10 @@ class SearchMatchResource extends JsonResource
             ] : null,
             'location_name'  => $location?->name,
             'address'        => $location?->address,
+            'club' => $club ? [
+                'id'   => $club->id,
+                'name' => $club->name,
+            ] : null,
             // Participants
             'participants'   => $participants ? $participants->map(fn($p) => [
                 'id'         => $p->id,

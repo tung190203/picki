@@ -1195,19 +1195,36 @@ class MiniParticipantController extends Controller
 
             case 'friends':
                 $query = User::withFullRelations()
-                    ->whereExists(function ($q) use ($user) {
-                        $q->select(DB::raw(1))
-                            ->from('follows as f1')
-                            ->whereColumn('f1.followable_id', 'users.id')
-                            ->where('f1.user_id', $user->id)
-                            ->where('f1.followable_type', User::class);
+                    ->where(function ($q) use ($user) {
+                        $q->whereExists(function ($sub) use ($user) {
+                            $sub->select(DB::raw(1))
+                                ->from('follows as f1')
+                                ->whereColumn('f1.followable_id', 'users.id')
+                                ->where('f1.user_id', $user->id)
+                                ->where('f1.followable_type', User::class);
+                        })
+                        ->whereExists(function ($sub) use ($user) {
+                            $sub->select(DB::raw(1))
+                                ->from('follows as f2')
+                                ->whereColumn('f2.user_id', 'users.id')
+                                ->where('f2.followable_id', $user->id)
+                                ->where('f2.followable_type', User::class);
+                        });
                     })
-                    ->whereExists(function ($q) use ($user) {
-                        $q->select(DB::raw(1))
-                            ->from('follows as f2')
-                            ->whereColumn('f2.user_id', 'users.id')
-                            ->where('f2.followable_id', $user->id)
-                            ->where('f2.followable_type', User::class);
+                    ->orWhere(function ($q) use ($user) {
+                        $q->where('users.id', '!=', $user->id)
+                            ->whereExists(function ($sub) use ($user) {
+                                $sub->select(DB::raw(1))
+                                    ->from('club_members as cm1')
+                                    ->join('club_members as cm2', 'cm1.club_id', '=', 'cm2.club_id')
+                                    ->whereColumn('cm1.user_id', 'users.id')
+                                    ->where('cm1.user_id', '!=', $user->id)
+                                    ->where('cm1.membership_status', 'joined')
+                                    ->where('cm1.status', 'active')
+                                    ->where('cm2.user_id', $user->id)
+                                    ->where('cm2.membership_status', 'joined')
+                                    ->where('cm2.status', 'active');
+                            });
                     });
                 break;
 

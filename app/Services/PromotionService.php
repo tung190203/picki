@@ -171,7 +171,19 @@ class PromotionService
             ->where('followable_id', $userId)
             ->pluck('user_id');
 
-        return $followingIds->intersect($followerIds)->values();
+        $mutualFriendIds = $followingIds->intersect($followerIds)->values();
+
+        $sameClubIds = DB::table('club_members as cm1')
+            ->join('club_members as cm2', 'cm1.club_id', '=', 'cm2.club_id')
+            ->where('cm1.user_id', $userId)
+            ->where('cm1.membership_status', 'joined')
+            ->where('cm1.status', 'active')
+            ->where('cm2.user_id', '!=', $userId)
+            ->where('cm2.membership_status', 'joined')
+            ->where('cm2.status', 'active')
+            ->pluck('cm2.user_id');
+
+        return $mutualFriendIds->merge($sameClubIds)->unique()->values();
     }
 
     protected function getExcludedUserIds(int $userId, string $promotableType, int $promotableId): array
