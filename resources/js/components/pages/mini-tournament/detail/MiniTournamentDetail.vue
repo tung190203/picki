@@ -1,7 +1,7 @@
 <template src="./MiniTournamentDetail.html"></template>
 
 <script>
-import {computed, onMounted, ref} from 'vue'
+import {computed, onMounted, ref, watch} from 'vue'
 import { ArrowTrendingUpIcon, ChevronRightIcon, LinkIcon, LockClosedIcon, LockOpenIcon, PaperAirplaneIcon, PhotoIcon, QrCodeIcon } from '@heroicons/vue/24/solid'
 import {
     CalendarDaysIcon,
@@ -26,6 +26,7 @@ import * as MiniParticipantService from '@/service/miniParticipant.js'
 import * as ClubService from '@/service/club.js'
 import { useRoute, useRouter } from 'vue-router'
 import ShareAction from '@/components/molecules/ShareAction.vue'
+import ShareCardMini from '@/components/pages/mini-tournament/shared/ShareCardMini.vue'
 import { formatEventDate } from '@/composables/formatDatetime.js'
 import { TABS } from '@/data/mini/index.js'
 import debounce from "lodash.debounce";
@@ -86,7 +87,8 @@ export default {
         MiniTournamentSubmitReceiptModal,
         AddGuestModal,
         MegaphoneIcon,
-        MemberActionModal
+        MemberActionModal,
+        ShareCardMini,
     },
 
     setup() {
@@ -123,6 +125,7 @@ export default {
         const showSubmitPaymentModal = ref(false)
         const showAddGuestModal = ref(false)
         const showDeleteStaffModal = ref(false)
+        const showShareCardModal = ref(false)
         const deleteStaffData = ref({
             staffId: null,
             guarantor: null,
@@ -149,20 +152,7 @@ export default {
         }
 
         const copyLink = () => {
-            if (navigator.share) {
-                navigator.share({
-                    title: 'Hãy tham gia kèo đấu ' + mini.value.name + ' của tôi!',
-                    url: miniTournamentLink
-                }).then(() => {
-                    toast.success('Đã sao chép link kèo đấu vào clipboard!');
-                }).catch(console.error);
-            } else if (navigator.clipboard) {
-                navigator.clipboard.writeText(miniTournamentLink).then(() => {
-                    toast.success('Đã sao chép link kèo đấu vào clipboard!');
-                }).catch(console.error);
-            } else {
-                alert(`Link kèo đấu: ${miniTournamentLink}`);
-            }
+            showShareCardModal.value = true
         }
 
         const onRadiusChange = debounce(async (radius) => {
@@ -856,6 +846,46 @@ export default {
             }
         }
 
+        // Update meta tags when mini tournament data changes
+        watch(mini, (m) => {
+            if (!m) return
+            const ogImage = m.poster || ''
+            const shareUrl = `https://picki.vn/mini-tournament/${id}`
+
+            document.title = `${m.name} | PICKI`
+            updateMeta('og:title', m.name)
+            updateMeta('og:description', m.description || `Tham gia kèo đấu Pickleball ${m.name}`)
+            updateMeta('og:type', 'website')
+            updateMeta('og:url', shareUrl)
+            updateMeta('og:image', ogImage)
+            updateMeta('og:site_name', 'PICKI')
+            updateMeta('twitter:card', 'summary_large_image')
+            updateMeta('twitter:title', m.name)
+            updateMeta('twitter:description', m.description || '')
+            updateMeta('twitter:image', ogImage)
+            updateCanonical(shareUrl)
+        }, { immediate: true })
+
+        function updateMeta(name, content) {
+            let el = document.querySelector(`meta[property="${name}"], meta[name="${name}"]`)
+            if (!el) {
+                el = document.createElement('meta')
+                el.setAttribute(name.startsWith('og:') ? 'property' : 'name', name)
+                document.head.appendChild(el)
+            }
+            el.setAttribute('content', content)
+        }
+
+        function updateCanonical(url) {
+            let el = document.querySelector('link[rel="canonical"]')
+            if (!el) {
+                el = document.createElement('link')
+                el.setAttribute('rel', 'canonical')
+                document.head.appendChild(el)
+            }
+            el.setAttribute('href', url)
+        }
+
         onMounted(async () => {
             activeTab.value = route.query.tab || 'detail'
             if (id) {
@@ -919,6 +949,7 @@ export default {
             searchQuery,
             onSearchChange,
             showQRCodeModal,
+            showShareCardModal,
             miniTournamentLink,
             descriptionModel,
             isEditingDescription,
