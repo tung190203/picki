@@ -17,7 +17,7 @@
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-QPMiUuSU.js",
+    "file": "assets/app-9P9k-1R2.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -26,7 +26,7 @@
       "resources/js/components/pages/admin/AdminConfig.vue"
     ],
     "css": [
-      "assets/app-DUtd6N3M.css",
+      "assets/app-DWC4BCRt.css",
       "assets/app-Dze7opw3.css"
     ],
     "assets": [
@@ -96,7 +96,7 @@
     "src": "resources/js/assets/ranking/3rd.png"
   },
   "resources/js/components/pages/admin/AdminConfig.vue": {
-    "file": "assets/AdminConfig-DaxCjyqC.js",
+    "file": "assets/AdminConfig-B2qGqrqG.js",
     "name": "AdminConfig",
     "src": "resources/js/components/pages/admin/AdminConfig.vue",
     "isDynamicEntry": true,
@@ -109,7 +109,7 @@
     ]
   },
   "resources/js/components/pages/admin/AdminModeration.vue": {
-    "file": "assets/AdminModeration-okWOOpqC.js",
+    "file": "assets/AdminModeration-CUqOhz-y.js",
     "name": "AdminModeration",
     "src": "resources/js/components/pages/admin/AdminModeration.vue",
     "isDynamicEntry": true,
