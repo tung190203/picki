@@ -77,6 +77,7 @@ class Club extends Model
     public function activeMembers()
     {
         return $this->hasMany(ClubMember::class)
+            ->whereHas('user')
             ->where('membership_status', ClubMembershipStatus::Joined)
             ->where('status', ClubMemberStatus::Active);
     }
