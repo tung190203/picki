@@ -750,10 +750,11 @@ class MiniTournament extends Model
                             });
                         });
 
-                        // Participant: thấy tất cả kèo mình tham gia (kể cả draft)
+                        // Participant: thấy tất cả kèo mình tham gia (kể cả draft, trừ declined)
                         $sub->orWhere(function ($partSub) use ($userId) {
                             $partSub->whereHas('participants', function ($partQuery) use ($userId) {
-                                $partQuery->where('user_id', $userId);
+                                $partQuery->where('user_id', $userId)
+                                    ->whereNull('declined_at');
                             });
                         });
 
@@ -784,7 +785,7 @@ class MiniTournament extends Model
         return match ($timeFilter) {
             'mine' => $query->where(function ($q) use ($userId) {
                 $q->where('created_by', $userId)
-                    ->orWhereHas('participants', fn($p) => $p->where('user_id', $userId));
+                    ->orWhereHas('participants', fn($p) => $p->where('user_id', $userId)->whereNull('declined_at'));
             }),
             'today' => $query->whereDate('start_time', now()->toDateString()),
             'this_week' => $query->whereBetween('start_time', [
