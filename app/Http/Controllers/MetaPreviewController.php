@@ -86,9 +86,14 @@ class MetaPreviewController extends Controller
         $description = $miniTournament->description
             ? \Str::limit(strip_tags($miniTournament->description), 160)
             : "Kèo đấu {$miniTournament->name} trên PICKI";
-        $image = $miniTournament->poster
-            ? $this->absoluteUrl(asset('storage/' . $miniTournament->poster))
-            : $this->absoluteUrl(asset('favicon.png'));
+        $posterUrl = $miniTournament->poster;
+        if ($posterUrl) {
+            $image = str_starts_with($posterUrl, 'http')
+                ? $this->absoluteUrl($posterUrl)
+                : $this->absoluteUrl(asset('storage/' . $posterUrl));
+        } else {
+            $image = $this->absoluteUrl(asset('favicon.png'));
+        }
         $url = $this->canonicalUrl($request, "/mini-tournament-detail/{$id}");
 
         return view('meta.mini-tournament', compact('title', 'description', 'image', 'url'));
@@ -141,9 +146,14 @@ class MetaPreviewController extends Controller
         $description .= $tournament ? " - {$tournament->name}" : '';
         $description = \Str::limit($description, 160);
 
-        $image = $tournament?->poster
-            ? $this->absoluteUrl(asset('storage/' . $tournament->poster))
-            : $this->absoluteUrl(asset('favicon.png'));
+        $posterUrl = $tournament?->poster;
+        if ($posterUrl) {
+            $image = str_starts_with($posterUrl, 'http')
+                ? $this->absoluteUrl($posterUrl)
+                : $this->absoluteUrl(asset('storage/' . $posterUrl));
+        } else {
+            $image = $this->absoluteUrl(asset('favicon.png'));
+        }
 
         $url = $this->canonicalUrl($request, "/mini-match/{$id}/verify");
 

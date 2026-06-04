@@ -78,6 +78,7 @@ class MiniParticipantController extends Controller
             return ResponseHelper::error('Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.', 401);
         }
 
+        /** @var \App\Models\User $currentUser */
         $currentUser = Auth::user();
         if (!$currentUser) {
             return ResponseHelper::error('Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.', 401);

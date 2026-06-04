@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\MiniTournament;
 use App\Rules\ValidRecurringSchedule;
+use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
 
@@ -210,6 +211,14 @@ class UpdateMiniTournamentRequest extends FormRequest
                 $maxPoints = $this->input('max_points');
                 if ($basePoints !== null && $maxPoints !== null && (int) $maxPoints < (int) $basePoints) {
                     $validator->errors()->add('max_points', 'Điểm tối đa phải lớn hơn hoặc bằng điểm cơ bản.');
+                }
+            }
+
+            // When recurring, start_time must not be in the past
+            if ($this->filled('recurring_schedule') && $this->filled('start_time')) {
+                $startTime = Carbon::parse($this->input('start_time'));
+                if ($startTime->lt(Carbon::now()->startOfDay())) {
+                    $validator->errors()->add('start_time', 'Thời gian bắt đầu không được là ngày đã qua.');
                 }
             }
         });

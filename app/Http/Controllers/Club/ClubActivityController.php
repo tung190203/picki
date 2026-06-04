@@ -32,7 +32,7 @@ class ClubActivityController extends Controller
 {
     private const ACTIVITY_COLLECTED_SUM = 'activityFeeTransactions as collected_amount';
 
-    private const ACTIVITIES_CACHE_TTL = 60; // seconds
+    // Caching disabled — see note in index()
 
     public function __construct(
         protected ClubActivityService $activityService
@@ -88,17 +88,11 @@ class ClubActivityController extends Controller
             }
         }
 
-        $currentVersion = (int) Cache::get('club_content_version:' . $clubId, 0);
-        // Cache key phải phản ánh TẤT CẢ params ảnh hưởng kết quả, bao gồm cả category
-        $cacheKey = 'club_content:' . $clubId . ':' . md5(json_encode($filters) . ':' . ($userId ?? 'guest'));
+        // NOTE: Caching disabled — ClubContentCache was causing stale data after mutations
+        // (Cache::increment + forget patterns couldn't cover all filter combinations reliably).
+        // Performance impact is acceptable for clubs with small-to-medium datasets.
+        // Re-enable only when a more robust cache invalidation strategy is implemented.
 
-        $cached = Cache::get($cacheKey);
-        if ($cached !== null && ($cached['_v'] ?? 0) === $currentVersion) {
-            $options = config('app.debug') ? (JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) : JSON_UNESCAPED_UNICODE;
-            return response()->json($cached, 200, [], $options);
-        }
-
-        $categories = self::getCategories();
         $items = collect();
         $totalCount = 0;
 
@@ -167,12 +161,7 @@ class ClubActivityController extends Controller
             'last_page' => (int) ceil($totalCount / $perPage),
         ];
 
-        $response = ResponseHelper::success($data, 'Lấy danh sách nội dung thành công', 200, $meta);
-        $responseData = $response->getData(true);
-        $responseData['_v'] = $currentVersion;
-        Cache::put($cacheKey, $responseData, self::ACTIVITIES_CACHE_TTL);
-
-        return $response;
+        return ResponseHelper::success($data, 'Lấy danh sách nội dung thành công', 200, $meta);
     }
 
     /**
@@ -543,5 +532,53 @@ class ClubActivityController extends Controller
             new ClubActivityParticipantResource($participant),
             'Đã đánh dấu check-in thành công'
         );
+    }
+
+    /**
+     * Xóa tất cả cache entries của club content.
+     * Bump version + forget cứng các variants phổ biến để immediate invalidation.
+     */
+    public static function forgetClubContentCache(int $clubId): void
+    {
+        Cache::increment('club_content_version:' . $clubId);
+
+        $userId = auth()->id();
+        $now = Carbon::now();
+        $dateFrom = $now->copy()->startOfWeek()->format('Y-m-d');
+        $dateTo = $now->copy()->endOfWeek()->format('Y-m-d');
+
+        // Iterate over all combinations of category / status / per_page
+        // and forget both guest and authenticated variants
+        $categoryStatusCombos = [
+            // scheduled/ongoing tab (with default date range)
+            ['all', ['scheduled', 'ongoing']],
+            ['activity', ['scheduled', 'ongoing']],
+            ['mini_tournament', ['scheduled', 'ongoing']],
+            ['tournament', ['scheduled', 'ongoing']],
+            // history tab
+            ['all', ['completed', 'cancelled']],
+            ['activity', ['completed', 'cancelled']],
+            ['mini_tournament', ['completed', 'cancelled']],
+            ['tournament', ['completed', 'cancelled']],
+            ['all', ['all']],
+        ];
+
+        foreach ($categoryStatusCombos as [$cat, $statuses]) {
+            $hasDefaultDates = empty(array_diff($statuses, ['scheduled', 'ongoing']));
+            foreach ([15, 20, 50] as $perPage) {
+                $filters = ['category' => $cat, 'statuses' => $statuses, 'per_page' => $perPage];
+                if ($hasDefaultDates) {
+                    $filters['date_from'] = $dateFrom;
+                    $filters['date_to'] = $dateTo;
+                    $filters['include_next_occurrence_for_series_done_this_week'] = true;
+                }
+                foreach (['guest', $userId] as $userVariant) {
+                    if ($userVariant === 'guest' || $userId) {
+                        $key = 'club_content:' . $clubId . ':' . md5(json_encode($filters) . ':' . $userVariant);
+                        Cache::forget($key);
+                    }
+                }
+            }
+        }
     }
 }
