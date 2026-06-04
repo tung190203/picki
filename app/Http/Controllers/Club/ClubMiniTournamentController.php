@@ -485,6 +485,7 @@ class ClubMiniTournamentController extends Controller
 
         try {
             $count = $this->tournamentService->cancelRecurrenceSeriesForClub($club, (string) $miniTournamentId, $userId);
+            \App\Http\Controllers\Club\ClubActivityController::forgetClubContentCache($club->id);
             return ResponseHelper::success(
                 ['deleted_count' => $count],
                 'Đã xóa các kèo hợp lệ trong chuỗi lặp lại',
