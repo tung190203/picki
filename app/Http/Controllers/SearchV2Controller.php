@@ -107,10 +107,7 @@ class SearchV2Controller extends Controller
                     }
                 }),
 
-            SearchFilterConfig::TAB_CLUB => Club::withListRelations()
-                ->with(['creator', 'members'])
-                ->where('is_public', true)
-                ->filter($filters),
+            SearchFilterConfig::TAB_CLUB => $this->buildClubQuery($userId, $filters),
 
             SearchFilterConfig::TAB_COURT => CompetitionLocation::withFullRelations()
                 ->filter($filters),
@@ -188,6 +185,27 @@ class SearchV2Controller extends Controller
                 $params['maxLng'] ?? null,
             );
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Club query builder (includes private clubs the user is a member of)
+    // -------------------------------------------------------------------------
+
+    private function buildClubQuery(?int $userId, array $filters)
+    {
+        return Club::withListRelations()
+            ->with(['creator', 'members'])
+            ->where(function ($q) use ($userId) {
+                $q->where('is_public', true);
+
+                if ($userId) {
+                    $q->orWhereHas('members', function ($m) use ($userId) {
+                        $m->where('user_id', $userId)
+                            ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined->value);
+                    });
+                }
+            })
+            ->filter($filters);
     }
 
     private function paginate($query, array $params): array
