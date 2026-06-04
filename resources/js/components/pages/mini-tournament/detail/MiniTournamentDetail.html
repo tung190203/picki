@@ -403,6 +403,9 @@
         </div>
         <QRcodeModal v-if="showQRCodeModal" :value="miniTournamentLink" @close="showQRCodeModal = false" />
 
+        <!-- Share Card Modal -->
+        <ShareCardMini :is-visible="showShareCardModal" :mini="mini" @close="showShareCardModal = false" />
+
         <!-- Sidebar -->
         <ShareAction :buttons="[
                 { label: 'Gửi link', icon: LinkIcon, onClick: copyLink },
