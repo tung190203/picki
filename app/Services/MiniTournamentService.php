@@ -15,6 +15,7 @@ use App\Enums\PaymentStatusEnum;
 use App\Enums\ClubFundContributionStatus;
 use App\Exceptions\BusinessException;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -213,7 +214,10 @@ class MiniTournamentService
             if ($firstStart && $nextStart->eq($firstStart)) {
                 continue;
             }
-
+            // Safety net: never create occurrences in the past
+            if ($nextStart->lt(Carbon::now())) {
+                continue;
+            }
             $this->createNextOccurrenceIfMissing($firstTournament, $nextStartTime, $userId, $seriesId);
         }
     }
@@ -386,6 +390,14 @@ class MiniTournamentService
             MiniTournament::where('recurrence_series_id', $seriesId)
                 ->update(['recurrence_series_cancelled_at' => $now]);
         });
+
+        // Invalidate club content cache
+        if (!empty($deleteIds)) {
+            $clubId = MiniTournament::whereIn('id', $deleteIds)->whereNotNull('club_id')->value('club_id');
+            if ($clubId) {
+                Cache::increment('club_content_version:' . $clubId);
+            }
+        }
 
         return count($deleteIds);
     }
@@ -602,6 +614,11 @@ class MiniTournamentService
             MiniTournament::where('recurrence_series_id', $seriesId)
                 ->update(['recurrence_series_cancelled_at' => $now]);
         });
+
+        // Invalidate club content cache
+        if (!empty($deleteIds)) {
+            Cache::increment('club_content_version:' . $club->id);
+        }
 
         return count($deleteIds);
     }
