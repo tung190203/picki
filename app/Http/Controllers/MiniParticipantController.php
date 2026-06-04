@@ -11,7 +11,6 @@ use App\Models\MiniParticipantPayment;
 use App\Http\Resources\MiniParticipantResource;
 use App\Jobs\SendPushJob;
 use App\Models\MiniTournamentStaff;
-use App\Models\SuperAdminDraft;
 use App\Models\User;
 use App\Notifications\MiniTournamentCreatorInvitationNotification;
 use App\Notifications\MiniTournamentJoinConfirmedNotification;
@@ -242,8 +241,6 @@ class MiniParticipantController extends Controller
             return ResponseHelper::error('Người chơi này đã được mời hoặc đã tham gia.', 400);
         }
 
-        $isSuperAdmin = SuperAdminDraft::where('user_id', Auth::id())->exists();
-
         // use_club_fund = true: CLB chi tiền → payment_status = CONFIRMED, không tạo payment
         $paymentStatus = PaymentStatusEnum::CONFIRMED;
         if ($miniTournament->use_club_fund) {
@@ -252,9 +249,11 @@ class MiniParticipantController extends Controller
             $paymentStatus = PaymentStatusEnum::PENDING;
         }
 
+        // Invited user always starts as is_confirmed = false, until they accept the invite.
+        // SuperAdmin status does NOT bypass the accept flow.
         $participant = $miniTournament->participants()->create([
             'user_id' => $validated['user_id'],
-            'is_confirmed' => $isSuperAdmin,
+            'is_confirmed' => false,
             'is_invited' => true,
             'invited_by' => Auth::id(),
             'payment_status' => $paymentStatus,
