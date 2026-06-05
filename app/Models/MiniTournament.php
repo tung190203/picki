@@ -508,6 +508,22 @@ class MiniTournament extends Model
         ]);
     }
 
+    /**
+     * Lean eager-load scope for search list results.
+     * Only loads relations actually used by SearchMatchResource.
+     */
+    public function scopeSearchRelations($query)
+    {
+        return $query->with([
+            'sport',
+            'competitionLocation',
+            'club',
+            'participants.user',
+            'staff',
+            'creator',
+        ]);
+    }
+
     public function loadFullRelations()
     {
         return $this->load([
