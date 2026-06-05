@@ -4,7 +4,6 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use App\Models\User;
 
 class UserSportResource extends JsonResource
 {
@@ -14,7 +13,7 @@ class UserSportResource extends JsonResource
 
         $scores = $this->relationLoaded('scores')
             ? $this->scores
-            : $this->scores()->get();
+            : collect();
 
         $formattedScores = [];
         foreach ($types as $type) {
@@ -23,19 +22,15 @@ class UserSportResource extends JsonResource
             $formattedScores[$type] = number_format($scoreValue, 3);
         }
 
-        $stats = User::getSportStats($this->user_id, $this->sport_id, $request->user()?->id === $this->user_id);
+        // Note: getSportStats is intentionally omitted here — stats computation is
+        // expensive and already handled via getBatchSportStats at the controller level
+        // for list/search contexts. Callers needing stats should use batch-loaded data.
 
         return [
             'sport_id'   => $this->sport_id,
             'sport_icon' => $this->relationLoaded('sport') ? optional($this->sport)->icon : null,
             'sport_name' => $this->relationLoaded('sport') ? optional($this->sport)->name : null,
             'scores'     => $formattedScores,
-            'total_matches' => $stats['total_matches'],
-            'total_tournaments' => $stats['total_tournaments'],
-            'total_mini_tournaments' => $stats['total_mini_tournaments'],
-            'total_prizes' => $stats['total_prizes'],
-            'win_rate' => $stats['win_rate'],
-            'performance' => $stats['performance'],
         ];
     }
 }
