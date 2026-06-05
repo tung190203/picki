@@ -143,6 +143,10 @@ class HomeController extends Controller
             ->with('sport', 'scores')
             ->get();
 
+        // Load sport stats on the auth user for UserSportResource
+        $user->setRelation('sports', $userSports);
+        User::loadSportStatsOnUsers(collect([$user]), $sport->id ?? 1);
+
         $userInfo = [
             'win_rate'    => round($winRate, 2),
             'performance' => round($performance, 2),
@@ -247,6 +251,8 @@ class HomeController extends Controller
             ->orderByDesc('scores.vndupr_score')
             ->limit($perPage)
             ->get();
+
+        User::loadSportStatsOnUsers($leaderboard, $sportId);
 
         // Trả về data
         $data = [

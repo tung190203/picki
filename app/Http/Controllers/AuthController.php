@@ -746,6 +746,7 @@ class AuthController extends Controller
                 'ban_reason' => $user->ban_reason,
             ]);
         }
+        User::loadSportStatsOnUsers(collect([$user]), 1);
         $clubs = $user->clubs;
         if ($clubs->isNotEmpty()) {
             $this->clubService->attachUnreadNotificationCount($clubs, $user->id);
@@ -755,6 +756,8 @@ class AuthController extends Controller
 
     private function responseWithToken(string $accessToken, string $refreshToken, object $user): array
     {
+        $user->loadFullRelations();
+        User::loadSportStatsOnUsers(collect([$user]), 1);
         return [
             'token' => [
                 'access_token' => $accessToken,
@@ -762,7 +765,7 @@ class AuthController extends Controller
                 'token_type' => 'Bearer',
                 'expires_in' => 3600,
             ],
-            'user' => new UserResource($user->loadFullRelations()),
+            'user' => new UserResource($user),
         ];
     }
 

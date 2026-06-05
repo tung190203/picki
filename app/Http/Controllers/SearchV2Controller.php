@@ -218,20 +218,7 @@ class SearchV2Controller extends Controller
 
         // Eager-load batch stats for user tab to avoid N+1 (getSportStats is expensive)
         if ($tab === SearchFilterConfig::TAB_USER) {
-            $userIds = $paginator->getCollection()->pluck('id')->all();
-            if (!empty($userIds)) {
-                $batchStats = User::getBatchSportStats($userIds, 1, false);
-                foreach ($paginator->getCollection() as $user) {
-                    $user->preloaded_sport_stats = $batchStats[$user->id] ?? [
-                        'total_matches' => 0,
-                        'total_tournaments' => 0,
-                        'total_mini_tournaments' => 0,
-                        'total_prizes' => 0,
-                        'win_rate' => 0.0,
-                        'performance' => 0,
-                    ];
-                }
-            }
+            User::loadSportStatsOnUsers($paginator->getCollection(), 1);
         }
 
         // Eager-load batch membership status for tournament tabs (avoids N+1 on isJoinedBy/isRegisteredBy)
@@ -257,20 +244,7 @@ class SearchV2Controller extends Controller
 
         // Eager-load batch stats for user tab to avoid N+1
         if ($tab === SearchFilterConfig::TAB_USER) {
-            $userIds = $items->pluck('id')->all();
-            if (!empty($userIds)) {
-                $batchStats = User::getBatchSportStats($userIds, 1, false);
-                foreach ($items as $user) {
-                    $user->preloaded_sport_stats = $batchStats[$user->id] ?? [
-                        'total_matches' => 0,
-                        'total_tournaments' => 0,
-                        'total_mini_tournaments' => 0,
-                        'total_prizes' => 0,
-                        'win_rate' => 0.0,
-                        'performance' => 0,
-                    ];
-                }
-            }
+            User::loadSportStatsOnUsers($items, 1);
         }
 
         // Eager-load batch membership status for tournament tabs
@@ -302,20 +276,7 @@ class SearchV2Controller extends Controller
 
         // Eager-load batch stats for user tab to avoid N+1
         if ($tab === SearchFilterConfig::TAB_USER) {
-            $userIds = $paginator->getCollection()->pluck('id')->all();
-            if (!empty($userIds)) {
-                $batchStats = User::getBatchSportStats($userIds, 1, false);
-                foreach ($paginator->getCollection() as $user) {
-                    $user->preloaded_sport_stats = $batchStats[$user->id] ?? [
-                        'total_matches' => 0,
-                        'total_tournaments' => 0,
-                        'total_mini_tournaments' => 0,
-                        'total_prizes' => 0,
-                        'win_rate' => 0.0,
-                        'performance' => 0,
-                    ];
-                }
-            }
+            User::loadSportStatsOnUsers($paginator->getCollection(), 1);
         }
 
         // Eager-load batch membership status for tournament tabs
@@ -404,4 +365,9 @@ class SearchV2Controller extends Controller
             }
         }
     }
+
+    /**
+     * Batch-load per-(user_id, sport_id) stats for all UserSport models.
+     * Assigns preloaded_sport_stats[$sportId] on each UserSport to avoid per-row getSportStats calls.
+     */
 }
