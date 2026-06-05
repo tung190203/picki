@@ -1,13 +1,11 @@
 [
   {
-    "relation": [
-      "delegate_permission/common.handle_all_urls"
-    ],
+    "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
       "package_name": "com.picki.pickleball",
       "sha256_cert_fingerprints": [
-        "FD:E6:B5:24:A2:20:37:13:AE:09:48:8E:8A:82:F8:59:70:5F:0E:0B:91:EE:9C:E1:67:68:8A:CD:C8:53:E1:DB","A4:BE:9A:F8:AD:AE:F8:07:C2:D5:43:1A:32:EB:BF:04:A1:15:CD:D9:A3:9C:EA:E0:53:BE:D8:76:8A:57:F0:17","50:53:88:95:89:C1:CE:A8:CA:63:9E:E4:1E:03:F1:B0:9C:3D:13:42:33:06:F9:62:B0:10:80:39:26:A4:48:20"
+        "REPLACE_WITH_YOUR_SHA256_FINGERPRINT"
       ]
     }
   }

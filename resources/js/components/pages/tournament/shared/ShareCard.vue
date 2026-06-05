@@ -144,7 +144,10 @@ const registrationStatus = computed(() => {
 })
 
 const shareUrl = computed(() => {
-  const base = webShareUrl
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  const base = isMobile
+    ? `${window.location.origin}/l/tournament`
+    : webShareUrl
   return `${base}/${props.tournament?.id}`
 })
 
