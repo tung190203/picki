@@ -999,9 +999,9 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             ->keyBy('id');
 
         // === TÍNH STATS ===
-        $tournamentMatches = 0;
+        $tournamentMatches = $matches->count();
         $tournamentWins = 0;
-        $miniMatches = 0;
+        $miniMatches = $minis->count();
         $miniWins = 0;
 
         // Tournament matches
@@ -1046,8 +1046,6 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                 && $miniParticipantRows[$mm->participant2_id]->user_id == $userId;
 
             if (!$isTeam1 && !$isTeam2 && !$isParticipant1 && !$isParticipant2) continue;
-
-            $miniMatches++;
 
             if ($mm->team_win_id) {
                 if ($isTeam1 && $mm->team_win_id == $mm->team1_id) $miniWins++;
@@ -1511,7 +1509,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
      * @param array $pairs Array of ['user_id' => X, 'sport_id' => Y] pairs
      * @return array Nested array: $result[$userId][$sportId] = stats
      */
-    public static function getBatchSportStatsByUserSport(array $pairs): array
+    public static function getBatchSportStatsByUserSport(array $pairs, bool $isOwnProfile = true): array
     {
         if (empty($pairs)) {
             return [];
@@ -1527,7 +1525,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         // Call getBatchSportStats per sport_id — keeps the exact same logic that already works.
         $result = [];
         foreach ($sportIds as $sportId) {
-            $sportStats = self::getBatchSportStats($userIds, (int) $sportId, false);
+            $sportStats = self::getBatchSportStats($userIds, (int) $sportId, $isOwnProfile);
             foreach ($userIds as $uid) {
                 if (isset($sportStats[$uid])) {
                     $result[$uid][$sportId] = $sportStats[$uid];
@@ -1548,7 +1546,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
      * @param \Illuminate\Support\Collection|array $users
      * @param string $pickleballSportId The sport_id of pickleball (default 1)
      */
-    public static function loadSportStatsOnUsers($users, int $pickleballSportId = 1): void
+    public static function loadSportStatsOnUsers($users, int $pickleballSportId = 1, bool $isOwnProfile = true): void
     {
         if ($users->isEmpty()) {
             return;
@@ -1571,7 +1569,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             return;
         }
 
-        $batchStats = self::getBatchSportStatsByUserSport($pairs);
+        $batchStats = self::getBatchSportStatsByUserSport($pairs, $isOwnProfile);
 
         foreach ($users as $user) {
             if (!$user->relationLoaded('sports') || !isset($batchStats[$user->id])) {

@@ -172,7 +172,7 @@ class UserController extends Controller
             return ResponseHelper::error('Người dùng không tồn tại', 404);
         }
 
-        User::loadSportStatsOnUsers(collect([$user]), 1);
+        User::loadSportStatsOnUsers(collect([$user]), 1, false);
 
         $authUserId = auth()->id();
         if ($authUserId && (int) $id === (int) $authUserId) {
