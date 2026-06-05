@@ -213,6 +213,23 @@ class Tournament extends Model
         ]);
     }
 
+    /**
+     * Lean eager-load scope for search list results.
+     * Only loads relations actually used by SearchTournamentResource.
+     */
+    public function scopeSearchRelations($query)
+    {
+        return $query->with([
+            'sport',
+            'competitionLocation',
+            'club',
+            'createdBy',
+            'teams',
+            'tournamentStaffs',
+            'participants',
+        ]);
+    }
+
     public function scopeWithBasicRelations($query)
     {
         return $query->with([
