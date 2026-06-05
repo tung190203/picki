@@ -63,6 +63,21 @@
             {{ Number(user.win_rate).toFixed(1) }}%
           </span>
         </div>
+
+        <div class="mt-2" v-if="!isOwnUser">
+          <button
+            @click.stop="$emit('toggle-follow', user)"
+            :class="[
+              'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
+              user.is_follow
+                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'
+                : 'bg-[#D72D36] text-white hover:bg-[#c22830] border border-[#D72D36]'
+            ]"
+          >
+            <component :is="user.is_follow ? UserMinusIcon : UserPlusIcon" class="w-4 h-4" />
+            {{ user.is_follow ? 'Hủy follow' : 'Follow' }}
+          </button>
+        </div>
       </div>
 
       <div class="flex-shrink-0 w-1/4">
@@ -74,9 +89,14 @@
   </template>
 
   <script setup>
+    import { computed } from 'vue'
     import UserCard from '@/components/molecules/UserCard.vue';
-    import { MapPinIcon } from '@heroicons/vue/24/outline';
-    defineProps({
+    import { MapPinIcon, UserPlusIcon, UserMinusIcon } from '@heroicons/vue/24/outline';
+    import { storeToRefs } from 'pinia'
+    import { useUserStore } from '@/store/auth'
+    const userStore = useUserStore()
+    const { getUser } = storeToRefs(userStore)
+    const props = defineProps({
       user: {
         type: Object,
         required: true
@@ -95,6 +115,8 @@
       }
     })
 
-    defineEmits(['select'])
+    const isOwnUser = computed(() => Number(props.user?.id) === Number(getUser.value?.id))
+
+    defineEmits(['select', 'toggle-follow'])
   </script>
   
