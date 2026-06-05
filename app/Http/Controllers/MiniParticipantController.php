@@ -702,6 +702,13 @@ class MiniParticipantController extends Controller
             return ResponseHelper::error('Bạn phải là thành viên được duyệt của kèo đấu để mời bạn bè', 403);
         }
 
+        // Nếu kèo có thu phí (không phải CLB chi, không phải auto split) thì member phải đã nộp tiền mới được mời
+        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
+            if ($participant->payment_status !== PaymentStatusEnum::CONFIRMED) {
+                return ResponseHelper::error('Bạn cần thanh toán phí tham gia trước khi mời bạn bè', 403);
+            }
+        }
+
         $validated = $request->validate([
             'user_ids' => 'required|array',
             'user_ids.*' => 'exists:users,id',
