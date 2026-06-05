@@ -86,11 +86,10 @@ class SearchV2Controller extends Controller
         $userId = $userId ?? ($user ? $user->id : null);
 
         $query = match ($tab) {
-            SearchFilterConfig::TAB_MATCH => MiniTournament::withFullRelations()
+            SearchFilterConfig::TAB_MATCH => MiniTournament::searchRelations()
                 ->filter($filters),
 
-            SearchFilterConfig::TAB_TOURNAMENT => Tournament::withFullRelations()
-                ->with(['tournamentStaffs', 'participants', 'competitionLocation'])
+            SearchFilterConfig::TAB_TOURNAMENT => Tournament::searchRelations()
                 ->filter($filters),
 
             SearchFilterConfig::TAB_USER => User::query()
@@ -215,6 +214,7 @@ class SearchV2Controller extends Controller
 
         $paginator = $query->paginate($perPage, ['*'], 'page', $page);
         $tab = $params['tab'];
+        $userId = Auth::check() ? Auth::id() : null;
 
         // Eager-load batch stats for user tab to avoid N+1 (getSportStats is expensive)
         if ($tab === SearchFilterConfig::TAB_USER) {
@@ -234,6 +234,9 @@ class SearchV2Controller extends Controller
             }
         }
 
+        // Eager-load batch membership status for tournament tabs (avoids N+1 on isJoinedBy/isRegisteredBy)
+        $this->loadBatchMembershipStatus($paginator->getCollection(), $tab, $userId);
+
         $resourceClass = $this->searchService->resolveListResourceClass($params['tab']);
 
         return [
@@ -250,6 +253,7 @@ class SearchV2Controller extends Controller
     private function mapResponse($query, string $tab): \Illuminate\Http\JsonResponse
     {
         $items = $query->get();
+        $userId = Auth::check() ? Auth::id() : null;
 
         // Eager-load batch stats for user tab to avoid N+1
         if ($tab === SearchFilterConfig::TAB_USER) {
@@ -268,6 +272,9 @@ class SearchV2Controller extends Controller
                 }
             }
         }
+
+        // Eager-load batch membership status for tournament tabs
+        $this->loadBatchMembershipStatus($items, $tab, $userId);
 
         $bounds = $this->searchService->computeBounds($items, $tab);
         // Use list resource (has sports field) for user tab, map resource for others
@@ -289,6 +296,7 @@ class SearchV2Controller extends Controller
     {
         $page = (int) ($params['page'] ?? 1);
         $perPage = min(200, max(1, (int) ($params['per_page'] ?? 15)));
+        $userId = Auth::check() ? Auth::id() : null;
 
         $paginator = $query->paginate($perPage, ['*'], 'page', $page);
 
@@ -310,10 +318,13 @@ class SearchV2Controller extends Controller
             }
         }
 
+        // Eager-load batch membership status for tournament tabs
+        $this->loadBatchMembershipStatus($paginator->getCollection(), $tab, $userId);
+
         $resourceClass = $this->searchService->resolveListResourceClass($tab);
 
         $this->logSearch(
-            Auth::check() ? Auth::id() : null,
+            $userId,
             $tab,
             $params['keyword'] ?? null,
             $params['filters'] ?? [],
@@ -338,6 +349,59 @@ class SearchV2Controller extends Controller
             $this->cacheService->logSearch($userId, $tab, $keyword, $filters, $subTab, $resultCount);
         } catch (\Throwable) {
             // Don't fail the search request if logging fails
+        }
+    }
+
+    /**
+     * Batch-load isJoinedBy and isRegisteredBy status for all result rows.
+     * Replaces per-row N+1 queries with 2 bulk queries per tab.
+     */
+    private function loadBatchMembershipStatus($items, string $tab, ?int $userId): void
+    {
+        if (!$userId || $items->isEmpty()) {
+            return;
+        }
+
+        if ($tab === SearchFilterConfig::TAB_MATCH) {
+            $ids = $items->pluck('id')->all();
+
+            $joinedIds = \App\Models\MiniTournament::whereIn('id', $ids)
+                ->whereHas('participants', fn($p) => $p->where('user_id', $userId)->where('is_confirmed', 1))
+                ->pluck('id')
+                ->flip()
+                ->toArray();
+
+            $registeredIds = \App\Models\MiniTournament::whereIn('id', $ids)
+                ->whereHas('participants', fn($p) => $p->where('user_id', $userId))
+                ->pluck('id')
+                ->flip()
+                ->toArray();
+
+            foreach ($items as $item) {
+                $item->preloaded_is_joined = isset($joinedIds[$item->id]);
+                $item->preloaded_is_registered = isset($registeredIds[$item->id]);
+            }
+        }
+
+        if ($tab === SearchFilterConfig::TAB_TOURNAMENT) {
+            $ids = $items->pluck('id')->all();
+
+            $joinedIds = \App\Models\Tournament::whereIn('id', $ids)
+                ->whereHas('participants', fn($p) => $p->where('user_id', $userId)->where('is_confirmed', 1))
+                ->pluck('id')
+                ->flip()
+                ->toArray();
+
+            $registeredIds = \App\Models\Tournament::whereIn('id', $ids)
+                ->whereHas('participants', fn($p) => $p->where('user_id', $userId))
+                ->pluck('id')
+                ->flip()
+                ->toArray();
+
+            foreach ($items as $item) {
+                $item->preloaded_is_joined = isset($joinedIds[$item->id]);
+                $item->preloaded_is_registered = isset($registeredIds[$item->id]);
+            }
         }
     }
 }

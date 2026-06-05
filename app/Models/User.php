@@ -410,41 +410,52 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     public function scopeVisibleFor($query, User $currentUser)
     {
-        return $query->where(function ($q) use ($currentUser) {
-            $q->where('visibility', 'open');
+        $currentUserId = $currentUser->id;
 
-            $q->orWhere(function ($q2) use ($currentUser) {
-                $q2->where('visibility', 'friend-only')
-                    ->where(function ($q3) use ($currentUser) {
-                        // Mutual follow
-                        $q3->whereExists(function ($sub) use ($currentUser) {
-                            $sub->select(DB::raw(1))
-                                ->from('follows as f1')
-                                ->join('follows as f2', function ($join) {
-                                    $join->on('f1.user_id', '=', 'f2.followable_id')
-                                        ->on('f1.followable_id', '=', 'f2.user_id')
-                                        ->where('f1.followable_type', User::class)
-                                        ->where('f2.followable_type', User::class);
-                                })
-                                ->where('f1.user_id', $currentUser->id)
-                                ->whereColumn('f1.followable_id', 'users.id');
-                        });
-                        // OR same active club
-                        $q3->orWhere(function ($q4) use ($currentUser) {
-                            $q4->whereExists(function ($clubSub) use ($currentUser) {
-                                $clubSub->select(DB::raw(1))
-                                    ->from('club_members as cm1')
-                                    ->join('club_members as cm2', 'cm1.club_id', '=', 'cm2.club_id')
-                                    ->whereColumn('cm1.user_id', 'users.id')
-                                    ->where('cm1.membership_status', ClubMembershipStatus::Joined->value)
-                                    ->where('cm1.status', ClubMemberStatus::Active->value)
-                                    ->where('cm2.user_id', $currentUser->id)
-                                    ->where('cm2.membership_status', ClubMembershipStatus::Joined->value)
-                                    ->where('cm2.status', ClubMemberStatus::Active->value);
-                            });
-                        });
-                    });
-            });
+        // Pre-fetch friend IDs (mutual follows) — avoids expensive self-join on follows
+        $mutualFollowIds = DB::table('follows as f1')
+            ->join('follows as f2', function ($join) use ($currentUserId) {
+                $join->on('f1.user_id', '=', 'f2.followable_id')
+                    ->on('f1.followable_id', '=', 'f2.user_id')
+                    ->where('f1.followable_type', User::class)
+                    ->where('f2.followable_type', User::class)
+                    ->where('f1.user_id', $currentUserId);
+            })
+            ->pluck('f1.followable_id');
+
+        // Pre-fetch club IDs the current user has joined — avoids self-join on club_members
+        $myClubIds = DB::table('club_members')
+            ->where('user_id', $currentUserId)
+            ->where('membership_status', ClubMembershipStatus::Joined->value)
+            ->where('status', ClubMemberStatus::Active->value)
+            ->pluck('club_id');
+
+        $friendInMyClubIds = [];
+        if ($myClubIds->isNotEmpty()) {
+            $friendInMyClubIds = DB::table('club_members')
+                ->whereIn('club_id', $myClubIds)
+                ->where('user_id', '!=', $currentUserId)
+                ->where('membership_status', ClubMembershipStatus::Joined->value)
+                ->where('status', ClubMemberStatus::Active->value)
+                ->pluck('user_id');
+        }
+
+        $visibleIds = $mutualFollowIds->merge($friendInMyClubIds)->unique()->values();
+
+        return $query->where(function ($q) use ($currentUserId, $visibleIds) {
+            $q->where('visibility', 'open')
+              ->orWhere(function ($q2) use ($visibleIds) {
+                  $q2->where('visibility', 'friend-only')
+                     ->where(function ($q3) use ($visibleIds) {
+                         // Visible if mutual follow OR same club
+                         if ($visibleIds->isNotEmpty()) {
+                             $q3->whereIn('users.id', $visibleIds);
+                         } else {
+                             // No friends/clubs — fallback to false (user must exist in $visibleIds)
+                             $q3->whereRaw('1 = 0');
+                         }
+                     });
+              });
         });
     }
 
