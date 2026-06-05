@@ -478,15 +478,10 @@ class UserMatchStatsController extends Controller
         $winCount = $sorted->filter(fn($h) => $checkWin($h))->count();
         $winRate = round(($winCount / $total) * 100, 2);
 
-        $points = 0;
-        foreach ($sorted as $i => $item) {
-            if ($checkWin($item)) {
-                $points += 10 * ($i < 3 ? 1.5 : 1.0);
-            }
-        }
-        $recent3Max = min(3, $total) * 10 * 1.5;
-        $olderMax = max(0, $total - 3) * 10 * 1.0;
-        $performance = ($recent3Max + $olderMax) > 0 ? round(($points / ($recent3Max + $olderMax)) * 100, 2) : 0;
+        $performance = $sorted
+            ->take(10)
+            ->filter(fn($h) => $checkWin($h))
+            ->count();
 
         return ['win_rate' => $winRate, 'performance' => $performance];
     }
