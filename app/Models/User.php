@@ -1309,9 +1309,9 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                 FROM match_histories mh
                 JOIN quick_matches qm ON mh.quick_match_id = qm.id
                 LEFT JOIN competition_location_sport cls ON qm.competition_location_id = cls.competition_location_id
-                LEFT JOIN users u ON qm.created_by = u.id
-                LEFT JOIN user_sport usc ON u.id = usc.user_id
+                LEFT JOIN user_sport usc ON qm.created_by = usc.user_id
                 WHERE mh.user_id IN ({$userIdsCsv})
+                  AND mh.team_side = 'team_a'
                   AND qm.status = 'completed'
                   AND JSON_CONTAINS(qm.team_a, CAST(mh.user_id AS CHAR))
                   AND (cls.sport_id = ? OR (qm.competition_location_id IS NULL AND usc.sport_id = ?))
@@ -1324,9 +1324,9 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                 FROM match_histories mh
                 JOIN quick_matches qm ON mh.quick_match_id = qm.id
                 LEFT JOIN competition_location_sport cls ON qm.competition_location_id = cls.competition_location_id
-                LEFT JOIN users u ON qm.created_by = u.id
-                LEFT JOIN user_sport usc ON u.id = usc.user_id
+                LEFT JOIN user_sport usc ON qm.created_by = usc.user_id
                 WHERE mh.user_id IN ({$userIdsCsv})
+                  AND mh.team_side = 'team_b'
                   AND qm.status = 'completed'
                   AND JSON_CONTAINS(qm.team_b, CAST(mh.user_id AS CHAR))
                   AND (cls.sport_id = ? OR (qm.competition_location_id IS NULL AND usc.sport_id = ?))
@@ -1371,9 +1371,9 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                 FROM match_histories mh
                 JOIN quick_matches qm ON mh.quick_match_id = qm.id
                 LEFT JOIN competition_location_sport cls ON qm.competition_location_id = cls.competition_location_id
-                LEFT JOIN users u ON qm.created_by = u.id
-                LEFT JOIN user_sport usc ON u.id = usc.user_id
-                WHERE mh.user_id IN ({$userIdsCsv}) AND qm.status = 'completed'
+                LEFT JOIN user_sport usc ON qm.created_by = usc.user_id
+                WHERE mh.user_id IN ({$userIdsCsv}) AND mh.team_side = 'team_a'
+                  AND qm.status = 'completed'
                   AND qm.winner IS NOT NULL
                   AND JSON_CONTAINS(qm.team_a, CAST(mh.user_id AS CHAR))
                   AND (cls.sport_id = ? OR (qm.competition_location_id IS NULL AND usc.sport_id = ?))
@@ -1386,9 +1386,9 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                 FROM match_histories mh
                 JOIN quick_matches qm ON mh.quick_match_id = qm.id
                 LEFT JOIN competition_location_sport cls ON qm.competition_location_id = cls.competition_location_id
-                LEFT JOIN users u ON qm.created_by = u.id
-                LEFT JOIN user_sport usc ON u.id = usc.user_id
-                WHERE mh.user_id IN ({$userIdsCsv}) AND qm.status = 'completed'
+                LEFT JOIN user_sport usc ON qm.created_by = usc.user_id
+                WHERE mh.user_id IN ({$userIdsCsv}) AND mh.team_side = 'team_b'
+                  AND qm.status = 'completed'
                   AND qm.winner IS NOT NULL
                   AND JSON_CONTAINS(qm.team_b, CAST(mh.user_id AS CHAR))
                   AND (cls.sport_id = ? OR (qm.competition_location_id IS NULL AND usc.sport_id = ?))
@@ -1501,5 +1501,89 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         }
 
         return $result;
+    }
+
+    /**
+     * Fetch sport stats for multiple (user_id, sport_id) pairs.
+     * Avoids N+1 when rendering UserSportResource for a list of users.
+     * Calls getBatchSportStats per unique sport_id and merges results.
+     *
+     * @param array $pairs Array of ['user_id' => X, 'sport_id' => Y] pairs
+     * @return array Nested array: $result[$userId][$sportId] = stats
+     */
+    public static function getBatchSportStatsByUserSport(array $pairs): array
+    {
+        if (empty($pairs)) {
+            return [];
+        }
+
+        $userIds = array_values(array_unique(array_column($pairs, 'user_id')));
+        $sportIds = array_unique(array_column($pairs, 'sport_id'));
+
+        if (empty($userIds) || empty($sportIds)) {
+            return [];
+        }
+
+        // Call getBatchSportStats per sport_id — keeps the exact same logic that already works.
+        $result = [];
+        foreach ($sportIds as $sportId) {
+            $sportStats = self::getBatchSportStats($userIds, (int) $sportId, false);
+            foreach ($userIds as $uid) {
+                if (isset($sportStats[$uid])) {
+                    $result[$uid][$sportId] = $sportStats[$uid];
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Load sport stats on a collection of users and their loaded sports relations.
+     * Avoids N+1 queries when rendering UserSportResource for lists.
+     * Assigns:
+     *   - stats to each User model (for SearchPlayerResource / MapUserResource top-level fields)
+     *   - flat stats array to each UserSport model (for UserSportResource)
+     *
+     * @param \Illuminate\Support\Collection|array $users
+     * @param string $pickleballSportId The sport_id of pickleball (default 1)
+     */
+    public static function loadSportStatsOnUsers($users, int $pickleballSportId = 1): void
+    {
+        if ($users->isEmpty()) {
+            return;
+        }
+
+        // Collect all (user_id, sport_id) pairs from loaded sports
+        $pairs = [];
+        foreach ($users as $user) {
+            if ($user->relationLoaded('sports')) {
+                foreach ($user->sports as $sport) {
+                    $pairs[] = [
+                        'user_id' => $user->id,
+                        'sport_id' => $sport->sport_id,
+                    ];
+                }
+            }
+        }
+
+        if (empty($pairs)) {
+            return;
+        }
+
+        $batchStats = self::getBatchSportStatsByUserSport($pairs);
+
+        foreach ($users as $user) {
+            if (!$user->relationLoaded('sports') || !isset($batchStats[$user->id])) {
+                continue;
+            }
+
+            foreach ($user->sports as $sport) {
+                $sport->preloaded_sport_stats = $batchStats[$user->id][$sport->sport_id] ?? [];
+            }
+
+            // SearchPlayerResource / MapUserResource use sport_id = 1 (pickleball)
+            $user->preloaded_sport_stats = $batchStats[$user->id][$pickleballSportId] ?? [];
+        }
     }
 }

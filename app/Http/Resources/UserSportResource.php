@@ -22,15 +22,37 @@ class UserSportResource extends JsonResource
             $formattedScores[$type] = number_format($scoreValue, 3);
         }
 
-        // Note: getSportStats is intentionally omitted here — stats computation is
-        // expensive and already handled via getBatchSportStats at the controller level
-        // for list/search contexts. Callers needing stats should use batch-loaded data.
+        // Use preloaded batch stats if available (set by SearchV2Controller), otherwise fall back.
+        // Supports two formats:
+        //   - Flat array (set directly with stats of this sport): used by HomeController/UserController
+        //   - Nested array keyed by sport_id (set by SearchV2Controller::loadBatchUserSportStats)
+        $preloaded = $this->preloaded_sport_stats ?? [];
+        if (isset($preloaded[$this->sport_id])) {
+            $stats = $preloaded[$this->sport_id];
+        } elseif (isset($preloaded['total_matches'])) {
+            $stats = $preloaded;
+        } else {
+            $stats = [
+                'total_matches' => 0,
+                'total_tournaments' => 0,
+                'total_mini_tournaments' => 0,
+                'total_prizes' => 0,
+                'win_rate' => 0.0,
+                'performance' => 0,
+            ];
+        }
 
         return [
             'sport_id'   => $this->sport_id,
             'sport_icon' => $this->relationLoaded('sport') ? optional($this->sport)->icon : null,
             'sport_name' => $this->relationLoaded('sport') ? optional($this->sport)->name : null,
             'scores'     => $formattedScores,
+            'total_matches' => $stats['total_matches'],
+            'total_tournaments' => $stats['total_tournaments'],
+            'total_mini_tournaments' => $stats['total_mini_tournaments'],
+            'total_prizes' => $stats['total_prizes'],
+            'win_rate' => $stats['win_rate'],
+            'performance' => $stats['performance'],
         ];
     }
 }
