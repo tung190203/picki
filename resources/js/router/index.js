@@ -20,11 +20,11 @@ router.beforeEach((to, from, next) => {
 
   const publicPages = [
     "login", "register", "verify-email", "verify",
-    "forgot-password", "reset-password", "login-success", "privacy-policy", "onboarding", 'complete-registration', 'verify-change-password', 'reset-password', 'tournament-landing'
+    "forgot-password", "reset-password", "login-success", "privacy-policy", "onboarding", 'complete-registration', 'verify-change-password', 'reset-password', 'tournament-landing', 'open-app'
   ];
 
   if (!loginToken) {
-    const onboardingWhitelist = ["onboarding", "privacy-policy", "tournament-landing"];
+    const onboardingWhitelist = ["onboarding", "privacy-policy", "tournament-landing", "open-app"];
 
     if (!hasSeenOnboarding && !onboardingWhitelist.includes(to.name)) {
       return next({ name: "onboarding", query: { redirect: to.fullPath }});
@@ -35,7 +35,7 @@ router.beforeEach((to, from, next) => {
     }
   }  
 
-  if (loginToken && publicPages.includes(to.name) && to.name !== "privacy-policy" && to.name !== "tournament-landing") {
+  if (loginToken && publicPages.includes(to.name) && to.name !== "privacy-policy" && to.name !== "tournament-landing" && to.name !== "open-app") {
     switch (userRole) {
       case ROLE.ADMIN:
         return next({ name: "dashboard" });
