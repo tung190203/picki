@@ -16,6 +16,7 @@ use App\Http\Requests\UpdateTournamentRequest;
 use App\Http\Resources\ParticipantResource;
 use App\Http\Resources\TournamentResource;
 use App\Http\Resources\TournamentStaffResource;
+use App\Models\User;
 use App\Models\Club\Club;
 use App\Models\Matches;
 use App\Models\Participant;
@@ -276,6 +277,12 @@ class TournamentController extends Controller
         $data = [
             'tournaments' => TournamentResource::collection($tournaments),
         ];
+
+        // Load sport stats for staff so UserSportResource renders correctly
+        $allStaffUsers = $tournaments->getCollection()->flatMap->tournamentStaffs->pluck('user')->filter();
+        if ($allStaffUsers->isNotEmpty()) {
+            User::loadSportStatsOnUsers($allStaffUsers, 1);
+        }
 
         $meta = [
             'current_page' => $tournaments->currentPage(),

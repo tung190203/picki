@@ -172,6 +172,8 @@ class UserController extends Controller
             return ResponseHelper::error('Người dùng không tồn tại', 404);
         }
 
+        User::loadSportStatsOnUsers(collect([$user]), 1);
+
         $authUserId = auth()->id();
         if ($authUserId && (int) $id === (int) $authUserId) {
             $clubs = $user->clubs;
@@ -331,6 +333,8 @@ class UserController extends Controller
         $data = [
             'user' => UserResource::make($user->fresh()->loadFullRelations()),
         ];
+
+        User::loadSportStatsOnUsers(collect([$data['user']->resource]), 1);
 
         return ResponseHelper::success($data, 'Cập nhật thông tin người dùng thành công');
     }
