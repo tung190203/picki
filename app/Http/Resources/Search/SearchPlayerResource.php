@@ -26,6 +26,10 @@ class SearchPlayerResource extends JsonResource
             $stats = User::getSportStats($this->id, 1, false);
         }
 
+        $isFollow = isset($this->is_following_count)
+            ? (bool) $this->is_following_count
+            : ($request->user() ? $request->user()->isFollowing($this->resource) : false);
+
         return [
             'id'          => $this->id,
             'full_name'   => $this->full_name,
@@ -52,6 +56,7 @@ class SearchPlayerResource extends JsonResource
                 'name'     => $c->name,
                 'logo_url' => $c->logo_url,
             ])),
+            'is_follow' => $isFollow,
             'marker_type' => 'user',
         ];
     }

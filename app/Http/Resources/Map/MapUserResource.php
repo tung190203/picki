@@ -26,6 +26,10 @@ class MapUserResource extends JsonResource
             $stats = User::getSportStats($this->id, 1, false);
         }
 
+        $isFollow = isset($this->is_following_count)
+            ? (bool) $this->is_following_count
+            : ($request->user() ? $request->user()->isFollowing($this->resource) : false);
+
         return [
             'id'           => $this->id,
             'full_name'    => $this->full_name,
@@ -55,6 +59,7 @@ class MapUserResource extends JsonResource
                     'logo_url' => $this->clubs->first()->logo_url,
                 ] : null
             ),
+            'is_follow' => $isFollow,
             'marker_type'  => 'user',
         ];
     }

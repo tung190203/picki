@@ -38,6 +38,7 @@ import TournamentBracketPage from '@/components/pages/tournament/TournamentBrack
 import GroupSortView from '@/components/pages/tournament/GroupSortView.vue'
 import MatchVerifyPage from '@/components/pages/tournament/MatchVerifyPage.vue'
 import TournamentLandingPage from '@/components/pages/tournament/TournamentLandingPage.vue'
+import OpenAppPage from '@/components/pages/common/OpenAppPage.vue'
 import TournamentPaymentsPage from '@/components/pages/tournament/TournamentPaymentsPage.vue'
 import MiniMatchVerifyPage from '@/components/pages/mini-tournament/MiniMatchVerifyPage.vue'
 import NotificationsPage from '@/components/pages/notifications/NotificationsPage.vue'
@@ -438,6 +439,11 @@ export const route = [
     path: '/tournament-landing/:id',
     name: 'tournament-landing',
     component: TournamentLandingPage
+  },
+  {
+    path: '/l/:type/:id',
+    name: 'open-app',
+    component: OpenAppPage
   },
   {
     path: '/under-construction',

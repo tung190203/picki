@@ -7,6 +7,7 @@ use App\Models\Club\ClubActivity;
 use App\Models\MiniMatch;
 use App\Models\MiniTournament;
 use App\Models\Tournament;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -42,10 +43,37 @@ class MetaPreviewController extends Controller
         $description = $club->profile?->description
             ? \Str::limit(strip_tags($club->profile->description), 160)
             : "CLB {$club->name} trên PICKI";
-        $image = $this->absoluteUrl($club->profile?->cover_image_url ?? $club->logo_url ?? asset('favicon.png'));
+        $imageUrl = $club->profile?->cover_image_url ?: $club->logo_url ?: null;
+        $image = $this->absoluteUrl($imageUrl);
         $url = $this->canonicalUrl($request, "/clubs/{$id}");
 
         return view('meta.club', compact('title', 'description', 'image', 'url'));
+    }
+
+    public function profile(Request $request, int $id): View
+    {
+        if (!$request->attributes->get('is_crawler', false)) {
+            return view('app');
+        }
+
+        $user = User::with(['sports.sport', 'clubs'])->find($id);
+
+        if (!$user) {
+            return view('app');
+        }
+
+        $sportNames = $user->sports
+            ?->pluck('sport.name')
+            ->filter()
+            ->join(', ') ?: 'Pickleball';
+
+        $title = $user->full_name . ' - PICKI';
+        $description = "Hồ sơ Pickleball của {$user->full_name} trên PICKI. "
+            . "Tham gia cộng đồng với {$sportNames}.";
+        $image = $this->absoluteUrl($user->avatar_url);
+        $url = $this->canonicalUrl($request, "/profile/{$id}");
+
+        return view('meta.profile', compact('title', 'description', 'image', 'url'));
     }
 
     public function tournament(Request $request, int $id): View
@@ -64,7 +92,8 @@ class MetaPreviewController extends Controller
         $description = $tournament->description
             ? \Str::limit(strip_tags($tournament->description), 160)
             : "Giải đấu {$tournament->name} trên PICKI";
-        $image = $this->absoluteUrl($tournament->poster_url ?? asset('favicon.png'));
+        $posterUrl = $tournament->poster_url ?: null;
+        $image = $this->absoluteUrl($posterUrl);
         $url = $this->canonicalUrl($request, "/tournament-detail/{$id}");
 
         return view('meta.tournament', compact('title', 'description', 'image', 'url'));
@@ -116,9 +145,13 @@ class MetaPreviewController extends Controller
         $description = $activity->description
             ? \Str::limit(strip_tags($activity->description), 160)
             : "Hoạt động {$activity->title} tại {$club?->name} trên PICKI";
-        $imageUrl = $activity->qr_code_url
-            ? (str_starts_with($activity->qr_code_url, 'http') ? $activity->qr_code_url : asset('storage/' . $activity->qr_code_url))
-            : ($club?->logo_url ?? asset('favicon.png'));
+        $qrCodeUrl = $activity->qr_code_url;
+        $imageUrl = null;
+        if ($qrCodeUrl) {
+            $imageUrl = str_starts_with($qrCodeUrl, 'http') ? $qrCodeUrl : asset('storage/' . $qrCodeUrl);
+        } elseif ($club?->logo_url) {
+            $imageUrl = $club->logo_url;
+        }
         $image = $this->absoluteUrl($imageUrl);
         $url = $this->canonicalUrl($request, "/clubs/{$clubId}/activities/{$activityId}");
 

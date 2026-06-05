@@ -118,7 +118,7 @@
                                 <UserListItem v-for="user in displayedListData" :key="user.id" :user="user"
                                     :selected="selectedUser?.id" :defaultImage="defaultImage" :maleIcon="maleIcon"
                                     :femaleIcon="femaleIcon" :getUserRating="getUserRating"
-                                    :getVisibilityText="getVisibilityText" @select="focusItemAuto" />
+                                    :getVisibilityText="getVisibilityText" @select="focusItemAuto" @toggle-follow="handleToggleFollow" />
                             </template>
                             <template v-else-if="activeTab === 'club'">
                                 <ClubListItem v-for="club in displayedListData" :key="club.id" :club="club"
@@ -1391,6 +1391,7 @@ import { FunnelIcon, MagnifyingGlassIcon, XMarkIcon, ArrowPathIcon, ChevronRight
 import { toast } from 'vue3-toastify';
 import * as MapService from '@/service/map.js';
 import * as SearchService from '@/service/search.js';
+import { followUser, unFollowUser } from '@/service/follow.js';
 import * as UserService from '@/service/auth.js';
 import * as SportService from '@/service/sport.js';
 import * as LocationService from '@/service/location.js';
@@ -2265,6 +2266,81 @@ const focusItemAuto = (item) => {
 const getUserRating = (user) => {
     const score = user?.vndupr_score ?? user?.sports?.[0]?.scores?.vndupr_score ?? 0;
     return typeof score === 'number' ? score.toFixed(1) : "0";
+};
+
+const updateUserFollowState = (userId, payload = {}, targetUser = null) => {
+    const current = usersMap.value.get(userId);
+    if (!current) return null;
+
+    const nextState = {
+        ...current,
+        is_follow: payload.is_follow ?? current.is_follow,
+        is_friend: payload.is_friend ?? current.is_friend,
+    };
+
+    usersMap.value.set(userId, nextState);
+
+    if (targetUser) {
+        targetUser.is_follow = nextState.is_follow;
+        targetUser.is_friend = nextState.is_friend;
+    }
+
+    return nextState;
+}
+
+const refreshUserMarkers = () => {
+    if (activeTab.value !== 'user') return;
+
+    clearAllMarkers();
+    addUserMarkers(users.value, defaultImage, maleIconRaw, femaleIconRaw, getVisibilityText, getUserRating, router, focusItemAuto, true);
+}
+
+const handleToggleFollow = async (user) => {
+    if (!user?.id) return;
+
+    const wasFollowing = Boolean(user.is_follow);
+    const previousIsFriend = user.is_friend;
+    const optimisticState = {
+        is_follow: !wasFollowing,
+        is_friend: wasFollowing ? false : previousIsFriend,
+    };
+
+    updateUserFollowState(user.id, optimisticState, user);
+    refreshUserMarkers();
+
+    try {
+        const payload = {
+            followable_type: 'user',
+            followable_id: user.id,
+        };
+
+        const response = wasFollowing
+            ? await unFollowUser(payload)
+            : await followUser(payload);
+
+        const responseData = response?.data && typeof response.data === 'object'
+            ? response.data
+            : response;
+
+        if (responseData && typeof responseData === 'object') {
+            updateUserFollowState(user.id, {
+                is_follow: responseData.is_follow ?? optimisticState.is_follow,
+                is_friend: responseData.is_friend ?? optimisticState.is_friend,
+            }, user);
+            refreshUserMarkers();
+        }
+
+        toast.success(wasFollowing ? 'Hủy follow thành công' : 'Follow thành công');
+    } catch (error) {
+        updateUserFollowState(user.id, {
+            is_follow: wasFollowing,
+            is_friend: previousIsFriend,
+        }, user);
+        refreshUserMarkers();
+
+        console.error('Toggle follow failed:', error);
+        toast.error(error.response?.data?.message || 'Không thể cập nhật trạng thái follow');
+    }
 };
 
 // Timeline helpers
