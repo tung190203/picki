@@ -7,10 +7,8 @@
         "paths": [
           "/mini-tournament-detail/*",
           "/tournament-detail/*",
-          "/profile-detail/*",
-          "/club-detail/*",
-          "/tournament-landing/*",
-          "/mini-tournament/*"
+  	  "/profile-detail/*",
+	  "/club-detail/*"
         ]
       }
     ]

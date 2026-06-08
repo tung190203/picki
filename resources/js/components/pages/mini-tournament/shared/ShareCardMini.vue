@@ -144,10 +144,7 @@ const statusText = computed(() => {
 })
 
 const shareUrl = computed(() => {
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-  const base = isMobile
-    ? `${window.location.origin}/l/mini_tournament`
-    : webShareUrl
+  const base = webShareUrl
   return `${base}/${props.mini?.id}`
 })
 
