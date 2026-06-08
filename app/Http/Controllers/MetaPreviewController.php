@@ -19,7 +19,7 @@ class MetaPreviewController extends Controller
             return view('app');
         }
 
-        $title = config('app.name') . ' - Nền tảng Pickleball Việt Nam';
+        $title = config('app.name');
         $description = 'PICKI - Ứng dụng kết nối cộng đồng Pickleball. Tìm CLB, tham gia giải đấu, quản lý hoạt động và kết nối với người chơi.';
         $image = $this->absoluteUrl(asset('favicon.png'));
         $url = $this->canonicalUrl($request, '/');
@@ -39,7 +39,7 @@ class MetaPreviewController extends Controller
             return view('app');
         }
 
-        $title = $club->name;
+        $title = config('app.name');
         $description = $club->profile?->description
             ? \Str::limit(strip_tags($club->profile->description), 160)
             : "CLB {$club->name} trên PICKI";
@@ -67,7 +67,7 @@ class MetaPreviewController extends Controller
             ->filter()
             ->join(', ') ?: 'Pickleball';
 
-        $title = $user->full_name . ' - PICKI';
+        $title = config('app.name');
         $description = "Hồ sơ Pickleball của {$user->full_name} trên PICKI. "
             . "Tham gia cộng đồng với {$sportNames}.";
         $image = $this->absoluteUrl($user->avatar_url);
@@ -88,7 +88,7 @@ class MetaPreviewController extends Controller
             return view('app');
         }
 
-        $title = $tournament->name;
+        $title = config('app.name');
         $description = $tournament->description
             ? \Str::limit(strip_tags($tournament->description), 160)
             : "Giải đấu {$tournament->name} trên PICKI";
@@ -111,7 +111,7 @@ class MetaPreviewController extends Controller
             return view('app');
         }
 
-        $title = $miniTournament->name;
+        $title = config('app.name');
         $description = $miniTournament->description
             ? \Str::limit(strip_tags($miniTournament->description), 160)
             : "Kèo đấu {$miniTournament->name} trên PICKI";
@@ -141,7 +141,7 @@ class MetaPreviewController extends Controller
         }
 
         $club = $activity->club;
-        $title = $activity->title . ' - ' . ($club?->name ?? 'CLB');
+        $title = config('app.name');
         $description = $activity->description
             ? \Str::limit(strip_tags($activity->description), 160)
             : "Hoạt động {$activity->title} tại {$club?->name} trên PICKI";
@@ -174,7 +174,7 @@ class MetaPreviewController extends Controller
         $team1 = $match->team1;
         $team2 = $match->team2;
 
-        $title = $match->name ?: "Kèo {$team1->name} vs {$team2->name}";
+        $title = config('app.name');
         $description = "Kèo Pickleball: {$team1->name} vs {$team2->name}";
         $description .= $tournament ? " - {$tournament->name}" : '';
         $description = \Str::limit($description, 160);
