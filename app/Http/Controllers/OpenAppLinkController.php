@@ -23,7 +23,7 @@ class OpenAppLinkController extends Controller
             return view('app');
         }
 
-        $title = $tournament->name;
+        $title = config('app.name');
         $description = $tournament->description
             ? \Str::limit(strip_tags($tournament->description), 160)
             : "Giải đấu {$tournament->name} trên PICKI";
@@ -46,7 +46,7 @@ class OpenAppLinkController extends Controller
             return view('app');
         }
 
-        $title = $miniTournament->name;
+        $title = config('app.name');
         $description = $miniTournament->description
             ? \Str::limit(strip_tags($miniTournament->description), 160)
             : "Kèo đấu {$miniTournament->name} trên PICKI";
@@ -75,7 +75,7 @@ class OpenAppLinkController extends Controller
             return view('app');
         }
 
-        $title = $club->name;
+        $title = config('app.name');
         $description = $club->profile?->description
             ? \Str::limit(strip_tags($club->profile->description), 160)
             : "CLB {$club->name} trên PICKI";
@@ -103,7 +103,7 @@ class OpenAppLinkController extends Controller
             ->filter()
             ->join(', ') ?: 'Pickleball';
 
-        $title = $user->full_name . ' - PICKI';
+        $title = config('app.name');
         $description = "Hồ sơ Pickleball của {$user->full_name} trên PICKI. "
             . "Tham gia cộng đồng với {$sportNames}.";
         $image = $this->absoluteUrl($user->avatar_url);
