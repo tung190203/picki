@@ -131,7 +131,7 @@ const cardRef = ref(null)
 const copySuccess = ref(false)
 
 const canNativeShare = computed(() => typeof navigator !== 'undefined' && !!navigator.share)
-const webShareUrl = 'https://picki.vn/tournament-landing'
+const webShareUrl = 'https://picki.vn/tournament-detail'
 
 const registrationStatus = computed(() => {
   if (!props.tournament) return ''
