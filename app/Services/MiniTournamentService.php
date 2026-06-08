@@ -366,12 +366,8 @@ class MiniTournamentService
 
         $deleteIds = [];
         foreach ($candidates as $tournament) {
-            if (!$tournament->allow_cancellation) {
-                continue;
-            }
-            if ($tournament->isCancellationClosed($now)) {
-                continue;
-            }
+            // Admin/organizer được huỷ kèo bất cứ lúc nào (không bị giới hạn bởi allow_cancellation).
+            // allow_cancellation chỉ áp dụng cho member tự huỷ tham gia.
             $hasCompletedMatch = MiniMatch::where('mini_tournament_id', $tournament->id)
                 ->where('status', MiniMatch::STATUS_COMPLETED)
                 ->exists();
@@ -591,12 +587,8 @@ class MiniTournamentService
 
         $deleteIds = [];
         foreach ($candidates as $t) {
-            if (!$t->allow_cancellation) {
-                continue;
-            }
-            if ($t->isCancellationClosed($now)) {
-                continue;
-            }
+            // Admin/organizer được huỷ kèo bất cứ lúc nào (không bị giới hạn bởi allow_cancellation).
+            // allow_cancellation chỉ áp dụng cho member tự huỷ tham gia.
             $hasCompletedMatch = MiniMatch::where('mini_tournament_id', $t->id)
                 ->where('status', MiniMatch::STATUS_COMPLETED)
                 ->exists();
