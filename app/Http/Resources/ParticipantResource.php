@@ -33,6 +33,7 @@ class ParticipantResource extends JsonResource
             'name' => $this->user?->full_name,
             'avatar' => $this->user?->avatar_url,
             'is_confirmed' => (bool) $this->is_confirmed,
+            'self_confirmed' => (bool) ($this->self_confirmed ?? true),
             'is_invite_by_organizer' => $this->is_invite_by_organizer,
             'is_guest' => (bool) $this->is_guest,
             'user' => $this->omitNestedUserSports

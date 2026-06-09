@@ -17,6 +17,7 @@ class MiniParticipantResource extends JsonResource
         return [
             'id'                    => $this->id,
             'is_confirmed'          => (bool) $this->is_confirmed,
+            'self_confirmed'        => (bool) ($this->self_confirmed ?? true),
             'is_invited'            => (bool) $this->is_invited,
             'invited_by'            => $this->invited_by,
             'invited_by_user'       => new UserListResource($this->whenLoaded('invitedBy')),

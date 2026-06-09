@@ -250,13 +250,15 @@ class MiniParticipantController extends Controller
             $paymentStatus = PaymentStatusEnum::PENDING;
         }
 
-        // Invited user always starts as is_confirmed = false, until they accept the invite.
-        // SuperAdmin status does NOT bypass the accept flow.
+        $isSuperAdmin = Auth::user()?->is_super_admin ?? false;
+
+        // SuperAdmin mời → tự động confirm, organizer thường → user phải accept
         $participant = $miniTournament->participants()->create([
             'user_id' => $validated['user_id'],
-            'is_confirmed' => false,
+            'is_confirmed' => $isSuperAdmin,
             'is_invited' => true,
             'invited_by' => Auth::id(),
+            'self_confirmed' => !$isSuperAdmin,
             'payment_status' => $paymentStatus,
         ]);
 
@@ -265,22 +267,37 @@ class MiniParticipantController extends Controller
 
         $user = User::find($validated['user_id']);
 
-        // 📩 Notification DB
-        $user->notify(
-            new MiniTournamentCreatorInvitationNotification($participant, Auth::id())
-        );
-
-        // 🔔 PUSH Notification
-        $this->pushToUsers(
-            [$user->id],
-            'Lời mời tham gia kèo đấu',
-            'Bạn được mời tham gia kèo đấu "' . $miniTournament->name . '"',
-            [
-                'type' => 'MINI_TOURNAMENT_INVITED',
-                'mini_tournament_id' => $miniTournament->id,
-                'participant_id' => $participant->id,
-            ]
-        );
+        if ($isSuperAdmin) {
+            // SuperAdmin mời → thông báo đã tham gia thành công
+            $user->notify(
+                new MiniTournamentCreatorInvitationNotification($participant, Auth::id())
+            );
+            $this->pushToUsers(
+                [$user->id],
+                'Đã tham gia kèo đấu',
+                'Bạn đã được thêm vào kèo đấu "' . $miniTournament->name . '" bởi quản trị viên',
+                [
+                    'type' => 'MINI_TOURNAMENT_CONFIRMED',
+                    'mini_tournament_id' => $miniTournament->id,
+                    'participant_id' => $participant->id,
+                ]
+            );
+        } else {
+            // Organizer thường mời → gửi lời mời
+            $user->notify(
+                new MiniTournamentCreatorInvitationNotification($participant, Auth::id())
+            );
+            $this->pushToUsers(
+                [$user->id],
+                'Lời mời tham gia kèo đấu',
+                'Bạn được mời tham gia kèo đấu "' . $miniTournament->name . '"',
+                [
+                    'type' => 'MINI_TOURNAMENT_INVITED',
+                    'mini_tournament_id' => $miniTournament->id,
+                    'participant_id' => $participant->id,
+                ]
+            );
+        }
 
         // Tạo khoản thu PENDING nếu kèo thu phí VÀ KHÔNG phải use_club_fund VÀ KHÔNG phải auto_split_fee
         // use_club_fund = true: CLB chi tiền → KHÔNG tạo payment
@@ -381,6 +398,78 @@ class MiniParticipantController extends Controller
         return ResponseHelper::success(
             new MiniParticipantResource($participant->loadFullRelations()),
             'Đã duyệt người tham gia thành công'
+        );
+    }
+
+    /**
+     * SuperAdmin xác nhận thay user
+     */
+    public function adminConfirm($tournamentId, $participantId)
+    {
+        $participant = MiniParticipant::with('miniTournament')->findOrFail($participantId);
+
+        if ($participant->mini_tournament_id != $tournamentId) {
+            return ResponseHelper::error('Participant không thuộc kèo đấu này.', 400);
+        }
+
+        if ($participant->is_confirmed) {
+            return ResponseHelper::success(
+                new MiniParticipantResource($participant),
+                'Người chơi đã được xác nhận trước đó'
+            );
+        }
+
+        $this->checkMaxPlayers($participant->miniTournament);
+
+        $paymentStatus = PaymentStatusEnum::CONFIRMED;
+        if ($participant->miniTournament->use_club_fund) {
+            //
+        } elseif ($participant->miniTournament->has_fee && !$participant->miniTournament->auto_split_fee) {
+            $paymentStatus = PaymentStatusEnum::PENDING;
+        }
+
+        $participant->update([
+            'is_confirmed' => true,
+            'self_confirmed' => false,
+            'payment_status' => $paymentStatus,
+        ]);
+
+        $this->tournamentService->attachUserToMiniTournamentClubFund($participant->miniTournament, $participant->user_id);
+
+        $participant->user->notify(
+            new MiniTournamentJoinConfirmedNotification($participant, Auth::id())
+        );
+
+        $this->pushToUsers(
+            [$participant->user_id],
+            'Đã được xác nhận tham gia',
+            'Bạn đã được quản trị viên xác nhận tham gia kèo đấu "' . ($participant->miniTournament->name ?? '') . '".',
+            [
+                'type' => 'MINI_TOURNAMENT_JOIN_CONFIRMED',
+                'mini_tournament_id' => $participant->mini_tournament_id,
+                'participant_id' => $participant->id,
+            ]
+        );
+
+        if ($participant->miniTournament->has_fee && !$participant->miniTournament->auto_split_fee && !$participant->miniTournament->use_club_fund) {
+            $feePerPerson = $participant->miniTournament->fee_amount;
+
+            MiniParticipantPayment::firstOrCreate(
+                [
+                    'mini_tournament_id' => $participant->mini_tournament_id,
+                    'participant_id' => $participant->id,
+                ],
+                [
+                    'user_id' => $participant->user_id,
+                    'amount' => $feePerPerson,
+                    'status' => MiniParticipantPayment::STATUS_PENDING,
+                ]
+            );
+        }
+
+        return ResponseHelper::success(
+            new MiniParticipantResource($participant->loadFullRelations()),
+            'Đã xác nhận người tham gia thay user thành công'
         );
     }
 
@@ -1067,6 +1156,7 @@ class MiniParticipantController extends Controller
                         'is_confirmed' => false,
                         'is_invited' => true,
                         'invited_by' => Auth::id(),
+                        'self_confirmed' => true,
                         'payment_status' => $paymentStatus,
                     ]);
 

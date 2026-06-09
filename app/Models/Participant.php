@@ -30,6 +30,7 @@ class Participant extends Model
         'rank_after',
         'rank_change',
         'payment_status',
+        'self_confirmed',
     ];
 
     protected $casts = [
@@ -44,6 +45,7 @@ class Participant extends Model
         'rank_after' => 'integer',
         'rank_change' => 'integer',
         'payment_status' => PaymentStatusEnum::class,
+        'self_confirmed' => 'boolean',
     ];
 
     const PER_PAGE = 15;
