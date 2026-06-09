@@ -115,6 +115,7 @@
                     </div>
                     <p v-if="selectedPlayMode === 2" class="text-[14px] text-[#9EA2B3] italic mt-3">*Kết quả sẽ cập nhật vào hệ thống Picki Rating</p>
                 </div>
+
                 <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="font-bold text-[#838799] text-[14px] uppercase tracking-wide">Thời gian</h3>
@@ -904,6 +905,7 @@ import 'swiper/css'
 import 'swiper/css/free-mode'
 import { genderOptions } from '@/constants/genderOption';
 import { playModes, formats } from '@/constants/playModeAndFormat';
+import { MATCH_FORMAT, MATCH_FORMAT_LABEL, MATCH_FORMAT_DESC } from '@/constants/index.js';
 import { setOptions } from '@/constants/setOption';
 import { winRuleOptions } from '@/constants/winRuleOption';
 import { lockCancellationOptions } from '@/constants/lockCancellationOption';
@@ -977,8 +979,36 @@ const minLevel = ref('Không giới hạn')
 const maxLevel = ref('Không giới hạn')
 const selectedPlayMode = ref(1)
 const selectedFormat = ref(2)
+const selectedMatchFormat = ref('standard')
 const autoApprove = ref(true)
 const allowParticipantAddFriends = ref(true)
+const matchFormats = [
+  {
+    value: MATCH_FORMAT.STANDARD,
+    label: MATCH_FORMAT_LABEL.standard,
+    description: MATCH_FORMAT_DESC.standard,
+    hint: '',
+  },
+  {
+    value: MATCH_FORMAT.PARTNER_ROTATION,
+    label: MATCH_FORMAT_LABEL.partner_rotation,
+    description: MATCH_FORMAT_DESC.partner_rotation,
+    hint: 'Cần 6-8 người đã xác nhận',
+  },
+  {
+    value: MATCH_FORMAT.MIXED_GENDER,
+    label: MATCH_FORMAT_LABEL.mixed_gender,
+    description: MATCH_FORMAT_DESC.mixed_gender,
+    hint: 'Cần ≥3 nam + ≥3 nữ đã xác nhận',
+  },
+  {
+    value: MATCH_FORMAT.RANK_PAIRING,
+    label: MATCH_FORMAT_LABEL.rank_pairing,
+    description: MATCH_FORMAT_DESC.rank_pairing,
+    hint: 'Cần ≥3 hạng A + ≥3 hạng B đã xác nhận',
+  },
+]
+
 const { formattedDate } = useFormattedDate(date)
 const posterFile = ref(null)
 const posterPreview = ref(null)
@@ -1100,7 +1130,7 @@ const initialStates = {
     isLocationDropdownOpen: false, isPointModalOpen: false,
     date: null, durationMinutes: null, selectedDuration: '', playerCount: 4, privacy: 'Công khai',
     fee: 'none', feeAmount: 0, formattedFeeAmount: '',
-    tournamentName: '', tournamentNote: '', selectedPlayMode: 1, selectedFormat: 2, selectedSportId: 1,
+    tournamentName: '', tournamentNote: '', selectedPlayMode: 1, selectedFormat: 2, selectedMatchFormat: 'standard', selectedSportId: 1,
     minLevel: 'Không giới hạn', maxLevel: 'Không giới hạn',
     locationKeyword: '', selectedLocation: null, competitionLocations: [],
     setNumber: 1, gamesPerSet: 11, pointsDifference: 2, maxPoints: 11,
@@ -1138,6 +1168,9 @@ const resetFormState = () => {
     allowCancellation.value = initialStates.allowCancellation;
     autoApprove.value = initialStates.autoApprove;
     allowParticipantAddFriends.value = initialStates.allowParticipantAddFriends;
+    selectedPlayMode.value = initialStates.selectedPlayMode;
+    selectedFormat.value = initialStates.selectedFormat;
+    selectedMatchFormat.value = initialStates.selectedMatchFormat;
     competitionLocations.value = initialStates.competitionLocations;
     isLocationDropdownOpen.value = initialStates.isLocationDropdownOpen;
     selectedClubId.value = initialStates.selectedClubId;
@@ -1332,6 +1365,9 @@ const applyTemplate = (template) => {
     }
     if (s.format !== undefined && s.format !== null) {
         selectedFormat.value = s.format
+    }
+    if (s.match_format) {
+        selectedMatchFormat.value = s.match_format
     }
 
     // Thời gian & thời lượng
@@ -1714,6 +1750,7 @@ const buildTemplateSettings = () => {
         description: tournamentNote.value || null,
         play_mode: selectedPlayMode.value,
         format: selectedFormat.value,
+        match_format: 'standard',
         competition_location_id: selectedLocation.value?.id || null,
         competition_location_name: selectedLocation.value?.name || null,
         start_time: date.value ? date.value.toISOString() : null,
@@ -1864,6 +1901,7 @@ const handleSubmit = async () => {
             description: tournamentNote.value || null,
             play_mode: selectedPlayMode.value,
             format: selectedFormat.value,
+            match_format: 'standard',
             start_time: startTime,
             duration: durationMinutes.value,
             competition_location_id: selectedLocation.value ? selectedLocation.value?.id : null,
@@ -2064,6 +2102,9 @@ const prefillForm = (data) => {
     }
     if (data?.format) {
         selectedFormat.value = data.format
+    }
+    if (data?.match_format) {
+        selectedMatchFormat.value = data.match_format
     }
 
     // Ngày giờ - địa điểm  - người chơi

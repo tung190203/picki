@@ -39,6 +39,7 @@ use App\Notifications\PaymentReminderNotification;
 use App\Services\Club\ClubFundContributionService;
 use App\Services\ImageOptimizationService;
 use App\Services\MiniTournamentService;
+use App\Services\RoundRobinSchedulerService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -811,5 +812,318 @@ class MiniTournamentController extends Controller
             new MiniParticipantResource($participant),
             'Đã đánh dấu vắng mặt thành công'
         );
+    }
+
+    /**
+     * Cập nhật player_group cho các participant (organizer only).
+     * Áp dụng cho mixed_gender và rank_pairing.
+     * Sau khi cập nhật đủ người được phân nhóm → tự chuyển session_status sang 'ready'.
+     */
+    public function updatePlayerGroup(Request $request, int $id)
+    {
+        $userId = Auth::id();
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        $miniTournament = MiniTournament::findOrFail($id);
+
+        if (!$miniTournament->hasOrganizer($userId)) {
+            return ResponseHelper::error('Chỉ organizer kèo đấu mới có quyền thực hiện', 403);
+        }
+
+        $participantIds = $request->input('participant_ids', []);
+        if (empty($participantIds)) {
+            return ResponseHelper::error('Danh sách participant_ids không hợp lệ', 422);
+        }
+
+        $validGroups = ['male', 'female', 'a', 'b'];
+        foreach ($participantIds as $participantId => $group) {
+            if (!in_array($group, $validGroups, true)) {
+                return ResponseHelper::error("Giá trị player_group '{$group}' không hợp lệ. Chỉ chấp nhận: " . implode(', ', $validGroups), 422);
+            }
+        }
+
+        DB::transaction(function () use ($miniTournament, $participantIds) {
+            foreach ($participantIds as $participantId => $group) {
+                MiniParticipant::where('id', $participantId)
+                    ->where('mini_tournament_id', $miniTournament->id)
+                    ->update(['player_group' => $group]);
+            }
+
+            // Auto-set session_status to 'ready' when all confirmed participants have a group
+            $format = $miniTournament->match_format;
+            if (in_array($format, [MiniTournament::MATCH_FORMAT_MIXED_GENDER, MiniTournament::MATCH_FORMAT_RANK_PAIRING])) {
+                $confirmedCount = $miniTournament->participants()->where('is_confirmed', true)->count();
+                $groupedCount = $miniTournament->participants()
+                    ->where('is_confirmed', true)
+                    ->whereNotNull('player_group')
+                    ->count();
+
+                if ($confirmedCount > 0 && $confirmedCount === $groupedCount) {
+                    $miniTournament->update(['session_status' => MiniTournament::SESSION_STATUS_READY]);
+                }
+            }
+        });
+
+        $miniTournament->load(['participants.user', 'participants.invitedBy']);
+
+        return ResponseHelper::success(
+            MiniParticipantResource::collection($miniTournament->participants),
+            'Đã cập nhật phân nhóm thành công'
+        );
+    }
+
+    /**
+     * Bắt đầu session Round Robin và sinh lịch đấu tự động (organizer only).
+     */
+    public function startSession(Request $request, int $id)
+    {
+        $userId = Auth::id();
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        $miniTournament = MiniTournament::findOrFail($id);
+
+        if (!$miniTournament->hasOrganizer($userId)) {
+            return ResponseHelper::error('Chỉ organizer kèo đấu mới có quyền thực hiện', 403);
+        }
+
+        $format = $miniTournament->match_format;
+        if ($format === MiniTournament::MATCH_FORMAT_STANDARD) {
+            return ResponseHelper::error('Kèo standard không cần start session', 422);
+        }
+
+        if ($miniTournament->session_status === MiniTournament::SESSION_STATUS_ONGOING) {
+            return ResponseHelper::error('Session đã được bắt đầu', 422);
+        }
+
+        if ($miniTournament->session_status === MiniTournament::SESSION_STATUS_FINISHED) {
+            return ResponseHelper::error('Session đã kết thúc, không thể bắt đầu lại', 422);
+        }
+
+        $courtCount = $request->input('scheduled_court_count', 2);
+
+        $confirmedParticipants = $miniTournament->participants()
+            ->where('is_confirmed', true)
+            ->where('is_absent', false)
+            ->get();
+
+        $participantIds = $confirmedParticipants->pluck('id')->toArray();
+
+        $scheduler = new RoundRobinSchedulerService();
+        $schedule = null;
+        $unbalancedNotice = null;
+
+        try {
+            if ($format === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
+                if (count($participantIds) < 6 || count($participantIds) > 8) {
+                    return ResponseHelper::error('partner_rotation cần 6-8 người đã xác nhận, đang có ' . count($participantIds) . ' người', 422);
+                }
+                $schedule = $scheduler->generatePartnerRotationSchedule($participantIds, $courtCount);
+            } elseif ($format === MiniTournament::MATCH_FORMAT_MIXED_GENDER) {
+                $maleIds = $confirmedParticipants->where('player_group', 'male')->pluck('id')->toArray();
+                $femaleIds = $confirmedParticipants->where('player_group', 'female')->pluck('id')->toArray();
+                if (count($maleIds) < 1 || count($femaleIds) < 1) {
+                    return ResponseHelper::error('mixed_gender cần ít nhất 1 nam và 1 nữ đã phân nhóm', 422);
+                }
+                $schedule = $scheduler->generateMixedGenderSchedule($maleIds, $femaleIds, $courtCount);
+            } elseif ($format === MiniTournament::MATCH_FORMAT_RANK_PAIRING) {
+                $aIds = $confirmedParticipants->where('player_group', 'a')->pluck('id')->toArray();
+                $bIds = $confirmedParticipants->where('player_group', 'b')->pluck('id')->toArray();
+                if (count($aIds) < 1 || count($bIds) < 1) {
+                    return ResponseHelper::error('rank_pairing cần ít nhất 1 người nhóm A và 1 người nhóm B đã phân nhóm', 422);
+                }
+                $schedule = $scheduler->generateRankPairingSchedule($aIds, $bIds, $courtCount);
+            }
+        } catch (\InvalidArgumentException $e) {
+            return ResponseHelper::error($e->getMessage(), 422);
+        }
+
+        $unbalancedNotice = $schedule['summary']['unbalanced_notice'] ?? null;
+        $matchesToInsert = [];
+
+        foreach ($schedule['rounds'] as $round) {
+            foreach ($round['matches'] as $match) {
+                $matchesToInsert[] = [
+                    'mini_tournament_id' => $miniTournament->id,
+                    'participant1_id' => $match['participant1_id'],
+                    'participant2_id' => $match['participant2_id'],
+                    'round_number' => $round['round_number'],
+                    'is_bye' => $match['is_bye'] ?? false,
+                    'status' => MiniMatch::STATUS_PENDING,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+        }
+
+        DB::transaction(function () use ($miniTournament, $matchesToInsert) {
+            MiniMatch::insert($matchesToInsert);
+            $miniTournament->update([
+                'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
+                'session_started_at' => now(),
+            ]);
+        });
+
+        return ResponseHelper::success([
+            'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
+            'summary' => $schedule['summary'],
+            'unbalanced_notice' => $unbalancedNotice,
+        ], 'Đã bắt đầu session và sinh lịch đấu thành công', 200);
+    }
+
+    /**
+     * Lấy lịch đấu đã sinh, nhóm theo vòng.
+     */
+    public function getSchedule(int $id)
+    {
+        $miniTournament = MiniTournament::with([
+            'matches' => function ($q) {
+                $q->whereNotNull('round_number')
+                    ->orderBy('round_number')
+                    ->orderBy('id');
+            },
+            'matches.participant1.user',
+            'matches.participant2.user',
+        ])->findOrFail($id);
+
+        $matches = $miniTournament->matches;
+
+        if ($matches->isEmpty()) {
+            return ResponseHelper::success([
+                'rounds' => [],
+                'summary' => null,
+            ], 'Chưa có lịch đấu');
+        }
+
+        $grouped = $matches->groupBy('round_number')->map(function ($roundMatches, $roundNumber) {
+            return [
+                'round_number' => (int) $roundNumber,
+                'matches' => $roundMatches->map(function ($match) {
+                    return [
+                        'id' => $match->id,
+                        'team_1' => $match->participant1 ? [
+                            'id' => $match->participant1->id,
+                            'name' => $match->participant1->user?->name ?? $match->participant1->guest_name,
+                        ] : null,
+                        'team_2' => $match->participant2 ? [
+                            'id' => $match->participant2->id,
+                            'name' => $match->participant2->user?->name ?? $match->participant2->guest_name,
+                        ] : null,
+                        'score_1' => $match->team_1_score,
+                        'score_2' => $match->team_2_score,
+                        'status' => $match->status,
+                        'is_bye' => $match->is_bye,
+                    ];
+                })->values(),
+                'completed_count' => $roundMatches->where('status', MiniMatch::STATUS_COMPLETED)->count(),
+                'total_count' => $roundMatches->count(),
+            ];
+        })->sortBy('round_number')->values();
+
+        return ResponseHelper::success([
+            'rounds' => $grouped,
+        ], 'Lấy lịch đấu thành công');
+    }
+
+    /**
+     * Lấy bảng xếp hạng realtime.
+     */
+    public function getLeaderboard(int $id)
+    {
+        $miniTournament = MiniTournament::findOrFail($id);
+        $scheduler = new RoundRobinSchedulerService();
+        $result = $scheduler->calculateLeaderboard($id);
+
+        return ResponseHelper::success($result, 'Lấy bảng xếp hạng thành công');
+    }
+
+    /**
+     * Organizer kết thúc session sớm.
+     */
+    public function finishSession(int $id)
+    {
+        $userId = Auth::id();
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        $miniTournament = MiniTournament::findOrFail($id);
+
+        if (!$miniTournament->hasOrganizer($userId)) {
+            return ResponseHelper::error('Chỉ organizer kèo đấu mới có quyền thực hiện', 403);
+        }
+
+        if ($miniTournament->session_status === MiniTournament::SESSION_STATUS_FINISHED) {
+            return ResponseHelper::error('Session đã kết thúc rồi', 422);
+        }
+
+        $miniTournament->update(['session_status' => MiniTournament::SESSION_STATUS_FINISHED]);
+
+        $scheduler = new RoundRobinSchedulerService();
+        $leaderboard = $scheduler->calculateLeaderboard($id);
+
+        return ResponseHelper::success([
+            'session_status' => MiniTournament::SESSION_STATUS_FINISHED,
+            'leaderboard' => $leaderboard,
+        ], 'Đã kết thúc session');
+    }
+
+    /**
+     * Đánh dấu người chơi vắng mặt trong trận đấu cụ thể (forfeit).
+     */
+    public function markAbsentPlayer(Request $request, int $id)
+    {
+        $userId = Auth::id();
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        $miniTournament = MiniTournament::findOrFail($id);
+
+        if (!$miniTournament->hasOrganizer($userId)) {
+            return ResponseHelper::error('Chỉ organizer kèo đấu mới có quyền thực hiện', 403);
+        }
+
+        $participantId = $request->input('participant_id');
+        $matchId = $request->input('match_id');
+
+        if (!$participantId || !$matchId) {
+            return ResponseHelper::error('Thiếu participant_id hoặc match_id', 422);
+        }
+
+        $match = MiniMatch::where('id', $matchId)
+            ->where('mini_tournament_id', $id)
+            ->first();
+
+        if (!$match) {
+            return ResponseHelper::error('Trận đấu không tồn tại', 404);
+        }
+
+        $participant = MiniParticipant::where('id', $participantId)
+            ->where('mini_tournament_id', $id)
+            ->first();
+
+        if (!$participant) {
+            return ResponseHelper::error('Người chơi không tồn tại trong kèo đấu này', 404);
+        }
+
+        // Determine which team score to set to forfeit (0)
+        if ((int) $match->participant1_id === (int) $participantId) {
+            $match->update(['team_1_score' => 0, 'status' => MiniMatch::STATUS_COMPLETED]);
+        } elseif ((int) $match->participant2_id === (int) $participantId) {
+            $match->update(['team_2_score' => 0, 'status' => MiniMatch::STATUS_COMPLETED]);
+        } else {
+            return ResponseHelper::error('Người chơi không tham gia trận đấu này', 422);
+        }
+
+        $match->load(['participant1.user', 'participant2.user']);
+
+        return ResponseHelper::success([
+            'match_id' => $match->id,
+            'participant_id' => $participantId,
+        ], 'Đã đánh dấu vắng mặt trong trận đấu');
     }
 }
