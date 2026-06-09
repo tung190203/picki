@@ -1050,6 +1050,7 @@ export default {
             handleMemberAbsent,
             handleMemberSelfCheckIn,
             handleMemberSelfAbsent,
+            handleMemberAdminConfirm,
             isCurrentUserParticipant,
             competitionLocation: computed(() => mini.value?.competition_location ?? null),
             tournamentMaxPlayers: computed(() => mini.value?.max_players ?? null),
