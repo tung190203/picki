@@ -35,6 +35,7 @@ class MiniParticipant extends Model
         'rank_change',
         'checked_in_at',
         'is_pending_confirmation',
+        'self_confirmed',
     ];
 
     protected $casts = [
@@ -50,6 +51,7 @@ class MiniParticipant extends Model
         'checked_in_at' => 'datetime',
         'declined_at' => 'datetime',
         'is_pending_confirmation' => 'boolean',
+        'self_confirmed' => 'boolean',
     ];
 
     const PER_PAGE = 20;

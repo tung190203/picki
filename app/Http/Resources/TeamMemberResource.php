@@ -84,7 +84,6 @@ class TeamMemberResource extends JsonResource
             // Các field bổ sung (vẫn giữ cho web/frontend)
             'avatar_url'                  => $avatarUrl,
             'is_confirmed'                => (bool) ($participant?->is_confirmed ?? false),
-            'is_invite_by_organizer'      => (bool) ($participant?->is_invite_by_organizer ?? false),
             'is_guest'                    => $isGuest,
             'guest_name'                  => $isGuest ? $participant?->guest_name : null,
             'guest_phone'                 => $isGuest ? $participant?->guest_phone : null,

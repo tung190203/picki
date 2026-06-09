@@ -80,6 +80,8 @@ class UpdateTournamentRequest extends FormRequest
                 },
             ],
             'zalo_link' => 'nullable|url',
+            'main_phone' => 'sometimes|string|max:20|regex:/^[0-9\+\-\s\(\)]+$/',
+            'sub_phone' => 'nullable|string|max:20|regex:/^[0-9\+\-\s\(\)]+$/',
         ];
     }
 
@@ -176,6 +178,14 @@ class UpdateTournamentRequest extends FormRequest
             'fee_amount.integer' => 'Số tiền phí phải là số nguyên (VNĐ)',
             'fee_amount.min' => 'Số tiền phí không được nhỏ hơn 0',
             'fee_description.max' => 'Mô tả phí không được vượt quá 500 ký tự',
+
+            // Số điện thoại
+            'main_phone.string' => 'Số điện thoại chính phải là chuỗi ký tự',
+            'main_phone.max' => 'Số điện thoại chính không được vượt quá 20 ký tự',
+            'main_phone.regex' => 'Số điện thoại chính không hợp lệ',
+            'sub_phone.string' => 'Số điện thoại phụ phải là chuỗi ký tự',
+            'sub_phone.max' => 'Số điện thoại phụ không được vượt quá 20 ký tự',
+            'sub_phone.regex' => 'Số điện thoại phụ không hợp lệ',
         ];
     }
 
@@ -202,13 +212,19 @@ class UpdateTournamentRequest extends FormRequest
             'use_cached_qr',
         ];
 
-        $prepared = [];
-        foreach ($boolKeys as $key) {
-            if ($this->has($key)) {
-                $prepared[$key] = filter_var($this->input($key), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false;
+        $nullableKeys = ['main_phone', 'sub_phone'];
+
+        $normalized = [];
+        foreach ($nullableKeys as $key) {
+            if (!$this->has($key)) {
+                continue;
+            }
+            $v = $this->input($key);
+            if ($v === '' || $v === null) {
+                $normalized[$key] = null;
             }
         }
 
-        $this->merge($prepared);
+        $this->merge($normalized);
     }
 }
