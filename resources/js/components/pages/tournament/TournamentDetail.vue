@@ -204,7 +204,7 @@
                   </button>
                 </div>
                 <div
-                  v-if="tournament.is_joined && !tournament.is_confirmed_by_organizer && tournament.is_invite_by_organizer">
+                  v-if="tournament.is_joined && !tournament.is_confirmed">
                   <button
                     class="flex items-center justify-center gap-2 bg-[#D72D36] hover:bg-white text-white hover:text-[#D72D36] border hover:border-[#D72D36] font-medium px-6 py-2 rounded-md transition"
                     @click="confirmTournament">
@@ -365,7 +365,6 @@
                         :rating="getUserScore(item)"
                         status="pending"
                         :showActions="true"
-                        :is_invite_by_organizer="item.is_invite_by_organizer"
                         :checked-in-at="item.checked_in_at"
                         :is-absent="item.is_absent"
                         @removeUser="handleRemoveUser"
@@ -767,6 +766,7 @@
       @absent="handleMemberAbsent"
       @self-check-in="handleMemberSelfCheckIn"
       @self-absent="handleMemberSelfAbsent"
+      @admin-confirm="handleMemberAdminConfirm"
     />
     <AddTournamentGuestModal
       v-model:isOpen="showAddGuestModal"
@@ -925,7 +925,7 @@ const isCreator = computed(() => {
 })
 const isScorer = computed(() => {
   return tournament.value?.tournament_staff?.some(
-    staff => [1, 2, 3].includes(staff.role) && staff.staff?.id === getUser.value.id
+    staff => [1, 2, 3].includes(staff.role) && staff.user?.id === getUser.value.id
   )
 })
 
@@ -1086,6 +1086,18 @@ async function handleMemberSelfAbsent(member) {
     await detailTournament(id)
   } catch (error) {
     toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi báo vắng.')
+  }
+}
+
+async function handleMemberAdminConfirm(member) {
+  try {
+    const participantId = member.participant_id ?? member.id
+    await ParticipantService.adminConfirmParticipant(id, participantId)
+    toast.success('Đã xác nhận VĐV thành công!')
+    if (member) member.is_confirmed = true
+    await detailTournament(id)
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi xác nhận VĐV.')
   }
 }
 

@@ -72,3 +72,8 @@ export const autoInviteArea = async (tournamentId, payload) => {
     return axiosInstance.post(`/mini-participants/auto-invite-area/${tournamentId}`, payload)
         .then(r => r.data.data);
 };
+
+export const adminConfirmMiniParticipant = async (miniTournamentId, participantId) => {
+    return axiosInstance.post(`/mini-tournaments/${miniTournamentId}/participants/${participantId}/admin-confirm`)
+        .then(r => r.data);
+};

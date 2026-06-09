@@ -14,7 +14,6 @@ class Participant extends Model
         'tournament_id',
         'user_id',
         'is_confirmed',
-        'is_invite_by_organizer',
         'is_guest',
         'guest_name',
         'guest_phone',
@@ -30,6 +29,7 @@ class Participant extends Model
         'rank_after',
         'rank_change',
         'payment_status',
+        'self_confirmed',
     ];
 
     protected $casts = [
@@ -44,6 +44,7 @@ class Participant extends Model
         'rank_after' => 'integer',
         'rank_change' => 'integer',
         'payment_status' => PaymentStatusEnum::class,
+        'self_confirmed' => 'boolean',
     ];
 
     const PER_PAGE = 15;

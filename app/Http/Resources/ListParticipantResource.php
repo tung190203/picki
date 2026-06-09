@@ -18,7 +18,6 @@ class ListParticipantResource extends JsonResource
             'id' => $this->id,
             'tournament_id' => $this->tournament_id,
             'is_confirmed' => $this->is_confirmed,
-            'is_invite_by_organizer' => $this->is_invite_by_organizer,
             'tournament_participant' => [
                 'is_guest' => (bool) $this->is_guest,
                 'user' => [

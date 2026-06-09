@@ -33,7 +33,7 @@
         {{ rating }}
       </div>
 
-      <div v-if="!empty && showActions && status === 'pending' && !is_invite_by_organizer"
+      <div v-if="!empty && showActions && status === 'pending'"
         class="absolute -bottom-7 left-1/2 -translate-x-1/2 flex gap-1 z-10">
         <button @click.stop="$emit('confirm')"
           class="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center hover:bg-green-600 transition-colors shadow"
@@ -154,10 +154,6 @@ const props = defineProps({
         default: true,
     },
     showActions: {
-        type: Boolean,
-        default: false,
-    },
-    is_invite_by_organizer: {
         type: Boolean,
         default: false,
     },

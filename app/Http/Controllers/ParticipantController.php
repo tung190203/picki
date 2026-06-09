@@ -7,8 +7,10 @@ use App\Helpers\ResponseHelper;
 use App\Http\Resources\ParticipantResource;
 use App\Http\Resources\TournamentParticipantResource;
 use App\Jobs\SendPushJob;
+use App\Enums\ClubMemberRole;
 use App\Models\Participant;
 use App\Models\SuperAdminDraft;
+use App\Models\Club\Club;
 use App\Models\Tournament;
 use App\Models\TournamentParticipantPayment;
 use App\Models\TournamentStaff;
@@ -62,8 +64,8 @@ class ParticipantController extends Controller
         ]);
         $tournament = Tournament::findOrFail($tournamentId);
 
-        $participantsIds = Participant::where('tournament_id', $tournamentId)->where('is_invite_by_organizer', true)->pluck('user_id');
-        $tournamentStaffIds = $tournament->staff()->where('is_invite_by_organizer', true)->pluck('user_id');
+        $participantsIds = Participant::where('tournament_id', $tournamentId)->pluck('user_id');
+        $tournamentStaffIds = $tournament->staff()->pluck('user_id');
         $createId = $tournament->created_by;
 
         $listIds = array_values(
@@ -118,10 +120,14 @@ class ParticipantController extends Controller
         return ResponseHelper::success($data, 'Lấy danh sách lời mời người tham gia thành công', 200, $meta);
     }
 
+
     public function join(Request $request, $tournamentId)
     {
         $tournament = Tournament::findOrFail($tournamentId);
         $user = Auth::user();
+        if (!$user) {
+            return ResponseHelper::error('Bạn cần đăng nhập để thực hiện thao tác này.', 401);
+        }
         if ($tournament->start_date < now()) {
             return ResponseHelper::error('Thời gian đăng ký đã kết thúc', 400);
         }
@@ -206,6 +212,10 @@ class ParticipantController extends Controller
 
         if ($exists) {
             return response()->json(['message' => 'Bạn đã tham gia giải này.'], 422);
+        }
+
+        if (!$user) {
+            return ResponseHelper::error('Bạn cần đăng nhập để thực hiện thao tác này.', 401);
         }
 
         $rank = $user->getVNRank($tournament->sport_id);
@@ -369,9 +379,6 @@ class ParticipantController extends Controller
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền xác nhận người tham gia này', 403);
         }
-        if ($participant->is_invite_by_organizer == 1) {
-            return ResponseHelper::error('Chỉ người được mời mới có thể xác nhận yêu cầu này', 403);
-        }
         if ($participant->is_confirmed) {
             return ResponseHelper::error('Người tham gia đã được xác nhận', 400);
         }
@@ -404,6 +411,83 @@ class ParticipantController extends Controller
         $participant->user->notify(new TournamentJoinConfirmedNotification($participant));
 
         return ResponseHelper::success(new ParticipantResource($participant), 'Xác nhận người tham gia thành công');
+    }
+
+    /**
+     * SuperAdmin xác nhận thay user
+     */
+    public function adminConfirm($tournamentId, $participantId)
+    {
+        $userId = Auth::id();
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        $participant = Participant::with('tournament')->findOrFail($participantId);
+
+        if ($participant->tournament_id != $tournamentId) {
+            return ResponseHelper::error('Participant không thuộc giải đấu này.', 400);
+        }
+
+        if ($participant->is_confirmed) {
+            return ResponseHelper::success(
+                new ParticipantResource($participant),
+                'Người tham gia đã được xác nhận trước đó'
+            );
+        }
+
+        $tournament = $participant->tournament;
+
+        if ($err = $this->authorizeAdminConfirm($tournament, $userId)) {
+            return $err;
+        }
+
+        if ($tournament->start_date < now()) {
+            return ResponseHelper::error('Giải đấu đã bắt đầu hoặc đã kết thúc. Không thể xác nhận.', 400);
+        }
+        if (in_array($tournament->status, ['closed', 'cancelled'])) {
+            return ResponseHelper::error('Giải đấu đã đóng hoặc bị hủy. Không thể xác nhận.', 400);
+        }
+
+        $participantType = $tournament->participant;
+        if ($participantType === 'user') {
+            if ($tournament->participants()->where('is_confirmed', true)->count()
+                >= ($tournament->player_per_team * $tournament->max_team)) {
+                return ResponseHelper::error('Số lượng người tham gia đã đạt giới hạn.', 422);
+            }
+        } else {
+            if ($tournament->participants()->where('is_confirmed', true)->count()
+                >= ($tournament->max_team * $tournament->player_per_team)) {
+                return ResponseHelper::error('Số lượng người tham gia đã đạt giới hạn.', 422);
+            }
+        }
+
+        if ($tournament->has_financial_management
+            && $tournament->has_fee
+            && !$tournament->auto_split_fee
+            && !$tournament->use_club_fund
+        ) {
+            $feePerPerson = $tournament->fee_amount;
+            TournamentParticipantPayment::firstOrCreate(
+                [
+                    'tournament_id' => $participant->tournament_id,
+                    'participant_id' => $participant->id,
+                ],
+                [
+                    'user_id' => $participant->user_id,
+                    'amount' => $feePerPerson,
+                    'status' => TournamentParticipantPayment::STATUS_PENDING,
+                ]
+            );
+        }
+
+        $participant->update([
+            'is_confirmed' => true,
+            'self_confirmed' => false,
+        ]);
+        $participant->user->notify(new TournamentJoinConfirmedNotification($participant));
+
+        return ResponseHelper::success(new ParticipantResource($participant), 'Đã xác nhận người tham gia thay user thành công');
     }
 
     public function acceptInvite($participantId)
@@ -458,7 +542,11 @@ class ParticipantController extends Controller
 
         $tournament = Tournament::findOrFail($tournamentId);
         $organizer = Auth::user();
-        $isSuperAdminDraft = SuperAdminDraft::where('user_id', $organizer->id)->exists();
+        if (!$organizer) {
+            return ResponseHelper::error('Bạn cần đăng nhập để thực hiện thao tác này.', 401);
+        }
+
+        $isSuperAdmin = $organizer->is_super_admin;
 
         if (!$tournament->hasOrganizer($organizer->id)) {
             return ResponseHelper::error('Bạn không có quyền mời người chơi.', 403);
@@ -488,22 +576,20 @@ class ParticipantController extends Controller
             return ResponseHelper::error('Tất cả người chơi đã được mời hoặc đã tham gia.', 422);
         }
 
-        $organizerId = $organizer->id;
-
         // Xác định payment_status cho invited user
         $paymentStatus = TournamentParticipantPayment::STATUS_CONFIRMED;
         if ($tournament->has_financial_management && $tournament->has_fee && !$tournament->use_club_fund && !$tournament->auto_split_fee) {
             $paymentStatus = TournamentParticipantPayment::STATUS_PENDING;
         }
 
-        $insertData = array_map(function ($invitedUserId) use ($tournament, $organizerId, $isSuperAdminDraft, $paymentStatus) {
+        $insertData = array_map(function ($invitedUserId) use ($tournament, $isSuperAdmin, $paymentStatus) {
             return [
                 'tournament_id' => $tournament->id,
                 'user_id' => $invitedUserId,
-                'is_confirmed' => ($invitedUserId === $organizerId) || $isSuperAdminDraft,
+                'is_confirmed' => $isSuperAdmin,
+                'self_confirmed' => !$isSuperAdmin,
                 'created_at' => now(),
                 'updated_at' => now(),
-                'is_invite_by_organizer' => true,
                 'payment_status' => $paymentStatus,
             ];
         }, $newUserIds);
@@ -912,6 +998,33 @@ class ParticipantController extends Controller
             'per_page'     => $paginated->perPage(),
             'total'        => $paginated->total(),
         ]);
+    }
+
+    private function authorizeAdminConfirm(Tournament $tournament, int $userId): ?\Illuminate\Http\JsonResponse
+    {
+        if ($tournament->club_id) {
+            $club = Club::find($tournament->club_id);
+            if (!$club) {
+                return ResponseHelper::error('CLB không tồn tại', 404);
+            }
+
+            $clubMember = $club->activeMembers()->where('user_id', $userId)->first();
+            $isClubStaff = $clubMember && in_array(
+                $clubMember->role,
+                [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary],
+                true
+            );
+
+            if (!$isClubStaff && !$tournament->hasAttendancePermission($userId)) {
+                return ResponseHelper::error('Bạn không có quyền xác nhận VĐV trong giải đấu này', 403);
+            }
+        } else {
+            if (!$tournament->hasAttendancePermission($userId)) {
+                return ResponseHelper::error('Bạn không có quyền xác nhận VĐV trong giải đấu này', 403);
+            }
+        }
+
+        return null;
     }
 
     private function pushToUsers(array $userIds, string $title, string $body, array $data = [])
