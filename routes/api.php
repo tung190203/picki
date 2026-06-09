@@ -694,6 +694,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{tournamentId}/recurrence-series/cancel', [MiniTournamentController::class, 'cancelRecurrenceSeries']);
         Route::post('/{miniTournamentId}/participants/{participantId}/mark-check-in', [MiniTournamentController::class, 'markParticipantCheckIn']);
         Route::post('/{miniTournamentId}/participants/{participantId}/mark-absent', [MiniTournamentController::class, 'markParticipantAbsent']);
+        Route::post('/{miniTournamentId}/participants/{participantId}/admin-confirm', [MiniParticipantController::class, 'adminConfirm']);
         Route::get('/{id}', [MiniTournamentController::class, 'show'])->whereNumber('id');
         Route::post('/update/{id}', [MiniTournamentController::class, 'update']);
         Route::post('/delete/{id}', [MiniTournamentController::class,'destroy']);

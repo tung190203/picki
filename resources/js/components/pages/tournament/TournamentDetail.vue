@@ -766,6 +766,7 @@
       @absent="handleMemberAbsent"
       @self-check-in="handleMemberSelfCheckIn"
       @self-absent="handleMemberSelfAbsent"
+      @admin-confirm="handleMemberAdminConfirm"
     />
     <AddTournamentGuestModal
       v-model:isOpen="showAddGuestModal"
@@ -924,7 +925,7 @@ const isCreator = computed(() => {
 })
 const isScorer = computed(() => {
   return tournament.value?.tournament_staff?.some(
-    staff => [1, 2, 3].includes(staff.role) && staff.staff?.id === getUser.value.id
+    staff => [1, 2, 3].includes(staff.role) && staff.user?.id === getUser.value.id
   )
 })
 
@@ -1085,6 +1086,18 @@ async function handleMemberSelfAbsent(member) {
     await detailTournament(id)
   } catch (error) {
     toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi báo vắng.')
+  }
+}
+
+async function handleMemberAdminConfirm(member) {
+  try {
+    const participantId = member.participant_id ?? member.id
+    await ParticipantService.adminConfirmParticipant(id, participantId)
+    toast.success('Đã xác nhận VĐV thành công!')
+    if (member) member.is_confirmed = true
+    await detailTournament(id)
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi xác nhận VĐV.')
   }
 }
 

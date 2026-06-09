@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Enums\PaymentStatusEnum;
 use App\Events\SuperAdmin\MiniTournamentMemberAdded;
 use App\Helpers\ResponseHelper;
+use App\Enums\ClubMemberRole;
 use App\Models\MiniParticipant;
 use App\Models\MiniTournament;
 use App\Models\MiniParticipantPayment;
+use App\Models\Club\Club;
 use App\Http\Resources\MiniParticipantResource;
 use App\Jobs\SendPushJob;
 use App\Models\MiniTournamentStaff;
@@ -406,6 +408,11 @@ class MiniParticipantController extends Controller
      */
     public function adminConfirm($tournamentId, $participantId)
     {
+        $userId = Auth::id();
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
         $participant = MiniParticipant::with('miniTournament')->findOrFail($participantId);
 
         if ($participant->mini_tournament_id != $tournamentId) {
@@ -419,7 +426,42 @@ class MiniParticipantController extends Controller
             );
         }
 
-        $this->checkMaxPlayers($participant->miniTournament);
+        $miniTournament = $participant->miniTournament;
+
+        // === Kèo thuộc CLB: club staff hoặc organizer ===
+        if ($miniTournament->club_id) {
+            $club = Club::find($miniTournament->club_id);
+            if (!$club) {
+                return ResponseHelper::error('CLB không tồn tại', 404);
+            }
+
+            $clubMember = $club->activeMembers()->where('user_id', $userId)->first();
+            $isClubStaff = $clubMember && in_array(
+                $clubMember->role,
+                [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary],
+                true
+            );
+            $isTournamentOrganizer = $miniTournament->staff->contains(
+                fn ($staff) => (int) $staff->pivot->user_id === $userId
+                && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ORGANIZER
+            );
+
+            if (!$isClubStaff && !$isTournamentOrganizer) {
+                return ResponseHelper::error('Bạn không có quyền xác nhận VĐV cho kèo này', 403);
+            }
+        } else {
+            // === Kèo thường: chỉ organizer ===
+            $isOrganizer = $miniTournament->staff->contains(
+                fn ($staff) => (int) $staff->pivot->user_id === $userId
+                && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ORGANIZER
+            );
+
+            if (!$isOrganizer) {
+                return ResponseHelper::error('Chỉ organizer kèo đấu mới có quyền xác nhận VĐV', 403);
+            }
+        }
+
+        $this->checkMaxPlayers($miniTournament);
 
         $paymentStatus = PaymentStatusEnum::CONFIRMED;
         if ($participant->miniTournament->use_club_fund) {

@@ -46,8 +46,18 @@
                                 Xem hồ sơ
                             </button>
 
-                            <!-- Organizer actions: Check-in / Báo vắng cho VĐV -->
+                            <!-- Organizer actions: Confirm / Check-in / Báo vắng cho VĐV -->
                             <template v-if="isOrganizer">
+                                <button v-if="!props.member?.is_confirmed" @click="handleAdminConfirm"
+                                    class="w-full py-2.5 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition flex items-center justify-center gap-2 font-medium text-sm">
+                                    <CheckBadgeIcon class="w-5 h-5" />
+                                    Xác nhận VĐV
+                                </button>
+                                <div v-else
+                                    class="w-full py-2.5 px-4 rounded-lg bg-green-500 text-white flex items-center justify-center gap-2 font-medium text-sm cursor-default">
+                                    <CheckBadgeIcon class="w-5 h-5" />
+                                    Đã xác nhận
+                                </div>
                                 <button v-if="!props.member?.is_absent" @click="handleCheckIn" :disabled="props.member?.checked_in_at"
                                     class="w-full py-2.5 px-4 rounded-lg transition flex items-center justify-center gap-2 font-medium text-sm"
                                     :class="props.member?.checked_in_at ? 'bg-green-500 text-white cursor-default' : 'bg-[#D72D36] text-white hover:bg-red-700'">
@@ -104,7 +114,7 @@ const props = defineProps({
     isCurrentUserParticipant: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update:modelValue', 'view-profile', 'check-in', 'absent', 'self-check-in', 'self-absent'])
+const emit = defineEmits(['update:modelValue', 'view-profile', 'check-in', 'absent', 'self-check-in', 'self-absent', 'admin-confirm'])
 
 const isOpen = computed({
     get: () => props.modelValue,
@@ -221,6 +231,10 @@ const handleSelfCheckIn = () => {
 
 const handleSelfAbsent = () => {
     emit('self-absent', props.member)
+}
+
+const handleAdminConfirm = () => {
+    emit('admin-confirm', props.member)
 }
 </script>
 
