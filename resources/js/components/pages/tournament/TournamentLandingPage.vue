@@ -412,7 +412,7 @@ watch(tournament, () => {
   const ogImage = t.poster || ''
   const shareUrl = `${webBase}/${tournamentId.value}`
 
-  document.title = `${t.name} | PICKI`
+  document.title = 'PICKI'
   updateMeta('og:title', t.name)
   updateMeta('og:description', t.description || `Đăng ký tham gia giải đấu Pickleball ${t.name}`)
   updateMeta('og:type', 'website')

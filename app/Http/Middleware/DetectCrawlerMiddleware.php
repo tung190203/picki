@@ -28,8 +28,6 @@ class DetectCrawlerMiddleware
         'bingbot',
         'Discordbot',
         'Applebot',
-        // Zalo
-        'zalo',
     ];
 
     public function handle(Request $request, Closure $next): Response

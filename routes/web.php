@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\MetaPreviewController;
-use App\Http\Controllers\OpenAppLinkController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
 
@@ -38,11 +37,6 @@ Route::middleware('crawler')->group(function () {
     Route::get('/mini-match/{id}/verify', [MetaPreviewController::class, 'miniMatch'])->where('id', '[0-9]+');
     Route::get('/clubs/{clubId}/activities/{activityId}', [MetaPreviewController::class, 'clubActivity'])
         ->where(['clubId' => '[0-9]+', 'activityId' => '[0-9]+']);
-    // Open App Link OG meta for Zalo / social media link previews
-    Route::get('/l/tournament/{id}', [OpenAppLinkController::class, 'tournament']);
-    Route::get('/l/mini_tournament/{id}', [OpenAppLinkController::class, 'miniTournament']);
-    Route::get('/l/club/{id}', [OpenAppLinkController::class, 'club']);
-    Route::get('/l/profile/{id}', [OpenAppLinkController::class, 'profile']);
 });
 
 /*
