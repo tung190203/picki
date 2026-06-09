@@ -448,14 +448,28 @@
                     </div>
                 </div>
 
-                <!-- Liên kết Zalo -->
+                <!-- Liên kết -->
                 <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
                     <h3 class="font-bold text-[#838799] text-[14px] uppercase tracking-wide mb-4">Liên kết</h3>
-                    <div>
-                        <p class="text-sm text-gray-600 font-medium block mb-1">Link Zalo</p>
-                        <input v-model="zaloLink" type="url"
-                            placeholder="https://zalo.me/..."
-                            class="w-full px-3 py-2 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]" />
+                    <div class="space-y-3">
+                        <div>
+                            <p class="text-sm text-gray-600 font-medium block mb-1">Link Zalo</p>
+                            <input v-model="zaloLink" type="url"
+                                placeholder="https://zalo.me/..."
+                                class="w-full px-3 py-2 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]" />
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600 font-medium block mb-1">Số điện thoại chính <span class="text-red-500">*</span></p>
+                            <input v-model="mainPhone" type="tel"
+                                placeholder="0909 xxx xxx"
+                                class="w-full px-3 py-2 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]" />
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600 font-medium block mb-1">Số điện thoại phụ</p>
+                            <input v-model="subPhone" type="tel"
+                                placeholder="0909 xxx xxx"
+                                class="w-full px-3 py-2 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]" />
+                        </div>
                     </div>
                 </div>
 
@@ -957,6 +971,8 @@ const qrCodePreview = ref(null)
 const qrCodeFile = ref(null) // File object for upload
 const useCachedQr = ref(false)
 const zaloLink = ref('')
+const mainPhone = ref('')
+const subPhone = ref('')
 const isSubmitting = ref(false)
 const qrFileInput = ref(null)
 
@@ -1412,6 +1428,12 @@ const applyTemplate = (template) => {
     if (s.zalo_link !== undefined) {
         zaloLink.value = s.zalo_link || ''
     }
+    if (s.main_phone !== undefined) {
+        mainPhone.value = s.main_phone || ''
+    }
+    if (s.sub_phone !== undefined) {
+        subPhone.value = s.sub_phone || ''
+    }
 
     // CLB fund options
     if (s.club_id !== undefined && s.club_id !== null) {
@@ -1764,6 +1786,8 @@ const buildTemplateSettings = () => {
         fee_description: paymentNote.value || null,
         qr_code_url: qrCodeImage.value || null,
         zalo_link: zaloLink.value || null,
+        main_phone: mainPhone.value || null,
+        sub_phone: subPhone.value || null,
         ...(selectedClubId.value ? {
             use_club_fund: useClubFund.value,
             included_in_club_fund: includedInClubFund.value,
@@ -1914,6 +1938,8 @@ const handleSubmit = async () => {
             fee_description: paymentNote.value || null,
             fee_amount: hasFee.value ? feeAmount.value : null,
             zalo_link: zaloLink.value || null,
+            main_phone: mainPhone.value || null,
+            sub_phone: subPhone.value || null,
             ...(selectedClubId.value ? {
                 use_club_fund: useClubFund.value,
                 included_in_club_fund: includedInClubFund.value,
@@ -2130,6 +2156,8 @@ const prefillForm = (data) => {
     qrCodePreview.value = data?.qr_code_url || null;
     qrCodeImage.value = data?.qr_code_url || null;
     zaloLink.value = data?.zalo_link || '';
+    mainPhone.value = data?.main_phone || '';
+    subPhone.value = data?.sub_phone || '';
     feeAmount.value = data?.fee_amount || 0;
     if (feeAmount.value) {
         formattedFeeAmount.value = feeAmount.value.toLocaleString('vi-VN');
