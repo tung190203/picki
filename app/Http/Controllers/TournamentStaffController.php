@@ -34,7 +34,6 @@ class TournamentStaffController extends Controller
 
         $tournament->staff()->attach($userId, [
             'role' => TournamentStaff::ROLE_ORGANIZER,
-            'is_invite_by_organizer' => true
         ]);
 
         $staffUser = User::find($userId);
@@ -77,7 +76,6 @@ class TournamentStaffController extends Controller
 
         $tournament->staff()->attach($userId, [
             'role' => TournamentStaff::ROLE_REFEREE,
-            'is_invite_by_organizer' => true
         ]);
 
         return ResponseHelper::success(null, 'Thêm trọng tài thành công', 201);

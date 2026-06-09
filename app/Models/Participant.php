@@ -14,7 +14,6 @@ class Participant extends Model
         'tournament_id',
         'user_id',
         'is_confirmed',
-        'is_invite_by_organizer',
         'is_guest',
         'guest_name',
         'guest_phone',

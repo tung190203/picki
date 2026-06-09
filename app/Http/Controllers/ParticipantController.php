@@ -62,8 +62,8 @@ class ParticipantController extends Controller
         ]);
         $tournament = Tournament::findOrFail($tournamentId);
 
-        $participantsIds = Participant::where('tournament_id', $tournamentId)->where('is_invite_by_organizer', true)->pluck('user_id');
-        $tournamentStaffIds = $tournament->staff()->where('is_invite_by_organizer', true)->pluck('user_id');
+        $participantsIds = Participant::where('tournament_id', $tournamentId)->pluck('user_id');
+        $tournamentStaffIds = $tournament->staff()->pluck('user_id');
         $createId = $tournament->created_by;
 
         $listIds = array_values(
@@ -377,9 +377,6 @@ class ParticipantController extends Controller
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền xác nhận người tham gia này', 403);
         }
-        if ($participant->is_invite_by_organizer == 1) {
-            return ResponseHelper::error('Chỉ người được mời mới có thể xác nhận yêu cầu này', 403);
-        }
         if ($participant->is_confirmed) {
             return ResponseHelper::error('Người tham gia đã được xác nhận', 400);
         }
@@ -582,7 +579,6 @@ class ParticipantController extends Controller
                 'self_confirmed' => !$isSuperAdmin,
                 'created_at' => now(),
                 'updated_at' => now(),
-                'is_invite_by_organizer' => true,
                 'payment_status' => $paymentStatus,
             ];
         }, $newUserIds);

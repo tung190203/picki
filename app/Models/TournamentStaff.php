@@ -13,7 +13,6 @@ class TournamentStaff extends Model
         'tournament_id',
         'user_id',
         'role',
-        'is_invite_by_organizer',
         'checked_in_at',
         'is_absent',
     ];
