@@ -54,6 +54,8 @@ class Tournament extends Model
         'auto_payment_created',
         'cancelled_reason',
         'zalo_link',
+        'main_phone',
+        'sub_phone',
     ];
 
     protected $casts = [

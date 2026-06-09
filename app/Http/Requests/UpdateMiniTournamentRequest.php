@@ -141,6 +141,8 @@ class UpdateMiniTournamentRequest extends FormRequest
             'invite_user' => 'nullable|array',
             'invite_user.*' => 'distinct|exists:users,id',
             'zalo_link' => 'nullable|url',
+            'main_phone' => 'sometimes|string|max:20|regex:/^[0-9\+\-\s\(\)]+$/',
+            'sub_phone' => 'nullable|string|max:20|regex:/^[0-9\+\-\s\(\)]+$/',
         ];
 
         // Custom validation: if has_fee is true, require fee_amount
@@ -248,7 +250,7 @@ class UpdateMiniTournamentRequest extends FormRequest
             'min_rating', 'max_rating', 'fee_description', 'description',
             'payment_account_id', 'competition_location_id', 'end_time',
             'set_number', 'base_points', 'points_difference', 'max_points',
-            'cancellation_duration',
+            'cancellation_duration', 'main_phone', 'sub_phone',
         ];
         $normalized = [];
         foreach ($nullableKeys as $key) {
@@ -449,6 +451,14 @@ class UpdateMiniTournamentRequest extends FormRequest
             'invite_user.array' => 'Danh sách người được mời không hợp lệ',
             'invite_user.*.distinct' => 'Danh sách người được mời chứa người bị trùng lặp',
             'invite_user.*.exists' => 'Người dùng được mời không tồn tại trong hệ thống',
+
+            // Số điện thoại
+            'main_phone.string' => 'Số điện thoại chính phải là chuỗi ký tự',
+            'main_phone.max' => 'Số điện thoại chính không được vượt quá 20 ký tự',
+            'main_phone.regex' => 'Số điện thoại chính không hợp lệ',
+            'sub_phone.string' => 'Số điện thoại phụ phải là chuỗi ký tự',
+            'sub_phone.max' => 'Số điện thoại phụ không được vượt quá 20 ký tự',
+            'sub_phone.regex' => 'Số điện thoại phụ không hợp lệ',
         ];
     }
 }
