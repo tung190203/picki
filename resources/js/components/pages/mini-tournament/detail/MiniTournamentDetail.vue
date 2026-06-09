@@ -50,6 +50,7 @@ import {
     markMiniParticipantAbsent,
     selfCheckInMini,
     selfMarkAbsentMini,
+    adminConfirmMiniParticipant,
 } from '@/service/miniParticipant.js'
 
 export default {
@@ -430,6 +431,18 @@ export default {
                 await detailMiniTournament(id)
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi báo vắng.')
+            }
+        }
+
+        const handleMemberAdminConfirm = async (member) => {
+            try {
+                const participantId = member.participant_id ?? member.id
+                await adminConfirmMiniParticipant(id, participantId)
+                toast.success('Đã xác nhận VĐV thành công!')
+                if (member) member.is_confirmed = true
+                await detailMiniTournament(id)
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi xác nhận VĐV.')
             }
         }
 

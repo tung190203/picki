@@ -437,6 +437,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{id}/payments/remind-all', [TournamentPaymentController::class, 'remindAll']);
         Route::get('/{id}/fund-collection', [TournamentPaymentController::class, 'fundCollection']);
         Route::post('/{id}/lock-fee', [TournamentController::class, 'lockFee']);
+        Route::post('/{id}/participants/{participantId}/admin-confirm', [ParticipantController::class, 'adminConfirm']);
     });
 
     Route::prefix('tournament-staff')->group(function () {
@@ -693,6 +694,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{tournamentId}/recurrence-series/cancel', [MiniTournamentController::class, 'cancelRecurrenceSeries']);
         Route::post('/{miniTournamentId}/participants/{participantId}/mark-check-in', [MiniTournamentController::class, 'markParticipantCheckIn']);
         Route::post('/{miniTournamentId}/participants/{participantId}/mark-absent', [MiniTournamentController::class, 'markParticipantAbsent']);
+        Route::post('/{miniTournamentId}/participants/{participantId}/admin-confirm', [MiniParticipantController::class, 'adminConfirm']);
         Route::get('/{id}', [MiniTournamentController::class, 'show'])->whereNumber('id');
         Route::post('/update/{id}', [MiniTournamentController::class, 'update']);
         Route::post('/delete/{id}', [MiniTournamentController::class,'destroy']);
@@ -747,6 +749,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/self/check-in/{miniTournamentId}', [MiniParticipantController::class, 'selfCheckIn']);
         Route::post('/self/absent/{miniTournamentId}', [MiniParticipantController::class, 'selfMarkAbsent']);
         Route::post('/auto-invite-area/{tournamentId}', [MiniParticipantController::class, 'autoInviteArea']);
+        Route::post('/{miniTournamentId}/participants/{participantId}/admin-confirm', [MiniParticipantController::class, 'adminConfirm']);
     });
     // Mini Match Routes
     Route::prefix('mini-matches')->group(function (): void {

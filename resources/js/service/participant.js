@@ -72,3 +72,8 @@ export const selfMarkAbsentTournament = async (tournamentId) => {
     return axiosInstance.post(`/tournaments/${tournamentId}/self/absent`)
         .then(r => r.data);
 };
+
+export const adminConfirmParticipant = async (tournamentId, participantId) => {
+    return axiosInstance.post(`/tournaments/${tournamentId}/participants/${participantId}/admin-confirm`)
+        .then(r => r.data);
+};

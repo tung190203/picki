@@ -81,12 +81,6 @@ class TournamentResource extends JsonResource
             'is_joined' => $this->whenLoaded('participants') && auth()->check()
                 ? ($this->participants?->contains('user_id', auth()->id()) ?? false)
                 : false,
-            'is_confirmed_by_organizer' => $this->whenLoaded('participants') && auth()->check()
-                ? (bool) ($this->participants?->firstWhere('user_id', auth()->id())?->is_confirmed ?? false)
-                : false,
-            'is_invite_by_organizer' => $this->whenLoaded('participants') && auth()->check()
-                ? (bool) ($this->participants?->firstWhere('user_id', auth()->id())?->is_invite_by_organizer ?? false)
-                : false,
             'my_tournament_stats' => $this->whenLoaded('participants', function () {
                 $participant = $this->participants?->firstWhere('user_id', auth()->id());
                 if (!$participant) {
