@@ -131,7 +131,7 @@ const cardRef = ref(null)
 const copySuccess = ref(false)
 
 const canNativeShare = computed(() => typeof navigator !== 'undefined' && !!navigator.share)
-const webShareUrl = 'https://picki.vn/mini-tournament'
+const webShareUrl = 'https://picki.vn/mini-tournament-detail'
 
 const statusText = computed(() => {
   if (!props.mini) return ''
@@ -144,10 +144,7 @@ const statusText = computed(() => {
 })
 
 const shareUrl = computed(() => {
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-  const base = isMobile
-    ? `${window.location.origin}/l/mini_tournament`
-    : webShareUrl
+  const base = webShareUrl
   return `${base}/${props.mini?.id}`
 })
 

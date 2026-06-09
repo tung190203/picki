@@ -852,7 +852,7 @@ export default {
             const ogImage = m.poster || ''
             const shareUrl = `https://picki.vn/mini-tournament/${id}`
 
-            document.title = `${m.name} | PICKI`
+            document.title = 'PICKI'
             updateMeta('og:title', m.name)
             updateMeta('og:description', m.description || `Tham gia kèo đấu Pickleball ${m.name}`)
             updateMeta('og:type', 'website')

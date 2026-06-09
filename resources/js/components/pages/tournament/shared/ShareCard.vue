@@ -131,7 +131,7 @@ const cardRef = ref(null)
 const copySuccess = ref(false)
 
 const canNativeShare = computed(() => typeof navigator !== 'undefined' && !!navigator.share)
-const webShareUrl = 'https://picki.vn/tournament-landing'
+const webShareUrl = 'https://picki.vn/tournament-detail'
 
 const registrationStatus = computed(() => {
   if (!props.tournament) return ''
@@ -144,10 +144,7 @@ const registrationStatus = computed(() => {
 })
 
 const shareUrl = computed(() => {
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-  const base = isMobile
-    ? `${window.location.origin}/l/tournament`
-    : webShareUrl
+  const base = webShareUrl
   return `${base}/${props.tournament?.id}`
 })
 
