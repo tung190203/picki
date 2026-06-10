@@ -79,3 +79,38 @@ export const TYPE_OF_TOURNAMENT_LABEL = {
   DOUBLE: 'Đôi',
   MIXED: 'Hỗn hợp',
 };
+
+export const MATCH_FORMAT = {
+  STANDARD: 'standard',
+  PARTNER_ROTATION: 'partner_rotation',
+  MIXED_GENDER: 'mixed_gender',
+  RANK_PAIRING: 'rank_pairing',
+};
+
+export const MATCH_FORMAT_LABEL = {
+  standard: 'Tiêu chuẩn',
+  partner_rotation: 'Xoay vòng partner',
+  mixed_gender: 'Mix nam nữ',
+  rank_pairing: 'Ghép hạng A/B',
+};
+
+export const MATCH_FORMAT_DESC = {
+  standard: '1 trận duy nhất',
+  partner_rotation: 'Mỗi người ghép cặp với tất cả người khác đúng 1 lần',
+  mixed_gender: 'Mỗi nam ghép cặp với mỗi nữ. BXH cá nhân.',
+  rank_pairing: 'Mỗi A ghép cặp với mỗi B. BXH riêng theo hạng.',
+};
+
+export const SESSION_STATUS = {
+  PENDING_GROUP: 'pending_group',
+  READY: 'ready',
+  ONGOING: 'ongoing',
+  FINISHED: 'finished',
+};
+
+export const SESSION_STATUS_LABEL = {
+  pending_group: 'Chờ phân nhóm',
+  ready: 'Sẵn sàng',
+  ongoing: 'Đang đấu',
+  finished: 'Đã kết thúc',
+};

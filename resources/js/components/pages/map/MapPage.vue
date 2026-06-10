@@ -78,25 +78,6 @@
                             </p>
                         </div>
 
-                        <!-- Match sub-tabs (only for match tab) -->
-                        <div v-if="activeTab === 'mini-tournament'" class="grid grid-cols-2 gap-2">
-                            <button @click="activeMatchTab = 'mini'" :class="[
-                                'py-1.5 text-sm font-medium rounded transition-colors',
-                                activeMatchTab === 'mini'
-                                    ? 'bg-red-50 text-[#D72D36] border border-[#D72D36]'
-                                    : 'text-gray-500 hover:bg-gray-50 border'
-                            ]">
-                                Kèo đấu
-                            </button>
-                            <button @click="activeMatchTab = 'tournament'" :class="[
-                                'py-1.5 text-sm font-medium rounded transition-colors',
-                                activeMatchTab === 'tournament'
-                                    ? 'bg-red-50 text-[#D72D36] border border-[#D72D36]'
-                                    : 'text-gray-500 hover:bg-gray-50 border'
-                            ]">
-                                Giải đấu
-                            </button>
-                        </div>
                     </div>
 
                     <div class="px-4 pt-3 pb-2">

@@ -59,6 +59,9 @@ class MiniTournament extends Model
         'zalo_link',
         'main_phone',
         'sub_phone',
+        'match_format',
+        'session_status',
+        'scheduled_court_count',
     ];
 
     protected $casts = [
@@ -69,6 +72,7 @@ class MiniTournament extends Model
         'included_in_club_fund' => 'bool',
         'fee_amount' => 'integer',
         'enable_dupr' => 'bool',
+        'scheduled_court_count' => 'integer',
     ];
 
     const PER_PAGE = 15;
@@ -134,6 +138,18 @@ class MiniTournament extends Model
 
     const AUTO_SPLIT_FALSE = false;
     const AUTO_SPLIT_TRUE = true;
+
+    // Match Format constants (Round Robin session)
+    const MATCH_FORMAT_STANDARD = 'standard';
+    const MATCH_FORMAT_PARTNER_ROTATION = 'partner_rotation';
+    const MATCH_FORMAT_MIXED_GENDER = 'mixed_gender';
+    const MATCH_FORMAT_RANK_PAIRING = 'rank_pairing';
+
+    // Session Status constants
+    const SESSION_STATUS_PENDING_GROUP = 'pending_group';
+    const SESSION_STATUS_READY = 'ready';
+    const SESSION_STATUS_ONGOING = 'ongoing';
+    const SESSION_STATUS_FINISHED = 'finished';
 
     // Gender constants
     public function getGenderTextAttribute(): string
@@ -1054,5 +1070,30 @@ class MiniTournament extends Model
         }
 
         return $nextDate;
+    }
+
+    public function scopeWhereMatchFormat($query, string $format)
+    {
+        return $query->where('match_format', $format);
+    }
+
+    public function scopeWhereSessionStatus($query, string $status)
+    {
+        return $query->where('session_status', $status);
+    }
+
+    public function scopeWhereSessionActive($query)
+    {
+        return $query->whereIn('session_status', [
+            self::SESSION_STATUS_PENDING_GROUP,
+            self::SESSION_STATUS_READY,
+            self::SESSION_STATUS_ONGOING,
+            self::SESSION_STATUS_FINISHED,
+        ]);
+    }
+
+    public function scopeWhereNotStandard($query)
+    {
+        return $query->where('match_format', '!=', self::MATCH_FORMAT_STANDARD);
     }
 }
