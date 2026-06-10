@@ -875,6 +875,48 @@ class MiniTournamentController extends Controller
     }
 
     /**
+     * Organizer chuyển session partner_rotation từ pending_group sang ready.
+     * Mixed_gender và rank_pairing tự động chuyển qua updatePlayerGroup.
+     */
+    public function markReady(int $id)
+    {
+        $userId = Auth::id();
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        $miniTournament = MiniTournament::findOrFail($id);
+
+        if (!$miniTournament->hasOrganizer($userId)) {
+            return ResponseHelper::error('Chỉ organizer kèo đấu mới có quyền thực hiện', 403);
+        }
+
+        if ($miniTournament->match_format !== MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
+            return ResponseHelper::error('markReady chỉ áp dụng cho thể thức Xoay vòng partner', 422);
+        }
+
+        if ($miniTournament->session_status !== MiniTournament::SESSION_STATUS_PENDING_GROUP) {
+            return ResponseHelper::error('Session không ở trạng thái chờ phân nhóm', 422);
+        }
+
+        $count = $miniTournament->participants()
+            ->where('is_confirmed', true)
+            ->where('is_absent', false)
+            ->count();
+
+        if ($count < 6 || $count > 8) {
+            return ResponseHelper::error("Xoay vòng partner cần 6-8 người đã xác nhận, hiện tại có {$count} người", 422);
+        }
+
+        $miniTournament->update(['session_status' => MiniTournament::SESSION_STATUS_READY]);
+
+        return ResponseHelper::success(
+            ['session_status' => MiniTournament::SESSION_STATUS_READY],
+            'Đã chuyển session sang trạng thái sẵn sàng'
+        );
+    }
+
+    /**
      * Bắt đầu session Round Robin và sinh lịch đấu tự động (organizer only).
      */
     public function startSession(Request $request, int $id)
@@ -999,8 +1041,19 @@ class MiniTournamentController extends Controller
         }
 
         $grouped = $matches->groupBy('round_number')->map(function ($roundMatches, $roundNumber) {
+            $completedCount = $roundMatches->where('status', MiniMatch::STATUS_COMPLETED)->count();
+            $totalCount = $roundMatches->count();
+
+            $status = 'upcoming';
+            if ($completedCount === $totalCount) {
+                $status = 'done';
+            } elseif ($completedCount > 0) {
+                $status = 'active';
+            }
+
             return [
                 'round_number' => (int) $roundNumber,
+                'status' => $status,
                 'matches' => $roundMatches->map(function ($match) {
                     return [
                         'id' => $match->id,
@@ -1018,8 +1071,8 @@ class MiniTournamentController extends Controller
                         'is_bye' => $match->is_bye,
                     ];
                 })->values(),
-                'completed_count' => $roundMatches->where('status', MiniMatch::STATUS_COMPLETED)->count(),
-                'total_count' => $roundMatches->count(),
+                'completed_count' => $completedCount,
+                'total_count' => $totalCount,
             ];
         })->sortBy('round_number')->values();
 

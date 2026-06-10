@@ -315,6 +315,7 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
 
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
+            Route::post('/mini-tournaments/{miniTournamentId}/mark-ready', [ClubMiniTournamentController::class, 'markReady']);
 
             Route::prefix('tournaments')->group(function () {
                 Route::get('/', [ClubTournamentController::class, 'index']);
@@ -698,6 +699,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
 
         // Round Robin session endpoints
         Route::put('/{id}/player-group', [MiniTournamentController::class, 'updatePlayerGroup']);
+        Route::post('/{id}/mark-ready', [MiniTournamentController::class, 'markReady']);
         Route::post('/{id}/start-session', [MiniTournamentController::class, 'startSession']);
         Route::get('/{id}/schedule', [MiniTournamentController::class, 'getSchedule']);
         Route::get('/{id}/leaderboard', [MiniTournamentController::class, 'getLeaderboard']);

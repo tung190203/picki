@@ -10,6 +10,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatusEnum;
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\MiniTournamentController;
 use App\Http\Requests\StoreMiniTournamentRequest;
 use App\Http\Requests\UpdateMiniTournamentRequest;
 use App\Http\Resources\MiniParticipantResource;
@@ -309,6 +310,17 @@ class ClubMiniTournamentController extends Controller
 
         $miniTournament->update($data);
 
+        // Auto-set session_status when match_format is set/changed (non-standard formats only)
+        if (isset($data['match_format']) && $data['match_format'] !== \App\Models\MiniTournament::MATCH_FORMAT_STANDARD) {
+            $miniTournament->update([
+                'session_status' => \App\Models\MiniTournament::SESSION_STATUS_PENDING_GROUP,
+            ]);
+        } elseif (isset($data['match_format']) && $data['match_format'] === \App\Models\MiniTournament::MATCH_FORMAT_STANDARD) {
+            $miniTournament->update([
+                'session_status' => null,
+            ]);
+        }
+
         $imageService = app(ImageOptimizationService::class);
 
         $posterFile = $request->file('poster');
@@ -496,5 +508,57 @@ class ClubMiniTournamentController extends Controller
         } catch (\Exception $e) {
             return ResponseHelper::error('Có lỗi xảy ra khi hủy chuỗi kèo đấu', 403);
         }
+    }
+
+    /**
+     * Organizer chuyển session partner_rotation từ pending_group sang ready.
+     */
+    public function markReady(int $clubId, int $miniTournamentId)
+    {
+        $club = Club::find($clubId);
+        if (!$club) {
+            return ResponseHelper::error('CLB không tồn tại', 404);
+        }
+
+        $miniTournament = MiniTournament::find($miniTournamentId);
+        if (!$miniTournament || (int) $miniTournament->club_id !== $club->id) {
+            return ResponseHelper::error('Kèo đấu không tồn tại hoặc không thuộc CLB này', 404);
+        }
+
+        $userId = Auth::id();
+        $member = $club->activeMembers()->where('user_id', $userId)->first();
+        $isClubStaff = $member && in_array($member->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary], true);
+        $isTournamentOrganizer = $miniTournament->staff->contains(
+            fn($staff) => (int) $staff->pivot->user_id === $userId
+                && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ORGANIZER
+        );
+
+        if (!$isClubStaff && !$isTournamentOrganizer) {
+            return ResponseHelper::error('Bạn không có quyền thực hiện thao tác này', 403);
+        }
+
+        if ($miniTournament->match_format !== MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
+            return ResponseHelper::error('markReady chỉ áp dụng cho thể thức Xoay vòng partner', 422);
+        }
+
+        if ($miniTournament->session_status !== MiniTournament::SESSION_STATUS_PENDING_GROUP) {
+            return ResponseHelper::error('Session không ở trạng thái chờ phân nhóm', 422);
+        }
+
+        $count = $miniTournament->participants()
+            ->where('is_confirmed', true)
+            ->where('is_absent', false)
+            ->count();
+
+        if ($count < 6 || $count > 8) {
+            return ResponseHelper::error("Xoay vòng partner cần 6-8 người đã xác nhận, hiện tại có {$count} người", 422);
+        }
+
+        $miniTournament->update(['session_status' => MiniTournament::SESSION_STATUS_READY]);
+
+        return ResponseHelper::success(
+            ['session_status' => MiniTournament::SESSION_STATUS_READY],
+            'Đã chuyển session sang trạng thái sẵn sàng'
+        );
     }
 }

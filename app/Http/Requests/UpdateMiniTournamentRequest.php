@@ -125,6 +125,9 @@ class UpdateMiniTournamentRequest extends FormRequest
             // Gender
             'gender' => 'sometimes|integer|in:' . implode(',', MiniTournament::GENDER),
 
+            // Match format
+            'match_format' => 'nullable|in:standard,partner_rotation,mixed_gender,rank_pairing',
+
             // Additional fields
             'apply_rule' => 'boolean',
             'allow_cancellation' => 'boolean',
