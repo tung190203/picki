@@ -18,6 +18,7 @@ use App\Models\VnduprHistory;
 use App\Notifications\MiniMatchCreatedNotification;
 use App\Notifications\MiniMatchResultConfirmedNotification;
 use App\Notifications\MiniMatchUpdatedNotification;
+use App\Services\RoundRobinSchedulerService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -573,6 +574,7 @@ class MiniMatchController extends Controller
 
             if ($match->team1_confirm && $match->team2_confirm) {
                 $this->processMatchCompletion($match, $sportId);
+                $this->checkSessionCompletion($match);
             }
 
             $match->save();
@@ -648,6 +650,40 @@ class MiniMatchController extends Controller
             new MiniMatchResource($result->refresh()),
             'Xác nhận kết quả thành công'
         );
+    }
+
+    /**
+     * Kiểm tra và tự động kết thúc session khi tất cả trận đã đánh xong.
+     */
+    private function checkSessionCompletion(MiniMatch $match): void
+    {
+        if ($match->round_number === null) {
+            return;
+        }
+
+        $miniTournament = $match->miniTournament;
+        if ($miniTournament->session_status !== MiniTournament::SESSION_STATUS_ONGOING) {
+            return;
+        }
+
+        $format = $miniTournament->match_format;
+        if ($format === MiniTournament::MATCH_FORMAT_STANDARD) {
+            return;
+        }
+
+        // Lấy tất cả trận có round_number
+        $totalMatches = MiniMatch::where('mini_tournament_id', $miniTournament->id)
+            ->whereNotNull('round_number')
+            ->count();
+
+        $completedMatches = MiniMatch::where('mini_tournament_id', $miniTournament->id)
+            ->whereNotNull('round_number')
+            ->where('status', MiniMatch::STATUS_COMPLETED)
+            ->count();
+
+        if ($totalMatches > 0 && $totalMatches === $completedMatches) {
+            $miniTournament->update(['session_status' => MiniTournament::SESSION_STATUS_FINISHED]);
+        }
     }
 
     private function validateAllSets($match, $tournament)

@@ -65,6 +65,31 @@
                                     {{ [mini.play_mode_text, mini.format_text].filter(Boolean).join(' • ') }}
                                 </span>
                             </div>
+
+                            <!-- Contact Info -->
+                            <div v-if="mini.zalo_link || mini.main_phone || mini.sub_phone" class="space-y-2 pt-2 border-t border-gray-100">
+                                <p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Liên hệ</p>
+                                <div v-if="mini.zalo_link" class="flex items-center gap-2">
+                                    <a :href="mini.zalo_link" target="_blank" rel="noopener noreferrer"
+                                        class="text-blue-600 text-sm font-medium hover:underline truncate">
+                                        Link Zalo
+                                    </a>
+                                </div>
+                                <div v-if="mini.main_phone" class="flex items-center gap-2">
+                                    <a :href="'tel:' + mini.main_phone"
+                                        class="text-gray-800 text-sm font-medium hover:text-red-600 transition-colors">
+                                        {{ mini.main_phone }}
+                                        <span class="text-xs text-gray-400 ml-1">(chính)</span>
+                                    </a>
+                                </div>
+                                <div v-if="mini.sub_phone" class="flex items-center gap-2">
+                                    <a :href="'tel:' + mini.sub_phone"
+                                        class="text-gray-800 text-sm font-medium hover:text-red-600 transition-colors">
+                                        {{ mini.sub_phone }}
+                                        <span class="text-xs text-gray-400 ml-1">(phụ)</span>
+                                    </a>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Info boxes -->
@@ -391,7 +416,7 @@
 
                     <!-- Tab 3 -->
                     <div v-else-if="activeTab === 'matches'" key="matches">
-                        <MiniMatchScheduleTab :isCreator="isCreator" :data="mini" :sportId="mini?.sport?.id"/>
+                        <MiniMatchScheduleTab :isCreator="isCreator" :data="mini" :sportId="mini?.sport?.id" @select-format="onSelectMatchFormat"/>
                     </div>
 
                     <!-- Tab 4 -->

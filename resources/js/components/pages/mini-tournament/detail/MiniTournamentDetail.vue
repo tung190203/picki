@@ -454,6 +454,18 @@ export default {
             await detailMiniTournament(id);
         };
 
+        const onSelectMatchFormat = async (format) => {
+            try {
+                const update = await baseSetColumnUpdateMiniTournament()
+                update.match_format = format
+                await updateMiniTournament(mini.value.id, update)
+                mini.value.match_format = format
+                toast.success('Đã chọn thể thức thi đấu!')
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Không thể chọn thể thức.')
+            }
+        };
+
         const getPaymentStatusBadgeClass = (status) => {
             switch(status) {
                 case 'confirmed':
@@ -1022,6 +1034,7 @@ export default {
             isGuestSectionFull,
             handlePaymentSubmitSuccess,
             handleAddGuestSuccess,
+            onSelectMatchFormat,
             getPaymentStatusBadgeClass,
             getPaymentStatusLabel,
             canShowPaymentButton,
@@ -1037,6 +1050,7 @@ export default {
             handleMemberAbsent,
             handleMemberSelfCheckIn,
             handleMemberSelfAbsent,
+            handleMemberAdminConfirm,
             isCurrentUserParticipant,
             competitionLocation: computed(() => mini.value?.competition_location ?? null),
             tournamentMaxPlayers: computed(() => mini.value?.max_players ?? null),

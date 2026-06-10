@@ -95,6 +95,12 @@ export const useUserStore = defineStore("user", () => {
     return AuthService.detailUser(id)
   }
 
+  const fetchMe = async () => {
+    const data = await AuthService.getMe();
+    fillUserData(data);
+    return data;
+  }
+
   return {
     getUser,
     getRole,
@@ -109,6 +115,7 @@ export const useUserStore = defineStore("user", () => {
     fillPassword,
     verifyOtpPassword,
     resendOtpPassword,
-    detailUser
+    detailUser,
+    fetchMe
   }  
 });

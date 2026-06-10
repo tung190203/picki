@@ -23,6 +23,10 @@ class MiniMatch extends Model
         'team2_confirm',
         'name',
         'note',
+        'round_number',
+        'is_bye',
+        'team_1_score',
+        'team_2_score',
     ];
 
     const PER_PAGE = 10;
@@ -30,6 +34,16 @@ class MiniMatch extends Model
     const STATUS_PENDING = 'pending';
     const STATUS_COMPLETED = 'completed';
     const STATUS_DISPUTED = 'disputed';
+
+    // Round-based match status
+    const STATUS_ROUND_PENDING = 'round_pending';
+    const STATUS_ROUND_PLAYING = 'round_playing';
+
+    protected $casts = [
+        'is_bye' => 'boolean',
+        'team_1_score' => 'integer',
+        'team_2_score' => 'integer',
+    ];
 
     public function participant1()
     {
@@ -227,5 +241,21 @@ class MiniMatch extends Model
             $q->select('*')
                 ->whereRaw("$haversine < ?", [$radiusKm]);
         });
+    }
+
+    public function scopeWhereRound($query, int $round)
+    {
+        return $query->where('round_number', $round);
+    }
+
+    public function scopeWhereRoundNotNull($query)
+    {
+        return $query->whereNotNull('round_number');
+    }
+
+    public function scopeWhereRoundNotCompleted($query)
+    {
+        return $query->whereNotNull('round_number')
+            ->where('status', '!=', self::STATUS_COMPLETED);
     }
 }

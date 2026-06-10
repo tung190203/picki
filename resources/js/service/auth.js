@@ -51,3 +51,7 @@ export const detailUser = async (id) => {
 export const getUserData = async (params = {}) => {
   return axiosInstance.get(`${userEndpoint}/index`, { params }).then((response) => response.data);
 }
+
+export const getMe = async () => {
+  return axiosInstance.get('/me').then((response) => response.data.data);
+}

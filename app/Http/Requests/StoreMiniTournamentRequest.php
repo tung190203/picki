@@ -114,6 +114,9 @@ class StoreMiniTournamentRequest extends FormRequest
             'zalo_link' => 'nullable|url',
             'main_phone' => 'required|string|max:20|regex:/^[0-9\+\-\s\(\)]+$/',
             'sub_phone' => 'nullable|string|max:20|regex:/^[0-9\+\-\s\(\)]+$/',
+
+            // Match format (Round Robin session)
+            'match_format' => 'nullable|in:standard,partner_rotation,mixed_gender,rank_pairing',
         ];
 
             // Custom validation: if has_fee is true, require fee_amount
@@ -133,6 +136,14 @@ class StoreMiniTournamentRequest extends FormRequest
             $rules['base_points'] = 'required|integer|min:11';
             $rules['points_difference'] = 'required|integer|min:1';
             $rules['max_points'] = 'required|integer|min:11';
+        }
+
+        // Custom validation: match_format conditional max_players
+        $matchFormat = $this->input('match_format');
+        if ($matchFormat === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
+            $rules['max_players'] = 'required|integer|min:6|max:8';
+        } elseif (in_array($matchFormat, [MiniTournament::MATCH_FORMAT_MIXED_GENDER, MiniTournament::MATCH_FORMAT_RANK_PAIRING])) {
+            $rules['max_players'] = 'required|integer|min:6|max:14';
         }
 
         return $rules;
@@ -315,6 +326,11 @@ class StoreMiniTournamentRequest extends FormRequest
             $this->merge(['included_in_club_fund' => false]);
         }
 
+        // Default match_format to 'standard'
+        if (!$this->has('match_format') || $this->input('match_format') === null || $this->input('match_format') === '') {
+            $this->merge(['match_format' => MiniTournament::MATCH_FORMAT_STANDARD]);
+        }
+
         $startTime = $this->input('start_time');
         $endTime = $this->input('end_time');
         $duration = $this->input('duration');
@@ -456,6 +472,8 @@ class StoreMiniTournamentRequest extends FormRequest
             'sub_phone.string' => 'Số điện thoại phụ phải là chuỗi ký tự',
             'sub_phone.max' => 'Số điện thoại phụ không được vượt quá 20 ký tự',
             'sub_phone.regex' => 'Số điện thoại phụ không hợp lệ',
+            // Match format
+            'match_format.in' => 'Thể thức thi đấu không hợp lệ (standard, partner_rotation, mixed_gender, rank_pairing)',
         ];
     }
 }
