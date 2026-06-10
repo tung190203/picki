@@ -695,6 +695,15 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{miniTournamentId}/participants/{participantId}/mark-check-in', [MiniTournamentController::class, 'markParticipantCheckIn']);
         Route::post('/{miniTournamentId}/participants/{participantId}/mark-absent', [MiniTournamentController::class, 'markParticipantAbsent']);
         Route::post('/{miniTournamentId}/participants/{participantId}/admin-confirm', [MiniParticipantController::class, 'adminConfirm']);
+
+        // Round Robin session endpoints
+        Route::put('/{id}/player-group', [MiniTournamentController::class, 'updatePlayerGroup']);
+        Route::post('/{id}/start-session', [MiniTournamentController::class, 'startSession']);
+        Route::get('/{id}/schedule', [MiniTournamentController::class, 'getSchedule']);
+        Route::get('/{id}/leaderboard', [MiniTournamentController::class, 'getLeaderboard']);
+        Route::post('/{id}/finish-session', [MiniTournamentController::class, 'finishSession']);
+        Route::post('/{id}/mark-absent-player', [MiniTournamentController::class, 'markAbsentPlayer']);
+
         Route::get('/{id}', [MiniTournamentController::class, 'show'])->whereNumber('id');
         Route::post('/update/{id}', [MiniTournamentController::class, 'update']);
         Route::post('/delete/{id}', [MiniTournamentController::class,'destroy']);

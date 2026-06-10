@@ -147,6 +147,8 @@ class MiniTournamentResource extends JsonResource
                 ? $participants->contains('user_id', auth()->id())
                 : false,
             'zalo_link' => $this->zalo_link,
+            'main_phone' => $this->main_phone,
+            'sub_phone' => $this->sub_phone,
         ];
 
         // Include game rule fields only if apply_rule is true

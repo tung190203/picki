@@ -8,8 +8,18 @@ import CreateMiniMatch from '@/components/molecules/create-mini-match/CreateMini
 import UpdateMiniMatch from '@/components/molecules/update-mini-match/UpdateMiniMatch.vue';
 import {toast} from "vue3-toastify";
 import * as MiniMatchService from '@/service/miniMatch.js';
-import {ChevronLeftIcon, ChevronRightIcon} from "@heroicons/vue/24/solid/index.js";
+import * as SessionService from '@/service/miniTournamentSession.js';
+import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/vue/24/solid/index.js";
 import DeleteConfirmationModal from '@/components/molecules/DeleteConfirmationModal.vue'
+import { SESSION_STATUS, MATCH_FORMAT } from '@/constants/index.js';
+import MiniTournamentLeaderboard from '@/components/molecules/MiniTournamentLeaderboard.vue';
+
+const SESSION_SUBTABS = [
+    { id: 'format', label: 'Thể thức' },
+    { id: 'group', label: 'Phân nhóm' },
+    { id: 'schedule', label: 'Lịch thi đấu' },
+    { id: 'leaderboard', label: 'BXH' },
+];
 
 
 export default {
@@ -20,7 +30,8 @@ export default {
         MiniMatchCard,
         CreateMiniMatch,
         UpdateMiniMatch,
-        DeleteConfirmationModal
+        DeleteConfirmationModal,
+        MiniTournamentLeaderboard,
     },
     props: {
         isCreator: {
@@ -37,7 +48,7 @@ export default {
         }
     },
 
-    emits: [],
+    emits: ['select-format'],
     setup(props, { emit }) {
         const tabs = TABS
         const subtabs = SUB_TABS
@@ -52,6 +63,16 @@ export default {
         const selectedMiniMatches = ref([])
         const showDeleteModal = ref(false)
         const detailData = ref({});
+
+        // Session state (Round Robin)
+        const sessionSchedule = ref([])
+        const sessionLeaderboardData = ref({})
+        const currentRound = ref(1)
+        const isLoadingSchedule = ref(false)
+        const playerGroups = ref({}) // participantId -> group
+        const showGroupModal = ref(false)
+        const isLoadingGroup = ref(false)
+        const sessionSubTab = ref('format')
 
         const confirmRemoval = () => {
             showDeleteModal.value = true;
@@ -281,6 +302,7 @@ export default {
         }
 
         watch(subActiveTab, () => {
+            if (props.data?.match_format && props.data.match_format !== MATCH_FORMAT.STANDARD) return
             pagination.value.current_page = 1
             selectedMiniMatches.value = []
 
@@ -308,6 +330,143 @@ export default {
             },
             { immediate: true }
         )
+
+        // Watch data changes to detect session-related fields
+        watch(() => props.data, async (newData) => {
+            if (newData) {
+                if (newData.match_format && newData.match_format !== MATCH_FORMAT.STANDARD) {
+                    await loadSessionSchedule(newData.id)
+                    await loadSessionLeaderboard(newData.id)
+                    // Init session sub-tab based on status
+                    if (newData.session_status === SESSION_STATUS.PENDING_GROUP) {
+                        sessionSubTab.value = 'group'
+                    } else if (newData.session_status === SESSION_STATUS.READY) {
+                        sessionSubTab.value = 'ready'
+                    } else if (newData.session_status === SESSION_STATUS.ONGOING) {
+                        sessionSubTab.value = 'schedule'
+                    } else if (newData.session_status === SESSION_STATUS.FINISHED) {
+                        sessionSubTab.value = 'leaderboard'
+                    }
+                }
+                if (newData.match_format === MATCH_FORMAT.MIXED_GENDER || newData.match_format === MATCH_FORMAT.RANK_PAIRING) {
+                    loadPlayerGroups(newData)
+                }
+            }
+        }, { immediate: true })
+
+        const loadSessionSchedule = async (id) => {
+            try {
+                isLoadingSchedule.value = true
+                const res = await SessionService.getSchedule(id)
+                if (res.data?.rounds) {
+                    sessionSchedule.value = res.data.rounds
+                    const ongoingRound = res.data.rounds.find(r =>
+                        r.matches.some(m => m.status !== 'completed')
+                    )
+                    currentRound.value = ongoingRound ? ongoingRound.round_number : (res.data.rounds[0]?.round_number ?? 1)
+                }
+            } catch (e) {
+                // No schedule yet or error
+            } finally {
+                isLoadingSchedule.value = false
+            }
+        }
+
+        const loadSessionLeaderboard = async (id) => {
+            try {
+                const res = await SessionService.getLeaderboard(id)
+                if (res.data) {
+                    sessionLeaderboardData.value = res.data
+                }
+            } catch (e) {
+                // ignore
+            }
+        }
+
+        const loadPlayerGroups = (data) => {
+            if (data.participants) {
+                const groups = {}
+                data.participants.forEach(p => {
+                    if (p.player_group) {
+                        groups[p.id] = p.player_group
+                    }
+                })
+                playerGroups.value = groups
+            }
+        }
+
+        const openGroupModal = () => {
+            showGroupModal.value = true
+        }
+
+        const confirmPlayerGroups = async () => {
+            try {
+                isLoadingGroup.value = true
+                await SessionService.updatePlayerGroup(props.data.id, playerGroups.value)
+                toast.success('Đã cập nhật phân nhóm thành công')
+                showGroupModal.value = false
+            } catch (e) {
+                toast.error(e.response?.data?.message || 'Cập nhật phân nhóm thất bại')
+            } finally {
+                isLoadingGroup.value = false
+            }
+        }
+
+        const startSession = async () => {
+            try {
+                const res = await SessionService.startSession(props.data.id, 2)
+                toast.success(res.message || 'Đã bắt đầu session')
+                sessionSchedule.value = []
+                await loadSessionSchedule(props.data.id)
+                await loadSessionLeaderboard(props.data.id)
+                sessionSubTab.value = 'schedule'
+            } catch (e) {
+                toast.error(e.response?.data?.message || 'Không thể bắt đầu session')
+            }
+        }
+
+        const finishSession = async () => {
+            try {
+                const res = await SessionService.finishSession(props.data.id)
+                toast.success(res.message || 'Đã kết thúc session')
+                await loadSessionLeaderboard(props.data.id)
+                sessionSubTab.value = 'leaderboard'
+            } catch (e) {
+                toast.error(e.response?.data?.message || 'Không thể kết thúc session')
+            }
+        }
+
+        const onSelectFormat = async (format) => {
+            emit('select-format', format)
+        }
+
+        const isSessionFormat = computed(() => {
+            return props.data?.match_format && props.data.match_format !== MATCH_FORMAT.STANDARD
+        })
+
+        const sessionStatus = computed(() => props.data?.session_status)
+
+        const sessionStatusLabel = computed(() => {
+            const s = sessionStatus.value
+            if (!s) return null
+            const labels = {
+                pending_group: 'Chờ phân nhóm',
+                ready: 'Sẵn sàng bắt đầu',
+                ongoing: 'Đang đấu',
+                finished: 'Đã kết thúc',
+            }
+            return labels[s] || s
+        })
+
+        const groupOptions = computed(() => {
+            if (props.data?.match_format === MATCH_FORMAT.MIXED_GENDER) {
+                return ['male', 'female']
+            }
+            if (props.data?.match_format === MATCH_FORMAT.RANK_PAIRING) {
+                return ['a', 'b']
+            }
+            return []
+        })
 
         return {
             MiniMatchCard,
@@ -339,7 +498,29 @@ export default {
             getUserRatingBySport,
             pagination,
             visiblePages,
-            changePage
+            changePage,
+            // Session (Round Robin)
+            sessionSchedule,
+            sessionLeaderboardData,
+            currentRound,
+            isLoadingSchedule,
+            playerGroups,
+            showGroupModal,
+            isLoadingGroup,
+            isSessionFormat,
+            sessionStatus,
+            sessionStatusLabel,
+            groupOptions,
+            openGroupModal,
+            confirmPlayerGroups,
+            startSession,
+            finishSession,
+            sessionSubTab,
+            sessionSubtabs: SESSION_SUBTABS,
+            onSelectFormat,
+            MATCH_FORMAT,
+            SESSION_STATUS,
+            MiniTournamentLeaderboard,
         }
     }
 }

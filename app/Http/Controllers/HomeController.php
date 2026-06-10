@@ -49,8 +49,8 @@ class HomeController extends Controller
             ->get();
 
         // Load sport stats on the auth user for UserSportResource
-        $user->sports = $userSports;
-        User::loadSportStatsOnUsers(collect([$user]), $sport->id ?? 1);
+        $user->setRelation('sports', $userSports);
+        User::loadSportStatsOnUsers(collect([$user]), 1);
 
         $primarySportStats = $user->preloaded_sport_stats ?? [
             'win_rate' => 0.0,

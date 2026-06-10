@@ -36,6 +36,7 @@ class MiniParticipant extends Model
         'checked_in_at',
         'is_pending_confirmation',
         'self_confirmed',
+        'player_group',
     ];
 
     protected $casts = [
@@ -224,5 +225,20 @@ class MiniParticipant extends Model
     public function scopeWithCancelledPayment($query)
     {
         return $query->where('payment_status', PaymentStatusEnum::CANCELLED);
+    }
+
+    public function scopeWherePlayerGroup($query, string $group)
+    {
+        return $query->where('player_group', $group);
+    }
+
+    public function scopeWhereGenderGroup($query)
+    {
+        return $query->whereIn('player_group', ['male', 'female']);
+    }
+
+    public function scopeWhereRankGroup($query)
+    {
+        return $query->whereIn('player_group', ['a', 'b']);
     }
 }

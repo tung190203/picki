@@ -1,196 +1,413 @@
-<div class="flex justify-start gap-2 mb-4">
-    <button v-for="tab in subtabs" :key="tab.id" @click="subActiveTab = tab.id" :class="[
-       'px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
-        subActiveTab === tab.id ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']">
-        {{ tab.label }}
-    </button>
+<!-- Format Selection View (no match_format chosen yet) -->
+<div v-if="!data.match_format" class="space-y-3">
+    <h3 class="font-semibold text-gray-900 mb-4">Chọn thể thức thi đấu</h3>
+
+    <!-- Tiêu chuẩn -->
+    <div class="border border-[#BBBFCC] rounded-lg p-4 cursor-pointer hover:shadow-md transition"
+         @click="$emit('select-format', 'standard')">
+        <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded flex items-center justify-center bg-[#EDEEF2] shrink-0">
+                <svg class="w-5 h-5 text-[#3E414C]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1">
+                    <h4 class="font-semibold text-[#3E414C] text-sm">Tiêu chuẩn</h4>
+                    <div class="flex gap-1.5 shrink-0">
+                        <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">2 - 8 người</span>
+                        <span class="bg-[#E0F2FE] text-[#1E40AF] text-xs px-2 py-0.5 rounded font-medium">1 trận</span>
+                    </div>
+                </div>
+                <p class="text-[#6B6F80] text-xs">1 trận đấu giữa 2 đội. Phù hợp cho kèo thông thường.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Xoay vòng partner -->
+    <div class="border border-[#BBBFCC] rounded-lg p-4 cursor-pointer hover:shadow-md transition"
+         @click="$emit('select-format', 'partner_rotation')">
+        <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded flex items-center justify-center bg-[#FEF3C7] shrink-0">
+                <svg class="w-5 h-5 text-[#92400E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 1l4 4-4 4"/>
+                    <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                    <path d="M7 23l-4-4 4-4"/>
+                    <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
+                    <h4 class="font-semibold text-[#3E414C] text-sm">Xoay vòng partner</h4>
+                    <div class="flex gap-1.5 shrink-0 flex-wrap">
+                        <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">6 - 8 người</span>
+                        <span class="bg-[#E0F2FE] text-[#1E40AF] text-xs px-2 py-0.5 rounded font-medium">5 - 7 vòng</span>
+                        <span class="bg-[#F0FDF4] text-[#166534] text-xs px-2 py-0.5 rounded font-medium">Hỗ trợ số lẻ</span>
+                    </div>
+                </div>
+                <p class="text-[#6B6F80] text-xs">Mỗi người lần lượt đứng cặp với tất cả người còn lại đúng 1 lần. Xếp hạng cá nhân cuối session.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mix nam nữ -->
+    <div class="border border-[#BBBFCC] rounded-lg p-4 cursor-pointer hover:shadow-md transition"
+         @click="$emit('select-format', 'mixed_gender')">
+        <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded flex items-center justify-center bg-[#FEF3C7] shrink-0">
+                <svg class="w-5 h-5 text-[#92400E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
+                    <h4 class="font-semibold text-[#3E414C] text-sm">Mix nam nữ</h4>
+                    <div class="flex gap-1.5 shrink-0 flex-wrap">
+                        <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">3 - 7 nam</span>
+                        <span class="bg-[#FCE7F3] text-[#9D174D] text-xs px-2 py-0.5 rounded font-medium">3 - 7 nữ</span>
+                        <span class="bg-[#F0FDF4] text-[#166534] text-xs px-2 py-0.5 rounded font-medium">Hỗ trợ số lẻ</span>
+                    </div>
+                </div>
+                <p class="text-[#6B6F80] text-xs">Mỗi người nam lần lượt đứng cặp với tất cả người nữ và ngược lại. Không cần số nam nữ bằng nhau.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ghép hạng A/B -->
+    <div class="border border-[#BBBFCC] rounded-lg p-4 cursor-pointer hover:shadow-md transition"
+         @click="$emit('select-format', 'rank_pairing')">
+        <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded flex items-center justify-center bg-[#FEF3C7] shrink-0">
+                <svg class="w-5 h-5 text-[#92400E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"/>
+                    <line x1="12" y1="20" x2="12" y2="4"/>
+                    <line x1="6" y1="20" x2="6" y2="14"/>
+                </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
+                    <h4 class="font-semibold text-[#3E414C] text-sm">Ghép hạng A/B</h4>
+                    <div class="flex gap-1.5 shrink-0 flex-wrap">
+                        <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">3 - 7 hạng A</span>
+                        <span class="bg-[#E0F2FE] text-[#1E40AF] text-xs px-2 py-0.5 rounded font-medium">3 - 7 hạng B</span>
+                        <span class="bg-[#F0FDF4] text-[#166534] text-xs px-2 py-0.5 rounded font-medium">Hỗ trợ số lẻ</span>
+                    </div>
+                </div>
+                <p class="text-[#6B6F80] text-xs">Chia thành nhóm A (mạnh hơn) và B. Mỗi A xoay vòng đứng cặp với mỗi B. Xếp hạng riêng từng nhóm.</p>
+            </div>
+        </div>
+    </div>
 </div>
-<template v-if="subActiveTab === 'ranking'">
-    <p>Hiển thị bảng xếp hạng tại đây.</p>
-</template>
 
-<template v-else-if="subActiveTab === 'match'">
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" v-if="miniMatches.length > 0" >
-        <div v-for="match in miniMatches" :key="match.id" @click="showMiniMatchDetail(match.id)"
-             class="border border-[#BBBFCC] p-4 rounded-lg cursor-pointer hover:shadow-md transition">
-            <MiniMatchCard :matchTitle="match.name" :matchTime="match.scheduled_at ? formatDate(match.scheduled_at) : null"
-               :matchId="match.id"
-               :courtName="`Sân ${match.yard_number || 1}`"
-               :miniMatchType="match.match_type"
-               :teamWinId="match.team_win_id"
-               :team1="match.team1.members.map(m => ({
-                    team_id: match.team1.id,
-                    id: m.id,
-                    name: m.full_name,
-                    avatar: m.avatar_url,
-                    rating: getUserRatingBySport(m, props.sportId),
-                    status: m.visibility
-               }))"
-               :team2="match.team2.members.map(m => ({
-                    team_id: match.team2.id,
-                    id: m.id,
-                    name: m.full_name,
-                    avatar: m.avatar_url,
-                    rating: getUserRatingBySport(m, props.sportId),
-                    status: m.visibility
-               }))"
-               :sets="buildSets(match)"
-               :selected="selectedMiniMatches.includes(match.id)"
-               @update:selected="val => toggleSelectMiniMatch(match.id, val)"
-            />
+<!-- Format already chosen -->
+<div v-else class="space-y-4">
+    <!-- Match format info badge + status -->
+    <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold text-[#6B6F80]">Thể thức:</span>
+            <span class="text-xs font-semibold text-[#3E414C] bg-[#EDEEF2] px-2 py-1 rounded">
+                {{ data.match_format === MATCH_FORMAT.STANDARD ? 'Tiêu chuẩn' :
+                   data.match_format === MATCH_FORMAT.PARTNER_ROTATION ? 'Xoay vòng partner' :
+                   data.match_format === MATCH_FORMAT.MIXED_GENDER ? 'Mix nam nữ' : 'Ghép hạng A/B' }}
+            </span>
         </div>
+        <span v-if="data.match_format !== MATCH_FORMAT.STANDARD && sessionStatusLabel"
+              class="text-xs font-medium px-2 py-1 rounded"
+              :class="{
+                  'bg-yellow-100 text-yellow-700': sessionStatus === SESSION_STATUS.PENDING_GROUP,
+                  'bg-blue-100 text-blue-700': sessionStatus === SESSION_STATUS.READY,
+                  'bg-green-100 text-green-700': sessionStatus === SESSION_STATUS.ONGOING,
+                  'bg-gray-100 text-gray-600': sessionStatus === SESSION_STATUS.FINISHED,
+              }">
+            {{ sessionStatusLabel }}
+        </span>
     </div>
-    <div v-else class="min-h-[200px] flex items-center justify-center">
-        <p class="text-center text-gray-500">Không có trận đấu nào.</p>
-    </div>
-    <div v-if="pagination.last_page > 1" class="mt-10 flex justify-center items-center gap-2">
-        <!-- Previous Button -->
-        <button @click="changePage(pagination.current_page - 1)" :disabled="pagination.current_page === 1"
-                class="w-10 h-10 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition">
-            <ChevronLeftIcon class="w-5 h-5" />
-        </button>
 
-        <!-- Page Numbers -->
-        <template v-for="page in visiblePages" :key="page">
-            <button v-if="page !== '...'" @click="changePage(page)" :class="[
-                    'w-10 h-10 flex items-center justify-center rounded-md border text-sm font-medium transition',
-                    page === pagination.current_page
-                        ? 'bg-primary text-white border-primary'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
-                ]">
-                {{ page }}
+    <!-- Standard format sub-tabs -->
+    <template v-if="data.match_format === MATCH_FORMAT.STANDARD">
+        <div class="flex justify-start gap-2 mb-4">
+            <button v-for="tab in subtabs" :key="tab.id" @click="subActiveTab = tab.id"
+                class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors"
+                :class="subActiveTab === tab.id ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'">
+                {{ tab.label }}
             </button>
-            <span v-else class="w-10 h-10 flex items-center justify-center text-gray-500">...</span>
-        </template>
+        </div>
 
-        <!-- Next Button -->
-        <button @click="changePage(pagination.current_page + 1)"
-                :disabled="pagination.current_page === pagination.last_page"
-                class="w-10 h-10 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition">
-            <ChevronRightIcon class="w-5 h-5" />
-        </button>
-    </div>
-    <div class="grid grid-cols-5 gap-4 mt-4">
-        <div class="col-span-2 flex justify-start items-center gap-4">
-            <div>
-                <span class="text-[#6B6F80] text-xs">Tổng số trận</span>
-                <p class="text[#3E414C] font-semibold">{{ countMiniMatches || 0 }} trận</p>
+        <!-- Standard: Trận đấu -->
+        <div v-if="subActiveTab === 'match'">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" v-if="miniMatches.length > 0">
+                <div v-for="match in miniMatches" :key="match.id" @click="showMiniMatchDetail(match.id)"
+                     class="border border-[#BBBFCC] p-4 rounded-lg cursor-pointer hover:shadow-md transition">
+                    <MiniMatchCard :matchTitle="match.name" :matchTime="match.scheduled_at ? formatDate(match.scheduled_at) : null"
+                       :matchId="match.id"
+                       :courtName="`Sân ${match.yard_number || 1}`"
+                       :miniMatchType="match.match_type"
+                       :teamWinId="match.team_win_id"
+                       :team1="match.team1.members.map(m => ({ team_id: match.team1.id, id: m.id, name: m.full_name, avatar: m.avatar_url, rating: getUserRatingBySport(m, props.sportId), status: m.visibility }))"
+                       :team2="match.team2.members.map(m => ({ team_id: match.team2.id, id: m.id, name: m.full_name, avatar: m.avatar_url, rating: getUserRatingBySport(m, props.sportId), status: m.visibility }))"
+                       :sets="buildSets(match)"
+                       :selected="selectedMiniMatches.includes(match.id)"
+                       @update:selected="val => toggleSelectMiniMatch(match.id, val)"
+                    />
+                </div>
             </div>
-            <div>
-                <span class="text-[#6B6F80] text-xs">Tổng thời lượng</span>
-                <p class="text[#3E414C] font-semibold">  {{totalTimeMiniMatches(countMiniMatches)}} tiếng</p>
+            <div v-else class="min-h-[200px] flex items-center justify-center">
+                <p class="text-center text-gray-500">Không có trận đấu nào.</p>
             </div>
-        </div>
-        <div class="col-span-3 flex justify-end items-center gap-4" v-if="props.isCreator">
-            <button @click="showCreateMiniMatchModal = true"
-                    class="bg-[#D72D36] border border-1 border-[#D72D36] text-white px-4 py-2 rounded hover:bg-red-700 transition">
-                Thêm trận đấu
-            </button>
-
-            <button
-                @click="confirmRemoval"
-                :disabled="selectedMiniMatches.length === 0"
-                :class="selectedMiniMatches.length === 0
-                ? 'bg-[#EDEEF2] border border-1 border-[#BBBFCC] text-[#BBBFCC] px-4 py-2 rounded transition cursor-not-allowed'
-                : 'flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium px-4 py-2 rounded-md transition'"
-                    >
-                Huỷ kèo đã chọn ({{ selectedMiniMatches.length }}/{{countMiniMatches}})
-            </button>
-        </div>
-    </div>
-</template>
-
-<template v-else-if="subActiveTab === 'your-match'">
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" v-if="scheduledMyMiniMatches.length > 0" >
-        <div v-for="miniMatch in scheduledMyMiniMatches" :key="miniMatch.id" @click="showMiniMatchDetail(miniMatch.id)"
-             class="border border-[#BBBFCC] p-4 rounded-lg cursor-pointer hover:shadow-md transition">
-            <MiniMatchCard :matchTitle="miniMatch.name" :matchTime="miniMatch.scheduled_at ? formatDate(miniMatch.scheduled_at) : null"
-               :matchId="miniMatch.id"
-               :courtName="`Sân ${miniMatch.yard_number || 1}`"
-               :miniMatchType="miniMatch.match_type"
-               :teamWinId="miniMatch.team_win_id"
-               :team1="miniMatch.team1.members.map(m => ({
-                    team_id: miniMatch.team1.id,
-                    id: m.id,
-                    name: m.full_name,
-                    avatar: m.avatar_url,
-                    rating: getUserRatingBySport(m, props.sportId),
-                    status: m.visibility
-               }))"
-               :team2="miniMatch.team2.members.map(m => ({
-                    team_id: miniMatch.team2.id,
-                    id: m.id,
-                    name: m.full_name,
-                    avatar: m.avatar_url,
-                    rating: getUserRatingBySport(m, props.sportId),
-                    status: m.visibility
-               }))"
-               :sets="buildSets(miniMatch)"
-               :selected="selectedMiniMatches.includes(miniMatch.id)"
-               @update:selected="val => toggleSelectMiniMatch(miniMatch.id, val)"
-            />
-        </div>
-        <div v-if="pagination.last_page > 1" class="mt-10 flex justify-center items-center gap-2">
-            <!-- Previous Button -->
-            <button @click="changePage(pagination.current_page - 1)" :disabled="pagination.current_page === 1"
-                    class="w-10 h-10 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                <ChevronLeftIcon class="w-5 h-5" />
-            </button>
-
-            <!-- Page Numbers -->
-            <template v-for="page in visiblePages" :key="page">
-                <button v-if="page !== '...'" @click="changePage(page)" :class="[
-                    'w-10 h-10 flex items-center justify-center rounded-md border text-sm font-medium transition',
-                    page === pagination.current_page
-                        ? 'bg-primary text-white border-primary'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
-                ]">
-                    {{ page }}
+            <div v-if="pagination.last_page > 1" class="mt-10 flex justify-center items-center gap-2">
+                <button @click="changePage(pagination.current_page - 1)" :disabled="pagination.current_page === 1"
+                        class="w-10 h-10 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                    <ChevronLeftIcon class="w-5 h-5" />
                 </button>
-                <span v-else class="w-10 h-10 flex items-center justify-center text-gray-500">...</span>
-            </template>
-
-            <!-- Next Button -->
-            <button @click="changePage(pagination.current_page + 1)"
-                    :disabled="pagination.current_page === pagination.last_page"
-                    class="w-10 h-10 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                <ChevronRightIcon class="w-5 h-5" />
-            </button>
-        </div>
-    </div>
-    <div v-else class="min-h-[200px] flex items-center justify-center">
-        <p class="text-center text-gray-500">Không có trận đấu nào.</p>
-    </div>
-
-    <div class="grid grid-cols-5 gap-4 mt-4">
-        <div class="col-span-2 flex justify-start items-center gap-4">
-            <div>
-                <span class="text-[#6B6F80] text-xs">Tổng số trận</span>
-                <p class="text[#3E414C] font-semibold">{{ countMyMiniMatches || 0 }} trận</p>
+                <template v-for="page in visiblePages" :key="page">
+                    <button v-if="page !== '...'" @click="changePage(page)"
+                        :class="['w-10 h-10 flex items-center justify-center rounded-md border text-sm font-medium transition',
+                            page === pagination.current_page ? 'bg-primary text-white border-primary' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100']">
+                        {{ page }}
+                    </button>
+                    <span v-else class="w-10 h-10 flex items-center justify-center text-gray-500">...</span>
+                </template>
+                <button @click="changePage(pagination.current_page + 1)"
+                        :disabled="pagination.current_page === pagination.last_page"
+                        class="w-10 h-10 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                    <ChevronRightIcon class="w-5 h-5" />
+                </button>
             </div>
-            <div>
-                <span class="text-[#6B6F80] text-xs">Tổng thời lượng</span>
-                <p class="text[#3E414C] font-semibold">  {{totalTimeMiniMatches(countMyMiniMatches)}} tiếng</p>
+            <div class="grid grid-cols-5 gap-4 mt-4">
+                <div class="col-span-2 flex justify-start items-center gap-4">
+                    <div>
+                        <span class="text-[#6B6F80] text-xs">Tổng số trận</span>
+                        <p class="text-[#3E414C] font-semibold">{{ countMiniMatches || 0 }} trận</p>
+                    </div>
+                    <div>
+                        <span class="text-[#6B6F80] text-xs">Tổng thời lượng</span>
+                        <p class="text-[#3E414C] font-semibold">{{ totalTimeMiniMatches(countMiniMatches) }} tiếng</p>
+                    </div>
+                </div>
+                <div class="col-span-3 flex justify-end items-center gap-4" v-if="props.isCreator">
+                    <button @click="showCreateMiniMatchModal = true"
+                            class="bg-[#D72D36] border border-1 border-[#D72D36] text-white px-4 py-2 rounded hover:bg-red-700 transition">
+                        Thêm trận đấu
+                    </button>
+                    <button @click="confirmRemoval"
+                        :disabled="selectedMiniMatches.length === 0"
+                        :class="selectedMiniMatches.length === 0
+                        ? 'bg-[#EDEEF2] border border-1 border-[#BBBFCC] text-[#BBBFCC] px-4 py-2 rounded transition cursor-not-allowed'
+                        : 'flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium px-4 py-2 rounded-md transition'">
+                        Huỷ kèo đã chọn ({{ selectedMiniMatches.length }}/{{ countMiniMatches }})
+                    </button>
+                </div>
             </div>
         </div>
-        <div class="col-span-3 flex justify-end items-center gap-4" v-if="props.isCreator">
-            <button @click="showCreateMiniMatchModal = true"
-                    class="bg-[#D72D36] border border-1 border-[#D72D36] text-white px-4 py-2 rounded hover:bg-red-700 transition">
-                Thêm trận đấu
-            </button>
 
-            <button
-                @click="confirmRemoval"
-                :disabled="selectedMiniMatches.length === 0"
-                :class="selectedMiniMatches.length === 0
-                ? 'bg-[#EDEEF2] border border-1 border-[#BBBFCC] text-[#BBBFCC] px-4 py-2 rounded transition cursor-not-allowed'
-                : 'flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium px-4 py-2 rounded-md transition'"
-            >
-                Huỷ kèo đã chọn ({{ selectedMiniMatches.length }}/{{countMyMiniMatches}})
+        <!-- Standard: Trận đấu của bạn -->
+        <div v-if="subActiveTab === 'your-match'">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" v-if="scheduledMyMiniMatches.length > 0">
+                <div v-for="miniMatch in scheduledMyMiniMatches" :key="miniMatch.id" @click="showMiniMatchDetail(miniMatch.id)"
+                     class="border border-[#BBBFCC] p-4 rounded-lg cursor-pointer hover:shadow-md transition">
+                    <MiniMatchCard :matchTitle="miniMatch.name" :matchTime="miniMatch.scheduled_at ? formatDate(miniMatch.scheduled_at) : null"
+                       :matchId="miniMatch.id"
+                       :courtName="`Sân ${miniMatch.yard_number || 1}`"
+                       :miniMatchType="miniMatch.match_type"
+                       :teamWinId="miniMatch.team_win_id"
+                       :team1="miniMatch.team1.members.map(m => ({ team_id: miniMatch.team1.id, id: m.id, name: m.full_name, avatar: m.avatar_url, rating: getUserRatingBySport(m, props.sportId), status: m.visibility }))"
+                       :team2="miniMatch.team2.members.map(m => ({ team_id: miniMatch.team2.id, id: m.id, name: m.full_name, avatar: m.avatar_url, rating: getUserRatingBySport(m, props.sportId), status: m.visibility }))"
+                       :sets="buildSets(miniMatch)"
+                       :selected="selectedMiniMatches.includes(miniMatch.id)"
+                       @update:selected="val => toggleSelectMiniMatch(miniMatch.id, val)"
+                    />
+                </div>
+            </div>
+            <div v-else class="min-h-[200px] flex items-center justify-center">
+                <p class="text-center text-gray-500">Không có trận đấu nào.</p>
+            </div>
+            <div v-if="pagination.last_page > 1" class="mt-10 flex justify-center items-center gap-2">
+                <button @click="changePage(pagination.current_page - 1)" :disabled="pagination.current_page === 1"
+                        class="w-10 h-10 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                    <ChevronLeftIcon class="w-5 h-5" />
+                </button>
+                <template v-for="page in visiblePages" :key="page">
+                    <button v-if="page !== '...'" @click="changePage(page)"
+                        :class="['w-10 h-10 flex items-center justify-center rounded-md border text-sm font-medium transition',
+                            page === pagination.current_page ? 'bg-primary text-white border-primary' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100']">
+                        {{ page }}
+                    </button>
+                    <span v-else class="w-10 h-10 flex items-center justify-center text-gray-500">...</span>
+                </template>
+                <button @click="changePage(pagination.current_page + 1)"
+                        :disabled="pagination.current_page === pagination.last_page"
+                        class="w-10 h-10 flex items-center justify-center rounded-md border border-gray-300 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                    <ChevronRightIcon class="w-5 h-5" />
+                </button>
+            </div>
+            <div class="grid grid-cols-5 gap-4 mt-4">
+                <div class="col-span-2 flex justify-start items-center gap-4">
+                    <div>
+                        <span class="text-[#6B6F80] text-xs">Tổng số trận</span>
+                        <p class="text-[#3E414C] font-semibold">{{ countMyMiniMatches || 0 }} trận</p>
+                    </div>
+                    <div>
+                        <span class="text-[#6B6F80] text-xs">Tổng thời lượng</span>
+                        <p class="text-[#3E414C] font-semibold">{{ totalTimeMiniMatches(countMyMiniMatches) }} tiếng</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Session formats sub-tabs -->
+    <template v-else>
+        <div class="flex justify-start gap-2 mb-4">
+            <button v-for="tab in sessionSubtabs" :key="tab.id" @click="sessionSubTab = tab.id"
+                class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors"
+                :class="sessionSubTab === tab.id ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'">
+                {{ tab.label }}
+            </button>
+        </div>
+
+        <!-- Thể thức tab -->
+        <div v-if="sessionSubTab === 'format'">
+            <div class="text-center py-8">
+                <p class="text-[#6B6F80] text-sm mb-4">
+                    {{ data.match_format === MATCH_FORMAT.MIXED_GENDER
+                        ? 'Cần phân nhóm Nam/Nữ trước khi bắt đầu.'
+                        : data.match_format === MATCH_FORMAT.RANK_PAIRING
+                        ? 'Cần phân nhóm A/B trước khi bắt đầu.'
+                        : data.match_format === MATCH_FORMAT.PARTNER_ROTATION
+                        ? 'Xác nhận số người tham gia trước khi bắt đầu.'
+                        : '' }}
+                </p>
+                <button v-if="sessionStatus === SESSION_STATUS.PENDING_GROUP && props.isCreator"
+                    @click="openGroupModal"
+                    class="px-5 py-2.5 bg-[#D72D36] text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition">
+                    Phân nhóm người chơi
+                </button>
+                <button v-else-if="sessionStatus === SESSION_STATUS.READY && props.isCreator"
+                    @click="startSession"
+                    class="px-5 py-2.5 bg-[#2563EB] text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition">
+                    Bắt đầu Session
+                </button>
+                <div v-else-if="sessionStatus === SESSION_STATUS.ONGOING" class="text-[#6B6F80] text-sm">
+                    Session đang diễn ra...
+                </div>
+                <div v-else-if="sessionStatus === SESSION_STATUS.FINISHED" class="text-[#6B6F80] text-sm">
+                    Session đã kết thúc.
+                </div>
+            </div>
+        </div>
+
+        <!-- Phân nhóm tab -->
+        <div v-if="sessionSubTab === 'group'">
+            <div class="text-center py-8" v-if="sessionStatus !== SESSION_STATUS.PENDING_GROUP">
+                <p class="text-[#6B6F80] text-sm">Đã phân nhóm xong. Không thể thay đổi.</p>
+            </div>
+            <div v-else>
+                <p class="text-sm text-[#6B6F80] mb-4">
+                    Gán {{ data.match_format === MATCH_FORMAT.MIXED_GENDER ? 'giới tính (Nam/Nữ)' : 'hạng (A/B)' }} cho từng người chơi.
+                </p>
+                <div class="space-y-3 max-h-80 overflow-y-auto">
+                    <div v-for="participant in (data.participants || [])" :key="participant.id"
+                        class="flex items-center justify-between border-b pb-2">
+                        <span class="text-sm font-medium">{{ participant.user?.full_name || participant.guest_name }}</span>
+                        <select v-model="playerGroups[participant.id]" class="border rounded px-2 py-1 text-sm min-w-[100px]">
+                            <option value="">-- Chọn --</option>
+                            <option v-for="opt in groupOptions" :key="opt" :value="opt">
+                                {{ data.match_format === MATCH_FORMAT.MIXED_GENDER ? (opt === 'male' ? 'Nam' : 'Nữ') : `Hạng ${opt.toUpperCase()}` }}
+                            </option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 mt-4" v-if="props.isCreator">
+                    <button @click="confirmPlayerGroups" :disabled="isLoadingGroup"
+                        class="px-4 py-2 bg-[#2563EB] text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 transition">
+                        {{ isLoadingGroup ? 'Đang lưu...' : 'Xác nhận' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lịch thi đấu tab -->
+        <div v-if="sessionSubTab === 'schedule'">
+            <div v-if="sessionSchedule.length > 0" class="space-y-3">
+                <div v-for="round in sessionSchedule" :key="round.round_number"
+                    class="border rounded-lg p-4"
+                    :class="round.round_number === currentRound ? 'border-[#2563EB] bg-blue-50' : 'border-gray-200 bg-gray-50 opacity-75'">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="font-semibold text-sm" :class="round.round_number === currentRound ? 'text-blue-700' : 'text-gray-500'">
+                            Vòng {{ round.round_number }}
+                        </p>
+                        <span class="text-xs text-gray-500">{{ round.completed_count }}/{{ round.total_count }} trận</span>
+                    </div>
+                    <div class="space-y-2">
+                        <div v-for="match in round.matches" :key="match.id"
+                            class="flex items-center justify-between bg-white rounded px-3 py-2 text-xs border">
+                            <span class="font-medium text-[#3E414C]">
+                                {{ match.team_1?.name || 'TBD' }} vs {{ match.team_2?.name || 'TBD' }}
+                            </span>
+                            <span v-if="match.is_bye" class="text-gray-400 italic">Bye</span>
+                            <span v-else-if="match.status === 'completed'"
+                                :class="match.score_1 > match.score_2 ? 'text-green-600' : 'text-red-600'">
+                                {{ match.score_1 }} - {{ match.score_2 }}
+                            </span>
+                            <span v-else class="text-gray-400">Chưa đấu</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div v-else class="min-h-[200px] flex items-center justify-center">
+                <p class="text-center text-gray-500">Chưa có lịch thi đấu.</p>
+            </div>
+            <div class="mt-4 text-center" v-if="sessionStatus === SESSION_STATUS.ONGOING && props.isCreator">
+                <button @click="finishSession"
+                    class="px-5 py-2.5 bg-[#D72D36] text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition">
+                    Kết thúc Session
+                </button>
+            </div>
+        </div>
+
+        <!-- BXH tab -->
+        <div v-if="sessionSubTab === 'leaderboard'">
+            <MiniTournamentLeaderboard
+                :leaderboard="sessionLeaderboardData.leaderboard || []"
+                :group-a-leaderboard="sessionLeaderboardData.group_a_leaderboard || []"
+                :group-b-leaderboard="sessionLeaderboardData.group_b_leaderboard || []"
+                :is-rank-pairing="data.match_format === MATCH_FORMAT.RANK_PAIRING"
+            />
+        </div>
+    </template>
+</div>
+
+<!-- Player Group Modal -->
+<div v-if="showGroupModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg w-full max-w-md p-5">
+        <h3 class="font-bold text-lg mb-4">Phân nhóm người chơi</h3>
+        <p class="text-sm text-gray-600 mb-4">
+            Gán {{ data.match_format === MATCH_FORMAT.MIXED_GENDER ? 'giới tính (Nam/Nữ)' : 'hạng (A/B)' }} cho từng người chơi.
+        </p>
+        <div class="space-y-3 max-h-80 overflow-y-auto">
+            <div v-for="participant in (data.participants || [])" :key="participant.id"
+                class="flex items-center justify-between border-b pb-2">
+                <span class="text-sm font-medium">{{ participant.user?.full_name || participant.guest_name }}</span>
+                <select v-model="playerGroups[participant.id]" class="border rounded px-2 py-1 text-sm">
+                    <option value="">-- Chọn --</option>
+                    <option v-for="opt in groupOptions" :key="opt" :value="opt">
+                        {{ data.match_format === MATCH_FORMAT.MIXED_GENDER ? (opt === 'male' ? 'Nam' : 'Nữ') : `Hạng ${opt.toUpperCase()}` }}
+                    </option>
+                </select>
+            </div>
+        </div>
+        <div class="flex justify-end gap-3 mt-4">
+            <button @click="showGroupModal = false" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition">Hủy</button>
+            <button @click="confirmPlayerGroups" :disabled="isLoadingGroup"
+                class="px-4 py-2 bg-[#2563EB] text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 transition">
+                {{ isLoadingGroup ? 'Đang lưu...' : 'Xác nhận' }}
             </button>
         </div>
     </div>
-</template>
+</div>
 
 <CreateMiniMatch v-model="showCreateMiniMatchModal" :miniTournament="props.data" :isCreator="props.isCreator"  @created="onMiniMatchCreated"/>
 <UpdateMiniMatch v-model="showUpdateMiniMatchModal" :data="detailData" :miniTournament="props.data" :isCreator="props.isCreator" @updated="onMiniMatchCreated" />

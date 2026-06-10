@@ -28,16 +28,23 @@
           <div class="lg:col-span-3">
             <!-- Profile Settings -->
             <div v-if="activeTab === 'profile'" class="bg-white rounded-lg shadow-sm p-6">
+              <div v-if="isLoading" class="flex justify-center py-12">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+              <template v-else>
               <h2 class="text-xl font-semibold mb-6 text-gray-900">Thông tin cá nhân</h2>
               
               <div class="space-y-6">
                 <!-- Avatar Section -->
                 <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6 pb-6 border-b">
-                  <div class="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg">
-                    {{ profile.name.charAt(0) }}
+                  <div class="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center text-white text-3xl font-bold shadow-lg"
+                    :class="profile.avatar_url ? '' : 'bg-gradient-to-br from-blue-500 to-purple-600'"
+                  >
+                    <img v-if="profile.avatar_url" :src="profile.avatar_url" alt="Avatar" class="w-full h-full object-cover" />
+                    <span v-else>{{ profile.full_name ? profile.full_name.charAt(0).toUpperCase() : '?' }}</span>
                   </div>
                   <div class="text-center sm:text-left">
-                    <h3 class="text-lg font-semibold text-gray-900">{{ profile.name }}</h3>
+                    <h3 class="text-lg font-semibold text-gray-900">{{ profile.full_name || '...' }}</h3>
                     <p class="text-gray-600 text-sm">{{ profile.email }}</p>
                     <button class="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm">
                       Thay đổi ảnh đại diện
@@ -50,9 +57,10 @@
                   <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Họ và tên</label>
                     <input 
-                      v-model="profile.name" 
+                      v-model="profile.full_name" 
                       type="text" 
                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Nhập họ và tên"
                     />
                   </div>
                   <div>
@@ -85,13 +93,18 @@
                   <button class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
                     Hủy
                   </button>
-                  <button @click="saveProfile" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-                    Lưu thay đổi
+                  <button
+                    :disabled="isSaving"
+                    @click="saveProfile"
+                    class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                  >
+                    {{ isSaving ? 'Đang lưu...' : 'Lưu thay đổi' }}
                   </button>
                 </div>
               </div>
+              </template>
             </div>
-  
+
             <!-- Security Settings -->
             <div v-if="activeTab === 'security'" class="bg-white rounded-lg shadow-sm p-6">
               <h2 class="text-xl font-semibold mb-6 text-gray-900">Bảo mật</h2>
@@ -218,10 +231,15 @@
     </div>
   </template>
   
-  <script setup>
-  import { ref } from 'vue'
-  
-  const activeTab = ref('profile')
+<script setup>
+import { ref, onMounted } from 'vue'
+import { useUserStore } from '@/store/auth.js'
+import { toast } from 'vue3-toastify'
+
+const userStore = useUserStore()
+const activeTab = ref('profile')
+const isLoading = ref(false)
+const isSaving = ref(false)
   
   const menuItems = ref([
     {
@@ -247,10 +265,11 @@
   ])
   
   const profile = ref({
-    name: 'Nguyễn Văn A',
-    email: 'nguyenvana@example.com',
-    phone: '0123456789',
-    address: 'Hà Nội, Việt Nam'
+    full_name: userStore.getUser.full_name || '',
+    email: userStore.getUser.email || '',
+    phone: userStore.getUser.phone || '',
+    address: userStore.getUser.address || '',
+    avatar_url: userStore.getUser.avatar_url || '',
   })
   
   const security = ref({
@@ -292,7 +311,37 @@
     analytics: false
   })
   
-  const saveProfile = () => {
-    alert('Đã lưu thông tin cá nhân!')
+  const saveProfile = async () => {
+    try {
+      isSaving.value = true
+      await userStore.updateUser({ full_name: profile.value.full_name })
+      toast.success('Cập nhật thông tin thành công!')
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra')
+    } finally {
+      isSaving.value = false
+    }
   }
+
+  const fetchProfile = async () => {
+    try {
+      isLoading.value = true
+      const data = await userStore.fetchMe()
+      profile.value = {
+        full_name: data.full_name || '',
+        email: data.email || '',
+        phone: data.phone || '',
+        address: data.address || '',
+        avatar_url: data.avatar_url || '',
+      }
+    } catch (error) {
+      toast.error('Không thể tải thông tin người dùng')
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  onMounted(() => {
+    fetchProfile()
+  })
   </script>
