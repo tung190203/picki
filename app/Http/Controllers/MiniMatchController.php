@@ -32,54 +32,72 @@ class MiniMatchController extends Controller
      */
     public function index(Request $request, $miniTournamentId)
     {
-        $request->validate([
-            'filter' => 'nullable|string|in:matches,my_matches,leaderboard',
-            'per_page' => 'nullable|integer|min:1|max:200',
-        ]);
-
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
-        $filter = $request->input('filter', 'matches');
-        $perPage = $request->input('per_page', MiniMatch::PER_PAGE);
         $userId = Auth::id();
         $isOrganizer = $miniTournament->hasOrganizer($userId);
 
+        // Kèo chưa công bố (draft): chỉ organizer xem được nội dung
         if ($miniTournament->status === MiniTournament::STATUS_DRAFT && !$isOrganizer) {
             return ResponseHelper::success([
                 'matches' => [],
+                'rounds' => [],
                 'match_format' => $miniTournament->match_format,
                 'is_session_started' => $miniTournament->is_session_started,
                 'session_status' => $miniTournament->session_status,
                 'total_matches' => 0,
                 'confirmed_matches' => 0,
                 'current_round' => null,
-            ], 'Lấy danh sách trận đấu thành công', 200, [
-                'current_page' => 1,
-                'last_page'    => 1,
-                'per_page'     => $perPage,
-                'total'        => 0,
-            ]);
+                'is_organizer' => false,
+                'tournament' => [
+                    'id' => $miniTournament->id,
+                    'name' => $miniTournament->name,
+                    'status' => $miniTournament->status,
+                    'status_text' => $miniTournament->status_text,
+                    'format' => $miniTournament->format,
+                    'format_text' => $miniTournament->format_text,
+                    'play_mode' => $miniTournament->play_mode,
+                    'play_mode_text' => $miniTournament->play_mode_text,
+                    'sport' => $miniTournament->sport ? [
+                        'id' => $miniTournament->sport->id,
+                        'name' => $miniTournament->sport->name,
+                    ] : null,
+                    'competition_location' => $miniTournament->competitionLocation ? [
+                        'id' => $miniTournament->competitionLocation->id,
+                        'name' => $miniTournament->competitionLocation->name,
+                        'address' => $miniTournament->competitionLocation->address,
+                    ] : null,
+                    'start_time' => $miniTournament->start_time?->toIsoString(),
+                    'end_time' => $miniTournament->end_time?->toIsoString(),
+                ],
+                'participants' => [],
+                'statistics' => [
+                    'total_participants' => 0,
+                    'confirmed_participants' => 0,
+                    'male_participants' => 0,
+                    'female_participants' => 0,
+                ],
+            ], 'Lấy danh sách trận đấu thành công');
         }
 
         $baseQuery = MiniMatch::withFullRelations()
             ->where('mini_tournament_id', $miniTournament->id);
 
-        if ($filter === 'my_matches') {
-            $baseQuery->where(function ($q) use ($userId) {
-                $q->whereHas('team1.members.user', fn ($sub) => $sub->where('user_id', $userId))
-                  ->orWhereHas('team2.members.user', fn ($sub) => $sub->where('user_id', $userId));
-            });
-        }
+        // Load participants
+        $participants = $miniTournament->participants()
+            ->with('user')
+            ->where('is_confirmed', true)
+            ->get();
+
+        $totalMatches = (clone $baseQuery)->count();
+        $confirmedMatches = (clone $baseQuery)
+            ->where('status', MiniMatch::STATUS_COMPLETED)
+            ->count();
 
         $isRoundBased = in_array($miniTournament->match_format, [
             MiniTournament::MATCH_FORMAT_PARTNER_ROTATION,
             MiniTournament::MATCH_FORMAT_MIXED_GENDER,
             MiniTournament::MATCH_FORMAT_RANK_PAIRING,
         ], true);
-
-        $totalMatches = (clone $baseQuery)->count();
-        $confirmedMatches = (clone $baseQuery)
-            ->where('status', MiniMatch::STATUS_COMPLETED)
-            ->count();
 
         $currentRound = null;
         if ($isRoundBased) {
@@ -98,13 +116,6 @@ class MiniMatchController extends Controller
             $currentRound = $activeRound;
         }
 
-        $meta = [
-            'current_page' => 1,
-            'last_page'    => 1,
-            'per_page'     => $totalMatches,
-            'total'        => $totalMatches,
-        ];
-
         if ($isRoundBased) {
             $allMatches = (clone $baseQuery)
                 ->orderBy('round_number')
@@ -114,42 +125,131 @@ class MiniMatchController extends Controller
             $grouped = $allMatches->groupBy('round_number')->map(function ($roundMatches, $roundNumber) {
                 $completedCount = $roundMatches->where('status', MiniMatch::STATUS_COMPLETED)->count();
                 $totalCount = $roundMatches->count();
+                $pendingCount = $roundMatches->where('status', MiniMatch::STATUS_PENDING)->count();
+                $goingOnCount = $roundMatches->where('status', MiniMatch::STATUS_GOING_ON)->count();
+                $waitingConfirmCount = $roundMatches->where('status', MiniMatch::STATUS_WAITING_CONFIRM)->count();
+
                 $roundStatus = $completedCount === $totalCount
                     ? 'done'
-                    : ($completedCount > 0 ? 'active' : 'upcoming');
+                    : ($goingOnCount > 0 || $waitingConfirmCount > 0 ? 'active' : 'upcoming');
 
                 return [
                     'round_number' => (int) $roundNumber,
                     'status' => $roundStatus,
                     'completed_count' => $completedCount,
+                    'pending_count' => $pendingCount,
+                    'going_on_count' => $goingOnCount,
+                    'waiting_confirm_count' => $waitingConfirmCount,
                     'total_count' => $totalCount,
                     'matches' => MiniMatchResource::collection($roundMatches),
                 ];
             })->sortBy('round_number')->values();
 
             return ResponseHelper::success([
+                'matches' => [],
+                'rounds' => $grouped,
                 'match_format' => $miniTournament->match_format,
                 'is_session_started' => $miniTournament->is_session_started,
                 'session_status' => $miniTournament->session_status,
                 'total_matches' => $totalMatches,
                 'confirmed_matches' => $confirmedMatches,
                 'current_round' => $currentRound,
-                'rounds' => $grouped,
-            ], 'Lấy danh sách trận đấu thành công', 200, $meta);
+                'is_organizer' => $isOrganizer,
+                'tournament' => [
+                    'id' => $miniTournament->id,
+                    'name' => $miniTournament->name,
+                    'status' => $miniTournament->status,
+                    'status_text' => $miniTournament->status_text,
+                    'format' => $miniTournament->format,
+                    'format_text' => $miniTournament->format_text,
+                    'play_mode' => $miniTournament->play_mode,
+                    'play_mode_text' => $miniTournament->play_mode_text,
+                    'sport' => $miniTournament->sport ? [
+                        'id' => $miniTournament->sport->id,
+                        'name' => $miniTournament->sport->name,
+                    ] : null,
+                    'competition_location' => $miniTournament->competitionLocation ? [
+                        'id' => $miniTournament->competitionLocation->id,
+                        'name' => $miniTournament->competitionLocation->name,
+                        'address' => $miniTournament->competitionLocation->address,
+                    ] : null,
+                    'start_time' => $miniTournament->start_time?->toIsoString(),
+                    'end_time' => $miniTournament->end_time?->toIsoString(),
+                ],
+                'participants' => $participants->map(fn($p) => [
+                    'id' => $p->id,
+                    'user_id' => $p->user_id,
+                    'name' => $p->user?->name ?? $p->guest_name ?? 'Khách',
+                    'avatar' => $p->user?->avatar ?? $p->guest_avatar,
+                    'player_group' => $p->player_group,
+                    'is_guest' => $p->is_guest,
+                    'is_absent' => $p->is_absent,
+                    'checked_in_at' => $p->checked_in_at?->toIsoString(),
+                ]),
+                'statistics' => [
+                    'total_participants' => $miniTournament->participants()->count(),
+                    'confirmed_participants' => $miniTournament->participants()->where('is_confirmed', true)->count(),
+                    'male_participants' => $miniTournament->participants()->where('is_confirmed', true)->where('player_group', 'male')->count(),
+                    'female_participants' => $miniTournament->participants()->where('is_confirmed', true)->where('player_group', 'female')->count(),
+                    'group_a_participants' => $miniTournament->participants()->where('is_confirmed', true)->where('player_group', 'a')->count(),
+                    'group_b_participants' => $miniTournament->participants()->where('is_confirmed', true)->where('player_group', 'b')->count(),
+                ],
+            ], 'Lấy danh sách trận đấu thành công');
         }
 
         // Standard format: flat list
-        $matches = $baseQuery->orderBy('created_at', 'desc')->get();
+        $matches = (clone $baseQuery)->orderBy('created_at', 'desc')->get();
 
         return ResponseHelper::success([
+            'matches' => MiniMatchResource::collection($matches),
+            'rounds' => [],
             'match_format' => $miniTournament->match_format,
             'is_session_started' => $miniTournament->is_session_started,
             'session_status' => $miniTournament->session_status,
             'total_matches' => $totalMatches,
             'confirmed_matches' => $confirmedMatches,
             'current_round' => null,
-            'matches' => MiniMatchResource::collection($matches),
-        ], 'Lấy danh sách trận đấu thành công', 200, $meta);
+            'is_organizer' => $isOrganizer,
+            'tournament' => [
+                'id' => $miniTournament->id,
+                'name' => $miniTournament->name,
+                'status' => $miniTournament->status,
+                'status_text' => $miniTournament->status_text,
+                'format' => $miniTournament->format,
+                'format_text' => $miniTournament->format_text,
+                'play_mode' => $miniTournament->play_mode,
+                'play_mode_text' => $miniTournament->play_mode_text,
+                'sport' => $miniTournament->sport ? [
+                    'id' => $miniTournament->sport->id,
+                    'name' => $miniTournament->sport->name,
+                ] : null,
+                'competition_location' => $miniTournament->competitionLocation ? [
+                    'id' => $miniTournament->competitionLocation->id,
+                    'name' => $miniTournament->competitionLocation->name,
+                    'address' => $miniTournament->competitionLocation->address,
+                ] : null,
+                'start_time' => $miniTournament->start_time?->toIsoString(),
+                'end_time' => $miniTournament->end_time?->toIsoString(),
+            ],
+            'participants' => $participants->map(fn($p) => [
+                'id' => $p->id,
+                'user_id' => $p->user_id,
+                'name' => $p->user?->name ?? $p->guest_name ?? 'Khách',
+                'avatar' => $p->user?->avatar ?? $p->guest_avatar,
+                'player_group' => $p->player_group,
+                'is_guest' => $p->is_guest,
+                'is_absent' => $p->is_absent,
+                'checked_in_at' => $p->checked_in_at?->toIsoString(),
+            ]),
+            'statistics' => [
+                'total_participants' => $miniTournament->participants()->count(),
+                'confirmed_participants' => $miniTournament->participants()->where('is_confirmed', true)->count(),
+                'male_participants' => $miniTournament->participants()->where('is_confirmed', true)->where('player_group', 'male')->count(),
+                'female_participants' => $miniTournament->participants()->where('is_confirmed', true)->where('player_group', 'female')->count(),
+                'group_a_participants' => $miniTournament->participants()->where('is_confirmed', true)->where('player_group', 'a')->count(),
+                'group_b_participants' => $miniTournament->participants()->where('is_confirmed', true)->where('player_group', 'b')->count(),
+            ],
+        ], 'Lấy danh sách trận đấu thành công');
     }
     /**
      * Lấy thông tin chi tiết trận đấu
