@@ -416,7 +416,7 @@
 
                     <!-- Tab 3 -->
                     <div v-else-if="activeTab === 'matches'" key="matches">
-                        <MiniMatchScheduleTab :isCreator="isCreator" :data="mini" :sportId="mini?.sport?.id" @select-format="onSelectMatchFormat"/>
+                        <MiniMatchScheduleTab :isCreator="isCreator" :data="mini" :sportId="mini?.sport?.id" :clubId="mini?.club_id" @refresh-data="() => detailMiniTournament(id)"/>
                     </div>
 
                     <!-- Tab 4 -->

@@ -326,11 +326,6 @@ class StoreMiniTournamentRequest extends FormRequest
             $this->merge(['included_in_club_fund' => false]);
         }
 
-        // Default match_format to 'standard'
-        if (!$this->has('match_format') || $this->input('match_format') === null || $this->input('match_format') === '') {
-            $this->merge(['match_format' => MiniTournament::MATCH_FORMAT_STANDARD]);
-        }
-
         $startTime = $this->input('start_time');
         $endTime = $this->input('end_time');
         $duration = $this->input('duration');

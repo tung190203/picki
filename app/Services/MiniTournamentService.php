@@ -45,6 +45,14 @@ class MiniTournamentService
             'use_club_fund', 'included_in_club_fund', 'club_fund_collection_id', 'fee_amount',
         ])->toArray();
 
+        $matchFormat = $data['match_format'] ?? null;
+        // standard & partner_rotation: session mặc định started
+        // mixed_gender & rank_pairing: chờ organizer gọi /start-session mới started
+        $isSessionStarted = in_array($matchFormat, [
+            MiniTournament::MATCH_FORMAT_STANDARD,
+            MiniTournament::MATCH_FORMAT_PARTNER_ROTATION,
+        ], true);
+
         $miniTournament = MiniTournament::create([
             ...$dataForCreate,
             'created_by' => $userId,
@@ -54,6 +62,7 @@ class MiniTournamentService
             'club_fund_collection_id' => $data['club_fund_collection_id'] ?? null,
             'fee_amount' => $feeAmount,
             'club_id' => $data['club_id'] ?? null,
+            'is_session_started' => $isSessionStarted,
         ]);
 
         // Creator always participates by default with confirmed payment status

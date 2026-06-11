@@ -131,6 +131,10 @@ class MiniTournamentResource extends JsonResource
                 $this->whenLoaded('fundCollection')
             ),
 
+            // Match format & session
+            'match_format' => $this->match_format,
+            'session_status' => $this->session_status,
+
             // Recurring schedule
             // Same format as clubs: { period, week_days, recurring_date }
             'recurring_schedule' => $this->recurring_schedule,
