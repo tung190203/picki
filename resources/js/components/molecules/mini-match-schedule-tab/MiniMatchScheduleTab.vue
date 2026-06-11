@@ -314,16 +314,30 @@ export default {
         }
 
         watch(subActiveTab, () => {
-            if (props.data?.match_format && props.data.match_format !== MATCH_FORMAT.STANDARD) return
             pagination.value.current_page = 1
             selectedMiniMatches.value = []
 
             if (!props.data?.id) return
 
-            if (subActiveTab.value === 'match') {
+            if (subActiveTab.value === 'schedule') {
+                if (props.data.match_format && props.data.match_format !== MATCH_FORMAT.STANDARD) {
+                    loadSessionSchedule(props.data.id)
+                }
+            } else if (subActiveTab.value === 'match') {
                 getMiniMatches(props.data.id, 1)
             } else if (subActiveTab.value === 'your-match') {
                 getMyMiniMatches(props.data.id, 1)
+            }
+        })
+
+        watch(sessionSubTab, () => {
+            if (!props.data?.id) return
+            if (props.data.match_format && props.data.match_format !== MATCH_FORMAT.STANDARD) {
+                if (sessionSubTab.value === 'schedule') {
+                    loadSessionSchedule(props.data.id)
+                } else if (sessionSubTab.value === 'leaderboard') {
+                    loadSessionLeaderboard(props.data.id)
+                }
             }
         })
 

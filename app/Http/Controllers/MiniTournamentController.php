@@ -680,6 +680,39 @@ class MiniTournamentController extends Controller
     }
 
     /**
+     * Format schedule rounds với thông tin user cho partner_rotation matches.
+     *
+     * @param array $rounds
+     * @param \Illuminate\Support\Collection $participants
+     * @return array
+     */
+    private function formatMatchesWithUserInfo(array $rounds, $participants): array
+    {
+        // Map participant_id => user info
+        $participantMap = [];
+        foreach ($participants as $p) {
+            $participantMap[$p->id] = [
+                'id' => $p->id,
+                'name' => $p->user?->name ?? $p->guest_name ?? 'Unknown',
+            ];
+        }
+
+        foreach ($rounds as &$round) {
+            if (!isset($round['matches'])) continue;
+            foreach ($round['matches'] as &$match) {
+                $p1Id = $match['participant1_id'] ?? null;
+                $p2Id = $match['participant2_id'] ?? null;
+                $match['team_1'] = $participantMap[$p1Id] ?? null;
+                $match['team_2'] = $participantMap[$p2Id] ?? null;
+                $match['round_number'] = $round['round_number'];
+                unset($match['participant1_id'], $match['participant2_id']);
+            }
+        }
+
+        return $rounds;
+    }
+
+    /**
      * Organizer / Club staff đánh dấu member đã check-in kèo đấu.
      * - Kèo CLB: cần truyền club_id trong body, chỉ admin/manager/secretary hoặc organizer mới được phép.
      * - Kèo thường: không cần club_id, chỉ organizer mới được phép.
@@ -913,6 +946,7 @@ class MiniTournamentController extends Controller
         }
 
         $confirmedParticipants = $miniTournament->participants()
+            ->with('user:id,name,avatar')
             ->where('is_confirmed', true)
             ->where('is_absent', false)
             ->get();
@@ -923,8 +957,8 @@ class MiniTournamentController extends Controller
 
         try {
             if ($format === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
-                if (count($participantIds) < 6 || count($participantIds) > 8) {
-                    return ResponseHelper::error('partner_rotation cần 6-8 người đã xác nhận, đang có ' . count($participantIds) . ' người', 422);
+                if (count($participantIds) < 6) {
+                    return ResponseHelper::error('partner_rotation cần ít nhất 6 người đã xác nhận, đang có ' . count($participantIds) . ' người', 422);
                 }
                 $schedule = $scheduler->generatePartnerRotationSchedule($participantIds, $courtCount);
             } elseif ($format === MiniTournament::MATCH_FORMAT_MIXED_GENDER) {
@@ -972,11 +1006,13 @@ class MiniTournamentController extends Controller
             ]);
         });
 
+        $responseRounds = $this->formatMatchesWithUserInfo($schedule['rounds'], $confirmedParticipants);
+
         return ResponseHelper::success([
             'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
             'summary' => $schedule['summary'],
             'unbalanced_notice' => $unbalancedNotice,
-            'rounds' => $schedule['rounds'],
+            'rounds' => $responseRounds,
         ], 'Đã bắt đầu session và sinh lịch đấu thành công', 200);
     }
 

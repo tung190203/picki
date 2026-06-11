@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 class RoundRobinSchedulerService
 {
     /**
-     * Generate partner_rotation schedule (6-8 individual players).
+     * Generate partner_rotation schedule (minimum 6 individual players).
      * Each player plays against every other player exactly once.
      * Distributed across rounds using available courts.
      *
@@ -22,8 +22,8 @@ class RoundRobinSchedulerService
     public function generatePartnerRotationSchedule(array $playerIds, int $courtCount = 2): array
     {
         $n = count($playerIds);
-        if ($n < 6 || $n > 8) {
-            throw new \InvalidArgumentException('partner_rotation requires 6-8 players, got ' . $n);
+        if ($n < 6) {
+            throw new \InvalidArgumentException('partner_rotation requires at least 6 players, got ' . $n);
         }
 
         $allMatches = $this->generateAllPairs($playerIds);

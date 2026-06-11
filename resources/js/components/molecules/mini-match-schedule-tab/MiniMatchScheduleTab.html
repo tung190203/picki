@@ -40,7 +40,7 @@
                 <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
                     <h4 class="font-semibold text-[#3E414C] text-sm">Xoay vòng partner</h4>
                     <div class="flex gap-1.5 shrink-0 flex-wrap">
-                        <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">6 - 8 người</span>
+                        <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">Tối thiểu 6 người</span>
                         <span class="bg-[#E0F2FE] text-[#1E40AF] text-xs px-2 py-0.5 rounded font-medium">5 - 7 vòng</span>
                         <span class="bg-[#F0FDF4] text-[#166534] text-xs px-2 py-0.5 rounded font-medium">Hỗ trợ số lẻ</span>
                     </div>
@@ -136,7 +136,7 @@
                 <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
                     <h4 class="font-semibold text-[#3E414C] text-sm">Xoay vòng partner</h4>
                     <div class="flex gap-1.5 shrink-0 flex-wrap">
-                        <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">6 - 8 người</span>
+                        <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">Tối thiểu 6 người</span>
                         <span class="bg-[#E0F2FE] text-[#1E40AF] text-xs px-2 py-0.5 rounded font-medium">5 - 7 vòng</span>
                         <span class="bg-[#DCFCE7] text-[#166534] text-xs px-2 py-0.5 rounded font-medium">Đã chốt</span>
                     </div>
@@ -383,11 +383,11 @@
                                     <span class="text-xs font-semibold text-[#9EA2B3] shrink-0">V{{ match.round_number }}</span>
                                     <div class="flex items-center gap-2 flex-1 min-w-0">
                                         <span class="text-sm font-medium text-[#3E414C] truncate">
-                                            {{ match.participant1?.user?.full_name || match.participant1?.guest_name || 'TBD' }}
+                                            {{ match.team_1?.name || 'TBD' }}
                                         </span>
                                         <span class="text-xs text-[#9EA2B3] shrink-0">vs</span>
                                         <span class="text-sm font-medium text-[#3E414C] truncate">
-                                            {{ match.participant2?.user?.full_name || match.participant2?.guest_name || 'TBD' }}
+                                            {{ match.team_2?.name || 'TBD' }}
                                         </span>
                                     </div>
                                 </div>
@@ -402,6 +402,17 @@
                             </div>
                         </div>
                     </div>
+                    <!-- Nút Bắt đầu Session cho partner_rotation -->
+                    <button v-if="props.isCreator"
+                        @click="onStartPartnerRotation"
+                        :disabled="isStartingSession"
+                        class="w-full py-3 rounded-xl text-sm font-semibold bg-[#D72D36] text-white hover:bg-red-700 disabled:opacity-50 transition flex items-center justify-center gap-2">
+                        <svg v-if="isStartingSession" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 0 0 12h4z"/>
+                        </svg>
+                        {{ isStartingSession ? 'Đang khởi tạo...' : 'Bắt đầu Session' }}
+                    </button>
                 </div>
             </div>
             <!-- ONGOING -->
@@ -534,7 +545,7 @@
                         <span class="text-[#6B6F80]">Người tham gia</span>
                         <span class="font-semibold text-[#3E414C]">{{ confirmedParticipantsCount }} người</span>
                     </div>
-                    <div v-if="!allParticipantsGrouped" class="flex items-center gap-2 text-xs text-amber-600">
+                    <div v-if="!allParticipantsGrouped && (data.match_format === MATCH_FORMAT.MIXED_GENDER || data.match_format === MATCH_FORMAT.RANK_PAIRING)" class="flex items-center gap-2 text-xs text-amber-600">
                         <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                         Cần phân nhóm tất cả người chơi trước khi bắt đầu.
                     </div>
@@ -544,7 +555,7 @@
                 <div v-if="props.isCreator">
                     <button
                         @click="onStartWithGroups"
-                        :disabled="isStartingSession || !allParticipantsGrouped"
+                        :disabled="isStartingSession || (data.match_format !== MATCH_FORMAT.PARTNER_ROTATION && !allParticipantsGrouped)"
                         class="w-full py-3 rounded-xl text-sm font-semibold bg-[#D72D36] text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
                         <svg v-if="isStartingSession" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
