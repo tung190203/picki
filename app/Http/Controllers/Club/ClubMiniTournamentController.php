@@ -10,6 +10,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatusEnum;
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\MiniTournamentController;
 use App\Http\Requests\StoreMiniTournamentRequest;
 use App\Http\Requests\UpdateMiniTournamentRequest;
 use App\Http\Resources\MiniParticipantResource;
@@ -308,6 +309,17 @@ class ClubMiniTournamentController extends Controller
         unset($data['edit_scope']);
 
         $miniTournament->update($data);
+
+        // Auto-set session_status when match_format is set/changed (non-standard formats only)
+        if (isset($data['match_format']) && $data['match_format'] !== \App\Models\MiniTournament::MATCH_FORMAT_STANDARD) {
+            $miniTournament->update([
+                'session_status' => \App\Models\MiniTournament::SESSION_STATUS_PENDING_GROUP,
+            ]);
+        } elseif (isset($data['match_format']) && $data['match_format'] === \App\Models\MiniTournament::MATCH_FORMAT_STANDARD) {
+            $miniTournament->update([
+                'session_status' => null,
+            ]);
+        }
 
         $imageService = app(ImageOptimizationService::class);
 
