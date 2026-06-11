@@ -1,46 +1,83 @@
 <template>
-    <div class="border rounded-lg p-4 transition-all"
-        :class="roundBorderClass">
-        <!-- Round header -->
-        <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2">
-                <p class="font-semibold text-sm" :class="roundTitleClass">
-                    Vòng {{ round.round_number }}
-                </p>
-                <!-- Status badge -->
-                <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                    :class="statusBadgeClass">
-                    {{ statusLabel }}
-                </span>
-            </div>
-            <span class="text-xs text-gray-500">
-                {{ round.completed_count }}/{{ round.total_count }} trận
-            </span>
-        </div>
-
-        <!-- Progress bar -->
-        <div class="w-full bg-gray-200 rounded-full h-1.5 mb-3">
-            <div class="h-1.5 rounded-full transition-all duration-300"
-                :class="progressBarClass"
-                :style="{ width: progressPercent + '%' }">
-            </div>
-        </div>
-
+    <div class="space-y-3">
         <!-- Matches list -->
         <div class="space-y-2">
             <div v-for="match in round.matches" :key="match.id"
-                class="flex items-center justify-between bg-white rounded px-3 py-2 text-xs border"
-                :class="match.is_bye ? 'border-gray-100 bg-gray-50' : 'border-gray-200'">
-                <span class="font-medium text-[#3E414C]">
-                    {{ match.team_1?.name || 'TBD' }} vs {{ match.team_2?.name || 'TBD' }}
-                </span>
-                <span v-if="match.is_bye" class="text-gray-400 italic">Bye</span>
-                <span v-else-if="match.status === 'completed'"
-                    :class="match.score_1 > match.score_2 ? 'text-green-600' : 'text-red-600'">
-                    {{ match.score_1 }} - {{ match.score_2 }}
-                </span>
-                <span v-else-if="match.status === 'disputed'" class="text-amber-500">Tranh chấp</span>
-                <span v-else class="text-gray-400">Chờ đấu</span>
+                class="bg-white rounded-lg px-4 py-3 text-xs border border-gray-200"
+                :class="{ 'opacity-50 bg-gray-50': match.status === 'pending' || match.is_bye }">
+                <!-- Team row -->
+                <div class="flex items-center justify-between gap-2 mb-1">
+                    <!-- Team 1 -->
+                    <div class="flex items-center gap-2 flex-1 min-w-0">
+                        <div class="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center shrink-0 overflow-hidden">
+                            <img v-if="match.team1?.avatar_url" :src="match.team1.avatar_url" class="w-full h-full object-cover" alt="">
+                            <span v-else class="text-xs font-semibold text-red-500">
+                                {{ (match.team1?.full_name || 'TBD').charAt(0).toUpperCase() }}
+                            </span>
+                        </div>
+                        <div class="flex flex-col min-w-0 flex-1">
+                            <span class="text-sm font-medium text-[#3E414C] truncate"
+                                :class="{ 'text-gray-400': match.is_bye }">
+                                {{ match.team1?.full_name || 'TBD' }}
+                            </span>
+                            <span v-if="match.team1?.user?.sports?.length" class="text-[10px] text-gray-400">
+                                VN DUP: {{ getVnduprScore(match.team1) }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Score / VS -->
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <span v-if="match.is_bye" class="text-[10px] text-gray-400 px-2">Bye</span>
+                        <template v-else-if="match.status === 'completed'">
+                            <span class="text-sm font-bold" :class="match.score_1 > match.score_2 ? 'text-green-600' : 'text-gray-500'">{{ match.score_1 ?? 0 }}</span>
+                            <span class="text-gray-300">-</span>
+                            <span class="text-sm font-bold" :class="match.score_2 > match.score_1 ? 'text-green-600' : 'text-gray-500'">{{ match.score_2 ?? 0 }}</span>
+                        </template>
+                        <template v-else-if="match.status === 'disputed'">
+                            <span class="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-600 rounded-full">Tranh chấp</span>
+                        </template>
+                        <template v-else>
+                            <span class="text-[10px] text-gray-400 px-2">vs</span>
+                        </template>
+                    </div>
+
+                    <!-- Team 2 -->
+                    <div class="flex items-center gap-2 flex-1 min-w-0 justify-end">
+                        <div class="flex flex-col min-w-0 flex-1 items-end">
+                            <span class="text-sm font-medium text-[#3E414C] truncate text-right"
+                                :class="{ 'text-gray-400': match.is_bye }">
+                                {{ match.team2?.full_name || 'TBD' }}
+                            </span>
+                            <span v-if="match.team2?.user?.sports?.length" class="text-[10px] text-gray-400">
+                                VN DUP: {{ getVnduprScore(match.team2) }}
+                            </span>
+                        </div>
+                        <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center shrink-0 overflow-hidden">
+                            <img v-if="match.team2?.avatar_url" :src="match.team2.avatar_url" class="w-full h-full object-cover" alt="">
+                            <span v-else class="text-xs font-semibold text-blue-500">
+                                {{ (match.team2?.full_name || 'TBD').charAt(0).toUpperCase() }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Court + time + status -->
+                <div class="flex items-center justify-between mt-1.5 pt-1.5 border-t border-gray-100" v-if="!match.is_bye">
+                    <div class="flex items-center gap-3">
+                        <span v-if="match.yard_number" class="text-[10px] text-gray-400">
+                            Sân {{ match.yard_number }}
+                        </span>
+                        <span v-if="match.scheduled_at" class="text-[10px] text-gray-400">
+                            {{ formatTime(match.scheduled_at) }}
+                        </span>
+                    </div>
+                    <span v-if="match.status && match.status !== 'completed' && match.status !== 'disputed'"
+                        class="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                        :class="matchStatusBadge(match.status)">
+                        {{ matchStatusLabel(match.status) }}
+                    </span>
+                </div>
             </div>
         </div>
     </div>
@@ -78,16 +115,6 @@ export default {
             return classes[status.value] || classes.upcoming;
         });
 
-        const roundBorderClass = computed(() => {
-            if (status.value === 'active') {
-                return 'border-blue-400 bg-blue-50/30';
-            }
-            if (status.value === 'done') {
-                return 'border-gray-200 bg-gray-50 opacity-75';
-            }
-            return 'border-gray-200 bg-gray-50 opacity-60';
-        });
-
         const roundTitleClass = computed(() => {
             if (status.value === 'active') return 'text-blue-700';
             if (status.value === 'done') return 'text-gray-600';
@@ -105,14 +132,51 @@ export default {
             return Math.round((props.round.completed_count / props.round.total_count) * 100);
         });
 
+        const formatTime = (dateString) => {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        };
+
+        const getVnduprScore = (team) => {
+            if (!team?.user?.sports?.length) return '-';
+            const sport = team.user.sports[0];
+            if (!sport?.scores) return '-';
+            const score = sport.scores.vndupr_score;
+            return score ?? '-';
+        };
+
+        const matchStatusLabel = (status) => {
+            const labels = {
+                pending: 'Chờ',
+                ongoing: 'Đấu',
+                completed: 'Xong',
+                disputed: 'Tranh chấp',
+            };
+            return labels[status] || status;
+        };
+
+        const matchStatusBadge = (status) => {
+            const classes = {
+                pending: 'bg-gray-100 text-gray-500',
+                ongoing: 'bg-blue-100 text-blue-600',
+                completed: 'bg-green-100 text-green-600',
+                disputed: 'bg-amber-100 text-amber-600',
+            };
+            return classes[status] || 'bg-gray-100 text-gray-500';
+        };
+
         return {
             status,
             statusLabel,
             statusBadgeClass,
-            roundBorderClass,
             roundTitleClass,
             progressBarClass,
             progressPercent,
+            formatTime,
+            getVnduprScore,
+            matchStatusLabel,
+            matchStatusBadge,
         };
     },
 };

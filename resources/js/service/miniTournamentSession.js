@@ -3,8 +3,11 @@ import { API_ENDPOINT } from '@/constants/index.js';
 
 const baseEndpoint = API_ENDPOINT.MINI_TOURNAMENT;
 
-export const startSession = async (id, scheduledCourtCount = 2, participantIds = null) => {
-    const payload = { scheduled_court_count: scheduledCourtCount }
+export const startSession = async (id, scheduledCourtCount = 2, participantIds = null, matchType = 'single') => {
+    const payload = {
+        scheduled_court_count: scheduledCourtCount,
+        match_type: matchType,
+    }
     if (participantIds) {
         payload.participant_ids = participantIds
     }

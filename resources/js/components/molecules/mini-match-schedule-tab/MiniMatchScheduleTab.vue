@@ -77,6 +77,7 @@ export default {
         const sessionLeaderboardData = ref({})
         const currentRound = ref(1)
         const isLoadingSchedule = ref(false)
+        const isCreatingSchedule = ref(false)
         const playerGroups = ref({}) // participantId -> group
         const sessionSubTab = ref('format')
         const showFormatConfirm = ref(false)
@@ -85,6 +86,10 @@ export default {
         const isLoadingPartnerMatches = ref(false)
         const partnerMatches = ref([])
         const isStartingSession = ref(false)
+
+        const selectedRoundData = computed(() => {
+            return sessionSchedule.value.find(r => r.round_number === currentRound.value) || null
+        })
 
         const confirmRemoval = () => {
             showDeleteModal.value = true;
@@ -313,31 +318,16 @@ export default {
             }
         }
 
-        watch(subActiveTab, () => {
+        watch(sessionSubTab, () => {
             pagination.value.current_page = 1
             selectedMiniMatches.value = []
 
             if (!props.data?.id) return
 
-            if (subActiveTab.value === 'schedule') {
-                if (props.data.match_format && props.data.match_format !== MATCH_FORMAT.STANDARD) {
-                    loadSessionSchedule(props.data.id)
-                }
-            } else if (subActiveTab.value === 'match') {
-                getMiniMatches(props.data.id, 1)
-            } else if (subActiveTab.value === 'your-match') {
-                getMyMiniMatches(props.data.id, 1)
-            }
-        })
-
-        watch(sessionSubTab, () => {
-            if (!props.data?.id) return
-            if (props.data.match_format && props.data.match_format !== MATCH_FORMAT.STANDARD) {
-                if (sessionSubTab.value === 'schedule') {
-                    loadSessionSchedule(props.data.id)
-                } else if (sessionSubTab.value === 'leaderboard') {
-                    loadSessionLeaderboard(props.data.id)
-                }
+            if (sessionSubTab.value === 'schedule') {
+                loadSessionSchedule(props.data.id)
+            } else if (sessionSubTab.value === 'leaderboard') {
+                loadSessionLeaderboard(props.data.id)
             }
         })
 
@@ -452,7 +442,8 @@ export default {
         const onStartPartnerRotation = async () => {
             isStartingSession.value = true
             try {
-                const res = await SessionService.startSession(props.data.id, 2, {})
+                const matchType = props.data.format === 'double' ? 'double' : 'single'
+                const res = await SessionService.startSession(props.data.id, 2, {}, matchType)
                 toast.success('Đã bắt đầu session!')
                 sessionSchedule.value = res.data?.rounds || []
                 await loadSessionLeaderboard(props.data.id)
@@ -473,6 +464,21 @@ export default {
                 sessionSubTab.value = 'leaderboard'
             } catch (e) {
                 toast.error(e.response?.data?.message || 'Không thể kết thúc session')
+            }
+        }
+
+        const onCreateSchedule = async () => {
+            isCreatingSchedule.value = true
+            try {
+                const res = await SessionService.startSession(props.data.id, 2, playerGroups.value)
+                toast.success('Đã tạo lịch thi đấu!')
+                sessionSchedule.value = res.data?.rounds || []
+                await loadSessionLeaderboard(props.data.id)
+                emit('refresh-data')
+            } catch (e) {
+                toast.error(e.response?.data?.message || 'Không thể tạo lịch đấu')
+            } finally {
+                isCreatingSchedule.value = false
             }
         }
 
@@ -663,11 +669,14 @@ export default {
             sessionLeaderboardData,
             currentRound,
             isLoadingSchedule,
+            isCreatingSchedule,
+            selectedRoundData,
             playerGroups,
             isSessionFormat,
             sessionStatus,
             sessionStatusLabel,
             finishSession,
+            onCreateSchedule,
             sessionSubTab,
             sessionSubtabs: SESSION_SUBTABS,
             onSelectFormat,
