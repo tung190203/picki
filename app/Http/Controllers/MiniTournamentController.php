@@ -1197,7 +1197,7 @@ class MiniTournamentController extends Controller
             return [
                 'round_number' => (int) $roundNumber,
                 'status' => $status,
-                'matches' => $roundMatches->map(function ($match) {
+                'matches' => $roundMatches->map(function ($match) use ($isDouble, $hasTeamMatches) {
                     // Format member từ participant
                     $formatMember = function ($participant) {
                         if (!$participant) return null;

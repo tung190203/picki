@@ -359,10 +359,10 @@ export default {
                     } else if (newData.session_status === SESSION_STATUS.FINISHED) {
                         sessionSubTab.value = 'leaderboard'
                     } else {
-                        // null / PENDING_GROUP: partner_rotation → format tab (shows match list);
-                        // mixed_gender / rank_pairing → group tab (assign groups)
+                        // partner_rotation → schedule tab (no grouping needed)
+                        // mixed_gender / rank_pairing → group tab (needs grouping)
                         if (newData.match_format === MATCH_FORMAT.PARTNER_ROTATION) {
-                            sessionSubTab.value = 'format'
+                            sessionSubTab.value = 'schedule'
                         } else {
                             sessionSubTab.value = 'group'
                         }
@@ -510,17 +510,12 @@ export default {
             try {
                 await updateMiniTournamentByClub(props.clubId, props.data.id, { match_format: selectedFormat.value })
 
-                // Nếu là partner_rotation → gọi API lấy danh sách trận đã sinh sẵn
-                if (selectedFormat.value === MATCH_FORMAT.PARTNER_ROTATION) {
-                    isLoadingPartnerMatches.value = true
-                    try {
-                        const res = await MiniMatchService.getListMiniMatches(props.data.id, { filter: 'matches' })
-                        partnerMatches.value = res.data || []
-                    } catch {
-                        // non-blocking: vẫn tiếp tục
-                    } finally {
-                        isLoadingPartnerMatches.value = false
-                    }
+                // Switch tab based on format after successful update
+                if (selectedFormat.value === MATCH_FORMAT.MIXED_GENDER || selectedFormat.value === MATCH_FORMAT.RANK_PAIRING) {
+                    sessionSubTab.value = 'group'
+                } else {
+                    // standard & partner_rotation → schedule tab
+                    sessionSubTab.value = 'schedule'
                 }
 
                 emit('refresh-data')
