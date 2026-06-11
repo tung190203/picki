@@ -15,7 +15,6 @@ import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/vue/24/solid/index
 import DeleteConfirmationModal from '@/components/molecules/DeleteConfirmationModal.vue'
 import { SESSION_STATUS, MATCH_FORMAT } from '@/constants/index.js';
 import MiniTournamentLeaderboard from '@/components/molecules/MiniTournamentLeaderboard.vue';
-import SessionReadyPreview from '@/components/molecules/session-ready-preview/SessionReadyPreview.vue';
 import SessionScheduleRound from '@/components/molecules/session-schedule-round/SessionScheduleRound.vue';
 
 const SESSION_SUBTABS = [
@@ -36,7 +35,6 @@ export default {
         UpdateMiniMatch,
         DeleteConfirmationModal,
         MiniTournamentLeaderboard,
-        SessionReadyPreview,
         SessionScheduleRound,
     },
     props: {
@@ -80,13 +78,13 @@ export default {
         const currentRound = ref(1)
         const isLoadingSchedule = ref(false)
         const playerGroups = ref({}) // participantId -> group
-        const isLoadingGroup = ref(false)
         const sessionSubTab = ref('format')
-        const showReadyPreview = ref(false)
-        const readyPreviewData = ref({})
         const showFormatConfirm = ref(false)
         const selectedFormat = ref('')
         const isConfirmingFormat = ref(false)
+        const isLoadingPartnerMatches = ref(false)
+        const partnerMatches = ref([])
+        const isStartingSession = ref(false)
 
         const confirmRemoval = () => {
             showDeleteModal.value = true;
@@ -351,16 +349,19 @@ export default {
                 if (newData.match_format && newData.match_format !== MATCH_FORMAT.STANDARD) {
                     await loadSessionSchedule(newData.id)
                     await loadSessionLeaderboard(newData.id)
-                    // Init session sub-tab based on status (null session_status = treat as PENDING_GROUP)
-                    const effectiveStatus = newData.session_status || SESSION_STATUS.PENDING_GROUP
-                    if (effectiveStatus === SESSION_STATUS.PENDING_GROUP) {
-                        sessionSubTab.value = 'group'
-                    } else if (effectiveStatus === SESSION_STATUS.READY) {
-                        sessionSubTab.value = 'ready'
-                    } else if (newData.session_status === SESSION_STATUS.ONGOING) {
+                    // Init session sub-tab based on status
+                    if (newData.session_status === SESSION_STATUS.ONGOING) {
                         sessionSubTab.value = 'schedule'
                     } else if (newData.session_status === SESSION_STATUS.FINISHED) {
                         sessionSubTab.value = 'leaderboard'
+                    } else {
+                        // null / PENDING_GROUP: partner_rotation → format tab (shows match list);
+                        // mixed_gender / rank_pairing → group tab (assign groups)
+                        if (newData.match_format === MATCH_FORMAT.PARTNER_ROTATION) {
+                            sessionSubTab.value = 'format'
+                        } else {
+                            sessionSubTab.value = 'group'
+                        }
                     }
                 }
                 if (newData.match_format === MATCH_FORMAT.MIXED_GENDER || newData.match_format === MATCH_FORMAT.RANK_PAIRING) {
@@ -412,72 +413,41 @@ export default {
             }
         }
 
-        const confirmPlayerGroups = async () => {
-            try {
-                isLoadingGroup.value = true
-                await SessionService.updatePlayerGroup(props.data.id, playerGroups.value)
-                toast.success('Đã cập nhật phân nhóm thành công')
+        const allParticipantsGrouped = computed(() => {
+            const confirmed = confirmedParticipants.value
+            if (!confirmed || confirmed.length === 0) return false
+            return confirmed.every(p => playerGroups.value[p.id])
+        })
 
-                // Refresh data to get updated session_status
+        const onStartWithGroups = async () => {
+            isStartingSession.value = true
+            try {
+                const res = await SessionService.startSession(props.data.id, 2, playerGroups.value)
+                toast.success('Đã bắt đầu session!')
+                sessionSchedule.value = res.data?.rounds || []
+                await loadSessionLeaderboard(props.data.id)
+                sessionSubTab.value = 'schedule'
                 emit('refresh-data')
             } catch (e) {
-                toast.error(e.response?.data?.message || 'Cập nhật phân nhóm thất bại')
+                toast.error(e.response?.data?.message || 'Không thể bắt đầu session')
             } finally {
-                isLoadingGroup.value = false
+                isStartingSession.value = false
             }
         }
 
-        const markReady = async () => {
+        const onStartPartnerRotation = async () => {
+            isStartingSession.value = true
             try {
-                await SessionService.markReady(props.data.id)
-                toast.success('Đã chuyển sang trạng thái sẵn sàng')
-                emit('refresh-data')
-            } catch (e) {
-                toast.error(e.response?.data?.message || 'Không thể chuyển trạng thái')
-            }
-        }
-
-        const openReadyPreview = () => {
-            const groups = sessionParticipantGroups.value
-            const total = confirmedParticipantsCount.value
-            const format = props.data?.match_format
-
-            let preview = {}
-            if (format === MATCH_FORMAT.PARTNER_ROTATION) {
-                preview = SessionService.getMatchPreview(format, 2, {}, total)
-            } else {
-                preview = SessionService.getMatchPreview(format, 2, groups)
-            }
-
-            readyPreviewData.value = preview
-            showReadyPreview.value = true
-        }
-
-        const onStartFromPreview = async (courtCount) => {
-            showReadyPreview.value = false
-            try {
-                const res = await SessionService.startSession(props.data.id, courtCount)
-                toast.success(res.message || 'Đã bắt đầu session')
-                await loadSessionSchedule(props.data.id)
+                const res = await SessionService.startSession(props.data.id, 2, {})
+                toast.success('Đã bắt đầu session!')
+                sessionSchedule.value = res.data?.rounds || []
                 await loadSessionLeaderboard(props.data.id)
                 sessionSubTab.value = 'schedule'
                 emit('refresh-data')
             } catch (e) {
                 toast.error(e.response?.data?.message || 'Không thể bắt đầu session')
-            }
-        }
-
-        const startSession = async (courtCount = 2) => {
-            try {
-                const res = await SessionService.startSession(props.data.id, courtCount)
-                toast.success(res.message || 'Đã bắt đầu session')
-                sessionSchedule.value = []
-                await loadSessionSchedule(props.data.id)
-                await loadSessionLeaderboard(props.data.id)
-                sessionSubTab.value = 'schedule'
-                emit('refresh-data')
-            } catch (e) {
-                toast.error(e.response?.data?.message || 'Không thể bắt đầu session')
+            } finally {
+                isStartingSession.value = false
             }
         }
 
@@ -519,6 +489,20 @@ export default {
             isConfirmingFormat.value = true
             try {
                 await updateMiniTournamentByClub(props.clubId, props.data.id, { match_format: selectedFormat.value })
+
+                // Nếu là partner_rotation → gọi API lấy danh sách trận đã sinh sẵn
+                if (selectedFormat.value === MATCH_FORMAT.PARTNER_ROTATION) {
+                    isLoadingPartnerMatches.value = true
+                    try {
+                        const res = await MiniMatchService.getListMiniMatches(props.data.id, { filter: 'matches' })
+                        partnerMatches.value = res.data || []
+                    } catch {
+                        // non-blocking: vẫn tiếp tục
+                    } finally {
+                        isLoadingPartnerMatches.value = false
+                    }
+                }
+
                 emit('refresh-data')
                 showFormatConfirm.value = false
                 toast.success('Đã chốt thể thức thi đấu!')
@@ -629,23 +613,6 @@ export default {
             }
         }
 
-        const readyPreviewStats = computed(() => {
-            const total = confirmedParticipantsCount.value
-            const groups = sessionParticipantGroups.value
-            const format = props.data?.match_format
-            let preview = {}
-            if (format === MATCH_FORMAT.PARTNER_ROTATION) {
-                preview = SessionService.getMatchPreview(format, 2, {}, total)
-            } else {
-                preview = SessionService.getMatchPreview(format, 2, groups)
-            }
-            return {
-                participants: total,
-                matches: preview.total_matches || 0,
-                rounds: preview.total_rounds || 0,
-            }
-        })
-
         return {
             MiniMatchCard,
             activeTab,
@@ -683,15 +650,9 @@ export default {
             currentRound,
             isLoadingSchedule,
             playerGroups,
-            isLoadingGroup,
             isSessionFormat,
             sessionStatus,
             sessionStatusLabel,
-            confirmPlayerGroups,
-            markReady,
-            openReadyPreview,
-            onStartFromPreview,
-            startSession,
             finishSession,
             sessionSubTab,
             sessionSubtabs: SESSION_SUBTABS,
@@ -699,16 +660,14 @@ export default {
             MATCH_FORMAT,
             SESSION_STATUS,
             MiniTournamentLeaderboard,
-            SessionReadyPreview,
             SessionScheduleRound,
-            showReadyPreview,
-            readyPreviewData,
             confirmedParticipantsCount,
             sessionParticipantGroups,
-            readyPreviewStats,
             showFormatConfirm,
             selectedFormat,
             isConfirmingFormat,
+            isLoadingPartnerMatches,
+            partnerMatches,
             openFormatConfirm,
             formatConfirmLabel,
             confirmFormatSelection,
@@ -716,8 +675,11 @@ export default {
             groupCounts,
             effectiveSessionStatus,
             groupValidationError,
-            canSaveGroups,
+            allParticipantsGrouped,
             assignGroup,
+            isStartingSession,
+            onStartWithGroups,
+            onStartPartnerRotation,
         }
     }
 }

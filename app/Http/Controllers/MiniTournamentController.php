@@ -415,6 +415,42 @@ class MiniTournamentController extends Controller
 
         $miniTournament->update($data);
 
+        // Khi match_format được set thành partner_rotation → sinh matches luôn nếu chưa có
+        if (isset($data['match_format']) && $data['match_format'] === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
+            $hasMatches = $miniTournament->matches()->exists();
+            if (!$hasMatches) {
+                $confirmedParticipants = $miniTournament->participants()
+                    ->where('is_confirmed', true)
+                    ->where('is_absent', false)
+                    ->get();
+
+                if ($confirmedParticipants->count() >= 6 && $confirmedParticipants->count() <= 8) {
+                    $scheduler = new RoundRobinSchedulerService();
+                    $schedule = $scheduler->generatePartnerRotationSchedule(
+                        $confirmedParticipants->pluck('id')->toArray(),
+                        $miniTournament->scheduled_court_count ?? 2
+                    );
+
+                    $matchesToInsert = [];
+                    foreach ($schedule['rounds'] as $round) {
+                        foreach ($round['matches'] as $match) {
+                            $matchesToInsert[] = [
+                                'mini_tournament_id' => $miniTournament->id,
+                                'participant1_id' => $match['participant1_id'],
+                                'participant2_id' => $match['participant2_id'],
+                                'round_number' => $round['round_number'],
+                                'is_bye' => $match['is_bye'] ?? false,
+                                'status' => \App\Models\MiniMatch::STATUS_PENDING,
+                                'created_at' => now(),
+                                'updated_at' => now(),
+                            ];
+                        }
+                    }
+                    \App\Models\MiniMatch::insert($matchesToInsert);
+                }
+            }
+        }
+
         // Sync payment status khi has_fee thay đổi (free→paid hoặc paid→free)
         $wasPaid = (bool) $miniTournament->has_fee;
         $isNowPaid = isset($data['has_fee']) ? (bool) $data['has_fee'] : $wasPaid;
@@ -815,109 +851,9 @@ class MiniTournamentController extends Controller
     }
 
     /**
-     * Cập nhật player_group cho các participant (organizer only).
-     * Áp dụng cho mixed_gender và rank_pairing.
-     * Sau khi cập nhật đủ người được phân nhóm → tự chuyển session_status sang 'ready'.
-     */
-    public function updatePlayerGroup(Request $request, int $id)
-    {
-        $userId = Auth::id();
-        if (!$userId) {
-            return ResponseHelper::error('Bạn cần đăng nhập', 401);
-        }
-
-        $miniTournament = MiniTournament::findOrFail($id);
-
-        if (!$miniTournament->hasOrganizer($userId)) {
-            return ResponseHelper::error('Chỉ organizer kèo đấu mới có quyền thực hiện', 403);
-        }
-
-        $participantIds = $request->input('participant_ids', []);
-        if (empty($participantIds)) {
-            return ResponseHelper::error('Danh sách participant_ids không hợp lệ', 422);
-        }
-
-        $validGroups = ['male', 'female', 'a', 'b'];
-        foreach ($participantIds as $participantId => $group) {
-            if (!in_array($group, $validGroups, true)) {
-                return ResponseHelper::error("Giá trị player_group '{$group}' không hợp lệ. Chỉ chấp nhận: " . implode(', ', $validGroups), 422);
-            }
-        }
-
-        DB::transaction(function () use ($miniTournament, $participantIds) {
-            foreach ($participantIds as $participantId => $group) {
-                MiniParticipant::where('id', $participantId)
-                    ->where('mini_tournament_id', $miniTournament->id)
-                    ->update(['player_group' => $group]);
-            }
-
-            // Auto-set session_status to 'ready' when all confirmed participants have a group
-            $format = $miniTournament->match_format;
-            if (in_array($format, [MiniTournament::MATCH_FORMAT_MIXED_GENDER, MiniTournament::MATCH_FORMAT_RANK_PAIRING])) {
-                $confirmedCount = $miniTournament->participants()->where('is_confirmed', true)->count();
-                $groupedCount = $miniTournament->participants()
-                    ->where('is_confirmed', true)
-                    ->whereNotNull('player_group')
-                    ->count();
-
-                if ($confirmedCount > 0 && $confirmedCount === $groupedCount) {
-                    $miniTournament->update(['session_status' => MiniTournament::SESSION_STATUS_READY]);
-                }
-            }
-        });
-
-        $miniTournament->load(['participants.user', 'participants.invitedBy']);
-
-        return ResponseHelper::success(
-            MiniParticipantResource::collection($miniTournament->participants),
-            'Đã cập nhật phân nhóm thành công'
-        );
-    }
-
-    /**
-     * Organizer chuyển session partner_rotation từ pending_group sang ready.
-     * Mixed_gender và rank_pairing tự động chuyển qua updatePlayerGroup.
-     */
-    public function markReady(int $id)
-    {
-        $userId = Auth::id();
-        if (!$userId) {
-            return ResponseHelper::error('Bạn cần đăng nhập', 401);
-        }
-
-        $miniTournament = MiniTournament::findOrFail($id);
-
-        if (!$miniTournament->hasOrganizer($userId)) {
-            return ResponseHelper::error('Chỉ organizer kèo đấu mới có quyền thực hiện', 403);
-        }
-
-        if ($miniTournament->match_format !== MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
-            return ResponseHelper::error('markReady chỉ áp dụng cho thể thức Xoay vòng partner', 422);
-        }
-
-        if ($miniTournament->session_status !== MiniTournament::SESSION_STATUS_PENDING_GROUP) {
-            return ResponseHelper::error('Session không ở trạng thái chờ phân nhóm', 422);
-        }
-
-        $count = $miniTournament->participants()
-            ->where('is_confirmed', true)
-            ->where('is_absent', false)
-            ->count();
-
-        if ($count < 6 || $count > 8) {
-            return ResponseHelper::error("Xoay vòng partner cần 6-8 người đã xác nhận, hiện tại có {$count} người", 422);
-        }
-
-        $miniTournament->update(['session_status' => MiniTournament::SESSION_STATUS_READY]);
-
-        return ResponseHelper::success(
-            ['session_status' => MiniTournament::SESSION_STATUS_READY],
-            'Đã chuyển session sang trạng thái sẵn sàng'
-        );
-    }
-
-    /**
-     * Bắt đầu session Round Robin và sinh lịch đấu tự động (organizer only).
+     * Bắt đầu session Round Robin: lưu phân nhóm (nếu có) + sinh lịch đấu tự động (organizer only).
+     * mixed_gender / rank_pairing: nhận participant_ids trong payload để lưu nhóm trước khi sinh lịch.
+     * partner_rotation: không cần payload, đọc confirmed participants từ DB.
      */
     public function startSession(Request $request, int $id)
     {
@@ -946,6 +882,35 @@ class MiniTournamentController extends Controller
         }
 
         $courtCount = $request->input('scheduled_court_count', 2);
+        $groupAssignments = $request->input('participant_ids', []);
+
+        // Lưu phân nhóm từ payload (mixed_gender / rank_pairing)
+        if (!empty($groupAssignments)) {
+            $validGroups = ['male', 'female', 'a', 'b'];
+            foreach ($groupAssignments as $participantId => $group) {
+                if (!in_array($group, $validGroups, true)) {
+                    return ResponseHelper::error("Giá trị player_group '{$group}' không hợp lệ. Chỉ chấp nhận: " . implode(', ', $validGroups), 422);
+                }
+            }
+
+            DB::transaction(function () use ($miniTournament, $groupAssignments) {
+                foreach ($groupAssignments as $participantId => $group) {
+                    MiniParticipant::where('id', $participantId)
+                        ->where('mini_tournament_id', $miniTournament->id)
+                        ->update(['player_group' => $group]);
+                }
+            });
+        }
+
+        // Validate phân nhóm đầy đủ cho mixed_gender / rank_pairing
+        if (in_array($format, [MiniTournament::MATCH_FORMAT_MIXED_GENDER, MiniTournament::MATCH_FORMAT_RANK_PAIRING])) {
+            $confirmed = $miniTournament->participants()->where('is_confirmed', true)->count();
+            $grouped = $miniTournament->participants()
+                ->where('is_confirmed', true)->whereNotNull('player_group')->count();
+            if ($confirmed > 0 && $confirmed !== $grouped) {
+                return ResponseHelper::error('Cần phân nhóm đầy đủ tất cả người chơi đã xác nhận', 422);
+            }
+        }
 
         $confirmedParticipants = $miniTournament->participants()
             ->where('is_confirmed', true)
@@ -953,10 +918,8 @@ class MiniTournamentController extends Controller
             ->get();
 
         $participantIds = $confirmedParticipants->pluck('id')->toArray();
-
         $scheduler = new RoundRobinSchedulerService();
         $schedule = null;
-        $unbalancedNotice = null;
 
         try {
             if ($format === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
@@ -1013,6 +976,7 @@ class MiniTournamentController extends Controller
             'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
             'summary' => $schedule['summary'],
             'unbalanced_notice' => $unbalancedNotice,
+            'rounds' => $schedule['rounds'],
         ], 'Đã bắt đầu session và sinh lịch đấu thành công', 200);
     }
 

@@ -3,20 +3,13 @@ import { API_ENDPOINT } from '@/constants/index.js';
 
 const baseEndpoint = API_ENDPOINT.MINI_TOURNAMENT;
 
-export const updatePlayerGroup = async (id, participantIds) => {
-  return axiosInstance.put(`${baseEndpoint}/${id}/player-group`, { participant_ids: participantIds })
-    .then((response) => response.data);
-};
-
-export const markReady = async (id) => {
-  return axiosInstance.post(`${baseEndpoint}/${id}/mark-ready`)
-    .then((response) => response.data);
-};
-
-export const startSession = async (id, scheduledCourtCount = 2) => {
-  return axiosInstance.post(`${baseEndpoint}/${id}/start-session`, {
-    scheduled_court_count: scheduledCourtCount,
-  }).then((response) => response.data);
+export const startSession = async (id, scheduledCourtCount = 2, participantIds = null) => {
+    const payload = { scheduled_court_count: scheduledCourtCount }
+    if (participantIds) {
+        payload.participant_ids = participantIds
+    }
+    return axiosInstance.put(`${baseEndpoint}/${id}/session`, payload)
+        .then((response) => response.data);
 };
 
 export const getSchedule = async (id) => {
