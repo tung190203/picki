@@ -1139,6 +1139,7 @@ class MiniTournamentController extends Controller
             $miniTournament->update([
                 'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
                 'session_started_at' => now(),
+                'is_session_started' => true,
             ]);
         });
 

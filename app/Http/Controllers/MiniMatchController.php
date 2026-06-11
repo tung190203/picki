@@ -43,13 +43,15 @@ class MiniMatchController extends Controller
         $userId = Auth::id();
         $isOrganizer = $miniTournament->hasOrganizer($userId);
 
-        // Kèo chưa công bố (status = 1 = STATUS_DRAFT):
-        // - Organizer: thấy tất cả matches
-        // - Người được mời (is_invited=true, is_confirmed=false): thấy trang matches nhưng không có nội dung
-        // - Người khác: không thấy matches
         if ($miniTournament->status === MiniTournament::STATUS_DRAFT && !$isOrganizer) {
             return ResponseHelper::success([
                 'matches' => [],
+                'match_format' => $miniTournament->match_format,
+                'is_session_started' => $miniTournament->is_session_started,
+                'session_status' => $miniTournament->session_status,
+                'total_matches' => 0,
+                'confirmed_matches' => 0,
+                'current_round' => null,
             ], 'Lấy danh sách trận đấu thành công', 200, [
                 'current_page' => 1,
                 'last_page'    => 1,
@@ -58,37 +60,96 @@ class MiniMatchController extends Controller
             ]);
         }
 
-        $query = MiniMatch::withFullRelations()
-            ->where('mini_tournament_id', $miniTournament->id)
-            ->orderBy('created_at', 'desc');
+        $baseQuery = MiniMatch::withFullRelations()
+            ->where('mini_tournament_id', $miniTournament->id);
 
         if ($filter === 'my_matches') {
-            $userId = Auth::id();
-
-            $query->where(function ($q) use ($userId) {
-                $q->whereHas('team1.members.user', function ($sub) use ($userId) {
-                    $sub->where('user_id', $userId);
-                })->orWhereHas('team2.members.user', function ($sub) use ($userId) {
-                    $sub->where('user_id', $userId);
-                });
+            $baseQuery->where(function ($q) use ($userId) {
+                $q->whereHas('team1.members.user', fn ($sub) => $sub->where('user_id', $userId))
+                  ->orWhereHas('team2.members.user', fn ($sub) => $sub->where('user_id', $userId));
             });
         }
 
-        // Paginate
-        $matches = $query->paginate($perPage);
+        $isRoundBased = in_array($miniTournament->match_format, [
+            MiniTournament::MATCH_FORMAT_PARTNER_ROTATION,
+            MiniTournament::MATCH_FORMAT_MIXED_GENDER,
+            MiniTournament::MATCH_FORMAT_RANK_PAIRING,
+        ], true);
 
-        $data = [
-            'matches' => MiniMatchResource::collection($matches),
-        ];
+        $totalMatches = (clone $baseQuery)->count();
+        $confirmedMatches = (clone $baseQuery)
+            ->where('status', MiniMatch::STATUS_COMPLETED)
+            ->count();
+
+        $currentRound = null;
+        if ($isRoundBased) {
+            $activeRound = (clone $baseQuery)
+                ->whereNotNull('round_number')
+                ->where('status', MiniMatch::STATUS_GOING_ON)
+                ->orderBy('round_number')
+                ->value('round_number');
+            if (!$activeRound) {
+                $activeRound = (clone $baseQuery)
+                    ->whereNotNull('round_number')
+                    ->where('status', MiniMatch::STATUS_PENDING)
+                    ->orderBy('round_number')
+                    ->value('round_number');
+            }
+            $currentRound = $activeRound;
+        }
 
         $meta = [
-            'current_page' => $matches->currentPage(),
-            'last_page'    => $matches->lastPage(),
-            'per_page'     => $matches->perPage(),
-            'total'        => $matches->total(),
+            'current_page' => 1,
+            'last_page'    => 1,
+            'per_page'     => $totalMatches,
+            'total'        => $totalMatches,
         ];
 
-        return ResponseHelper::success($data, 'Lấy danh sách trận đấu thành công', 200, $meta);
+        if ($isRoundBased) {
+            $allMatches = (clone $baseQuery)
+                ->orderBy('round_number')
+                ->orderBy('id')
+                ->get();
+
+            $grouped = $allMatches->groupBy('round_number')->map(function ($roundMatches, $roundNumber) {
+                $completedCount = $roundMatches->where('status', MiniMatch::STATUS_COMPLETED)->count();
+                $totalCount = $roundMatches->count();
+                $roundStatus = $completedCount === $totalCount
+                    ? 'done'
+                    : ($completedCount > 0 ? 'active' : 'upcoming');
+
+                return [
+                    'round_number' => (int) $roundNumber,
+                    'status' => $roundStatus,
+                    'completed_count' => $completedCount,
+                    'total_count' => $totalCount,
+                    'matches' => MiniMatchResource::collection($roundMatches),
+                ];
+            })->sortBy('round_number')->values();
+
+            return ResponseHelper::success([
+                'match_format' => $miniTournament->match_format,
+                'is_session_started' => $miniTournament->is_session_started,
+                'session_status' => $miniTournament->session_status,
+                'total_matches' => $totalMatches,
+                'confirmed_matches' => $confirmedMatches,
+                'current_round' => $currentRound,
+                'rounds' => $grouped,
+            ], 'Lấy danh sách trận đấu thành công', 200, $meta);
+        }
+
+        // Standard format: flat list
+        $matches = $baseQuery->orderBy('created_at', 'desc')->get();
+
+        return ResponseHelper::success([
+            'match_format' => $miniTournament->match_format,
+            'is_session_started' => $miniTournament->is_session_started,
+            'session_status' => $miniTournament->session_status,
+            'total_matches' => $totalMatches,
+            'confirmed_matches' => $confirmedMatches,
+            'current_round' => null,
+            'matches' => MiniMatchResource::collection($matches),
+        ], 'Lấy danh sách trận đấu thành công', 200, $meta);
     }
     /**
      * Lấy thông tin chi tiết trận đấu

@@ -149,9 +149,9 @@ export default {
         const matchStatusLabel = (status) => {
             const labels = {
                 pending: 'Chờ',
-                ongoing: 'Đấu',
+                going_on: 'Đang đấu',
+                waiting_confirm: 'Chờ xác nhận',
                 completed: 'Xong',
-                disputed: 'Tranh chấp',
             };
             return labels[status] || status;
         };
@@ -159,9 +159,9 @@ export default {
         const matchStatusBadge = (status) => {
             const classes = {
                 pending: 'bg-gray-100 text-gray-500',
-                ongoing: 'bg-blue-100 text-blue-600',
+                going_on: 'bg-blue-100 text-blue-600',
+                waiting_confirm: 'bg-yellow-100 text-yellow-600',
                 completed: 'bg-green-100 text-green-600',
-                disputed: 'bg-amber-100 text-amber-600',
             };
             return classes[status] || 'bg-gray-100 text-gray-500';
         };

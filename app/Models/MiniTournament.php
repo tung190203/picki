@@ -62,6 +62,7 @@ class MiniTournament extends Model
         'match_format',
         'session_status',
         'scheduled_court_count',
+        'is_session_started',
     ];
 
     protected $casts = [
@@ -73,6 +74,7 @@ class MiniTournament extends Model
         'fee_amount' => 'integer',
         'enable_dupr' => 'bool',
         'scheduled_court_count' => 'integer',
+        'is_session_started' => 'boolean',
     ];
 
     const PER_PAGE = 15;
