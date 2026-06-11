@@ -1382,9 +1382,6 @@ const applyTemplate = (template) => {
     if (s.format !== undefined && s.format !== null) {
         selectedFormat.value = s.format
     }
-    if (s.match_format) {
-        selectedMatchFormat.value = s.match_format
-    }
 
     // Thời gian & thời lượng
     if (s.start_time) {
@@ -1772,7 +1769,6 @@ const buildTemplateSettings = () => {
         description: tournamentNote.value || null,
         play_mode: selectedPlayMode.value,
         format: selectedFormat.value,
-        match_format: 'standard',
         competition_location_id: selectedLocation.value?.id || null,
         competition_location_name: selectedLocation.value?.name || null,
         start_time: date.value ? date.value.toISOString() : null,
@@ -1925,7 +1921,6 @@ const handleSubmit = async () => {
             description: tournamentNote.value || null,
             play_mode: selectedPlayMode.value,
             format: selectedFormat.value,
-            match_format: 'standard',
             start_time: startTime,
             duration: durationMinutes.value,
             competition_location_id: selectedLocation.value ? selectedLocation.value?.id : null,
@@ -2129,11 +2124,8 @@ const prefillForm = (data) => {
     if (data?.format) {
         selectedFormat.value = data.format
     }
-    if (data?.match_format) {
-        selectedMatchFormat.value = data.match_format
-    }
 
-    // Ngày giờ - địa điểm  - người chơi
+// Ngày giờ - địa điểm  - người chơi
     if (data?.start_time) {
         date.value = new Date(data.start_time);
     }

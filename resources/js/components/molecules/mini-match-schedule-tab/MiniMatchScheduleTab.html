@@ -4,7 +4,7 @@
 
     <!-- Tiêu chuẩn -->
     <div class="border border-[#BBBFCC] rounded-lg p-4 cursor-pointer hover:shadow-md transition"
-         @click="$emit('select-format', 'standard')">
+         @click="openFormatConfirm('standard')">
         <div class="flex items-start gap-3">
             <div class="w-10 h-10 rounded flex items-center justify-center bg-[#EDEEF2] shrink-0">
                 <svg class="w-5 h-5 text-[#3E414C]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -26,7 +26,7 @@
 
     <!-- Xoay vòng partner -->
     <div class="border border-[#BBBFCC] rounded-lg p-4 cursor-pointer hover:shadow-md transition"
-         @click="$emit('select-format', 'partner_rotation')">
+         @click="openFormatConfirm('partner_rotation')">
         <div class="flex items-start gap-3">
             <div class="w-10 h-10 rounded flex items-center justify-center bg-[#FEF3C7] shrink-0">
                 <svg class="w-5 h-5 text-[#92400E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -40,7 +40,7 @@
                 <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
                     <h4 class="font-semibold text-[#3E414C] text-sm">Xoay vòng partner</h4>
                     <div class="flex gap-1.5 shrink-0 flex-wrap">
-                        <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">6 - 8 người</span>
+                        <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">Tối thiểu 6 người</span>
                         <span class="bg-[#E0F2FE] text-[#1E40AF] text-xs px-2 py-0.5 rounded font-medium">5 - 7 vòng</span>
                         <span class="bg-[#F0FDF4] text-[#166534] text-xs px-2 py-0.5 rounded font-medium">Hỗ trợ số lẻ</span>
                     </div>
@@ -52,7 +52,7 @@
 
     <!-- Mix nam nữ -->
     <div class="border border-[#BBBFCC] rounded-lg p-4 cursor-pointer hover:shadow-md transition"
-         @click="$emit('select-format', 'mixed_gender')">
+         @click="openFormatConfirm('mixed_gender')">
         <div class="flex items-start gap-3">
             <div class="w-10 h-10 rounded flex items-center justify-center bg-[#FEF3C7] shrink-0">
                 <svg class="w-5 h-5 text-[#92400E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -78,7 +78,7 @@
 
     <!-- Ghép hạng A/B -->
     <div class="border border-[#BBBFCC] rounded-lg p-4 cursor-pointer hover:shadow-md transition"
-         @click="$emit('select-format', 'rank_pairing')">
+         @click="openFormatConfirm('rank_pairing')">
         <div class="flex items-start gap-3">
             <div class="w-10 h-10 rounded flex items-center justify-center bg-[#FEF3C7] shrink-0">
                 <svg class="w-5 h-5 text-[#92400E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -102,8 +102,89 @@
     </div>
 </div>
 
-<!-- Format already chosen -->
-<div v-else class="space-y-4">
+<!-- Format chosen: show locked format card (non-interactive) -->
+<div v-else class="space-y-3">
+    <!-- Locked format display -->
+    <div class="border border-[#BBBFCC] rounded-lg p-4 opacity-75" v-if="data.match_format === 'standard'">
+        <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded flex items-center justify-center bg-[#EDEEF2] shrink-0">
+                <svg class="w-5 h-5 text-[#3E414C]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1">
+                    <h4 class="font-semibold text-[#3E414C] text-sm">Tiêu chuẩn</h4>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">2 - 8 người</span>
+                        <span class="bg-[#E0F2FE] text-[#1E40AF] text-xs px-2 py-0.5 rounded font-medium">1 trận</span>
+                        <span class="bg-[#DCFCE7] text-[#166534] text-xs px-2 py-0.5 rounded font-medium">Đã chốt</span>
+                    </div>
+                </div>
+                <p class="text-[#6B6F80] text-xs">1 trận đấu giữa 2 đội. Phù hợp cho kèo thông thường.</p>
+            </div>
+        </div>
+    </div>
+    <div class="border border-[#BBBFCC] rounded-lg p-4 opacity-75" v-else-if="data.match_format === 'partner_rotation'">
+        <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded flex items-center justify-center bg-[#FEF3C7] shrink-0">
+                <svg class="w-5 h-5 text-[#92400E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
+                    <h4 class="font-semibold text-[#3E414C] text-sm">Xoay vòng partner</h4>
+                    <div class="flex gap-1.5 shrink-0 flex-wrap">
+                        <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">Tối thiểu 6 người</span>
+                        <span class="bg-[#E0F2FE] text-[#1E40AF] text-xs px-2 py-0.5 rounded font-medium">5 - 7 vòng</span>
+                        <span class="bg-[#DCFCE7] text-[#166534] text-xs px-2 py-0.5 rounded font-medium">Đã chốt</span>
+                    </div>
+                </div>
+                <p class="text-[#6B6F80] text-xs">Mỗi người lần lượt đứng cặp với tất cả người còn lại đúng 1 lần. Xếp hạng cá nhân cuối session.</p>
+            </div>
+        </div>
+    </div>
+    <div class="border border-[#BBBFCC] rounded-lg p-4 opacity-75" v-else-if="data.match_format === 'mixed_gender'">
+        <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded flex items-center justify-center bg-[#FEF3C7] shrink-0">
+                <svg class="w-5 h-5 text-[#92400E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
+                    <h4 class="font-semibold text-[#3E414C] text-sm">Mix nam nữ</h4>
+                    <div class="flex gap-1.5 shrink-0 flex-wrap">
+                        <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">3 - 7 nam</span>
+                        <span class="bg-[#FCE7F3] text-[#9D174D] text-xs px-2 py-0.5 rounded font-medium">3 - 7 nữ</span>
+                        <span class="bg-[#DCFCE7] text-[#166534] text-xs px-2 py-0.5 rounded font-medium">Đã chốt</span>
+                    </div>
+                </div>
+                <p class="text-[#6B6F80] text-xs">Mỗi người nam lần lượt đứng cặp với tất cả người nữ và ngược lại. Không cần số nam nữ bằng nhau.</p>
+            </div>
+        </div>
+    </div>
+    <div class="border border-[#BBBFCC] rounded-lg p-4 opacity-75" v-else-if="data.match_format === 'rank_pairing'">
+        <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded flex items-center justify-center bg-[#FEF3C7] shrink-0">
+                <svg class="w-5 h-5 text-[#92400E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+                </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
+                    <h4 class="font-semibold text-[#3E414C] text-sm">Ghép hạng A/B</h4>
+                    <div class="flex gap-1.5 shrink-0 flex-wrap">
+                        <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">3 - 7 hạng A</span>
+                        <span class="bg-[#E0F2FE] text-[#1E40AF] text-xs px-2 py-0.5 rounded font-medium">3 - 7 hạng B</span>
+                        <span class="bg-[#DCFCE7] text-[#166534] text-xs px-2 py-0.5 rounded font-medium">Đã chốt</span>
+                    </div>
+                </div>
+                <p class="text-[#6B6F80] text-xs">Chia thành nhóm A (mạnh hơn) và B. Mỗi A xoay vòng đứng cặp với mỗi B. Xếp hạng riêng từng nhóm.</p>
+            </div>
+        </div>
+    </div>
     <!-- Match format info badge + status -->
     <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-2">
@@ -117,10 +198,10 @@
         <span v-if="data.match_format !== MATCH_FORMAT.STANDARD && sessionStatusLabel"
               class="text-xs font-medium px-2 py-1 rounded"
               :class="{
-                  'bg-yellow-100 text-yellow-700': sessionStatus === SESSION_STATUS.PENDING_GROUP,
-                  'bg-blue-100 text-blue-700': sessionStatus === SESSION_STATUS.READY,
-                  'bg-green-100 text-green-700': sessionStatus === SESSION_STATUS.ONGOING,
-                  'bg-gray-100 text-gray-600': sessionStatus === SESSION_STATUS.FINISHED,
+                'bg-yellow-100 text-yellow-700': effectiveSessionStatus === SESSION_STATUS.PENDING_GROUP,
+                'bg-blue-100 text-blue-700': effectiveSessionStatus === SESSION_STATUS.READY,
+                'bg-green-100 text-green-700': effectiveSessionStatus === SESSION_STATUS.ONGOING,
+                'bg-gray-100 text-gray-600': effectiveSessionStatus === SESSION_STATUS.FINISHED,
               }">
             {{ sessionStatusLabel }}
         </span>
@@ -270,60 +351,217 @@
 
         <!-- Thể thức tab -->
         <div v-if="sessionSubTab === 'format'">
-            <div class="text-center py-8">
-                <p class="text-[#6B6F80] text-sm mb-4">
-                    {{ data.match_format === MATCH_FORMAT.MIXED_GENDER
-                        ? 'Cần phân nhóm Nam/Nữ trước khi bắt đầu.'
-                        : data.match_format === MATCH_FORMAT.RANK_PAIRING
-                        ? 'Cần phân nhóm A/B trước khi bắt đầu.'
-                        : data.match_format === MATCH_FORMAT.PARTNER_ROTATION
-                        ? 'Xác nhận số người tham gia trước khi bắt đầu.'
-                        : '' }}
-                </p>
-                <button v-if="sessionStatus === SESSION_STATUS.PENDING_GROUP && props.isCreator"
-                    @click="openGroupModal"
-                    class="px-5 py-2.5 bg-[#D72D36] text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition">
-                    Phân nhóm người chơi
-                </button>
-                <button v-else-if="sessionStatus === SESSION_STATUS.READY && props.isCreator"
-                    @click="startSession"
-                    class="px-5 py-2.5 bg-[#2563EB] text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition">
-                    Bắt đầu Session
-                </button>
-                <div v-else-if="sessionStatus === SESSION_STATUS.ONGOING" class="text-[#6B6F80] text-sm">
-                    Session đang diễn ra...
+            <!-- PENDING_GROUP: mixed_gender / rank_pairing need grouping -->
+            <div v-if="effectiveSessionStatus === SESSION_STATUS.PENDING_GROUP && (data.match_format === MATCH_FORMAT.MIXED_GENDER || data.match_format === MATCH_FORMAT.RANK_PAIRING)">
+                <div class="text-center py-8">
+                    <p class="text-[#6B6F80] text-sm mb-4">
+                        Cần phân nhóm {{ data.match_format === MATCH_FORMAT.MIXED_GENDER ? 'Nam/Nữ' : 'A/B' }} trước khi bắt đầu.
+                    </p>
+                    <button v-if="props.isCreator" @click="sessionSubTab = 'group'"
+                        class="px-5 py-2.5 bg-[#D72D36] text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition">
+                        Phân nhóm người chơi
+                    </button>
                 </div>
-                <div v-else-if="sessionStatus === SESSION_STATUS.FINISHED" class="text-[#6B6F80] text-sm">
-                    Session đã kết thúc.
+            </div>
+            <!-- PENDING_GROUP: partner_rotation - hiển thị danh sách trận đã sinh -->
+            <div v-else-if="effectiveSessionStatus === SESSION_STATUS.PENDING_GROUP && data.match_format === MATCH_FORMAT.PARTNER_ROTATION">
+                <!-- Chưa load hoặc chưa có trận -->
+                <div v-if="isLoadingPartnerMatches || partnerMatches.length === 0" class="text-center py-8">
+                    <p class="text-[#6B6F80] text-sm mb-2">
+                        {{ confirmedParticipantsCount }} người đã xác nhận tham gia.
+                    </p>
+                    <p class="text-[#9EA2B3] text-xs">Đang tải danh sách trận...</p>
                 </div>
+                <!-- Đã có danh sách trận -->
+                <div v-else class="space-y-3">
+                    <div class="bg-[#F7F7F8] rounded-xl p-3">
+                        <p class="text-xs text-[#6B6F80] mb-2 font-medium">Danh sách trận đấu</p>
+                        <div class="space-y-2">
+                            <div v-for="match in partnerMatches" :key="match.id"
+                                class="bg-white rounded-lg px-4 py-3 flex items-center justify-between">
+                                <div class="flex items-center gap-2 flex-1 min-w-0">
+                                    <span class="text-xs font-semibold text-[#9EA2B3] shrink-0">V{{ match.round_number }}</span>
+                                    <div class="flex items-center gap-2 flex-1 min-w-0">
+                                        <span class="text-sm font-medium text-[#3E414C] truncate">
+                                            {{ match.team_1?.name || 'TBD' }}
+                                        </span>
+                                        <span class="text-xs text-[#9EA2B3] shrink-0">vs</span>
+                                        <span class="text-sm font-medium text-[#3E414C] truncate">
+                                            {{ match.team_2?.name || 'TBD' }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <span v-if="match.status" class="text-[10px] px-2 py-0.5 rounded-full shrink-0 ml-2"
+                                    :class="{
+                                        'bg-yellow-100 text-yellow-700': match.status === 'pending',
+                                        'bg-green-100 text-green-700': match.status === 'ongoing',
+                                        'bg-gray-100 text-gray-500': match.status === 'finished'
+                                    }">
+                                    {{ match.status === 'pending' ? 'Chờ' : match.status === 'ongoing' ? 'Đấu' : 'Xong' }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Nút Bắt đầu Session cho partner_rotation -->
+                    <button v-if="props.isCreator"
+                        @click="onStartPartnerRotation"
+                        :disabled="isStartingSession"
+                        class="w-full py-3 rounded-xl text-sm font-semibold bg-[#D72D36] text-white hover:bg-red-700 disabled:opacity-50 transition flex items-center justify-center gap-2">
+                        <svg v-if="isStartingSession" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 0 0 12h4z"/>
+                        </svg>
+                        {{ isStartingSession ? 'Đang khởi tạo...' : 'Bắt đầu Session' }}
+                    </button>
+                </div>
+            </div>
+            <!-- ONGOING -->
+            <div v-else-if="effectiveSessionStatus === SESSION_STATUS.ONGOING" class="text-center py-8">
+                <p class="text-[#6B6F80] text-sm">Session đang diễn ra...</p>
+            </div>
+            <!-- FINISHED -->
+            <div v-else-if="effectiveSessionStatus === SESSION_STATUS.FINISHED" class="text-center py-8">
+                <p class="text-[#6B6F80] text-sm">Session đã kết thúc.</p>
             </div>
         </div>
 
         <!-- Phân nhóm tab -->
         <div v-if="sessionSubTab === 'group'">
-            <div class="text-center py-8" v-if="sessionStatus !== SESSION_STATUS.PENDING_GROUP">
+            <!-- Already grouped (non-pending) -->
+            <div v-if="effectiveSessionStatus !== SESSION_STATUS.PENDING_GROUP" class="text-center py-12">
                 <p class="text-[#6B6F80] text-sm">Đã phân nhóm xong. Không thể thay đổi.</p>
             </div>
-            <div v-else>
-                <p class="text-sm text-[#6B6F80] mb-4">
-                    Gán {{ data.match_format === MATCH_FORMAT.MIXED_GENDER ? 'giới tính (Nam/Nữ)' : 'hạng (A/B)' }} cho từng người chơi.
-                </p>
-                <div class="space-y-3 max-h-80 overflow-y-auto">
-                    <div v-for="participant in (data.participants || [])" :key="participant.id"
-                        class="flex items-center justify-between border-b pb-2">
-                        <span class="text-sm font-medium">{{ participant.user?.full_name || participant.guest_name }}</span>
-                        <select v-model="playerGroups[participant.id]" class="border rounded px-2 py-1 text-sm min-w-[100px]">
-                            <option value="">-- Chọn --</option>
-                            <option v-for="opt in groupOptions" :key="opt" :value="opt">
-                                {{ data.match_format === MATCH_FORMAT.MIXED_GENDER ? (opt === 'male' ? 'Nam' : 'Nữ') : `Hạng ${opt.toUpperCase()}` }}
-                            </option>
-                        </select>
+
+            <!-- Pending grouping: show participant grouping UI -->
+            <div v-else class="space-y-3">
+                <!-- Header -->
+                <div class="mb-4">
+                    <h3 class="font-semibold text-[#3E414C] text-base">Phân nhóm người chơi</h3>
+                    <p class="text-sm text-[#6B6F80] mt-1">
+                        Gán {{ data.match_format === MATCH_FORMAT.MIXED_GENDER ? 'giới tính (Nam/Nữ)' : 'hạng (A/B)' }} cho từng người chơi.
+                    </p>
+                </div>
+
+                <!-- Participant list -->
+                <div class="space-y-3">
+                    <div v-for="(participant, idx) in confirmedParticipants" :key="participant.id"
+                        class="bg-white border border-[#DCDEE6] rounded-xl p-4">
+
+                        <div class="flex items-center justify-between">
+                            <!-- Left: avatar + name + group label -->
+                            <div class="flex items-center gap-3 flex-1 min-w-0">
+                                <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center shrink-0 overflow-hidden">
+                                    <img v-if="participant.user?.avatar_url" :src="participant.user.avatar_url" class="w-full h-full object-cover" />
+                                    <span v-else class="text-sm font-semibold text-gray-500">
+                                        {{ (participant.user?.full_name || participant.guest_name || '?').charAt(0).toUpperCase() }}
+                                    </span>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium text-[#3E414C] truncate">
+                                        {{ participant.user?.full_name || participant.guest_name }}
+                                    </p>
+                                    <!-- Group label badge -->
+                                    <span v-if="playerGroups[participant.id]"
+                                        :class="[
+                                            'inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold',
+                                            playerGroups[participant.id] === 'male' || playerGroups[participant.id] === 'a'
+                                                ? 'bg-blue-100 text-blue-700'
+                                                : playerGroups[participant.id] === 'female'
+                                                    ? 'bg-pink-100 text-pink-700'
+                                                    : 'bg-orange-100 text-orange-700'
+                                        ]">
+                                        {{ playerGroups[participant.id] === 'male' ? 'Nam' : playerGroups[participant.id] === 'female' ? 'Nữ' : 'Hạng ' + playerGroups[participant.id].toUpperCase() }}
+                                    </span>
+                                    <span v-else class="inline-block mt-0.5 text-[10px] text-[#9EA2B3]">Chưa phân nhóm</span>
+                                </div>
+                            </div>
+
+                            <!-- Right: toggle buttons -->
+                            <div class="flex gap-2 shrink-0 ml-4">
+                                <button
+                                    v-if="data.match_format === MATCH_FORMAT.MIXED_GENDER"
+                                    @click="assignGroup(participant.id, 'male')"
+                                    :class="[
+                                        'px-3 py-1.5 rounded-full text-xs font-semibold border transition-all whitespace-nowrap',
+                                        playerGroups[participant.id] === 'male'
+                                            ? 'bg-blue-500 text-white border-blue-500'
+                                            : 'bg-white text-[#6B6F80] border-[#DCDEE6] hover:border-blue-500 hover:text-blue-500'
+                                    ]">
+                                    Nam
+                                </button>
+                                <button
+                                    v-if="data.match_format === MATCH_FORMAT.MIXED_GENDER"
+                                    @click="assignGroup(participant.id, 'female')"
+                                    :class="[
+                                        'px-3 py-1.5 rounded-full text-xs font-semibold border transition-all whitespace-nowrap',
+                                        playerGroups[participant.id] === 'female'
+                                            ? 'bg-pink-500 text-white border-pink-500'
+                                            : 'bg-white text-[#6B6F80] border-[#DCDEE6] hover:border-pink-500 hover:text-pink-500'
+                                    ]">
+                                    Nữ
+                                </button>
+                                <button
+                                    v-if="data.match_format === MATCH_FORMAT.RANK_PAIRING"
+                                    @click="assignGroup(participant.id, 'a')"
+                                    :class="[
+                                        'px-3 py-1.5 rounded-full text-xs font-semibold border transition-all whitespace-nowrap',
+                                        playerGroups[participant.id] === 'a'
+                                            ? 'bg-indigo-500 text-white border-indigo-500'
+                                            : 'bg-white text-[#6B6F80] border-[#DCDEE6] hover:border-indigo-500 hover:text-indigo-500'
+                                    ]">
+                                    Hạng A
+                                </button>
+                                <button
+                                    v-if="data.match_format === MATCH_FORMAT.RANK_PAIRING"
+                                    @click="assignGroup(participant.id, 'b')"
+                                    :class="[
+                                        'px-3 py-1.5 rounded-full text-xs font-semibold border transition-all whitespace-nowrap',
+                                        playerGroups[participant.id] === 'b'
+                                            ? 'bg-orange-500 text-white border-orange-500'
+                                            : 'bg-white text-[#6B6F80] border-[#DCDEE6] hover:border-orange-500 hover:text-orange-500'
+                                    ]">
+                                    Hạng B
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Empty state -->
+                    <div v-if="!confirmedParticipants || confirmedParticipants.length === 0"
+                        class="text-center py-12 text-sm text-[#9EA2B3]">
+                        Chưa có người tham gia nào xác nhận.
                     </div>
                 </div>
-                <div class="flex justify-end gap-3 mt-4" v-if="props.isCreator">
-                    <button @click="confirmPlayerGroups" :disabled="isLoadingGroup"
-                        class="px-4 py-2 bg-[#2563EB] text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 transition">
-                        {{ isLoadingGroup ? 'Đang lưu...' : 'Xác nhận' }}
+
+                <!-- Validation warning -->
+                <div v-if="groupValidationError"
+                    class="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    <p class="text-xs text-amber-700">{{ groupValidationError }}</p>
+                </div>
+
+                <!-- Status info strip -->
+                <div class="bg-[#F7F7F8] rounded-xl p-4 space-y-2">
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="text-[#6B6F80]">Người tham gia</span>
+                        <span class="font-semibold text-[#3E414C]">{{ confirmedParticipantsCount }} người</span>
+                    </div>
+                    <div v-if="!allParticipantsGrouped && (data.match_format === MATCH_FORMAT.MIXED_GENDER || data.match_format === MATCH_FORMAT.RANK_PAIRING)" class="flex items-center gap-2 text-xs text-amber-600">
+                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Cần phân nhóm tất cả người chơi trước khi bắt đầu.
+                    </div>
+                </div>
+
+                <!-- Nút Bắt đầu Session -->
+                <div v-if="props.isCreator">
+                    <button
+                        @click="onStartWithGroups"
+                        :disabled="isStartingSession || (data.match_format !== MATCH_FORMAT.PARTNER_ROTATION && !allParticipantsGrouped)"
+                        class="w-full py-3 rounded-xl text-sm font-semibold bg-[#D72D36] text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
+                        <svg v-if="isStartingSession" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 0 0 12h4z"/>
+                        </svg>
+                        {{ isStartingSession ? 'Đang khởi tạo...' : 'Bắt đầu Session' }}
                     </button>
                 </div>
             </div>
@@ -331,39 +569,106 @@
 
         <!-- Lịch thi đấu tab -->
         <div v-if="sessionSubTab === 'schedule'">
-            <div v-if="sessionSchedule.length > 0" class="space-y-3">
-                <div v-for="round in sessionSchedule" :key="round.round_number"
-                    class="border rounded-lg p-4"
-                    :class="round.round_number === currentRound ? 'border-[#2563EB] bg-blue-50' : 'border-gray-200 bg-gray-50 opacity-75'">
-                    <div class="flex items-center justify-between mb-2">
-                        <p class="font-semibold text-sm" :class="round.round_number === currentRound ? 'text-blue-700' : 'text-gray-500'">
-                            Vòng {{ round.round_number }}
-                        </p>
-                        <span class="text-xs text-gray-500">{{ round.completed_count }}/{{ round.total_count }} trận</span>
-                    </div>
-                    <div class="space-y-2">
-                        <div v-for="match in round.matches" :key="match.id"
-                            class="flex items-center justify-between bg-white rounded px-3 py-2 text-xs border">
-                            <span class="font-medium text-[#3E414C]">
-                                {{ match.team_1?.name || 'TBD' }} vs {{ match.team_2?.name || 'TBD' }}
+            <!-- Header -->
+            <div class="flex items-center gap-2 mb-4">
+                <button @click="sessionSubTab = 'format'"
+                    class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition shrink-0">
+                    <svg class="w-5 h-5 text-[#3E414C]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                </button>
+                <h3 class="font-semibold text-[#3E414C] text-base">Lịch thi đấu</h3>
+            </div>
+
+            <!-- Loading -->
+            <div v-if="isLoadingSchedule" class="flex justify-center py-8">
+                <svg class="animate-spin w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+            </div>
+
+            <!-- Schedule content -->
+            <div v-else-if="sessionSchedule.length > 0">
+                <!-- Round tabs -->
+                <div class="overflow-x-auto pb-2 mb-4 -mx-1 px-1">
+                    <div class="flex gap-2 min-w-max">
+                        <button v-for="round in sessionSchedule" :key="round.round_number"
+                            @click="currentRound = round.round_number"
+                            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap border"
+                            :class="currentRound === round.round_number
+                                ? (round.status === 'done' ? 'bg-green-500 text-white border-green-500' :
+                                   round.status === 'active' ? 'bg-blue-500 text-white border-blue-500' :
+                                   'bg-[#D72D36] text-white border-[#D72D36]')
+                                : (round.status === 'done' ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' :
+                                   round.status === 'active' ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' :
+                                   'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100')">
+                            <span>Vòng {{ round.round_number }}</span>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded-full"
+                                :class="currentRound === round.round_number
+                                    ? 'bg-white/20 text-current'
+                                    : (round.status === 'done' ? 'bg-green-100 text-green-700' :
+                                       round.status === 'active' ? 'bg-blue-100 text-blue-700' :
+                                       'bg-gray-200 text-gray-500')">
+                                {{ round.completed_count }}/{{ round.total_count }}
                             </span>
-                            <span v-if="match.is_bye" class="text-gray-400 italic">Bye</span>
-                            <span v-else-if="match.status === 'completed'"
-                                :class="match.score_1 > match.score_2 ? 'text-green-600' : 'text-red-600'">
-                                {{ match.score_1 }} - {{ match.score_2 }}
-                            </span>
-                            <span v-else class="text-gray-400">Chưa đấu</span>
-                        </div>
+                        </button>
                     </div>
                 </div>
+
+                <!-- Selected round matches -->
+                <div v-if="selectedRoundData">
+                    <!-- Round info -->
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="text-xs font-semibold text-[#6B6F80]">
+                            {{ selectedRoundData.total_count }} trận
+                        </span>
+                        <span v-if="selectedRoundData.status === 'done'" class="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold">
+                            Hoàn thành
+                        </span>
+                        <span v-else-if="selectedRoundData.status === 'active'" class="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold">
+                            Đang diễn ra
+                        </span>
+                        <span v-else class="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-semibold">
+                            Sắp tới
+                        </span>
+                    </div>
+
+                    <!-- Progress bar -->
+                    <div class="w-full bg-gray-200 rounded-full h-1 mb-4">
+                        <div class="h-1 rounded-full transition-all duration-300"
+                            :class="selectedRoundData.status === 'done' ? 'bg-green-500' : selectedRoundData.status === 'active' ? 'bg-blue-500' : 'bg-gray-400'"
+                            :style="{ width: (selectedRoundData.total_count ? Math.round((selectedRoundData.completed_count / selectedRoundData.total_count) * 100) : 0) + '%' }">
+                        </div>
+                    </div>
+
+                    <!-- Match list -->
+                    <SessionScheduleRound :round="selectedRoundData" />
+                </div>
             </div>
-            <div v-else class="min-h-[200px] flex items-center justify-center">
-                <p class="text-center text-gray-500">Chưa có lịch thi đấu.</p>
+
+            <!-- Empty state -->
+            <div v-else class="min-h-[200px] flex flex-col items-center justify-center gap-3">
+                <svg class="w-12 h-12 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/>
+                </svg>
+                <p class="text-sm text-gray-500 text-center">Chưa có lịch thi đấu.</p>
             </div>
-            <div class="mt-4 text-center" v-if="sessionStatus === SESSION_STATUS.ONGOING && props.isCreator">
+
+            <!-- Actions -->
+            <div class="mt-4" v-if="effectiveSessionStatus === SESSION_STATUS.ONGOING && props.isCreator">
                 <button @click="finishSession"
-                    class="px-5 py-2.5 bg-[#D72D36] text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition">
+                    class="w-full py-3 rounded-xl text-sm font-semibold bg-[#D72D36] text-white hover:bg-red-700 transition">
                     Kết thúc Session
+                </button>
+            </div>
+            <div class="mt-4" v-else-if="effectiveSessionStatus === SESSION_STATUS.PENDING_GROUP && props.isCreator">
+                <button @click="onCreateSchedule"
+                    class="w-full py-3 rounded-xl text-sm font-semibold bg-[#D72D36] text-white hover:bg-red-700 transition flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+                    </svg>
+                    Tạo lịch đấu
                 </button>
             </div>
         </div>
@@ -380,30 +685,32 @@
     </template>
 </div>
 
-<!-- Player Group Modal -->
-<div v-if="showGroupModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-lg w-full max-w-md p-5">
-        <h3 class="font-bold text-lg mb-4">Phân nhóm người chơi</h3>
-        <p class="text-sm text-gray-600 mb-4">
-            Gán {{ data.match_format === MATCH_FORMAT.MIXED_GENDER ? 'giới tính (Nam/Nữ)' : 'hạng (A/B)' }} cho từng người chơi.
+<!-- Format Confirmation Modal -->
+<div v-if="showFormatConfirm" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-sm p-6 shadow-xl">
+        <h3 class="font-bold text-lg text-gray-900 mb-2">Xác nhận thể thức</h3>
+        <p class="text-sm text-gray-600 mb-1">
+            Bạn chọn thể thức:
         </p>
-        <div class="space-y-3 max-h-80 overflow-y-auto">
-            <div v-for="participant in (data.participants || [])" :key="participant.id"
-                class="flex items-center justify-between border-b pb-2">
-                <span class="text-sm font-medium">{{ participant.user?.full_name || participant.guest_name }}</span>
-                <select v-model="playerGroups[participant.id]" class="border rounded px-2 py-1 text-sm">
-                    <option value="">-- Chọn --</option>
-                    <option v-for="opt in groupOptions" :key="opt" :value="opt">
-                        {{ data.match_format === MATCH_FORMAT.MIXED_GENDER ? (opt === 'male' ? 'Nam' : 'Nữ') : `Hạng ${opt.toUpperCase()}` }}
-                    </option>
-                </select>
-            </div>
-        </div>
-        <div class="flex justify-end gap-3 mt-4">
-            <button @click="showGroupModal = false" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition">Hủy</button>
-            <button @click="confirmPlayerGroups" :disabled="isLoadingGroup"
-                class="px-4 py-2 bg-[#2563EB] text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 transition">
-                {{ isLoadingGroup ? 'Đang lưu...' : 'Xác nhận' }}
+        <p class="text-base font-semibold text-gray-900 mb-1">
+            {{ formatConfirmLabel }}
+        </p>
+        <p class="text-sm text-amber-600 mb-5">
+            Thể thức <strong>không thể thay đổi</strong> sau khi xác nhận.
+        </p>
+        <div class="flex gap-3">
+            <button @click="showFormatConfirm = false"
+                class="flex-1 py-2.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
+                Hủy
+            </button>
+            <button @click="confirmFormatSelection"
+                :disabled="isConfirmingFormat"
+                class="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
+                <svg v-if="isConfirmingFormat" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 0 0 12h4z"/>
+                </svg>
+                {{ isConfirmingFormat ? 'Đang lưu...' : 'Xác nhận' }}
             </button>
         </div>
     </div>

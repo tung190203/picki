@@ -58,14 +58,16 @@ export const TOURNAMENT_STATUS_LABEL = {
 
 export const MATCH_STATUS = {
   PENDING: 'pending',
+  GOING_ON: 'going_on',
+  WAITING_CONFIRM: 'waiting_confirm',
   COMPLETED: 'completed',
-  DISPUTED: 'disputed',
 };
 
 export const MATCH_STATUS_LABEL = {
-  PENDING: 'Chờ đấu',
-  COMPLETED: 'Đã hoàn thành',
-  DISPUTED: 'Tranh chấp',
+  pending: 'Chờ đấu',
+  going_on: 'Đang diễn ra',
+  waiting_confirm: 'Chờ xác nhận',
+  completed: 'Đã hoàn thành',
 };
 
 export const TYPE_OF_TOURNAMENT = {

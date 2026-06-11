@@ -31,13 +31,11 @@ class MiniMatch extends Model
 
     const PER_PAGE = 10;
 
+    // 4 statuses: pending -> going_on -> waiting_confirm -> completed
     const STATUS_PENDING = 'pending';
+    const STATUS_GOING_ON = 'going_on';
+    const STATUS_WAITING_CONFIRM = 'waiting_confirm';
     const STATUS_COMPLETED = 'completed';
-    const STATUS_DISPUTED = 'disputed';
-
-    // Round-based match status
-    const STATUS_ROUND_PENDING = 'round_pending';
-    const STATUS_ROUND_PLAYING = 'round_playing';
 
     protected $casts = [
         'is_bye' => 'boolean',

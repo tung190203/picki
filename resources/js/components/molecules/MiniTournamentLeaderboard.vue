@@ -29,14 +29,23 @@
                 <tbody>
                     <tr v-for="row in currentLeaderboard" :key="row.participant_id"
                         class="border-b border-[#F0F0F5] hover:bg-gray-50 transition-colors">
-                        <!-- Rank -->
+                        <!-- Rank with medal -->
                         <td class="py-3 pr-2">
-                            <span v-if="row.rank === 1" class="text-lg">🥇</span>
-                            <span v-else-if="row.rank === 2" class="text-lg">🥈</span>
-                            <span v-else-if="row.rank === 3" class="text-lg">🥉</span>
+                            <!-- Gold -->
+                            <div v-if="row.rank === 1" class="flex items-center justify-center w-8 h-8 rounded-full bg-yellow-100 border-2 border-yellow-400">
+                                <span class="text-yellow-600 font-bold text-xs">1</span>
+                            </div>
+                            <!-- Silver -->
+                            <div v-else-if="row.rank === 2" class="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 border-2 border-gray-300">
+                                <span class="text-gray-500 font-bold text-xs">2</span>
+                            </div>
+                            <!-- Bronze -->
+                            <div v-else-if="row.rank === 3" class="flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 border-2 border-orange-300">
+                                <span class="text-orange-600 font-bold text-xs">3</span>
+                            </div>
                             <span v-else class="font-semibold text-[#6B6F80]">{{ row.rank }}</span>
                         </td>
-                        <!-- Name -->
+                        <!-- Name with group indicator -->
                         <td class="py-3">
                             <div class="flex items-center gap-2">
                                 <span class="font-medium text-[#3E414C]">{{ row.name }}</span>

@@ -236,7 +236,8 @@ export default {
                     formData.append(key, value)
                 })
 
-                await MiniTournamnetService.updateMiniTournament(id, formData)
+                const updated = await MiniTournamnetService.updateMiniTournament(id, formData)
+                mini.value = { ...mini.value, ...updated }
                 toast.success('Cập nhật thông tin kèo đấu thành công!')
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi cập nhật thông tin giải đấu.')
@@ -452,18 +453,6 @@ export default {
 
         const handlePaymentSubmitSuccess = async () => {
             await detailMiniTournament(id);
-        };
-
-        const onSelectMatchFormat = async (format) => {
-            try {
-                const update = await baseSetColumnUpdateMiniTournament()
-                update.match_format = format
-                await updateMiniTournament(mini.value.id, update)
-                mini.value.match_format = format
-                toast.success('Đã chọn thể thức thi đấu!')
-            } catch (error) {
-                toast.error(error.response?.data?.message || 'Không thể chọn thể thức.')
-            }
         };
 
         const getPaymentStatusBadgeClass = (status) => {
@@ -1034,7 +1023,6 @@ export default {
             isGuestSectionFull,
             handlePaymentSubmitSuccess,
             handleAddGuestSuccess,
-            onSelectMatchFormat,
             getPaymentStatusBadgeClass,
             getPaymentStatusLabel,
             canShowPaymentButton,

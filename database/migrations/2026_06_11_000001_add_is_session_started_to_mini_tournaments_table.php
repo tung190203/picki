@@ -9,17 +9,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('mini_tournaments', function (Blueprint $table) {
-            $table->string('match_format', 30)
-                ->nullable()
-                ->default(null)
-                ->after('format');
+            $table->boolean('is_session_started')->default(true)->after('scheduled_court_count');
         });
     }
 
     public function down(): void
     {
         Schema::table('mini_tournaments', function (Blueprint $table) {
-            $table->dropColumn('match_format');
+            $table->dropColumn('is_session_started');
         });
     }
 };
