@@ -821,6 +821,9 @@ class RoundRobinSchedulerService
         }
 
         foreach ($matches as $match) {
+            if ($match->is_bye) {
+                continue;
+            }
             if ($match->team_1_score === null || $match->team_2_score === null) {
                 continue;
             }

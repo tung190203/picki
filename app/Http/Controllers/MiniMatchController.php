@@ -832,13 +832,15 @@ class MiniMatchController extends Controller
             return;
         }
 
-        // Lấy tất cả trận có round_number
+        // Lấy tất cả trận có round_number, loại bye matches
         $totalMatches = MiniMatch::where('mini_tournament_id', $miniTournament->id)
             ->whereNotNull('round_number')
+            ->where('is_bye', false)
             ->count();
 
         $completedMatches = MiniMatch::where('mini_tournament_id', $miniTournament->id)
             ->whereNotNull('round_number')
+            ->where('is_bye', false)
             ->where('status', MiniMatch::STATUS_COMPLETED)
             ->count();
 

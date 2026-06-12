@@ -697,7 +697,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{miniTournamentId}/participants/{participantId}/admin-confirm', [MiniParticipantController::class, 'adminConfirm']);
 
         // Round Robin session endpoints (gộp lưu nhóm + sinh lịch)
-        Route::put('/{id}/session', [MiniTournamentController::class, 'startSession']);
+        Route::put('/{id}/start-session', [MiniTournamentController::class, 'startSession']);
         Route::get('/{id}/schedule', [MiniTournamentController::class, 'getSchedule']);
         Route::get('/{id}/leaderboard', [MiniTournamentController::class, 'getLeaderboard']);
         Route::post('/{id}/finish-session', [MiniTournamentController::class, 'finishSession']);

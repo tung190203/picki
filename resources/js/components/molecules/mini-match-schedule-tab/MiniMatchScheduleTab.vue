@@ -135,6 +135,7 @@ export default {
             selectedSessionMatch.value = null
             if (props.data?.id) {
                 await loadSessionSchedule(props.data.id)
+                await loadSessionLeaderboard(props.data.id)
             }
             emit('refresh-data')
         }
@@ -428,7 +429,7 @@ export default {
         const loadSessionSchedule = async (id) => {
             try {
                 isLoadingSchedule.value = true
-                const res = await SessionService.getSchedule(id)
+                const res = await MiniMatchService.getListMiniMatches(id, {})
                 if (res.data?.rounds) {
                     sessionSchedule.value = res.data.rounds
                     const activeRound = res.data.rounds.find(r => r.status === 'active')
