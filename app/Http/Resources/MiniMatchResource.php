@@ -8,6 +8,12 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class MiniMatchResource extends JsonResource
 {
+    private static array $extraPlayerFlags = [];
+
+    public static function setExtraPlayerFlags(array $flags): void
+    {
+        self::$extraPlayerFlags = $flags;
+    }
     /**
      * Transform the resource into an array.
      *
@@ -101,6 +107,7 @@ class MiniMatchResource extends JsonResource
             }),
             'has_anchor' => $hasAnchor,
             'is_bye' => (bool) $this->is_bye,
+            'is_extra_players' => self::$extraPlayerFlags[$this->id] ?? [],
         ];
     }
 }

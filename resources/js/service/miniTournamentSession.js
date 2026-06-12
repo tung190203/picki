@@ -11,7 +11,7 @@ export const startSession = async (id, scheduledCourtCount = 2, participantIds =
     if (participantIds) {
         payload.participant_ids = participantIds
     }
-    return axiosInstance.put(`${baseEndpoint}/${id}/session`, payload)
+    return axiosInstance.put(`${baseEndpoint}/${id}/start-session`, payload)
         .then((response) => response.data);
 };
 
