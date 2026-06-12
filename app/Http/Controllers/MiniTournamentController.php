@@ -1032,7 +1032,7 @@ class MiniTournamentController extends Controller
                 if ($isDouble && (count($maleIds) < 2 || count($femaleIds) < 2)) {
                     return ResponseHelper::error('double mixed_gender cần ít nhất 2 nam và 2 nữ đã phân nhóm', 422);
                 }
-                $schedule = $scheduler->generateMixedGenderSchedule($maleIds, $femaleIds, $matchType);
+                $schedule = $scheduler->generateMixedGenderSchedule($maleIds, $femaleIds, $matchType, $miniTournament->id);
             } elseif ($format === MiniTournament::MATCH_FORMAT_RANK_PAIRING) {
                 $aIds = $confirmedParticipants->where('player_group', 'a')->pluck('id')->toArray();
                 $bIds = $confirmedParticipants->where('player_group', 'b')->pluck('id')->toArray();

@@ -157,7 +157,7 @@ class RoundRobinSchedulerService
      * @param string $matchType 'single' or 'double'
      * @return array{rounds: array, summary: array, teams: array}
      */
-    public function generateMixedGenderSchedule(array $maleIds, array $femaleIds, string $matchType = self::MATCH_TYPE_SINGLE): array
+    public function generateMixedGenderSchedule(array $maleIds, array $femaleIds, string $matchType = self::MATCH_TYPE_SINGLE, ?int $miniTournamentId = null): array
     {
         $m = count($maleIds);
         $f = count($femaleIds);
@@ -170,8 +170,8 @@ class RoundRobinSchedulerService
         $teams = [];
 
         if ($matchType === self::MATCH_TYPE_DOUBLE) {
-            $maleTeams = $this->buildSameGenderTeams($maleIds);
-            $femaleTeams = $this->buildSameGenderTeams($femaleIds);
+            $maleTeams = $this->buildSameGenderTeams($maleIds, $miniTournamentId);
+            $femaleTeams = $this->buildSameGenderTeams($femaleIds, $miniTournamentId);
 
             foreach ($maleTeams as $maleTeam) {
                 foreach ($femaleTeams as $femaleTeam) {
