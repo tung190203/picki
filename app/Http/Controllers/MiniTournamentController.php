@@ -1480,6 +1480,7 @@ class MiniTournamentController extends Controller
 
         return ResponseHelper::success([
             'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
+            'is_session_started' => true,
             'summary' => $schedule['summary'],
             'unbalanced_notice' => $unbalancedNotice,
             'rounds' => $responseRounds,
