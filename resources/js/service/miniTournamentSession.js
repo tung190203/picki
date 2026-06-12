@@ -37,6 +37,12 @@ export const markAbsentPlayer = async (id, participantId, matchId) => {
   }).then((response) => response.data);
 };
 
+export const activateRound = async (id, roundNumber) => {
+  return axiosInstance.post(`${baseEndpoint}/${id}/activate-round`, {
+    round_number: roundNumber,
+  }).then((response) => response.data);
+};
+
 /**
  * Preview match/round counts before starting a session.
  * Does NOT call the backend — computes locally from participant data.
