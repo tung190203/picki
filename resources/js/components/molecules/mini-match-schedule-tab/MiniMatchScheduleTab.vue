@@ -9,13 +9,13 @@ import UpdateMiniMatch from '@/components/molecules/update-mini-match/UpdateMini
 import {toast} from "vue3-toastify";
 import * as MiniMatchService from '@/service/miniMatch.js';
 import * as SessionService from '@/service/miniTournamentSession.js';
-import * as MiniTournamentService from '@/service/miniTournament.js';
 import { updateMiniTournamentByClub } from '@/service/miniTournament.js';
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/vue/24/solid/index.js";
 import DeleteConfirmationModal from '@/components/molecules/DeleteConfirmationModal.vue'
 import { SESSION_STATUS, MATCH_FORMAT } from '@/constants/index.js';
 import MiniTournamentLeaderboard from '@/components/molecules/MiniTournamentLeaderboard.vue';
 import SessionScheduleRound from '@/components/molecules/session-schedule-round/SessionScheduleRound.vue';
+import MatchScoreInput from '@/components/molecules/MatchScoreInput.vue';
 
 const SESSION_SUBTABS = [
     { id: 'format', label: 'Thể thức' },
@@ -27,16 +27,17 @@ const SESSION_SUBTABS = [
 
 export default {
     name: 'MiniTournamentDetail',
-    components: {
-        ChevronLeftIcon,
-        ChevronRightIcon,
-        MiniMatchCard,
-        CreateMiniMatch,
-        UpdateMiniMatch,
-        DeleteConfirmationModal,
-        MiniTournamentLeaderboard,
-        SessionScheduleRound,
-    },
+        components: {
+            ChevronLeftIcon,
+            ChevronRightIcon,
+            MiniMatchCard,
+            CreateMiniMatch,
+            UpdateMiniMatch,
+            DeleteConfirmationModal,
+            MiniTournamentLeaderboard,
+            SessionScheduleRound,
+            MatchScoreInput,
+        },
     props: {
         isCreator: {
             type: Boolean,
@@ -90,6 +91,82 @@ export default {
         const selectedRoundData = computed(() => {
             return sessionSchedule.value.find(r => r.round_number === currentRound.value) || null
         })
+
+        const selectedSessionMatch = ref(null)
+        const showSessionScoreModal = ref(false)
+        const sessionScores = ref([{ team1: 0, team2: 0 }])
+        const isSavingSessionScore = ref(false)
+
+        const onMatchClick = async (match) => {
+            selectedSessionMatch.value = match
+            // Initialize scores from existing results
+            if (match.results_by_sets && Object.keys(match.results_by_sets).length > 0) {
+                const r = match.results_by_sets
+                const team1Id = match.team1?.id
+                const team2Id = match.team2?.id
+                const sets = []
+                Object.keys(r).forEach((key) => {
+                    const arr = r[key]
+                    if (!Array.isArray(arr)) return
+                    let team1Score = 0
+                    let team2Score = 0
+                    arr.forEach(item => {
+                        if (item.team?.id === team1Id) team1Score = Number(item.score)
+                        if (item.team?.id === team2Id) team2Score = Number(item.score)
+                    })
+                    sets.push({ team1: team1Score, team2: team2Score })
+                })
+                sessionScores.value = sets.length > 0 ? sets : [{ team1: 0, team2: 0 }]
+            } else {
+                sessionScores.value = [{ team1: 0, team2: 0 }]
+            }
+            showSessionScoreModal.value = true
+        }
+
+        const onSessionMatchUpdated = async () => {
+            showSessionScoreModal.value = false
+            selectedSessionMatch.value = null
+            if (props.data?.id) {
+                await loadSessionSchedule(props.data.id)
+            }
+            emit('refresh-data')
+        }
+
+        const onSaveSessionMatchScore = async () => {
+            if (!selectedSessionMatch.value || isSavingSessionScore.value) return
+            isSavingSessionScore.value = true
+            try {
+                const match = selectedSessionMatch.value
+                const sets = sessionScores.value
+                    .filter(s => s.team1 > 0 || s.team2 > 0)
+                    .map((score, idx) => ({
+                        set_number: idx + 1,
+                        results: [
+                            { team: 'team1', score: Number(score.team1) },
+                            { team: 'team2', score: Number(score.team2) }
+                        ]
+                    }))
+
+                const payload = {
+                    match_id: match.id,
+                    team1: match.team1?.members?.map(m => m.id) || [],
+                    team2: match.team2?.members?.map(m => m.id) || [],
+                    sets: sets.length > 0 ? sets : [{ set_number: 1, results: [{ team: 'team1', score: 0 }, { team: 'team2', score: 0 }] }]
+                }
+
+                await MiniMatchService.saveMiniMatch(match.mini_tournament_id, payload)
+                toast.success('Đã lưu kết quả!')
+                showSessionScoreModal.value = false
+                selectedSessionMatch.value = null
+                await loadSessionSchedule(props.data.id)
+                await loadSessionLeaderboard(props.data.id)
+                emit('refresh-data')
+            } catch (err) {
+                toast.error(err.response?.data?.message || 'Lỗi khi lưu kết quả')
+            } finally {
+                isSavingSessionScore.value = false
+            }
+        }
 
         const confirmRemoval = () => {
             showDeleteModal.value = true;
@@ -178,6 +255,7 @@ export default {
         }
 
         const changePage = (page) => {
+            if (!pagination.value) return
             if (page < 1 || page > pagination.value.last_page) return
 
             pagination.value.current_page = page
@@ -319,7 +397,9 @@ export default {
         }
 
         watch(sessionSubTab, () => {
-            pagination.value.current_page = 1
+            if (pagination.value) {
+                pagination.value.current_page = 1
+            }
             selectedMiniMatches.value = []
 
             if (!props.data?.id) return
@@ -331,48 +411,12 @@ export default {
             }
         })
 
-        watch(
-            () => props.data?.id,
-            (miniTournamentId) => {
-                if (!miniTournamentId) return
-
-                pagination.value.current_page = 1
-
-                if (subActiveTab.value === 'your-match') {
-                    getMyMiniMatches(miniTournamentId, 1)
-                } else {
-                    getMiniMatches(miniTournamentId, 1)
-                }
-            },
-            { immediate: true }
-        )
-
-        // Watch data changes to detect session-related fields
-        watch(() => props.data, async (newData) => {
-            if (newData) {
-                if (newData.match_format && newData.match_format !== MATCH_FORMAT.STANDARD) {
-                    await loadSessionSchedule(newData.id)
-                    await loadSessionLeaderboard(newData.id)
-                    // Init session sub-tab based on status
-                    if (newData.session_status === SESSION_STATUS.ONGOING) {
-                        sessionSubTab.value = 'schedule'
-                    } else if (newData.session_status === SESSION_STATUS.FINISHED) {
-                        sessionSubTab.value = 'leaderboard'
-                    } else {
-                        // partner_rotation → schedule tab (no grouping needed)
-                        // mixed_gender / rank_pairing → group tab (needs grouping)
-                        if (newData.match_format === MATCH_FORMAT.PARTNER_ROTATION) {
-                            sessionSubTab.value = 'schedule'
-                        } else {
-                            sessionSubTab.value = 'group'
-                        }
-                    }
-                }
-                if (newData.match_format === MATCH_FORMAT.MIXED_GENDER || newData.match_format === MATCH_FORMAT.RANK_PAIRING) {
-                    loadPlayerGroups(newData)
-                }
+        // Auto-activate round matches when switching to a new round
+        watch(currentRound, () => {
+            if (sessionSubTab.value === 'schedule') {
+                onActivateRound()
             }
-        }, { immediate: true })
+        })
 
         const loadSessionSchedule = async (id) => {
             try {
@@ -416,6 +460,57 @@ export default {
                 playerGroups.value = groups
             }
         }
+
+        // Watch data changes to detect session-related fields
+        watch(() => props.data, async (newData) => {
+            if (newData) {
+                if (newData.match_format && newData.match_format !== MATCH_FORMAT.STANDARD) {
+                    await loadSessionSchedule(newData.id)
+                    await loadSessionLeaderboard(newData.id)
+                    // Init session sub-tab based on status
+                    if (newData.session_status === SESSION_STATUS.ONGOING) {
+                        sessionSubTab.value = 'schedule'
+                    } else if (newData.session_status === SESSION_STATUS.FINISHED) {
+                        sessionSubTab.value = 'leaderboard'
+                    } else {
+                        // partner_rotation → schedule tab (no grouping needed)
+                        // mixed_gender / rank_pairing → group tab (needs grouping)
+                        if (newData.match_format === MATCH_FORMAT.PARTNER_ROTATION) {
+                            sessionSubTab.value = 'schedule'
+                        } else {
+                            sessionSubTab.value = 'group'
+                        }
+                    }
+                }
+                if (newData.match_format === MATCH_FORMAT.MIXED_GENDER || newData.match_format === MATCH_FORMAT.RANK_PAIRING) {
+                    loadPlayerGroups(newData)
+                }
+            }
+        }, { immediate: true })
+
+        // Watch data.id for standard format match loading
+        watch(
+            () => props.data?.id,
+            (miniTournamentId) => {
+                if (!miniTournamentId) return
+
+                if (pagination.value) {
+                    pagination.value.current_page = 1
+                }
+
+                const isSessionFormat = props.data?.match_format &&
+                    props.data.match_format !== 'standard'
+
+                if (isSessionFormat) return
+
+                if (subActiveTab.value === 'match') {
+                    getMiniMatches(miniTournamentId, 1)
+                } else if (subActiveTab.value === 'your-match') {
+                    getMyMiniMatches(miniTournamentId, 1)
+                }
+            },
+            { immediate: true }
+        )
 
         const allParticipantsGrouped = computed(() => {
             const confirmed = confirmedParticipants.value
@@ -467,6 +562,15 @@ export default {
             }
         }
 
+        const onActivateRound = async () => {
+            if (!props.data?.id || !props.isCreator) return
+            try {
+                await SessionService.activateRound(props.data.id, currentRound.value)
+            } catch (_e) {
+                // silently ignore — the round will still be displayed
+            }
+        }
+
         const onCreateSchedule = async () => {
             isCreatingSchedule.value = true
             try {
@@ -487,6 +591,17 @@ export default {
         }
 
         const openFormatConfirm = (format) => {
+            if (format === MATCH_FORMAT.PARTNER_ROTATION) {
+                if (props.data.format !== 'double') {
+                    toast.error('Xoay vòng partner chỉ áp dụng cho kèo đấu đôi.')
+                    return
+                }
+                const cnt = confirmedParticipantsCount.value
+                if (cnt < 6 || cnt > 8) {
+                    toast.error('Xoay vòng partner cần từ 6 đến 8 người đã xác nhận.')
+                    return
+                }
+            }
             selectedFormat.value = format
             showFormatConfirm.value = true
         }
@@ -698,6 +813,14 @@ export default {
             isStartingSession,
             onStartWithGroups,
             onStartPartnerRotation,
+            selectedSessionMatch,
+            showSessionScoreModal,
+            onMatchClick,
+            onSessionMatchUpdated,
+            onActivateRound,
+            sessionScores,
+            isSavingSessionScore,
+            onSaveSessionMatchScore,
         }
     }
 }
