@@ -174,7 +174,6 @@ class RoundRobinSchedulerService
             throw new \InvalidArgumentException('mixed_gender requires at least 1 male and 1 female player');
         }
 
-        // Use BipartiteRoundRobinService for deterministic scheduling
         $bipartiteResult = BipartiteRoundRobinService::generate($maleIds, $femaleIds, $shuffle);
         $bipartiteRounds = $bipartiteResult['rounds'];
         $bipartiteSummary = $bipartiteResult['summary'];
@@ -186,20 +185,81 @@ class RoundRobinSchedulerService
             $maleTeams = $this->buildSameGenderTeams($maleIds, $miniTournamentId);
             $femaleTeams = $this->buildSameGenderTeams($femaleIds, $miniTournamentId);
 
+            // Build lookup: set(sorted_member_ids) => team record
+            $maleTeamLookup = [];
+            foreach ($maleTeams as $team) {
+                $key = implode('-', $team['member_ids']);
+                $maleTeamLookup[$key] = $team;
+            }
+            $femaleTeamLookup = [];
+            foreach ($femaleTeams as $team) {
+                $key = implode('-', $team['member_ids']);
+                $femaleTeamLookup[$key] = $team;
+            }
+
+            // Cartesian product of maleTeams x femaleTeams
             foreach ($maleTeams as $maleTeam) {
                 foreach ($femaleTeams as $femaleTeam) {
                     $allMatches[] = [
                         'team1_players' => $maleTeam['member_ids'],
                         'team2_players' => $femaleTeam['member_ids'],
-                        'team1_id' => null,
-                        'team2_id' => null,
+                        'team1_id' => $maleTeam['id'],
+                        'team2_id' => $femaleTeam['id'],
                         'is_bye' => false,
                     ];
                 }
             }
             $teams = array_merge($maleTeams, $femaleTeams);
+
+            // Build rounds from bipartiteRounds: each bipartite match tells us
+            // which male and female players face each other → find corresponding teams.
+            $rounds = [];
+            $roundNumber = 1;
+            foreach ($bipartiteRounds as $bipartiteRound) {
+                $roundMatches = [];
+                foreach ($bipartiteRound as $bmatch) {
+                    $isBye = $bmatch['is_bye'];
+                    $malePlayer = $bmatch['player_a'];
+                    $femalePlayer = $bmatch['player_b'];
+
+                    if ($isBye) {
+                        // $player_a === null → male sits out (bye to male side)
+                        // $player_b === null → female sits out (bye to female side)
+                        $byeSide = ($malePlayer === null) ? 'male' : 'female';
+                        $roundMatches[] = [
+                            'team1_players' => [],
+                            'team2_players' => [],
+                            'team1_id' => null,
+                            'team2_id' => null,
+                            'is_bye' => true,
+                            'bye_side' => $byeSide,
+                        ];
+                    } else {
+                        // Find male's team
+                        $maleTeamKey = $this->findTeamKeyForPlayer($malePlayer, $maleIds, $maleTeams);
+                        // Find female's team
+                        $femaleTeamKey = $this->findTeamKeyForPlayer($femalePlayer, $femaleIds, $femaleTeams);
+
+                        $maleTeam = $maleTeamLookup[$maleTeamKey] ?? null;
+                        $femaleTeam = $femaleTeamLookup[$femaleTeamKey] ?? null;
+
+                        $roundMatches[] = [
+                            'team1_id' => $maleTeam['id'] ?? null,
+                            'team2_id' => $femaleTeam['id'] ?? null,
+                            'team1_players' => $maleTeam['member_ids'] ?? [],
+                            'team2_players' => $femaleTeam['member_ids'] ?? [],
+                            'is_bye' => false,
+                        ];
+                    }
+                }
+                $rounds[] = [
+                    'round_number' => $roundNumber,
+                    'matches' => $roundMatches,
+                ];
+                $roundNumber++;
+            }
         } else {
-            // Flatten bipartite rounds into match list
+            // Single format: flatten bipartite rounds into match list
             foreach ($bipartiteRounds as $round) {
                 foreach ($round as $match) {
                     if ($match['is_bye']) {
@@ -218,10 +278,35 @@ class RoundRobinSchedulerService
                     }
                 }
             }
-        }
 
-        // Build rounds matching original format
-        $rounds = $this->buildRoundsFromMatches($bipartiteRounds, $matchType);
+            // Build rounds from bipartiteRounds (already in correct format for single)
+            $rounds = [];
+            $roundNumber = 1;
+            foreach ($bipartiteRounds as $round) {
+                $formattedMatches = [];
+                foreach ($round as $match) {
+                    if ($match['is_bye']) {
+                        $playerId = $match['player_a'] ?? $match['player_b'];
+                        $formattedMatches[] = [
+                            'participant1_id' => $playerId,
+                            'participant2_id' => null,
+                            'is_bye' => true,
+                        ];
+                    } else {
+                        $formattedMatches[] = [
+                            'participant1_id' => $match['player_a'],
+                            'participant2_id' => $match['player_b'],
+                            'is_bye' => false,
+                        ];
+                    }
+                }
+                $rounds[] = [
+                    'round_number' => $roundNumber,
+                    'matches' => $formattedMatches,
+                ];
+                $roundNumber++;
+            }
+        }
 
         $maleMatches = array_fill_keys($maleIds, 0);
         $femaleMatches = array_fill_keys($femaleIds, 0);
@@ -266,8 +351,8 @@ class RoundRobinSchedulerService
                 'total_matches' => $bipartiteSummary['total_matches'],
                 'male_matches' => $maleMatches,
                 'female_matches' => $femaleMatches,
-                'matches_per_male' => $f,
-                'matches_per_female' => $m,
+                'matches_per_male' => $m,
+                'matches_per_female' => $f,
                 'bye_balanced' => $bipartiteSummary['bye_balanced'],
                 'bye_count_a' => $bipartiteSummary['bye_count_a'] ?? [],
                 'bye_count_b' => $bipartiteSummary['bye_count_b'] ?? [],
@@ -314,18 +399,72 @@ class RoundRobinSchedulerService
             $aTeams = $this->buildSameGenderTeams($aIds, $miniTournamentId);
             $bTeams = $this->buildSameGenderTeams($bIds, $miniTournamentId);
 
+            $aTeamLookup = [];
+            foreach ($aTeams as $team) {
+                $key = implode('-', $team['member_ids']);
+                $aTeamLookup[$key] = $team;
+            }
+            $bTeamLookup = [];
+            foreach ($bTeams as $team) {
+                $key = implode('-', $team['member_ids']);
+                $bTeamLookup[$key] = $team;
+            }
+
             foreach ($aTeams as $aTeam) {
                 foreach ($bTeams as $bTeam) {
                     $allMatches[] = [
                         'team1_players' => $aTeam['member_ids'],
                         'team2_players' => $bTeam['member_ids'],
-                        'team1_id' => null,
-                        'team2_id' => null,
+                        'team1_id' => $aTeam['id'],
+                        'team2_id' => $bTeam['id'],
                         'is_bye' => false,
                     ];
                 }
             }
             $teams = array_merge($aTeams, $bTeams);
+
+            // Build rounds from bipartiteRounds: each bipartite match → find corresponding teams
+            $rounds = [];
+            $roundNumber = 1;
+            foreach ($bipartiteRounds as $bipartiteRound) {
+                $roundMatches = [];
+                foreach ($bipartiteRound as $bmatch) {
+                    $isBye = $bmatch['is_bye'];
+                    $aPlayer = $bmatch['player_a'];
+                    $bPlayer = $bmatch['player_b'];
+
+                    if ($isBye) {
+                        $byeSide = ($aPlayer === null) ? 'a' : 'b';
+                        $roundMatches[] = [
+                            'team1_players' => [],
+                            'team2_players' => [],
+                            'team1_id' => null,
+                            'team2_id' => null,
+                            'is_bye' => true,
+                            'bye_side' => $byeSide,
+                        ];
+                    } else {
+                        $aTeamKey = $this->findTeamKeyForPlayer($aPlayer, $aIds, $aTeams);
+                        $bTeamKey = $this->findTeamKeyForPlayer($bPlayer, $bIds, $bTeams);
+
+                        $aTeam = $aTeamLookup[$aTeamKey] ?? null;
+                        $bTeam = $bTeamLookup[$bTeamKey] ?? null;
+
+                        $roundMatches[] = [
+                            'team1_id' => $aTeam['id'] ?? null,
+                            'team2_id' => $bTeam['id'] ?? null,
+                            'team1_players' => $aTeam['member_ids'] ?? [],
+                            'team2_players' => $bTeam['member_ids'] ?? [],
+                            'is_bye' => false,
+                        ];
+                    }
+                }
+                $rounds[] = [
+                    'round_number' => $roundNumber,
+                    'matches' => $roundMatches,
+                ];
+                $roundNumber++;
+            }
         } else {
             foreach ($bipartiteRounds as $round) {
                 foreach ($round as $match) {
@@ -346,8 +485,6 @@ class RoundRobinSchedulerService
                 }
             }
         }
-
-        $rounds = $this->buildRoundsFromMatches($bipartiteRounds, $matchType);
 
         $aMatches = array_fill_keys($aIds, 0);
         $bMatches = array_fill_keys($bIds, 0);
@@ -658,10 +795,62 @@ class RoundRobinSchedulerService
      * @param string $matchType
      * @return array
      */
-    private function buildRoundsFromMatches(array $bipartiteRounds, string $matchType): array
+    private function buildRoundsFromMatches(array $bipartiteRounds, string $matchType, array $allMatches = []): array
     {
         if ($matchType === self::MATCH_TYPE_DOUBLE) {
-            return [];
+            if (empty($allMatches)) {
+                return [];
+            }
+
+            $maleTeamMatches = [];
+            $femaleTeamMatches = [];
+            foreach ($allMatches as $m) {
+                if (!empty($m['team1_players']) && !empty($m['team2_players'])) {
+                    continue;
+                }
+                if (!empty($m['team1_players']) && empty($m['team2_players'])) {
+                    $maleTeamMatches[] = $m;
+                }
+                if (!empty($m['team2_players']) && empty($m['team1_players'])) {
+                    $femaleTeamMatches[] = $m;
+                }
+            }
+
+            if (empty($maleTeamMatches) || empty($femaleTeamMatches)) {
+                return [];
+            }
+
+            $maleTeamMatches = array_values($maleTeamMatches);
+            $femaleTeamMatches = array_values($femaleTeamMatches);
+
+            $rounds = [];
+            $roundNumber = 1;
+            $numMaleTeam = count($maleTeamMatches);
+            $numFemaleTeam = count($femaleTeamMatches);
+            $numRounds = max($numMaleTeam, $numFemaleTeam);
+
+            for ($i = 0; $i < $numRounds; $i++) {
+                $matches = [];
+                for ($mIdx = 0; $mIdx < $numMaleTeam; $mIdx++) {
+                    $femaleIdx = ($i + $mIdx) % $numFemaleTeam;
+                    $femaleMatch = $femaleTeamMatches[$femaleIdx] ?? null;
+                    if (!$femaleMatch) {
+                        continue;
+                    }
+                    $matches[] = [
+                        'team1_id' => $maleTeamMatches[$mIdx]['team1_id'] ?? null,
+                        'team2_id' => $femaleMatch['team2_id'] ?? null,
+                        'is_bye' => false,
+                    ];
+                }
+                $rounds[] = [
+                    'round_number' => $roundNumber,
+                    'matches' => $matches,
+                ];
+                $roundNumber++;
+            }
+
+            return $rounds;
         }
 
         $rounds = [];
@@ -696,6 +885,25 @@ class RoundRobinSchedulerService
         }
 
         return $rounds;
+    }
+
+    /**
+     * Find the team-key (sorted member IDs joined by '-') for a given player.
+     * Iterates through teams to find the one containing the player.
+     *
+     * @param int $playerId
+     * @param array $groupIds All player IDs in this group
+     * @param array $teams List of teams with 'member_ids' key
+     * @return string
+     */
+    private function findTeamKeyForPlayer(int $playerId, array $groupIds, array $teams): string
+    {
+        foreach ($teams as $team) {
+            if (in_array($playerId, $team['member_ids'], true)) {
+                return implode('-', $team['member_ids']);
+            }
+        }
+        return (string) $playerId;
     }
 
     /**

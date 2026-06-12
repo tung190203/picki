@@ -46,11 +46,25 @@ class MiniTournamentService
         ])->toArray();
 
         $matchFormat = $data['match_format'] ?? null;
-        // standard & partner_rotation: session mặc định started
-        // mixed_gender & rank_pairing: chờ organizer gọi /start-session mới started
-        $isSessionStarted = in_array($matchFormat, [
-            MiniTournament::MATCH_FORMAT_STANDARD,
-            MiniTournament::MATCH_FORMAT_PARTNER_ROTATION,
+        // standard (null or 'standard'): session ONGOING, matches visible immediately
+        // partner_rotation: session ONGOING (chờ organizer gọi /start-session)
+        // mixed_gender & rank_pairing: session PENDING_GROUP, chờ /start-session
+        $sessionStatus = null;
+        if ($matchFormat === MiniTournament::MATCH_FORMAT_STANDARD || $matchFormat === null) {
+            $sessionStatus = MiniTournament::SESSION_STATUS_ONGOING;
+        } elseif ($matchFormat === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
+            $sessionStatus = MiniTournament::SESSION_STATUS_ONGOING;
+        } elseif (in_array($matchFormat, [
+            MiniTournament::MATCH_FORMAT_MIXED_GENDER,
+            MiniTournament::MATCH_FORMAT_RANK_PAIRING,
+        ], true)) {
+            $sessionStatus = MiniTournament::SESSION_STATUS_PENDING_GROUP;
+        }
+
+        // is_session_started: standard/PR → true (matches visible), mixed/rank → false (chờ /start-session)
+        $isSessionStarted = !in_array($matchFormat, [
+            MiniTournament::MATCH_FORMAT_MIXED_GENDER,
+            MiniTournament::MATCH_FORMAT_RANK_PAIRING,
         ], true);
 
         $miniTournament = MiniTournament::create([
@@ -62,6 +76,7 @@ class MiniTournamentService
             'club_fund_collection_id' => $data['club_fund_collection_id'] ?? null,
             'fee_amount' => $feeAmount,
             'club_id' => $data['club_id'] ?? null,
+            'session_status' => $sessionStatus,
             'is_session_started' => $isSessionStarted,
         ]);
 
@@ -261,12 +276,33 @@ class MiniTournamentService
 
         $seriesId = $recurrenceSeriesId ?? $tournament->recurrence_series_id;
 
-        // Replicate tournament but exclude only status and recurrence_series_cancelled_at
-        // This ensures poster and qr_code_url are copied to the new occurrence
+        // Replicate tournament but exclude session fields so each occurrence starts fresh
         $newTournament = $tournament->replicate([
             'status',
             'recurrence_series_cancelled_at',
+            'session_status',
+            'session_started_at',
+            'is_session_started',
         ]);
+
+        // Reset session fields per match_format (same logic as createTournament)
+        $matchFormat = $tournament->match_format;
+        if ($matchFormat === MiniTournament::MATCH_FORMAT_STANDARD || $matchFormat === null) {
+            $newTournament->session_status = MiniTournament::SESSION_STATUS_ONGOING;
+            $newTournament->is_session_started = true;
+        } elseif ($matchFormat === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
+            $newTournament->session_status = MiniTournament::SESSION_STATUS_ONGOING;
+            $newTournament->is_session_started = true;
+        } elseif (in_array($matchFormat, [
+            MiniTournament::MATCH_FORMAT_MIXED_GENDER,
+            MiniTournament::MATCH_FORMAT_RANK_PAIRING,
+        ], true)) {
+            $newTournament->session_status = MiniTournament::SESSION_STATUS_PENDING_GROUP;
+            $newTournament->is_session_started = false;
+        } else {
+            $newTournament->session_status = null;
+            $newTournament->is_session_started = true;
+        }
 
         $newTournament->start_time = $nextStartTime;
         $newTournament->end_time = $nextEndTime;
