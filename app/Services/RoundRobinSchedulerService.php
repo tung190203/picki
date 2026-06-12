@@ -7,6 +7,7 @@ use App\Models\MiniTournament;
 use App\Models\MiniParticipant;
 use App\Models\MiniTeam;
 use App\Models\MiniTeamMember;
+use App\Services\Tournament\BipartiteRoundRobinService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -150,21 +151,33 @@ class RoundRobinSchedulerService
 
     /**
      * Generate mixed_gender schedule.
-     * Each male plays each female exactly once. Matches are distributed across rounds.
+     * Each male plays each female exactly once using Bipartite Round Robin.
      *
      * @param array $maleIds Array of MiniParticipant IDs (male)
      * @param array $femaleIds Array of MiniParticipant IDs (female)
      * @param string $matchType 'single' or 'double'
+     * @param int|null $miniTournamentId
+     * @param bool $shuffle Randomize order of players before scheduling
      * @return array{rounds: array, summary: array, teams: array}
      */
-    public function generateMixedGenderSchedule(array $maleIds, array $femaleIds, string $matchType = self::MATCH_TYPE_SINGLE, ?int $miniTournamentId = null): array
-    {
+    public function generateMixedGenderSchedule(
+        array $maleIds,
+        array $femaleIds,
+        string $matchType = self::MATCH_TYPE_SINGLE,
+        ?int $miniTournamentId = null,
+        bool $shuffle = true
+    ): array {
         $m = count($maleIds);
         $f = count($femaleIds);
 
         if ($m < 1 || $f < 1) {
             throw new \InvalidArgumentException('mixed_gender requires at least 1 male and 1 female player');
         }
+
+        // Use BipartiteRoundRobinService for deterministic scheduling
+        $bipartiteResult = BipartiteRoundRobinService::generate($maleIds, $femaleIds, $shuffle);
+        $bipartiteRounds = $bipartiteResult['rounds'];
+        $bipartiteSummary = $bipartiteResult['summary'];
 
         $allMatches = [];
         $teams = [];
@@ -186,57 +199,78 @@ class RoundRobinSchedulerService
             }
             $teams = array_merge($maleTeams, $femaleTeams);
         } else {
-            foreach ($maleIds as $maleId) {
-                foreach ($femaleIds as $femaleId) {
-                    $allMatches[] = [
-                        'participant1_id' => $maleId,
-                        'participant2_id' => $femaleId,
-                        'is_bye' => false,
-                    ];
+            // Flatten bipartite rounds into match list
+            foreach ($bipartiteRounds as $round) {
+                foreach ($round as $match) {
+                    if ($match['is_bye']) {
+                        $playerId = $match['player_a'] ?? $match['player_b'];
+                        $allMatches[] = [
+                            'participant1_id' => $playerId,
+                            'participant2_id' => null,
+                            'is_bye' => true,
+                        ];
+                    } else {
+                        $allMatches[] = [
+                            'participant1_id' => $match['player_a'],
+                            'participant2_id' => $match['player_b'],
+                            'is_bye' => false,
+                        ];
+                    }
                 }
             }
         }
 
-        $allPlayerIds = array_merge($maleIds, $femaleIds);
-        $rounds = $this->distributeMatchesIntoRounds($allMatches, $allPlayerIds);
+        // Build rounds matching original format
+        $rounds = $this->buildRoundsFromMatches($bipartiteRounds, $matchType);
 
         $maleMatches = array_fill_keys($maleIds, 0);
         $femaleMatches = array_fill_keys($femaleIds, 0);
         foreach ($allMatches as $match) {
-            $ids1 = $match['team1_players'] ?? [$match['participant1_id'] ?? null];
-            $ids2 = $match['team2_players'] ?? [$match['participant2_id'] ?? null];
-            foreach ($ids1 as $pid) {
-                if (!$pid) continue;
+            if (!empty($match['is_bye'])) {
+                $pid = $match['participant1_id'];
                 if (isset($maleMatches[$pid])) {
                     $maleMatches[$pid]++;
                 } elseif (isset($femaleMatches[$pid])) {
                     $femaleMatches[$pid]++;
                 }
-            }
-            foreach ($ids2 as $pid) {
-                if (!$pid) continue;
-                if (isset($maleMatches[$pid])) {
-                    $maleMatches[$pid]++;
-                } elseif (isset($femaleMatches[$pid])) {
-                    $femaleMatches[$pid]++;
+            } else {
+                foreach (['participant1_id', 'participant2_id'] as $key) {
+                    if (!empty($match[$key])) {
+                        $pid = $match[$key];
+                        if (isset($maleMatches[$pid])) {
+                            $maleMatches[$pid]++;
+                        } elseif (isset($femaleMatches[$pid])) {
+                            $femaleMatches[$pid]++;
+                        }
+                    }
                 }
             }
         }
 
         $unbalancedNotice = null;
         if ($m !== $f) {
-            $unbalancedNotice = "Số trận chênh lệch: nam {$m}×{$f}=" . ($m * $f) . " trận, mỗi nam đánh {$f} trận, mỗi nữ đánh {$m} trận.";
+            $unbalancedNotice = "{$m} nam sẽ đánh {$f} trận, {$f} nữ sẽ đánh {$m} trận.";
+        }
+
+        // Append BYE notice if any
+        if ($bipartiteSummary['unbalanced_notice']) {
+            $unbalancedNotice = $unbalancedNotice
+                ? "{$unbalancedNotice} " . $bipartiteSummary['unbalanced_notice']
+                : $bipartiteSummary['unbalanced_notice'];
         }
 
         return [
             'rounds' => $rounds,
             'summary' => [
-                'total_rounds' => count($rounds),
-                'total_matches' => count($allMatches),
+                'total_rounds' => $bipartiteSummary['total_rounds'],
+                'total_matches' => $bipartiteSummary['total_matches'],
                 'male_matches' => $maleMatches,
                 'female_matches' => $femaleMatches,
                 'matches_per_male' => $f,
                 'matches_per_female' => $m,
+                'bye_balanced' => $bipartiteSummary['bye_balanced'],
+                'bye_count_a' => $bipartiteSummary['bye_count_a'] ?? [],
+                'bye_count_b' => $bipartiteSummary['bye_count_b'] ?? [],
                 'unbalanced_notice' => $unbalancedNotice,
             ],
             'teams' => $teams,
@@ -245,21 +279,33 @@ class RoundRobinSchedulerService
 
     /**
      * Generate rank_pairing schedule.
-     * Each A plays each B exactly once. Matches are distributed across rounds.
+     * Each A plays each B exactly once using Bipartite Round Robin.
      *
      * @param array $aIds Array of MiniParticipant IDs (group A)
      * @param array $bIds Array of MiniParticipant IDs (group B)
      * @param string $matchType 'single' or 'double'
+     * @param int|null $miniTournamentId
+     * @param bool $shuffle Randomize order of players before scheduling
      * @return array{rounds: array, summary: array, teams: array}
      */
-    public function generateRankPairingSchedule(array $aIds, array $bIds, string $matchType = self::MATCH_TYPE_SINGLE, ?int $miniTournamentId = null): array
-    {
+    public function generateRankPairingSchedule(
+        array $aIds,
+        array $bIds,
+        string $matchType = self::MATCH_TYPE_SINGLE,
+        ?int $miniTournamentId = null,
+        bool $shuffle = true
+    ): array {
         $na = count($aIds);
         $nb = count($bIds);
 
         if ($na < 1 || $nb < 1) {
             throw new \InvalidArgumentException('rank_pairing requires at least 1 player in each group');
         }
+
+        // Use BipartiteRoundRobinService for deterministic scheduling
+        $bipartiteResult = BipartiteRoundRobinService::generate($aIds, $bIds, $shuffle);
+        $bipartiteRounds = $bipartiteResult['rounds'];
+        $bipartiteSummary = $bipartiteResult['summary'];
 
         $allMatches = [];
         $teams = [];
@@ -281,57 +327,75 @@ class RoundRobinSchedulerService
             }
             $teams = array_merge($aTeams, $bTeams);
         } else {
-            foreach ($aIds as $aId) {
-                foreach ($bIds as $bId) {
-                    $allMatches[] = [
-                        'participant1_id' => $aId,
-                        'participant2_id' => $bId,
-                        'is_bye' => false,
-                    ];
+            foreach ($bipartiteRounds as $round) {
+                foreach ($round as $match) {
+                    if ($match['is_bye']) {
+                        $playerId = $match['player_a'] ?? $match['player_b'];
+                        $allMatches[] = [
+                            'participant1_id' => $playerId,
+                            'participant2_id' => null,
+                            'is_bye' => true,
+                        ];
+                    } else {
+                        $allMatches[] = [
+                            'participant1_id' => $match['player_a'],
+                            'participant2_id' => $match['player_b'],
+                            'is_bye' => false,
+                        ];
+                    }
                 }
             }
         }
 
-        $allPlayerIds = array_merge($aIds, $bIds);
-        $rounds = $this->distributeMatchesIntoRounds($allMatches, $allPlayerIds);
+        $rounds = $this->buildRoundsFromMatches($bipartiteRounds, $matchType);
 
         $aMatches = array_fill_keys($aIds, 0);
         $bMatches = array_fill_keys($bIds, 0);
         foreach ($allMatches as $match) {
-            $ids1 = $match['team1_players'] ?? [$match['participant1_id'] ?? null];
-            $ids2 = $match['team2_players'] ?? [$match['participant2_id'] ?? null];
-            foreach ($ids1 as $pid) {
-                if (!$pid) continue;
+            if (!empty($match['is_bye'])) {
+                $pid = $match['participant1_id'];
                 if (isset($aMatches[$pid])) {
                     $aMatches[$pid]++;
                 } elseif (isset($bMatches[$pid])) {
                     $bMatches[$pid]++;
                 }
-            }
-            foreach ($ids2 as $pid) {
-                if (!$pid) continue;
-                if (isset($aMatches[$pid])) {
-                    $aMatches[$pid]++;
-                } elseif (isset($bMatches[$pid])) {
-                    $bMatches[$pid]++;
+            } else {
+                foreach (['participant1_id', 'participant2_id'] as $key) {
+                    if (!empty($match[$key])) {
+                        $pid = $match[$key];
+                        if (isset($aMatches[$pid])) {
+                            $aMatches[$pid]++;
+                        } elseif (isset($bMatches[$pid])) {
+                            $bMatches[$pid]++;
+                        }
+                    }
                 }
             }
         }
 
         $unbalancedNotice = null;
         if ($na !== $nb) {
-            $unbalancedNotice = "Số trận chênh lệch: nhóm A × nhóm B = {$na}×{$nb}=" . ($na * $nb) . " trận, mỗi A đánh {$nb} trận, mỗi B đánh {$na} trận.";
+            $unbalancedNotice = "{$na} A sẽ đánh {$nb} trận, {$nb} B sẽ đánh {$na} trận.";
+        }
+
+        if ($bipartiteSummary['unbalanced_notice']) {
+            $unbalancedNotice = $unbalancedNotice
+                ? "{$unbalancedNotice} " . $bipartiteSummary['unbalanced_notice']
+                : $bipartiteSummary['unbalanced_notice'];
         }
 
         return [
             'rounds' => $rounds,
             'summary' => [
-                'total_rounds' => count($rounds),
-                'total_matches' => count($allMatches),
+                'total_rounds' => $bipartiteSummary['total_rounds'],
+                'total_matches' => $bipartiteSummary['total_matches'],
                 'a_matches' => $aMatches,
                 'b_matches' => $bMatches,
                 'matches_per_a' => $nb,
                 'matches_per_b' => $na,
+                'bye_balanced' => $bipartiteSummary['bye_balanced'],
+                'bye_count_a' => $bipartiteSummary['bye_count_a'] ?? [],
+                'bye_count_b' => $bipartiteSummary['bye_count_b'] ?? [],
                 'unbalanced_notice' => $unbalancedNotice,
             ],
             'teams' => $teams,
@@ -340,6 +404,7 @@ class RoundRobinSchedulerService
 
     /**
      * Calculate leaderboard for a mini tournament.
+     * For rank_pairing format, returns separate A and B leaderboards.
      *
      * @param int $miniTournamentId
      * @return array{leaderboard: array, group_a_leaderboard: array|null, group_b_leaderboard: array|null}
@@ -351,7 +416,13 @@ class RoundRobinSchedulerService
             return ['leaderboard' => []];
         }
 
-        $participants = MiniParticipant::with('user:id,full_name')->where('mini_tournament_id', $miniTournamentId)->get()->keyBy('id');
+        $isRankPairing = $miniTournament->match_format === MiniTournament::MATCH_FORMAT_RANK_PAIRING;
+
+        $participants = MiniParticipant::with('user:id,full_name')
+            ->where('mini_tournament_id', $miniTournamentId)
+            ->get()
+            ->keyBy('id');
+
         $matches = MiniMatch::where('mini_tournament_id', $miniTournamentId)
             ->whereNotNull('round_number')
             ->where('status', MiniMatch::STATUS_COMPLETED)
@@ -404,31 +475,44 @@ class RoundRobinSchedulerService
             }
         }
 
-        $leaderboard = collect($stats)->map(function ($s) {
-            $s['win_rate'] = $s['total_matches'] > 0
-                ? round($s['wins'] / $s['total_matches'] * 100, 1)
-                : 0;
-            $s['avg_point_diff'] = $s['total_matches'] > 0
-                ? round($s['total_point_diff'] / $s['total_matches'], 1)
-                : 0;
-            return $s;
-        })->sort(function ($a, $b) {
-            if ($b['wins'] !== $a['wins']) {
-                return $b['wins'] - $a['wins'];
-            }
-            if (abs($b['avg_point_diff'] - $a['avg_point_diff']) > 0.01) {
-                return $b['avg_point_diff'] <=> $a['avg_point_diff'];
-            }
-            return $b['total_matches'] - $a['total_matches'];
-        })->values()->map(function ($s, $idx) {
-            $s['rank'] = $idx + 1;
-            return $s;
-        })->all();
+        $enrichStats = function (array $items): array {
+            return collect($items)->map(function ($s) {
+                $s['win_rate'] = $s['total_matches'] > 0
+                    ? round($s['wins'] / $s['total_matches'] * 100, 1)
+                    : 0;
+                $s['avg_point_diff'] = $s['total_matches'] > 0
+                    ? round($s['total_point_diff'] / $s['total_matches'], 1)
+                    : 0;
+                return $s;
+            })->sort(function ($a, $b) {
+                if ($b['wins'] !== $a['wins']) {
+                    return $b['wins'] - $a['wins'];
+                }
+                if (abs($b['avg_point_diff'] - $a['avg_point_diff']) > 0.01) {
+                    return $b['avg_point_diff'] <=> $a['avg_point_diff'];
+                }
+                return $b['total_matches'] - $a['total_matches'];
+            })->values()->map(function ($s, $idx) {
+                $s['rank'] = $idx + 1;
+                return $s;
+            })->all();
+        };
 
-        // Note: group_a_leaderboard / group_b_leaderboard removed — rank_pairing returns full list
+        $allLeaderboard = $enrichStats($stats);
+
+        if ($isRankPairing) {
+            $groupAStats = array_filter($stats, fn($s) => $s['player_group'] === 'a');
+            $groupBStats = array_filter($stats, fn($s) => $s['player_group'] === 'b');
+
+            return [
+                'leaderboard' => $allLeaderboard,
+                'group_a_leaderboard' => $enrichStats($groupAStats),
+                'group_b_leaderboard' => $enrichStats($groupBStats),
+            ];
+        }
 
         return [
-            'leaderboard' => $leaderboard,
+            'leaderboard' => $allLeaderboard,
         ];
     }
 
@@ -566,6 +650,55 @@ class RoundRobinSchedulerService
     }
 
     /**
+     * Build rounds in the original service format from bipartite rounds.
+     * Bipartite format: array of rounds, each round is array of {player_a, player_b, is_bye}
+     * Original format: array of {round_number, matches: [{participant1_id, participant2_id, is_bye}]}
+     *
+     * @param array $bipartiteRounds
+     * @param string $matchType
+     * @return array
+     */
+    private function buildRoundsFromMatches(array $bipartiteRounds, string $matchType): array
+    {
+        if ($matchType === self::MATCH_TYPE_DOUBLE) {
+            return [];
+        }
+
+        $rounds = [];
+        $roundNumber = 1;
+
+        foreach ($bipartiteRounds as $roundMatches) {
+            $formattedMatches = [];
+
+            foreach ($roundMatches as $match) {
+                if ($match['is_bye']) {
+                    $playerId = $match['player_a'] ?? $match['player_b'];
+                    $formattedMatches[] = [
+                        'participant1_id' => $playerId,
+                        'participant2_id' => null,
+                        'is_bye' => true,
+                    ];
+                } else {
+                    $formattedMatches[] = [
+                        'participant1_id' => $match['player_a'],
+                        'participant2_id' => $match['player_b'],
+                        'is_bye' => false,
+                    ];
+                }
+            }
+
+            $rounds[] = [
+                'round_number' => $roundNumber,
+                'matches' => $formattedMatches,
+            ];
+
+            $roundNumber++;
+        }
+
+        return $rounds;
+    }
+
+    /**
      * Build fixed same-gender pairs for mixed_gender / rank_pairing double format.
      * Pairs participants into teams of 2. Odd one out sits out.
      *
@@ -582,7 +715,9 @@ class RoundRobinSchedulerService
         shuffle($shuffled);
 
         for ($i = 0; $i < count($shuffled); $i += 2) {
-            if (!isset($shuffled[$i + 1])) break;
+            if (!isset($shuffled[$i + 1])) {
+                break;
+            }
 
             $p1Id = $shuffled[$i];
             $p2Id = $shuffled[$i + 1];
