@@ -29,6 +29,8 @@ use App\Models\Club\ClubFundContribution;
 use App\Models\MiniMatch;
 use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
+use App\Models\MiniTeam;
+use App\Models\MiniTeamMember;
 use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
 use App\Models\User;
@@ -415,42 +417,6 @@ class MiniTournamentController extends Controller
 
         $miniTournament->update($data);
 
-        // Khi match_format được set thành partner_rotation → sinh matches luôn nếu chưa có
-        if (isset($data['match_format']) && $data['match_format'] === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
-            $hasMatches = $miniTournament->matches()->exists();
-            if (!$hasMatches) {
-                $confirmedParticipants = $miniTournament->participants()
-                    ->where('is_confirmed', true)
-                    ->where('is_absent', false)
-                    ->get();
-
-                if ($confirmedParticipants->count() >= 6 && $confirmedParticipants->count() <= 8) {
-                    $scheduler = new RoundRobinSchedulerService();
-                    $schedule = $scheduler->generatePartnerRotationSchedule(
-                        $confirmedParticipants->pluck('id')->toArray(),
-                        $miniTournament->scheduled_court_count ?? 2
-                    );
-
-                    $matchesToInsert = [];
-                    foreach ($schedule['rounds'] as $round) {
-                        foreach ($round['matches'] as $match) {
-                            $matchesToInsert[] = [
-                                'mini_tournament_id' => $miniTournament->id,
-                                'participant1_id' => $match['participant1_id'],
-                                'participant2_id' => $match['participant2_id'],
-                                'round_number' => $round['round_number'],
-                                'is_bye' => $match['is_bye'] ?? false,
-                                'status' => \App\Models\MiniMatch::STATUS_PENDING,
-                                'created_at' => now(),
-                                'updated_at' => now(),
-                            ];
-                        }
-                    }
-                    \App\Models\MiniMatch::insert($matchesToInsert);
-                }
-            }
-        }
-
         // Sync payment status khi has_fee thay đổi (free→paid hoặc paid→free)
         $wasPaid = (bool) $miniTournament->has_fee;
         $isNowPaid = isset($data['has_fee']) ? (bool) $data['has_fee'] : $wasPaid;
@@ -732,6 +698,15 @@ class MiniTournamentController extends Controller
                         // Teams already created (mixed_gender / rank_pairing double)
                         $match['team_1'] = $teamMap[$match['team1_id']] ?? null;
                         $match['team_2'] = $teamMap[$match['team2_id']] ?? null;
+                    } elseif (!empty($match['is_bye']) && isset($match['team1_players'])) {
+                        // BYE match: single player has no opponent team
+                        $p1 = $match['team1_players'][0] ?? null;
+                        $match['team_1'] = [
+                            'id' => null,
+                            'name' => $participantMap[$p1]['full_name'] ?? 'BYE',
+                            'members' => array_filter([$participantMap[$p1] ?? null]),
+                        ];
+                        $match['team_2'] = null;
                     } elseif (isset($match['team1_players'], $match['team2_players'])) {
                         // Dynamic teams from player pairs (partner_rotation double)
                         $p1 = $match['team1_players'][0] ?? null;
@@ -979,6 +954,10 @@ class MiniTournamentController extends Controller
             return ResponseHelper::error('Kèo standard không cần start session', 422);
         }
 
+        if ($format === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION && $miniTournament->format !== 'double') {
+            return ResponseHelper::error('Xoay vòng partner chỉ áp dụng cho kèo đấu đôi', 422);
+        }
+
         if ($miniTournament->session_status === MiniTournament::SESSION_STATUS_ONGOING) {
             return ResponseHelper::error('Session đã được bắt đầu', 422);
         }
@@ -987,7 +966,6 @@ class MiniTournamentController extends Controller
             return ResponseHelper::error('Session đã kết thúc, không thể bắt đầu lại', 422);
         }
 
-        $courtCount = $request->input('scheduled_court_count', 2);
         $groupAssignments = $request->input('participant_ids', []);
 
         // Lưu phân nhóm từ payload (mixed_gender / rank_pairing)
@@ -1019,29 +997,32 @@ class MiniTournamentController extends Controller
         }
 
         $confirmedParticipants = $miniTournament->participants()
-            ->with('user:id,name,avatar')
+            ->with('user:id,full_name,avatar_url')
             ->where('is_confirmed', true)
             ->where('is_absent', false)
             ->get();
 
         $participantIds = $confirmedParticipants->pluck('id')->toArray();
+        // Map participant ID -> actual user ID (for MiniTeamMember creation)
+        $participantUserMap = [];
+        foreach ($confirmedParticipants as $p) {
+            $participantUserMap[$p->id] = $p->user_id;
+        }
         $scheduler = new RoundRobinSchedulerService();
         $schedule = null;
 
-        $isDouble = $miniTournament->format === MiniTournament::FORMAT_DOUBLE;
+        $isDouble = $miniTournament->format === 'double';
         $matchType = $isDouble
             ? RoundRobinSchedulerService::MATCH_TYPE_DOUBLE
             : RoundRobinSchedulerService::MATCH_TYPE_SINGLE;
 
         try {
             if ($format === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
-                if (count($participantIds) < 6) {
-                    return ResponseHelper::error('partner_rotation cần ít nhất 6 người đã xác nhận, đang có ' . count($participantIds) . ' người', 422);
+                $count = count($participantIds);
+                if ($count < 3 || $count > 8) {
+                    return ResponseHelper::error('partner_rotation cần 3 đến 8 người đã xác nhận, đang có ' . $count . ' người', 422);
                 }
-                if ($isDouble && count($participantIds) < 4) {
-                    return ResponseHelper::error('double partner_rotation cần ít nhất 4 người đã xác nhận', 422);
-                }
-                $schedule = $scheduler->generatePartnerRotationSchedule($participantIds, $courtCount, $matchType);
+                $schedule = $scheduler->generatePartnerRotationSchedule($participantIds, $matchType);
             } elseif ($format === MiniTournament::MATCH_FORMAT_MIXED_GENDER) {
                 $maleIds = $confirmedParticipants->where('player_group', 'male')->pluck('id')->toArray();
                 $femaleIds = $confirmedParticipants->where('player_group', 'female')->pluck('id')->toArray();
@@ -1051,7 +1032,7 @@ class MiniTournamentController extends Controller
                 if ($isDouble && (count($maleIds) < 2 || count($femaleIds) < 2)) {
                     return ResponseHelper::error('double mixed_gender cần ít nhất 2 nam và 2 nữ đã phân nhóm', 422);
                 }
-                $schedule = $scheduler->generateMixedGenderSchedule($maleIds, $femaleIds, $courtCount, $matchType);
+                $schedule = $scheduler->generateMixedGenderSchedule($maleIds, $femaleIds, $matchType);
             } elseif ($format === MiniTournament::MATCH_FORMAT_RANK_PAIRING) {
                 $aIds = $confirmedParticipants->where('player_group', 'a')->pluck('id')->toArray();
                 $bIds = $confirmedParticipants->where('player_group', 'b')->pluck('id')->toArray();
@@ -1061,7 +1042,7 @@ class MiniTournamentController extends Controller
                 if ($isDouble && (count($aIds) < 2 || count($bIds) < 2)) {
                     return ResponseHelper::error('double rank_pairing cần ít nhất 2 người mỗi nhóm', 422);
                 }
-                $schedule = $scheduler->generateRankPairingSchedule($aIds, $bIds, $courtCount, $matchType);
+                $schedule = $scheduler->generateRankPairingSchedule($aIds, $bIds, $matchType);
             }
         } catch (\InvalidArgumentException $e) {
             return ResponseHelper::error($e->getMessage(), 422);
@@ -1077,6 +1058,10 @@ class MiniTournamentController extends Controller
                     'round_number' => $round['round_number'],
                     'is_bye' => $match['is_bye'] ?? false,
                     'status' => MiniMatch::STATUS_PENDING,
+                    'team1_id' => null,
+                    'team2_id' => null,
+                    'participant1_id' => null,
+                    'participant2_id' => null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];
@@ -1086,51 +1071,80 @@ class MiniTournamentController extends Controller
                         $row['team2_id'] = $match['team2_id'];
                     }
                 } else {
-                    $row['participant1_id'] = $match['participant1_id'];
-                    $row['participant2_id'] = $match['participant2_id'];
+                    if (isset($match['participant1_id'])) {
+                        $row['participant1_id'] = $match['participant1_id'];
+                    }
+                    if (isset($match['participant2_id'])) {
+                        $row['participant2_id'] = $match['participant2_id'];
+                    }
                 }
                 $matchesToInsert[] = $row;
             }
         }
 
-        DB::transaction(function () use ($miniTournament, $matchesToInsert, $schedule, $isDouble) {
+        DB::transaction(function () use ($miniTournament, $matchesToInsert, $schedule, $isDouble, $participantUserMap) {
             // partner_rotation double: create MiniTeam records per round's match
             if ($isDouble) {
                 $teamMap = [];
+                $matchOffset = 0;
                 foreach ($schedule['rounds'] as $round) {
                     foreach ($round['matches'] as $match) {
-                        if (isset($match['team1_id']) && isset($match['team2_id'])) continue;
-                        if (!isset($match['team1_players']) || !isset($match['team2_players'])) continue;
+                        $isBye = !empty($match['is_bye']);
 
-                        foreach ($match['team1_players'] as $pId) {
-                            foreach ($match['team2_players'] as $p2Id) {
-                                $key = [$pId, $p2Id];
-                                sort($key);
-                                $key = implode('-', $key);
-                                if (!isset($teamMap[$key])) {
-                                    $team = MiniTeam::create([
-                                        'name' => "Team-{$pId}-{$p2Id}",
-                                        'mini_tournament_id' => $miniTournament->id,
-                                    ]);
-                                    MiniTeamMember::create(['mini_team_id' => $team->id, 'user_id' => $pId, 'is_guest' => false]);
-                                    MiniTeamMember::create(['mini_team_id' => $team->id, 'user_id' => $p2Id, 'is_guest' => false]);
-                                    $teamMap[$key] = $team->id;
-                                }
+                        // BYE match: solo player, no team, no match
+                        if ($isBye) {
+                            $matchesToInsert[$matchOffset]['is_bye'] = true;
+                            $matchOffset++;
+                            continue;
+                        }
+
+                        if (empty($match['team1_players']) || empty($match['team2_players'])) {
+                            $matchOffset++;
+                            continue;
+                        }
+
+                        // Build team name from member names
+                        $team1Names = array_map(fn($pid) => (string) $pid, $match['team1_players']);
+                        $team2Names = array_map(fn($pid) => (string) $pid, $match['team2_players']);
+
+                        // Team 1: members in team1_players
+                        $key1 = implode('-', $match['team1_players']);
+                        if (!isset($miniTeamByKey[$key1])) {
+                            $team1 = MiniTeam::create([
+                                'name' => implode('-', $team1Names),
+                                'mini_tournament_id' => $miniTournament->id,
+                            ]);
+                            foreach ($match['team1_players'] as $pid) {
+                                MiniTeamMember::create([
+                                    'mini_team_id' => $team1->id,
+                                    'user_id' => $participantUserMap[$pid] ?? $pid,
+                                    'is_guest' => false,
+                                ]);
                             }
+                            $miniTeamByKey[$key1] = $team1->id;
                         }
-                    }
-                }
-                foreach ($matchesToInsert as &$row) {
-                    if (!isset($row['team1_id']) && isset($row['participant1_id'])) {
-                        $p1 = $row['participant1_id'];
-                        $p2 = $row['participant2_id'];
-                        $key = [$p1, $p2];
-                        sort($key);
-                        $key = implode('-', $key);
-                        if (isset($teamMap[$key])) {
-                            unset($row['participant1_id'], $row['participant2_id']);
-                            $row['team1_id'] = $teamMap[$key];
+
+                        // Team 2: members in team2_players
+                        $key2 = implode('-', $match['team2_players']);
+                        if (!isset($miniTeamByKey[$key2])) {
+                            $team2 = MiniTeam::create([
+                                'name' => implode('-', $team2Names),
+                                'mini_tournament_id' => $miniTournament->id,
+                            ]);
+                            foreach ($match['team2_players'] as $pid) {
+                                MiniTeamMember::create([
+                                    'mini_team_id' => $team2->id,
+                                    'user_id' => $participantUserMap[$pid] ?? $pid,
+                                    'is_guest' => false,
+                                ]);
+                            }
+                            $miniTeamByKey[$key2] = $team2->id;
                         }
+
+                        $matchesToInsert[$matchOffset]['team1_id'] = $miniTeamByKey[$key1];
+                        $matchesToInsert[$matchOffset]['team2_id'] = $miniTeamByKey[$key2];
+                        $matchesToInsert[$matchOffset]['is_bye'] = false;
+                        $matchOffset++;
                     }
                 }
             }
@@ -1167,8 +1181,8 @@ class MiniTournamentController extends Controller
             'matches.participant1.user.sports.scores',
             'matches.participant2.user.sports.scores',
             'matches.results.team.members',
-            'matches.team1.members.user',
-            'matches.team2.members.user',
+            'matches.team1.members.user.sports.scores',
+            'matches.team2.members.user.sports.scores',
         ])->findOrFail($id);
 
         $matches = $miniTournament->matches;
@@ -1180,11 +1194,63 @@ class MiniTournamentController extends Controller
             ], 'Chưa có lịch đấu');
         }
 
-        $isDouble = $miniTournament->format === MiniTournament::FORMAT_DOUBLE;
+        $isDouble = $miniTournament->format === 'double';
         $firstMatch = $matches->first();
         $hasTeamMatches = $firstMatch && $firstMatch->team1_id !== null;
 
-        $grouped = $matches->groupBy('round_number')->map(function ($roundMatches, $roundNumber) use ($isDouble, $hasTeamMatches) {
+        // Build team lookup map with full member info (nested eager load via string path doesn't work reliably)
+        $teamMap = [];
+        if ($hasTeamMatches) {
+            $teamIds = $matches->pluck('team1_id')->merge($matches->pluck('team2_id'))->filter()->unique()->values();
+            if ($teamIds->isNotEmpty()) {
+                $loadedTeams = MiniTeam::with('members.user.sports.scores')
+                    ->whereIn('id', $teamIds)
+                    ->get()
+                    ->keyBy('id');
+                foreach ($loadedTeams as $team) {
+                    $members = [];
+                    foreach ($team->members as $m) {
+                        $user = $m->relationLoaded('user') ? $m->user : null;
+                        $sportsArray = [];
+                        if ($user && $user->relationLoaded('sports')) {
+                            foreach ($user->sports as $sport) {
+                                $scores = $sport->relationLoaded('scores') ? $sport->scores : collect();
+                                $formattedScores = [];
+                                foreach (['personal_score', 'dupr_score', 'vndupr_score'] as $type) {
+                                    $latestScore = $scores->where('score_type', $type)->sortByDesc('created_at')->first();
+                                    $formattedScores[$type] = number_format((float) ($latestScore?->score_value ?? 0), 3);
+                                }
+                                $sportsArray[] = [
+                                    'sport_id' => $sport->sport_id,
+                                    'scores' => $formattedScores,
+                                ];
+                            }
+                        }
+                        $members[] = [
+                            'id' => $m->user_id,
+                            'full_name' => $user?->full_name ?? ($m->is_guest ? 'Guest' : ''),
+                            'avatar_url' => $user?->avatar_url ?? '',
+                            'is_guest' => (bool) $m->is_guest,
+                            'visibility' => $user?->visibility,
+                            'user' => $user ? [
+                                'id' => $user->id,
+                                'full_name' => $user->full_name,
+                                'avatar_url' => $user->avatar_url,
+                                'visibility' => $user->visibility,
+                                'sports' => $sportsArray,
+                            ] : null,
+                        ];
+                    }
+                    $teamMap[$team->id] = [
+                        'id' => $team->id,
+                        'name' => $team->name,
+                        'members' => $members,
+                    ];
+                }
+            }
+        }
+
+        $grouped = $matches->groupBy('round_number')->map(function ($roundMatches, $roundNumber) use ($isDouble, $hasTeamMatches, $teamMap) {
             $completedCount = $roundMatches->where('status', MiniMatch::STATUS_COMPLETED)->count();
             $totalCount = $roundMatches->count();
 
@@ -1198,7 +1264,7 @@ class MiniTournamentController extends Controller
             return [
                 'round_number' => (int) $roundNumber,
                 'status' => $status,
-                'matches' => $roundMatches->map(function ($match) use ($isDouble, $hasTeamMatches) {
+                'matches' => $roundMatches->map(function ($match) use ($isDouble, $hasTeamMatches, $teamMap) {
                     // Format member từ participant
                     $formatMember = function ($participant) {
                         if (!$participant) return null;
@@ -1280,24 +1346,8 @@ class MiniTournamentController extends Controller
                     $team2Data = null;
 
                     if ($isDouble || $hasTeamMatches) {
-                        // Double format: format from team1/team2 relations
-                        $formatTeam = function ($team) {
-                            if (!$team) return null;
-                            return [
-                                'id' => $team->id,
-                                'name' => $team->name,
-                                'members' => $team->relationLoaded('members')
-                                    ? $team->members->map(fn ($m) => [
-                                        'id' => $m->user_id,
-                                        'full_name' => $m->user?->full_name ?? '',
-                                        'avatar_url' => $m->user?->avatar_url ?? '',
-                                        'is_guest' => (bool) $m->is_guest,
-                                    ])->values()->all()
-                                    : [],
-                            ];
-                        };
-                        $team1Data = $formatTeam($match->team1);
-                        $team2Data = $formatTeam($match->team2);
+                        $team1Data = $teamMap[$match->team1_id] ?? null;
+                        $team2Data = $teamMap[$match->team2_id] ?? null;
                     } else {
                         // Single format: format from participant1/participant2
                         $team1Data = $formatMember($match->participant1);
@@ -1342,6 +1392,34 @@ class MiniTournamentController extends Controller
         $result = $scheduler->calculateLeaderboard($id);
 
         return ResponseHelper::success($result, 'Lấy bảng xếp hạng thành công');
+    }
+
+    /**
+     * Kích hoạt một vòng đấu — đặt tất cả trận trong vòng sang going_on.
+     */
+    public function activateRound(int $id, Request $request)
+    {
+        $userId = Auth::id();
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        $miniTournament = MiniTournament::findOrFail($id);
+
+        if (!$miniTournament->hasOrganizer($userId)) {
+            return ResponseHelper::error('Chỉ organizer kèo đấu mới có quyền thực hiện', 403);
+        }
+
+        $validated = $request->validate([
+            'round_number' => 'required|integer|min:1',
+        ]);
+
+        MiniMatch::where('mini_tournament_id', $id)
+            ->where('round_number', $validated['round_number'])
+            ->whereIn('status', [MiniMatch::STATUS_PENDING, MiniMatch::STATUS_GOING_ON])
+            ->update(['status' => MiniMatch::STATUS_GOING_ON]);
+
+        return ResponseHelper::success(null, 'Đã kích hoạt vòng đấu');
     }
 
     /**

@@ -1043,6 +1043,7 @@ export default {
             competitionLocation: computed(() => mini.value?.competition_location ?? null),
             tournamentMaxPlayers: computed(() => mini.value?.max_players ?? null),
             tournamentId: computed(() => mini.value?.id ?? null),
+            detailMiniTournament,
         }
     }
 }
