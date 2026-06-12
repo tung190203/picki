@@ -25,21 +25,10 @@ export const getLeaderboard = async (id) => {
     .then((response) => response.data);
 };
 
-export const finishSession = async (id) => {
-  return axiosInstance.post(`${baseEndpoint}/${id}/finish-session`)
-    .then((response) => response.data);
-};
-
 export const markAbsentPlayer = async (id, participantId, matchId) => {
   return axiosInstance.post(`${baseEndpoint}/${id}/mark-absent-player`, {
     participant_id: participantId,
     match_id: matchId,
-  }).then((response) => response.data);
-};
-
-export const activateRound = async (id, roundNumber) => {
-  return axiosInstance.post(`${baseEndpoint}/${id}/activate-round`, {
-    round_number: roundNumber,
   }).then((response) => response.data);
 };
 

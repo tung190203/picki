@@ -559,24 +559,21 @@ export default {
             }
         }
 
+        // Session ends automatically when all matches complete (checkSessionCompletion).
+        // The button only refreshes leaderboard and switches tab.
         const finishSession = async () => {
             try {
-                const res = await SessionService.finishSession(props.data.id)
-                toast.success(res.message || 'Đã kết thúc session')
                 await loadSessionLeaderboard(props.data.id)
                 sessionSubTab.value = 'leaderboard'
             } catch (e) {
-                toast.error(e.response?.data?.message || 'Không thể kết thúc session')
+                toast.error(e.response?.data?.message || 'Không thể tải bảng xếp hạng')
             }
         }
 
+        // Rounds activate automatically when the previous round completes (checkSessionCompletion).
+        // Manual activation is no longer needed.
         const onActivateRound = async () => {
-            if (!props.data?.id || !props.isCreator) return
-            try {
-                await SessionService.activateRound(props.data.id, currentRound.value)
-            } catch (_e) {
-                // silently ignore — the round will still be displayed
-            }
+            // intentionally no-op
         }
 
         const onCreateSchedule = async () => {

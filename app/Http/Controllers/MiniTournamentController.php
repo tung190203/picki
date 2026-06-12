@@ -1336,11 +1336,11 @@ class MiniTournamentController extends Controller
                     if (isset($match['participant2_id'])) {
                         $row['participant2_id'] = $match['participant2_id'];
                     }
-                    // Single bye: the player who got the bye (who had no opponent)
+                // Single bye: record the match so round structure is complete,
+                    // but do NOT mark as completed or assign a winner (BYE ≠ auto-win)
                     if (!empty($match['is_bye'])) {
-                        $row['participant_win_id'] = $row['participant1_id'] ?? $row['participant2_id'] ?? null;
                         $row['bye_participant_id'] = $row['participant1_id'] ?? $row['participant2_id'] ?? null;
-                        $row['status'] = MiniMatch::STATUS_COMPLETED;
+                        $row['status'] = MiniMatch::STATUS_PENDING;
                     }
                 }
                 $matchesToInsert[] = $row;
@@ -1467,6 +1467,21 @@ class MiniTournamentController extends Controller
                     }
                 }
             }
+
+            // Round 1 is going_on; all other rounds start as pending.
+            // When round N completes, checkSessionCompletion auto-activates round N+1.
+            $firstRound = (int) ($schedule['first_round_number'] ?? 1);
+            foreach ($matchesToInsert as $idx => &$m) {
+                $m['round_number'] = (int) $m['round_number'];
+                if ($m['is_bye'] ?? false) {
+                    $m['status'] = MiniMatch::STATUS_PENDING;
+                } else {
+                    $m['status'] = $m['round_number'] === $firstRound
+                        ? MiniMatch::STATUS_GOING_ON
+                        : MiniMatch::STATUS_PENDING;
+                }
+            }
+            unset($m);
 
             MiniMatch::insert($matchesToInsert);
             MiniTournament::where('id', $miniTournamentId)->update([
@@ -1768,65 +1783,6 @@ class MiniTournamentController extends Controller
         $result = $scheduler->calculateLeaderboard($id);
 
         return ResponseHelper::success($result, 'Lấy bảng xếp hạng thành công');
-    }
-
-    /**
-     * Kích hoạt một vòng đấu — đặt tất cả trận trong vòng sang going_on.
-     */
-    public function activateRound(int $id, Request $request)
-    {
-        $userId = Auth::id();
-        if (!$userId) {
-            return ResponseHelper::error('Bạn cần đăng nhập', 401);
-        }
-
-        $miniTournament = MiniTournament::findOrFail($id);
-
-        if (!$miniTournament->hasOrganizer($userId)) {
-            return ResponseHelper::error('Chỉ organizer kèo đấu mới có quyền thực hiện', 403);
-        }
-
-        $validated = $request->validate([
-            'round_number' => 'required|integer|min:1',
-        ]);
-
-        MiniMatch::where('mini_tournament_id', $id)
-            ->where('round_number', $validated['round_number'])
-            ->whereIn('status', [MiniMatch::STATUS_PENDING, MiniMatch::STATUS_GOING_ON])
-            ->update(['status' => MiniMatch::STATUS_GOING_ON]);
-
-        return ResponseHelper::success(null, 'Đã kích hoạt vòng đấu');
-    }
-
-    /**
-     * Organizer kết thúc session sớm.
-     */
-    public function finishSession(int $id)
-    {
-        $userId = Auth::id();
-        if (!$userId) {
-            return ResponseHelper::error('Bạn cần đăng nhập', 401);
-        }
-
-        $miniTournament = MiniTournament::findOrFail($id);
-
-        if (!$miniTournament->hasOrganizer($userId)) {
-            return ResponseHelper::error('Chỉ organizer kèo đấu mới có quyền thực hiện', 403);
-        }
-
-        if ($miniTournament->session_status === MiniTournament::SESSION_STATUS_FINISHED) {
-            return ResponseHelper::error('Session đã kết thúc rồi', 422);
-        }
-
-        $miniTournament->update(['session_status' => MiniTournament::SESSION_STATUS_FINISHED]);
-
-        $scheduler = new RoundRobinSchedulerService();
-        $leaderboard = $scheduler->calculateLeaderboard($id);
-
-        return ResponseHelper::success([
-            'session_status' => MiniTournament::SESSION_STATUS_FINISHED,
-            'leaderboard' => $leaderboard,
-        ], 'Đã kết thúc session');
     }
 
     /**

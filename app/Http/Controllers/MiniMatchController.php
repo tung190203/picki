@@ -594,10 +594,11 @@ class MiniMatchController extends Controller
                 }
             }
 
-            // Reset confirm
+            // Reset confirm and move to waiting_confirm
             $match->update([
                 'team1_confirm' => false,
                 'team2_confirm' => false,
+                'status' => MiniMatch::STATUS_WAITING_CONFIRM,
             ]);
         });
 
@@ -843,19 +844,52 @@ class MiniMatchController extends Controller
             return;
         }
 
-        // Lấy tất cả trận có round_number, loại bye matches
-        $totalMatches = MiniMatch::where('mini_tournament_id', $miniTournament->id)
+        $tournamentId = $miniTournament->id;
+        $currentRound = $match->round_number;
+
+        // Count non-bye matches per round
+        $nonByeQuery = fn($status) => MiniMatch::where('mini_tournament_id', $tournamentId)
+            ->whereNotNull('round_number')
+            ->where('is_bye', false)
+            ->where('status', $status);
+
+        $totalNonBye = MiniMatch::where('mini_tournament_id', $tournamentId)
             ->whereNotNull('round_number')
             ->where('is_bye', false)
             ->count();
 
-        $completedMatches = MiniMatch::where('mini_tournament_id', $miniTournament->id)
+        // Check if ALL matches in the current round are completed
+        $currentRoundTotal = MiniMatch::where('mini_tournament_id', $tournamentId)
             ->whereNotNull('round_number')
             ->where('is_bye', false)
-            ->where('status', MiniMatch::STATUS_COMPLETED)
+            ->where('round_number', $currentRound)
             ->count();
 
-        if ($totalMatches > 0 && $totalMatches === $completedMatches) {
+        $currentRoundCompleted = $nonByeQuery(MiniMatch::STATUS_COMPLETED)
+            ->where('round_number', $currentRound)
+            ->count();
+
+        // Auto-activate next round when current round is fully done
+        if ($currentRoundTotal > 0 && $currentRoundTotal === $currentRoundCompleted) {
+            $nextRound = $currentRound + 1;
+            $nextRoundExists = MiniMatch::where('mini_tournament_id', $tournamentId)
+                ->whereNotNull('round_number')
+                ->where('round_number', $nextRound)
+                ->exists();
+
+            if ($nextRoundExists) {
+                MiniMatch::where('mini_tournament_id', $tournamentId)
+                    ->whereNotNull('round_number')
+                    ->where('round_number', $nextRound)
+                    ->where('is_bye', false)
+                    ->whereIn('status', [MiniMatch::STATUS_PENDING])
+                    ->update(['status' => MiniMatch::STATUS_GOING_ON]);
+            }
+        }
+
+        // End session only when ALL non-bye matches are completed
+        $totalCompleted = $nonByeQuery(MiniMatch::STATUS_COMPLETED)->count();
+        if ($totalNonBye > 0 && $totalNonBye === $totalCompleted) {
             $miniTournament->update(['session_status' => MiniTournament::SESSION_STATUS_FINISHED]);
         }
     }
@@ -1455,6 +1489,12 @@ class MiniMatchController extends Controller
             // Lưu kết quả các set (nếu có)
             if (!empty($data['sets'])) {
                 $this->processSets($match, $data['sets']);
+                // Scores entered → move to waiting_confirm and require both teams to re-confirm
+                $match->update([
+                    'status' => MiniMatch::STATUS_WAITING_CONFIRM,
+                    'team1_confirm' => false,
+                    'team2_confirm' => false,
+                ]);
             }
 
             DB::commit();
