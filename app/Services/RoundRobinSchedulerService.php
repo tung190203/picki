@@ -21,11 +21,10 @@ class RoundRobinSchedulerService
      * Distributed across rounds using available courts.
      *
      * @param array $playerIds Array of MiniParticipant IDs
-     * @param int $courtCount Number of courts to use simultaneously
      * @param string $matchType 'single' or 'double'
      * @return array{rounds: array, summary: array, teams: array}
      */
-    public function generatePartnerRotationSchedule(array $playerIds, int $courtCount = 2, string $matchType = self::MATCH_TYPE_SINGLE): array
+    public function generatePartnerRotationSchedule(array $playerIds, string $matchType = self::MATCH_TYPE_SINGLE): array
     {
         $n = count($playerIds);
         if ($n < 6) {
@@ -36,11 +35,11 @@ class RoundRobinSchedulerService
             if ($n < 4) {
                 throw new \InvalidArgumentException('double partner_rotation requires at least 4 players, got ' . $n);
             }
-            return $this->generateDoublePartnerRotation($playerIds, $courtCount);
+            return $this->generateDoublePartnerRotation($playerIds);
         }
 
         $allMatches = $this->generateAllPairs($playerIds);
-        $rounds = $this->distributeMatchesIntoRounds($allMatches, $courtCount, $n);
+        $rounds = $this->distributeMatchesIntoRounds($allMatches, $playerIds);
 
         $matchesPerPlayer = array_fill_keys($playerIds, 0);
         foreach ($allMatches as $match) {
@@ -70,92 +69,80 @@ class RoundRobinSchedulerService
     }
 
     /**
-     * Generate double partner rotation schedule.
-     * Players are paired into teams using circular rotation per round,
-     * then each round-robin step creates matches between teams.
+     * Generate double partner rotation schedule using circle method.
      *
-     * Algorithm:
-     * - Each round: pair players using circle rotation → teams for that round
-     * - Between rounds: rotate partners and opponents together
-     * - Result: each player partners with every other player exactly once
+     * Player 0 fixed as anchor. Remaining (n-1) players rotate left by 1 per round.
+     * Each round: first half of rotated circle vs second half.
+     * All players in team1 play all players in team2.
      *
-     * @param array $playerIds
-     * @param int $courtCount
+     * Odd n: 1 player sits out per round (bye). n rounds total.
+     * Even n: no bye. n-1 rounds total.
+     *
+     * @param array $playerIds Array of MiniParticipant IDs
      * @return array
      */
-    private function generateDoublePartnerRotation(array $playerIds, int $courtCount): array
+    private function generateDoublePartnerRotation(array $playerIds): array
     {
         $n = count($playerIds);
         $playerIds = array_values($playerIds);
 
-        $allMatches = [];
-        $matchesPerPlayer = array_fill_keys($playerIds, 0);
-
-        // Generate all unique player pairs to ensure each player meets every other player
-        $targetPairs = [];
+        // Bước 1: 1-factorization — tạo tất cả C(n,2) pairs
+        $allPairs = [];
         for ($i = 0; $i < $n; $i++) {
             for ($j = $i + 1; $j < $n; $j++) {
-                $targetPairs[] = [$playerIds[$i], $playerIds[$j]];
+                $allPairs[] = [
+                    'participant1_id' => $playerIds[$i],
+                    'participant2_id' => $playerIds[$j],
+                ];
             }
         }
 
-        // Track which partner pair is active in each round
-        // Round i: partner pair at positions (i, i+1), (i+2, i+3), ...
-        $numRounds = $n - 1;
-        for ($round = 0; $round < $numRounds; $round++) {
-            // Build teams for this round using circle rotation
-            // Position r's partner in round r is at position (r + round + 1) % n
-            $roundTeams = [];
-            $usedInRound = [];
+        // Bước 2: Greedy coloring — pack pairs vào rounds (no player conflict)
+        $rounds = $this->distributeMatchesIntoRounds($allPairs, $playerIds, true);
 
-            for ($i = 0; $i < $n; $i++) {
-                if (in_array($i, $usedInRound)) continue;
-                $partnerPos = ($i + $round + 1) % $n;
-                $roundTeams[] = [$playerIds[$i], $playerIds[$partnerPos]];
-                $usedInRound[] = $i;
-                $usedInRound[] = $partnerPos;
-            }
+        // Bước 3: Nhóm mỗi 2 pairs liền kề thành match pair-vs-pair
+        // Odd n: cặp cuối cùng → bye match
+        foreach ($rounds as &$round) {
+            $newMatches = [];
+            $pairs = $round['matches'];
+            for ($i = 0; $i < count($pairs); $i += 2) {
+                $p1 = $pairs[$i];
+                $team1 = array_filter([$p1['participant1_id'], $p1['participant2_id']]);
 
-            // Each team plays against every other team in this round
-            $numTeams = count($roundTeams);
-            for ($t1 = 0; $t1 < $numTeams; $t1++) {
-                for ($t2 = $t1 + 1; $t2 < $numTeams; $t2++) {
-                    $allMatches[] = [
-                        'team1_players' => $roundTeams[$t1],
-                        'team2_players' => $roundTeams[$t2],
-                        'team1_id' => null,
-                        'team2_id' => null,
-                        'round_in_partner_rotation' => $round + 1,
-                        'is_bye' => false,
-                    ];
-                    foreach ($roundTeams[$t1] as $pid) {
-                        $matchesPerPlayer[$pid]++;
-                    }
-                    foreach ($roundTeams[$t2] as $pid) {
-                        $matchesPerPlayer[$pid]++;
-                    }
+                if ($i + 1 < count($pairs)) {
+                    $p2 = $pairs[$i + 1];
+                    $team2 = array_filter([$p2['participant1_id'], $p2['participant2_id']]);
+                    $isBye = false;
+                    $byePlayer = null;
+                } else {
+                    // Odd: cặp cuối → bye (1 player ngồi ngoài)
+                    $team2 = [];
+                    $isBye = true;
+                    $byePlayer = array_values($team1)[1] ?? null;
                 }
-            }
-        }
 
-        $rounds = $this->distributeMatchesIntoRounds($allMatches, $courtCount, $n);
-
-        $unbalancedNotice = null;
-        if ($n === 4 || $n === 5) {
-            $min = min($matchesPerPlayer);
-            $max = max($matchesPerPlayer);
-            if ($min !== $max) {
-                $unbalancedNotice = "Số trận không đều: {$min}-{$max} trận/người.";
+                $newMatches[] = [
+                    'team1_players' => array_values($team1),
+                    'team2_players' => array_values($team2),
+                    'team1_id' => null,
+                    'team2_id' => null,
+                    'is_bye' => $isBye,
+                    'bye_player_id' => $byePlayer,
+                ];
             }
+            $round['matches'] = $newMatches;
         }
+        unset($round);
+
+        $matchesPerPlayer = array_fill_keys($playerIds, $n - 1);
 
         return [
             'rounds' => $rounds,
             'summary' => [
                 'total_rounds' => count($rounds),
-                'total_matches' => count($allMatches),
+                'total_matches' => count($allPairs),
                 'matches_per_player' => $matchesPerPlayer,
-                'unbalanced_notice' => $unbalancedNotice,
+                'unbalanced_notice' => null,
             ],
             'teams' => [],
         ];
@@ -167,11 +154,10 @@ class RoundRobinSchedulerService
      *
      * @param array $maleIds Array of MiniParticipant IDs (male)
      * @param array $femaleIds Array of MiniParticipant IDs (female)
-     * @param int $courtCount Number of courts to use simultaneously
      * @param string $matchType 'single' or 'double'
      * @return array{rounds: array, summary: array, teams: array}
      */
-    public function generateMixedGenderSchedule(array $maleIds, array $femaleIds, int $courtCount = 2, string $matchType = self::MATCH_TYPE_SINGLE): array
+    public function generateMixedGenderSchedule(array $maleIds, array $femaleIds, string $matchType = self::MATCH_TYPE_SINGLE, ?int $miniTournamentId = null): array
     {
         $m = count($maleIds);
         $f = count($femaleIds);
@@ -184,8 +170,8 @@ class RoundRobinSchedulerService
         $teams = [];
 
         if ($matchType === self::MATCH_TYPE_DOUBLE) {
-            $maleTeams = $this->buildSameGenderTeams($maleIds);
-            $femaleTeams = $this->buildSameGenderTeams($femaleIds);
+            $maleTeams = $this->buildSameGenderTeams($maleIds, $miniTournamentId);
+            $femaleTeams = $this->buildSameGenderTeams($femaleIds, $miniTournamentId);
 
             foreach ($maleTeams as $maleTeam) {
                 foreach ($femaleTeams as $femaleTeam) {
@@ -211,8 +197,8 @@ class RoundRobinSchedulerService
             }
         }
 
-        $maxPerGroup = max($m, $f);
-        $rounds = $this->distributeMatchesIntoRounds($allMatches, $courtCount, $maxPerGroup);
+        $allPlayerIds = array_merge($maleIds, $femaleIds);
+        $rounds = $this->distributeMatchesIntoRounds($allMatches, $allPlayerIds);
 
         $maleMatches = array_fill_keys($maleIds, 0);
         $femaleMatches = array_fill_keys($femaleIds, 0);
@@ -263,11 +249,10 @@ class RoundRobinSchedulerService
      *
      * @param array $aIds Array of MiniParticipant IDs (group A)
      * @param array $bIds Array of MiniParticipant IDs (group B)
-     * @param int $courtCount Number of courts to use simultaneously
      * @param string $matchType 'single' or 'double'
      * @return array{rounds: array, summary: array, teams: array}
      */
-    public function generateRankPairingSchedule(array $aIds, array $bIds, int $courtCount = 2, string $matchType = self::MATCH_TYPE_SINGLE): array
+    public function generateRankPairingSchedule(array $aIds, array $bIds, string $matchType = self::MATCH_TYPE_SINGLE, ?int $miniTournamentId = null): array
     {
         $na = count($aIds);
         $nb = count($bIds);
@@ -280,8 +265,8 @@ class RoundRobinSchedulerService
         $teams = [];
 
         if ($matchType === self::MATCH_TYPE_DOUBLE) {
-            $aTeams = $this->buildSameGenderTeams($aIds);
-            $bTeams = $this->buildSameGenderTeams($bIds);
+            $aTeams = $this->buildSameGenderTeams($aIds, $miniTournamentId);
+            $bTeams = $this->buildSameGenderTeams($bIds, $miniTournamentId);
 
             foreach ($aTeams as $aTeam) {
                 foreach ($bTeams as $bTeam) {
@@ -307,8 +292,8 @@ class RoundRobinSchedulerService
             }
         }
 
-        $maxPerGroup = max($na, $nb);
-        $rounds = $this->distributeMatchesIntoRounds($allMatches, $courtCount, $maxPerGroup);
+        $allPlayerIds = array_merge($aIds, $bIds);
+        $rounds = $this->distributeMatchesIntoRounds($allMatches, $allPlayerIds);
 
         $aMatches = array_fill_keys($aIds, 0);
         $bMatches = array_fill_keys($bIds, 0);
@@ -363,10 +348,10 @@ class RoundRobinSchedulerService
     {
         $miniTournament = MiniTournament::find($miniTournamentId);
         if (!$miniTournament) {
-            return ['leaderboard' => [], 'group_a_leaderboard' => null, 'group_b_leaderboard' => null];
+            return ['leaderboard' => []];
         }
 
-        $participants = MiniParticipant::where('mini_tournament_id', $miniTournamentId)->get()->keyBy('id');
+        $participants = MiniParticipant::with('user:id,full_name')->where('mini_tournament_id', $miniTournamentId)->get()->keyBy('id');
         $matches = MiniMatch::where('mini_tournament_id', $miniTournamentId)
             ->whereNotNull('round_number')
             ->where('status', MiniMatch::STATUS_COMPLETED)
@@ -377,7 +362,7 @@ class RoundRobinSchedulerService
             $stats[$p->id] = [
                 'participant_id' => $p->id,
                 'user_id' => $p->user_id,
-                'name' => $p->user?->name ?? ($p->guest_name ?? 'Khách'),
+                'name' => $p->user?->full_name ?? ($p->guest_name ?? 'Khách'),
                 'player_group' => $p->player_group,
                 'wins' => 0,
                 'losses' => 0,
@@ -440,29 +425,10 @@ class RoundRobinSchedulerService
             return $s;
         })->all();
 
-        $groupALeaderboard = null;
-        $groupBLeaderboard = null;
-
-        if ($miniTournament->match_format === MiniTournament::MATCH_FORMAT_RANK_PAIRING) {
-            $groupALeaderboard = collect($leaderboard)
-                ->filter(fn($s) => $s['player_group'] === 'a')
-                ->values()
-                ->map(fn($s, $idx) => array_merge($s, ['rank' => $idx + 1]))
-                ->values()
-                ->all();
-
-            $groupBLeaderboard = collect($leaderboard)
-                ->filter(fn($s) => $s['player_group'] === 'b')
-                ->values()
-                ->map(fn($s, $idx) => array_merge($s, ['rank' => $idx + 1]))
-                ->values()
-                ->all();
-        }
+        // Note: group_a_leaderboard / group_b_leaderboard removed — rank_pairing returns full list
 
         return [
             'leaderboard' => $leaderboard,
-            'group_a_leaderboard' => $groupALeaderboard,
-            'group_b_leaderboard' => $groupBLeaderboard,
         ];
     }
 
@@ -489,38 +455,114 @@ class RoundRobinSchedulerService
     }
 
     /**
-     * Distribute matches into rounds, respecting court count.
-     * Adds bye placeholder matches when needed to fill rounds.
+     * Distribute matches into rounds using greedy round-grouping.
+     * Each round contains all matches that can be played simultaneously
+     * (no player appears twice in the same round).
+     * When a player has no match in a round, a bye match is added for them.
      *
      * @param array $allMatches
-     * @param int $courtCount
-     * @param int $playerCount
+     * @param array $allPlayerIds All player IDs in this tournament
      * @return array
      */
-    private function distributeMatchesIntoRounds(array $allMatches, int $courtCount, int $playerCount): array
+    private function distributeMatchesIntoRounds(array $allMatches, array $allPlayerIds, bool $skipAutoBye = false): array
     {
-        $matchesPerRound = $courtCount;
         $totalMatches = count($allMatches);
-        $totalRounds = (int) ceil($totalMatches / $matchesPerRound);
+        if ($totalMatches === 0) {
+            return [];
+        }
 
         $rounds = [];
-        $idx = 0;
+        $remaining = $allMatches;
+        $roundNumber = 1;
 
-        for ($round = 1; $round <= $totalRounds; $round++) {
+        while (!empty($remaining)) {
             $roundMatches = [];
+            $playersInRound = [];
 
-            for ($c = 0; $c < $matchesPerRound && $idx < $totalMatches; $c++) {
-                $roundMatches[] = $allMatches[$idx];
-                $idx++;
+            // Greedy: add all non-conflicting matches to current round
+            foreach ($remaining as $idx => $match) {
+                $matchPlayers = $this->getMatchPlayerIds($match);
+
+                $hasConflict = false;
+                foreach ($matchPlayers as $pid) {
+                    if (in_array($pid, $playersInRound, true)) {
+                        $hasConflict = true;
+                        break;
+                    }
+                }
+
+                if (!$hasConflict) {
+                    $roundMatches[] = $match;
+                    foreach ($matchPlayers as $pid) {
+                        $playersInRound[] = $pid;
+                    }
+                    unset($remaining[$idx]);
+                }
+            }
+
+            // Deadlock: all remaining matches conflict → pick first to break
+            if (empty($roundMatches) && !empty($remaining)) {
+                $firstKey = array_key_first($remaining);
+                $roundMatches[] = $remaining[$firstKey];
+                $matchPlayers = $this->getMatchPlayerIds($remaining[$firstKey]);
+                foreach ($matchPlayers as $pid) {
+                    $playersInRound[] = $pid;
+                }
+                unset($remaining[$firstKey]);
+            }
+
+            // Add bye matches for unassigned players (skip if already handled by scheduler)
+            if (!$skipAutoBye) {
+                foreach ($allPlayerIds as $pid) {
+                    if (!in_array($pid, $playersInRound, true)) {
+                        $roundMatches[] = [
+                            'participant1_id' => $pid,
+                            'participant2_id' => null,
+                            'is_bye' => true,
+                        ];
+                    }
+                }
             }
 
             $rounds[] = [
-                'round_number' => $round,
-                'matches' => $roundMatches,
+                'round_number' => $roundNumber,
+                'matches' => array_values($roundMatches),
             ];
+
+            $roundNumber++;
         }
 
         return $rounds;
+    }
+
+    /**
+     * Extract player IDs from a match structure (handles single, double, and team formats).
+     *
+     * @param array $match
+     * @return array<int>
+     */
+    private function getMatchPlayerIds(array $match): array
+    {
+        $ids = [];
+
+        if (isset($match['participant1_id'])) {
+            $ids[] = $match['participant1_id'];
+        }
+        if (isset($match['participant2_id'])) {
+            $ids[] = $match['participant2_id'];
+        }
+        if (isset($match['team1_players']) && is_array($match['team1_players'])) {
+            foreach ($match['team1_players'] as $pid) {
+                $ids[] = $pid;
+            }
+        }
+        if (isset($match['team2_players']) && is_array($match['team2_players'])) {
+            foreach ($match['team2_players'] as $pid) {
+                $ids[] = $pid;
+            }
+        }
+
+        return $ids;
     }
 
     /**
@@ -534,7 +576,7 @@ class RoundRobinSchedulerService
     public function buildSameGenderTeams(array $participantIds, ?int $miniTournamentId = null): array
     {
         $teams = [];
-        $participants = MiniParticipant::with('user:id,name')->whereIn('id', $participantIds)->get()->keyBy('id');
+        $participants = MiniParticipant::with('user:id,full_name')->whereIn('id', $participantIds)->get()->keyBy('id');
 
         $shuffled = $participantIds;
         shuffle($shuffled);

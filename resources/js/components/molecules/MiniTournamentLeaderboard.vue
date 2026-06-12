@@ -95,11 +95,7 @@ export default {
             type: Array,
             default: () => []
         },
-        groupALeaderboard: {
-            type: Array,
-            default: () => []
-        },
-        groupBLeaderboard: {
+        leaderboard: {
             type: Array,
             default: () => []
         },
@@ -115,9 +111,8 @@ export default {
             if (!props.isRankPairing) {
                 return props.leaderboard
             }
-            return activeGroupTab.value === 'A'
-                ? (props.groupALeaderboard || [])
-                : (props.groupBLeaderboard || [])
+            const group = activeGroupTab.value === 'A' ? 'a' : 'b'
+            return (props.leaderboard || []).filter(r => r.player_group === group)
         })
 
         const getGroupColor = (group) => {
