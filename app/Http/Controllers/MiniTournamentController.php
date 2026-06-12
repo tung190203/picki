@@ -856,6 +856,26 @@ class MiniTournamentController extends Controller
      * @param \Illuminate\Support\Collection $participants
      * @return array
      */
+    /**
+     * Create a MiniTeam and its members for a given list of player IDs.
+     * Used for Mix/A-B double format where teams are temporary per-round constructs.
+     */
+    private function createMiniTeam(array $playerIds, int $miniTournamentId, array $participantUserMap): int
+    {
+        $team = MiniTeam::create([
+            'name' => implode('-', $playerIds),
+            'mini_tournament_id' => $miniTournamentId,
+        ]);
+        foreach ($playerIds as $pid) {
+            MiniTeamMember::create([
+                'mini_team_id' => $team->id,
+                'user_id' => $participantUserMap[$pid] ?? $pid,
+                'is_guest' => false,
+            ]);
+        }
+        return $team->id;
+    }
+
     private function formatMatchesWithUserInfo(array $rounds, $participants, bool $isDouble = false, array $teams = []): array
     {
         // Map participant_id => user info
@@ -903,12 +923,19 @@ class MiniTournamentController extends Controller
                         $match['team_1'] = $teamMap[$match['team1_id']] ?? null;
                         $match['team_2'] = $teamMap[$match['team2_id']] ?? null;
                     } elseif (!empty($match['is_bye']) && isset($match['team1_players'])) {
-                        // BYE match: single player has no opponent team
-                        $p1 = $match['team1_players'][0] ?? null;
+                        // BYE match: mixed_gender double has a mixed partnership (2 players) with no opponent
+                        $playerIds = array_filter($match['team1_players']);
+                        $memberNames = [];
+                        $members = [];
+                        foreach ($playerIds as $pid) {
+                            $memberNames[] = $participantMap[$pid]['full_name'] ?? 'BYE';
+                            $members[] = $participantMap[$pid] ?? null;
+                        }
+                        $name = implode(' & ', array_filter($memberNames)) ?: 'BYE';
                         $match['team_1'] = [
                             'id' => null,
-                            'name' => $participantMap[$p1]['full_name'] ?? 'BYE',
-                            'members' => array_filter([$participantMap[$p1] ?? null]),
+                            'name' => $name,
+                            'members' => array_filter($members),
                         ];
                         $match['team_2'] = null;
                     } elseif (isset($match['team1_players'], $match['team2_players'])) {
@@ -1240,7 +1267,7 @@ class MiniTournamentController extends Controller
                 if ($isDouble && (count($maleIds) < 2 || count($femaleIds) < 2)) {
                     return ResponseHelper::error('double mixed_gender cần ít nhất 2 nam và 2 nữ đã phân nhóm', 422);
                 }
-                $schedule = $scheduler->generateMixedGenderSchedule($maleIds, $femaleIds, $matchType, $miniTournament->id);
+                $schedule = $scheduler->generateMixedGenderSchedule($maleIds, $femaleIds, $matchType);
             } elseif ($format === MiniTournament::MATCH_FORMAT_RANK_PAIRING) {
                 $aIds = $confirmedParticipants->where('player_group', 'a')->pluck('id')->toArray();
                 $bIds = $confirmedParticipants->where('player_group', 'b')->pluck('id')->toArray();
@@ -1250,7 +1277,7 @@ class MiniTournamentController extends Controller
                 if ($isDouble && (count($aIds) < 2 || count($bIds) < 2)) {
                     return ResponseHelper::error('double rank_pairing cần ít nhất 2 người mỗi nhóm', 422);
                 }
-                $schedule = $scheduler->generateRankPairingSchedule($aIds, $bIds, $matchType, $miniTournament->id);
+                $schedule = $scheduler->generateRankPairingSchedule($aIds, $bIds, $matchType);
             }
         } catch (\InvalidArgumentException $e) {
             return ResponseHelper::error($e->getMessage(), 422);
@@ -1300,14 +1327,31 @@ class MiniTournamentController extends Controller
                     foreach ($round['matches'] as $match) {
                         $isBye = !empty($match['is_bye']);
 
-                        // BYE match: solo player, no team, no match
+                        // BYE match: skip for partner_rotation (no players in either team)
                         if ($isBye) {
-                            $matchesToInsert[$matchOffset]['is_bye'] = true;
                             $matchOffset++;
                             continue;
                         }
 
                         if (empty($match['team1_players']) || empty($match['team2_players'])) {
+                            // Mix/A-B BYE: one side has players, the other is empty.
+                            // Create the team that has players so the match is meaningful.
+                            $players1 = array_filter($match['team1_players'] ?? []);
+                            $players2 = array_filter($match['team2_players'] ?? []);
+                            if (!empty($players1)) {
+                                $key1 = implode('-', $players1);
+                                if (!isset($miniTeamByKey[$key1])) {
+                                    $miniTeamByKey[$key1] = $this->createMiniTeam($players1, $miniTournamentId, $participantUserMap);
+                                }
+                                $matchesToInsert[$matchOffset]['team1_id'] = $miniTeamByKey[$key1];
+                            } elseif (!empty($players2)) {
+                                $key2 = implode('-', $players2);
+                                if (!isset($miniTeamByKey[$key2])) {
+                                    $miniTeamByKey[$key2] = $this->createMiniTeam($players2, $miniTournamentId, $participantUserMap);
+                                }
+                                $matchesToInsert[$matchOffset]['team2_id'] = $miniTeamByKey[$key2];
+                            }
+                            $matchesToInsert[$matchOffset]['is_bye'] = true;
                             $matchOffset++;
                             continue;
                         }
