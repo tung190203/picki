@@ -24,6 +24,10 @@ class RoundRobinSchedulerService
      */
     public function generatePartnerRotationSchedule(array $playerIds, string $matchType = self::MATCH_TYPE_SINGLE): array
     {
+        if ($matchType === self::MATCH_TYPE_SINGLE) {
+            throw new \InvalidArgumentException('Round Robin chỉ hỗ trợ kèo đánh đôi.');
+        }
+
         $n = count($playerIds);
         if ($n < 6) {
             throw new \InvalidArgumentException('partner_rotation requires at least 6 players, got ' . $n);
@@ -172,6 +176,10 @@ class RoundRobinSchedulerService
 
         if ($m < 1 || $f < 1) {
             throw new \InvalidArgumentException('mixed_gender requires at least 1 male and 1 female player');
+        }
+
+        if ($matchType === self::MATCH_TYPE_SINGLE) {
+            throw new \InvalidArgumentException('Round Robin chỉ hỗ trợ kèo đánh đôi.');
         }
 
         if ($shuffle) {
@@ -497,6 +505,10 @@ class RoundRobinSchedulerService
 
         if ($na < 1 || $nb < 1) {
             throw new \InvalidArgumentException('rank_pairing requires at least 1 player in each group');
+        }
+
+        if ($matchType === self::MATCH_TYPE_SINGLE) {
+            throw new \InvalidArgumentException('Round Robin chỉ hỗ trợ kèo đánh đôi.');
         }
 
         if ($shuffle) {

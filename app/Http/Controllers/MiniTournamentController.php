@@ -1185,8 +1185,8 @@ class MiniTournamentController extends Controller
             return ResponseHelper::error('Kèo standard không cần start session', 422);
         }
 
-        if ($format === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION && $miniTournament->format !== 'double') {
-            return ResponseHelper::error('Xoay vòng partner chỉ áp dụng cho kèo đấu đôi', 422);
+        if (in_array($format, [MiniTournament::MATCH_FORMAT_PARTNER_ROTATION, MiniTournament::MATCH_FORMAT_MIXED_GENDER, MiniTournament::MATCH_FORMAT_RANK_PAIRING]) && $miniTournament->format !== 'double') {
+            return ResponseHelper::error('Round Robin chỉ hỗ trợ kèo đánh đôi.', 422);
         }
 
         if ($miniTournament->session_status === MiniTournament::SESSION_STATUS_ONGOING) {
