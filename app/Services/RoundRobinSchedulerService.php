@@ -794,7 +794,7 @@ class RoundRobinSchedulerService
             ->keyBy('id');
 
         // Map user_id -> participant_id for quick lookup
-        $userToParticipant = $participants->map(fn($p) => $p->id)->flip()->toArray();
+        $userToParticipant = $participants->map(fn($p) => $p->user_id)->flip()->toArray();
 
         $matches = MiniMatch::where('mini_tournament_id', $miniTournamentId)
             ->whereNotNull('round_number')
@@ -802,6 +802,7 @@ class RoundRobinSchedulerService
             ->with([
                 'team1.members.user',
                 'team2.members.user',
+                'results',
             ])
             ->get();
 
@@ -824,39 +825,66 @@ class RoundRobinSchedulerService
             if ($match->is_bye) {
                 continue;
             }
-            if ($match->team_1_score === null || $match->team_2_score === null) {
+
+            // Compute team scores from mini_match_results (set-based scoring)
+            $s1 = 0;
+            $s2 = 0;
+            foreach ($match->results as $result) {
+                if ((int) $result->won_set === 1) {
+                    if ((int) $result->team_id === (int) $match->team1_id) {
+                        $s1++;
+                    } else {
+                        $s2++;
+                    }
+                }
+            }
+
+            if ($s1 === 0 && $s2 === 0) {
                 continue;
             }
 
-            $s1 = $match->team_1_score;
-            $s2 = $match->team_2_score;
+            // Build participant_id lists from team members (each team has 2 users)
+            $p1List = [];
+            $p2List = [];
+            foreach ($match->team1->members as $m) {
+                if ($m->user_id && isset($userToParticipant[$m->user_id])) {
+                    $pid = $userToParticipant[$m->user_id];
+                    if (isset($stats[$pid])) {
+                        $p1List[] = $pid;
+                    }
+                }
+            }
+            foreach ($match->team2->members as $m) {
+                if ($m->user_id && isset($userToParticipant[$m->user_id])) {
+                    $pid = $userToParticipant[$m->user_id];
+                    if (isset($stats[$pid])) {
+                        $p2List[] = $pid;
+                    }
+                }
+            }
 
-            // Resolve participant IDs from team members (works for both single & double format)
-            $p1 = $this->resolveParticipantId($match->team1, $userToParticipant);
-            $p2 = $this->resolveParticipantId($match->team2, $userToParticipant);
-
-            if ($p1 === null || $p2 === null) {
+            if (empty($p1List) || empty($p2List)) {
                 continue;
             }
 
-            if (!isset($stats[$p1]) || !isset($stats[$p2])) {
-                continue;
+            foreach ($p1List as $uid) {
+                $stats[$uid]['total_matches']++;
+                $stats[$uid]['total_point_diff'] += $s1 - $s2;
             }
-
-            $stats[$p1]['total_matches']++;
-            $stats[$p2]['total_matches']++;
-            $stats[$p1]['total_point_diff'] += $s1 - $s2;
-            $stats[$p2]['total_point_diff'] += $s2 - $s1;
+            foreach ($p2List as $uid) {
+                $stats[$uid]['total_matches']++;
+                $stats[$uid]['total_point_diff'] += $s2 - $s1;
+            }
 
             if ($s1 > $s2) {
-                $stats[$p1]['wins']++;
-                $stats[$p2]['losses']++;
+                foreach ($p1List as $uid) { $stats[$uid]['wins']++; }
+                foreach ($p2List as $uid) { $stats[$uid]['losses']++; }
             } elseif ($s2 > $s1) {
-                $stats[$p2]['wins']++;
-                $stats[$p1]['losses']++;
+                foreach ($p2List as $uid) { $stats[$uid]['wins']++; }
+                foreach ($p1List as $uid) { $stats[$uid]['losses']++; }
             } else {
-                $stats[$p1]['draws']++;
-                $stats[$p2]['draws']++;
+                foreach ($p1List as $uid) { $stats[$uid]['draws']++; }
+                foreach ($p2List as $uid) { $stats[$uid]['draws']++; }
             }
         }
 
