@@ -252,7 +252,7 @@ class RoundRobinSchedulerService
      * @param string $matchType 'single' or 'double'
      * @return array{rounds: array, summary: array, teams: array}
      */
-    public function generateRankPairingSchedule(array $aIds, array $bIds, string $matchType = self::MATCH_TYPE_SINGLE): array
+    public function generateRankPairingSchedule(array $aIds, array $bIds, string $matchType = self::MATCH_TYPE_SINGLE, ?int $miniTournamentId = null): array
     {
         $na = count($aIds);
         $nb = count($bIds);
@@ -265,8 +265,8 @@ class RoundRobinSchedulerService
         $teams = [];
 
         if ($matchType === self::MATCH_TYPE_DOUBLE) {
-            $aTeams = $this->buildSameGenderTeams($aIds);
-            $bTeams = $this->buildSameGenderTeams($bIds);
+            $aTeams = $this->buildSameGenderTeams($aIds, $miniTournamentId);
+            $bTeams = $this->buildSameGenderTeams($bIds, $miniTournamentId);
 
             foreach ($aTeams as $aTeam) {
                 foreach ($bTeams as $bTeam) {
@@ -348,10 +348,10 @@ class RoundRobinSchedulerService
     {
         $miniTournament = MiniTournament::find($miniTournamentId);
         if (!$miniTournament) {
-            return ['leaderboard' => [], 'group_a_leaderboard' => null, 'group_b_leaderboard' => null];
+            return ['leaderboard' => []];
         }
 
-        $participants = MiniParticipant::where('mini_tournament_id', $miniTournamentId)->get()->keyBy('id');
+        $participants = MiniParticipant::with('user:id,full_name')->where('mini_tournament_id', $miniTournamentId)->get()->keyBy('id');
         $matches = MiniMatch::where('mini_tournament_id', $miniTournamentId)
             ->whereNotNull('round_number')
             ->where('status', MiniMatch::STATUS_COMPLETED)
@@ -362,7 +362,7 @@ class RoundRobinSchedulerService
             $stats[$p->id] = [
                 'participant_id' => $p->id,
                 'user_id' => $p->user_id,
-                'name' => $p->user?->name ?? ($p->guest_name ?? 'Khách'),
+                'name' => $p->user?->full_name ?? ($p->guest_name ?? 'Khách'),
                 'player_group' => $p->player_group,
                 'wins' => 0,
                 'losses' => 0,
@@ -425,29 +425,10 @@ class RoundRobinSchedulerService
             return $s;
         })->all();
 
-        $groupALeaderboard = null;
-        $groupBLeaderboard = null;
-
-        if ($miniTournament->match_format === MiniTournament::MATCH_FORMAT_RANK_PAIRING) {
-            $groupALeaderboard = collect($leaderboard)
-                ->filter(fn($s) => $s['player_group'] === 'a')
-                ->values()
-                ->map(fn($s, $idx) => array_merge($s, ['rank' => $idx + 1]))
-                ->values()
-                ->all();
-
-            $groupBLeaderboard = collect($leaderboard)
-                ->filter(fn($s) => $s['player_group'] === 'b')
-                ->values()
-                ->map(fn($s, $idx) => array_merge($s, ['rank' => $idx + 1]))
-                ->values()
-                ->all();
-        }
+        // Note: group_a_leaderboard / group_b_leaderboard removed — rank_pairing returns full list
 
         return [
             'leaderboard' => $leaderboard,
-            'group_a_leaderboard' => $groupALeaderboard,
-            'group_b_leaderboard' => $groupBLeaderboard,
         ];
     }
 

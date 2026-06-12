@@ -678,8 +678,6 @@
         <div v-if="sessionSubTab === 'leaderboard'">
             <MiniTournamentLeaderboard
                 :leaderboard="sessionLeaderboardData.leaderboard || []"
-                :group-a-leaderboard="sessionLeaderboardData.group_a_leaderboard || []"
-                :group-b-leaderboard="sessionLeaderboardData.group_b_leaderboard || []"
                 :is-rank-pairing="data.match_format === MATCH_FORMAT.RANK_PAIRING"
             />
         </div>

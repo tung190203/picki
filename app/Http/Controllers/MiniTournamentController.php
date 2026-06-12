@@ -1042,7 +1042,7 @@ class MiniTournamentController extends Controller
                 if ($isDouble && (count($aIds) < 2 || count($bIds) < 2)) {
                     return ResponseHelper::error('double rank_pairing cần ít nhất 2 người mỗi nhóm', 422);
                 }
-                $schedule = $scheduler->generateRankPairingSchedule($aIds, $bIds, $matchType);
+                $schedule = $scheduler->generateRankPairingSchedule($aIds, $bIds, $matchType, $miniTournament->id);
             }
         } catch (\InvalidArgumentException $e) {
             return ResponseHelper::error($e->getMessage(), 422);
@@ -1082,10 +1082,11 @@ class MiniTournamentController extends Controller
             }
         }
 
-        DB::transaction(function () use ($miniTournament, $matchesToInsert, $schedule, $isDouble, $participantUserMap) {
+        $miniTournamentId = $miniTournament->id;
+        DB::transaction(function () use ($miniTournamentId, $matchesToInsert, $schedule, $isDouble, $participantUserMap) {
             // partner_rotation double: create MiniTeam records per round's match
             if ($isDouble) {
-                $teamMap = [];
+                $miniTeamByKey = [];
                 $matchOffset = 0;
                 foreach ($schedule['rounds'] as $round) {
                     foreach ($round['matches'] as $match) {
@@ -1112,7 +1113,7 @@ class MiniTournamentController extends Controller
                         if (!isset($miniTeamByKey[$key1])) {
                             $team1 = MiniTeam::create([
                                 'name' => implode('-', $team1Names),
-                                'mini_tournament_id' => $miniTournament->id,
+                                'mini_tournament_id' => $miniTournamentId,
                             ]);
                             foreach ($match['team1_players'] as $pid) {
                                 MiniTeamMember::create([
@@ -1129,7 +1130,7 @@ class MiniTournamentController extends Controller
                         if (!isset($miniTeamByKey[$key2])) {
                             $team2 = MiniTeam::create([
                                 'name' => implode('-', $team2Names),
-                                'mini_tournament_id' => $miniTournament->id,
+                                'mini_tournament_id' => $miniTournamentId,
                             ]);
                             foreach ($match['team2_players'] as $pid) {
                                 MiniTeamMember::create([
@@ -1150,7 +1151,7 @@ class MiniTournamentController extends Controller
             }
 
             MiniMatch::insert($matchesToInsert);
-            $miniTournament->update([
+            MiniTournament::where('id', $miniTournamentId)->update([
                 'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
                 'session_started_at' => now(),
                 'is_session_started' => true,
