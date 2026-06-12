@@ -170,6 +170,21 @@ class UpdateMiniTournamentRequest extends FormRequest
             $rules['max_points'] = 'required|integer|min:11';
         }
 
+        // Round Robin formats require double
+        $matchFormat = $this->input('match_format');
+        if (in_array($matchFormat, [MiniTournament::MATCH_FORMAT_PARTNER_ROTATION, MiniTournament::MATCH_FORMAT_MIXED_GENDER, MiniTournament::MATCH_FORMAT_RANK_PAIRING])) {
+            $rules['format'] = array_merge(
+                (array) ($rules['format'] ?? 'nullable|in:single,double,mens_doubles,womens_doubles,mixed,' . implode(',', MiniTournament::FORMAT)),
+                [
+                    function (string $attribute, mixed $value, \Closure $fail): void {
+                        if ($value === 'single') {
+                            $fail('Round Robin chỉ hỗ trợ kèo đánh đôi.');
+                        }
+                    },
+                ]
+            );
+        }
+
         return $rules;
     }
 
