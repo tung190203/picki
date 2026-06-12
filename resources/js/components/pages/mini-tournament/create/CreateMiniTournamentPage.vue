@@ -613,12 +613,17 @@
                             'flex flex-col items-center justify-center rounded-[8px] border px-2 py-3 min-h-[80px] transition-colors',
                             selectedFormat === format.id
                                 ? 'bg-[#D72D36] text-white border-[#D72D36]'
-                                : 'border-[#BBBFCC] text-gray-700 hover:border-gray-400'
+                                : isSingleFormatDisabled && format.id === 1
+                                    ? 'border-[#DCDEE6] text-[#BBBFCC] cursor-not-allowed'
+                                    : 'border-[#BBBFCC] text-gray-700 hover:border-gray-400'
                         ]">
                             <span class="text-[20px] leading-none mb-1">{{ getFormatIcon(format.id) }}</span>
                             <span class="text-[12px] font-semibold text-center">{{ format.name }}</span>
                         </button>
                     </div>
+                    <p v-if="isRoundRobinFormat" class="mt-2 text-xs text-[#838799]">
+                        Thể thức Round Robin hiện chỉ hỗ trợ đánh đôi.
+                    </p>
                 </div>
 
                 <!-- Tóm tắt kèo đấu -->
@@ -1068,6 +1073,11 @@ const winRuleLabel = computed(() => {
     return winRuleOptions.find(r => r.value === pointsDifference.value)?.label || 'Cách biệt 2 điểm'
 })
 
+const RR_FORMATS = [MATCH_FORMAT.PARTNER_ROTATION, MATCH_FORMAT.MIXED_GENDER, MATCH_FORMAT.RANK_PAIRING]
+const isRoundRobinFormat = computed(() => RR_FORMATS.includes(selectedMatchFormat.value))
+
+const isSingleFormatDisabled = computed(() => isRoundRobinFormat.value)
+
 const isPointModalOpen = ref(false)
 const pointModalTitle = ref('')
 const pointInputType = ref('')
@@ -1513,6 +1523,7 @@ const clearQrCode = () => {
 
 // Chọn thể thức (format) - 1: Đánh đơn, 2: Đánh đôi
 const selectFormat = (formatId) => {
+    if (isSingleFormatDisabled.value && formatId === 1) return
     selectedFormat.value = formatId
 }
 
