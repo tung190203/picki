@@ -93,11 +93,18 @@ export default {
         })
 
         const selectedSessionMatch = ref(null)
+        const sessionRRMatch = ref(null)
+        const showRRMatchModal = ref(false)
         const showSessionScoreModal = ref(false)
         const sessionScores = ref([{ team1: 0, team2: 0 }])
         const isSavingSessionScore = ref(false)
 
         const onMatchClick = async (match) => {
+            if (props.isCreator) {
+                sessionRRMatch.value = match
+                showRRMatchModal.value = true
+                return
+            }
             selectedSessionMatch.value = match
             // Initialize scores from existing results
             if (match.results_by_sets && Object.keys(match.results_by_sets).length > 0) {
@@ -814,6 +821,8 @@ export default {
             onStartWithGroups,
             onStartPartnerRotation,
             selectedSessionMatch,
+            sessionRRMatch,
+            showRRMatchModal,
             showSessionScoreModal,
             onMatchClick,
             onSessionMatchUpdated,

@@ -1443,13 +1443,21 @@ class MiniTournamentController extends Controller
         if ($matches->isEmpty()) {
             return ResponseHelper::success([
                 'rounds' => [],
-                'summary' => null,
+                'total_matches' => 0,
+                'confirmed_matches' => 0,
+                'current_round' => null,
             ], 'Chưa có lịch đấu');
         }
 
         $isDouble = $miniTournament->format === 'double';
         $firstMatch = $matches->first();
         $hasTeamMatches = $firstMatch && $firstMatch->team1_id !== null;
+
+        $confirmedMatches = $matches->where('status', '!=', MiniMatch::STATUS_PENDING)->count();
+        $totalMatches = $matches->count();
+        $currentRound = $matches->where('status', MiniMatch::STATUS_GOING_ON)->max('round_number')
+            ?? $matches->whereIn('status', [MiniMatch::STATUS_WAITING_CONFIRM])->min('round_number')
+            ?? null;
 
         // Build team lookup map with full member info (nested eager load via string path doesn't work reliably)
         $teamMap = [];
@@ -1503,23 +1511,58 @@ class MiniTournamentController extends Controller
             }
         }
 
-        $grouped = $matches->groupBy('round_number')->map(function ($roundMatches, $roundNumber) use ($isDouble, $hasTeamMatches, $teamMap) {
+        $hasExtraMatch = false;
+        if (!$isDouble) {
+            $matchCounts = $matches->pluck('participant1_id')
+                ->merge($matches->pluck('participant2_id'))
+                ->filter()
+                ->countBy();
+            $maxCount = $matchCounts->max();
+            $hasExtraMatch = $maxCount > 0 && $matchCounts->filter(fn($count) => $count === $maxCount)->count() < $matchCounts->count();
+        }
+
+        $grouped = $matches->groupBy('round_number')->map(function ($roundMatches, $roundNumber) use ($isDouble, $hasTeamMatches, $teamMap, $miniTournament, $hasExtraMatch) {
             $completedCount = $roundMatches->where('status', MiniMatch::STATUS_COMPLETED)->count();
             $totalCount = $roundMatches->count();
 
             $status = 'upcoming';
-            if ($completedCount === $totalCount) {
-                $status = 'done';
-            } elseif ($completedCount > 0) {
-                $status = 'active';
+            $isRR = in_array($miniTournament->match_format, [
+                MiniTournament::MATCH_FORMAT_PARTNER_ROTATION,
+                MiniTournament::MATCH_FORMAT_MIXED_GENDER,
+                MiniTournament::MATCH_FORMAT_RANK_PAIRING,
+            ]);
+
+            if ($isRR) {
+                $activeCount = $roundMatches->whereIn('status', [
+                    MiniMatch::STATUS_GOING_ON,
+                    MiniMatch::STATUS_WAITING_CONFIRM,
+                ])->count();
+                $doneCount = $roundMatches->where('status', MiniMatch::STATUS_COMPLETED)->count();
+
+                if ($doneCount === $totalCount) {
+                    $status = 'done';
+                } elseif ($activeCount > 0 || $doneCount > 0) {
+                    $status = 'active';
+                }
+            } else {
+                $standardActiveCount = $roundMatches->whereIn('status', [
+                    MiniMatch::STATUS_WAITING_CONFIRM,
+                    MiniMatch::STATUS_COMPLETED,
+                ])->count();
+
+                if ($standardActiveCount === $totalCount) {
+                    $status = 'done';
+                } elseif ($standardActiveCount > 0) {
+                    $status = 'active';
+                }
             }
 
             return [
                 'round_number' => (int) $roundNumber,
                 'status' => $status,
-                'matches' => $roundMatches->map(function ($match) use ($isDouble, $hasTeamMatches, $teamMap) {
+                'matches' => $roundMatches->map(function ($match) use ($isDouble, $hasTeamMatches, $teamMap, $hasExtraMatch) {
                     // Format member từ participant
-                    $formatMember = function ($participant) {
+                    $formatMember = function ($participant) use ($hasExtraMatch) {
                         if (!$participant) return null;
                         $user = $participant->relationLoaded('user') ? $participant->user : null;
                         $isGuest = (bool) ($participant->is_guest);
@@ -1564,6 +1607,7 @@ class MiniTournamentController extends Controller
                             'is_guest' => $isGuest,
                             'visibility' => $user?->visibility,
                             'user' => $userData,
+                            'has_extra_match' => $hasExtraMatch,
                         ];
                     };
 
@@ -1632,6 +1676,9 @@ class MiniTournamentController extends Controller
 
         return ResponseHelper::success([
             'rounds' => $grouped,
+            'total_matches' => $totalMatches,
+            'confirmed_matches' => $confirmedMatches,
+            'current_round' => $currentRound,
         ], 'Lấy lịch đấu thành công');
     }
 

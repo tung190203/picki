@@ -963,7 +963,21 @@ class MiniMatchController extends Controller
         $maxWins = $wins->max();
         $winnerTeams = $wins->filter(fn($c) => $c === $maxWins)->keys();
 
+        $team1WonSets = $wins->get($match->team1_id, 0);
+        $team2WonSets = $wins->get($match->team2_id, 0);
+
         $match->team_win_id = $winnerTeams->count() === 1 ? $winnerTeams->first() : null;
+        $match->team_1_score = $team1WonSets;
+        $match->team_2_score = $team2WonSets;
+
+        if ($match->team_win_id && $match->team_win_id === $match->team1_id) {
+            $match->participant_win_id = $match->participant1_id;
+        } elseif ($match->team_win_id && $match->team_win_id === $match->team2_id) {
+            $match->participant_win_id = $match->participant2_id;
+        } else {
+            $match->participant_win_id = null;
+        }
+
         $match->status = MiniMatch::STATUS_COMPLETED;
         $match->save();
 

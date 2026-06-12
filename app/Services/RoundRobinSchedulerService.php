@@ -793,9 +793,16 @@ class RoundRobinSchedulerService
             ->get()
             ->keyBy('id');
 
+        // Map user_id -> participant_id for quick lookup
+        $userToParticipant = $participants->map(fn($p) => $p->id)->flip()->toArray();
+
         $matches = MiniMatch::where('mini_tournament_id', $miniTournamentId)
             ->whereNotNull('round_number')
             ->where('status', MiniMatch::STATUS_COMPLETED)
+            ->with([
+                'team1.members.user',
+                'team2.members.user',
+            ])
             ->get();
 
         $stats = [];
@@ -821,8 +828,13 @@ class RoundRobinSchedulerService
             $s1 = $match->team_1_score;
             $s2 = $match->team_2_score;
 
-            $p1 = $match->participant1_id;
-            $p2 = $match->participant2_id;
+            // Resolve participant IDs from team members (works for both single & double format)
+            $p1 = $this->resolveParticipantId($match->team1, $userToParticipant);
+            $p2 = $this->resolveParticipantId($match->team2, $userToParticipant);
+
+            if ($p1 === null || $p2 === null) {
+                continue;
+            }
 
             if (!isset($stats[$p1]) || !isset($stats[$p2])) {
                 continue;
@@ -1017,6 +1029,30 @@ class RoundRobinSchedulerService
         }
 
         return $ids;
+    }
+
+    /**
+     * Resolve participant ID from a MiniTeam and the user→participant lookup map.
+     *
+     * For single format: the team's only member → participant via user_id.
+     * For double format: all team members → participants via user_id.
+     *
+     * @param  \App\Models\MiniTeam|null  $team
+     * @param  array  $userToParticipant  [user_id => participant_id]
+     * @return int|null
+     */
+    private function resolveParticipantId(?\App\Models\MiniTeam $team, array $userToParticipant): ?int
+    {
+        if (!$team || !$team->relationLoaded('members')) {
+            return null;
+        }
+        foreach ($team->members as $member) {
+            $userId = $member->user_id ?? ($member->user?->id ?? null);
+            if ($userId !== null && isset($userToParticipant[$userId])) {
+                return (int) $userToParticipant[$userId];
+            }
+        }
+        return null;
     }
 
 }
