@@ -93,11 +93,18 @@ export default {
         })
 
         const selectedSessionMatch = ref(null)
+        const sessionRRMatch = ref(null)
+        const showRRMatchModal = ref(false)
         const showSessionScoreModal = ref(false)
         const sessionScores = ref([{ team1: 0, team2: 0 }])
         const isSavingSessionScore = ref(false)
 
         const onMatchClick = async (match) => {
+            if (props.isCreator) {
+                sessionRRMatch.value = match
+                showRRMatchModal.value = true
+                return
+            }
             selectedSessionMatch.value = match
             // Initialize scores from existing results
             if (match.results_by_sets && Object.keys(match.results_by_sets).length > 0) {
@@ -128,6 +135,7 @@ export default {
             selectedSessionMatch.value = null
             if (props.data?.id) {
                 await loadSessionSchedule(props.data.id)
+                await loadSessionLeaderboard(props.data.id)
             }
             emit('refresh-data')
         }
@@ -421,7 +429,7 @@ export default {
         const loadSessionSchedule = async (id) => {
             try {
                 isLoadingSchedule.value = true
-                const res = await SessionService.getSchedule(id)
+                const res = await MiniMatchService.getListMiniMatches(id, {})
                 if (res.data?.rounds) {
                     sessionSchedule.value = res.data.rounds
                     const activeRound = res.data.rounds.find(r => r.status === 'active')
@@ -551,24 +559,21 @@ export default {
             }
         }
 
+        // Session ends automatically when all matches complete (checkSessionCompletion).
+        // The button only refreshes leaderboard and switches tab.
         const finishSession = async () => {
             try {
-                const res = await SessionService.finishSession(props.data.id)
-                toast.success(res.message || 'Đã kết thúc session')
                 await loadSessionLeaderboard(props.data.id)
                 sessionSubTab.value = 'leaderboard'
             } catch (e) {
-                toast.error(e.response?.data?.message || 'Không thể kết thúc session')
+                toast.error(e.response?.data?.message || 'Không thể tải bảng xếp hạng')
             }
         }
 
+        // Rounds activate automatically when the previous round completes (checkSessionCompletion).
+        // Manual activation is no longer needed.
         const onActivateRound = async () => {
-            if (!props.data?.id || !props.isCreator) return
-            try {
-                await SessionService.activateRound(props.data.id, currentRound.value)
-            } catch (_e) {
-                // silently ignore — the round will still be displayed
-            }
+            // intentionally no-op
         }
 
         const onCreateSchedule = async () => {
@@ -814,6 +819,8 @@ export default {
             onStartWithGroups,
             onStartPartnerRotation,
             selectedSessionMatch,
+            sessionRRMatch,
+            showRRMatchModal,
             showSessionScoreModal,
             onMatchClick,
             onSessionMatchUpdated,
