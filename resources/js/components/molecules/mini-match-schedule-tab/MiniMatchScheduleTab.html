@@ -716,6 +716,7 @@
 </div>
 
 <CreateMiniMatch v-model="showCreateMiniMatchModal" :miniTournament="props.data" :isCreator="props.isCreator"  @created="onMiniMatchCreated"/>
+<CreateMiniMatch v-model="showRRMatchModal" :miniTournament="props.data" :isCreator="props.isCreator" :match="sessionRRMatch" @created="onSessionMatchUpdated" />
 <UpdateMiniMatch v-model="showUpdateMiniMatchModal" :data="detailData" :miniTournament="props.data" :isCreator="props.isCreator" @updated="onMiniMatchCreated" />
 <DeleteConfirmationModal v-model="showDeleteModal" title="Xác nhận hủy bỏ kèo đấu"
         message="Thao tác này không thể hoàn tác." confirmButtonText="Xác nhận" @confirm="cancelSelectedMiniMatches" />

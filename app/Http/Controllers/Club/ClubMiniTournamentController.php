@@ -620,6 +620,9 @@ class ClubMiniTournamentController extends Controller
                     'team2_id' => null,
                     'participant1_id' => null,
                     'participant2_id' => null,
+                    'participant_win_id' => null,
+                    'team_win_id' => null,
+                    'bye_participant_id' => null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];
@@ -649,7 +652,49 @@ class ClubMiniTournamentController extends Controller
                     foreach ($round['matches'] as $match) {
                         $isBye = !empty($match['is_bye']);
                         if ($isBye) {
+                            $players1 = array_filter($match['team1_players'] ?? []);
+                            $players2 = array_filter($match['team2_players'] ?? []);
+                            if (!empty($players1)) {
+                                $key1 = implode('-', $players1);
+                                if (!isset($miniTeamByKey[$key1])) {
+                                    $team1Names = array_map(fn($pid) => (string) $pid, $players1);
+                                    $team1 = \App\Models\MiniTeam::create([
+                                        'name' => implode('-', $team1Names),
+                                        'mini_tournament_id' => $miniTournament->id,
+                                    ]);
+                                    foreach ($players1 as $pid) {
+                                        \App\Models\MiniTeamMember::create([
+                                            'mini_team_id' => $team1->id,
+                                            'user_id' => $participantUserMap[$pid] ?? $pid,
+                                            'is_guest' => false,
+                                        ]);
+                                    }
+                                    $miniTeamByKey[$key1] = $team1->id;
+                                }
+                                $matchesToInsert[$matchOffset]['team1_id'] = $miniTeamByKey[$key1];
+                                $matchesToInsert[$matchOffset]['bye_participant_id'] = (int) $players1[0];
+                            } elseif (!empty($players2)) {
+                                $key2 = implode('-', $players2);
+                                if (!isset($miniTeamByKey[$key2])) {
+                                    $team2Names = array_map(fn($pid) => (string) $pid, $players2);
+                                    $team2 = \App\Models\MiniTeam::create([
+                                        'name' => implode('-', $team2Names),
+                                        'mini_tournament_id' => $miniTournament->id,
+                                    ]);
+                                    foreach ($players2 as $pid) {
+                                        \App\Models\MiniTeamMember::create([
+                                            'mini_team_id' => $team2->id,
+                                            'user_id' => $participantUserMap[$pid] ?? $pid,
+                                            'is_guest' => false,
+                                        ]);
+                                    }
+                                    $miniTeamByKey[$key2] = $team2->id;
+                                }
+                                $matchesToInsert[$matchOffset]['team2_id'] = $miniTeamByKey[$key2];
+                                $matchesToInsert[$matchOffset]['bye_participant_id'] = (int) $players2[0];
+                            }
                             $matchesToInsert[$matchOffset]['is_bye'] = true;
+                            $matchesToInsert[$matchOffset]['status'] = \App\Models\MiniMatch::STATUS_COMPLETED;
                             $matchOffset++;
                             continue;
                         }

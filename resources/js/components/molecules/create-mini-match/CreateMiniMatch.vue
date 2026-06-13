@@ -31,6 +31,7 @@ export default {
         modelValue: Boolean,
         miniTournament: { type: Object, required: true },
         isCreator: Boolean,
+        match: { type: Object, default: null },
         editMatch: { type: Object, default: null },
         matchCount: { type: Number, default: 0 }
     },
@@ -136,6 +137,15 @@ export default {
 
         const hasScores = computed(() => {
             return scores.value.some(s => s.team1 > 0 || s.team2 > 0)
+        })
+
+        const extractMember = (m) => {
+            return m?.user ?? m
+        }
+
+        const isRRSessionFormat = computed(() => {
+            const fmt = props.miniTournament?.match_format
+            return fmt && fmt !== 'standard'
         })
 
         const formatSetsForAPI = () => {
@@ -255,7 +265,7 @@ export default {
         watch(
             () => props.modelValue,
             (val) => {
-                if (val && !props.editMatch) {
+                if (val && !props.editMatch && !props.match) {
                     resetForm()
                 }
             }
@@ -272,6 +282,38 @@ export default {
         )
 
         watch(
+            () => props.match,
+            (m) => {
+                if (!m) return
+                currentMatchId.value = m.id
+                miniMatchName.value = m.name || ''
+                text_team1.value = m.team1?.name || 'Team 1'
+                text_team2.value = m.team2?.name || 'Team 2'
+                team1Users.value = m.team1?.members?.map(extractMember) || []
+                team2Users.value = m.team2?.members?.map(extractMember) || []
+
+                if (m.results_by_sets) {
+                    const r = m.results_by_sets
+                    const sets = []
+                    const t1Id = m.team1?.id
+                    const t2Id = m.team2?.id
+                    Object.keys(r).forEach((key) => {
+                        const arr = r[key]
+                        if (!Array.isArray(arr)) return
+                        let t1Score = 0, t2Score = 0
+                        arr.forEach(item => {
+                            if (item.team?.id === t1Id) t1Score = Number(item.score)
+                            if (item.team?.id === t2Id) t2Score = Number(item.score)
+                        })
+                        sets.push({ team1: t1Score, team2: t2Score })
+                    })
+                    if (sets.length > 0) scores.value = sets
+                }
+            },
+            { deep: true }
+        )
+
+        watch(
             () => props.editMatch,
             (match) => {
                 if (!match) return
@@ -279,8 +321,8 @@ export default {
                 miniMatchName.value = match.name || ''
                 text_team1.value = match.team1?.name || 'Team 1'
                 text_team2.value = match.team2?.name || 'Team 2'
-                team1Users.value = match.team1?.members?.map(m => m.user) || []
-                team2Users.value = match.team2?.members?.map(m => m.user) || []
+                team1Users.value = match.team1?.members?.map(extractMember) || []
+                team2Users.value = match.team2?.members?.map(extractMember) || []
 
                 if (match.results_by_sets) {
                     const r = match.results_by_sets
@@ -329,7 +371,8 @@ export default {
             onRefereeBack,
             team1ForReferee,
             team2ForReferee,
-            currentMatchId
+            currentMatchId,
+            isRRSessionFormat,
         }
     }
 }
