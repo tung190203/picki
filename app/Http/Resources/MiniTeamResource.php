@@ -8,10 +8,17 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class MiniTeamResource extends JsonResource
 {
     private ?int $miniTournamentId = null;
+    private array $byeParticipantIds = [];
 
     public function forMiniTournament(?int $miniTournamentId): static
     {
         $this->miniTournamentId = $miniTournamentId;
+        return $this;
+    }
+
+    public function setByeParticipants(array $byeParticipantIds): static
+    {
+        $this->byeParticipantIds = $byeParticipantIds;
         return $this;
     }
 
@@ -39,6 +46,7 @@ class MiniTeamResource extends JsonResource
                         ? ($p->guest_avatar ?? $user?->avatar_url)
                         : ($user?->avatar_url ?? ''),
                     'is_guest' => $isGuest,
+                    'is_bye' => in_array($member->user_id, $this->byeParticipantIds),
                     'visibility' => $user?->visibility,
                     'user' => $this->when($user !== null, function () use ($user, $isGuest, $p) {
                         // Format scores như key-value object (đúng format)

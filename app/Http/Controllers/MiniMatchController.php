@@ -116,13 +116,18 @@ class MiniMatchController extends Controller
             $currentRound = $activeRound;
         }
 
+        // Compute is_extra player flags (only meaningful for round-based formats)
+        $isExtraPlayerFlags = [];
+
         if ($isRoundBased) {
             $allMatches = (clone $baseQuery)
                 ->orderBy('round_number')
                 ->orderBy('id')
                 ->get();
 
-            $grouped = $allMatches->groupBy('round_number')->map(function ($roundMatches, $roundNumber) {
+            $isExtraPlayerFlags = $this->computeExtraPlayerFlags($allMatches, $participants, $miniTournament->match_format);
+
+            $grouped = $allMatches->groupBy('round_number')->map(function ($roundMatches, $roundNumber) use ($isExtraPlayerFlags) {
                 $completedCount = $roundMatches->where('status', MiniMatch::STATUS_COMPLETED)->count();
                 $totalCount = $roundMatches->count();
                 $pendingCount = $roundMatches->where('status', MiniMatch::STATUS_PENDING)->count();
@@ -141,7 +146,10 @@ class MiniMatchController extends Controller
                     'going_on_count' => $goingOnCount,
                     'waiting_confirm_count' => $waitingConfirmCount,
                     'total_count' => $totalCount,
-                    'matches' => MiniMatchResource::collection($roundMatches),
+                    'matches' => (function ($matches) use ($isExtraPlayerFlags) {
+                        MiniMatchResource::setExtraPlayerFlags($isExtraPlayerFlags);
+                        return MiniMatchResource::collection($matches);
+                    })($roundMatches),
                 ];
             })->sortBy('round_number')->values();
 
@@ -201,7 +209,10 @@ class MiniMatchController extends Controller
         $matches = (clone $baseQuery)->orderBy('created_at', 'desc')->get();
 
         return ResponseHelper::success([
-            'matches' => MiniMatchResource::collection($matches),
+            'matches' => (function ($matches) use ($isExtraPlayerFlags) {
+                MiniMatchResource::setExtraPlayerFlags($isExtraPlayerFlags);
+                return MiniMatchResource::collection($matches);
+            })($matches),
             'rounds' => [],
             'match_format' => $miniTournament->match_format,
             'is_session_started' => $miniTournament->is_session_started,
@@ -583,10 +594,11 @@ class MiniMatchController extends Controller
                 }
             }
 
-            // Reset confirm
+            // Reset confirm and move to waiting_confirm
             $match->update([
                 'team1_confirm' => false,
                 'team2_confirm' => false,
+                'status' => MiniMatch::STATUS_WAITING_CONFIRM,
             ]);
         });
 
@@ -832,17 +844,52 @@ class MiniMatchController extends Controller
             return;
         }
 
-        // Lấy tất cả trận có round_number
-        $totalMatches = MiniMatch::where('mini_tournament_id', $miniTournament->id)
+        $tournamentId = $miniTournament->id;
+        $currentRound = $match->round_number;
+
+        // Count non-bye matches per round
+        $nonByeQuery = fn($status) => MiniMatch::where('mini_tournament_id', $tournamentId)
             ->whereNotNull('round_number')
+            ->where('is_bye', false)
+            ->where('status', $status);
+
+        $totalNonBye = MiniMatch::where('mini_tournament_id', $tournamentId)
+            ->whereNotNull('round_number')
+            ->where('is_bye', false)
             ->count();
 
-        $completedMatches = MiniMatch::where('mini_tournament_id', $miniTournament->id)
+        // Check if ALL matches in the current round are completed
+        $currentRoundTotal = MiniMatch::where('mini_tournament_id', $tournamentId)
             ->whereNotNull('round_number')
-            ->where('status', MiniMatch::STATUS_COMPLETED)
+            ->where('is_bye', false)
+            ->where('round_number', $currentRound)
             ->count();
 
-        if ($totalMatches > 0 && $totalMatches === $completedMatches) {
+        $currentRoundCompleted = $nonByeQuery(MiniMatch::STATUS_COMPLETED)
+            ->where('round_number', $currentRound)
+            ->count();
+
+        // Auto-activate next round when current round is fully done
+        if ($currentRoundTotal > 0 && $currentRoundTotal === $currentRoundCompleted) {
+            $nextRound = $currentRound + 1;
+            $nextRoundExists = MiniMatch::where('mini_tournament_id', $tournamentId)
+                ->whereNotNull('round_number')
+                ->where('round_number', $nextRound)
+                ->exists();
+
+            if ($nextRoundExists) {
+                MiniMatch::where('mini_tournament_id', $tournamentId)
+                    ->whereNotNull('round_number')
+                    ->where('round_number', $nextRound)
+                    ->where('is_bye', false)
+                    ->whereIn('status', [MiniMatch::STATUS_PENDING])
+                    ->update(['status' => MiniMatch::STATUS_GOING_ON]);
+            }
+        }
+
+        // End session only when ALL non-bye matches are completed
+        $totalCompleted = $nonByeQuery(MiniMatch::STATUS_COMPLETED)->count();
+        if ($totalNonBye > 0 && $totalNonBye === $totalCompleted) {
             $miniTournament->update(['session_status' => MiniTournament::SESSION_STATUS_FINISHED]);
         }
     }
@@ -963,7 +1010,21 @@ class MiniMatchController extends Controller
         $maxWins = $wins->max();
         $winnerTeams = $wins->filter(fn($c) => $c === $maxWins)->keys();
 
+        $team1WonSets = $wins->get($match->team1_id, 0);
+        $team2WonSets = $wins->get($match->team2_id, 0);
+
         $match->team_win_id = $winnerTeams->count() === 1 ? $winnerTeams->first() : null;
+        $match->team_1_score = $team1WonSets;
+        $match->team_2_score = $team2WonSets;
+
+        if ($match->team_win_id && $match->team_win_id === $match->team1_id) {
+            $match->participant_win_id = $match->participant1_id;
+        } elseif ($match->team_win_id && $match->team_win_id === $match->team2_id) {
+            $match->participant_win_id = $match->participant2_id;
+        } else {
+            $match->participant_win_id = null;
+        }
+
         $match->status = MiniMatch::STATUS_COMPLETED;
         $match->save();
 
@@ -1232,7 +1293,10 @@ class MiniMatchController extends Controller
         }
 
         return ResponseHelper::success(
-            ['matches' => MiniMatchResource::collection($matches)],
+            ['matches' => (function ($matches) {
+                MiniMatchResource::setExtraPlayerFlags([]);
+                return MiniMatchResource::collection($matches);
+            })($matches)],
             'Lấy danh sách Mini Match thành công',
             200,
             $paginationMeta
@@ -1425,6 +1489,12 @@ class MiniMatchController extends Controller
             // Lưu kết quả các set (nếu có)
             if (!empty($data['sets'])) {
                 $this->processSets($match, $data['sets']);
+                // Scores entered → move to waiting_confirm and require both teams to re-confirm
+                $match->update([
+                    'status' => MiniMatch::STATUS_WAITING_CONFIRM,
+                    'team1_confirm' => false,
+                    'team2_confirm' => false,
+                ]);
             }
 
             DB::commit();
@@ -1450,10 +1520,122 @@ class MiniMatchController extends Controller
         }
     }
 
-    private function pushToUsers(array $userIds, string $title, string $body, array $data = [])
+    private function pushToUsers(array $userIds, string $title, string $body, array $data = []): void
     {
         foreach ($userIds as $userId) {
             SendPushJob::dispatch($userId, $title, $body, $data);
         }
+    }
+
+    /**
+     * Compute which participants play more matches than the minimum (extra matches).
+     * Returns array: matchId => [participantUserId, ...]
+     */
+    private function computeExtraPlayerFlags(
+        \Illuminate\Support\Collection $allMatches,
+        \Illuminate\Support\Collection $participants,
+        string $matchFormat
+    ): array {
+        // Map participant.id => user_id
+        $participantToUser = [];
+        foreach ($participants as $p) {
+            if ($p->user_id) {
+                $participantToUser[$p->id] = $p->user_id;
+            }
+        }
+
+        // Count total matches per participant
+        $matchCount = []; // participantId => count
+        foreach ($allMatches as $match) {
+            $playerIds = $this->getMatchParticipantIds($match);
+            foreach ($playerIds as $pid) {
+                if ($pid) {
+                    $matchCount[$pid] = ($matchCount[$pid] ?? 0) + 1;
+                }
+            }
+        }
+
+        if (empty($matchCount)) {
+            return [];
+        }
+
+        // Minimum match count = baseline (everyone should play at least this many)
+        $minCount = min($matchCount);
+
+        // For formats with imbalanced groups, use the minimum per group instead
+        if (in_array($matchFormat, [
+            \App\Models\MiniTournament::MATCH_FORMAT_MIXED_GENDER,
+            \App\Models\MiniTournament::MATCH_FORMAT_RANK_PAIRING,
+        ])) {
+            $groupCounts = [];
+            foreach ($participants as $p) {
+                $group = $p->player_group;
+                if (!isset($groupCounts[$group])) {
+                    $groupCounts[$group] = [];
+                }
+                $groupCounts[$group][] = $matchCount[$p->id] ?? 0;
+            }
+            $minPerGroup = [];
+            foreach ($groupCounts as $group => $counts) {
+                $nonZero = array_filter($counts);
+                if (!empty($nonZero)) {
+                    $minPerGroup[$group] = min($nonZero);
+                }
+            }
+        }
+
+        // Flag matches where participants with > minCount are playing
+        $result = []; // matchId => [userId, ...]
+        foreach ($allMatches as $match) {
+            if ($match->is_bye) {
+                continue;
+            }
+            $extraUserIds = [];
+            $playerIds = $this->getMatchParticipantIds($match);
+            foreach ($playerIds as $pid) {
+                if (!$pid) {
+                    continue;
+                }
+                $threshold = isset($minPerGroup) ? ($minPerGroup[$participants->firstWhere('id', $pid)?->player_group] ?? $minCount) : $minCount;
+                if (($matchCount[$pid] ?? 0) > $threshold) {
+                    $uid = $participantToUser[$pid] ?? null;
+                    if ($uid) {
+                        $extraUserIds[$uid] = true;
+                    }
+                }
+            }
+            if (!empty($extraUserIds)) {
+                $result[$match->id] = array_keys($extraUserIds);
+            }
+        }
+
+        return $result;
+    }
+
+    private function getMatchParticipantIds(\App\Models\MiniMatch $match): array
+    {
+        $ids = [];
+
+        // Single format: participant1_id / participant2_id
+        if ($match->participant1_id) {
+            $ids[] = $match->participant1_id;
+        }
+        if ($match->participant2_id) {
+            $ids[] = $match->participant2_id;
+        }
+
+        // Double format: members of team1 / team2
+        if ($match->relationLoaded('team1') && $match->team1) {
+            foreach ($match->team1->members as $member) {
+                $ids[] = $member->user_id;
+            }
+        }
+        if ($match->relationLoaded('team2') && $match->team2) {
+            foreach ($match->team2->members as $member) {
+                $ids[] = $member->user_id;
+            }
+        }
+
+        return $ids;
     }
 }
