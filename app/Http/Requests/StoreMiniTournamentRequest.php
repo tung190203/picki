@@ -7,6 +7,7 @@ use App\Rules\ValidRecurringSchedule;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class StoreMiniTournamentRequest extends FormRequest
@@ -33,8 +34,14 @@ class StoreMiniTournamentRequest extends FormRequest
             'description' => 'nullable|string',
 
             // Play mode and format
-            'play_mode' => 'required|in:casual,competition,practice,' . implode(',', [MiniTournament::PLAY_MODE_CASUAL, MiniTournament::PLAY_MODE_COMPETITION, MiniTournament::PLAY_MODE_PRACTICE]),
-            'format' => 'required|in:single,double,mens_doubles,womens_doubles,mixed,' . implode(',', MiniTournament::FORMAT),
+            'play_mode' => ['required', Rule::in(array_merge(
+                ['casual', 'competition', 'practice'],
+                array_values(MiniTournament::PLAY_MODE)
+            ))],
+            'format' => ['required', Rule::in(array_merge(
+                ['single', 'double'],
+                array_values(MiniTournament::FORMAT)
+            ))],
 
             // Time fields (new naming)
             'start_time' => 'required|date|after_or_equal:now',
@@ -149,7 +156,10 @@ class StoreMiniTournamentRequest extends FormRequest
         // Round Robin formats require double
         if (in_array($matchFormat, [MiniTournament::MATCH_FORMAT_PARTNER_ROTATION, MiniTournament::MATCH_FORMAT_MIXED_GENDER, MiniTournament::MATCH_FORMAT_RANK_PAIRING])) {
             $rules['format'] = array_merge(
-                (array) ($rules['format'] ?? 'required|in:single,double,mens_doubles,womens_doubles,mixed,' . implode(',', MiniTournament::FORMAT)),
+                (array) ($rules['format'] ?? ['required', Rule::in(array_merge(
+                    ['single', 'double'],
+                    array_values(MiniTournament::FORMAT)
+                ))]),
                 [
                     function (string $attribute, mixed $value, \Closure $fail): void {
                         if ($value === 'single') {
