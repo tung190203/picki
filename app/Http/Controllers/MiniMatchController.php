@@ -19,6 +19,7 @@ use App\Notifications\MiniMatchCreatedNotification;
 use App\Notifications\MiniMatchResultConfirmedNotification;
 use App\Notifications\MiniMatchUpdatedNotification;
 use App\Services\RoundRobinSchedulerService;
+use App\Services\Tournament\ByeResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -1587,7 +1588,7 @@ class MiniMatchController extends Controller
         // Flag matches where participants with > minCount are playing
         $result = []; // matchId => [userId, ...]
         foreach ($allMatches as $match) {
-            if ($match->is_bye) {
+            if (!ByeResolver::isMatchRelevant($match)) {
                 continue;
             }
             $extraUserIds = [];
