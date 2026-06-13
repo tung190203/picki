@@ -7,6 +7,7 @@ use App\Rules\ValidRecurringSchedule;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\Rule;
 
 class UpdateMiniTournamentRequest extends FormRequest
 {
@@ -59,8 +60,14 @@ class UpdateMiniTournamentRequest extends FormRequest
             'description' => 'nullable|string',
 
             // Play mode and format
-            'play_mode' => 'sometimes|in:casual,competition,practice,' . implode(',', [MiniTournament::PLAY_MODE_CASUAL, MiniTournament::PLAY_MODE_COMPETITION, MiniTournament::PLAY_MODE_PRACTICE]),
-            'format' => 'nullable|in:single,double,mens_doubles,womens_doubles,mixed,' . implode(',', MiniTournament::FORMAT),
+            'play_mode' => ['sometimes', Rule::in(array_merge(
+                ['casual', 'competition', 'practice'],
+                array_values(MiniTournament::PLAY_MODE)
+            ))],
+            'format' => ['nullable', Rule::in(array_merge(
+                ['single', 'double'],
+                array_values(MiniTournament::FORMAT)
+            ))],
 
             // Time fields
             'start_time' => 'nullable|date|after_or_equal:now',
@@ -174,7 +181,10 @@ class UpdateMiniTournamentRequest extends FormRequest
         $matchFormat = $this->input('match_format');
         if (in_array($matchFormat, [MiniTournament::MATCH_FORMAT_PARTNER_ROTATION, MiniTournament::MATCH_FORMAT_MIXED_GENDER, MiniTournament::MATCH_FORMAT_RANK_PAIRING])) {
             $rules['format'] = array_merge(
-                (array) ($rules['format'] ?? 'nullable|in:single,double,mens_doubles,womens_doubles,mixed,' . implode(',', MiniTournament::FORMAT)),
+                (array) ($rules['format'] ?? ['nullable', Rule::in(array_merge(
+                    ['single', 'double'],
+                    array_values(MiniTournament::FORMAT)
+                ))]),
                 [
                     function (string $attribute, mixed $value, \Closure $fail): void {
                         if ($value === 'single') {
