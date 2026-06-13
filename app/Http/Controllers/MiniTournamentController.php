@@ -731,11 +731,14 @@ class MiniTournamentController extends Controller
         $matchesToInsert = [];
         foreach ($schedule['rounds'] as $round) {
             foreach ($round['matches'] as $match) {
+                $isBye = !empty($match['is_bye']);
                 $row = [
                     'mini_tournament_id' => $miniTournament->id,
                     'round_number' => $round['round_number'],
-                    'is_bye' => $match['is_bye'] ?? false,
-                    'status' => MiniMatch::STATUS_PENDING,
+                    'is_bye' => $isBye,
+                    'status' => ($round['round_number'] === 1 && !$isBye)
+                        ? MiniMatch::STATUS_GOING_ON
+                        : MiniMatch::STATUS_PENDING,
                     'team1_id' => null,
                     'team2_id' => null,
                     'participant1_id' => null,
@@ -1250,11 +1253,14 @@ class MiniTournamentController extends Controller
 
         foreach ($schedule['rounds'] as $round) {
             foreach ($round['matches'] as $match) {
+                $isBye = !empty($match['is_bye']);
                 $row = [
                     'mini_tournament_id' => $miniTournament->id,
                     'round_number' => $round['round_number'],
-                    'is_bye' => $match['is_bye'] ?? false,
-                    'status' => MiniMatch::STATUS_PENDING,
+                    'is_bye' => $isBye,
+                    'status' => ($round['round_number'] === 1 && !$isBye)
+                        ? MiniMatch::STATUS_GOING_ON
+                        : MiniMatch::STATUS_PENDING,
                     'team1_id' => null,
                     'team2_id' => null,
                     'participant1_id' => null,
