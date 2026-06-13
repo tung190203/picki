@@ -19,6 +19,7 @@ use App\Notifications\MiniMatchCreatedNotification;
 use App\Notifications\MiniMatchResultConfirmedNotification;
 use App\Notifications\MiniMatchUpdatedNotification;
 use App\Services\RoundRobinSchedulerService;
+use App\Services\Tournament\ByeResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -594,12 +595,14 @@ class MiniMatchController extends Controller
                 }
             }
 
-            // Reset confirm and move to waiting_confirm
+            // Reset confirm and move to waiting_confirm, then activate next round if done
             $match->update([
                 'team1_confirm' => false,
                 'team2_confirm' => false,
                 'status' => MiniMatch::STATUS_WAITING_CONFIRM,
             ]);
+
+            $this->checkRoundActivation($match);
         });
 
         $match = MiniMatch::withFullRelations()->findOrFail($matchId);
@@ -747,7 +750,7 @@ class MiniMatchController extends Controller
 
             if ($match->team1_confirm && $match->team2_confirm) {
                 $this->processMatchCompletion($match, $sportId);
-                $this->checkSessionCompletion($match);
+                $this->checkRoundActivation($match);
             }
 
             $match->save();
@@ -826,9 +829,10 @@ class MiniMatchController extends Controller
     }
 
     /**
-     * Kiểm tra và tự động kết thúc session khi tất cả trận đã đánh xong.
+     * Kiểm tra và tự động kích hoạt round tiếp theo khi round hiện tại đã hoàn tất.
+     * Được gọi khi lưu kết quả (addSetResult) và khi xác nhận kết quả (confirmResult).
      */
-    private function checkSessionCompletion(MiniMatch $match): void
+    private function checkRoundActivation(MiniMatch $match): void
     {
         if ($match->round_number === null) {
             return;
@@ -858,19 +862,19 @@ class MiniMatchController extends Controller
             ->where('is_bye', false)
             ->count();
 
-        // Check if ALL matches in the current round are completed
+        // Check if ALL matches in the current round have results saved (waiting for confirm)
         $currentRoundTotal = MiniMatch::where('mini_tournament_id', $tournamentId)
             ->whereNotNull('round_number')
             ->where('is_bye', false)
             ->where('round_number', $currentRound)
             ->count();
 
-        $currentRoundCompleted = $nonByeQuery(MiniMatch::STATUS_COMPLETED)
+        $currentRoundWaitingConfirm = $nonByeQuery(MiniMatch::STATUS_WAITING_CONFIRM)
             ->where('round_number', $currentRound)
             ->count();
 
-        // Auto-activate next round when current round is fully done
-        if ($currentRoundTotal > 0 && $currentRoundTotal === $currentRoundCompleted) {
+        // Auto-activate next round when current round is fully waiting for confirm
+        if ($currentRoundTotal > 0 && $currentRoundTotal === $currentRoundWaitingConfirm) {
             $nextRound = $currentRound + 1;
             $nextRoundExists = MiniMatch::where('mini_tournament_id', $tournamentId)
                 ->whereNotNull('round_number')
@@ -884,6 +888,19 @@ class MiniMatchController extends Controller
                     ->where('is_bye', false)
                     ->whereIn('status', [MiniMatch::STATUS_PENDING])
                     ->update(['status' => MiniMatch::STATUS_GOING_ON]);
+
+                // Recursively trigger activation check for the newly activated round
+                // (in case all its matches were already waiting_confirm and the
+                // next-next round can be activated too)
+                $nextMatch = MiniMatch::where('mini_tournament_id', $tournamentId)
+                    ->where('round_number', $nextRound)
+                    ->where('is_bye', false)
+                    ->whereIn('status', [MiniMatch::STATUS_WAITING_CONFIRM])
+                    ->first();
+
+                if ($nextMatch) {
+                    $this->checkRoundActivation($nextMatch);
+                }
             }
         }
 
@@ -1495,6 +1512,8 @@ class MiniMatchController extends Controller
                     'team1_confirm' => false,
                     'team2_confirm' => false,
                 ]);
+
+                $this->checkRoundActivation($match);
             }
 
             DB::commit();
@@ -1587,7 +1606,7 @@ class MiniMatchController extends Controller
         // Flag matches where participants with > minCount are playing
         $result = []; // matchId => [userId, ...]
         foreach ($allMatches as $match) {
-            if ($match->is_bye) {
+            if (!ByeResolver::isMatchRelevant($match)) {
                 continue;
             }
             $extraUserIds = [];

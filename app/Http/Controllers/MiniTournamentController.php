@@ -434,6 +434,9 @@ class MiniTournamentController extends Controller
                 if ($wasPartnerRotation) {
                     $this->clearRoundRobinMatches($miniTournament);
                 }
+                $miniTournament->update([
+                    'is_session_started' => true,
+                ]);
                 $this->generatePartnerRotationMatches($miniTournament);
             } elseif (in_array($newFormat, [
                 MiniTournament::MATCH_FORMAT_MIXED_GENDER,
@@ -696,7 +699,7 @@ class MiniTournamentController extends Controller
 
         $participantIds = $confirmedParticipants->pluck('id')->toArray();
         $count = count($participantIds);
-        if ($count < 3 || $count > 8) {
+        if ($count < 4) {
             $miniTournament->update([
                 'session_status' => MiniTournament::SESSION_STATUS_PENDING_GROUP,
                 'is_session_started' => false,
@@ -728,117 +731,44 @@ class MiniTournamentController extends Controller
         $matchesToInsert = [];
         foreach ($schedule['rounds'] as $round) {
             foreach ($round['matches'] as $match) {
+                $isBye = !empty($match['is_bye']);
                 $row = [
                     'mini_tournament_id' => $miniTournament->id,
                     'round_number' => $round['round_number'],
-                    'is_bye' => $match['is_bye'] ?? false,
-                    'status' => MiniMatch::STATUS_PENDING,
+                    'is_bye' => $isBye,
+                    'status' => ($round['round_number'] === 1 && !$isBye)
+                        ? MiniMatch::STATUS_GOING_ON
+                        : MiniMatch::STATUS_PENDING,
                     'team1_id' => null,
                     'team2_id' => null,
                     'participant1_id' => null,
                     'participant2_id' => null,
                     'participant_win_id' => null,
                     'team_win_id' => null,
-                    'bye_participant_id' => null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];
 
-                if ($isDouble) {
-                    if (isset($match['team1_id']) && isset($match['team2_id'])) {
-                        $row['team1_id'] = $match['team1_id'];
-                        $row['team2_id'] = $match['team2_id'];
-                    }
-                } else {
-                    if (isset($match['participant1_id'])) {
-                        $row['participant1_id'] = $match['participant1_id'];
-                    }
-                    if (isset($match['participant2_id'])) {
-                        $row['participant2_id'] = $match['participant2_id'];
+                if ($isDouble && !empty($match['team1_players'])) {
+                    $team1Key = implode('-', $match['team1_players']);
+                    $team1Id = $this->getOrCreateMiniTeam($team1Key, $match['team1_players'], $miniTournament->id, $participantUserMap);
+                    $row['team1_id'] = $team1Id;
+
+                    if (!empty($match['is_bye'])) {
+                        $row['is_bye'] = true;
+                        $row['status'] = MiniMatch::STATUS_COMPLETED;
+                    } elseif (!empty($match['team2_players'])) {
+                        $team2Key = implode('-', $match['team2_players']);
+                        $team2Id = $this->getOrCreateMiniTeam($team2Key, $match['team2_players'], $miniTournament->id, $participantUserMap);
+                        $row['team2_id'] = $team2Id;
                     }
                 }
+
                 $matchesToInsert[] = $row;
             }
         }
 
-        DB::transaction(function () use ($miniTournament, $matchesToInsert, $schedule, $isDouble, $participantUserMap) {
-            if ($isDouble) {
-                $miniTeamByKey = [];
-                $matchOffset = 0;
-                foreach ($schedule['rounds'] as $round) {
-                    foreach ($round['matches'] as $match) {
-                        $isBye = !empty($match['is_bye']);
-                        if ($isBye) {
-                            $players1 = array_filter($match['team1_players'] ?? []);
-                            $players2 = array_filter($match['team2_players'] ?? []);
-                            if (!empty($players1)) {
-                                $key1 = implode('-', $players1);
-                                if (!isset($miniTeamByKey[$key1])) {
-                                    $miniTeamByKey[$key1] = $this->createMiniTeam($players1, $miniTournament->id, $participantUserMap);
-                                }
-                                $matchesToInsert[$matchOffset]['team1_id'] = $miniTeamByKey[$key1];
-                                $matchesToInsert[$matchOffset]['bye_participant_id'] = (int) $players1[0];
-                            } elseif (!empty($players2)) {
-                                $key2 = implode('-', $players2);
-                                if (!isset($miniTeamByKey[$key2])) {
-                                    $miniTeamByKey[$key2] = $this->createMiniTeam($players2, $miniTournament->id, $participantUserMap);
-                                }
-                                $matchesToInsert[$matchOffset]['team2_id'] = $miniTeamByKey[$key2];
-                                $matchesToInsert[$matchOffset]['bye_participant_id'] = (int) $players2[0];
-                            }
-                            $matchesToInsert[$matchOffset]['is_bye'] = true;
-                            $matchesToInsert[$matchOffset]['status'] = MiniMatch::STATUS_COMPLETED;
-                            $matchOffset++;
-                            continue;
-                        }
-
-                        if (empty($match['team1_players']) || empty($match['team2_players'])) {
-                            $matchOffset++;
-                            continue;
-                        }
-
-                        $key1 = implode('-', $match['team1_players']);
-                        if (!isset($miniTeamByKey[$key1])) {
-                            $team1Names = array_map(fn($pid) => (string) $pid, $match['team1_players']);
-                            $team1 = MiniTeam::create([
-                                'name' => implode('-', $team1Names),
-                                'mini_tournament_id' => $miniTournament->id,
-                            ]);
-                            foreach ($match['team1_players'] as $pid) {
-                                MiniTeamMember::create([
-                                    'mini_team_id' => $team1->id,
-                                    'user_id' => $participantUserMap[$pid] ?? $pid,
-                                    'is_guest' => false,
-                                ]);
-                            }
-                            $miniTeamByKey[$key1] = $team1->id;
-                        }
-
-                        $key2 = implode('-', $match['team2_players']);
-                        if (!isset($miniTeamByKey[$key2])) {
-                            $team2Names = array_map(fn($pid) => (string) $pid, $match['team2_players']);
-                            $team2 = MiniTeam::create([
-                                'name' => implode('-', $team2Names),
-                                'mini_tournament_id' => $miniTournament->id,
-                            ]);
-                            foreach ($match['team2_players'] as $pid) {
-                                MiniTeamMember::create([
-                                    'mini_team_id' => $team2->id,
-                                    'user_id' => $participantUserMap[$pid] ?? $pid,
-                                    'is_guest' => false,
-                                ]);
-                            }
-                            $miniTeamByKey[$key2] = $team2->id;
-                        }
-
-                        $matchesToInsert[$matchOffset]['team1_id'] = $miniTeamByKey[$key1];
-                        $matchesToInsert[$matchOffset]['team2_id'] = $miniTeamByKey[$key2];
-                        $matchesToInsert[$matchOffset]['is_bye'] = false;
-                        $matchOffset++;
-                    }
-                }
-            }
-
+        DB::transaction(function () use ($miniTournament, $matchesToInsert) {
             MiniMatch::insert($matchesToInsert);
             $miniTournament->update([
                 'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
@@ -895,6 +825,20 @@ class MiniTournamentController extends Controller
             ]);
         }
         return $team->id;
+    }
+
+    /** @var array<string, int> */
+    private array $miniTeamCache = [];
+
+    /**
+     * Get or create a MiniTeam by its player-key, with in-request caching.
+     */
+    private function getOrCreateMiniTeam(string $key, array $playerIds, int $miniTournamentId, array $participantUserMap): int
+    {
+        if (!isset($this->miniTeamCache[$key])) {
+            $this->miniTeamCache[$key] = $this->createMiniTeam($playerIds, $miniTournamentId, $participantUserMap);
+        }
+        return $this->miniTeamCache[$key];
     }
 
     private function formatMatchesWithUserInfo(array $rounds, $participants, bool $isDouble = false, array $teams = []): array
@@ -1309,18 +1253,20 @@ class MiniTournamentController extends Controller
 
         foreach ($schedule['rounds'] as $round) {
             foreach ($round['matches'] as $match) {
+                $isBye = !empty($match['is_bye']);
                 $row = [
                     'mini_tournament_id' => $miniTournament->id,
                     'round_number' => $round['round_number'],
-                    'is_bye' => $match['is_bye'] ?? false,
-                    'status' => MiniMatch::STATUS_PENDING,
+                    'is_bye' => $isBye,
+                    'status' => ($round['round_number'] === 1 && !$isBye)
+                        ? MiniMatch::STATUS_GOING_ON
+                        : MiniMatch::STATUS_PENDING,
                     'team1_id' => null,
                     'team2_id' => null,
                     'participant1_id' => null,
                     'participant2_id' => null,
                     'participant_win_id' => null,
                     'team_win_id' => null,
-                    'bye_participant_id' => null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];
@@ -1335,12 +1281,6 @@ class MiniTournamentController extends Controller
                     }
                     if (isset($match['participant2_id'])) {
                         $row['participant2_id'] = $match['participant2_id'];
-                    }
-                // Single bye: record the match so round structure is complete,
-                    // but do NOT mark as completed or assign a winner (BYE ≠ auto-win)
-                    if (!empty($match['is_bye'])) {
-                        $row['bye_participant_id'] = $row['participant1_id'] ?? $row['participant2_id'] ?? null;
-                        $row['status'] = MiniMatch::STATUS_PENDING;
                     }
                 }
                 $matchesToInsert[] = $row;
@@ -1375,24 +1315,21 @@ class MiniTournamentController extends Controller
                                     $miniTeamByKey[$key1] = $this->createMiniTeam($players1, $miniTournamentId, $participantUserMap);
                                 }
                                 $matchesToInsert[$matchOffset]['team1_id'] = $miniTeamByKey[$key1];
-                                $matchesToInsert[$matchOffset]['bye_participant_id'] = (int) $players1[0];
                             } elseif (!empty($players2)) {
                                 $key2 = implode('-', $players2);
                                 if (!isset($miniTeamByKey[$key2])) {
                                     $miniTeamByKey[$key2] = $this->createMiniTeam($players2, $miniTournamentId, $participantUserMap);
                                 }
                                 $matchesToInsert[$matchOffset]['team2_id'] = $miniTeamByKey[$key2];
-                                $matchesToInsert[$matchOffset]['bye_participant_id'] = (int) $players2[0];
                             }
                             $matchesToInsert[$matchOffset]['is_bye'] = true;
-                            $matchesToInsert[$matchOffset]['status'] = MiniMatch::STATUS_PENDING;
+                            $matchesToInsert[$matchOffset]['status'] = MiniMatch::STATUS_COMPLETED;
                             $matchOffset++;
                             continue;
                         }
 
                         if (empty($match['team1_players']) || empty($match['team2_players'])) {
                             // Fallback BYE: one side has players, the other is empty.
-                            // Set status=PENDING and no winner — same as explicit BYE above.
                             $players1 = array_filter(
                                 !empty($match['team1_players']) ? $match['team1_players']
                                     : (!empty($match['player_a']) && $match['player_a'] !== null ? [$match['player_a']] : [])
@@ -1407,17 +1344,15 @@ class MiniTournamentController extends Controller
                                     $miniTeamByKey[$key1] = $this->createMiniTeam($players1, $miniTournamentId, $participantUserMap);
                                 }
                                 $matchesToInsert[$matchOffset]['team1_id'] = $miniTeamByKey[$key1];
-                                $matchesToInsert[$matchOffset]['bye_participant_id'] = (int) $players1[0];
                             } elseif (!empty($players2)) {
                                 $key2 = implode('-', $players2);
                                 if (!isset($miniTeamByKey[$key2])) {
                                     $miniTeamByKey[$key2] = $this->createMiniTeam($players2, $miniTournamentId, $participantUserMap);
                                 }
                                 $matchesToInsert[$matchOffset]['team2_id'] = $miniTeamByKey[$key2];
-                                $matchesToInsert[$matchOffset]['bye_participant_id'] = (int) $players2[0];
                             }
                             $matchesToInsert[$matchOffset]['is_bye'] = true;
-                            $matchesToInsert[$matchOffset]['status'] = MiniMatch::STATUS_PENDING;
+                            $matchesToInsert[$matchOffset]['status'] = MiniMatch::STATUS_COMPLETED;
                             $matchOffset++;
                             continue;
                         }
@@ -1474,7 +1409,7 @@ class MiniTournamentController extends Controller
             foreach ($matchesToInsert as $idx => &$m) {
                 $m['round_number'] = (int) $m['round_number'];
                 if ($m['is_bye'] ?? false) {
-                    $m['status'] = MiniMatch::STATUS_PENDING;
+                    $m['status'] = MiniMatch::STATUS_COMPLETED;
                 } else {
                     $m['status'] = $m['round_number'] === $firstRound
                         ? MiniMatch::STATUS_GOING_ON
@@ -1515,7 +1450,7 @@ class MiniTournamentController extends Controller
             },
             'matches.participant1.user.sports.scores',
             'matches.participant2.user.sports.scores',
-            'matches.byeParticipant.user.sports.scores',
+            'matches.participant2.user.sports.scores',
             'matches.results.team.members',
             'matches.team1.members.user.sports.scores',
             'matches.team2.members.user.sports.scores',
@@ -1734,13 +1669,6 @@ class MiniTournamentController extends Controller
                         $team2Data = $formatMember($match->participant2);
                     }
 
-                    // For bye matches: fill in the player who received the bye in the null slot
-                    $byeParticipantData = $match->byeParticipant ? $formatMember($match->byeParticipant) : null;
-                    if ($match->is_bye && $byeParticipantData !== null) {
-                        $team1Data = $team1Data ?? $byeParticipantData;
-                        $team2Data = $team2Data ?? $byeParticipantData;
-                    }
-
                     return [
                         'id' => $match->id,
                         'mini_tournament_id' => $match->mini_tournament_id,
@@ -1757,7 +1685,6 @@ class MiniTournamentController extends Controller
                         'scheduled_at' => $match->scheduled_at,
                         'yard_number' => $match->yard_number,
                         'is_bye' => $match->is_bye,
-                        'bye_participant' => $byeParticipantData,
                     ];
                 })->values(),
                 'completed_count' => $completedCount,
