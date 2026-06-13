@@ -19,35 +19,12 @@ class MiniMatchResource extends JsonResource
      *
      * @return array<string, mixed>
      */
-    private function buildTeam($team, ?int $byeUserId): ?array
+    private function buildTeam($team): ?array
     {
         if (!($team instanceof MissingValue) && $team !== null && $team->id !== null) {
             return (new MiniTeamResource($team))
                 ->forMiniTournament($this->mini_tournament_id)
-                ->setByeParticipants($byeUserId !== null ? [$byeUserId] : [])
                 ->toArray(request());
-        }
-
-        if ($this->is_bye && $byeUserId !== null) {
-            return [
-                'id' => null,
-                'name' => null,
-                'members' => [
-                    [
-                        'id' => $byeUserId,
-                        'team_id' => null,
-                        'full_name' => $this->byeParticipant?->user?->full_name
-                            ?? $this->byeParticipant?->guest_name
-                            ?? '',
-                        'avatar_url' => $this->byeParticipant?->user?->avatar_url
-                            ?? $this->byeParticipant?->guest_avatar
-                            ?? '',
-                        'is_guest' => (bool) ($this->byeParticipant?->is_guest),
-                        'is_bye' => true,
-                        'visibility' => $this->byeParticipant?->user?->visibility,
-                    ],
-                ],
-            ];
         }
 
         return null;
@@ -66,9 +43,8 @@ class MiniMatchResource extends JsonResource
                 })->toArray();
         }
 
-        $byeUserId = $this->byeParticipant?->user_id;
-        $team1Data = $this->buildTeam($this->whenLoaded('team1'), $byeUserId);
-        $team2Data = $this->buildTeam($this->whenLoaded('team2'), $byeUserId);
+        $team1Data = $this->buildTeam($this->whenLoaded('team1'));
+        $team2Data = $this->buildTeam($this->whenLoaded('team2'));
 
         $hasAnchor = false;
         if ($this->relationLoaded('team1') && $this->team1 !== null && !($this->team1 instanceof MissingValue)) {
@@ -98,7 +74,7 @@ class MiniMatchResource extends JsonResource
                 ? new \App\Http\Resources\ClubResource($this->miniTournament->club)
                 : null,
             'team1' => $team1Data,
-            'team2' => $team2Data,
+            'team2' => $this->is_bye ? null : $team2Data,
             'status' => $this->status,
             'team_win_id' => $this->team_win_id,
             'results_by_sets' => $groupedResults,
