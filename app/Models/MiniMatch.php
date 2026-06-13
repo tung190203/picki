@@ -27,7 +27,6 @@ class MiniMatch extends Model
         'is_bye',
         'team_1_score',
         'team_2_score',
-        'bye_participant_id',
     ];
 
     const PER_PAGE = 10;
@@ -51,11 +50,6 @@ class MiniMatch extends Model
     public function participant2()
     {
         return $this->belongsTo(MiniParticipant::class, 'participant2_id');
-    }
-
-    public function byeParticipant()
-    {
-        return $this->belongsTo(MiniParticipant::class, 'bye_participant_id');
     }
 
     public function team1()
@@ -101,7 +95,6 @@ class MiniMatch extends Model
             'team1.members.user.sports.sport',
             'team2.members.user.sports.sport',
             'results.team.members.user',
-            'byeParticipant.user',
             'miniTournament.competitionLocation',
             'miniTournament.sport',
             'miniTournament.club',
@@ -115,7 +108,6 @@ class MiniMatch extends Model
             'team1.members.user.sports.sport',
             'team2.members.user.sports.sport',
             'results.team.members.user',
-            'byeParticipant.user',
             'miniTournament.competitionLocation',
             'miniTournament.sport',
             'miniTournament.club',

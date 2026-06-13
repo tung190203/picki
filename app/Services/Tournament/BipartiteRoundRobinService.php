@@ -81,10 +81,6 @@ class BipartiteRoundRobinService
                     'matches_per_b' => 0,
                     'group_a_byes' => 0,
                     'group_b_byes' => 0,
-                    'bye_balanced' => true,
-                    'unbalanced_notice' => null,
-                    'bye_count_a' => [],
-                    'bye_count_b' => [],
                 ],
             ];
         }
@@ -93,8 +89,6 @@ class BipartiteRoundRobinService
         $paddedB = self::padWithNull($bIds, $n);
 
         $rounds = [];
-        $byeCountA = array_fill(0, $aCount, 0);
-        $byeCountB = array_fill(0, $bCount, 0);
 
         for ($round = 0; $round < $n; $round++) {
             $roundMatches = [];
@@ -107,20 +101,6 @@ class BipartiteRoundRobinService
                 }
 
                 $isBye = ($playerA === null || $playerB === null);
-
-                if ($isBye) {
-                    if ($playerA === null && $playerB !== null) {
-                        $bOriginalIndex = array_search($playerB, $bIds, true);
-                        if ($bOriginalIndex !== false) {
-                            $byeCountB[$bOriginalIndex]++;
-                        }
-                    } elseif ($playerB === null && $playerA !== null) {
-                        $aOriginalIndex = array_search($playerA, $aIds, true);
-                        if ($aOriginalIndex !== false) {
-                            $byeCountA[$aOriginalIndex]++;
-                        }
-                    }
-                }
 
                 $roundMatches[] = [
                     'player_a' => $playerA,
@@ -135,33 +115,12 @@ class BipartiteRoundRobinService
             array_unshift($paddedB, $lastB);
         }
 
-        $matchesPerA = $bCount; // Each A plays all B
-        $matchesPerB = $aCount; // Each B plays all A
+        $matchesPerA = $bCount;
+        $matchesPerB = $aCount;
         $groupAByes = $aCount > 0 ? ($n - $bCount) : 0;
         $groupBByes = $bCount > 0 ? ($n - $aCount) : 0;
 
         $totalMatches = $aCount * $bCount;
-
-        $byeBalanced = self::isByeBalanced($byeCountA, $byeCountB);
-
-        $unbalancedNotice = null;
-        if (!empty($byeCountA)) {
-            $minA = min($byeCountA);
-            $maxA = max($byeCountA);
-            if ($minA !== $maxA) {
-                $unbalancedNotice = "BYE nam chênh lệch: {$minA}-{$maxA} lần.";
-            }
-        }
-        if (!empty($byeCountB)) {
-            $minB = min($byeCountB);
-            $maxB = max($byeCountB);
-            if ($minB !== $maxB) {
-                $notice = "BYE nữ chênh lệch: {$minB}-{$maxB} lần.";
-                $unbalancedNotice = $unbalancedNotice
-                    ? "{$unbalancedNotice} {$notice}"
-                    : $notice;
-            }
-        }
 
         return [
             'rounds' => $rounds,
@@ -174,10 +133,6 @@ class BipartiteRoundRobinService
                 'matches_per_b' => $matchesPerB,
                 'group_a_byes' => $groupAByes,
                 'group_b_byes' => $groupBByes,
-                'bye_balanced' => $byeBalanced,
-                'unbalanced_notice' => $unbalancedNotice,
-                'bye_count_a' => $byeCountA,
-                'bye_count_b' => $byeCountB,
             ],
         ];
     }
@@ -201,30 +156,5 @@ class BipartiteRoundRobinService
         }
         return $padded;
     }
-
-    /**
-     * Check if BYE distribution is balanced (max 1 difference per player).
-     */
-    private static function isByeBalanced(
-        array $byeCountA,
-        array $byeCountB
-    ): bool {
-        if (!empty($byeCountA)) {
-            $minA = min($byeCountA);
-            $maxA = max($byeCountA);
-            if ($maxA - $minA > 1) {
-                return false;
-            }
-        }
-        if (!empty($byeCountB)) {
-            $minB = min($byeCountB);
-            $maxB = max($byeCountB);
-            if ($maxB - $minB > 1) {
-                return false;
-            }
-        }
-        return true;
-    }
-
 
 }

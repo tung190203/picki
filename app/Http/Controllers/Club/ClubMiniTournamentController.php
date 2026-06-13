@@ -622,7 +622,6 @@ class ClubMiniTournamentController extends Controller
                     'participant2_id' => null,
                     'participant_win_id' => null,
                     'team_win_id' => null,
-                    'bye_participant_id' => null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];
@@ -672,7 +671,6 @@ class ClubMiniTournamentController extends Controller
                                     $miniTeamByKey[$key1] = $team1->id;
                                 }
                                 $matchesToInsert[$matchOffset]['team1_id'] = $miniTeamByKey[$key1];
-                                $matchesToInsert[$matchOffset]['bye_participant_id'] = (int) $players1[0];
                             } elseif (!empty($players2)) {
                                 $key2 = implode('-', $players2);
                                 if (!isset($miniTeamByKey[$key2])) {
@@ -691,7 +689,6 @@ class ClubMiniTournamentController extends Controller
                                     $miniTeamByKey[$key2] = $team2->id;
                                 }
                                 $matchesToInsert[$matchOffset]['team2_id'] = $miniTeamByKey[$key2];
-                                $matchesToInsert[$matchOffset]['bye_participant_id'] = (int) $players2[0];
                             }
                             $matchesToInsert[$matchOffset]['is_bye'] = true;
                             $matchesToInsert[$matchOffset]['status'] = \App\Models\MiniMatch::STATUS_COMPLETED;
