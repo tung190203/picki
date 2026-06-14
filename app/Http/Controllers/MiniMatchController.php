@@ -38,7 +38,19 @@ class MiniMatchController extends Controller
         $isOrganizer = $miniTournament->hasOrganizer($userId);
 
         // Kèo chưa công bố (draft): chỉ organizer xem được nội dung
+        // Với standard format, participant đã confirmed cũng được thấy matches
+        $isConfirmedParticipant = false;
         if ($miniTournament->status === MiniTournament::STATUS_DRAFT && !$isOrganizer) {
+            $isConfirmedParticipant = $miniTournament->participants()
+                ->where('user_id', $userId)
+                ->where('is_confirmed', true)
+                ->exists();
+        }
+
+        if ($miniTournament->status === MiniTournament::STATUS_DRAFT
+            && !$isOrganizer
+            && !$isConfirmedParticipant
+        ) {
             return ResponseHelper::success([
                 'matches' => [],
                 'rounds' => [],
