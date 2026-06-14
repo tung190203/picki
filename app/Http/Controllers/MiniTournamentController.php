@@ -1444,8 +1444,7 @@ class MiniTournamentController extends Controller
     {
         $miniTournament = MiniTournament::with([
             'matches' => function ($q) {
-                $q->whereNotNull('round_number')
-                    ->orderBy('round_number')
+                $q->orderByRaw('COALESCE(round_number, 0)')
                     ->orderBy('id');
             },
             'matches.participant1.user.sports.scores',

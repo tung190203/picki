@@ -38,7 +38,19 @@ class MiniMatchController extends Controller
         $isOrganizer = $miniTournament->hasOrganizer($userId);
 
         // Kèo chưa công bố (draft): chỉ organizer xem được nội dung
+        // Với standard format, participant đã confirmed cũng được thấy matches
+        $isConfirmedParticipant = false;
         if ($miniTournament->status === MiniTournament::STATUS_DRAFT && !$isOrganizer) {
+            $isConfirmedParticipant = $miniTournament->participants()
+                ->where('user_id', $userId)
+                ->where('is_confirmed', true)
+                ->exists();
+        }
+
+        if ($miniTournament->status === MiniTournament::STATUS_DRAFT
+            && !$isOrganizer
+            && !$isConfirmedParticipant
+        ) {
             return ResponseHelper::success([
                 'matches' => [],
                 'rounds' => [],
@@ -869,12 +881,15 @@ class MiniMatchController extends Controller
             ->where('round_number', $currentRound)
             ->count();
 
-        $currentRoundWaitingConfirm = $nonByeQuery(MiniMatch::STATUS_WAITING_CONFIRM)
+        $currentRoundDoneOrWaiting = MiniMatch::where('mini_tournament_id', $tournamentId)
+            ->whereNotNull('round_number')
+            ->where('is_bye', false)
             ->where('round_number', $currentRound)
+            ->whereIn('status', [MiniMatch::STATUS_WAITING_CONFIRM, MiniMatch::STATUS_COMPLETED])
             ->count();
 
-        // Auto-activate next round when current round is fully waiting for confirm
-        if ($currentRoundTotal > 0 && $currentRoundTotal === $currentRoundWaitingConfirm) {
+        // Auto-activate next round when ALL non-bye matches are either waiting_confirm or completed
+        if ($currentRoundTotal > 0 && $currentRoundTotal === $currentRoundDoneOrWaiting) {
             $nextRound = $currentRound + 1;
             $nextRoundExists = MiniMatch::where('mini_tournament_id', $tournamentId)
                 ->whereNotNull('round_number')
