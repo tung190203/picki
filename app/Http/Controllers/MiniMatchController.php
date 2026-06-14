@@ -92,14 +92,36 @@ class MiniMatchController extends Controller
             ], 'Lấy danh sách trận đấu thành công');
         }
 
-        $baseQuery = MiniMatch::withFullRelations()
+        // Load matches with only the relations actually needed by MiniMatchResource.
+        // Avoid withFullRelations() which loads heavy relations (sports/scores, clubs,
+        // competitionLocation, results) that are not rendered in round-based formats.
+        $baseQuery = MiniMatch::with([
+            'team1.members.user',
+            'team2.members.user',
+        ])
             ->where('mini_tournament_id', $miniTournament->id);
 
         // Load participants
         $participants = $miniTournament->participants()
-            ->with('user')
+            ->with('user:id,full_name,avatar_url,visibility')
             ->where('is_confirmed', true)
             ->get();
+
+        // Pre-compute statistics from the already-loaded $participants collection
+        // instead of issuing additional DB queries per statistic.
+        $groupedStats = $participants->reduce(function ($carry, $p) {
+            $carry['confirmed']++;
+            if ($p->player_group === 'male') {
+                $carry['male']++;
+            } elseif ($p->player_group === 'female') {
+                $carry['female']++;
+            } elseif ($p->player_group === 'a') {
+                $carry['group_a']++;
+            } elseif ($p->player_group === 'b') {
+                $carry['group_b']++;
+            }
+            return $carry;
+        }, ['confirmed' => 0, 'male' => 0, 'female' => 0, 'group_a' => 0, 'group_b' => 0]);
 
         $totalMatches = (clone $baseQuery)->count();
         $confirmedMatches = (clone $baseQuery)
@@ -209,11 +231,11 @@ class MiniMatchController extends Controller
                 ]),
                 'statistics' => [
                     'total_participants' => $miniTournament->participants()->count(),
-                    'confirmed_participants' => $miniTournament->participants()->where('is_confirmed', true)->count(),
-                    'male_participants' => $miniTournament->participants()->where('is_confirmed', true)->where('player_group', 'male')->count(),
-                    'female_participants' => $miniTournament->participants()->where('is_confirmed', true)->where('player_group', 'female')->count(),
-                    'group_a_participants' => $miniTournament->participants()->where('is_confirmed', true)->where('player_group', 'a')->count(),
-                    'group_b_participants' => $miniTournament->participants()->where('is_confirmed', true)->where('player_group', 'b')->count(),
+                    'confirmed_participants' => $groupedStats['confirmed'],
+                    'male_participants' => $groupedStats['male'],
+                    'female_participants' => $groupedStats['female'],
+                    'group_a_participants' => $groupedStats['group_a'],
+                    'group_b_participants' => $groupedStats['group_b'],
                 ],
             ], 'Lấy danh sách trận đấu thành công');
         }
@@ -267,11 +289,11 @@ class MiniMatchController extends Controller
             ]),
             'statistics' => [
                 'total_participants' => $miniTournament->participants()->count(),
-                'confirmed_participants' => $miniTournament->participants()->where('is_confirmed', true)->count(),
-                'male_participants' => $miniTournament->participants()->where('is_confirmed', true)->where('player_group', 'male')->count(),
-                'female_participants' => $miniTournament->participants()->where('is_confirmed', true)->where('player_group', 'female')->count(),
-                'group_a_participants' => $miniTournament->participants()->where('is_confirmed', true)->where('player_group', 'a')->count(),
-                'group_b_participants' => $miniTournament->participants()->where('is_confirmed', true)->where('player_group', 'b')->count(),
+                'confirmed_participants' => $groupedStats['confirmed'],
+                'male_participants' => $groupedStats['male'],
+                'female_participants' => $groupedStats['female'],
+                'group_a_participants' => $groupedStats['group_a'],
+                'group_b_participants' => $groupedStats['group_b'],
             ],
         ], 'Lấy danh sách trận đấu thành công');
     }
