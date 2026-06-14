@@ -46,7 +46,7 @@ class ByeResolver
      * Returns the team_id of the bye side (for scheduling identification only).
      *
      * @deprecated BYE no longer awards a win. Use this only for identification purposes.
-     */
+6     */
     public static function getByeWinnerTeamId(MiniMatch $match): ?int
     {
         return self::resolveByeTeamId($match);
