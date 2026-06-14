@@ -178,19 +178,27 @@ class RoundRobinSchedulerService
             }
 
             // Normal match: compute scores from mini_match_results
-            $s1 = 0;
-            $s2 = 0;
+            $s1_sets = 0;
+            $s2_sets = 0;
+            $t1_score = 0;
+            $t2_score = 0;
             foreach ($match->results as $result) {
                 if ((int) $result->won_set === 1) {
                     if ((int) $result->team_id === (int) $match->team1_id) {
-                        $s1++;
+                        $s1_sets++;
                     } else {
-                        $s2++;
+                        $s2_sets++;
                     }
+                }
+                // Sum actual scores
+                if ((int) $result->team_id === (int) $match->team1_id) {
+                    $t1_score += (int) $result->score;
+                } else {
+                    $t2_score += (int) $result->score;
                 }
             }
 
-            if ($s1 === 0 && $s2 === 0) {
+            if ($s1_sets === 0 && $s2_sets === 0) {
                 continue;
             }
 
@@ -218,19 +226,22 @@ class RoundRobinSchedulerService
                 continue;
             }
 
+            // Point diff = score thực tế team này - team kia
+            $pointDiff = $t1_score - $t2_score;
             foreach ($p1List as $pid) {
                 $stats[$pid]['total_matches']++;
-                $stats[$pid]['total_point_diff'] += $s1 - $s2;
+                $stats[$pid]['total_point_diff'] += $pointDiff;
             }
             foreach ($p2List as $pid) {
                 $stats[$pid]['total_matches']++;
-                $stats[$pid]['total_point_diff'] += $s2 - $s1;
+                $stats[$pid]['total_point_diff'] -= $pointDiff;
             }
 
-            if ($s1 > $s2) {
+            // Wins/losses dựa trên số set thắng
+            if ($s1_sets > $s2_sets) {
                 foreach ($p1List as $pid) { $stats[$pid]['wins']++; }
                 foreach ($p2List as $pid) { $stats[$pid]['losses']++; }
-            } elseif ($s2 > $s1) {
+            } elseif ($s2_sets > $s1_sets) {
                 foreach ($p2List as $pid) { $stats[$pid]['wins']++; }
                 foreach ($p1List as $pid) { $stats[$pid]['losses']++; }
             } else {
