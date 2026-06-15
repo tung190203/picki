@@ -94,10 +94,11 @@ class MiniMatchController extends Controller
 
         // Load matches with only the relations actually needed by MiniMatchResource.
         // Avoid withFullRelations() which loads heavy relations (sports/scores, clubs,
-        // competitionLocation, results) that are not rendered in round-based formats.
+        // competitionLocation) that are not rendered in round-based formats.
         $baseQuery = MiniMatch::with([
-            'team1.members.user',
-            'team2.members.user',
+            'team1.members.user.sports.scores',
+            'team2.members.user.sports.scores',
+            'results.team.members.user',
         ])
             ->where('mini_tournament_id', $miniTournament->id);
 
@@ -380,7 +381,7 @@ class MiniMatchController extends Controller
         try {
             $team1 = MiniTeam::create([
                 'mini_tournament_id' => $miniTournament->id,
-                'name' => $data['team1_name'] ?? 'Team 1',
+                'name' => $data['team1_name'] ?? $this->buildTeamName($data['team1'], $miniTournament->id),
             ]);
 
             foreach ($data['team1'] as $userId) {
@@ -392,7 +393,7 @@ class MiniMatchController extends Controller
 
             $team2 = MiniTeam::create([
                 'mini_tournament_id' => $miniTournament->id,
-                'name' => $data['team2_name'] ?? 'Team 2',
+                'name' => $data['team2_name'] ?? $this->buildTeamName($data['team2'], $miniTournament->id),
             ]);
 
             foreach ($data['team2'] as $userId) {
@@ -1357,10 +1358,16 @@ class MiniMatchController extends Controller
         );
     }
 
-    private function generateMatchName(MiniTournament $miniTournament): string
+    private function generateMatchName(MiniTournament $miniTournament, ?int $roundNumber = null): string
     {
         $matchCount = MiniMatch::where('mini_tournament_id', $miniTournament->id)->count();
-        return 'Trận ' . ($matchCount + 1) . ' kèo ' . $miniTournament->name;
+        $matchNumber = $matchCount + 1;
+
+        if ($miniTournament->match_format !== MiniTournament::MATCH_FORMAT_STANDARD) {
+            return 'Trận ' . $matchNumber . ' vòng ' . ($roundNumber ?? 1);
+        }
+
+        return 'Trận ' . $matchNumber . ' kèo ' . $miniTournament->name;
     }
 
     private function processSets(MiniMatch $match, array $setsData): void
@@ -1447,6 +1454,7 @@ class MiniMatchController extends Controller
             'team1_name' => 'nullable|string|max:255',
             'team2_name' => 'nullable|string|max:255',
             'name' => 'nullable|string|max:255',
+            'round_number' => 'nullable|integer|min:1',
             'sets' => 'nullable|array',
             'sets.*.set_number' => 'required_with:sets|integer|min:1',
             'sets.*.results' => 'required_with:sets|array|size:2',
@@ -1511,7 +1519,7 @@ class MiniMatchController extends Controller
 
                 $team1 = MiniTeam::create([
                     'mini_tournament_id' => $miniTournament->id,
-                    'name' => $data['team1_name'] ?? 'Team 1',
+                    'name' => $data['team1_name'] ?? $this->buildTeamName($data['team1'], $miniTournament->id),
                 ]);
                 foreach ($data['team1'] as $userId) {
                     $isGuest = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
@@ -1522,7 +1530,7 @@ class MiniMatchController extends Controller
 
                 $team2 = MiniTeam::create([
                     'mini_tournament_id' => $miniTournament->id,
-                    'name' => $data['team2_name'] ?? 'Team 2',
+                    'name' => $data['team2_name'] ?? $this->buildTeamName($data['team2'], $miniTournament->id),
                 ]);
                 foreach ($data['team2'] as $userId) {
                     $isGuest = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
@@ -1536,7 +1544,8 @@ class MiniMatchController extends Controller
                     'team1_id' => $team1->id,
                     'team2_id' => $team2->id,
                     'status' => MiniMatch::STATUS_PENDING,
-                    'name' => $data['name'] ?? $this->generateMatchName($miniTournament),
+                    'round_number' => $data['round_number'] ?? null,
+                    'name' => $data['name'] ?? $this->generateMatchName($miniTournament, $data['round_number'] ?? null),
                 ]);
             }
 
@@ -1581,6 +1590,27 @@ class MiniMatchController extends Controller
         foreach ($userIds as $userId) {
             SendPushJob::dispatch($userId, $title, $body, $data);
         }
+    }
+
+    private function buildTeamName(array $userIds, int $miniTournamentId): string
+    {
+        $participants = MiniParticipant::where('mini_tournament_id', $miniTournamentId)
+            ->whereIn('user_id', $userIds)
+            ->get()
+            ->keyBy('user_id');
+
+        $names = [];
+        foreach ($userIds as $userId) {
+            $p = $participants->get($userId);
+            if ($p && $p->is_guest) {
+                $names[] = $p->guest_name ?? 'Khách';
+            } else {
+                $user = User::find($userId);
+                $names[] = $user?->full_name ?? 'Người chơi';
+            }
+        }
+
+        return implode(' - ', $names);
     }
 
     /**
