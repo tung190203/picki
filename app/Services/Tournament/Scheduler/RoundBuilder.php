@@ -184,7 +184,7 @@ class RoundBuilder
             }
         }
 
-        // Fallback: greedy packing
+        // Fallback: greedy packing (correct for all cases including 4x3, 3x5, etc.)
         return self::greedyPackBipartiteRounds($males, $females);
     }
 
@@ -470,8 +470,8 @@ class RoundBuilder
      */
     public static function pairPartnershipsIntoMatches(
         array $partnerships,
-        OpponentHistoryTracker $tracker,
-        array &$byeCount
+        ?OpponentHistoryTracker $tracker = null,
+        array &$byeCount = []
     ): array {
         $matches = [];
         if (empty($partnerships)) {
@@ -486,10 +486,12 @@ class RoundBuilder
 
         $n = count($indexed);
 
-        // Fewest BYE rounds first (fairness)
-        usort($indexed, function ($a, $b) use ($byeCount) {
-            return ($byeCount[$a['key']] ?? 0) - ($byeCount[$b['key']] ?? 0);
-        });
+        // Fewest BYE rounds first (fairness) — only if tracker is available
+        if ($tracker !== null) {
+            usort($indexed, function ($a, $b) use ($byeCount) {
+                return ($byeCount[$a['key']] ?? 0) - ($byeCount[$b['key']] ?? 0);
+            });
+        }
 
         for ($i = 0; $i < $n; $i++) {
             if ($indexed[$i]['paired']) {
@@ -517,7 +519,7 @@ class RoundBuilder
                     continue;
                 }
 
-                $score = $tracker->getEncounterCount($p1Key, $p2Key);
+                $score = $tracker !== null ? $tracker->getEncounterCount($p1Key, $p2Key) : 0;
                 if ($score < $bestScore) {
                     $bestScore = $score;
                     $bestIdx = $j;
@@ -529,7 +531,9 @@ class RoundBuilder
                 $p2Key = $indexed[$bestIdx]['key'];
                 $indexed[$bestIdx]['paired'] = true;
 
-                $tracker->increment($p1Key, $p2Key);
+                if ($tracker !== null) {
+                    $tracker->increment($p1Key, $p2Key);
+                }
 
                 $matches[] = [
                     'team1_players' => self::partnershipToPlayers($p1),
