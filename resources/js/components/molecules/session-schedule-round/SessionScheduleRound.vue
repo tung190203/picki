@@ -39,34 +39,56 @@
                             <!-- Names column (stacked, one per line) -->
                             <div class="flex flex-col min-w-0 flex-1">
                                 <div class="flex flex-col">
-                                    <span v-for="(member, mi) in (match.team1?.members || [])" :key="mi"
-                                        class="text-sm font-medium text-[#3E414C] truncate leading-tight"
-                                        :class="{ 'text-gray-400': isMatchCompleted(match) }">
-                                        {{ member.full_name || 'TBD' }}
-                                    </span>
+                                    <div v-for="(member, mi) in (match.team1?.members || [])" :key="mi"
+                                        class="flex items-center gap-1">
+                                        <span class="text-sm font-medium text-[#3E414C] truncate leading-tight"
+                                            :class="{ 'text-gray-400': isMatchCompleted(match) }">
+                                            {{ member.full_name || 'TBD' }}
+                                        </span>
+                                        <span class="text-[10px] text-blue-500 shrink-0">
+                                            ({{ getVnduprScore(member) }})
+                                        </span>
+                                    </div>
                                     <span v-if="!match.team1?.members?.length" class="text-sm font-medium text-gray-400 truncate">
                                         TBD
                                     </span>
                                 </div>
-                                <!-- VN DUP per member -->
-                                <div v-if="(match.team1?.members || []).length > 0"
-                                    class="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                                    <span v-for="(member, mi) in (match.team1?.members || [])" :key="mi"
-                                        class="text-[10px] text-gray-400 leading-tight">
-                                        VN DUP: {{ getVnduprScore(member) }}
-                                    </span>
-                                </div>
+                            </div>
+                            <div v-if="isMatchCompleted(match) && match.winner_id == match.team1?.id"
+                                class="ml-1 text-[10px] px-1.5 py-0.5 bg-green-100 text-green-600 rounded font-semibold shrink-0">
+                                Thắng
                             </div>
                         </div>
 
                         <!-- Score / VS -->
-                        <div class="flex items-center gap-1.5 shrink-0">
-                            <template v-if="match.status === 'completed' && match.score_1 != null">
+                        <div class="flex items-center gap-1.5 shrink-0 flex-col">
+                            <!-- Per-set scores -->
+                            <div v-if="match.results_by_sets && Object.keys(match.results_by_sets).length > 0" class="flex flex-col items-center gap-0.5">
+                                <div class="flex items-center gap-1">
+                                    <template v-for="(setKey, idx) in getOrderedSetKeys(match)" :key="setKey">
+                                        <div class="flex items-center gap-0.5">
+                                            <span class="text-[9px] text-gray-400 leading-none">{{ formatSetLabel(setKey) }}</span>
+                                            <span class="text-[10px] font-bold"
+                                                :class="getTeamSetScoreClass(match, setKey, 'team1')">
+                                                {{ getSetScore(match, setKey, 'team1') }}
+                                            </span>
+                                            <span class="text-[8px] text-gray-300">-</span>
+                                            <span class="text-[10px] font-bold"
+                                                :class="getTeamSetScoreClass(match, setKey, 'team2')">
+                                                {{ getSetScore(match, setKey, 'team2') }}
+                                            </span>
+                                        </div>
+                                        <span v-if="idx < getOrderedSetKeys(match).length - 1" class="text-[8px] text-gray-300 mx-0.5">|</span>
+                                    </template>
+                                </div>
+                            </div>
+                            <!-- Fallback: aggregate score -->
+                            <template v-else-if="match.status === 'completed' && match.score_1 != null">
                                 <span class="text-sm font-bold"
                                     :class="match.score_1 > match.score_2 ? 'text-green-600' : 'text-gray-400'">
                                     {{ match.score_1 ?? 0 }}
                                 </span>
-                                <span class="text-gray-300">-</span>
+                                <span class="text-gray-300 text-xs">-</span>
                                 <span class="text-sm font-bold"
                                     :class="match.score_2 > match.score_1 ? 'text-green-600' : 'text-gray-400'">
                                     {{ match.score_2 ?? 0 }}
@@ -85,23 +107,24 @@
                             <!-- Names column (stacked, right-aligned) -->
                             <div class="flex flex-col min-w-0 flex-1 items-end">
                                 <div class="flex flex-col items-end">
-                                    <span v-for="(member, mi) in [...(match.team2?.members || [])]" :key="mi"
-                                        class="text-sm font-medium text-[#3E414C] truncate leading-tight text-right"
-                                        :class="{ 'text-gray-400': isMatchCompleted(match) }">
-                                        {{ member.full_name || 'TBD' }}
-                                    </span>
+                                    <div v-for="(member, mi) in [...(match.team2?.members || [])]" :key="mi"
+                                        class="flex items-center gap-1">
+                                        <span class="text-sm font-medium text-[#3E414C] truncate leading-tight text-right"
+                                            :class="{ 'text-gray-400': isMatchCompleted(match) }">
+                                            {{ member.full_name || 'TBD' }}
+                                        </span>
+                                        <span class="text-[10px] text-blue-500 shrink-0">
+                                            ({{ getVnduprScore(member) }})
+                                        </span>
+                                    </div>
                                     <span v-if="!match.team2?.members?.length" class="text-sm font-medium text-gray-400 truncate text-right">
                                         TBD
                                     </span>
                                 </div>
-                                <!-- VN DUP per member -->
-                                <div v-if="(match.team2?.members || []).length > 0"
-                                    class="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 justify-end">
-                                    <span v-for="(member, mi) in (match.team2?.members || [])" :key="mi"
-                                        class="text-[10px] text-gray-400 leading-tight">
-                                        VN DUP: {{ getVnduprScore(member) }}
-                                    </span>
-                                </div>
+                            </div>
+                            <div v-if="isMatchCompleted(match) && match.winner_id == match.team2?.id"
+                                class="mr-1 text-[10px] px-1.5 py-0.5 bg-green-100 text-green-600 rounded font-semibold shrink-0">
+                                Thắng
                             </div>
                             <!-- Avatars -->
                             <div class="flex -space-x-1.5 shrink-0">
@@ -220,14 +243,58 @@ export default {
         }
 
         const getVnduprScore = (member) => {
-            if (!member?.user?.sports?.length) return '-'
-            const sport = member.user.sports[0]
-            if (!sport?.scores) return '-'
-            if (Array.isArray(sport.scores)) {
-                const scoreRecord = sport.scores.find(sc => sc?.score_type === 'vndupr_score')
-                return scoreRecord?.score_value ?? '-'
+            const user = member?.user
+            if (!user) return '-'
+            const scores = user.sports?.[0]?.scores
+            if (!scores) return '-'
+            const vndupr = parseFloat(scores.vndupr_score)
+            const trinh = parseFloat(scores.trinh_score)
+            const hasVndupr = !isNaN(vndupr) && vndupr > 0
+            const hasTrinh = !isNaN(trinh) && trinh > 0
+            if (hasVndupr && hasTrinh) return `${vndupr.toFixed(3)} / ${trinh.toFixed(3)}`
+            if (hasVndupr) return vndupr.toFixed(3)
+            if (hasTrinh) return trinh.toFixed(3)
+            return '-'
+        }
+
+        const getOrderedSetKeys = (match) => {
+            if (!match.results_by_sets) return []
+            return Object.keys(match.results_by_sets).sort((a, b) => {
+                const numA = parseInt(a.replace('set', ''))
+                const numB = parseInt(b.replace('set', ''))
+                return numA - numB
+            })
+        }
+
+        const getSetScore = (match, setKey, team) => {
+            const r = match.results_by_sets?.[setKey]
+            if (!Array.isArray(r)) return '-'
+            const teamId = team === 'team1' ? match.team1?.id : match.team2?.id
+            const result = r.find(item => item.team?.id === teamId)
+            return result?.score ?? '-'
+        }
+
+        const getTeamSetScoreClass = (match, setKey, team) => {
+            const r = match.results_by_sets?.[setKey]
+            if (!Array.isArray(r) || r.length < 2) return 'text-gray-400'
+            const team1Id = match.team1?.id
+            const team2Id = match.team2?.id
+            const r1 = r.find(item => item.team?.id === team1Id)
+            const r2 = r.find(item => item.team?.id === team2Id)
+            const s1 = r1?.score ?? -1
+            const s2 = r2?.score ?? -1
+            if (s1 < 0 || s2 < 0) return 'text-gray-400'
+            if (team === 'team1') {
+                return s1 > s2 ? 'text-green-600' : 'text-gray-400'
+            } else {
+                return s2 > s1 ? 'text-green-600' : 'text-gray-400'
             }
-            return sport.scores.vndupr_score ?? '-'
+        }
+
+        const formatSetLabel = (setKey) => {
+            const num = parseInt(setKey.replace('set', ''))
+            const labels = ['Set 1', 'Set 2', 'Set 3']
+            return labels[num - 1] || `Set ${num}`
         }
 
         return {
@@ -238,6 +305,10 @@ export default {
             getMatchStatusLabel,
             formatTime,
             getVnduprScore,
+            getOrderedSetKeys,
+            getSetScore,
+            getTeamSetScoreClass,
+            formatSetLabel,
         }
     },
 }

@@ -94,10 +94,11 @@ class MiniMatchController extends Controller
 
         // Load matches with only the relations actually needed by MiniMatchResource.
         // Avoid withFullRelations() which loads heavy relations (sports/scores, clubs,
-        // competitionLocation, results) that are not rendered in round-based formats.
+        // competitionLocation) that are not rendered in round-based formats.
         $baseQuery = MiniMatch::with([
-            'team1.members.user',
-            'team2.members.user',
+            'team1.members.user.sports.scores',
+            'team2.members.user.sports.scores',
+            'results.team.members.user',
         ])
             ->where('mini_tournament_id', $miniTournament->id);
 
