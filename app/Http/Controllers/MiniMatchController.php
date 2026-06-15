@@ -381,7 +381,7 @@ class MiniMatchController extends Controller
         try {
             $team1 = MiniTeam::create([
                 'mini_tournament_id' => $miniTournament->id,
-                'name' => $data['team1_name'] ?? 'Team 1',
+                'name' => $data['team1_name'] ?? $this->buildTeamName($data['team1'], $miniTournament->id),
             ]);
 
             foreach ($data['team1'] as $userId) {
@@ -393,7 +393,7 @@ class MiniMatchController extends Controller
 
             $team2 = MiniTeam::create([
                 'mini_tournament_id' => $miniTournament->id,
-                'name' => $data['team2_name'] ?? 'Team 2',
+                'name' => $data['team2_name'] ?? $this->buildTeamName($data['team2'], $miniTournament->id),
             ]);
 
             foreach ($data['team2'] as $userId) {
@@ -1512,7 +1512,7 @@ class MiniMatchController extends Controller
 
                 $team1 = MiniTeam::create([
                     'mini_tournament_id' => $miniTournament->id,
-                    'name' => $data['team1_name'] ?? 'Team 1',
+                    'name' => $data['team1_name'] ?? $this->buildTeamName($data['team1'], $miniTournament->id),
                 ]);
                 foreach ($data['team1'] as $userId) {
                     $isGuest = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
@@ -1523,7 +1523,7 @@ class MiniMatchController extends Controller
 
                 $team2 = MiniTeam::create([
                     'mini_tournament_id' => $miniTournament->id,
-                    'name' => $data['team2_name'] ?? 'Team 2',
+                    'name' => $data['team2_name'] ?? $this->buildTeamName($data['team2'], $miniTournament->id),
                 ]);
                 foreach ($data['team2'] as $userId) {
                     $isGuest = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
@@ -1582,6 +1582,27 @@ class MiniMatchController extends Controller
         foreach ($userIds as $userId) {
             SendPushJob::dispatch($userId, $title, $body, $data);
         }
+    }
+
+    private function buildTeamName(array $userIds, int $miniTournamentId): string
+    {
+        $participants = MiniParticipant::where('mini_tournament_id', $miniTournamentId)
+            ->whereIn('user_id', $userIds)
+            ->get()
+            ->keyBy('user_id');
+
+        $names = [];
+        foreach ($userIds as $userId) {
+            $p = $participants->get($userId);
+            if ($p && $p->is_guest) {
+                $names[] = $p->guest_name ?? 'Khách';
+            } else {
+                $user = User::find($userId);
+                $names[] = $user?->full_name ?? 'Người chơi';
+            }
+        }
+
+        return implode(' - ', $names);
     }
 
     /**
