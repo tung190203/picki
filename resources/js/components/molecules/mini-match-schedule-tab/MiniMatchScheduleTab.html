@@ -657,13 +657,7 @@
             </div>
 
             <!-- Actions -->
-            <div class="mt-4" v-if="effectiveSessionStatus === SESSION_STATUS.ONGOING && props.isCreator">
-                <button @click="finishSession"
-                    class="w-full py-3 rounded-xl text-sm font-semibold bg-[#D72D36] text-white hover:bg-red-700 transition">
-                    Kết thúc Session
-                </button>
-            </div>
-            <div class="mt-4" v-else-if="effectiveSessionStatus === SESSION_STATUS.PENDING_GROUP && props.isCreator">
+            <div class="mt-4" v-if="effectiveSessionStatus === SESSION_STATUS.PENDING_GROUP && props.isCreator">
                 <button @click="onCreateSchedule"
                     class="w-full py-3 rounded-xl text-sm font-semibold bg-[#D72D36] text-white hover:bg-red-700 transition flex items-center justify-center gap-2">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -715,8 +709,8 @@
     </div>
 </div>
 
-<CreateMiniMatch v-model="showCreateMiniMatchModal" :miniTournament="props.data" :isCreator="props.isCreator"  @created="onMiniMatchCreated"/>
-<CreateMiniMatch v-model="showRRMatchModal" :miniTournament="props.data" :isCreator="props.isCreator" :match="sessionRRMatch" @created="onSessionMatchUpdated" />
+<CreateMiniMatch v-model="showCreateMiniMatchModal" :miniTournament="props.data" :isCreator="props.isCreator" :roundNumber="currentRound" @created="onMiniMatchCreated"/>
+<CreateMiniMatch v-model="showRRMatchModal" :miniTournament="props.data" :isCreator="props.isCreator" :match="sessionRRMatch" :roundNumber="sessionRRMatch?.round_number" @created="onSessionMatchUpdated" />
 <UpdateMiniMatch v-model="showUpdateMiniMatchModal" :data="detailData" :miniTournament="props.data" :isCreator="props.isCreator" @updated="onMiniMatchCreated" />
 <DeleteConfirmationModal v-model="showDeleteModal" title="Xác nhận hủy bỏ kèo đấu"
         message="Thao tác này không thể hoàn tác." confirmButtonText="Xác nhận" @confirm="cancelSelectedMiniMatches" />

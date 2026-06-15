@@ -1358,10 +1358,16 @@ class MiniMatchController extends Controller
         );
     }
 
-    private function generateMatchName(MiniTournament $miniTournament): string
+    private function generateMatchName(MiniTournament $miniTournament, ?int $roundNumber = null): string
     {
         $matchCount = MiniMatch::where('mini_tournament_id', $miniTournament->id)->count();
-        return 'Trận ' . ($matchCount + 1) . ' kèo ' . $miniTournament->name;
+        $matchNumber = $matchCount + 1;
+
+        if ($miniTournament->match_format !== MiniTournament::MATCH_FORMAT_STANDARD) {
+            return 'Trận ' . $matchNumber . ' vòng ' . ($roundNumber ?? 1);
+        }
+
+        return 'Trận ' . $matchNumber . ' kèo ' . $miniTournament->name;
     }
 
     private function processSets(MiniMatch $match, array $setsData): void
@@ -1448,6 +1454,7 @@ class MiniMatchController extends Controller
             'team1_name' => 'nullable|string|max:255',
             'team2_name' => 'nullable|string|max:255',
             'name' => 'nullable|string|max:255',
+            'round_number' => 'nullable|integer|min:1',
             'sets' => 'nullable|array',
             'sets.*.set_number' => 'required_with:sets|integer|min:1',
             'sets.*.results' => 'required_with:sets|array|size:2',
@@ -1537,7 +1544,8 @@ class MiniMatchController extends Controller
                     'team1_id' => $team1->id,
                     'team2_id' => $team2->id,
                     'status' => MiniMatch::STATUS_PENDING,
-                    'name' => $data['name'] ?? $this->generateMatchName($miniTournament),
+                    'round_number' => $data['round_number'] ?? null,
+                    'name' => $data['name'] ?? $this->generateMatchName($miniTournament, $data['round_number'] ?? null),
                 ]);
             }
 
