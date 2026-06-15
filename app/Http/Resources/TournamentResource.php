@@ -95,6 +95,8 @@ class TournamentResource extends JsonResource
                 ];
             }),
             'zalo_link' => $this->zalo_link,
+            'main_phone' => $this->main_phone,
+            'sub_phone' => $this->sub_phone,
         ];
     }
 }

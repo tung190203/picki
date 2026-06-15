@@ -506,6 +506,24 @@
                                     placeholder="https://zalo.me/..."
                                     class="w-full px-3 py-2 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]" />
                             </div>
+
+                            <!-- Số điện thoại liên hệ -->
+                            <div>
+                                <p class="text-sm text-gray-600 font-medium block mb-1">
+                                    Số điện thoại liên hệ <span class="text-red-500">*</span>
+                                </p>
+                                <input v-model="mainPhone" type="tel"
+                                    placeholder="VD: 0912 345 678"
+                                    class="w-full px-3 py-2 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]" />
+                            </div>
+
+                            <!-- Số điện thoại phụ -->
+                            <div>
+                                <p class="text-sm text-gray-600 font-medium block mb-1">Số điện thoại phụ</p>
+                                <input v-model="subPhone" type="tel"
+                                    placeholder="VD: 0912 345 678"
+                                    class="w-full px-3 py-2 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]" />
+                            </div>
                         </template>
                     </div>
                 </div>
@@ -870,6 +888,8 @@ const qrCodeImage = ref(null)
 const qrFileInput = ref(null)
 const useCachedQr = ref(false)
 const zaloLink = ref('')
+const mainPhone = ref('')
+const subPhone = ref('')
 const posterFile = ref(null)
 const posterPreview = ref(null)
 const posterInputRef = ref(null)
@@ -1208,6 +1228,8 @@ const handleSubmit = async () => {
         fee_description: feeDescription.value || null,
         qr_code_url: qrCodeImage.value || null,
         zalo_link: zaloLink.value || null,
+        main_phone: mainPhone.value || null,
+        sub_phone: subPhone.value || null,
         is_public_branch: isPublicBranch.value,
         is_own_score: isOwnScore.value,
         creator_join: creatorJoin.value,
@@ -1310,6 +1332,8 @@ const prefillForm = (data) => {
     qrCodeImage.value = data.qr_code_url || null
     qrCodePreview.value = buildImageUrl(data.qr_code_url)
     zaloLink.value = data.zalo_link || ''
+    mainPhone.value = data.main_phone || ''
+    subPhone.value = data.sub_phone || ''
 
     posterPreview.value = buildImageUrl(data.poster)
 
@@ -1373,6 +1397,8 @@ const applyTemplate = (template) => {
     qrCodeImage.value = s.qr_code_url || null
     qrCodePreview.value = buildImageUrl(s.qr_code_url)
     zaloLink.value = s.zalo_link || ''
+    mainPhone.value = s.main_phone || ''
+    subPhone.value = s.sub_phone || ''
 
     isPrivate.value = !!s.is_private
     autoApprove.value = !!s.auto_approve
@@ -1419,6 +1445,8 @@ const buildTemplateSettings = () => {
         fee_description: feeDescription.value || null,
         qr_code_url: qrCodeImage.value || null,
         zalo_link: zaloLink.value || null,
+        main_phone: mainPhone.value || null,
+        sub_phone: subPhone.value || null,
         is_public_branch: isPublicBranch.value,
         is_own_score: isOwnScore.value,
     }

@@ -72,27 +72,16 @@ class RankPairingScheduler
             }
         }
 
-        $aMatchCount = array_fill_keys($aIds, 0);
-        $bMatchCount = array_fill_keys($bIds, 0);
-
-        foreach ($allMatches as $match) {
-            if (!empty($match['is_bye'])) {
-                continue;
-            }
-            foreach ($match['team1_players'] as $pid) {
-                if (isset($aMatchCount[$pid])) {
-                    $aMatchCount[$pid]++;
-                } elseif (isset($bMatchCount[$pid])) {
-                    $bMatchCount[$pid]++;
-                }
-            }
-            foreach ($match['team2_players'] as $pid) {
-                if (isset($aMatchCount[$pid])) {
-                    $aMatchCount[$pid]++;
-                } elseif (isset($bMatchCount[$pid])) {
-                    $bMatchCount[$pid]++;
-                }
-            }
+        // Stats: use theoretical counts from spec, not actual match counting.
+        // "Mỗi A ghép với mỗi B đúng 1 lần" → each A plays nb matches,
+        // each B plays na matches. This is guaranteed by BipartiteRoundRobinService.
+        $aMatchCount = [];
+        foreach ($aIds as $aid) {
+            $aMatchCount[$aid] = $nb;
+        }
+        $bMatchCount = [];
+        foreach ($bIds as $bid) {
+            $bMatchCount[$bid] = $na;
         }
 
         $unbalancedNotice = null;

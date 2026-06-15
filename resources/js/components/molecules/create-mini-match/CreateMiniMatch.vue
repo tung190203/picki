@@ -33,7 +33,8 @@ export default {
         isCreator: Boolean,
         match: { type: Object, default: null },
         editMatch: { type: Object, default: null },
-        matchCount: { type: Number, default: 0 }
+        matchCount: { type: Number, default: 0 },
+        roundNumber: { type: Number, default: null }
     },
 
     setup(props, {emit}) {
@@ -121,6 +122,9 @@ export default {
         const defaultMatchName = computed(() => {
             const count = props.matchCount + 1
             const name = props.miniTournament?.name || ''
+            if (props.roundNumber && isRRSessionFormat.value) {
+                return `Trận ${count} vòng ${props.roundNumber}`
+            }
             return `Trận ${count} kèo ${name}`
         })
 
@@ -176,6 +180,10 @@ export default {
             const sets = formatSetsForAPI()
             if (sets.length > 0) {
                 payload.sets = sets
+            }
+
+            if (props.roundNumber && isRRSessionFormat.value) {
+                payload.round_number = props.roundNumber
             }
 
             return payload

@@ -46,12 +46,12 @@ class MiniTeamResource extends JsonResource
                         if ($user->relationLoaded('sports')) {
                             foreach ($user->sports as $sport) {
                                 $scores = $sport->relationLoaded('scores') ? $sport->scores : collect();
-                                $types = ['personal_score', 'dupr_score', 'vndupr_score'];
+                                $types = ['personal_score', 'dupr_score', 'vndupr_score', 'trinh_score'];
                                 $formattedScores = [];
                                 foreach ($types as $type) {
                                     $latestScore = $scores->where('score_type', $type)->sortByDesc('created_at')->first();
                                     $scoreValue = $latestScore ? $latestScore->score_value : 0;
-                                    $formattedScores[$type] = number_format($scoreValue, 3);
+                                    $formattedScores[$type] = number_format((float) $scoreValue, 3);
                                 }
                                 // Guest override vndupr_score
                                 if ($isGuest) {
