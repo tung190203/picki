@@ -17,7 +17,7 @@
                   Number(homeData.user_info?.sports[0]?.scores?.vndupr_score || 0).toFixed(2)
                   }}
                 </div>
-                <div class="cursor-pointer hover:opacity-80 transition-opacity" @click="scrollToLeaderboard">
+                <div class="cursor-pointer hover:opacity-80 transition-opacity" @click="navigateTo('/leaderboard')">
                   <div class="opacity-90 mb-1 text-[32px] font-semibold">VN RANK</div>
                   <div class="text-5xl font-bold leading-none text-[100px]">{{
                     // Number(homeData.user_info?.sports[0]?.scores.dupr_score || 0).toFixed(2)
@@ -194,6 +194,76 @@
             </SwiperSlide>
           </Swiper>
         </section>
+
+        <!-- CLB của tôi -->
+        <div class="bg-white rounded-2xl p-5"
+          style="box-shadow: 0 2px 12px rgba(0,0,0,0.06)">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <h3 class="font-semibold text-gray-900 text-base">CLB của tôi</h3>
+              <span v-if="homeData.my_club?.length"
+                class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-50 text-red-600 text-xs font-semibold">
+                {{ homeData.my_club.length }}
+              </span>
+            </div>
+            <button
+              class="flex items-center text-sm text-[#D72D36] font-medium hover:text-red-700 transition-colors"
+              @click="navigateTo('/club')">
+              Xem tất cả
+              <ArrowUpRightIcon class="w-4 h-4 ml-1" />
+            </button>
+          </div>
+
+          <template v-if="!homeData?.my_club?.length">
+            <div class="min-h-[120px] flex flex-col items-center justify-center text-gray-400 text-sm gap-2">
+              <svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              Bạn chưa tham gia CLB nào
+            </div>
+          </template>
+
+          <div v-else class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div
+              v-for="club in homeData.my_club"
+              :key="club.id"
+              class="group rounded-2xl p-4 flex flex-col items-center text-center cursor-pointer transition-all duration-200"
+              style="background: #F8F9FC; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
+              @mouseenter="hoveredClub = club.id"
+              @mouseleave="hoveredClub = null"
+              :style="hoveredClub === club.id ? 'background: #FFFFFF; box-shadow: 0 8px 24px rgba(0,0,0,0.10); transform: translateY(-2px);' : ''"
+              @click="navigateTo(`/club/${club.id}`)">
+              <img
+                v-if="club.logo_url"
+                :src="getClubLogoUrl(club.logo_url)"
+                :alt="club.name"
+                class="w-14 h-14 rounded-2xl object-cover mb-3 bg-gray-100"
+                @error="e => { e.target.style.display = 'none'; e.target.nextElementSibling.style.display = 'flex'; }" />
+              <div
+                v-if="club.logo_url"
+                class="hidden w-14 h-14 rounded-2xl object-cover mb-3 bg-gradient-to-br from-red-100 to-red-200 text-red-600 font-bold text-xl items-center justify-center">
+                {{ club.name.charAt(0).toUpperCase() }}
+              </div>
+              <div
+                v-if="!club.logo_url"
+                class="w-14 h-14 rounded-2xl mb-3 bg-gradient-to-br from-red-100 to-red-200 text-red-600 font-bold text-xl flex items-center justify-center">
+                {{ club.name.charAt(0).toUpperCase() }}
+              </div>
+              <span class="text-sm font-semibold text-gray-900 line-clamp-1 w-full">{{ club.name }}</span>
+              <span class="text-xs text-gray-400 mt-0.5">{{ club.quantity_members }} thành viên</span>
+              <div v-if="club.skill_level?.max"
+                class="mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full"
+                style="background: rgba(67, 146, 224, 0.1);">
+                <svg class="w-3 h-3 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+                <span class="text-xs font-semibold text-[#4392E0]">{{ club.skill_level.max.toFixed(2) }}</span>
+              </div>
+              <div v-else class="mt-2 h-5"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="space-y-6">
@@ -234,97 +304,7 @@
             Không có banner
           </div>
         </div>
-        <div class="bg-white rounded-[8px] shadow p-5" ref="leaderboardSection">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="font-semibold text-gray-900 text-base">Top 50 người chơi</h3>
-            <div
-              class="flex items-center text-sm text-gray-600 ml-4 cursor-pointer hover:text-gray-800 bg-[#FFFFFF] p-1.5 rounded-full shadow-md">
-              <ArrowUpRightIcon class="w-4 h-4 text-gray-[#838799]" />
-            </div>
-          </div>
-          <div class="min-h-[668px] flex flex-col transition-all duration-300">
-            <Transition name="list-fade" mode="out-in">
-              <ul v-if="paginatedLeaderboard.length" :key="currentPage" class="space-y-3 flex-1">
-                <li v-for="f in paginatedLeaderboard" :key="f.id"
-                  class="flex items-center justify-between py-2 cursor-pointer hover:bg-gray-100 rounded-md px-3 transition-colors" @click="goToProfile(f.id)">
-                  <div class="flex items-center space-x-3">
-                    <div class="relative">
-                      <img :src="f.avatar_url || defaultAvatar" @error="e => e.target.src = defaultAvatar"
-                        class="w-10 h-10 rounded-full object-cover" />
-                        <template v-if="f.is_anchor === true">
-                          <AnchorIcon class="absolute -bottom-1 -right-1 w-4 h-4 bg-white rounded-full border-2 border-white text-[#4392E0]" />
-                        </template>
-                        <template v-else-if="f.is_verify === true">
-                          <VerifyIcon class="absolute -bottom-1 -right-1 w-4 h-4 bg-white rounded-full border-2 border-white text-[#4392E0]" />
-                        </template>
-                    </div>
-                    <div class="flex flex-col">
-                      <span class="text-sm font-semibold text-gray-800">{{ f.full_name }}</span>
-                    </div>
-                  </div>
-
-                  <div class="flex items-center space-x-6 text-right">
-                    <div class="flex flex-col items-center justify-between min-w-[64px] min-h-[52px]">
-                      <p class="text-[10px] font-semibold text-[#4392E0] tracking-tight">Xếp hạng</p>
-                      <div class="flex items-center justify-center h-[36px]">
-                        <img v-if="f.rank === 1" :src="Rank1Icon" alt="1st" class="w-10 h-10 object-contain" />
-                        <img v-else-if="f.rank === 2" :src="Rank2Icon" alt="2nd" class="w-10 h-10 object-contain" />
-                        <img v-else-if="f.rank === 3" :src="Rank3Icon" alt="3rd" class="w-10 h-10 object-contain" />
-                        <span v-else class="text-xs text-gray-500 leading-tight">{{ f.rank }}</span>
-                      </div>
-                    </div>
-                    <div class="flex flex-col items-center justify-between min-w-[64px] min-h-[52px]">
-                      <p class="text-[10px] font-semibold text-[#4392E0] tracking-tight">Điểm trình</p>
-                      <div class="flex items-center justify-center h-[36px]">
-                        <span class="text-xs text-gray-500 leading-tight">
-                          {{ Number(f.sports[0]?.scores?.vndupr_score || 0).toFixed(2) }}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </li>
-              </ul>
-              <div v-else :key="'empty'" class="text-center text-sm text-gray-500 py-3 flex-1 flex items-center justify-center min-h-[668px]">
-                Chưa có người chơi nào trong top 50
-              </div>
-            </Transition>
-          </div>
-
-          <!-- Pagination Controls -->
-          <div v-if="homeData.leaderboard?.length > itemsPerPage" class="mt-6 flex items-center justify-center space-x-2">
-            <button
-              @click="currentPage--"
-              :disabled="currentPage === 1"
-              class="p-2 rounded-full hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronLeftIcon class="w-5 h-5 text-gray-600" />
-            </button>
-
-            <div class="flex items-center space-x-1">
-              <button
-                v-for="page in totalPages"
-                :key="page"
-                @click="currentPage = page"
-                :class="[
-                  'w-8 h-8 rounded-full text-sm font-medium transition-all',
-                  currentPage === page
-                    ? 'bg-red-600 text-white shadow-md'
-                    : 'text-gray-600 hover:bg-gray-100'
-                ]"
-              >
-                {{ page }}
-              </button>
-            </div>
-
-            <button
-              @click="currentPage++"
-              :disabled="currentPage === totalPages"
-              class="p-2 rounded-full hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRightIcon class="w-5 h-5 text-gray-600" />
-            </button>
-          </div>
-        </div>
+        <LeaderboardSection />
       </div>
     </div>
   </div>
@@ -459,7 +439,7 @@
   />
 </template>
 <script setup>
-import { onMounted, ref, computed, nextTick } from "vue";
+import { onMounted, ref, computed, nextTick, provide } from "vue";
 import { useRouter } from 'vue-router'
 import { toast } from "vue3-toastify";
 import {
@@ -471,9 +451,7 @@ import {
   BellAlertIcon,
   ArrowUpRightIcon,
   PencilIcon,
-  XMarkIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon
+  XMarkIcon
 } from "@heroicons/vue/24/outline";
 import QRcodeModal from '@/components/molecules/QRcodeModal.vue'
 import { MapPinIcon, CalendarDaysIcon } from "@heroicons/vue/24/solid";
@@ -489,11 +467,8 @@ import Background from "@/assets/images/dashboard-bg.svg?url";
 import { useUserStore } from "@/store/auth";
 import { storeToRefs } from "pinia";
 import VerifyIcon from "@/assets/images/verify-icon.svg";
-import AnchorIcon from "@/assets/images/anchor.svg";
-import Rank1Icon from "@/assets/ranking/1st.png";
-import Rank2Icon from "@/assets/ranking/2nd.png";
-import Rank3Icon from "@/assets/ranking/3rd.png";
 import PromotionModal from "@/components/organisms/PromotionModal.vue";
+import LeaderboardSection from "./LeaderboardSection.vue";
 
 const userStore = useUserStore();
 const { getUser } = storeToRefs(userStore);
@@ -502,45 +477,28 @@ const modules = [Autoplay, Pagination, FreeMode, Mousewheel];
 const BASE_STORAGE_URL = 'http://localhost:8000/storage/';
 const BASE_FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL;
 const homeData = ref({});
+provide('myClubs', computed(() => homeData.value?.my_club || []));
 const isChoosingQrAction = ref(false);
 const isShowingScanner = ref(false);
 const isShowingMyQr = ref(false);
-const defaultAvatar = "/images/default-avatar.png";
 // KHAI BÁO BIẾN TRẠNG THÁI MỚI CHO LOGIC QR
 const isShowingConfirmation = ref(false);
 const decodedQrCode = ref('');
 const isPromotionModalOpen = ref(false);
 const selectedPromotionMiniId = ref(null);
+const hoveredClub = ref(null);
 // KẾT THÚC KHAI BÁO MỚI
 let html5QrCode = null;
 const profileLink = computed(() => {
   return getUser.value ? `${BASE_FRONTEND_URL}/profile/${getUser.value.id}` : '';
 });
 
-const leaderboardSection = ref(null);
-const scrollToLeaderboard = () => {
-  leaderboardSection.value?.scrollIntoView({ behavior: 'smooth' });
-};
-
 const features = [
   { label: "CLB", icon: UserGroupIcon, route: '/club' },
   { label: "Tạo trận đấu nhanh", icon: PlusCircleIcon, route: '/quick-match/create' },
   { label: "Tìm sân", icon: MapPinIconOutline, route: '/map' },
-  { label: "Xếp hạng", icon: ChartBarIcon, action: scrollToLeaderboard },
+  { label: "Xếp hạng", icon: ChartBarIcon, route: '/leaderboard' },
 ];
-const itemsPerPage = 10;
-const currentPage = ref(1);
-
-const totalPages = computed(() => {
-  return Math.ceil((homeData.value.leaderboard?.length || 0) / itemsPerPage);
-});
-
-const paginatedLeaderboard = computed(() => {
-  if (!homeData.value.leaderboard) return [];
-  const start = (currentPage.value - 1) * itemsPerPage;
-  const end = start + itemsPerPage;
-  return homeData.value.leaderboard.slice(start, end);
-});
 
 const getPerformanceLevel = computed(() => {
   const performance = homeData.value?.user_info?.performance || 0;
@@ -782,6 +740,12 @@ const isMiniOrganizer = (mini) => {
 };
 
 
+const getClubLogoUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  return BASE_STORAGE_URL + url;
+};
+
 const getBannerUrl = (url) => {
   if (url && (url.startsWith('http') || url.startsWith('https'))) {
     return url;
@@ -826,11 +790,6 @@ function goToMiniTournamentDetail(id) {
 function goToTournamentDetail(id) {
   if (!id) return
   router.push({ name: 'tournament-detail', params: { id } })
-}
-
-function goToProfile(id) {
-  if (!id) return
-  router.push({ name: 'profile', params: { id } })
 }
 
 function navigateTo(route) {

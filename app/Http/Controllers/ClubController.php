@@ -250,6 +250,21 @@ class ClubController extends Controller
         return ResponseHelper::success(ClubResource::collection($clubs), 'Lấy danh sách câu lạc bộ của tôi thành công');
     }
 
+    public function myJoinedClubs(Request $request)
+    {
+        $userId = auth()->id();
+
+        $clubs = Club::whereHas('members', function ($q) use ($userId) {
+            $q->where('user_id', $userId)
+              ->where('membership_status', ClubMembershipStatus::Joined);
+        })
+        ->select('id', 'name', 'logo_url', 'is_verified')
+        ->orderBy('name')
+        ->get();
+
+        return ResponseHelper::success($clubs, 'Lấy danh sách câu lạc bộ đã tham gia thành công');
+    }
+
     public function getProfile($clubId)
     {
         $club = Club::with(['profile', 'creator'])->findOrFail($clubId);

@@ -909,6 +909,20 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
      *                           Nếu false: loại bỏ tournament private (khi xem profile người khác),
      *                           đồng thời loại bỏ ongoing tournament để align với list API.
      */
+    public static function getSuccessfulOrganizedMiniTournamentsCount(int $userId): int
+    {
+        return DB::table('mini_tournament_staff as mts')
+            ->join('mini_tournaments as mnt', 'mnt.id', '=', 'mts.mini_tournament_id')
+            ->join('mini_participants as mp', 'mp.mini_tournament_id', '=', 'mnt.id')
+            ->where('mts.user_id', $userId)
+            ->where('mts.role', MiniTournamentStaff::ROLE_ORGANIZER)
+            ->where('mnt.status', '!=', MiniTournament::STATUS_DRAFT)
+            ->where('mnt.status', '!=', MiniTournament::STATUS_CANCELLED)
+            ->where('mp.is_confirmed', 1)
+            ->distinct('mnt.id')
+            ->count('mnt.id');
+    }
+
     public static function getSportStats(int $userId, int $sportId, bool $isOwnProfile = true): array
     {
         // Tournament matches - tách home và away

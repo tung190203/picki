@@ -150,6 +150,7 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
         Route::get('/', [ClubController::class, 'index']);
         Route::post('/', [ClubController::class, 'store']);
         Route::get('/my-clubs', [ClubController::class, 'myClubs']);
+        Route::get('/my-joined-clubs', [ClubController::class, 'myJoinedClubs']);
         Route::get('/my-invitations', [ClubJoinRequestController::class, 'myInvitations']);
         Route::get('/search-location', [ClubController::class, 'searchLocation']);
         Route::get('/location-detail', [ClubController::class, 'detailGooglePlace']);
