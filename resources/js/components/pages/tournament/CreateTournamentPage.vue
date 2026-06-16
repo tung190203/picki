@@ -498,33 +498,36 @@
                                     placeholder="VD: STK, tên TK, nội dung chuyển khoản..."
                                     class="w-full px-3 py-2 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2] resize-none"></textarea>
                             </div>
+                        </template>
 
-                            <!-- Zalo Link -->
-                            <div>
+                        <!-- Thông tin liên hệ - luôn hiển thị -->
+                        <div class="pt-3 border-t border-[#DCDEE6]">
+                            <p class="text-sm font-bold text-[#838799] uppercase tracking-wide mb-3">Thông tin liên hệ</p>
+
+                            <!-- Link Zalo -->
+                            <div class="mb-3">
                                 <p class="text-sm text-gray-600 font-medium block mb-1">Link Zalo</p>
                                 <input v-model="zaloLink" type="url"
                                     placeholder="https://zalo.me/..."
                                     class="w-full px-3 py-2 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]" />
                             </div>
 
-                            <!-- Số điện thoại liên hệ -->
-                            <div>
-                                <p class="text-sm text-gray-600 font-medium block mb-1">
-                                    Số điện thoại liên hệ <span class="text-red-500">*</span>
-                                </p>
+                            <!-- Số điện thoại liên hệ chính -->
+                            <div class="mb-3">
+                                <p class="text-sm text-gray-600 font-medium block mb-1">Số điện thoại liên hệ chính</p>
                                 <input v-model="mainPhone" type="tel"
                                     placeholder="VD: 0912 345 678"
                                     class="w-full px-3 py-2 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]" />
                             </div>
 
-                            <!-- Số điện thoại phụ -->
+                            <!-- Số điện thoại liên hệ phụ -->
                             <div>
-                                <p class="text-sm text-gray-600 font-medium block mb-1">Số điện thoại phụ</p>
+                                <p class="text-sm text-gray-600 font-medium block mb-1">Số điện thoại liên hệ phụ</p>
                                 <input v-model="subPhone" type="tel"
                                     placeholder="VD: 0912 345 678"
                                     class="w-full px-3 py-2 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]" />
                             </div>
-                        </template>
+                        </div>
                     </div>
                 </div>
 

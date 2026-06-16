@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\ResponseHelper;
-use App\Http\Resources\ListClubResource;
 use App\Http\Resources\TeamLeaderboardResource;
 use App\Models\Club\Club;
 use App\Models\Participant;
@@ -501,18 +500,31 @@ class LeaderboardController extends Controller
             ->with(['members.user.vnduprScores'])
             ->get()
             ->map(function ($club) {
-                $club->max_score = $club->members
+                $club->max_score = (float) ($club->members
                     ->map(fn($m) => $m->user?->vnduprScores?->max('score_value') ?? 0)
-                    ->max() ?? 0;
+                    ->max() ?? 0);
                 return $club;
             })
             ->sortByDesc('max_score');
 
         $total = $query->count();
-        $paginated = $query->forPage($page, $perPage)->values();
+        $offset = ($page - 1) * $perPage;
+        $paginated = $query->slice($offset, $perPage)->values();
+
+        $items = $paginated->map(function ($club, $index) use ($page, $perPage) {
+            return [
+                'id'               => $club->id,
+                'name'             => $club->name,
+                'logo_url'         => $club->logo_url,
+                'is_verified'      => (bool) $club->is_verified,
+                'quantity_members' => $club->members->count(),
+                'max_score'        => $club->max_score,
+                'rank'             => ($page - 1) * $perPage + $index + 1,
+            ];
+        });
 
         return [
-            'items'     => ListClubResource::collection($paginated),
+            'items'     => $items,
             'total'     => $total,
             'last_page' => (int) ceil($total / $perPage),
         ];
