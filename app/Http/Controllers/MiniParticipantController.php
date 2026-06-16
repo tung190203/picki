@@ -1023,6 +1023,10 @@ class MiniParticipantController extends Controller
             return ResponseHelper::error('Bạn không có quyền mời người tham gia.', 403);
         }
 
+        if ($miniTournament->is_invited_around) {
+            return ResponseHelper::error('Bạn đã mời người xung quanh cho kèo này rồi. Không thể mời thêm.', 422);
+        }
+
         $validated = $request->validate([
             'friend_only' => 'sometimes|boolean',
             'lat'         => 'sometimes|numeric',
@@ -1269,6 +1273,8 @@ class MiniParticipantController extends Controller
 
             $currentRadius += $radiusStep;
         }
+
+        $miniTournament->update(['is_invited_around' => true]);
 
         return ResponseHelper::success([
             'invited_count' => count($invitedUserIds),
