@@ -77,7 +77,7 @@ class StoreTournamentRequest extends FormRequest
                 },
             ],
             'zalo_link' => 'nullable|url',
-            'main_phone' => 'required|string|max:20|regex:/^[0-9\+\-\s\(\)]+$/',
+            'main_phone' => 'nullable|string|max:20|regex:/^[0-9\+\-\s\(\)]+$/',
             'sub_phone' => 'nullable|string|max:20|regex:/^[0-9\+\-\s\(\)]+$/',
         ];
     }

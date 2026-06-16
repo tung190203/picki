@@ -394,13 +394,14 @@ const handleLogout = async () => {
 };
 
 const loadData = async () => {
-  const res = await NotificationService.getNotifications({
-    type: 'all',
-    page: 1,
-    per_page: 1,
-  })
-
-  hasNotification.value = res.meta.unread_count > 0;
+  try {
+    const res = await NotificationService.getNotifications({
+      type: 'all',
+      page: 1,
+      per_page: 1,
+    })
+    hasNotification.value = res.meta.unread_count > 0;
+  } catch {}
 }
 
 const mobileLinkClass = (path) => {

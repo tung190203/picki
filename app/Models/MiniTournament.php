@@ -63,6 +63,7 @@ class MiniTournament extends Model
         'session_status',
         'scheduled_court_count',
         'is_session_started',
+        'is_invited_around',
     ];
 
     protected $casts = [
@@ -75,6 +76,7 @@ class MiniTournament extends Model
         'enable_dupr' => 'bool',
         'scheduled_court_count' => 'integer',
         'is_session_started' => 'boolean',
+        'is_invited_around' => 'boolean',
     ];
 
     const PER_PAGE = 15;
@@ -573,6 +575,33 @@ class MiniTournament extends Model
             (int) $staff->pivot->user_id === $userId
                 && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ORGANIZER
         );
+    }
+
+    private const REQUIRED_ORGANIZED_TOURNAMENTS = 3;
+
+    public function canInviteAround(): bool
+    {
+        if ($this->is_invited_around) {
+            return false;
+        }
+
+        $organizerIds = $this->staff
+            ->filter(fn($staff) => (int) ($staff->pivot->role ?? null) === MiniTournamentStaff::ROLE_ORGANIZER)
+            ->pluck('id')
+            ->toArray();
+
+        if (empty($organizerIds)) {
+            return false;
+        }
+
+        foreach ($organizerIds as $organizerId) {
+            $count = User::getSuccessfulOrganizedMiniTournamentsCount($organizerId);
+            if ($count < self::REQUIRED_ORGANIZED_TOURNAMENTS) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public function hasOrganizerOrStaff(int $userId): bool

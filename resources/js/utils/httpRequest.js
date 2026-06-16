@@ -32,6 +32,7 @@ axiosInstance.interceptors.request.use(
 
 // ========== REFRESH TOKEN LOGIC ==========
 let isRefreshing = false;
+let refreshFailed = false;
 let failedQueue = [];
 
 const processQueue = (error, token = null) => {
@@ -55,7 +56,7 @@ axiosInstance.interceptors.response.use(
 
       const refreshToken = localStorage.getItem(LOCAL_STORAGE_KEY.REFRESH_TOKEN);
 
-      if (!refreshToken) {
+      if (!refreshToken || refreshFailed) {
         localStorage.clear();
         router.push({ name: "login" });
         return Promise.reject(error);
@@ -104,6 +105,7 @@ axiosInstance.interceptors.response.use(
 
         return axiosInstance(originalRequest);
       } catch (err) {
+        refreshFailed = true;
         processQueue(err, null);
         localStorage.clear();
         router.push({ name: "login" });
