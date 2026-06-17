@@ -110,6 +110,11 @@ class Tournament extends Model
     {
         return $this->belongsTo(Club::class, 'club_id');
     }
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');

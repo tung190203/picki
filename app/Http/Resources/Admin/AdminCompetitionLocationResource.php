@@ -16,14 +16,14 @@ class AdminCompetitionLocationResource extends JsonResource
 
         $activeMiniTournaments = $this->relationLoaded('miniTournaments')
             ? $this->miniTournaments->filter(fn($t) =>
-                in_array($t->status, [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+                $t->status === MiniTournament::STATUS_OPEN
                 && ($t->end_time === null || $t->end_time->gte($now))
             )
             : collect();
 
         $activeTournaments = $this->relationLoaded('tournaments')
             ? $this->tournaments->filter(fn($t) =>
-                in_array($t->status, [Tournament::DRAFT, Tournament::OPEN])
+                $t->status === Tournament::OPEN
                 && ($t->end_date === null || Carbon::parse($t->end_date)->endOfDay()->gte($now))
             )
             : collect();
@@ -69,6 +69,7 @@ class AdminCompetitionLocationResource extends JsonResource
             'facilities' => \App\Http\Resources\FacilityResource::collection($this->whenLoaded('facilities')),
 
             'status' => $this->status,
+            'is_banned' => (bool) ($this->is_banned ?? false),
 
             'active_matches_count' => $activeMatchesCount,
             'active_tournaments_count' => $activeTournamentsCount,
@@ -77,44 +78,30 @@ class AdminCompetitionLocationResource extends JsonResource
                 'id' => $t->id,
                 'name' => $t->name,
                 'type' => 'tournament',
-                'status' => $this->mapTournamentStatus($t->status),
+                'status' => $t->status,
                 'start_date' => $t->start_date
                     ? Carbon::parse($t->start_date)->format('Y-m-d')
                     : null,
+                'created_by' => new \App\Http\Resources\UserResource($t->creator),
             ])->values(),
 
             'active_mini_tournaments' => $activeMiniTournaments->map(fn($t) => [
                 'id' => $t->id,
                 'name' => $t->name,
-                'status' => $this->mapMiniTournamentStatus($t->status),
+                'status' => $t->status,
                 'start_date' => $t->start_time?->format('Y-m-d'),
+                'created_by' => new \App\Http\Resources\UserResource($t->creator),
             ])->values(),
 
             'summary' => $summary,
 
+            'created_by' => $this->whenLoaded('creator', fn() => $this->creator ? [
+                'id' => $this->creator->id,
+                'full_name' => $this->creator->full_name,
+                'avatar_url' => $this->creator->avatar_url,
+            ] : null),
+
             'created_at' => $this->created_at?->toISOString(),
         ];
-    }
-
-    private function mapTournamentStatus(int $status): string
-    {
-        return match ($status) {
-            Tournament::DRAFT => 'draft',
-            Tournament::OPEN => 'registration_open',
-            Tournament::CLOSED => 'closed',
-            Tournament::CANCELLED => 'cancelled',
-            default => 'upcoming',
-        };
-    }
-
-    private function mapMiniTournamentStatus(int $status): string
-    {
-        return match ($status) {
-            MiniTournament::STATUS_DRAFT => 'draft',
-            MiniTournament::STATUS_OPEN => 'registration_open',
-            MiniTournament::STATUS_CLOSED => 'closed',
-            MiniTournament::STATUS_CANCELLED => 'cancelled',
-            default => 'upcoming',
-        };
     }
 }

@@ -28,6 +28,7 @@ class CompetitionLocationResource extends JsonResource
             'closing_time' => $this->closing_time,
             'note_booking' => $this->note_booking,
             'website' => $this->website,
+            'is_banned' => (bool) ($this->is_banned ?? false),
             'sports' => SportResource::collection($this->whenLoaded('sports')),
             'yard_types' => $this->whenLoaded('competitionLocationYards', function () {
                 return $this->competitionLocationYards->pluck('yard_type')->unique()->map(function ($type) {

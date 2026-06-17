@@ -5,6 +5,8 @@ namespace App\Services\Admin;
 use App\Enums\ClubStatus;
 use App\Http\Resources\Admin\AdminClubResource;
 use App\Models\Club\Club;
+use App\Models\MiniTournament;
+use App\Models\Tournament;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
@@ -19,10 +21,15 @@ class AdminClubManagementService
     ): LengthAwarePaginator {
         $query = Club::query()
             ->with([
+                'creator',
                 'adminMember.user',
                 'activeMembers',
-                'tournaments',
-                'miniTournaments',
+                'tournaments' => fn($q) => $q
+                    ->where('status', Tournament::OPEN)
+                    ->where(fn($sub) => $sub->whereNull('end_date')->orWhereDate('end_date', '>=', now())),
+                'miniTournaments' => fn($q) => $q
+                    ->where('status', MiniTournament::STATUS_OPEN)
+                    ->where(fn($sub) => $sub->whereNull('end_time')->orWhere('end_time', '>=', now())),
                 'notifications',
             ])
             ->filterForAdmin($filters)
@@ -39,10 +46,15 @@ class AdminClubManagementService
     {
         $club = Club::query()
             ->with([
+                'creator',
                 'adminMember.user',
                 'activeMembers',
-                'tournaments',
-                'miniTournaments',
+                'tournaments' => fn($q) => $q
+                    ->where('status', Tournament::OPEN)
+                    ->where(fn($sub) => $sub->whereNull('end_date')->orWhereDate('end_date', '>=', now())),
+                'miniTournaments' => fn($q) => $q
+                    ->where('status', MiniTournament::STATUS_OPEN)
+                    ->where(fn($sub) => $sub->whereNull('end_time')->orWhere('end_time', '>=', now())),
                 'notifications',
             ])
             ->find($id);
@@ -63,6 +75,21 @@ class AdminClubManagementService
         };
 
         $club->status = $mappedStatus;
+        $club->save();
+
+        return $club;
+    }
+
+    public function toggleBan(Club $club, bool $isBanned): Club
+    {
+        $club->is_banned = $isBanned;
+
+        if ($isBanned) {
+            $club->status = ClubStatus::Suspended;
+        } else {
+            $club->status = ClubStatus::Active;
+        }
+
         $club->save();
 
         return $club;
