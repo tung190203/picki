@@ -17,7 +17,7 @@
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-Qvh7OYUa.js",
+    "file": "assets/app-C32rXkIB.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -81,7 +81,7 @@
     "src": "resources/js/assets/images/splash-bg.png"
   },
   "resources/js/components/pages/admin/AdminConfig.vue": {
-    "file": "assets/AdminConfig-U9QiBqPv.js",
+    "file": "assets/AdminConfig-CewecmB7.js",
     "name": "AdminConfig",
     "src": "resources/js/components/pages/admin/AdminConfig.vue",
     "isDynamicEntry": true,
@@ -94,7 +94,7 @@
     ]
   },
   "resources/js/components/pages/admin/AdminModeration.vue": {
-    "file": "assets/AdminModeration-BdSP0s2E.js",
+    "file": "assets/AdminModeration-MefWD0Pe.js",
     "name": "AdminModeration",
     "src": "resources/js/components/pages/admin/AdminModeration.vue",
     "isDynamicEntry": true,
@@ -102,7 +102,7 @@
       "resources/js/app.js"
     ],
     "css": [
-      "assets/AdminModeration-DM9pAsUr.css",
+      "assets/AdminModeration-BNq1JaXE.css",
       "assets/app-fJa7BeKp.css"
     ]
   }
