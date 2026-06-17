@@ -782,6 +782,8 @@ class ParticipantController extends Controller
 
         $perPage = $validated['per_page'] ?? 20;
         $scope = $validated['scope'];
+        $lat = $validated['lat'] ?? null;
+        $lng = $validated['lng'] ?? null;
 
         // 🧮 Tính mid level cho sorting
         $midLevel = null;
@@ -836,13 +838,13 @@ class ParticipantController extends Controller
                 $lng = $validated['lng'];
                 $radius = $validated['radius'];
 
-                $haversine = "(6371 * acos(
+                $haversine = "6371 * acos(
                         cos(radians(?))
                         * cos(radians(users.latitude))
                         * cos(radians(users.longitude) - radians(?))
                         + sin(radians(?))
                         * sin(radians(users.latitude))
-                    ))";
+                    )";
 
                 $query = User::withFullRelations()
                     ->whereNotNull('users.latitude')
@@ -851,12 +853,12 @@ class ParticipantController extends Controller
                         $lat,
                         $lng,
                         $lat,
-                        $radius
+                        $radius,
                     ])
                     ->orderByRaw("$haversine asc", [
                         $lat,
                         $lng,
-                        $lat
+                        $lat,
                     ]);
                 break;
             case 'all':
@@ -922,7 +924,7 @@ class ParticipantController extends Controller
 
         // 7. Select + Sort (chỉ khi scope !== 'all')
         if ($scope !== 'all') {
-            $query->select('users.*')
+            $query->selectRaw('users.*')
                 ->selectRaw('user_sport_scores.score_value as level')
                 ->when(
                     $midLevel !== null,
@@ -935,6 +937,10 @@ class ParticipantController extends Controller
                     'CASE WHEN users.location_id = ? THEN 1 ELSE 0 END as same_location',
                     [$tournament->location_id]
                 )
+                ->when($scope === 'area' && $lat !== null && $lng !== null, fn ($q) => $q->selectRaw(
+                    "6371 * acos(cos(radians(?)) * cos(radians(users.latitude)) * cos(radians(users.longitude) - radians(?)) + sin(radians(?)) * sin(radians(users.latitude))) as distance",
+                    [$lat, $lng, $lat]
+                ))
                 ->orderByDesc('same_location')
                 ->when($midLevel !== null, fn ($q) => $q->orderBy('level_diff'));
         } else {
@@ -948,7 +954,7 @@ class ParticipantController extends Controller
 
         // 🧮 Phân trang
         $paginated = $query->paginate($perPage);
-        $candidates = $paginated->getCollection()->map(function ($u) use ($user, $excludedUserIds) {
+        $candidates = $paginated->getCollection()->map(function ($u) use ($user, $excludedUserIds, $lat, $lng) {
 
             return [
                 'id' => $u->id,
@@ -960,6 +966,9 @@ class ParticipantController extends Controller
                 'gender' => $u->gender,
                 'gender_text' => $u->gender_text,
                 'play_times' => [],
+                'distance' => ($lat !== null && $lng !== null && isset($u->latitude, $u->longitude))
+                    ? round($this->haversineDistance((float) $lat, (float) $lng, (float) $u->latitude, (float) $u->longitude), 1)
+                    : null,
 
                 'sports' => $u->sports->map(function ($userSport) use ($u) {
                     $scores = $userSport->scores()
@@ -1032,5 +1041,15 @@ class ParticipantController extends Controller
         foreach ($userIds as $userId) {
             SendPushJob::dispatch($userId, $title, $body, $data);
         }
+    }
+
+    private function haversineDistance(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $earthRadius = 6371;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+        $a = sin($dLat / 2) ** 2
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
+        return $earthRadius * 2 * asin(sqrt($a));
     }
 }

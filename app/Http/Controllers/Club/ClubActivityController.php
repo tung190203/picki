@@ -181,10 +181,7 @@ class ClubActivityController extends Controller
         $isHistoryOnly = !empty($statuses)
             && empty(array_diff($statuses, ['completed', 'cancelled']));
 
-        // Cho phép xem draft: creator/staff HOẶC participant (kể cả invited chưa confirm)
-        $showDrafts = (bool) $userId && !$isHistoryOnly;
-
-        $query->where(function ($outer) use ($dateFrom, $dateTo, $statuses, $hasAll, $userId, $showDrafts) {
+        $query->where(function ($outer) use ($dateFrom, $dateTo, $statuses, $hasAll) {
             $outer->where(function ($main) use ($dateFrom, $dateTo, $statuses, $hasAll) {
                 if (! empty($dateFrom)) {
                     $main->whereDate('start_time', '>=', $dateFrom);
@@ -209,29 +206,11 @@ class ClubActivityController extends Controller
                         $main->whereIn('status', $mappedStatuses);
                     }
                 } elseif (empty($dateFrom) && empty($dateTo)) {
-                    $main->whereIn('status', [MiniTournament::STATUS_OPEN]);
+                    $main->where('status', MiniTournament::STATUS_OPEN)
+                        ->where(fn($q) => $q->whereNull('end_time')->orWhere('end_time', '>=', now()));
                 }
-            });
-
-            // Hiển thị kèo draft cho: creator/staff HOẶC participant
-            if ($showDrafts) {
-                $outer->orWhere(function ($draftQ) use ($userId) {
-                    $draftQ->where('status', MiniTournament::STATUS_DRAFT)
-                        ->where(function ($who) use ($userId) {
-                            // Creator/staff
-                            $who->where('mini_tournaments.created_by', $userId)
-                                ->orWhereHas('staff', function ($sq) use ($userId) {
-                                    $sq->where('users.id', $userId)
-                                        ->where('mini_tournament_staff.role', MiniTournamentStaff::ROLE_ORGANIZER);
-                                });
-                            // Participant (kể cả invited chưa confirm)
-                            $who->orWhereHas('participants', function ($pq) use ($userId) {
-                                $pq->where('user_id', $userId);
-                            });
-                        });
-                });
-            }
-        });
+            })
+            ->where(fn($q) => $q->whereNull('end_time')->orWhere('end_time', '>=', now()));
 
         $orderDirection = $isHistoryOnly ? 'desc' : 'asc';
         $query->orderBy('start_time', $orderDirection);
@@ -254,9 +233,7 @@ class ClubActivityController extends Controller
         $isHistoryOnly = !empty($statuses)
             && empty(array_diff($statuses, ['completed', 'cancelled']));
 
-        $showDrafts = (bool) $userId && !$isHistoryOnly;
-
-        $query->where(function ($outer) use ($dateFrom, $dateTo, $statuses, $hasAll, $userId, $showDrafts) {
+        $query->where(function ($outer) use ($dateFrom, $dateTo, $statuses, $hasAll) {
             $outer->where(function ($main) use ($dateFrom, $dateTo, $statuses, $hasAll) {
                 if (! empty($dateFrom)) {
                     $main->whereDate('start_date', '>=', $dateFrom);
@@ -281,26 +258,11 @@ class ClubActivityController extends Controller
                         $main->whereIn('status', $mappedStatuses);
                     }
                 } elseif (empty($dateFrom) && empty($dateTo)) {
-                    $main->whereIn('status', [Tournament::OPEN]);
+                    $main->where('status', Tournament::OPEN)
+                        ->where(fn($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', now()));
                 }
-            });
-
-            if ($showDrafts) {
-                $outer->orWhere(function ($draftQ) use ($userId) {
-                    $draftQ->where('status', Tournament::DRAFT)
-                        ->where(function ($who) use ($userId) {
-                            $who->where('tournaments.created_by', $userId)
-                                ->orWhereHas('staff', function ($sq) use ($userId) {
-                                    $sq->where('users.id', $userId)
-                                        ->where('tournament_staff.role', TournamentStaff::ROLE_ORGANIZER);
-                                })
-                                ->orWhereHas('participants', function ($pq) use ($userId) {
-                                    $pq->where('user_id', $userId);
-                                });
-                        });
-                });
-            }
-        });
+            })
+            ->where(fn($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', now()));
 
         $orderDirection = $isHistoryOnly ? 'desc' : 'asc';
         $query->orderBy('start_date', $orderDirection);

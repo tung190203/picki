@@ -19,14 +19,14 @@ class AdminClubResource extends JsonResource
 
         $activeMiniTournaments = $this->miniTournaments
             ? $this->miniTournaments->filter(fn($t) =>
-                in_array($t->status, [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+                $t->status === MiniTournament::STATUS_OPEN
                 && ($t->end_time === null || $t->end_time->gte($now))
             )
             : collect();
 
         $activeTournaments = $this->tournaments
             ? $this->tournaments->filter(fn($t) =>
-                in_array($t->status, [Tournament::DRAFT, Tournament::OPEN])
+                $t->status === Tournament::OPEN
                 && ($t->end_date === null || Carbon::parse($t->end_date)->endOfDay()->gte($now))
             )
             : collect();
@@ -54,6 +54,7 @@ class AdminClubResource extends JsonResource
             'status' => $this->status?->value ?? $this->status,
             'is_public' => (bool) ($this->is_public ?? true),
             'is_verified' => (bool) $this->is_verified,
+            'is_banned' => (bool) ($this->is_banned ?? false),
             'rank' => $this->rank ?? null,
             'created_at' => $this->created_at?->toISOString(),
 
@@ -73,6 +74,12 @@ class AdminClubResource extends JsonResource
             'active_tournaments_count' => $activeTournaments->count(),
             'announcements_count' => $announcementsCount,
             'summary' => $summary,
+
+            'created_by' => $this->whenLoaded('creator', fn() => $this->creator ? [
+                'id' => $this->creator->id,
+                'full_name' => $this->creator->full_name,
+                'avatar_url' => $this->creator->avatar_url,
+            ] : null),
         ];
     }
 }

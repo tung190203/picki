@@ -416,7 +416,7 @@ import AdminHeader from '@/components/organisms/AdminHeader.vue'
 import Pagination from '@/components/molecules/Pagination.vue'
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { get, patch } from '@/utils/httpRequest.js'
+import { get, post } from '@/utils/httpRequest.js'
 import { formatedDate } from '@/composables/formatedDate.js'
 
 const route = useRoute()
@@ -722,7 +722,7 @@ const paginatedTournaments = computed(() => {
 
 const paginatedClubs = computed(() => {
   return allClubs.value.map(c => {
-    const isBanned = c.status === 'banned' || c.status === 'suspended'
+    const isBanned = c.is_banned ?? (c.status === 'banned' || c.status === 'suspended')
     return {
       id: c.id,
       name: c.name,
@@ -749,7 +749,7 @@ const paginatedClubs = computed(() => {
 
 const paginatedVenues = computed(() => {
   return allVenues.value.map(v => {
-    const isBanned = v.status === 'banned'
+    const isBanned = v.is_banned ?? v.status === 'banned'
     return {
       id: v.id,
       name: v.name,
@@ -770,32 +770,26 @@ const paginatedVenues = computed(() => {
 })
 
 const toggleClubStatus = async (club) => {
-  const newStatus = club.isBanned ? 'active' : 'banned'
+  const nextBanned = !club.isBanned
   togglingId.value = club.id
   try {
-    await patch(`/admin/clubs/${club.id}/status`, { status: newStatus })
-    const updated = allClubs.value.find(c => c.id === club.id)
-    if (updated) {
-      updated.status = newStatus
-    }
+    await post(`/admin/clubs/${club.id}/ban`, { is_banned: nextBanned })
+    await fetchClubs(clubsMeta.value.current_page)
   } catch (e) {
-    console.error('Toggle club status error:', e)
+    console.error('Toggle club ban error:', e)
   } finally {
     togglingId.value = null
   }
 }
 
 const toggleVenueStatus = async (venue) => {
-  const newStatus = venue.isBanned ? 'active' : 'banned'
+  const nextBanned = !venue.isBanned
   togglingId.value = venue.id
   try {
-    await patch(`/admin/competition-locations/${venue.id}/status`, { status: newStatus })
-    const updated = allVenues.value.find(v => v.id === venue.id)
-    if (updated) {
-      updated.status = newStatus
-    }
+    await post(`/admin/competition-locations/${venue.id}/ban`, { is_banned: nextBanned })
+    await fetchVenues(venuesMeta.value.current_page)
   } catch (e) {
-    console.error('Toggle venue status error:', e)
+    console.error('Toggle venue ban error:', e)
   } finally {
     togglingId.value = null
   }

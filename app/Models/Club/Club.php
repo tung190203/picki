@@ -34,6 +34,7 @@ class Club extends Model
         'status',
         'is_public',
         'is_verified',
+        'is_banned',
         'created_by',
         'location_id',
     ];
@@ -42,6 +43,7 @@ class Club extends Model
         'status' => ClubStatus::class,
         'is_public' => 'boolean',
         'is_verified' => 'boolean',
+        'is_banned' => 'boolean',
     ];
 
     /**

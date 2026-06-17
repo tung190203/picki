@@ -50,6 +50,10 @@ class ClubMiniTournamentController extends Controller
             return ResponseHelper::error('CLB không tồn tại', 404);
         }
 
+        if ($club->is_banned) {
+            return ResponseHelper::error('CLB tạm thời bị cấm truy cập', 422);
+        }
+
         $userId = Auth::id();
 
         if (!$userId) {
@@ -274,6 +278,11 @@ class ClubMiniTournamentController extends Controller
     public function update(UpdateMiniTournamentRequest $request, int $clubId, int $miniTournamentId)
     {
         $club = Club::findOrFail($clubId);
+
+        if ($club->is_banned) {
+            return ResponseHelper::error('CLB tạm thời bị cấm truy cập', 422);
+        }
+
         $miniTournament = \App\Models\MiniTournament::findOrFail($miniTournamentId);
         $userId = Auth::id();
 

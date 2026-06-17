@@ -46,6 +46,10 @@ class ClubTournamentController extends Controller
             return ResponseHelper::error('CLB không tồn tại', 404);
         }
 
+        if ($club->is_banned) {
+            return ResponseHelper::error('CLB tạm thời bị cấm truy cập', 422);
+        }
+
         $userId = Auth::id();
         if (!$userId) {
             return ResponseHelper::error('Bạn cần đăng nhập', 401);
@@ -167,6 +171,11 @@ class ClubTournamentController extends Controller
     public function update(UpdateTournamentRequest $request, int $clubId, int $tournamentId)
     {
         $club = Club::findOrFail($clubId);
+
+        if ($club->is_banned) {
+            return ResponseHelper::error('CLB tạm thời bị cấm truy cập', 422);
+        }
+
         $tournament = Tournament::find($tournamentId);
         if (!$tournament) {
             return ResponseHelper::error('Giải đấu không tồn tại', 404);
