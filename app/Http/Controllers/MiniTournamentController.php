@@ -31,6 +31,7 @@ use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
 use App\Models\MiniTeam;
 use App\Models\MiniTeamMember;
+use App\Models\CompetitionLocation;
 use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
 use App\Models\User;
@@ -101,6 +102,13 @@ class MiniTournamentController extends Controller
     public function store(StoreMiniTournamentRequest $request)
     {
         $data = $request->safe()->except(['invite_user', 'poster', 'qr_code_url']);
+
+        if (!empty($data['competition_location_id'])) {
+            $location = CompetitionLocation::find($data['competition_location_id']);
+            if ($location && $location->is_banned) {
+                return ResponseHelper::error('Địa điểm tạm thời bị cấm truy cập', 422);
+            }
+        }
 
         $miniTournament = $this->tournamentService->createTournament($data, Auth::id());
         $miniTournament->staff()->attach(Auth::id(), ['role' => MiniTournamentStaff::ROLE_ORGANIZER]);
@@ -385,6 +393,13 @@ class MiniTournamentController extends Controller
 
         $editScope = $data['edit_scope'] ?? 'this_occurrence';
         unset($data['edit_scope']);
+
+        if (!empty($data['competition_location_id'])) {
+            $location = CompetitionLocation::find($data['competition_location_id']);
+            if ($location && $location->is_banned) {
+                return ResponseHelper::error('Địa điểm tạm thời bị cấm truy cập', 422);
+            }
+        }
 
         $data = collect($data)->except(['poster', 'qr_code_url'])->toArray();
 
