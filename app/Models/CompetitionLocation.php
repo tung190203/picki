@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\QuickMatch;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -35,10 +34,6 @@ class CompetitionLocation extends Model
     {
         return $this->belongsTo(Location::class);
     }
-    public function miniTournaments()
-    {
-        return $this->hasMany(MiniTournament::class, 'location_id');
-    }
 
     public function sports()
     {
@@ -65,6 +60,11 @@ class CompetitionLocation extends Model
         return $this->hasMany(Tournament::class, 'competition_location_id');
     }
 
+    public function miniTournaments()
+    {
+        return $this->hasMany(MiniTournament::class, 'competition_location_id');
+    }
+
     public function quickMatches()
     {
         return $this->hasMany(QuickMatch::class, 'competition_location_id');
@@ -78,9 +78,12 @@ class CompetitionLocation extends Model
             'sports',
             'competitionLocationYards',
             'facilities',
-            'tournaments' => fn($q) => $q->whereIn('status', [Tournament::OPEN, 5]),
-            'miniTournaments' => fn($q) => $q->whereIn('status', [MiniTournament::STATUS_OPEN, MiniTournament::STATUS_CLOSED]),
-            'quickMatches' => fn($q) => $q->where('status', QuickMatch::STATUS_PENDING),
+            'tournaments' => fn($q) => $q
+                ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
+                ->where(fn($sub) => $sub->whereNull('end_date')->orWhereDate('end_date', '>=', now())),
+            'miniTournaments' => fn($q) => $q
+                ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+                ->where(fn($sub) => $sub->whereNull('end_time')->orWhere('end_time', '>=', now())),
         ]);
     }
 
@@ -111,30 +114,31 @@ class CompetitionLocation extends Model
         return match ($sortBy) {
             'active_matches_count' => $query
                 ->withCount([
-                    'tournaments as active_matches_count' => fn($q) => $q
-                        ->whereIn('status', [Tournament::OPEN, 5])
-                        ->whereHas('tournamentTypes.groups.matches', fn($mq) => $mq->where('matches.status', 'pending')),
-                    'miniTournaments as mini_active_matches_count' => fn($q) => $q
-                        ->whereIn('status', [MiniTournament::STATUS_OPEN])
-                        ->whereHas('matches', fn($mq) => $mq->whereIn('status', ['pending', 'going_on', 'waiting_confirm'])),
-                    'quickMatches as quick_active_matches_count' => fn($q) => $q
-                        ->where('status', QuickMatch::STATUS_PENDING)
-                        ->where(fn($qq) => $qq->whereNull('scheduled_at')->orWhere('scheduled_at', '>', now())),
+                    'miniTournaments as active_matches_count' => fn($q) => $q
+                        ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+                        ->where(fn($sub) => $sub->whereNull('end_time')->orWhere('end_time', '>=', now())),
                 ])
-                ->orderByRaw(
-                    'COALESCE(active_matches_count, 0) + COALESCE(mini_active_matches_count, 0) + COALESCE(quick_active_matches_count, 0) ' . $sortDir
-                ),
+                ->orderBy('active_matches_count', $sortDir),
             'active_tournaments_count' => $query
                 ->withCount([
                     'tournaments as active_tournaments_count' => fn($q) => $q
-                        ->whereIn('status', [Tournament::OPEN, 5]),
-                    'miniTournaments as active_mini_tournaments_count' => fn($q) => $q
-                        ->whereIn('status', [MiniTournament::STATUS_OPEN]),
+                        ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
+                        ->where(fn($sub) => $sub->whereNull('end_date')->orWhereDate('end_date', '>=', now())),
                 ])
-                ->orderByRaw(
-                    'COALESCE(active_tournaments_count, 0) + COALESCE(active_mini_tournaments_count, 0) ' . $sortDir
-                ),
-            default => $query->orderBy('created_at', $sortDir),
+                ->orderBy('active_tournaments_count', $sortDir),
+            default => $query
+                ->withCount([
+                    'miniTournaments as active_matches_count' => fn($q) => $q
+                        ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+                        ->where(fn($sub) => $sub->whereNull('end_time')->orWhere('end_time', '>=', now())),
+                ])
+                ->withCount([
+                    'tournaments as active_tournaments_count' => fn($q) => $q
+                        ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
+                        ->where(fn($sub) => $sub->whereNull('end_date')->orWhereDate('end_date', '>=', now())),
+                ])
+                ->orderByRaw('CASE WHEN active_matches_count > 0 OR active_tournaments_count > 0 THEN 0 ELSE 1 END ASC')
+                ->orderBy('created_at', $sortDir),
         };
     }
 

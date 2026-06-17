@@ -3,8 +3,8 @@
 namespace App\Http\Resources\Admin;
 
 use App\Models\MiniTournament;
-use App\Models\QuickMatch;
 use App\Models\Tournament;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -12,40 +12,24 @@ class AdminCompetitionLocationResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $activeTournaments = $this->relationLoaded('tournaments')
-            ? $this->tournaments->filter(fn($t) => in_array($t->status, [Tournament::OPEN, 5]))
-            : collect();
+        $now = Carbon::now();
 
         $activeMiniTournaments = $this->relationLoaded('miniTournaments')
-            ? $this->miniTournaments->filter(fn($t) => in_array($t->status, [MiniTournament::STATUS_OPEN, MiniTournament::STATUS_CLOSED]))
-            : collect();
-
-        $activeQuickMatches = $this->relationLoaded('quickMatches')
-            ? $this->quickMatches->filter(fn($qm) =>
-                $qm->status === QuickMatch::STATUS_PENDING &&
-                ($qm->scheduled_at === null || $qm->scheduled_at?->isFuture())
+            ? $this->miniTournaments->filter(fn($t) =>
+                in_array($t->status, [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+                && ($t->end_time === null || $t->end_time->gte($now))
             )
             : collect();
 
-        $activeMatchesCount = $activeTournaments->sum(fn($t) =>
-            $t->relationLoaded('tournamentTypes')
-                ? $t->tournamentTypes->sum(fn($tt) =>
-                    $tt->relationLoaded('groups')
-                        ? $tt->groups->sum(fn($g) =>
-                            $g->relationLoaded('matches')
-                                ? $g->matches->where('status', 'pending')->count()
-                                : 0
-                        )
-                        : 0
-                )
-                : 0
-        ) + $activeMiniTournaments->sum(fn($t) =>
-            $t->relationLoaded('matches')
-                ? $t->matches->whereIn('status', ['pending', 'going_on', 'waiting_confirm'])->count()
-                : 0
-        ) + $activeQuickMatches->count();
+        $activeTournaments = $this->relationLoaded('tournaments')
+            ? $this->tournaments->filter(fn($t) =>
+                in_array($t->status, [Tournament::DRAFT, Tournament::OPEN])
+                && ($t->end_date === null || Carbon::parse($t->end_date)->endOfDay()->gte($now))
+            )
+            : collect();
 
-        $activeTournamentsCount = $activeTournaments->count() + $activeMiniTournaments->count();
+        $activeMatchesCount = $activeMiniTournaments->count();
+        $activeTournamentsCount = $activeTournaments->count();
 
         $summary = sprintf(
             'Đang có %d kèo - %d giải đấu',
@@ -94,7 +78,9 @@ class AdminCompetitionLocationResource extends JsonResource
                 'name' => $t->name,
                 'type' => 'tournament',
                 'status' => $this->mapTournamentStatus($t->status),
-                'start_date' => $t->start_date?->format('Y-m-d'),
+                'start_date' => $t->start_date
+                    ? Carbon::parse($t->start_date)->format('Y-m-d')
+                    : null,
             ])->values(),
 
             'active_mini_tournaments' => $activeMiniTournaments->map(fn($t) => [
@@ -117,7 +103,6 @@ class AdminCompetitionLocationResource extends JsonResource
             Tournament::OPEN => 'registration_open',
             Tournament::CLOSED => 'closed',
             Tournament::CANCELLED => 'cancelled',
-            5 => 'ongoing',
             default => 'upcoming',
         };
     }

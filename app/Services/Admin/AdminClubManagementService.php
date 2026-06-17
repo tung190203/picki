@@ -21,8 +21,8 @@ class AdminClubManagementService
             ->with([
                 'adminMember.user',
                 'activeMembers',
-                'tournaments.tournamentTypes.groups.matches',
-                'miniTournaments.matches',
+                'tournaments',
+                'miniTournaments',
                 'notifications',
             ])
             ->filterForAdmin($filters)
@@ -41,8 +41,8 @@ class AdminClubManagementService
             ->with([
                 'adminMember.user',
                 'activeMembers',
-                'tournaments.tournamentTypes.groups.matches',
-                'miniTournaments.matches',
+                'tournaments',
+                'miniTournaments',
                 'notifications',
             ])
             ->find($id);

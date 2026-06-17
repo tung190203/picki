@@ -5,10 +5,9 @@ namespace App\Http\Resources\Admin;
 use App\Enums\ClubMembershipStatus;
 use App\Enums\ClubMemberStatus;
 use App\Enums\ClubNotificationStatus;
-use App\Enums\ClubMemberRole;
-use App\Models\Club\ClubMember;
 use App\Models\MiniTournament;
 use App\Models\Tournament;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -16,33 +15,21 @@ class AdminClubResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $activeTournaments = $this->tournaments
-            ? $this->tournaments->filter(fn($t) => in_array($t->status, [Tournament::OPEN, 5]))
-            : collect();
+        $now = Carbon::now();
 
         $activeMiniTournaments = $this->miniTournaments
-            ? $this->miniTournaments->filter(fn($t) => in_array($t->status, [MiniTournament::STATUS_OPEN, MiniTournament::STATUS_CLOSED]))
+            ? $this->miniTournaments->filter(fn($t) =>
+                in_array($t->status, [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+                && ($t->end_time === null || $t->end_time->gte($now))
+            )
             : collect();
 
-        $activeMatchesCount = $activeTournaments->sum(fn($t) =>
-            $t->relationLoaded('tournamentTypes')
-                ? $t->tournamentTypes->sum(fn($tt) =>
-                    $tt->relationLoaded('groups')
-                        ? $tt->groups->sum(fn($g) =>
-                            $g->relationLoaded('matches')
-                                ? $g->matches->where('status', 'pending')->count()
-                                : 0
-                        )
-                        : 0
-                )
-                : 0
-        ) + $activeMiniTournaments->sum(fn($t) =>
-            $t->relationLoaded('matches')
-                ? $t->matches->whereIn('status', ['pending', 'going_on', 'waiting_confirm'])->count()
-                : 0
-        );
-
-        $activeTournamentsCount = $activeTournaments->count() + $activeMiniTournaments->count();
+        $activeTournaments = $this->tournaments
+            ? $this->tournaments->filter(fn($t) =>
+                in_array($t->status, [Tournament::DRAFT, Tournament::OPEN])
+                && ($t->end_date === null || Carbon::parse($t->end_date)->endOfDay()->gte($now))
+            )
+            : collect();
 
         $announcementsCount = $this->relationLoaded('notifications')
             ? $this->notifications->where('status', '!=', ClubNotificationStatus::Cancelled)->count()
@@ -52,8 +39,8 @@ class AdminClubResource extends JsonResource
 
         $summary = sprintf(
             'Đang có %d kèo - %d giải đấu - %d thông báo',
-            $activeMatchesCount,
-            $activeTournamentsCount,
+            $activeMiniTournaments->count(),
+            $activeTournaments->count(),
             $announcementsCount
         );
 
@@ -82,8 +69,8 @@ class AdminClubResource extends JsonResource
                 0
             ),
 
-            'active_matches_count' => $activeMatchesCount,
-            'active_tournaments_count' => $activeTournamentsCount,
+            'active_matches_count' => $activeMiniTournaments->count(),
+            'active_tournaments_count' => $activeTournaments->count(),
             'announcements_count' => $announcementsCount,
             'summary' => $summary,
         ];
