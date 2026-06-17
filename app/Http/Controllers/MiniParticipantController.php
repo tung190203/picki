@@ -1265,6 +1265,11 @@ class MiniParticipantController extends Controller
                 'gender' => $u->gender,
                 'gender_text' => $u->gender_text,
                 'play_times' => [],
+                'distance' => isset($u->distance) ? round($u->distance, 1) : null,
+                'clubs' => $u->clubs->map(fn($c) => [
+                    'id'   => $c->id,
+                    'name' => $c->name,
+                ]),
 
                 'sports' => $u->sports->map(function ($userSport) use ($u) {
                     $scores = $userSport->scores()
