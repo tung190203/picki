@@ -3,9 +3,10 @@ import {API_ENDPOINT} from "@/constants/index.js";
 
 const miniParticipantEndpoint = API_ENDPOINT.MINI_PARTICIPANT;
 
-export const sendInvitation = async (miniTournamentId, userId) => {
+export const sendInvitation = async (miniTournamentId, userId, isInviteAround = false) => {
     return axiosInstance.post(`${miniParticipantEndpoint}/invite/${miniTournamentId}`, {
         user_id: userId,
+        is_invite_around: isInviteAround,
     }).then((response) => response.data.data)
 };
 
@@ -68,10 +69,6 @@ export const selfMarkAbsentMini = async (miniTournamentId) => {
         .then(r => r.data);
 };
 
-export const autoInviteArea = async (tournamentId, payload) => {
-    return axiosInstance.post(`/mini-participants/auto-invite-area/${tournamentId}`, payload)
-        .then(r => r.data.data);
-};
 
 export const adminConfirmMiniParticipant = async (miniTournamentId, participantId) => {
     return axiosInstance.post(`/mini-tournaments/${miniTournamentId}/participants/${participantId}/admin-confirm`)

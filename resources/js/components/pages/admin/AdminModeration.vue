@@ -235,6 +235,174 @@
           <Pagination :meta="tournamentsMeta" @page-change="onTournamentsPageChange" />
         </div>
 
+        <!-- ==================== TAB: CLUBS ==================== -->
+        <div v-if="activeTab === 'clubs'">
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="font-headline font-bold text-xl">Quản lý câu lạc bộ</h3>
+            <div class="relative">
+              <input
+                v-model="clubSearch"
+                @input="onClubSearchInput"
+                class="bg-surface-container-low border-none rounded-xl py-2 pl-10 pr-4 text-sm w-64 focus:ring-2 focus:ring-secondary/20 transition-all outline-none"
+                placeholder="Tìm kiếm câu lạc bộ..."
+                type="text"
+              />
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+            </div>
+          </div>
+
+          <div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm border border-outline-variant/5">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-surface-container-high">
+                  <th class="table-head">Câu lạc bộ</th>
+                  <th class="table-head">Quản trị viên</th>
+                  <th class="table-head">Thành viên</th>
+                  <th class="table-head">Kèo đang đấu</th>
+                  <th class="table-head">Giải đấu</th>
+                  <th class="table-head">Trạng thái</th>
+                  <th class="table-head text-right text-right-important">Hành động</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant/5">
+                <tr v-for="club in paginatedClubs" :key="club.id" class="hover:bg-surface-container-low transition-colors group">
+                  <td class="px-6 py-4">
+                    <div class="flex items-center gap-3">
+                      <img :src="club.avatar" class="w-10 h-10 rounded-full object-cover shadow-sm" />
+                      <div>
+                        <p class="font-bold text-sm text-on-surface">{{ club.name }}</p>
+                        <p class="text-xs text-on-surface-variant truncate max-w-[200px]">{{ club.address }}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4">
+                    <div v-if="club.admin" class="flex items-center gap-2">
+                      <img :src="club.adminAvatar" class="w-7 h-7 rounded-full object-cover shadow-sm" />
+                      <span class="text-sm text-on-surface font-medium">{{ club.admin.name }}</span>
+                    </div>
+                    <span v-else class="text-xs text-on-surface-variant">—</span>
+                  </td>
+                  <td class="px-6 py-4">
+                    <span class="text-sm font-manrope font-bold text-on-surface">{{ club.membersCount }}</span>
+                  </td>
+                  <td class="px-6 py-4">
+                    <span class="text-sm font-manrope font-bold text-secondary">{{ club.activeMatchesCount }}</span>
+                  </td>
+                  <td class="px-6 py-4">
+                    <span class="text-sm font-manrope font-bold text-tertiary">{{ club.activeTournamentsCount }}</span>
+                  </td>
+                  <td class="px-6 py-4">
+                    <span :class="club.statusClass">{{ club.statusLabel }}</span>
+                  </td>
+                  <td class="px-6 py-4 text-right">
+                    <div class="flex justify-end gap-2">
+                      <button
+                        :disabled="togglingId === club.id"
+                        @click="toggleClubStatus(club)"
+                        :class="club.isBanned
+                          ? 'px-3 py-1 bg-tertiary text-white rounded-lg text-xs font-bold shadow-md hover:bg-tertiary/90 transition-colors'
+                          : 'px-3 py-1 bg-error text-white rounded-lg text-xs font-bold shadow-lg shadow-error/20 hover:bg-error/90 transition-colors'"
+                      >
+                        {{ togglingId === club.id ? '...' : (club.isBanned ? 'Mở khóa' : 'Khoá') }}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <Pagination :meta="clubsMeta" @page-change="onClubsPageChange" />
+        </div>
+
+        <!-- ==================== TAB: VENUES ==================== -->
+        <div v-if="activeTab === 'venues'">
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="font-headline font-bold text-xl">Quản lý sân thi đấu</h3>
+            <div class="relative">
+              <input
+                v-model="venueSearch"
+                @input="onVenueSearchInput"
+                class="bg-surface-container-low border-none rounded-xl py-2 pl-10 pr-4 text-sm w-64 focus:ring-2 focus:ring-secondary/20 transition-all outline-none"
+                placeholder="Tìm kiếm sân thi đấu..."
+                type="text"
+              />
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+            </div>
+          </div>
+
+          <div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm border border-outline-variant/5">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-surface-container-high">
+                  <th class="table-head">Sân thi đấu</th>
+                  <th class="table-head">Địa chỉ</th>
+                  <th class="table-head">Môn thể thao</th>
+                  <th class="table-head">Kèo đang đấu</th>
+                  <th class="table-head">Giải đấu</th>
+                  <th class="table-head">Trạng thái</th>
+                  <th class="table-head text-right text-right-important">Hành động</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant/5">
+                <tr v-for="venue in paginatedVenues" :key="venue.id" class="hover:bg-surface-container-low transition-colors group">
+                  <td class="px-6 py-4">
+                    <div class="flex items-center gap-3">
+                      <img v-if="venue.imageUrl" :src="venue.imageUrl" class="w-10 h-10 rounded-lg object-cover shadow-sm" />
+                      <div v-else class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center">
+                        <span class="material-symbols-outlined text-on-surface-variant text-lg">stadium</span>
+                      </div>
+                      <div>
+                        <p class="font-bold text-sm text-on-surface">{{ venue.name }}</p>
+                        <p class="text-xs text-on-surface-variant">{{ venue.summary }}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4">
+                    <span class="text-xs text-on-surface-variant max-w-[180px] truncate block">{{ venue.address }}</span>
+                  </td>
+                  <td class="px-6 py-4">
+                    <div class="flex flex-wrap gap-1">
+                      <span v-for="sport in venue.sports.slice(0, 2)" :key="sport.id" class="px-2 py-0.5 bg-surface-container-high text-on-surface-variant text-[10px] font-bold rounded-full">
+                        {{ sport.name }}
+                      </span>
+                      <span v-if="venue.sports.length > 2" class="px-2 py-0.5 bg-surface-container-high text-on-surface-variant text-[10px] font-bold rounded-full">
+                        +{{ venue.sports.length - 2 }}
+                      </span>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4">
+                    <span class="text-sm font-manrope font-bold text-secondary">{{ venue.activeMatchesCount }}</span>
+                  </td>
+                  <td class="px-6 py-4">
+                    <span class="text-sm font-manrope font-bold text-tertiary">{{ venue.activeTournamentsCount }}</span>
+                  </td>
+                  <td class="px-6 py-4">
+                    <span :class="venue.statusClass">{{ venue.statusLabel }}</span>
+                  </td>
+                  <td class="px-6 py-4 text-right">
+                    <div class="flex justify-end gap-2">
+                      <button
+                        :disabled="togglingId === venue.id"
+                        @click="toggleVenueStatus(venue)"
+                        :class="venue.isBanned
+                          ? 'px-3 py-1 bg-tertiary text-white rounded-lg text-xs font-bold shadow-md hover:bg-tertiary/90 transition-colors'
+                          : 'px-3 py-1 bg-error text-white rounded-lg text-xs font-bold shadow-lg shadow-error/20 hover:bg-error/90 transition-colors'"
+                      >
+                        {{ togglingId === venue.id ? '...' : (venue.isBanned ? 'Mở khóa' : 'Khoá') }}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <Pagination :meta="venuesMeta" @page-change="onVenuesPageChange" />
+        </div>
+
+
+
 
 
       </div>
@@ -248,7 +416,7 @@ import AdminHeader from '@/components/organisms/AdminHeader.vue'
 import Pagination from '@/components/molecules/Pagination.vue'
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { get } from '@/utils/httpRequest.js'
+import { get, patch } from '@/utils/httpRequest.js'
 import { formatedDate } from '@/composables/formatedDate.js'
 
 const route = useRoute()
@@ -268,11 +436,18 @@ const error = ref(null)
 const allUsers = ref([])
 const allMatches = ref([])
 const allTournaments = ref([])
+const allClubs = ref([])
+const allVenues = ref([])
+const togglingId = ref(null)
+const clubSearch = ref('')
+const venueSearch = ref('')
 
 // Pagination metadata
 const usersMeta = ref({ current_page: 1, last_page: 1, total: 0 })
 const matchesMeta = ref({ current_page: 1, last_page: 1, total: 0 })
 const tournamentsMeta = ref({ current_page: 1, last_page: 1, total: 0 })
+const clubsMeta = ref({ current_page: 1, last_page: 1, total: 0 })
+const venuesMeta = ref({ current_page: 1, last_page: 1, total: 0 })
 
 // ===========================
 // TAB STATE
@@ -281,6 +456,8 @@ const tabs = computed(() => [
   { key: 'users', label: 'Người dùng', icon: 'group', badge: dashboardStats.value?.total_users ? formatCount(dashboardStats.value.total_users) : '...' },
   { key: 'matches', label: 'Kèo đấu', icon: 'sports_tennis', badge: dashboardStats.value?.active_matches ? formatCount(dashboardStats.value.active_matches) : '...' },
   { key: 'tournaments', label: 'Giải đấu', icon: 'emoji_events', badge: dashboardStats.value?.total_tournaments ? formatCount(dashboardStats.value.total_tournaments) : '...' },
+  { key: 'clubs', label: 'Câu lạc bộ', icon: 'diversity_3', badge: dashboardStats.value?.total_clubs ? formatCount(dashboardStats.value.total_clubs) : '...' },
+  { key: 'venues', label: 'Sân thi đấu', icon: 'stadium', badge: dashboardStats.value?.total_venues ? formatCount(dashboardStats.value.total_venues) : '...' },
 ])
 
 const formatCount = (num) => {
@@ -289,7 +466,7 @@ const formatCount = (num) => {
   return num.toString()
 }
 
-const validTabs = new Set(['users', 'matches', 'tournaments'])
+const validTabs = new Set(['users', 'matches', 'tournaments', 'clubs', 'venues'])
 const activeTab = ref('users')
 
 const switchTab = (tabKey) => {
@@ -310,6 +487,20 @@ onMounted(() => {
   fetchDashboardStats()
 })
 watch(() => route.query.tab, syncTabFromRoute)
+
+// Debounced search
+let clubSearchTimer = null
+let venueSearchTimer = null
+
+const onClubSearchInput = () => {
+  clearTimeout(clubSearchTimer)
+  clubSearchTimer = setTimeout(() => fetchClubs(1), 400)
+}
+
+const onVenueSearchInput = () => {
+  clearTimeout(venueSearchTimer)
+  venueSearchTimer = setTimeout(() => fetchVenues(1), 400)
+}
 
 // ===========================
 // FETCH FUNCTIONS
@@ -380,6 +571,42 @@ const fetchTournaments = async (page = 1) => {
   }
 }
 
+const fetchClubs = async (page = 1) => {
+  try {
+    loading.value = true
+    const res = await get('/admin/clubs', { params: { page, limit: 10, keyword: clubSearch.value || undefined } })
+    allClubs.value = res.data.data
+    clubsMeta.value = {
+      current_page: res.data.meta?.current_page ?? 1,
+      last_page: res.data.meta?.last_page ?? 1,
+      total: res.data.meta?.total ?? 0
+    }
+  } catch (e) {
+    error.value = 'Không thể tải danh sách câu lạc bộ.'
+    console.error('Clubs error:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+const fetchVenues = async (page = 1) => {
+  try {
+    loading.value = true
+    const res = await get('/admin/competition-locations', { params: { page, limit: 10, keyword: venueSearch.value || undefined } })
+    allVenues.value = res.data.data
+    venuesMeta.value = {
+      current_page: res.data.meta?.current_page ?? 1,
+      last_page: res.data.meta?.last_page ?? 1,
+      total: res.data.meta?.total ?? 0
+    }
+  } catch (e) {
+    error.value = 'Không thể tải danh sách sân thi đấu.'
+    console.error('Venues error:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
 // Fetch data when tab changes
 watch(activeTab, (tab) => {
   switch (tab) {
@@ -391,6 +618,12 @@ watch(activeTab, (tab) => {
       break
     case 'tournaments':
       fetchTournaments()
+      break
+    case 'clubs':
+      fetchClubs()
+      break
+    case 'venues':
+      fetchVenues()
       break
   }
 }, { immediate: true })
@@ -411,6 +644,16 @@ const onMatchesPageChange = (page) => {
 const onTournamentsPageChange = (page) => {
   tournamentsMeta.value.current_page = page
   fetchTournaments(page)
+}
+
+const onClubsPageChange = (page) => {
+  clubsMeta.value.current_page = page
+  fetchClubs(page)
+}
+
+const onVenuesPageChange = (page) => {
+  venuesMeta.value.current_page = page
+  fetchVenues(page)
 }
 
 // ===========================
@@ -476,6 +719,87 @@ const paginatedTournaments = computed(() => {
     }
   })
 })
+
+const paginatedClubs = computed(() => {
+  return allClubs.value.map(c => {
+    const isBanned = c.status === 'banned' || c.status === 'suspended'
+    return {
+      id: c.id,
+      name: c.name,
+      logoUrl: c.logo_url || null,
+      address: c.address || '—',
+      admin: c.admin ? { name: c.admin.full_name, avatar: c.admin.avatar_url || null } : null,
+      membersCount: c.members_count ?? 0,
+      activeMatchesCount: c.active_matches_count ?? 0,
+      activeTournamentsCount: c.active_tournaments_count ?? 0,
+      announcementsCount: c.announcements_count ?? 0,
+      summary: c.summary || '',
+      isVerified: c.is_verified,
+      isPublic: c.is_public,
+      isBanned,
+      statusLabel: isBanned ? 'Banned' : 'Active',
+      statusClass: isBanned
+        ? 'px-3 py-1 bg-error text-on-error rounded-lg text-xs font-bold shadow-lg shadow-error/20'
+        : 'px-3 py-1 bg-tertiary-container text-on-tertiary-container rounded-lg text-xs font-bold',
+      avatar: c.logo_url || (c.name ? 'https://ui-avatars.com/api/?name=' + encodeURIComponent(c.name) : null),
+      adminAvatar: c.admin?.avatar_url || (c.admin?.full_name ? 'https://ui-avatars.com/api/?name=' + encodeURIComponent(c.admin.full_name) : null),
+    }
+  })
+})
+
+const paginatedVenues = computed(() => {
+  return allVenues.value.map(v => {
+    const isBanned = v.status === 'banned'
+    return {
+      id: v.id,
+      name: v.name,
+      image: v.image || null,
+      address: v.address || '—',
+      activeMatchesCount: v.active_matches_count ?? 0,
+      activeTournamentsCount: v.active_tournaments_count ?? 0,
+      summary: v.summary || '',
+      sports: v.sports ?? [],
+      isBanned,
+      statusLabel: isBanned ? 'Banned' : 'Active',
+      statusClass: isBanned
+        ? 'px-3 py-1 bg-error text-on-error rounded-lg text-xs font-bold shadow-lg shadow-error/20'
+        : 'px-3 py-1 bg-tertiary-container text-on-tertiary-container rounded-lg text-xs font-bold',
+      imageUrl: v.image || (v.name ? 'https://ui-avatars.com/api/?name=' + encodeURIComponent(v.name) + '&background=random' : null),
+    }
+  })
+})
+
+const toggleClubStatus = async (club) => {
+  const newStatus = club.isBanned ? 'active' : 'banned'
+  togglingId.value = club.id
+  try {
+    await patch(`/admin/clubs/${club.id}/status`, { status: newStatus })
+    const updated = allClubs.value.find(c => c.id === club.id)
+    if (updated) {
+      updated.status = newStatus
+    }
+  } catch (e) {
+    console.error('Toggle club status error:', e)
+  } finally {
+    togglingId.value = null
+  }
+}
+
+const toggleVenueStatus = async (venue) => {
+  const newStatus = venue.isBanned ? 'active' : 'banned'
+  togglingId.value = venue.id
+  try {
+    await patch(`/admin/competition-locations/${venue.id}/status`, { status: newStatus })
+    const updated = allVenues.value.find(v => v.id === venue.id)
+    if (updated) {
+      updated.status = newStatus
+    }
+  } catch (e) {
+    console.error('Toggle venue status error:', e)
+  } finally {
+    togglingId.value = null
+  }
+}
 </script>
 
 <style scoped>

@@ -24,7 +24,8 @@ class CompetitionLocation extends Model
         'closing_time',
         'note_booking',
         'website',
-        'avatar_url'
+        'avatar_url',
+        'status',
     ];
 
     const PER_PAGE = 15;
@@ -32,10 +33,6 @@ class CompetitionLocation extends Model
     public function location()
     {
         return $this->belongsTo(Location::class);
-    }
-    public function miniTournaments()
-    {
-        return $this->hasMany(MiniTournament::class, 'location_id');
     }
 
     public function sports()
@@ -57,6 +54,93 @@ class CompetitionLocation extends Model
 {
         return $this->belongsToMany(Facility::class, 'competition_location_facility', 'competition_location_id', 'facility_id');
 }
+
+    public function tournaments()
+    {
+        return $this->hasMany(Tournament::class, 'competition_location_id');
+    }
+
+    public function miniTournaments()
+    {
+        return $this->hasMany(MiniTournament::class, 'competition_location_id');
+    }
+
+    public function quickMatches()
+    {
+        return $this->hasMany(QuickMatch::class, 'competition_location_id');
+    }
+
+
+    public static function scopeWithAdminRelations($query)
+    {
+        return $query->with([
+            'location',
+            'sports',
+            'competitionLocationYards',
+            'facilities',
+            'tournaments' => fn($q) => $q
+                ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
+                ->where(fn($sub) => $sub->whereNull('end_date')->orWhereDate('end_date', '>=', now())),
+            'miniTournaments' => fn($q) => $q
+                ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+                ->where(fn($sub) => $sub->whereNull('end_time')->orWhere('end_time', '>=', now())),
+        ]);
+    }
+
+    public function scopeFilterForAdmin($query, array $filters)
+    {
+        return $query
+            ->when(
+                !empty($filters['keyword']),
+                fn($q) => $q->where(function ($sub) use ($filters) {
+                    $sub->where('name', 'like', '%' . $filters['keyword'] . '%')
+                        ->orWhere('address', 'like', '%' . $filters['keyword'] . '%');
+                })
+            )
+            ->when(
+                !empty($filters['sport_id']),
+                fn($q) => $q->whereHas('sports', fn($sq) => $sq->where('sports.id', $filters['sport_id']))
+            )
+            ->when(
+                isset($filters['status']),
+                fn($q) => $q->where('status', $filters['status'])
+            );
+    }
+
+    public function scopeSortForAdmin($query, string $sortBy = 'created_at', string $sortDir = 'desc')
+    {
+        $sortDir = strtolower($sortDir) === 'asc' ? 'asc' : 'desc';
+
+        return match ($sortBy) {
+            'active_matches_count' => $query
+                ->withCount([
+                    'miniTournaments as active_matches_count' => fn($q) => $q
+                        ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+                        ->where(fn($sub) => $sub->whereNull('end_time')->orWhere('end_time', '>=', now())),
+                ])
+                ->orderBy('active_matches_count', $sortDir),
+            'active_tournaments_count' => $query
+                ->withCount([
+                    'tournaments as active_tournaments_count' => fn($q) => $q
+                        ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
+                        ->where(fn($sub) => $sub->whereNull('end_date')->orWhereDate('end_date', '>=', now())),
+                ])
+                ->orderBy('active_tournaments_count', $sortDir),
+            default => $query
+                ->withCount([
+                    'miniTournaments as active_matches_count' => fn($q) => $q
+                        ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+                        ->where(fn($sub) => $sub->whereNull('end_time')->orWhere('end_time', '>=', now())),
+                ])
+                ->withCount([
+                    'tournaments as active_tournaments_count' => fn($q) => $q
+                        ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
+                        ->where(fn($sub) => $sub->whereNull('end_date')->orWhereDate('end_date', '>=', now())),
+                ])
+                ->orderByRaw('CASE WHEN active_matches_count > 0 OR active_tournaments_count > 0 THEN 0 ELSE 1 END ASC')
+                ->orderBy('created_at', $sortDir),
+        };
+    }
 
 
     public static function scopeWithFullRelations($query)
@@ -102,7 +186,7 @@ class CompetitionLocation extends Model
                 !empty($filters['number_of_yards']),
                 fn($q) => $q->withCount('competitionLocationYards')
                              ->having('competition_location_yards_count', '>=', $filters['number_of_yards'])
-            )            
+            )
             ->when(
                 !empty($filters['yard_type']) && is_array($filters['yard_type']),
                 fn($q) => $q->whereHas('competitionLocationYards', fn($yq) => $yq->whereIn('yard_type', $filters['yard_type']))
