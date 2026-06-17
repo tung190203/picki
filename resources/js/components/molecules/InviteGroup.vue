@@ -117,77 +117,6 @@
                                 Chỉ bạn bè (friend only)
                             </label>
                         </div>
-
-                        <!-- Auto-Invite Section -->
-                        <div class="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2">
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm font-medium text-gray-700">
-                                    Tối đa mời:
-                                    <span class="font-bold text-red-600">30</span> người
-                                </span>
-                                <button
-                                    v-if="!isAutoInviting && !autoInviteResult"
-                                    @click="handleAutoInvite"
-                                    :disabled="neededCount <= 0"
-                                    :class="[
-                                        'px-4 py-2 rounded-lg text-sm font-semibold transition',
-                                        neededCount > 0
-                                            ? 'bg-red-600 text-white hover:bg-red-700'
-                                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                    ]"
-                                >
-                                    Mời tự động
-                                </button>
-                            </div>
-
-                            <!-- Auto-invite loading -->
-                            <div v-if="isAutoInviting" class="space-y-1">
-                                <div class="flex items-center gap-2">
-                                    <div class="animate-spin w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full"></div>
-                                    <span class="text-sm text-gray-600">
-                                        Đang mời {{ autoInviteProgress }} người...
-                                    </span>
-                                </div>
-                                <div class="w-full bg-gray-200 rounded-full h-2">
-                                    <div
-                                        class="bg-red-600 h-2 rounded-full transition-all duration-300"
-                                        :style="{ width: autoInviteProgressPercent + '%' }"
-                                    ></div>
-                                </div>
-                            </div>
-
-                            <!-- Auto-invite result -->
-                            <div v-if="autoInviteResult" class="space-y-1">
-                                <div class="flex items-center gap-2">
-                                    <CheckCircleIcon v-if="autoInviteResult.invited_count > 0" class="w-5 h-5 text-green-500" />
-                                    <ExclamationCircleIcon v-else class="w-5 h-5 text-yellow-500" />
-                                    <span class="text-sm font-medium text-gray-700">
-                                        <template v-if="autoInviteResult.already_full">
-                                            Kèo đã đủ số lượng người chơi.
-                                        </template>
-                                        <template v-else-if="autoInviteResult.invited_count > 0">
-                                            Đã mời thành công
-                                            <span class="font-bold text-green-600">{{ autoInviteResult.invited_count }}</span> người
-                                            <template v-if="autoInviteResult.failed_count > 0">
-                                                ({{ autoInviteResult.failed_count }} thất bại)
-                                            </template>
-                                            <template v-if="autoInviteResult.reached_max_radius">
-                                                - Đã quét hết bán kính tối đa
-                                            </template>
-                                        </template>
-                                        <template v-else>
-                                            Không tìm thấy người chơi phù hợp.
-                                        </template>
-                                    </span>
-                                </div>
-                                <button
-                                    @click="resetAutoInvite"
-                                    class="text-xs text-blue-600 hover:underline"
-                                >
-                                    Mời lại
-                                </button>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- Search -->
@@ -307,14 +236,13 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { XMarkIcon, MagnifyingGlassIcon, CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/vue/24/outline'
+import { XMarkIcon, MagnifyingGlassIcon } from '@heroicons/vue/24/outline'
 import { Swiper, SwiperSlide } from 'swiper/vue'
 import { FreeMode, Mousewheel } from 'swiper/modules'
 import 'swiper/css'
 import 'swiper/css/free-mode'
 import maleIcon from '@/assets/images/male.svg'
 import femaleIcon from '@/assets/images/female.svg'
-import { autoInviteArea } from '@/service/miniParticipant.js'
 
 const defaultAvatar = '/images/default-avatar.png'
 const modules = [FreeMode, Mousewheel]
@@ -395,16 +323,6 @@ const activeTab = ref('all')
 const selectedRole = ref('organizer')
 const friendOnly = ref(false)
 const locationSource = ref('venue')
-const isAutoInviting = ref(false)
-const autoInviteResult = ref(null)
-const autoInviteProgress = ref(0)
-
-const neededCount = computed(() => 30)
-
-const autoInviteProgressPercent = computed(() => {
-    if (neededCount.value <= 0) return 100
-    return Math.min(100, Math.round((autoInviteProgress.value / neededCount.value) * 100))
-})
 
 watch(
   () => props.activeScope,
@@ -467,58 +385,6 @@ const onScroll = () => {
 const convertLevel = user => {
     if (!user?.sports?.length) return '0'
     return Number.parseFloat(user?.sports[0]?.scores?.vndupr_score || 0).toFixed(1)
-}
-
-const handleAutoInvite = async () => {
-    if (neededCount.value <= 0) return
-
-    isAutoInviting.value = true
-    autoInviteResult.value = null
-    autoInviteProgress.value = 0
-
-    // Build payload
-    const payload = {
-        friend_only: friendOnly.value,
-        source: locationSource.value,
-        radius_start: localRadius.value,
-        radius_max: 50,
-    }
-
-    // Only send lat/lng when source is "user"
-    if (locationSource.value === 'user') {
-        const userLat = props.competitionLocation?.latitude
-        const userLng = props.competitionLocation?.longitude
-        if (userLat && userLng) {
-            payload.lat = userLat
-            payload.lng = userLng
-        }
-    }
-    // When source is 'venue', backend will auto-fetch from competition_location
-
-    try {
-        const result = await autoInviteArea(props.tournamentId, payload)
-
-        autoInviteProgress.value = result.invited_count || 0
-        autoInviteResult.value = result
-        emit('invite-complete', result)
-    } catch (error) {
-        autoInviteResult.value = {
-            invited_count: 0,
-            failed_count: 0,
-            total_found: 0,
-            reached_max_radius: false,
-            already_full: false,
-        }
-        // eslint-disable-next-line no-console
-        console.error('Auto invite error:', error)
-    } finally {
-        isAutoInviting.value = false
-    }
-}
-
-const resetAutoInvite = () => {
-    autoInviteResult.value = null
-    autoInviteProgress.value = 0
 }
 </script>
 

@@ -167,6 +167,91 @@ class Club extends Model
         return $this->hasMany(MiniTournament::class);
     }
 
+    /** Top admin = member with highest role priority: Admin > Manager > Secretary > Treasurer > Member. */
+    public function adminMember()
+    {
+        return $this->hasOne(ClubMember::class)
+            ->where('membership_status', ClubMembershipStatus::Joined)
+            ->where('status', ClubMemberStatus::Active)
+            ->orderByRaw("FIELD(role, 'admin', 'manager', 'secretary', 'treasurer', 'member') ASC")
+            ->with('user');
+    }
+
+    public function scopeAdminList($query)
+    {
+        return $query->with([
+            'adminMember.user',
+            'activeMembers',
+            'tournaments.groups.matches',
+            'miniTournaments',
+            'notifications',
+        ]);
+    }
+
+    public function scopeFilterForAdmin($query, array $filters)
+    {
+        return $query
+            ->when(
+                !empty($filters['keyword']),
+                fn($q) => $q->where(function ($sub) use ($filters) {
+                    $sub->where('name', 'like', '%' . $filters['keyword'] . '%')
+                        ->orWhere('address', 'like', '%' . $filters['keyword'] . '%');
+                })
+            )
+            ->when(
+                isset($filters['status']),
+                fn($q) => $q->where('status', $filters['status'])
+            )
+            ->when(
+                isset($filters['is_verified']),
+                fn($q) => $q->where('is_verified', filter_var($filters['is_verified'], FILTER_VALIDATE_BOOLEAN))
+            );
+    }
+
+    public function scopeSortForAdmin($query, string $sortBy = 'created_at', string $sortDir = 'desc')
+    {
+        $sortDir = strtolower($sortDir) === 'asc' ? 'asc' : 'desc';
+
+        return match ($sortBy) {
+            'members_count' => $query
+                ->withCount([
+                    'activeMembers',
+                    'miniTournaments as active_matches_count' => fn($q) => $q
+                        ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+                        ->where(fn($sub) => $sub->whereNull('end_time')->orWhere('end_time', '>=', now())),
+                ])
+                ->orderByRaw('CASE WHEN active_matches_count > 0 THEN 0 ELSE 1 END ASC')
+                ->orderBy('active_members_count', $sortDir),
+            'active_matches_count' => $query
+                ->withCount([
+                    'miniTournaments as active_matches_count' => fn($q) => $q
+                        ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+                        ->where(fn($sub) => $sub->whereNull('end_time')->orWhere('end_time', '>=', now())),
+                ])
+                ->orderBy('active_matches_count', $sortDir),
+            'active_tournaments_count' => $query
+                ->withCount([
+                    'tournaments as active_tournaments_count' => fn($q) => $q
+                        ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
+                        ->where(fn($sub) => $sub->whereNull('end_date')->orWhereDate('end_date', '>=', now())),
+                ])
+                ->orderBy('active_tournaments_count', $sortDir),
+            default => $query
+                ->withCount([
+                    'miniTournaments as active_matches_count' => fn($q) => $q
+                        ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+                        ->where(fn($sub) => $sub->whereNull('end_time')->orWhere('end_time', '>=', now())),
+                ])
+                ->withCount([
+                    'tournaments as active_tournaments_count' => fn($q) => $q
+                        ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
+                        ->where(fn($sub) => $sub->whereNull('end_date')->orWhereDate('end_date', '>=', now())),
+                ])
+                ->orderByRaw('CASE WHEN active_matches_count > 0 OR active_tournaments_count > 0 THEN 0 ELSE 1 END ASC')
+                ->orderBy('created_at', $sortDir),
+        };
+    }
+
     public function scopeWithFullRelations($query)
     {
         return $query->with([
