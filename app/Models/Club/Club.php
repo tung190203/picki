@@ -167,6 +167,74 @@ class Club extends Model
         return $this->hasMany(MiniTournament::class);
     }
 
+    /** Top admin = member with highest role priority: Admin > Manager > Secretary > Treasurer > Member. */
+    public function adminMember()
+    {
+        return $this->hasOne(ClubMember::class)
+            ->where('membership_status', ClubMembershipStatus::Joined)
+            ->where('status', ClubMemberStatus::Active)
+            ->orderByRaw("FIELD(role, 'admin', 'manager', 'secretary', 'treasurer', 'member') ASC")
+            ->with('user');
+    }
+
+    public function scopeAdminList($query)
+    {
+        return $query->with([
+            'adminMember.user',
+            'activeMembers',
+            'tournaments.groups.matches',
+            'miniTournaments',
+            'notifications',
+        ]);
+    }
+
+    public function scopeFilterForAdmin($query, array $filters)
+    {
+        return $query
+            ->when(
+                !empty($filters['keyword']),
+                fn($q) => $q->where(function ($sub) use ($filters) {
+                    $sub->where('name', 'like', '%' . $filters['keyword'] . '%')
+                        ->orWhere('address', 'like', '%' . $filters['keyword'] . '%');
+                })
+            )
+            ->when(
+                isset($filters['status']),
+                fn($q) => $q->where('status', $filters['status'])
+            )
+            ->when(
+                isset($filters['is_verified']),
+                fn($q) => $q->where('is_verified', filter_var($filters['is_verified'], FILTER_VALIDATE_BOOLEAN))
+            );
+    }
+
+    public function scopeSortForAdmin($query, string $sortBy = 'created_at', string $sortDir = 'desc')
+    {
+        $sortDir = strtolower($sortDir) === 'asc' ? 'asc' : 'desc';
+
+        return match ($sortBy) {
+            'members_count' => $query->withCount('activeMembers')
+                ->orderBy('active_members_count', $sortDir),
+            'active_matches_count' => $query->withCount([
+                    'tournaments as active_matches_count' => fn($q) => $q
+                        ->whereIn('status', [Tournament::OPEN, 5])
+                        ->whereHas('tournamentTypes.groups.matches', fn($mq) => $mq->where('matches.status', 'pending')),
+                    'miniTournaments as mini_active_matches_count' => fn($q) => $q
+                        ->whereIn('status', [MiniTournament::STATUS_OPEN, MiniTournament::STATUS_CLOSED])
+                        ->whereHas('matches', fn($mq) => $mq->whereIn('status', ['pending', 'going_on', 'waiting_confirm'])),
+                ])
+                ->orderByRaw('COALESCE(active_matches_count, 0) + COALESCE(mini_active_matches_count, 0) ' . $sortDir),
+            'active_tournaments_count' => $query->withCount([
+                    'tournaments as active_tournaments_count' => fn($q) => $q
+                        ->whereIn('status', [Tournament::OPEN, 5]),
+                    'miniTournaments as active_mini_tournaments_count' => fn($q) => $q
+                        ->whereIn('status', [MiniTournament::STATUS_OPEN]),
+                ])
+                ->orderByRaw('COALESCE(active_tournaments_count, 0) + COALESCE(active_mini_tournaments_count, 0) ' . $sortDir),
+            default => $query->orderBy('created_at', $sortDir),
+        };
+    }
+
     public function scopeWithFullRelations($query)
     {
         return $query->with([
