@@ -2,6 +2,7 @@
 
 namespace App\Services\Admin;
 
+use App\Http\Resources\ClubResource;
 use App\Http\Resources\MiniTournamentResource;
 use App\Http\Resources\TournamentResource;
 use App\Http\Resources\UserResource;
@@ -9,6 +10,7 @@ use App\Models\Matches;
 use App\Models\MiniMatch;
 use App\Models\MiniTournament;
 use App\Models\MiniParticipant;
+use App\Models\Club\Club;
 use App\Models\Club\ClubReport;
 use App\Models\Tournament;
 use App\Models\User;
@@ -89,6 +91,13 @@ class DashboardService
 
         // Transform qua UserResource để resolve sports/sport/score relations
         $recentNewUsers = UserResource::collection($recentNewUsersQuery->get())->resolve();
+
+        // ---------- Recent New Clubs (top 3) ----------
+        $recentNewClubsQuery = Club::with(['activeMembers', 'profile'])
+            ->orderBy('created_at', 'desc')
+            ->limit(3);
+
+        $recentNewClubs = ClubResource::collection($recentNewClubsQuery->get())->resolve();
 
         // ---------- Open Mini Tournaments (chưa hoàn thành hoặc huỷ) ----------
         $openMiniTournaments = MiniTournament::with([
@@ -224,6 +233,7 @@ class DashboardService
 
             // Data lists
             'recent_new_users' => $recentNewUsers,
+            'recent_new_clubs' => $recentNewClubs,
             'open_mini_tournaments' => collect(MiniTournamentResource::collection($openMiniTournaments)->resolve()),
             'open_tournaments' => collect(TournamentResource::collection($openTournaments)->resolve()),
 
@@ -241,6 +251,7 @@ class DashboardService
             'matches' => $this->getMatchesList($page, $limit, $keyword),
             'tournaments' => $this->getTournamentsList($page, $limit, $keyword),
             'recent_new_users' => $this->getRecentNewUsersList($page, $limit, $keyword),
+            'recent_new_clubs' => $this->getRecentNewClubsList($page, $limit, $keyword),
             'open_mini_tournaments' => $this->getOpenMiniTournamentsList($page, $limit, $keyword),
             'open_tournaments' => $this->getOpenTournamentsList($page, $limit, $keyword),
             default => $this->getUsersList($page, $limit, $keyword),
@@ -279,6 +290,22 @@ class DashboardService
 
         return $paginated->setCollection(
             collect(UserResource::collection($paginated->getCollection())->resolve())
+        );
+    }
+
+    private function getRecentNewClubsList(int $page, int $limit, ?string $keyword)
+    {
+        $query = Club::with(['activeMembers', 'profile'])
+            ->orderBy('created_at', 'desc');
+
+        if ($keyword) {
+            $query->where('name', 'like', "%{$keyword}%");
+        }
+
+        $paginated = $query->paginate($limit, ['*'], 'page', $page);
+
+        return $paginated->setCollection(
+            collect(ClubResource::collection($paginated->getCollection())->resolve())
         );
     }
 

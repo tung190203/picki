@@ -1071,6 +1071,8 @@ class MiniParticipantController extends Controller
 
         $perPage = $validated['per_page'] ?? 20;
         $scope = $validated['scope'];
+        $lat = $validated['lat'] ?? null;
+        $lng = $validated['lng'] ?? null;
 
         // 🧮 Tính mid level cho sorting (nếu mini tournament có min/max level)
         $midLevel = null;
@@ -1126,13 +1128,13 @@ class MiniParticipantController extends Controller
                 $lng = $validated['lng'];
                 $radius = $validated['radius'];
 
-                $haversine = "(6371 * acos(
+                $haversine = "6371 * acos(
                         cos(radians(?))
                         * cos(radians(users.latitude))
                         * cos(radians(users.longitude) - radians(?))
                         + sin(radians(?))
                         * sin(radians(users.latitude))
-                    ))";
+                    )";
 
                 $query = User::withFullRelations()
                     ->whereNotNull('users.latitude')
@@ -1141,12 +1143,12 @@ class MiniParticipantController extends Controller
                         $lat,
                         $lng,
                         $lat,
-                        $radius
+                        $radius,
                     ])
                     ->orderByRaw("$haversine asc", [
                         $lat,
                         $lng,
-                        $lat
+                        $lat,
                     ]);
                 break;
 
@@ -1254,7 +1256,7 @@ class MiniParticipantController extends Controller
 
         // 🧮 Phân trang
         $paginated = $query->paginate($perPage);
-        $candidates = $paginated->getCollection()->map(function ($u) use ($user, $excludedUserIds) {
+        $candidates = $paginated->getCollection()->map(function ($u) use ($user, $excludedUserIds, $lat, $lng) {
             return [
                 'id' => $u->id,
                 'name' => $u->full_name,
@@ -1265,7 +1267,9 @@ class MiniParticipantController extends Controller
                 'gender' => $u->gender,
                 'gender_text' => $u->gender_text,
                 'play_times' => [],
-                'distance' => isset($u->distance) ? round($u->distance, 1) : null,
+                'distance' => isset($u->latitude, $u->longitude)
+                    ? round($this->haversineDistance((float) $lat, (float) $lng, (float) $u->latitude, (float) $u->longitude), 1)
+                    : null,
                 'clubs' => $u->clubs->map(fn($c) => [
                     'id'   => $c->id,
                     'name' => $c->name,
@@ -1378,5 +1382,15 @@ class MiniParticipantController extends Controller
         foreach ($userIds as $userId) {
             SendPushJob::dispatch($userId, $title, $body, $data);
         }
+    }
+
+    private function haversineDistance(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $earthRadius = 6371;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+        $a = sin($dLat / 2) ** 2
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
+        return $earthRadius * 2 * asin(sqrt($a));
     }
 }

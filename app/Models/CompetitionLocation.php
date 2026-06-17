@@ -26,6 +26,11 @@ class CompetitionLocation extends Model
         'website',
         'avatar_url',
         'status',
+        'is_banned',
+    ];
+
+    protected $casts = [
+        'is_banned' => 'boolean',
     ];
 
     const PER_PAGE = 15;
@@ -33,6 +38,11 @@ class CompetitionLocation extends Model
     public function location()
     {
         return $this->belongsTo(Location::class);
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     public function sports()
@@ -78,11 +88,14 @@ class CompetitionLocation extends Model
             'sports',
             'competitionLocationYards',
             'facilities',
+            'creator',
             'tournaments' => fn($q) => $q
-                ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
+                ->with('creator')
+                ->where('status', Tournament::OPEN)
                 ->where(fn($sub) => $sub->whereNull('end_date')->orWhereDate('end_date', '>=', now())),
             'miniTournaments' => fn($q) => $q
-                ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+                ->with('creator')
+                ->where('status', MiniTournament::STATUS_OPEN)
                 ->where(fn($sub) => $sub->whereNull('end_time')->orWhere('end_time', '>=', now())),
         ]);
     }

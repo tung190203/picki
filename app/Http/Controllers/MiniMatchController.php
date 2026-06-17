@@ -323,6 +323,13 @@ class MiniMatchController extends Controller
             return ResponseHelper::error('Bạn không có quyền tạo trận đấu', 403);
         }
 
+        if ($miniTournament->competition_location_id) {
+            $location = \App\Models\CompetitionLocation::find($miniTournament->competition_location_id);
+            if ($location && $location->is_banned) {
+                return ResponseHelper::error('Địa điểm của kèo đấu tạm thời bị cấm truy cập', 422);
+            }
+        }
+
         $data = $request->validate([
             'team1' => 'required|array|min:1',
             'team2' => 'required|array|min:1',
@@ -434,6 +441,13 @@ class MiniMatchController extends Controller
         $match = MiniMatch::withFullRelations()->findOrFail($matchId);
 
         $miniTournament = $match->miniTournament;
+
+        if ($miniTournament->competition_location_id) {
+            $location = \App\Models\CompetitionLocation::find($miniTournament->competition_location_id);
+            if ($location && $location->is_banned) {
+                return ResponseHelper::error('Địa điểm của kèo đấu tạm thời bị cấm truy cập', 422);
+            }
+        }
 
         if (!$miniTournament->hasOrganizer(Auth::id())) {
             return ResponseHelper::error('Bạn không có quyền sửa trận đấu', 403);
@@ -574,6 +588,13 @@ class MiniMatchController extends Controller
 
         $match = MiniMatch::withFullRelations()->findOrFail($matchId);
         $tournament = $match->miniTournament->load('staff');
+
+        if ($tournament->competition_location_id) {
+            $location = \App\Models\CompetitionLocation::find($tournament->competition_location_id);
+            if ($location && $location->is_banned) {
+                return ResponseHelper::error('Địa điểm của kèo đấu tạm thời bị cấm truy cập', 422);
+            }
+        }
 
         // Kiểm tra quyền scoring
         if (!$tournament->hasScoringPermission(Auth::id())) {
@@ -736,6 +757,13 @@ class MiniMatchController extends Controller
     {
         $match = MiniMatch::withFullRelations()->findOrFail($matchId);
         $miniTournament = $match->miniTournament;
+
+        if ($miniTournament->competition_location_id) {
+            $location = \App\Models\CompetitionLocation::find($miniTournament->competition_location_id);
+            if ($location && $location->is_banned) {
+                return ResponseHelper::error('Địa điểm của kèo đấu tạm thời bị cấm truy cập', 422);
+            }
+        }
 
         // Kèo chưa công bố (status = 1 = STATUS_DRAFT): chỉ organizer mới thao tác được
         if ($miniTournament->status === MiniTournament::STATUS_DRAFT && !$miniTournament->hasOrganizer(Auth::id())) {
@@ -1443,6 +1471,13 @@ class MiniMatchController extends Controller
 
         if (!$miniTournament->hasOrganizer(Auth::id())) {
             return ResponseHelper::error('Bạn không có quyền thực hiện thao tác này', 403);
+        }
+
+        if ($miniTournament->competition_location_id) {
+            $location = \App\Models\CompetitionLocation::find($miniTournament->competition_location_id);
+            if ($location && $location->is_banned) {
+                return ResponseHelper::error('Địa điểm của kèo đấu tạm thời bị cấm truy cập', 422);
+            }
         }
 
         $data = $request->validate([

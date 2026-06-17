@@ -63,10 +63,10 @@ class AdminClubManagementController extends Controller
         }
     }
 
-    public function updateStatus(int $id, Request $request)
+    public function toggleBan(int $id, Request $request)
     {
         $validated = $request->validate([
-            'status' => ['required', 'string', Rule::in(['active', 'banned'])],
+            'is_banned' => ['required', 'boolean'],
         ]);
 
         $club = Club::find($id);
@@ -75,11 +75,10 @@ class AdminClubManagementController extends Controller
             return ResponseHelper::error('Club not found.', 404);
         }
 
-        try {
-            $this->clubService->updateStatus($club, $validated['status']);
-            return ResponseHelper::success(null, 'Club status updated successfully.');
-        } catch (\InvalidArgumentException $e) {
-            return ResponseHelper::error($e->getMessage(), 422);
-        }
+        $this->clubService->toggleBan($club, $validated['is_banned']);
+
+        return ResponseHelper::success(null, $validated['is_banned']
+            ? 'Club has been banned successfully.'
+            : 'Club has been unbanned successfully.');
     }
 }
