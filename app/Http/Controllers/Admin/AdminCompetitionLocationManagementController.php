@@ -63,10 +63,10 @@ class AdminCompetitionLocationManagementController extends Controller
         }
     }
 
-    public function updateStatus(int $id, Request $request)
+    public function toggleBan(int $id, Request $request)
     {
         $validated = $request->validate([
-            'status' => ['required', 'string', Rule::in(['active', 'banned'])],
+            'is_banned' => ['required', 'boolean'],
         ]);
 
         $location = CompetitionLocation::find($id);
@@ -75,11 +75,10 @@ class AdminCompetitionLocationManagementController extends Controller
             return ResponseHelper::error('Competition location not found.', 404);
         }
 
-        try {
-            $this->locationService->updateStatus($location, $validated['status']);
-            return ResponseHelper::success(null, 'Competition location status updated successfully.');
-        } catch (\InvalidArgumentException $e) {
-            return ResponseHelper::error($e->getMessage(), 422);
-        }
+        $this->locationService->toggleBan($location, $validated['is_banned']);
+
+        return ResponseHelper::success(null, $validated['is_banned']
+            ? 'Competition location has been banned successfully.'
+            : 'Competition location has been unbanned successfully.');
     }
 }

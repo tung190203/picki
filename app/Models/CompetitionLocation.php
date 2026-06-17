@@ -26,6 +26,11 @@ class CompetitionLocation extends Model
         'website',
         'avatar_url',
         'status',
+        'is_banned',
+    ];
+
+    protected $casts = [
+        'is_banned' => 'boolean',
     ];
 
     const PER_PAGE = 15;

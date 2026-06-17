@@ -67,4 +67,19 @@ class AdminClubManagementService
 
         return $club;
     }
+
+    public function toggleBan(Club $club, bool $isBanned): Club
+    {
+        $club->is_banned = $isBanned;
+
+        if ($isBanned) {
+            $club->status = ClubStatus::Suspended;
+        } else {
+            $club->status = ClubStatus::Active;
+        }
+
+        $club->save();
+
+        return $club;
+    }
 }

@@ -346,12 +346,12 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
     Route::post('/users/{id}/set-anchor', [UserManagementController::class, 'setAnchor']);
 
     Route::get('/clubs', [AdminClubManagementController::class, 'index']);
-    Route::get('/clubs/{id}', [AdminClubManagementController::class, 'show']);
-    Route::match(['put', 'patch'], '/clubs/{id}/status', [AdminClubManagementController::class, 'updateStatus']);
+    Route::get('/clubs/{clubId}', [AdminClubManagementController::class, 'show']);
+    Route::post('/clubs/{clubId}/ban', [AdminClubManagementController::class, 'toggleBan']);
 
     Route::get('/competition-locations', [AdminCompetitionLocationManagementController::class, 'index']);
-    Route::get('/competition-locations/{id}', [AdminCompetitionLocationManagementController::class, 'show']);
-    Route::match(['put', 'patch'], '/competition-locations/{id}/status', [AdminCompetitionLocationManagementController::class, 'updateStatus']);
+    Route::get('/competition-locations/{locationId}', [AdminCompetitionLocationManagementController::class, 'show']);
+    Route::post('/competition-locations/{locationId}/ban', [AdminCompetitionLocationManagementController::class, 'toggleBan']);
 
     Route::get('/tournaments', [TournamentManagementController::class, 'index']);
     Route::post('/tournaments/{id}/approve', [TournamentManagementController::class, 'approve']);

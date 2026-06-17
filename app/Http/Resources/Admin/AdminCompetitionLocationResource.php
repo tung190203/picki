@@ -69,6 +69,7 @@ class AdminCompetitionLocationResource extends JsonResource
             'facilities' => \App\Http\Resources\FacilityResource::collection($this->whenLoaded('facilities')),
 
             'status' => $this->status,
+            'is_banned' => (bool) ($this->is_banned ?? false),
 
             'active_matches_count' => $activeMatchesCount,
             'active_tournaments_count' => $activeTournamentsCount,
