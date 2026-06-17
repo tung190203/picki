@@ -144,10 +144,11 @@ export default {
         };
 
         const handleInvite = async (user) => {
+            const isAreaInvite = activeScope.value === 'area'
             if (inviteType.value === 'staff') {
                 await inviteStaff(user.id);
             } else {
-                await invite(user.id);
+                await invite(user.id, isAreaInvite);
             }
             await detailMiniTournament(id);
         }
@@ -570,9 +571,9 @@ export default {
             await getInviteGroupData();
         };
 
-        const invite = async (friendId) => {
+        const invite = async (friendId, isAreaInvite = false) => {
             try {
-                await MiniParticipantService.sendInvitation(id, friendId);
+                await MiniParticipantService.sendInvitation(id, friendId, isAreaInvite);
                 toast.success('Đã gửi lời mời thành công!');
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi gửi lời mời.');

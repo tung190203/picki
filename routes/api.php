@@ -766,7 +766,6 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/delete-staff/{staffId}', [MiniParticipantController::class, 'deleteStaff']);
         Route::post('/self/check-in/{miniTournamentId}', [MiniParticipantController::class, 'selfCheckIn']);
         Route::post('/self/absent/{miniTournamentId}', [MiniParticipantController::class, 'selfMarkAbsent']);
-        Route::post('/auto-invite-area/{tournamentId}', [MiniParticipantController::class, 'autoInviteArea']);
         Route::post('/{miniTournamentId}/participants/{participantId}/admin-confirm', [MiniParticipantController::class, 'adminConfirm']);
     });
     // Mini Match Routes

@@ -221,10 +221,24 @@ class MiniParticipantController extends Controller
             return ResponseHelper::error('Bạn không có quyền mời người tham gia.', 403);
         }
 
+        $isInviteAround = $request->boolean('is_invite_around', false);
+
         $validated = $request->validate([
-            'user_ids' => 'required|array|min:1',
-            'user_ids.*' => 'required|exists:users,id',
+            'user_ids'         => 'required|array|min:1',
+            'user_ids.*'       => 'required|exists:users,id',
+            'is_invite_around' => 'sometimes|boolean',
         ]);
+
+        if ($isInviteAround && !$miniTournament->canInviteAround()) {
+            return ResponseHelper::error(
+                $miniTournament->is_invited_around
+                    ? 'Bạn đã mời người xung quanh cho kèo này rồi. Không thể mời thêm.'
+                    : 'Các nhà tổ chức chưa đủ điều kiện mời người xung quanh.',
+                422
+            );
+        }
+
+        $userIds = $validated['user_ids'] ?? [];
 
         $this->checkMaxPlayers($miniTournament);
 
@@ -238,7 +252,7 @@ class MiniParticipantController extends Controller
         $invited = [];
         $failed = [];
 
-        foreach ($validated['user_ids'] as $userId) {
+        foreach ($userIds as $userId) {
             if (in_array($userId, $allExcluded)) {
                 $reason = in_array($userId, $declinedUserIds)
                     ? 'Người chơi đã từ chối lời mời trong kèo đấu này trước đó.'
@@ -319,6 +333,10 @@ class MiniParticipantController extends Controller
         $message = empty($failed)
             ? 'Đã gửi lời mời tham gia kèo đấu cho ' . count($invited) . ' người chơi.'
             : 'Đã mời ' . count($invited) . ' người, thất bại ' . count($failed) . ' người.';
+
+        if ($isInviteAround) {
+            $miniTournament->update(['is_invited_around' => true]);
+        }
 
         return ResponseHelper::success([
             'invited' => $invited,
@@ -1016,280 +1034,6 @@ class MiniParticipantController extends Controller
      * Auto invite by area
      * =====================
      */
-    public function autoInviteArea(Request $request, $tournamentId)
-    {
-        $miniTournament = MiniTournament::with(['competitionLocation', 'participants', 'miniTournamentStaffs'])->findOrFail($tournamentId);
-
-        if (!$miniTournament->hasOrganizer(Auth::id())) {
-            return ResponseHelper::error('Bạn không có quyền mời người tham gia.', 403);
-        }
-
-        if ($miniTournament->is_invited_around) {
-            return ResponseHelper::error('Bạn đã mời người xung quanh cho kèo này rồi. Không thể mời thêm.', 422);
-        }
-
-        $validated = $request->validate([
-            'friend_only' => 'sometimes|boolean',
-            'lat'         => 'sometimes|numeric',
-            'lng'         => 'sometimes|numeric',
-            'radius_start' => 'sometimes|numeric|min:1|max:50',
-            'source'       => 'sometimes|in:venue,user',
-        ]);
-
-        // Fallback to competition location if lat/lng not provided
-        $source = $validated['source'] ?? 'venue';
-
-        if (!empty($validated['lat']) && !empty($validated['lng'])) {
-            $lat = (float) $validated['lat'];
-            $lng = (float) $validated['lng'];
-        } elseif ($source === 'venue' && $miniTournament->competitionLocation) {
-            $lat = (float) $miniTournament->competitionLocation->latitude;
-            $lng = (float) $miniTournament->competitionLocation->longitude;
-        } else {
-            $user = Auth::user();
-            $lat = (float) $user->latitude;
-            $lng = (float) $user->longitude;
-        }
-
-        if (empty($lat) || empty($lng)) {
-            return ResponseHelper::error('Không có thông tin toạ độ. Vui lòng truyền lat/lng hoặc đảm bảo sân đấu có toạ độ.', 422);
-        }
-
-        $maxInvite = 30;
-        $radiusStart = (float) ($validated['radius_start'] ?? 1);
-        $radiusMax = 50.0;
-        $radiusStep = 5.0;
-        $friendOnly = $validated['friend_only'] ?? false;
-
-        // Collect IDs cần loại trừ
-        $excludedUserIds = collect([
-            $miniTournament->participants->pluck('user_id'),
-            $miniTournament->miniTournamentStaffs->pluck('user_id'),
-        ])->flatten()->filter()->unique()->toArray();
-
-        // Loại trừ user đã từ chối lời mời trong kèo này
-        $declinedUserIds = MiniParticipant::where('mini_tournament_id', $tournamentId)
-            ->whereNotNull('declined_at')
-            ->pluck('user_id')
-            ->toArray();
-
-        $invitedUserIds = [];
-        $failedUserIds = [];
-        $totalFound = 0;
-        $reachedMaxRadius = false;
-
-        // Determine tournament filters
-        $sportId = $miniTournament->sport_id ?? null;
-        $ageGroup = $miniTournament->age_group ?? null;
-        $genderPolicy = $miniTournament->gender_policy ?? null;
-
-        $currentRadius = $radiusStart;
-        while ($currentRadius <= $radiusMax) {
-            $effectiveRadius = min($currentRadius, $radiusMax);
-
-            // Build user query using Haversine
-            $haversine = "(6371 * acos(
-                cos(radians(?))
-                * cos(radians(users.latitude))
-                * cos(radians(users.longitude) - radians(?))
-                + sin(radians(?))
-                * sin(radians(users.latitude))
-            ))";
-
-            $query = User::withFullRelations()
-                ->whereNotNull('users.latitude')
-                ->whereNotNull('users.longitude')
-                ->whereRaw("$haversine <= ?", [$lat, $lng, $lat, $effectiveRadius])
-                ->orderByRaw("$haversine ASC", [$lat, $lng, $lat]);
-
-            // Visibility filter
-            $query->whereIn('users.visibility', [
-                User::VISIBILITY_PUBLIC,
-                User::VISIBILITY_FRIEND_ONLY
-            ]);
-
-            // Friend-only filter
-            if ($friendOnly) {
-                $currentUserId = Auth::id();
-                $query->whereExists(function ($q) use ($currentUserId) {
-                    $q->select(DB::raw(1))
-                        ->from('follows as f1')
-                        ->whereColumn('f1.followable_id', 'users.id')
-                        ->where('f1.user_id', $currentUserId)
-                        ->where('f1.followable_type', User::class);
-                })
-                ->whereExists(function ($q) use ($currentUserId) {
-                    $q->select(DB::raw(1))
-                        ->from('follows as f2')
-                        ->whereColumn('f2.user_id', 'users.id')
-                        ->where('f2.followable_id', $currentUserId)
-                        ->where('f2.followable_type', User::class);
-                });
-            }
-
-            // Exclude already in tournament
-            if (!empty($excludedUserIds)) {
-                $query->whereNotIn('users.id', $excludedUserIds);
-            }
-
-            // Exclude already invited in current run
-            if (!empty($invitedUserIds)) {
-                $query->whereNotIn('users.id', $invitedUserIds);
-            }
-
-            // Exclude already invited in current run from excluded set (bao gồm cả đã declined)
-            $allExcluded = array_unique(array_merge($excludedUserIds, $invitedUserIds, $declinedUserIds));
-            if (!empty($allExcluded)) {
-                $query->whereNotIn('users.id', $allExcluded);
-            }
-
-            // Sport filter
-            if ($sportId) {
-                $query->whereHas('sports', fn($q) => $q->where('sport_id', $sportId));
-            }
-
-            // Age filter
-            if ($ageGroup) {
-                $query->tap(fn($q) => $this->filterByAge($q, $ageGroup));
-            }
-
-            // Gender filter
-            if ($genderPolicy) {
-                $query->tap(fn($q) => $this->filterByGender($q, $genderPolicy));
-            }
-
-            // Level filter
-            if (isset($miniTournament->min_level)) {
-                $query->whereHas('sports.scores', fn($q) =>
-                    $q->where('score_type', 'vndupr_score')
-                      ->where('score_value', '>=', $miniTournament->min_level)
-                );
-            }
-            if (isset($miniTournament->max_level)) {
-                $query->whereHas('sports.scores', fn($q) =>
-                    $q->where('score_type', 'vndupr_score')
-                      ->where('score_value', '<=', $miniTournament->max_level)
-                );
-            }
-
-            $candidates = $query->get();
-
-            if ($candidates->isEmpty()) {
-                if ($currentRadius >= $radiusMax) {
-                    $reachedMaxRadius = true;
-                    break;
-                }
-                $currentRadius += $radiusStep;
-                continue;
-            }
-
-            foreach ($candidates as $candidate) {
-                if (count($invitedUserIds) >= $maxInvite) {
-                    break 2;
-                }
-
-                try {
-                    $paymentStatus = PaymentStatusEnum::CONFIRMED;
-                    $isPaidBySystem = false;
-                    if ($miniTournament->use_club_fund) {
-                        // CLB chi → CONFIRMED
-                        $isPaidBySystem = true;
-                    } elseif ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
-                        $paymentStatus = PaymentStatusEnum::PENDING;
-                    }
-
-                    $participant = $miniTournament->participants()->create([
-                        'user_id' => $candidate->id,
-                        'is_confirmed' => false,
-                        'is_invited' => true,
-                        'invited_by' => Auth::id(),
-                        'self_confirmed' => true,
-                        'payment_status' => $paymentStatus,
-                    ]);
-
-                    $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $candidate->id);
-
-                    // Tính phí dự kiến khi auto_split_fee
-                    $hasAutoSplitFee = $miniTournament->has_fee && $miniTournament->auto_split_fee && !$isPaidBySystem;
-                    $estimatedFeePerPerson = null;
-                    if ($hasAutoSplitFee) {
-                        $currentCount = $miniTournament->participants()->count();
-                        $estimatedFeePerPerson = $currentCount > 0
-                            ? round($miniTournament->fee_amount / $currentCount)
-                            : $miniTournament->fee_amount;
-                    }
-
-                    // Send notification
-                    $candidate->notify(new MiniTournamentCreatorInvitationNotification(
-                        $participant,
-                        Auth::id(),
-                        $hasAutoSplitFee,
-                        $estimatedFeePerPerson
-                    ));
-
-                    $notifMessage = $hasAutoSplitFee && $estimatedFeePerPerson
-                        ? "Bạn được mời tham gia kèo đấu \"{$miniTournament->name}\". Phí dự kiến " . number_format($estimatedFeePerPerson, 0, ',', '.') . " VND/người, sẽ được chia khi kèo bắt đầu."
-                        : "Bạn được mời tham gia kèo đấu \"{$miniTournament->name}\".";
-                    $this->pushToUsers(
-                        [$candidate->id],
-                        'Lời mời tham gia kèo đấu',
-                        $notifMessage,
-                        [
-                            'type' => 'MINI_TOURNAMENT_INVITED',
-                            'mini_tournament_id' => $miniTournament->id,
-                            'participant_id' => $participant->id,
-                        ]
-                    );
-
-                    // Create payment record (cả auto_split_fee lẫn phí cố định)
-                    if ($miniTournament->has_fee && !$isPaidBySystem) {
-                        MiniParticipantPayment::firstOrCreate(
-                            [
-                                'mini_tournament_id' => $miniTournament->id,
-                                'participant_id' => $participant->id,
-                            ],
-                            [
-                                'user_id' => $candidate->id,
-                                'amount' => $hasAutoSplitFee ? $estimatedFeePerPerson : $miniTournament->fee_amount,
-                                'status' => MiniParticipantPayment::STATUS_PENDING,
-                            ]
-                        );
-                    }
-
-                    $invitedUserIds[] = $candidate->id;
-                    $totalFound++;
-                } catch (\Exception $e) {
-                    $failedUserIds[] = $candidate->id;
-                }
-            }
-
-            if (count($invitedUserIds) >= $maxInvite) {
-                break;
-            }
-
-            if ($currentRadius >= $radiusMax) {
-                $reachedMaxRadius = true;
-                break;
-            }
-
-            $currentRadius += $radiusStep;
-        }
-
-        $miniTournament->update(['is_invited_around' => true]);
-
-        return ResponseHelper::success([
-            'invited_count' => count($invitedUserIds),
-            'failed_count' => count($failedUserIds),
-            'total_found' => $totalFound,
-            'reached_max_radius' => $reachedMaxRadius,
-            'already_full' => false,
-            'results' => [
-                'invited_ids' => $invitedUserIds,
-                'failed_ids' => $failedUserIds,
-            ],
-        ], 'Đã mời ' . count($invitedUserIds) . ' người chơi.');
-    }
-
     /**
      * =====================
      * Helpers
