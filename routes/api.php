@@ -69,6 +69,8 @@ use App\Http\Controllers\Admin\DisputeController;
 use App\Http\Controllers\Admin\SearchController;
 use App\Http\Controllers\Admin\AdminNotificationController;
 use App\Http\Controllers\Admin\AuditLogController;
+use App\Http\Controllers\Admin\AdminClubManagementController;
+use App\Http\Controllers\Admin\AdminCompetitionLocationManagementController;
 use App\Http\Controllers\QuickMatchController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
@@ -342,6 +344,14 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
     Route::post('/users/{id}/reset-rating', [UserManagementController::class, 'resetRating']);
     Route::post('/users/{id}/verify', [UserManagementController::class, 'verify']);
     Route::post('/users/{id}/set-anchor', [UserManagementController::class, 'setAnchor']);
+
+    Route::get('/clubs', [AdminClubManagementController::class, 'index']);
+    Route::get('/clubs/{id}', [AdminClubManagementController::class, 'show']);
+    Route::match(['put', 'patch'], '/clubs/{id}/status', [AdminClubManagementController::class, 'updateStatus']);
+
+    Route::get('/competition-locations', [AdminCompetitionLocationManagementController::class, 'index']);
+    Route::get('/competition-locations/{id}', [AdminCompetitionLocationManagementController::class, 'show']);
+    Route::match(['put', 'patch'], '/competition-locations/{id}/status', [AdminCompetitionLocationManagementController::class, 'updateStatus']);
 
     Route::get('/tournaments', [TournamentManagementController::class, 'index']);
     Route::post('/tournaments/{id}/approve', [TournamentManagementController::class, 'approve']);
@@ -756,7 +766,6 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/delete-staff/{staffId}', [MiniParticipantController::class, 'deleteStaff']);
         Route::post('/self/check-in/{miniTournamentId}', [MiniParticipantController::class, 'selfCheckIn']);
         Route::post('/self/absent/{miniTournamentId}', [MiniParticipantController::class, 'selfMarkAbsent']);
-        Route::post('/auto-invite-area/{tournamentId}', [MiniParticipantController::class, 'autoInviteArea']);
         Route::post('/{miniTournamentId}/participants/{participantId}/admin-confirm', [MiniParticipantController::class, 'adminConfirm']);
     });
     // Mini Match Routes

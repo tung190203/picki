@@ -132,5 +132,6 @@ axiosInstance.interceptors.response.use(
 export const get = async url => axiosInstance.get(url);
 export const post = async (url, data) => axiosInstance.post(url, data);
 export const put = async (url, data) => axiosInstance.put(url, data);
+export const patch = async (url, data) => axiosInstance.patch(url, data);
 
 export default axiosInstance;
