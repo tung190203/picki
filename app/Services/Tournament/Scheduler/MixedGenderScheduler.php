@@ -41,6 +41,15 @@ class MixedGenderScheduler
         // Cumulative bye count per male (for fairness)
         $maleByeCount = array_fill_keys($maleIds, 0);
 
+        // === Player bye stats ===
+        $minCount = min($m, $f);
+        $maxCount = max($m, $f);
+        $byePerPlayer = $maxCount - $minCount;
+        $totalPlayerByes = $maxCount * $byePerPlayer;
+
+        $largerGroup = $m > $f ? 'male' : 'female';
+        $largerIds = $m > $f ? $maleIds : $femaleIds;
+
         $byeAllocator = new ByeAllocator();
 
         foreach ($bipartite['rounds'] as $roundIdx => $bRound) {
@@ -49,11 +58,31 @@ class MixedGenderScheduler
 
             foreach ($bRound as $entry) {
                 if (!empty($entry['is_bye'])) {
-                    $byeSlots[] = ['female' => (int) $entry['player_b']];
+                    $byeSlots[] = $entry;
                 } else {
                     $fullPartnerships[] = [
                         'male' => (int) $entry['player_a'],
                         'female' => (int) $entry['player_b'],
+                    ];
+                }
+            }
+
+            // Determine player byes directly from BRS output:
+            // players in larger group that are NOT in this round's fullPartnerships
+            $maleInRound = array_column($fullPartnerships, 'male');
+            $femaleInRound = array_column($fullPartnerships, 'female');
+
+            $playerByesInRound = [];
+            foreach ($largerIds as $playerId) {
+                $inPartnership = ($largerGroup === 'male')
+                    ? in_array($playerId, $maleInRound)
+                    : in_array($playerId, $femaleInRound);
+
+                if (!$inPartnership) {
+                    $playerByesInRound[] = [
+                        'player_id' => $playerId,
+                        'group' => $largerGroup,
+                        'is_player_bye' => true,
                     ];
                 }
             }
@@ -73,6 +102,7 @@ class MixedGenderScheduler
 
             $rounds[] = [
                 'round_number' => $roundIdx + 1,
+                'player_byes' => $playerByesInRound,
                 'matches' => $roundMatches,
             ];
         }
@@ -97,7 +127,6 @@ class MixedGenderScheduler
                 'total_rounds' => count($rounds),
                 'total_matches' => count($allMatches),
                 'total_real_matches' => $realMatchCount,
-                'total_bye_matches' => $byeMatchCount,
                 'total_partnerships' => $m * $f,
                 'male_matches' => $partnershipsPerMale,
                 'female_matches' => $partnershipsPerFemale,
@@ -106,6 +135,16 @@ class MixedGenderScheduler
                 'real_matches_per_male' => $realMatchesPerMale,
                 'real_matches_per_female' => $realMatchesPerFemale,
                 'unbalanced_notice' => $unbalancedNotice,
+                // Player bye
+                'total_player_byes' => $totalPlayerByes,
+                'player_bye_per_player' => $byePerPlayer,
+                'player_bye_group' => $largerGroup,
+                'player_byes_per_male' => $m > $f ? $byePerPlayer : 0,
+                'player_byes_per_female' => $f > $m ? $byePerPlayer : 0,
+                // Partnership bye: max x (min % 2)
+                'total_partnership_byes' => $maxCount * ($minCount % 2),
+                // Backward compat: total bye matches (all matches with is_bye=true, both types)
+                'total_bye_matches' => $byeMatchCount,
             ],
         ];
     }
@@ -123,9 +162,10 @@ class MixedGenderScheduler
         if (empty($fullPartnerships)) {
             foreach ($byeSlots as $slot) {
                 $roundMatches[] = [
-                    'team1_players' => [$slot['female']],
+                    'team1_players' => [(int) $slot['player_b']],
                     'team2_players' => [],
                     'is_bye' => true,
+                    'bye_type' => 'partnership',
                 ];
             }
             return $roundMatches;
@@ -193,6 +233,7 @@ class MixedGenderScheduler
                     'team1_players' => $p1Players,
                     'team2_players' => [],
                     'is_bye' => true,
+                    'bye_type' => 'partnership',
                 ];
                 $roundMatches[] = $match;
             }
@@ -200,9 +241,10 @@ class MixedGenderScheduler
 
         foreach ($byeSlots as $slot) {
             $roundMatches[] = [
-                'team1_players' => [$slot['female']],
+                'team1_players' => [(int) $slot['player_b']],
                 'team2_players' => [],
                 'is_bye' => true,
+                'bye_type' => 'partnership',
             ];
         }
 
