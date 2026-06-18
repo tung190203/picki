@@ -50,7 +50,6 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'phone',
         'self_score',
         'apple_id',
-        'total_matches',
         'is_guest',
         'last_active_at',
         'is_super_admin',
@@ -473,7 +472,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         $rankSubquery = DB::table('users as u2')
             ->join('user_sport as us2', 'u2.id', '=', 'us2.user_id')
             ->join('user_sport_scores as uss2', 'us2.id', '=', 'uss2.user_sport_id')
-            ->where('u2.total_matches', '>', 5)
+            ->where('u2.total_matches_has_anchor', '>', 5)
             ->where('us2.sport_id', $sportId)
             ->where('uss2.score_type', 'vndupr_score')
             ->where('uss2.score_value', '>', DB::raw('(' . $scoreSubquery->toSql() . ')'))
@@ -803,7 +802,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         $userScore = $this->vnduprScoresBySport($sportId)->max('score_value') ?? 0;
 
         return self::query()
-            ->where('total_matches', '>', 5)
+            ->where('total_matches_has_anchor', '>', 5)
             ->select(DB::raw('COUNT(DISTINCT users.id) + 1 as `rank`'))
             ->join('user_sport', 'users.id', '=', 'user_sport.user_id')
             ->join('user_sport_scores', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')

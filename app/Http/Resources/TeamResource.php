@@ -19,16 +19,7 @@ class TeamResource extends JsonResource
 
     public function toArray(Request $request): array
     {
-        if ($this->tournamentId !== null) {
-            // Hydrate members with participant info for UserMatchStatsController
-            TournamentTeamMemberHydrator::hydrateTeam($this->resource, $this->tournamentId);
-        }
-
-        // Tính vndupr_avg cho team
-        // Mỗi member đã được hydrate tournamentParticipant + sports.
-        // Guest  → dùng estimated_level
-        // User   → dùng vndupr_score (từ sports)
-        $members = $this->resource->members ?? collect();
+        $members = $this->resource?->members ?? collect();
         $scores = [];
         foreach ($members as $member) {
             $participant = $member->relationLoaded('tournamentParticipant')

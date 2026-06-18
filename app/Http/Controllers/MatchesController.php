@@ -1591,8 +1591,7 @@ class MatchesController extends Controller
 
         $allMemberIdList = $allMemberIds->toArray();
 
-        // Batch increment total_matches for all members
-        DB::table('users')->whereIn('id', $allMemberIdList)->increment('total_matches');
+        // NOTE: total_matches column is deprecated. is_verified driven by total_matches_has_anchor.
 
         // Compute R_new for each user and prepare batch operations
         $vnduprHistoryRecords = [];
@@ -1616,9 +1615,10 @@ class MatchesController extends Controller
                 if ($user->is_anchor) {
                     $K = 0.1;
                 } else {
-                    if ($user->total_matches <= 10) {
+                    $anchored = $user->total_matches_has_anchor ?? 0;
+                    if ($anchored <= 10) {
                         $K = 1;
-                    } elseif ($user->total_matches <= 50) {
+                    } elseif ($anchored <= 50) {
                         $K = 0.6;
                     }
                 }

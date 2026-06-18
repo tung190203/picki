@@ -611,11 +611,8 @@ class MiniTournament extends Model
 
     public function hasScoringPermission(int $userId): bool
     {
-        return $this->staff->contains(
-            fn($staff) =>
-            (int) $staff->pivot->user_id === $userId
-                && in_array((int) $staff->pivot->role, [MiniTournamentStaff::ROLE_ORGANIZER, MiniTournamentStaff::ROLE_REFEREE])
-        );
+        // Ai cũng được phép nhập điểm trận đấu thuộc mini-tournament
+        return true;
     }
 
     public function scopeFilter($query, $filter)

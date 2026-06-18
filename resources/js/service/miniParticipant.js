@@ -3,9 +3,9 @@ import {API_ENDPOINT} from "@/constants/index.js";
 
 const miniParticipantEndpoint = API_ENDPOINT.MINI_PARTICIPANT;
 
-export const sendInvitation = async (miniTournamentId, userId, isInviteAround = false) => {
+export const sendInvitation = async (miniTournamentId, userIds, isInviteAround = false) => {
     return axiosInstance.post(`${miniParticipantEndpoint}/invite/${miniTournamentId}`, {
-        user_id: userId,
+        user_ids: userIds,
         is_invite_around: isInviteAround,
     }).then((response) => response.data.data)
 };

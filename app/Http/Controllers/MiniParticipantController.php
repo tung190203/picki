@@ -273,10 +273,10 @@ class MiniParticipantController extends Controller
 
                 $participant = $miniTournament->participants()->create([
                     'user_id' => $userId,
-                    'is_confirmed' => $isSuperAdmin,
+                    'is_confirmed' => $isSuperAdmin && !$isInviteAround,
                     'is_invited' => true,
                     'invited_by' => Auth::id(),
-                    'self_confirmed' => !$isSuperAdmin,
+                    'self_confirmed' => !$isSuperAdmin || $isInviteAround,
                     'payment_status' => $paymentStatus,
                 ]);
 
@@ -284,7 +284,7 @@ class MiniParticipantController extends Controller
 
                 $user = User::find($userId);
 
-                if ($isSuperAdmin) {
+                if ($isSuperAdmin && !$isInviteAround) {
                     $user->notify(new MiniTournamentCreatorInvitationNotification($participant, Auth::id()));
                     $this->pushToUsers(
                         [$user->id],
@@ -1187,14 +1187,13 @@ class MiniParticipantController extends Controller
             }
         }
 
-        // 4. Loại trừ người có ĐỒNG THỜI trong cả participant VÀ staff (áp dụng cho tất cả scope)
+        // 4. Loại trừ người đã tham gia (participant) HOẶC đã được mời (staff)
         $participantUserIds = $miniTournament->participants->pluck('user_id')->toArray();
         $staffUserIds = $miniTournament->miniTournamentStaffs->pluck('user_id')->toArray();
 
-        // Lấy những user có trong CẢ 2 mảng (giao của 2 tập hợp)
-        $excludedUserIds = array_intersect($participantUserIds, $staffUserIds);
+        // Lấy union (không phải giao) của 2 tập hợp: loại user có trong participant HOẶC staff
+        $excludedUserIds = array_unique(array_merge($participantUserIds, $staffUserIds));
 
-        // Loại trừ những user có trong cả 2 bảng
         if (!empty($excludedUserIds)) {
             $query->whereNotIn('users.id', $excludedUserIds);
         }

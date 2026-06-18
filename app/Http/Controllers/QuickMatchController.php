@@ -331,7 +331,7 @@ class QuickMatchController extends Controller
             ['memberIds' => $teamBIds, 'S' => $S_t2, 'E' => $E_t2],
         ];
 
-        DB::table('users')->whereIn('id', $allMemberIds)->increment('total_matches');
+        // NOTE: total_matches column is deprecated. See MiniMatchController.
 
         $vnduprHistoryRecords = [];
         $scoreUpserts = [];
@@ -354,9 +354,10 @@ class QuickMatchController extends Controller
                 if ($user->is_anchor) {
                     $K = 0.1;
                 } else {
-                    if ($user->total_matches <= 10) {
+                    $anchored = $user->total_matches_has_anchor ?? 0;
+                    if ($anchored <= 10) {
                         $K = 1;
-                    } elseif ($user->total_matches <= 50) {
+                    } elseif ($anchored <= 50) {
                         $K = 0.6;
                     }
                 }

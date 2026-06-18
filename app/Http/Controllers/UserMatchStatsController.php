@@ -502,6 +502,7 @@ class UserMatchStatsController extends Controller
             ->whereColumn('tm.team_id', 'm.home_team_id')
             ->where('t.sport_id', $sportId)
             ->where('m.status', 'completed')
+            ->where('m.is_bye', false)
             ->select('m.id')
             ->pluck('id');
 
@@ -513,6 +514,7 @@ class UserMatchStatsController extends Controller
             ->whereColumn('tm.team_id', 'm.away_team_id')
             ->where('t.sport_id', $sportId)
             ->where('m.status', 'completed')
+            ->where('m.is_bye', false)
             ->select('m.id')
             ->pluck('id');
 
@@ -726,9 +728,8 @@ class UserMatchStatsController extends Controller
             $byTournament = $minis->groupBy(fn($m) => $m->mini_tournament_id);
             foreach ($byTournament as $miniTournamentId => $tournamentMatches) {
                 $teamsToHydrate = $tournamentMatches
-                    ->map(fn($m) => $m->team1)
-                    ->merge($tournamentMatches->map(fn($m) => $m->team2))
-                    ->filter()
+                    ->map(fn($m) => $m->team1)->filter()
+                    ->merge($tournamentMatches->map(fn($m) => $m->team2)->filter())
                     ->unique('id');
                 foreach ($teamsToHydrate as $team) {
                     MiniTournamentTeamMemberHydrator::hydrateTeam($team, (int) $miniTournamentId);
@@ -999,7 +1000,11 @@ class UserMatchStatsController extends Controller
      */
     private function teamResourceWithTournamentHydrated($team, ?int $tournamentId): TeamResource
     {
-        if ($team && $tournamentId) {
+        if (!$team) {
+            return new TeamResource(null);
+        }
+
+        if ($tournamentId) {
             $team->loadMissing(['members.sports.scores', 'members.sports.sport']);
             TournamentTeamMemberHydrator::hydrateTeam($team, (int) $tournamentId);
         }
