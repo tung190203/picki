@@ -890,15 +890,16 @@ class ParticipantController extends Controller
             $query->tap(fn ($q) => $this->filterByGender($q, $tournament->gender_policy));
         }
 
-        // 4. Loại trừ người có ĐỒNG THỜI trong cả participant VÀ staff (áp dụng cho tất cả scope)
+        // 4. Loại trừ người đã tham gia (participant) HOẶC đã được mời (staff)
         $participantUserIds = $tournament->participants->pluck('user_id')->toArray();
         $staffUserIds = $tournament->tournamentStaffs->pluck('user_id')->toArray();
 
-        // Lấy những user có trong CẢ 2 mảng (giao của 2 tập hợp)
-        $excludedUserIds = array_intersect($participantUserIds, $staffUserIds);
+        // Lấy union (không phải giao) của 2 tập hợp: loại user có trong participant HOẶC staff
+        $excludedUserIds = array_unique(array_merge($participantUserIds, $staffUserIds));
 
-        // Loại trừ những user có trong cả 2 bảng
-        $query->whereNotIn('users.id', $excludedUserIds);
+        if (!empty($excludedUserIds)) {
+            $query->whereNotIn('users.id', $excludedUserIds);
+        }
 
         // 5. Join để lấy level + filter level (chỉ khi scope !== 'all')
         if ($scope !== 'all') {
