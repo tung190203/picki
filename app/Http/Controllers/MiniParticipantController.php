@@ -273,10 +273,10 @@ class MiniParticipantController extends Controller
 
                 $participant = $miniTournament->participants()->create([
                     'user_id' => $userId,
-                    'is_confirmed' => $isSuperAdmin,
+                    'is_confirmed' => $isSuperAdmin && !$isInviteAround,
                     'is_invited' => true,
                     'invited_by' => Auth::id(),
-                    'self_confirmed' => !$isSuperAdmin,
+                    'self_confirmed' => !$isSuperAdmin || $isInviteAround,
                     'payment_status' => $paymentStatus,
                 ]);
 
@@ -284,7 +284,7 @@ class MiniParticipantController extends Controller
 
                 $user = User::find($userId);
 
-                if ($isSuperAdmin) {
+                if ($isSuperAdmin && !$isInviteAround) {
                     $user->notify(new MiniTournamentCreatorInvitationNotification($participant, Auth::id()));
                     $this->pushToUsers(
                         [$user->id],
