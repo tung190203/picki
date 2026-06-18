@@ -1469,7 +1469,7 @@ class MiniMatchController extends Controller
     {
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
 
-        if (!$miniTournament->hasOrganizer(Auth::id())) {
+        if (!$miniTournament->hasScoringPermission(Auth::id())) {
             return ResponseHelper::error('Bạn không có quyền thực hiện thao tác này', 403);
         }
 

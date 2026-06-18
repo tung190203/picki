@@ -56,7 +56,6 @@ class AdminCompetitionLocationManagementService
     public function toggleBan(CompetitionLocation $location, bool $isBanned): CompetitionLocation
     {
         $location->is_banned = $isBanned;
-        $location->status = $isBanned ? 'banned' : 'active';
         $location->save();
 
         return $location;
