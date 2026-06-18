@@ -129,7 +129,7 @@ axiosInstance.interceptors.response.use(
 );
 
 // ========== EXPORT HELPERS ==========
-export const get = async url => axiosInstance.get(url);
+export const get = async (url, config) => axiosInstance.get(url, config);
 export const post = async (url, data) => axiosInstance.post(url, data);
 export const put = async (url, data) => axiosInstance.put(url, data);
 export const patch = async (url, data) => axiosInstance.patch(url, data);

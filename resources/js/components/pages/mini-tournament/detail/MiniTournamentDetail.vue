@@ -148,7 +148,7 @@ export default {
             if (inviteType.value === 'staff') {
                 await inviteStaff(user.id);
             } else {
-                await invite(user.id, isAreaInvite);
+                await invite([user.id], isAreaInvite);
             }
             await detailMiniTournament(id);
         }

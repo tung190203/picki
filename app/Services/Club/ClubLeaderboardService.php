@@ -119,7 +119,10 @@ class ClubLeaderboardService
         $unverified = $sorted->filter(fn($item) => ($item['all_time_stats']['matches_played'] ?? 0) < 10);
 
         $topThree = $verified->take(3)->values();
-        $rest = $verified->skip(3)->concat($unverified)->values();
+        $rest = $verified->skip(3)
+            ->concat($unverified)
+            ->sortByDesc('vndupr_score')
+            ->values();
 
         return $topThree
             ->concat($rest)

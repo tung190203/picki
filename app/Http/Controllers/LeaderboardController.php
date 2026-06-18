@@ -316,7 +316,7 @@ class LeaderboardController extends Controller
             ->groupBy('user_sport.user_id');
 
         $baseQuery = User::query()
-            ->where('users.total_matches', '>', 5)
+            ->where('users.total_matches_has_anchor', '>', 5)
             ->where('users.email', '!=', 'vrplus2018@gmail.com')
             ->joinSub($scoreSubQuery, 'scores', function ($join) {
                 $join->on('scores.user_id', '=', 'users.id');

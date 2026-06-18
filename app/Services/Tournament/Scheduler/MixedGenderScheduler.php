@@ -41,6 +41,15 @@ class MixedGenderScheduler
         // Cumulative bye count per male (for fairness)
         $maleByeCount = array_fill_keys($maleIds, 0);
 
+        // === Player bye stats ===
+        $minCount = min($m, $f);
+        $maxCount = max($m, $f);
+        $byePerPlayer = $maxCount - $minCount;
+        $totalPlayerByes = $maxCount * $byePerPlayer;
+
+        $largerGroup = $m > $f ? 'male' : 'female';
+        $largerIds = $m > $f ? $maleIds : $femaleIds;
+
         $byeAllocator = new ByeAllocator();
 
         foreach ($bipartite['rounds'] as $roundIdx => $bRound) {
@@ -49,7 +58,7 @@ class MixedGenderScheduler
 
             foreach ($bRound as $entry) {
                 if (!empty($entry['is_bye'])) {
-                    $byeSlots[] = ['female' => (int) $entry['player_b']];
+                    $byeSlots[] = $entry;
                 } else {
                     $fullPartnerships[] = [
                         'male' => (int) $entry['player_a'],
@@ -58,9 +67,30 @@ class MixedGenderScheduler
                 }
             }
 
+            // Determine player byes directly from BRS output:
+            // players in larger group that are NOT in this round's fullPartnerships
+            $maleInRound = array_column($fullPartnerships, 'male');
+            $femaleInRound = array_column($fullPartnerships, 'female');
+
+            $playerByesInRound = [];
+            foreach ($largerIds as $playerId) {
+                $inPartnership = ($largerGroup === 'male')
+                    ? in_array($playerId, $maleInRound)
+                    : in_array($playerId, $femaleInRound);
+
+                if (!$inPartnership) {
+                    $playerByesInRound[] = [
+                        'player_id' => $playerId,
+                        'group' => $largerGroup,
+                        'is_player_bye' => true,
+                    ];
+                }
+            }
+
             $roundMatches = $this->pairPartnershipsIntoMatches(
                 $fullPartnerships,
                 $byeSlots,
+                $playerByesInRound,
                 $maleByeCount,
                 $byeAllocator,
                 $realMatchesPerMale,
@@ -73,6 +103,7 @@ class MixedGenderScheduler
 
             $rounds[] = [
                 'round_number' => $roundIdx + 1,
+                'player_byes' => $playerByesInRound,
                 'matches' => $roundMatches,
             ];
         }
@@ -97,7 +128,6 @@ class MixedGenderScheduler
                 'total_rounds' => count($rounds),
                 'total_matches' => count($allMatches),
                 'total_real_matches' => $realMatchCount,
-                'total_bye_matches' => $byeMatchCount,
                 'total_partnerships' => $m * $f,
                 'male_matches' => $partnershipsPerMale,
                 'female_matches' => $partnershipsPerFemale,
@@ -106,6 +136,16 @@ class MixedGenderScheduler
                 'real_matches_per_male' => $realMatchesPerMale,
                 'real_matches_per_female' => $realMatchesPerFemale,
                 'unbalanced_notice' => $unbalancedNotice,
+                // Player bye
+                'total_player_byes' => $totalPlayerByes,
+                'player_bye_per_player' => $byePerPlayer,
+                'player_bye_group' => $largerGroup,
+                'player_byes_per_male' => $m > $f ? $byePerPlayer : 0,
+                'player_byes_per_female' => $f > $m ? $byePerPlayer : 0,
+                // Partnership bye: max x (min % 2)
+                'total_partnership_byes' => $maxCount * ($minCount % 2),
+                // Backward compat: total bye matches (all matches with is_bye=true, both types)
+                'total_bye_matches' => $byeMatchCount,
             ],
         ];
     }
@@ -113,6 +153,7 @@ class MixedGenderScheduler
     private function pairPartnershipsIntoMatches(
         array $fullPartnerships,
         array $byeSlots,
+        array $playerByesInRound,
         array &$maleByeCount,
         ByeAllocator $byeAllocator,
         array &$realMatchesPerMale,
@@ -123,49 +164,88 @@ class MixedGenderScheduler
         if (empty($fullPartnerships)) {
             foreach ($byeSlots as $slot) {
                 $roundMatches[] = [
-                    'team1_players' => [$slot['female']],
+                    'team1_players' => [(int) $slot['player_b']],
                     'team2_players' => [],
                     'is_bye' => true,
+                    'bye_type' => 'partnership',
                 ];
             }
             return $roundMatches;
         }
 
+        // Pair each partnership with the next compatible one (greedy, forward-only).
+        // A match uses exactly 2 partnerships that don't share any players.
+        // Partnerships left without a partner become partnership byes.
         $indexed = [];
         foreach ($fullPartnerships as $p) {
             $key = self::partnershipKey($p['male'], $p['female']);
             $indexed[] = ['p' => $p, 'key' => $key, 'paired' => false];
         }
 
-        // Process high-bye-count males first so they get first pick at finding partners
-        usort($indexed, function ($a, $b) use (&$maleByeCount) {
-            $aScore = $maleByeCount[$a['p']['male']];
-            $bScore = $maleByeCount[$b['p']['male']];
-            if ($aScore !== $bScore) {
-                return $bScore - $aScore;
-            }
-            return mt_rand(-1, 1);
-        });
+        // Group females: pair females[i] with females[i+1] when count is even.
+        // This ensures each round has floor(f/2) matches without intra-round conflicts.
+        $femaleCount = count($byeSlots) + count(array_column($fullPartnerships, 'female'));
+        $females = array_unique(array_column($fullPartnerships, 'female'));
+        sort($females);
+        $pairedFemales = [];
+        for ($i = 0; $i + 1 < count($females); $i += 2) {
+            $pairedFemales[$females[$i]] = $females[$i + 1];
+            $pairedFemales[$females[$i + 1]] = $females[$i];
+        }
 
+        // First pass: greedily pair within same female-pair groups
+        // Process in order so early males (low bye count) don't monopolize all females
         for ($i = 0; $i < count($indexed); $i++) {
-            if ($indexed[$i]['paired']) {
-                continue;
-            }
+            if ($indexed[$i]['paired']) continue;
 
             $p1 = $indexed[$i]['p'];
-            $p1Key = $indexed[$i]['key'];
-            $indexed[$i]['paired'] = true;
+            $f1 = $p1['female'];
+            $partnerFemale = $pairedFemales[$f1] ?? null;
+
+            // Find compatible partner: same female-pair group, not yet paired
+            $bestIdx = null;
+            for ($j = $i + 1; $j < count($indexed); $j++) {
+                if ($indexed[$j]['paired']) continue;
+                $p2 = $indexed[$j]['p'];
+                if ($p2['female'] !== $partnerFemale) continue;
+                // Same male? can't pair
+                if ($p1['male'] === $p2['male']) continue;
+                $bestIdx = $j;
+                break;
+            }
+
+            if ($bestIdx !== null) {
+                $p2 = $indexed[$bestIdx]['p'];
+                $indexed[$i]['paired'] = true;
+                $indexed[$bestIdx]['paired'] = true;
+
+                $match = [
+                    'team1_players' => [$p1['male'], $p1['female']],
+                    'team2_players' => [$p2['male'], $p2['female']],
+                    'is_bye' => false,
+                ];
+                $roundMatches[] = $match;
+
+                $realMatchesPerMale[$p1['male']]++;
+                $realMatchesPerFemale[$p1['female']]++;
+                $realMatchesPerMale[$p2['male']]++;
+                $realMatchesPerFemale[$p2['female']]++;
+            }
+        }
+
+        // Second pass: pair remaining partnerships (cross female groups, no overlap)
+        for ($i = 0; $i < count($indexed); $i++) {
+            if ($indexed[$i]['paired']) continue;
+
+            $p1 = $indexed[$i]['p'];
             $p1Players = [$p1['male'], $p1['female']];
+            $indexed[$i]['paired'] = true;
 
             $bestIdx = null;
-            for ($j = 0; $j < count($indexed); $j++) {
-                if ($indexed[$j]['paired']) {
-                    continue;
-                }
+            for ($j = $i + 1; $j < count($indexed); $j++) {
+                if ($indexed[$j]['paired']) continue;
                 $p2Players = [$indexed[$j]['p']['male'], $indexed[$j]['p']['female']];
-                if (!empty(array_intersect($p1Players, $p2Players))) {
-                    continue;
-                }
+                if (!empty(array_intersect($p1Players, $p2Players))) continue;
                 $bestIdx = $j;
                 break;
             }
@@ -186,23 +266,40 @@ class MixedGenderScheduler
                 $realMatchesPerMale[$p2['male']]++;
                 $realMatchesPerFemale[$p2['female']]++;
             } else {
-                $byeAllocator->recordBye($p1Key, $p1Players);
+                // Partnership bye
+                $key = self::partnershipKey($p1['male'], $p1['female']);
+                $byeAllocator->recordBye($key, $p1Players);
                 $maleByeCount[$p1['male']]++;
 
                 $match = [
                     'team1_players' => $p1Players,
                     'team2_players' => [],
                     'is_bye' => true,
+                    'bye_type' => 'partnership',
                 ];
                 $roundMatches[] = $match;
             }
         }
 
+        // Assign bye slots to males NOT already in a real match this round.
+        // This ensures ALL bye slots are utilized and all male-female partnerships appear.
+        $realMaleIds = [];
+        foreach ($roundMatches as $m) {
+            if (empty($m['is_bye'])) {
+                $realMaleIds = array_merge($realMaleIds, array_filter($m['team1_players'] ?? []));
+                $realMaleIds = array_merge($realMaleIds, array_filter($m['team2_players'] ?? []));
+            }
+        }
+        $realMaleIds = array_unique($realMaleIds);
+
         foreach ($byeSlots as $slot) {
+            $maleId = (int) $slot['player_a'];
+            if (in_array($maleId, $realMaleIds)) continue;
             $roundMatches[] = [
-                'team1_players' => [$slot['female']],
+                'team1_players' => [$maleId, (int) $slot['player_b']],
                 'team2_players' => [],
                 'is_bye' => true,
+                'bye_type' => 'partnership',
             ];
         }
 

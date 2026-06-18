@@ -12,10 +12,10 @@ class RatingService
             return 0.1;
         }
 
-        $totalMatches = $user->total_matches ?? 0;
+        $anchored = $user->total_matches_has_anchor ?? 0;
         $kValue = match (true) {
-            $totalMatches < 10 => 1.0,
-            $totalMatches < 50 => 0.6,
+            $anchored < 10 => 1.0,
+            $anchored < 50 => 0.6,
             default => 0.3,
         };
 
