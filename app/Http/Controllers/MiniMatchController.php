@@ -1216,8 +1216,9 @@ class MiniMatchController extends Controller
 
         // =====================================================
         // E. Batch operations — no individual queries per user
-        // =====================================================
-        DB::table('users')->whereIn('id', $allMemberUserIds)->increment('total_matches');
+        // NOTE: total_matches column is deprecated; is_verified is driven by
+        // total_matches_has_anchor (via UserObserver, threshold >= 10).
+        // total_matches has been dropped from the users table.
 
         $vnduprHistoryRecords = [];
         $scoreUpserts = [];
@@ -1248,9 +1249,10 @@ class MiniMatchController extends Controller
                 if ($user->is_anchor) {
                     $K = 0.1;
                 } else {
-                    if ($user->total_matches <= 10) {
+                    $anchored = $user->total_matches_has_anchor ?? 0;
+                    if ($anchored <= 10) {
                         $K = 1;
-                    } elseif ($user->total_matches <= 50) {
+                    } elseif ($anchored <= 50) {
                         $K = 0.6;
                     }
                 }
@@ -1469,7 +1471,7 @@ class MiniMatchController extends Controller
     {
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
 
-        if (!$miniTournament->hasOrganizer(Auth::id())) {
+        if (!$miniTournament->hasScoringPermission(Auth::id())) {
             return ResponseHelper::error('Bạn không có quyền thực hiện thao tác này', 403);
         }
 

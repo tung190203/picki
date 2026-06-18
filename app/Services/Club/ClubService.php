@@ -353,11 +353,17 @@ class ClubService
             ->where('status', ClubMemberStatus::Active)
             ->exists();
 
+        if ($club->status === \App\Enums\ClubStatus::Suspended) {
+            if (!$userId || !\App\Models\User::isSuperAdmin($userId)) {
+                throw new BusinessException('CLB này đang bị đình chỉ và không thể truy cập');
+            }
+        }
+
         if (!$club->is_public) {
             if (!$userId) {
                 throw new BusinessException('CLB này là riêng tư. Bạn cần đăng nhập để xem');
             }
-            if (!$isMember) {
+            if (!$isMember && !\App\Models\User::isSuperAdmin($userId)) {
                 throw new BusinessException('Bạn không có quyền xem CLB riêng tư này');
             }
         }
@@ -386,13 +392,18 @@ class ClubService
         $query = Club::with(['profile:id,club_id,cover_image_url,description', 'activeMembers'])->orderBy('created_at', 'desc');
 
         if ($userId) {
-            $query->where(function ($q) use ($userId) {
-                $q->where('is_public', true)
-                    ->orWhereHas('members', function ($memberQuery) use ($userId) {
+            $isSuperAdmin = \App\Models\User::isSuperAdmin($userId);
+            $query->where(function ($q) use ($userId, $isSuperAdmin) {
+                $q->where('is_public', true);
+                if ($isSuperAdmin) {
+                    $q->orWhere('is_public', false);
+                } else {
+                    $q->orWhereHas('members', function ($memberQuery) use ($userId) {
                         $memberQuery->where('user_id', $userId)
                             ->where('membership_status', ClubMembershipStatus::Joined)
                             ->where('status', ClubMemberStatus::Active);
                     });
+                }
             });
         } else {
             $query->where('is_public', true);
@@ -451,10 +462,16 @@ class ClubService
 
     public function searchClubsForMap(array $filters, ?int $userId): Collection
     {
+        $isSuperAdmin = $userId && \App\Models\User::isSuperAdmin($userId);
         $query = Club::with(['profile:id,club_id,cover_image_url,description', 'activeMembers'])
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
-            ->where('is_public', true);
+            ->where(function ($q) use ($isSuperAdmin) {
+                $q->where('is_public', true);
+                if ($isSuperAdmin) {
+                    $q->orWhere('is_public', false);
+                }
+            });
 
         if (!empty($filters['name'])) {
             $query->search(['name'], $filters['name']);

@@ -448,9 +448,13 @@ class Club extends Model
         };
     }
 
-    public function scopeAllClubs($query)
+    public function scopeAllClubs($query, ?int $userId = null)
     {
-        return $query->where('is_public', true)
-            ->where('status', '!=', ClubStatus::Suspended);
+        $isSuperAdmin = $userId && User::isSuperAdmin($userId);
+        $q = $query->where('status', '!=', ClubStatus::Suspended);
+        if ($isSuperAdmin) {
+            return $q;
+        }
+        return $q->where('is_public', true);
     }
 }

@@ -55,6 +55,11 @@ class ClubActivityController extends Controller
     public function index(GetActivitiesRequest $request, $clubId)
     {
         $club = Club::findOrFail($clubId);
+
+        if ($club->is_banned && !\App\Models\User::isSuperAdmin(auth()->id())) {
+            return ResponseHelper::error('CLB này tạm thời bị cấm truy cập', 403);
+        }
+
         $userId = auth()->id();
         $filters = $request->validated();
 
@@ -209,8 +214,10 @@ class ClubActivityController extends Controller
                     $main->where('status', MiniTournament::STATUS_OPEN)
                         ->where(fn($q) => $q->whereNull('end_time')->orWhere('end_time', '>=', now()));
                 }
-            })
-            ->where(fn($q) => $q->whereNull('end_time')->orWhere('end_time', '>=', now()));
+
+                $main->where(fn($q) => $q->whereNull('end_time')->orWhere('end_time', '>=', now()));
+            });
+        });
 
         $orderDirection = $isHistoryOnly ? 'desc' : 'asc';
         $query->orderBy('start_time', $orderDirection);
@@ -261,8 +268,10 @@ class ClubActivityController extends Controller
                     $main->where('status', Tournament::OPEN)
                         ->where(fn($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', now()));
                 }
-            })
-            ->where(fn($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', now()));
+
+                $main->where(fn($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', now()));
+            });
+        });
 
         $orderDirection = $isHistoryOnly ? 'desc' : 'asc';
         $query->orderBy('start_date', $orderDirection);
@@ -273,6 +282,11 @@ class ClubActivityController extends Controller
     public function store(StoreActivityRequest $request, $clubId)
     {
         $club = Club::findOrFail($clubId);
+
+        if ($club->is_banned && !\App\Models\User::isSuperAdmin(auth()->id())) {
+            return ResponseHelper::error('CLB này tạm thời bị cấm truy cập', 403);
+        }
+
         $userId = auth()->id();
 
         if (!$userId) {

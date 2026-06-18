@@ -70,7 +70,7 @@ class UpdateMiniTournamentRequest extends FormRequest
             ))],
 
             // Time fields
-            'start_time' => 'nullable|date|after_or_equal:now',
+            'start_time' => 'nullable|date',
             'end_time' => 'nullable|date|after:start_time',
             'duration' => 'nullable|integer|min:1',
             'competition_location_id' => 'nullable|exists:competition_locations,id',
@@ -251,6 +251,19 @@ class UpdateMiniTournamentRequest extends FormRequest
                     $validator->errors()->add('start_time', 'Thời gian bắt đầu không được là ngày đã qua.');
                 }
             }
+
+            // start_time mới không được sớm hơn start_time gốc lúc tạo kèo
+            $miniTournamentId = $this->route('miniTournamentId') ?? $this->route('mini_tournament');
+            if ($miniTournamentId && $this->filled('start_time')) {
+                $miniTournament = \App\Models\MiniTournament::find($miniTournamentId);
+                if ($miniTournament) {
+                    $originalStartTime = Carbon::parse($miniTournament->start_time);
+                    $newStartTime = Carbon::parse($this->input('start_time'));
+                    if ($newStartTime->lt($originalStartTime)) {
+                        $validator->errors()->add('start_time', 'Thời gian bắt đầu không được sớm hơn thời gian bắt đầu ban đầu của kèo.');
+                    }
+                }
+            }
         });
     }
 
@@ -424,7 +437,6 @@ class UpdateMiniTournamentRequest extends FormRequest
 
             // Thời gian
             'start_time.date' => 'Thời gian bắt đầu không hợp lệ',
-            'start_time.after_or_equal' => 'Thời gian bắt đầu phải từ thời điểm hiện tại trở đi',
             'end_time.date' => 'Thời gian kết thúc không hợp lệ',
             'end_time.after' => 'Thời gian kết thúc phải sau thời gian bắt đầu',
             'duration.integer' => 'Thời lượng phải là số nguyên (phút)',

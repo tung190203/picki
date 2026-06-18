@@ -25,7 +25,6 @@ class CompetitionLocation extends Model
         'note_booking',
         'website',
         'avatar_url',
-        'status',
         'is_banned',
     ];
 

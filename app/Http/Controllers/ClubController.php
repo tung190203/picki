@@ -99,11 +99,13 @@ class ClubController extends Controller
 
     public function show($clubId)
     {
-        try {
-            // Chỉ load relations cần thiết; members được load trong getClubDetail khi user là member
-            $club = Club::with(['creator', 'profile', 'mainWallet'])->findOrFail($clubId);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        $club = Club::with(['creator', 'profile', 'mainWallet'])->find($clubId);
+        if (!$club) {
             return ResponseHelper::error('Câu lạc bộ không còn tồn tại trong hệ thống', 404);
+        }
+
+        if ($club->is_banned && !\App\Models\User::isSuperAdmin(auth()->id())) {
+            return ResponseHelper::error('CLB này tạm thời bị cấm truy cập', 403);
         }
 
         $userId = auth()->id();

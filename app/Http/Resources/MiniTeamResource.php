@@ -17,10 +17,11 @@ class MiniTeamResource extends JsonResource
 
     public function toArray(Request $request): array
     {
+        $members = $this->resource?->members ?? collect();
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'members' => $this->members->map(function ($member) {
+            'members' => $members->map(function ($member) {
                 /** @var \App\Models\MiniParticipant|null $p */
                 $p = $member->relationLoaded('miniTournamentParticipant')
                     ? $member->miniTournamentParticipant

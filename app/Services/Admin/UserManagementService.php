@@ -24,7 +24,7 @@ class UserManagementService
                 'avatar_url',
                 'location_id',
                 'trust_score',
-                'total_matches',
+                'total_matches_has_anchor',
                 'is_banned',
                 'is_verified',
                 'is_anchor',
@@ -131,7 +131,7 @@ class UserManagementService
             VnduprHistory::where('user_id', $user->id)->delete();
 
             $user->update([
-                'total_matches' => 0,
+                'total_matches_has_anchor' => 0,
             ]);
         });
 
@@ -140,8 +140,8 @@ class UserManagementService
             'reset_rating',
             User::class,
             $user->id,
-            ['total_matches' => $oldScores ? $user->total_matches : null],
-            ['total_matches' => 0],
+            ['total_matches_has_anchor' => $oldScores ? $user->total_matches_has_anchor : null],
+            ['total_matches_has_anchor' => 0],
             $reason
         );
     }
