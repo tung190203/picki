@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Models\Club\Club;
 use App\Models\MiniTournament;
+use App\Models\User;
 use App\Observers\ClubObserver;
 use App\Observers\MiniTournamentObserver;
+use App\Observers\UserObserver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -28,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Club::observe(ClubObserver::class);
         MiniTournament::observe(MiniTournamentObserver::class);
+        User::observe(UserObserver::class);
 
         $this->configureRateLimiting();
     }
