@@ -200,7 +200,7 @@ class BackfillMiniMatchVnduprHistory extends Command
         // Lấy K-factor và total_matches hiện tại của từng user
         $userDataMap = DB::table('users')
             ->whereIn('id', $allMemberUserIds)
-            ->select('id', 'is_anchor', 'total_matches')
+            ->select('id', 'is_anchor', 'total_matches_has_anchor')
             ->get()
             ->keyBy('id');
 
@@ -281,9 +281,9 @@ class BackfillMiniMatchVnduprHistory extends Command
             if ($userData) {
                 if ($userData->is_anchor) {
                     $K = 0.1;
-                } elseif ($userData->total_matches <= 10) {
+                } elseif (($userData->total_matches_has_anchor ?? 0) <= 10) {
                     $K = 1;
-                } elseif ($userData->total_matches <= 50) {
+                } elseif (($userData->total_matches_has_anchor ?? 0) <= 50) {
                     $K = 0.6;
                 }
             }
