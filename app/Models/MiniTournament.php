@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Club\Club;
+use App\Models\MiniMatch;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -1123,5 +1124,38 @@ class MiniTournament extends Model
     public function scopeWhereNotStandard($query)
     {
         return $query->where('match_format', '!=', self::MATCH_FORMAT_STANDARD);
+    }
+
+    /**
+     * Check if the match format of this tournament can be updated.
+     *
+     * Rules:
+     * - Standard format: can update only when is_session_started is false (no matches created yet).
+     * - RoundRobin formats (partner_rotation, mixed_gender, rank_pairing): can update only when
+     *   no completed match has any set scores saved (no results recorded yet).
+     * - Returns false if tournament is closed or cancelled.
+     */
+    public function canUpdateMatchFormat(): bool
+    {
+        if (in_array($this->status, [self::STATUS_CLOSED, self::STATUS_CANCELLED], true)) {
+            return false;
+        }
+
+        if ($this->match_format === self::MATCH_FORMAT_STANDARD) {
+            return $this->is_session_started !== true;
+        }
+
+        if (in_array($this->match_format, [
+            self::MATCH_FORMAT_PARTNER_ROTATION,
+            self::MATCH_FORMAT_MIXED_GENDER,
+            self::MATCH_FORMAT_RANK_PAIRING,
+        ], true)) {
+            return !$this->matches()
+                ->where('status', MiniMatch::STATUS_COMPLETED)
+                ->whereHas('results')
+                ->exists();
+        }
+
+        return false;
     }
 }

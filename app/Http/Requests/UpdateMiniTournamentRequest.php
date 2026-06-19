@@ -264,6 +264,17 @@ class UpdateMiniTournamentRequest extends FormRequest
                     }
                 }
             }
+
+            // Chặn cập nhật match_format khi đã bắt đầu điểm hoặc có trận đấu
+            $newMatchFormat = $this->input('match_format');
+            if ($newMatchFormat !== null && $miniTournamentId) {
+                $tournament = \App\Models\MiniTournament::find($miniTournamentId);
+                if ($tournament && $tournament->match_format !== $newMatchFormat) {
+                    if (!$tournament->canUpdateMatchFormat()) {
+                        $validator->errors()->add('match_format', 'Không thể thay đổi thể thức kèo đấu khi đã bắt đầu nhập điểm hoặc đã có trận đấu.');
+                    }
+                }
+            }
         });
     }
 
