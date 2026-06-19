@@ -435,35 +435,48 @@ class MiniTournamentController extends Controller
         // Sync session fields when match_format changes
         if (isset($data['match_format'])) {
             $newFormat = $data['match_format'];
-            $wasPartnerRotation = $miniTournament->getOriginal('match_format') === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION;
+            $originalFormat = $miniTournament->getOriginal('match_format');
+            $wasRoundRobin = in_array($originalFormat, [
+                MiniTournament::MATCH_FORMAT_PARTNER_ROTATION,
+                MiniTournament::MATCH_FORMAT_MIXED_GENDER,
+                MiniTournament::MATCH_FORMAT_RANK_PAIRING,
+            ], true);
+            $isNewRoundRobin = in_array($newFormat, [
+                MiniTournament::MATCH_FORMAT_PARTNER_ROTATION,
+                MiniTournament::MATCH_FORMAT_MIXED_GENDER,
+                MiniTournament::MATCH_FORMAT_RANK_PAIRING,
+            ], true);
 
             if ($newFormat === MiniTournament::MATCH_FORMAT_STANDARD || $newFormat === null) {
                 $miniTournament->update([
                     'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
                     'is_session_started' => true,
                 ]);
-                if ($wasPartnerRotation) {
+                if ($wasRoundRobin) {
                     $this->clearRoundRobinMatches($miniTournament);
                 }
             } elseif ($newFormat === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
-                if ($wasPartnerRotation) {
+                // Always clear matches when switching TO partner_rotation
+                if ($wasRoundRobin) {
                     $this->clearRoundRobinMatches($miniTournament);
                 }
                 $miniTournament->update([
-                    'is_session_started' => true,
+                    'session_status' => MiniTournament::SESSION_STATUS_PENDING_GROUP,
+                    'is_session_started' => false,
                 ]);
                 $this->generatePartnerRotationMatches($miniTournament);
             } elseif (in_array($newFormat, [
                 MiniTournament::MATCH_FORMAT_MIXED_GENDER,
                 MiniTournament::MATCH_FORMAT_RANK_PAIRING,
             ], true)) {
+                // Always clear matches when switching TO mixed_gender or rank_pairing
+                if ($wasRoundRobin) {
+                    $this->clearRoundRobinMatches($miniTournament);
+                }
                 $miniTournament->update([
                     'session_status' => MiniTournament::SESSION_STATUS_PENDING_GROUP,
                     'is_session_started' => false,
                 ]);
-                if ($wasPartnerRotation) {
-                    $this->clearRoundRobinMatches($miniTournament);
-                }
             }
         }
 
