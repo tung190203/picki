@@ -214,15 +214,16 @@ export default {
         })
 
         const getMiniMatches = async (miniTournamentId, page = 1) => {
+            if (!miniTournamentId) return
             try {
                 const res = await MiniMatchService.getListMiniMatches(
                     miniTournamentId,
                     { page }
                 )
 
-                miniMatches.value = res.data.matches
-                pagination.value = res.meta
-                countMiniMatches.value = res.meta.total
+                miniMatches.value = res.data?.matches || []
+                pagination.value = res.data?.meta || { current_page: 1, last_page: 1, per_page: 10, total: 0 }
+                countMiniMatches.value = res.data?.meta?.total ?? 0
                 selectedMiniMatches.value = []
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Lấy trận thi đấu thất bại');
@@ -248,14 +249,15 @@ export default {
         }
 
         const getMyMiniMatches = async (miniTournamentId, page = 1) => {
+            if (!miniTournamentId) return
             try {
                 const res = await MiniMatchService.getListMiniMatches(
                     miniTournamentId,
                     { page, filter: 'my_matches' }
                 )
-                scheduledMyMiniMatches.value = res.data.matches
-                pagination.value = res.meta
-                countMyMiniMatches.value = res.meta.total
+                scheduledMyMiniMatches.value = res.data?.matches || []
+                pagination.value = res.data?.meta || { current_page: 1, last_page: 1, per_page: 10, total: 0 }
+                countMyMiniMatches.value = res.data?.meta?.total ?? 0
                 selectedMiniMatches.value = []
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Lấy trận thi đấu thất bại');
@@ -496,25 +498,38 @@ export default {
             }
         }, { immediate: true })
 
-        // Watch data.id for standard format match loading
-        watch(
-            () => props.data?.id,
-            (miniTournamentId) => {
-                if (!miniTournamentId) return
-
-                if (pagination.value) {
-                    pagination.value.current_page = 1
+        // Reset sub-tabs when match_format changes (e.g. after API update via confirmFormatSelection)
+        watch(() => props.data?.match_format, (newFormat) => {
+            if (!newFormat) {
+                // No format selected yet — show format selection
+                sessionSubTab.value = 'format'
+                subActiveTab.value = 'match'
+            } else if (newFormat === MATCH_FORMAT.STANDARD) {
+                sessionSubTab.value = 'format'
+                subActiveTab.value = 'match'
+            } else {
+                // Session format selected
+                sessionSubTab.value = 'format'
+                if (newFormat === MATCH_FORMAT.PARTNER_ROTATION) {
+                    loadSessionSchedule(props.data.id)
                 }
+            }
+        })
+
+        // Load standard format matches when data is ready OR when sub-tab changes to match
+        watch(
+            () => ({ id: props.data?.id, tab: subActiveTab.value }),
+            ({ id, tab }) => {
+                if (!id) return
 
                 const isSessionFormat = props.data?.match_format &&
                     props.data.match_format !== 'standard'
-
                 if (isSessionFormat) return
 
-                if (subActiveTab.value === 'match') {
-                    getMiniMatches(miniTournamentId, 1)
-                } else if (subActiveTab.value === 'your-match') {
-                    getMyMiniMatches(miniTournamentId, 1)
+                if (tab === 'match') {
+                    getMiniMatches(id, 1)
+                } else if (tab === 'your-match') {
+                    getMyMiniMatches(id, 1)
                 }
             },
             { immediate: true }
@@ -630,11 +645,10 @@ export default {
             try {
                 await updateMiniTournamentByClub(props.clubId, props.data.id, { match_format: selectedFormat.value })
 
-                // Switch tab based on format after successful update
+                // Switch tab based on new format after successful update
                 if (selectedFormat.value === MATCH_FORMAT.MIXED_GENDER || selectedFormat.value === MATCH_FORMAT.RANK_PAIRING) {
                     sessionSubTab.value = 'group'
                 } else {
-                    // standard & partner_rotation → schedule tab
                     sessionSubTab.value = 'schedule'
                 }
 
