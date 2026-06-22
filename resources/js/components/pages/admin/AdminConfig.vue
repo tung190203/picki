@@ -72,6 +72,40 @@
                 </button>
               </div>
             </div>
+
+            <!-- KPI Card 4: Ranking Matches -->
+            <div class="col-span-1 md:col-span-2 bg-surface-container-low rounded-xl p-8 border border-outline-variant/10 shadow-sm">
+              <div class="flex justify-between items-center mb-6">
+                <div>
+                  <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block mb-1">Số trận tối thiểu lên BXH</label>
+                  <h4 class="text-lg font-bold text-on-surface">Ngưỡng xuất hiện bảng xếp hạng</h4>
+                </div>
+                <div class="text-right">
+                  <div class="text-3xl font-headline font-extrabold text-primary">{{ rankingMatches }} <span class="text-sm font-bold uppercase">Trận</span></div>
+                </div>
+              </div>
+              <div class="relative h-2 bg-surface-container-high rounded-full overflow-hidden mb-6">
+                <div class="absolute top-0 left-0 h-full bg-primary transition-all duration-500" :style="{ width: (rankingMatches / 50 * 100) + '%' }"></div>
+              </div>
+              <div class="flex items-center gap-4">
+                <input 
+                  type="range" 
+                  v-model.number="rankingMatches" 
+                  min="0" 
+                  max="50" 
+                  step="1"
+                  class="flex-1 accent-primary"
+                />
+                <input 
+                  type="number" 
+                  v-model.number="rankingMatches" 
+                  min="0" 
+                  max="999"
+                  class="w-20 bg-surface-container-high rounded-lg px-3 py-2 text-center font-bold text-on-surface border border-outline-variant/20 focus:border-primary focus:outline-none"
+                />
+              </div>
+              <p class="text-xs text-on-surface-variant mt-3 italic">User cần đấu đủ số trận thực tế này mới xuất hiện trên bảng xếp hạng hệ thống. Đặt về 0 để hiển thị tất cả.</p>
+            </div>
           </div>
         </section>
 
@@ -130,6 +164,7 @@ const saving = ref(false)
 const kFactor = ref(32)
 const serviceFee = ref(5.5)
 const autoConfirmTime = ref(24)
+const rankingMatches = ref(10)
 
 const featureFlags = ref([
   {
@@ -167,6 +202,7 @@ const fetchSettings = async () => {
     kFactor.value = data.k_factor ?? 32
     serviceFee.value = data.service_fee_percent ?? 5.5
     autoConfirmTime.value = data.auto_confirm_hours ?? 24
+    rankingMatches.value = data.ranking_matches ?? 10
 
     // Map features
     const features = data.features ?? {}
@@ -195,6 +231,7 @@ const saveConfig = async () => {
       k_factor: kFactor.value,
       service_fee_percent: serviceFee.value,
       auto_confirm_hours: autoConfirmTime.value,
+      ranking_matches: rankingMatches.value,
       features: features
     })
 

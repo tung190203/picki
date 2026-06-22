@@ -25,6 +25,7 @@ class SettingsController extends Controller
             'k_factor' => 'nullable|numeric|min:1|max:100',
             'service_fee_percent' => 'nullable|numeric|min:0|max:100',
             'auto_confirm_hours' => 'nullable|integer|min:1',
+            'ranking_matches' => 'nullable|integer|min:0',
             'features' => 'nullable|array',
             'features.ai_assistant' => 'nullable|boolean',
             'features.online_payment' => 'nullable|boolean',

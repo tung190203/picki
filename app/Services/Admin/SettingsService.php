@@ -13,12 +13,14 @@ class SettingsService
         $kFactor = SystemSetting::where('key', 'k_factor')->first();
         $serviceFee = SystemSetting::where('key', 'service_fee_percent')->first();
         $autoConfirmHours = SystemSetting::where('key', 'auto_confirm_hours')->first();
+        $rankingMatches = SystemSetting::where('key', 'ranking_matches')->first();
         $features = SystemSetting::where('key', 'features')->first();
 
         return [
             'k_factor' => $kFactor ? (float) $kFactor->value : 32,
             'service_fee_percent' => $serviceFee ? (float) $serviceFee->value : 5.5,
             'auto_confirm_hours' => $autoConfirmHours ? (int) $autoConfirmHours->value : 24,
+            'ranking_matches' => $rankingMatches ? (int) $rankingMatches->value : 10,
             'features' => $features ? json_decode($features->value, true) : [
                 'ai_assistant' => true,
                 'online_payment' => true,
@@ -45,6 +47,11 @@ class SettingsService
         if (isset($data['auto_confirm_hours'])) {
             $this->upsertSetting('auto_confirm_hours', (string) $data['auto_confirm_hours'], 'number');
             $changes['auto_confirm_hours'] = $data['auto_confirm_hours'];
+        }
+
+        if (isset($data['ranking_matches'])) {
+            $this->upsertSetting('ranking_matches', (string) $data['ranking_matches'], 'number');
+            $changes['ranking_matches'] = $data['ranking_matches'];
         }
 
         if (isset($data['features'])) {
