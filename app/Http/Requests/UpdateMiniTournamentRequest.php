@@ -252,8 +252,43 @@ class UpdateMiniTournamentRequest extends FormRequest
                 }
             }
 
-            // start_time mới không được sớm hơn start_time gốc lúc tạo kèo
+            // partner_rotation requires 3 to 8 confirmed participants
+            // mixed_gender requires at least 1 male and 1 female (or 2 each for double)
+            // rank_pairing requires at least 1 in group A and 1 in group B (or 2 each for double)
+            $newMatchFormat = $this->input('match_format');
             $miniTournamentId = $this->route('miniTournamentId') ?? $this->route('mini_tournament');
+            if ($newMatchFormat !== null && $miniTournamentId) {
+                $miniTournament = \App\Models\MiniTournament::find($miniTournamentId);
+                if ($miniTournament) {
+                    $participants = $miniTournament->participants()->where('is_confirmed', true);
+                    if ($newMatchFormat === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
+                        $count = $participants->count();
+                        if ($count < 3 || $count > 8) {
+                            $validator->errors()->add('match_format', "partner_rotation cần 3 đến 8 người đã xác nhận, hiện có $count người.");
+                        }
+                    } elseif ($newMatchFormat === MiniTournament::MATCH_FORMAT_MIXED_GENDER) {
+                        $maleCount = $participants->where('player_group', 'male')->count();
+                        $femaleCount = $participants->where('player_group', 'female')->count();
+                        $isDouble = $miniTournament->format === 'double';
+                        if ($isDouble && ($maleCount < 2 || $femaleCount < 2)) {
+                            $validator->errors()->add('match_format', "mixed_gender đánh đôi cần ít nhất 2 nam và 2 nữ đã phân nhóm, hiện có $maleCount nam và $femaleCount nữ.");
+                        } elseif (!$isDouble && ($maleCount < 1 || $femaleCount < 1)) {
+                            $validator->errors()->add('match_format', "mixed_gender cần ít nhất 1 nam và 1 nữ đã phân nhóm, hiện có $maleCount nam và $femaleCount nữ.");
+                        }
+                    } elseif ($newMatchFormat === MiniTournament::MATCH_FORMAT_RANK_PAIRING) {
+                        $aCount = $participants->where('player_group', 'a')->count();
+                        $bCount = $participants->where('player_group', 'b')->count();
+                        $isDouble = $miniTournament->format === 'double';
+                        if ($isDouble && ($aCount < 2 || $bCount < 2)) {
+                            $validator->errors()->add('match_format', "rank_pairing đánh đôi cần ít nhất 2 người mỗi nhóm, hiện có $aCount nhóm A và $bCount nhóm B.");
+                        } elseif (!$isDouble && ($aCount < 1 || $bCount < 1)) {
+                            $validator->errors()->add('match_format', "rank_pairing cần ít nhất 1 người nhóm A và 1 người nhóm B đã phân nhóm, hiện có $aCount nhóm A và $bCount nhóm B.");
+                        }
+                    }
+                }
+            }
+
+            // start_time mới không được sớm hơn start_time gốc lúc tạo kèo
             if ($miniTournamentId && $this->filled('start_time')) {
                 $miniTournament = \App\Models\MiniTournament::find($miniTournamentId);
                 if ($miniTournament) {
@@ -266,7 +301,6 @@ class UpdateMiniTournamentRequest extends FormRequest
             }
 
             // Chặn cập nhật match_format khi đã bắt đầu điểm hoặc có trận đấu
-            $newMatchFormat = $this->input('match_format');
             if ($newMatchFormat !== null && $miniTournamentId) {
                 $tournament = \App\Models\MiniTournament::find($miniTournamentId);
                 if ($tournament && $tournament->match_format !== $newMatchFormat) {

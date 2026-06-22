@@ -449,12 +449,12 @@ class MiniTournamentController extends Controller
             }
         }
 
+        $originalFormat = $miniTournament->match_format;
         $miniTournament->update($data);
 
         // Sync session fields when match_format changes
         if (isset($data['match_format'])) {
             $newFormat = $data['match_format'];
-            $originalFormat = $miniTournament->getOriginal('match_format');
             $wasRoundRobin = in_array($originalFormat, [
                 MiniTournament::MATCH_FORMAT_PARTNER_ROTATION,
                 MiniTournament::MATCH_FORMAT_MIXED_GENDER,
@@ -480,8 +480,8 @@ class MiniTournamentController extends Controller
                     $this->clearRoundRobinMatches($miniTournament);
                 }
                 $miniTournament->update([
-                    'session_status' => MiniTournament::SESSION_STATUS_PENDING_GROUP,
-                    'is_session_started' => false,
+                    'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
+                    'is_session_started' => true,
                 ]);
                 $this->generatePartnerRotationMatches($miniTournament);
             } elseif (in_array($newFormat, [
@@ -746,7 +746,7 @@ class MiniTournamentController extends Controller
 
         $participantIds = $confirmedParticipants->pluck('id')->toArray();
         $count = count($participantIds);
-        if ($count < 4) {
+        if ($count < 3 || $count > 8) {
             $miniTournament->update([
                 'session_status' => MiniTournament::SESSION_STATUS_PENDING_GROUP,
                 'is_session_started' => false,
