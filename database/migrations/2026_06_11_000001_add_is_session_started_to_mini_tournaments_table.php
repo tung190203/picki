@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('mini_tournaments', function (Blueprint $table) {
-            $table->boolean('is_session_started')->default(true)->after('scheduled_court_count');
+            $table->boolean('is_session_started')->default(false)->after('scheduled_court_count');
         });
     }
 
