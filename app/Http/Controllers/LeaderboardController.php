@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\TeamLeaderboardResource;
 use App\Models\Club\Club;
+use App\Models\Club\ClubMember;
 use App\Models\Participant;
 use App\Models\Sport;
+use App\Models\SystemSetting;
 use App\Models\Team;
 use App\Models\TeamRanking;
 use App\Models\Tournament;
@@ -305,6 +307,9 @@ class LeaderboardController extends Controller
 
     private function getSystemLeaderboard(int $sportId, int $perPage, int $page): array
     {
+        $rankingMatches = (int) SystemSetting::where('key', 'ranking_matches')->first()?->value ?: 10;
+        $excludedEmail = 'vrplus2018@gmail.com';
+
         $scoreSubQuery = UserSportScore::query()
             ->select(
                 'user_sport.user_id',
@@ -316,47 +321,85 @@ class LeaderboardController extends Controller
             ->groupBy('user_sport.user_id');
 
         $baseQuery = User::query()
-            ->where('users.total_matches_has_anchor', '>', 5)
-            ->where('users.email', '!=', 'vrplus2018@gmail.com')
-            ->joinSub($scoreSubQuery, 'scores', function ($join) {
-                $join->on('scores.user_id', '=', 'users.id');
-            })
-            ->with(['clubs:id,name'])
+            ->joinSub($scoreSubQuery, 'scores', 'scores.user_id', '=', 'users.id')
+            ->where('users.email', '!=', $excludedEmail)
             ->select(
                 'users.id',
-                'users.full_name',
-                'users.visibility',
-                'users.avatar_url',
-                'users.is_anchor',
-                'users.is_verified',
-                'users.total_matches_has_anchor',
                 'scores.vndupr_score',
-                DB::raw('RANK() OVER (ORDER BY scores.vndupr_score DESC) as rank')
+                DB::raw("(
+                    SELECT COUNT(DISTINCT m.id)
+                    FROM matches m
+                    JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                    JOIN tournaments t ON tt.tournament_id = t.id
+                    JOIN team_members tm ON tm.team_id = m.home_team_id
+                    WHERE tm.user_id = users.id AND t.sport_id = {$sportId} AND m.status = 'completed'
+                ) + (
+                    SELECT COUNT(DISTINCT m.id)
+                    FROM matches m
+                    JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                    JOIN tournaments t ON tt.tournament_id = t.id
+                    JOIN team_members tm ON tm.team_id = m.away_team_id
+                    WHERE tm.user_id = users.id AND t.sport_id = {$sportId} AND m.status = 'completed'
+                ) + (
+                    SELECT COUNT(DISTINCT mm.id)
+                    FROM mini_matches mm
+                    JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                    JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id
+                    WHERE mtm.user_id = users.id AND mnt.sport_id = {$sportId} AND mm.status = 'completed'
+                ) + (
+                    SELECT COUNT(DISTINCT mm.id)
+                    FROM mini_matches mm
+                    JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                    JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id
+                    WHERE mtm.user_id = users.id AND mnt.sport_id = {$sportId} AND mm.status = 'completed'
+                ) + (
+                    SELECT COUNT(DISTINCT mh.id)
+                    FROM match_histories mh
+                    JOIN quick_matches qm ON mh.quick_match_id = qm.id
+                    WHERE mh.user_id = users.id AND qm.status = 'completed'
+                        AND (qm.competition_location_id IS NULL OR EXISTS (
+                            SELECT 1 FROM competition_location_sport cls
+                            WHERE cls.competition_location_id = qm.competition_location_id AND cls.sport_id = {$sportId}
+                        ))
+                ) as total_matches")
             )
-            ->orderByDesc('scores.vndupr_score');
+            ->with(['clubs:id,name'])
+            ->orderByDesc('scores.vndupr_score')
+            ->having('total_matches', '>=', $rankingMatches);
 
         $total = $baseQuery->count();
         $lastPage = max(1, (int) ceil($total / $perPage));
         $offset = ($page - 1) * $perPage;
 
-        $leaderboard = $baseQuery->offset($offset)->limit($perPage)->get();
+        $leaderboard = $baseQuery
+            ->addSelect(
+                'users.full_name',
+                'users.visibility',
+                'users.avatar_url',
+                'users.is_anchor',
+                'users.is_verified',
+                DB::raw('RANK() OVER (ORDER BY scores.vndupr_score DESC) as rank')
+            )
+            ->offset($offset)
+            ->limit($perPage)
+            ->get();
 
-        $items = $leaderboard->map(function ($user) {
+        $items = $leaderboard->map(function ($user) use ($rankingMatches) {
             return [
-                'id'         => $user->id,
-                'full_name'  => $user->full_name,
-                'visibility' => $user->visibility,
-                'avatar_url'  => $user->avatar_url,
-                'rank'       => (int) $user->rank,
+                'id'           => $user->id,
+                'full_name'    => $user->full_name,
+                'visibility'   => $user->visibility,
+                'avatar_url'   => $user->avatar_url,
+                'rank'         => (int) $user->rank,
                 'vndupr_score' => round((float) $user->vndupr_score, 3),
-                'clubs'      => $user->clubs->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
-                'is_anchor'  => (bool) $user->is_anchor,
-                'is_verify'  => (bool) (($user->total_matches_has_anchor ?? 0) >= 10),
+                'clubs'        => $user->clubs->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
+                'is_anchor'    => (bool) $user->is_anchor,
+                'is_verify'    => (bool) (($user->total_matches ?? 0) >= $rankingMatches),
             ];
         });
 
         return [
-            'items'    => $items,
+            'items'     => $items,
             'total'    => $total,
             'last_page' => $lastPage,
         ];
