@@ -61,11 +61,33 @@ class MiniTournamentService
             $sessionStatus = MiniTournament::SESSION_STATUS_PENDING_GROUP;
         }
 
-        // is_session_started: standard/PR → true (matches visible), mixed/rank → false (chờ /start-session)
+        // is_session_started: null → false (chưa chọn thể thức, chưa có session)
+        // standard/PR → true (matches visible), mixed/rank → false (chờ /start-session)
         $isSessionStarted = !in_array($matchFormat, [
             MiniTournament::MATCH_FORMAT_MIXED_GENDER,
             MiniTournament::MATCH_FORMAT_RANK_PAIRING,
+            null,
         ], true);
+
+        // #region agent log
+        $logFile = 'C:\Users\Admin\Documents\picki\debug-0bca3b.log';
+        $logEntry = [
+            'sessionId' => '0bca3b',
+            'location' => 'MiniTournamentService.php:48',
+            'message' => 'H2: match_format decision before create',
+            'data' => [
+                'matchFormat' => $matchFormat,
+                'is_null' => $matchFormat === null,
+                'sessionStatus' => $sessionStatus,
+                'isSessionStarted' => $isSessionStarted,
+                'isSessionStartedType' => gettype($isSessionStarted),
+                'runId' => 'initial',
+                'hypothesisId' => 'H2',
+            ],
+            'timestamp' => (int) (microtime(true) * 1000),
+        ];
+        @file_put_contents($logFile, json_encode($logEntry) . "\n", FILE_APPEND);
+        // #endregion
 
         $miniTournament = MiniTournament::create([
             ...$dataForCreate,
@@ -79,6 +101,28 @@ class MiniTournamentService
             'session_status' => $sessionStatus,
             'is_session_started' => $isSessionStarted,
         ]);
+
+        // #region agent log
+        $logFile = 'C:\Users\Admin\Documents\picki\debug-0bca3b.log';
+        $logEntry = [
+            'sessionId' => '0bca3b',
+            'location' => 'MiniTournamentService.php:96',
+            'message' => 'H5: persisted DB value after create',
+            'data' => [
+                'id' => $miniTournament->id,
+                'raw_match_format' => $miniTournament->getAttributes()['match_format'] ?? 'NOT_SET',
+                'db_is_session_started_raw' => $miniTournament->getAttributes()['is_session_started'] ?? 'NOT_SET',
+                'db_session_status_raw' => $miniTournament->getAttributes()['session_status'] ?? 'NOT_SET',
+                'casted_is_session_started' => (bool) $miniTournament->is_session_started,
+                'intended_is_session_started' => $isSessionStarted,
+                'intended_session_status' => $sessionStatus,
+                'runId' => 'initial',
+                'hypothesisId' => 'H5',
+            ],
+            'timestamp' => (int) (microtime(true) * 1000),
+        ];
+        @file_put_contents($logFile, json_encode($logEntry) . "\n", FILE_APPEND);
+        // #endregion
 
         // Creator always participates by default with confirmed payment status
         // (creator is exempt from payment or auto-confirmed)
