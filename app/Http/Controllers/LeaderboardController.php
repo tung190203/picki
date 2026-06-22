@@ -378,6 +378,7 @@ class LeaderboardController extends Controller
                 'users.avatar_url',
                 'users.is_anchor',
                 'users.is_verified',
+                'users.total_matches_has_anchor',
                 DB::raw('RANK() OVER (ORDER BY scores.vndupr_score DESC) as rank')
             )
             ->offset($offset)
@@ -394,7 +395,7 @@ class LeaderboardController extends Controller
                 'vndupr_score' => round((float) $user->vndupr_score, 3),
                 'clubs'        => $user->clubs->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
                 'is_anchor'    => (bool) $user->is_anchor,
-                'is_verify'    => (bool) (($user->total_matches ?? 0) >= $rankingMatches),
+                'is_verify'    => (bool) (($user->total_matches_has_anchor ?? 0) >= 10),
             ];
         });
 
