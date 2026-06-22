@@ -480,8 +480,8 @@ class MiniTournamentController extends Controller
                     $this->clearRoundRobinMatches($miniTournament);
                 }
                 $miniTournament->update([
-                    'session_status' => MiniTournament::SESSION_STATUS_PENDING_GROUP,
-                    'is_session_started' => false,
+                    'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
+                    'is_session_started' => true,
                 ]);
                 $this->generatePartnerRotationMatches($miniTournament);
             } elseif (in_array($newFormat, [
@@ -746,7 +746,7 @@ class MiniTournamentController extends Controller
 
         $participantIds = $confirmedParticipants->pluck('id')->toArray();
         $count = count($participantIds);
-        if ($count < 4) {
+        if ($count < 3 || $count > 8) {
             $miniTournament->update([
                 'session_status' => MiniTournament::SESSION_STATUS_PENDING_GROUP,
                 'is_session_started' => false,

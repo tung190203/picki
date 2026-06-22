@@ -132,6 +132,7 @@ class RoundRobinSchedulerService
 
         $participants = MiniParticipant::with('user:id,full_name')
             ->where('mini_tournament_id', $miniTournamentId)
+            ->where('is_confirmed', true)
             ->get()
             ->keyBy('id');
 
