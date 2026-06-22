@@ -1141,6 +1141,11 @@ class MiniTournament extends Model
             return false;
         }
 
+        // Kèo mới tạo, chưa chọn thể thức → cho phép chọn lần đầu
+        if ($this->match_format === null) {
+            return true;
+        }
+
         if ($this->match_format === self::MATCH_FORMAT_STANDARD) {
             return $this->is_session_started !== true;
         }
