@@ -449,12 +449,12 @@ class MiniTournamentController extends Controller
             }
         }
 
+        $originalFormat = $miniTournament->match_format;
         $miniTournament->update($data);
 
         // Sync session fields when match_format changes
         if (isset($data['match_format'])) {
             $newFormat = $data['match_format'];
-            $originalFormat = $miniTournament->getOriginal('match_format');
             $wasRoundRobin = in_array($originalFormat, [
                 MiniTournament::MATCH_FORMAT_PARTNER_ROTATION,
                 MiniTournament::MATCH_FORMAT_MIXED_GENDER,
