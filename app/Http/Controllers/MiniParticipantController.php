@@ -46,7 +46,9 @@ class MiniParticipantController extends Controller
             'per_page' => 'nullable|integer|min:1|max:200',
         ]);
 
-        $query = MiniParticipant::where('mini_tournament_id', $tournamentId)->withFullRelations();
+        $query = MiniParticipant::where('mini_tournament_id', $tournamentId)
+            ->whereHas('user')
+            ->withFullRelations();
 
         if ($request->filled('is_confirmed')) {
             $query->where('is_confirmed', $validated['is_confirmed']);

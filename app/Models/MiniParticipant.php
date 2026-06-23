@@ -65,7 +65,7 @@ class MiniParticipant extends Model
     // Nếu là user
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class)->withTrashed();
     }
 
     // Team (khi tham gia đấu đôi)
@@ -79,7 +79,7 @@ class MiniParticipant extends Model
      */
     public function guarantor()
     {
-        return $this->belongsTo(User::class, 'guarantor_user_id');
+        return $this->belongsTo(User::class, 'guarantor_user_id')->withTrashed();
     }
 
     /**
@@ -87,7 +87,7 @@ class MiniParticipant extends Model
      */
     public function invitedBy()
     {
-        return $this->belongsTo(User::class, 'invited_by');
+        return $this->belongsTo(User::class, 'invited_by')->withTrashed();
     }
 
     /**
