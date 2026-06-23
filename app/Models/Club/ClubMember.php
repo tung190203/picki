@@ -52,24 +52,24 @@ class ClubMember extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class)->withTrashed();
     }
 
     public function reviewer()
     {
-        return $this->belongsTo(User::class, 'reviewed_by');
+        return $this->belongsTo(User::class, 'reviewed_by')->withTrashed();
     }
 
     /** Admin mời vào CLB (user phải đồng ý). null = user tự gửi request. */
     public function inviter()
     {
-        return $this->belongsTo(User::class, 'invited_by');
+        return $this->belongsTo(User::class, 'invited_by')->withTrashed();
     }
 
     /** Alias của inviter — người đã mời user vào CLB. */
     public function invitedBy()
     {
-        return $this->belongsTo(User::class, 'invited_by');
+        return $this->belongsTo(User::class, 'invited_by')->withTrashed();
     }
 
     /** Là lời mời từ admin (chờ user đồng ý). */

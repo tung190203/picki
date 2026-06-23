@@ -51,7 +51,7 @@ class Participant extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(User::class, 'user_id')->withTrashed();
     }
 
     public function tournament()
@@ -61,7 +61,7 @@ class Participant extends Model
 
     public function guarantor()
     {
-        return $this->belongsTo(User::class, 'guarantor_user_id');
+        return $this->belongsTo(User::class, 'guarantor_user_id')->withTrashed();
     }
 
     public static function scopeWithFullRelations($query)
