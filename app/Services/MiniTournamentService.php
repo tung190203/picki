@@ -523,12 +523,30 @@ class MiniTournamentService
                     'points_difference', 'max_points', 'gender', 'auto_approve',
                     'allow_participant_add_friends', 'allow_cancellation',
                     'cancellation_duration', 'apply_rule', 'poster',
-                    'use_club_fund',
+                    'use_club_fund', 'match_format',
                 ];
 
                 foreach ($fieldsToUpdate as $field) {
                     if (array_key_exists($field, $data)) {
                         $updateData[$field] = $data[$field];
+                    }
+                }
+
+                // Sync session fields when match_format changes
+                if (array_key_exists('match_format', $data)) {
+                    $matchFormat = $data['match_format'];
+                    if ($matchFormat === MiniTournament::MATCH_FORMAT_STANDARD || $matchFormat === null) {
+                        $updateData['session_status'] = MiniTournament::SESSION_STATUS_ONGOING;
+                        $updateData['is_session_started'] = true;
+                    } elseif ($matchFormat === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
+                        $updateData['session_status'] = MiniTournament::SESSION_STATUS_ONGOING;
+                        $updateData['is_session_started'] = true;
+                    } elseif (in_array($matchFormat, [
+                        MiniTournament::MATCH_FORMAT_MIXED_GENDER,
+                        MiniTournament::MATCH_FORMAT_RANK_PAIRING,
+                    ], true)) {
+                        $updateData['session_status'] = MiniTournament::SESSION_STATUS_PENDING_GROUP;
+                        $updateData['is_session_started'] = false;
                     }
                 }
 

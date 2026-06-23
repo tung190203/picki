@@ -479,10 +479,7 @@ class MiniTournamentController extends Controller
                 if ($wasRoundRobin) {
                     $this->clearRoundRobinMatches($miniTournament);
                 }
-                $miniTournament->update([
-                    'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
-                    'is_session_started' => true,
-                ]);
+                // generatePartnerRotationMatches handles session field update internally
                 $this->generatePartnerRotationMatches($miniTournament);
             } elseif (in_array($newFormat, [
                 MiniTournament::MATCH_FORMAT_MIXED_GENDER,

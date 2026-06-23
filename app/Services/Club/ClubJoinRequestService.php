@@ -36,6 +36,7 @@ class ClubJoinRequestService
 
         $query = ClubMember::where('club_id', $club->id)
             ->whereNull('invited_by')
+            ->whereHas('user')
             ->with(['user' => User::FULL_RELATIONS, 'reviewer', 'inviter']);
 
         if ($status === 'pending') {
