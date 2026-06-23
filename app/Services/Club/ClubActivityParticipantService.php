@@ -30,9 +30,9 @@ class ClubActivityParticipantService
 {
     public function getParticipants(ClubActivity $activity, ?string $statusFilter = null): array
     {
-        $allParticipants = $activity->participants()->get();
+        $allParticipants = $activity->participants()->whereHas('user')->get();
 
-        $query = $activity->participants()->with(['user', 'walletTransaction']);
+        $query = $activity->participants()->whereHas('user')->with(['user', 'walletTransaction']);
 
         if ($statusFilter) {
             $query->where('status', $statusFilter);
@@ -44,6 +44,7 @@ class ClubActivityParticipantService
             ]);
         }
 
+        $query->whereHas('user');
         $participants = $query->orderBy('created_at')->get();
 
         return [
@@ -562,11 +563,13 @@ class ClubActivityParticipantService
         }
 
         $checkedIn = $activity->participants()
+            ->whereHas('user')
             ->where('status', ClubActivityParticipantStatus::Attended)
             ->with('user')
             ->get();
 
         $waiting = $activity->participants()
+            ->whereHas('user')
             ->where('status', ClubActivityParticipantStatus::Accepted)
             ->with('user')
             ->get();

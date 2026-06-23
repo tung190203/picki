@@ -34,8 +34,9 @@ class ParticipantController extends Controller
             'per_page' => 'nullable|integer|min:1|max:200',
         ]);
 
-        $query = Participant::with(['user'])
-            ->where('tournament_id', $tournamentId);
+        $query = Participant::where('tournament_id', $tournamentId)
+            ->whereHas('user')
+            ->with(['user']);
 
         if (isset($validated['is_confirmed'])) {
             $query->where('is_confirmed', $validated['is_confirmed']);

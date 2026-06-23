@@ -26,7 +26,9 @@ class ClubMemberManagementService
 
     public function getMembers(Club $club, array $filters): LengthAwarePaginator
     {
-        $query = $club->members()->with(['user' => User::FULL_RELATIONS, 'reviewer']);
+        $query = $club->members()
+            ->whereHas('user')
+            ->with(['user' => User::FULL_RELATIONS, 'reviewer']);
 
         if (!empty($filters['search'])) {
             $query->whereHas('user', function ($q) use ($filters) {
