@@ -646,7 +646,7 @@ class ParticipantController extends Controller
         }
         $userNeedRemove = $participant->user_id;
 
-        // BUG-11: Kiểm tra user có thuộc team đã có match có kết quả không
+        // Không cho xóa nếu team đã được xếp vào trận đấu (dù trận đang pending, đang đấu hay đã kết thúc)
         $teamIdsInTournament = DB::table('teams')
             ->where('tournament_id', $tournamentId)
             ->pluck('id');
@@ -656,14 +656,15 @@ class ParticipantController extends Controller
             ->pluck('team_id');
 
         if ($userTeamIds->isNotEmpty()) {
-            $matchesWithResults = DB::table('matches')
-                ->whereIn('home_team_id', $userTeamIds)
-                ->orWhereIn('away_team_id', $userTeamIds)
-                ->where('status', 'completed')
+            $hasScheduledMatch = DB::table('matches')
+                ->where(function ($q) use ($userTeamIds) {
+                    $q->whereIn('home_team_id', $userTeamIds)
+                      ->orWhereIn('away_team_id', $userTeamIds);
+                })
                 ->exists();
-            if ($matchesWithResults) {
+            if ($hasScheduledMatch) {
                 return ResponseHelper::error(
-                    'Không thể xóa người tham gia. Đội đã có trận đấu hoàn thành.',
+                    'Không thể xóa người tham gia. Đội đã được xếp vào trận đấu.',
                     400
                 );
             }

@@ -657,6 +657,31 @@ class MiniParticipantController extends Controller
             return ResponseHelper::error('Không có quyền', 403);
         }
 
+        $userId = $participant->user_id;
+        $miniTournamentId = $participant->mini_tournament_id;
+
+        // Không cho xóa nếu team đã được xếp vào trận đấu (dù trận đang pending, đang đấu hay đã kết thúc)
+        $userMiniTeamIds = DB::table('mini_team_members')
+            ->join('mini_teams', 'mini_teams.id', '=', 'mini_team_members.mini_team_id')
+            ->where('mini_teams.mini_tournament_id', $miniTournamentId)
+            ->where('mini_team_members.user_id', $userId)
+            ->pluck('mini_team_members.mini_team_id');
+
+        if ($userMiniTeamIds->isNotEmpty()) {
+            $hasScheduledMatch = DB::table('mini_matches')
+                ->where(function ($q) use ($userMiniTeamIds) {
+                    $q->whereIn('team1_id', $userMiniTeamIds)
+                      ->orWhereIn('team2_id', $userMiniTeamIds);
+                })
+                ->exists();
+            if ($hasScheduledMatch) {
+                return ResponseHelper::error(
+                    'Không thể xóa người tham gia. Đội đã được xếp vào trận đấu.',
+                    400
+                );
+            }
+        }
+
         // Lưu thông tin để gửi notification
         $participantData = [
             'id' => $participant->id,
@@ -729,6 +754,29 @@ class MiniParticipantController extends Controller
 
         if (!$miniTournament->hasOrganizer(Auth::id())) {
             return ResponseHelper::error('Không có quyền', 403);
+        }
+
+        // Không cho xóa nếu bất kỳ participant trong danh sách đã được xếp vào trận đấu
+        $userTeamIdsInBatch = DB::table('mini_team_members')
+            ->join('mini_teams', 'mini_teams.id', '=', 'mini_team_members.mini_team_id')
+            ->where('mini_teams.mini_tournament_id', $miniTournament->id)
+            ->whereIn('mini_team_members.user_id', $participants->pluck('user_id'))
+            ->pluck('mini_team_members.mini_team_id')
+            ->unique();
+
+        if ($userTeamIdsInBatch->isNotEmpty()) {
+            $hasScheduledMatch = DB::table('mini_matches')
+                ->where(function ($q) use ($userTeamIdsInBatch) {
+                    $q->whereIn('team1_id', $userTeamIdsInBatch)
+                      ->orWhereIn('team2_id', $userTeamIdsInBatch);
+                })
+                ->exists();
+            if ($hasScheduledMatch) {
+                return ResponseHelper::error(
+                    'Không thể xóa người tham gia. Một hoặc nhiều người đã được xếp vào trận đấu.',
+                    400
+                );
+            }
         }
 
         $hasStarted = in_array($miniTournament->status, [
