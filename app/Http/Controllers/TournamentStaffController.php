@@ -144,6 +144,57 @@ class TournamentStaffController extends Controller
     }
 
     /**
+     * Đánh dấu check-in nhiều staff cùng lúc.
+     * Body: { staff_ids: int[] }
+     */
+    public function markCheckInAll(Request $request, int $id)
+    {
+        $validated = $request->validate([
+            'staff_ids' => 'required|array|min:1',
+            'staff_ids.*' => 'integer',
+        ]);
+
+        $staffIds = $validated['staff_ids'];
+
+        $tournament = Tournament::findOrFail($id);
+        if (!$tournament->hasScoringPermission(Auth::id())) {
+            return ResponseHelper::error('Bạn không có quyền thực hiện thao tác này', 403);
+        }
+
+        $staffMembers = TournamentStaff::where('tournament_id', $id)
+            ->whereIn('id', $staffIds)
+            ->get();
+
+        if ($staffMembers->isEmpty()) {
+            return ResponseHelper::error('Không tìm thấy thành viên ban tổ chức nào trong danh sách', 404);
+        }
+
+        $updatedCount = 0;
+        $skippedIds = [];
+
+        foreach ($staffMembers as $staff) {
+            if ($staff->checked_in_at) {
+                $skippedIds[] = $staff->id;
+                continue;
+            }
+
+            $staff->update([
+                'checked_in_at' => now(),
+                'is_absent' => false,
+            ]);
+
+            $this->syncParticipantAttendanceFromStaff($staff);
+            $updatedCount++;
+        }
+
+        return ResponseHelper::success([
+            'updated_count' => $updatedCount,
+            'skipped_count' => count($skippedIds),
+            'skipped_ids' => $skippedIds,
+        ], "Đã đánh dấu check-in cho {$updatedCount} thành viên ban tổ chức");
+    }
+
+    /**
      * Input: route id = tournaments.id, staffId = tournament_staff.id.
      * Output: JSON success + TournamentStaffResource.
      */

@@ -206,25 +206,39 @@ class UpdateTournamentRequest extends FormRequest
             }
         }
 
+        // Normalize ALL boolean fields: convert string "true"/"false"/"1"/"0" → bool, null/"" → null
         $boolKeys = [
             'enable_dupr', 'enable_vndupr', 'is_private', 'auto_approve',
             'has_financial_management', 'has_fee', 'auto_split_fee', 'creator_join',
-            'use_cached_qr',
+            'use_cached_qr', 'is_public_branch', 'is_own_score', 'remove_poster',
         ];
 
-        $nullableKeys = ['main_phone', 'sub_phone'];
+        $boolNormalized = [];
+        foreach ($boolKeys as $key) {
+            if (!$this->has($key)) {
+                continue;
+            }
+            $v = $this->input($key);
+            $boolNormalized[$key] = match (true) {
+                $v === true, $v === 1, $v === '1', $v === 'true' => true,
+                $v === false, $v === 0, $v === '0', $v === 'false' => false,
+                $v === null, $v === '' => null,
+                default => $v,
+            };
+        }
 
-        $normalized = [];
+        $nullableKeys = ['main_phone', 'sub_phone'];
+        $nullableNormalized = [];
         foreach ($nullableKeys as $key) {
             if (!$this->has($key)) {
                 continue;
             }
             $v = $this->input($key);
             if ($v === '' || $v === null) {
-                $normalized[$key] = null;
+                $nullableNormalized[$key] = null;
             }
         }
 
-        $this->merge($normalized);
+        $this->merge(array_merge($boolNormalized, $nullableNormalized));
     }
 }

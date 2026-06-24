@@ -103,25 +103,6 @@ class MiniTournamentController extends Controller
     {
         $data = $request->safe()->except(['invite_user', 'poster', 'qr_code_url']);
 
-        // #region agent log
-        $logFile = 'C:\Users\Admin\Documents\picki\debug-0bca3b.log';
-        $logEntry = [
-            'sessionId' => '0bca3b',
-            'location' => 'MiniTournamentController.php:104',
-            'message' => 'H1/H4: store received match_format',
-            'data' => [
-                'has_match_format_key' => $request->has('match_format'),
-                'raw_match_format' => $request->input('match_format'),
-                'validated_match_format' => $data['match_format'] ?? 'MISSING',
-                'all_keys' => array_keys($data),
-                'runId' => 'initial',
-                'hypothesisId' => 'H1+H4',
-            ],
-            'timestamp' => (int) (microtime(true) * 1000),
-        ];
-        @file_put_contents($logFile, json_encode($logEntry) . "\n", FILE_APPEND);
-        // #endregion
-
         if (!empty($data['competition_location_id'])) {
             $location = CompetitionLocation::find($data['competition_location_id']);
             if ($location && $location->is_banned) {
@@ -1086,6 +1067,102 @@ class MiniTournamentController extends Controller
             new MiniParticipantResource($participant),
             'Đã đánh dấu check-in thành công'
         );
+    }
+
+    /**
+     * Organizer / Club staff đánh dấu check-in nhiều participants cùng lúc.
+     * Body: { participant_ids: int[] }
+     */
+    public function markCheckInAll(Request $request, int $miniTournamentId)
+    {
+        $userId = Auth::id();
+
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        $validated = $request->validate([
+            'participant_ids' => 'required|array|min:1',
+            'participant_ids.*' => 'integer',
+        ]);
+
+        $participantIds = $validated['participant_ids'];
+
+        $miniTournament = MiniTournament::findOrFail($miniTournamentId);
+
+        // === Kèo thuộc CLB ===
+        if ($miniTournament->club_id) {
+            $club = Club::find($miniTournament->club_id);
+            if (!$club) {
+                return ResponseHelper::error('CLB không tồn tại', 404);
+            }
+
+            $clubMember = $club->activeMembers()->where('user_id', $userId)->first();
+            $isClubStaff = $clubMember && in_array(
+                $clubMember->role,
+                [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary],
+                true
+            );
+            $isTournamentOrganizer = $miniTournament->staff->contains(
+                fn ($staff) => (int) $staff->pivot->user_id === $userId
+                && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ORGANIZER
+            );
+
+            if (!$isClubStaff && !$isTournamentOrganizer) {
+                return ResponseHelper::error('Bạn không có quyền đánh dấu check-in cho kèo này', 403);
+            }
+        } else {
+            // === Kèo thường: chỉ organizer ===
+            if ($request->filled('club_id')) {
+                return ResponseHelper::error('Kèo không thuộc CLB. Không cần truyền club_id.', 422);
+            }
+
+            $isOrganizer = $miniTournament->staff->contains(
+                fn ($staff) => (int) $staff->pivot->user_id === $userId
+                && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ORGANIZER
+            );
+
+            if (!$isOrganizer) {
+                return ResponseHelper::error('Chỉ organizer kèo đấu mới có quyền đánh dấu check-in', 403);
+            }
+        }
+
+        $participants = $miniTournament->participants()
+            ->whereIn('id', $participantIds)
+            ->get();
+
+        if ($participants->isEmpty()) {
+            return ResponseHelper::error('Không tìm thấy thành viên nào trong danh sách', 404);
+        }
+
+        $updatedCount = 0;
+        $skippedIds = [];
+
+        foreach ($participants as $participant) {
+            if (!$participant->is_confirmed) {
+                $skippedIds[] = $participant->id;
+                continue;
+            }
+            if ($participant->checked_in_at) {
+                $skippedIds[] = $participant->id;
+                continue;
+            }
+
+            $participant->update([
+                'is_confirmed' => true,
+                'checked_in_at' => now(),
+                'is_absent' => false,
+            ]);
+
+            $this->syncMiniStaffAttendanceFromParticipant($participant);
+            $updatedCount++;
+        }
+
+        return ResponseHelper::success([
+            'updated_count' => $updatedCount,
+            'skipped_count' => count($skippedIds),
+            'skipped_ids' => $skippedIds,
+        ], "Đã đánh dấu check-in cho {$updatedCount} thành viên");
     }
 
     /**

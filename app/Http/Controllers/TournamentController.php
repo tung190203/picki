@@ -13,6 +13,7 @@ use App\Jobs\OptimizeTournamentImageJob;
 use App\Http\Controllers\TournamentTypeController;
 use App\Http\Requests\StoreTournamentRequest;
 use App\Http\Requests\UpdateTournamentRequest;
+use App\Notifications\TournamentRemovedNotification;
 use App\Http\Resources\ParticipantResource;
 use App\Http\Resources\TournamentResource;
 use App\Http\Resources\TournamentStaffResource;
@@ -608,6 +609,144 @@ class TournamentController extends Controller
             new TournamentStaffResource($tournamentStaff),
             'Đã đánh dấu check-in thành công'
         );
+    }
+
+    /**
+     * Đánh dấu check-in nhiều participants cùng lúc.
+     * Body: { participant_ids: int[] }
+     */
+    public function markCheckInAll(Request $request, int $tournamentId)
+    {
+        $userId = Auth::id();
+
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        $validated = $request->validate([
+            'participant_ids' => 'required|array|min:1',
+            'participant_ids.*' => 'integer',
+        ]);
+
+        $participantIds = $validated['participant_ids'];
+
+        $tournament = Tournament::with('staff')->findOrFail($tournamentId);
+
+        if ($err = $this->authorizeMarkParticipantAttendance($request, $tournament, $userId)) {
+            return $err;
+        }
+
+        $participants = $tournament->participants()
+            ->whereIn('id', $participantIds)
+            ->get();
+
+        if ($participants->isEmpty()) {
+            return ResponseHelper::error('Không tìm thấy thành viên nào trong danh sách', 404);
+        }
+
+        $updatedCount = 0;
+        $skippedIds = [];
+
+        foreach ($participants as $participant) {
+            if ($participant->checked_in_at) {
+                $skippedIds[] = $participant->id;
+                continue;
+            }
+
+            if ($participant->is_absent) {
+                $participant->update([
+                    'is_confirmed' => true,
+                    'checked_in_at' => now(),
+                    'is_absent' => false,
+                ]);
+            } else {
+                $participant->update([
+                    'is_confirmed' => true,
+                    'checked_in_at' => now(),
+                ]);
+            }
+
+            $this->syncStaffAttendanceFromParticipant($participant);
+            $updatedCount++;
+        }
+
+        return ResponseHelper::success([
+            'updated_count' => $updatedCount,
+            'skipped_count' => count($skippedIds),
+            'skipped_ids' => $skippedIds,
+        ], "Đã đánh dấu check-in cho {$updatedCount} thành viên");
+    }
+
+    /**
+     * Xóa nhiều participants cùng lúc.
+     * Body: { participant_ids: int[] }
+     * Validation: nếu giải đấu đã start, bỏ qua những người is_confirmed = true.
+     */
+    public function deleteAll(Request $request, int $tournamentId)
+    {
+        $validated = $request->validate([
+            'participant_ids' => 'required|array|min:1',
+            'participant_ids.*' => 'integer',
+        ]);
+
+        $participantIds = $validated['participant_ids'];
+
+        $tournament = Tournament::with('staff')->findOrFail($tournamentId);
+
+        if (!$tournament->hasOrganizer(Auth::id())) {
+            return ResponseHelper::error('Không có quyền', 403);
+        }
+
+        $participants = Participant::with('user')
+            ->where('tournament_id', $tournamentId)
+            ->whereIn('id', $participantIds)
+            ->get();
+
+        if ($participants->isEmpty()) {
+            return ResponseHelper::error('Không tìm thấy participant nào', 404);
+        }
+
+        $hasStarted = in_array($tournament->status, [
+            Tournament::OPEN,
+            Tournament::CLOSED,
+        ], true);
+
+        $toDelete = $hasStarted
+            ? $participants->where('is_confirmed', false)
+            : $participants;
+
+        $skipped = $hasStarted
+            ? $participants->where('is_confirmed', true)
+            : collect();
+
+        $teamIdsInTournament = DB::table('teams')
+            ->where('tournament_id', $tournamentId)
+            ->pluck('id');
+
+        $userIds = $toDelete->pluck('user_id')->filter()->toArray();
+
+        DB::transaction(function () use ($userIds, $teamIdsInTournament, $toDelete, $tournamentId) {
+            DB::table('team_members')
+                ->whereIn('user_id', $userIds)
+                ->whereIn('team_id', $teamIdsInTournament)
+                ->delete();
+
+            TournamentParticipantPayment::where('tournament_id', $tournamentId)
+                ->whereIn('user_id', $userIds)
+                ->delete();
+
+            $toDelete->each(fn ($p) => $p->delete());
+        });
+
+        foreach ($toDelete as $participant) {
+            $participant->user?->notify(new TournamentRemovedNotification($participant));
+        }
+
+        return ResponseHelper::success([
+            'deleted_count' => $toDelete->count(),
+            'skipped_count' => $skipped->count(),
+            'skipped_ids' => $hasStarted ? $skipped->pluck('id')->toArray() : [],
+        ], 'Đã xóa người tham gia khỏi giải đấu');
     }
 
     /**
