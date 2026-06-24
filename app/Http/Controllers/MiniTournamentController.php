@@ -434,6 +434,11 @@ class MiniTournamentController extends Controller
         $originalFormat = $miniTournament->match_format;
         $miniTournament->update($data);
 
+        // Reset participant groups and session state when match_format changes
+        if (isset($data['match_format']) && $data['match_format'] !== $originalFormat) {
+            $miniTournament->participants()->update(['player_group' => null]);
+        }
+
         // Sync session fields when match_format changes
         if (isset($data['match_format'])) {
             $newFormat = $data['match_format'];
@@ -685,14 +690,12 @@ class MiniTournamentController extends Controller
     }
 
     /**
-     * Clear Round Robin matches (partner_rotation / mixed_gender / rank_pairing).
+     * Clear all matches for a tournament when switching formats.
      */
     private function clearRoundRobinMatches(MiniTournament $miniTournament): void
     {
         DB::transaction(function () use ($miniTournament) {
-            MiniMatch::where('mini_tournament_id', $miniTournament->id)
-                ->whereNotNull('round_number')
-                ->delete();
+            MiniMatch::where('mini_tournament_id', $miniTournament->id)->delete();
 
             $teamIds = MiniTeam::where('mini_tournament_id', $miniTournament->id)
                 ->pluck('id')
