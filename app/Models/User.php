@@ -7,6 +7,7 @@ use App\Enums\ClubMemberStatus;
 use App\Models\SuperAdminDraft;
 use App\Models\Club\Club;
 use App\Models\QuickMatch;
+use App\Models\SystemSetting;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -462,6 +463,8 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     {
         if (!$sportId) return $query;
 
+        $rankingMatches = (int) (SystemSetting::where('key', 'ranking_matches')->first()?->value ?? 10);
+
         $scoreSubquery = DB::table('user_sport')
             ->join('user_sport_scores', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
             ->where('user_sport.sport_id', $sportId)
@@ -469,13 +472,54 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             ->whereColumn('user_sport.user_id', 'users.id')
             ->select(DB::raw('MAX(user_sport_scores.score_value)'));
 
+        $totalMatchesRaw = "(
+            (
+                SELECT COUNT(DISTINCT m.id)
+                FROM matches m
+                JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                JOIN tournaments t ON tt.tournament_id = t.id
+                JOIN team_members tm ON tm.team_id = m.home_team_id
+                WHERE tm.user_id = u2.id AND t.sport_id = %d AND m.status = 'completed'
+            ) + (
+                SELECT COUNT(DISTINCT m.id)
+                FROM matches m
+                JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                JOIN tournaments t ON tt.tournament_id = t.id
+                JOIN team_members tm ON tm.team_id = m.away_team_id
+                WHERE tm.user_id = u2.id AND t.sport_id = %d AND m.status = 'completed'
+            ) + (
+                SELECT COUNT(DISTINCT mm.id)
+                FROM mini_matches mm
+                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id
+                WHERE mtm.user_id = u2.id AND mnt.sport_id = %d AND mm.status = 'completed'
+            ) + (
+                SELECT COUNT(DISTINCT mm.id)
+                FROM mini_matches mm
+                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id
+                WHERE mtm.user_id = u2.id AND mnt.sport_id = %d AND mm.status = 'completed'
+            ) + (
+                SELECT COUNT(DISTINCT mh.id)
+                FROM match_histories mh
+                JOIN quick_matches qm ON mh.quick_match_id = qm.id
+                WHERE mh.user_id = u2.id AND qm.status = 'completed'
+                    AND (qm.competition_location_id IS NULL OR EXISTS (
+                        SELECT 1 FROM competition_location_sport cls
+                        WHERE cls.competition_location_id = qm.competition_location_id AND cls.sport_id = %d
+                    ))
+            )
+        ) >= %d";
+
+        $totalMatchesRaw = sprintf($totalMatchesRaw, $sportId, $sportId, $sportId, $sportId, $sportId, $rankingMatches);
+
         $rankSubquery = DB::table('users as u2')
             ->join('user_sport as us2', 'u2.id', '=', 'us2.user_id')
             ->join('user_sport_scores as uss2', 'us2.id', '=', 'uss2.user_sport_id')
-            ->where('u2.total_matches_has_anchor', '>', 5)
             ->where('us2.sport_id', $sportId)
             ->where('uss2.score_type', 'vndupr_score')
             ->where('uss2.score_value', '>', DB::raw('(' . $scoreSubquery->toSql() . ')'))
+            ->whereRaw($totalMatchesRaw)
             ->mergeBindings($scoreSubquery)
             ->select(DB::raw('COUNT(DISTINCT u2.id) + 1'));
 
@@ -780,6 +824,66 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         return $query;
     }
 
+    /**
+     * Tính tổng số trận đã đấu của user (dynamic, không dùng stored column).
+     * Logic y hệt getSystemLeaderboard: tournament + mini-tournament + quick-match.
+     */
+    public function getTotalMatches(int $sportId): int
+    {
+        $userId = $this->id;
+
+        $tHome = DB::table('matches as m')
+            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
+            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
+            ->join('team_members as tm', 'tm.team_id', '=', 'm.home_team_id')
+            ->where('tm.user_id', $userId)
+            ->where('t.sport_id', $sportId)
+            ->where('m.status', 'completed')
+            ->count(DB::raw('DISTINCT m.id'));
+
+        $tAway = DB::table('matches as m')
+            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
+            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
+            ->join('team_members as tm', 'tm.team_id', '=', 'm.away_team_id')
+            ->where('tm.user_id', $userId)
+            ->where('t.sport_id', $sportId)
+            ->where('m.status', 'completed')
+            ->count(DB::raw('DISTINCT m.id'));
+
+        $mTeam1 = DB::table('mini_matches as mm')
+            ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
+            ->join('mini_team_members as mtm', 'mtm.mini_team_id', '=', 'mm.team1_id')
+            ->where('mtm.user_id', $userId)
+            ->where('mnt.sport_id', $sportId)
+            ->where('mm.status', 'completed')
+            ->count(DB::raw('DISTINCT mm.id'));
+
+        $mTeam2 = DB::table('mini_matches as mm')
+            ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
+            ->join('mini_team_members as mtm', 'mtm.mini_team_id', '=', 'mm.team2_id')
+            ->where('mtm.user_id', $userId)
+            ->where('mnt.sport_id', $sportId)
+            ->where('mm.status', 'completed')
+            ->count(DB::raw('DISTINCT mm.id'));
+
+        $qm = DB::table('match_histories as mh')
+            ->join('quick_matches as qm', 'mh.quick_match_id', '=', 'qm.id')
+            ->where('mh.user_id', $userId)
+            ->where('qm.status', 'completed')
+            ->where(function ($q) use ($sportId) {
+                $q->whereNull('qm.competition_location_id')
+                    ->orWhereExists(function ($sub) use ($sportId) {
+                        $sub->select(DB::raw(1))
+                            ->from('competition_location_sport')
+                            ->whereColumn('competition_location_id', 'qm.competition_location_id')
+                            ->where('sport_id', $sportId);
+                    });
+            })
+            ->count(DB::raw('DISTINCT mh.id'));
+
+        return $tHome + $tAway + $mTeam1 + $mTeam2 + $qm;
+    }
+
     // User.php
     public function scores()
     {
@@ -800,15 +904,53 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         }
 
         $userScore = $this->vnduprScoresBySport($sportId)->max('score_value') ?? 0;
+        $userTotalMatches = $this->getTotalMatches($sportId);
+        $rankingMatches = (int) (SystemSetting::where('key', 'ranking_matches')->first()?->value ?? 10);
+
+        if ($userTotalMatches < $rankingMatches) {
+            return null;
+        }
 
         return self::query()
-            ->where('total_matches_has_anchor', '>', 5)
             ->select(DB::raw('COUNT(DISTINCT users.id) + 1 as `rank`'))
             ->join('user_sport', 'users.id', '=', 'user_sport.user_id')
             ->join('user_sport_scores', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
             ->where('user_sport.sport_id', $sportId)
             ->where('user_sport_scores.score_type', 'vndupr_score')
             ->where('user_sport_scores.score_value', '>', $userScore)
+            ->whereRaw("(
+                (
+                    SELECT COUNT(DISTINCT m.id) FROM matches m
+                    JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                    JOIN tournaments t ON tt.tournament_id = t.id
+                    JOIN team_members tm ON tm.team_id = m.home_team_id
+                    WHERE tm.user_id = users.id AND t.sport_id = {$sportId} AND m.status = 'completed'
+                ) + (
+                    SELECT COUNT(DISTINCT m.id) FROM matches m
+                    JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                    JOIN tournaments t ON tt.tournament_id = t.id
+                    JOIN team_members tm ON tm.team_id = m.away_team_id
+                    WHERE tm.user_id = users.id AND t.sport_id = {$sportId} AND m.status = 'completed'
+                ) + (
+                    SELECT COUNT(DISTINCT mm.id) FROM mini_matches mm
+                    JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                    JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id
+                    WHERE mtm.user_id = users.id AND mnt.sport_id = {$sportId} AND mm.status = 'completed'
+                ) + (
+                    SELECT COUNT(DISTINCT mm.id) FROM mini_matches mm
+                    JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                    JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id
+                    WHERE mtm.user_id = users.id AND mnt.sport_id = {$sportId} AND mm.status = 'completed'
+                ) + (
+                    SELECT COUNT(DISTINCT mh.id) FROM match_histories mh
+                    JOIN quick_matches qm ON mh.quick_match_id = qm.id
+                    WHERE mh.user_id = users.id AND qm.status = 'completed'
+                        AND (qm.competition_location_id IS NULL OR EXISTS (
+                            SELECT 1 FROM competition_location_sport cls
+                            WHERE cls.competition_location_id = qm.competition_location_id AND cls.sport_id = {$sportId}
+                        ))
+                )
+            ) >= {$rankingMatches}")
             ->value('rank');
     }
 
