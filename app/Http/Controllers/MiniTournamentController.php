@@ -103,25 +103,6 @@ class MiniTournamentController extends Controller
     {
         $data = $request->safe()->except(['invite_user', 'poster', 'qr_code_url']);
 
-        // #region agent log
-        $logFile = 'C:\Users\Admin\Documents\picki\debug-0bca3b.log';
-        $logEntry = [
-            'sessionId' => '0bca3b',
-            'location' => 'MiniTournamentController.php:104',
-            'message' => 'H1/H4: store received match_format',
-            'data' => [
-                'has_match_format_key' => $request->has('match_format'),
-                'raw_match_format' => $request->input('match_format'),
-                'validated_match_format' => $data['match_format'] ?? 'MISSING',
-                'all_keys' => array_keys($data),
-                'runId' => 'initial',
-                'hypothesisId' => 'H1+H4',
-            ],
-            'timestamp' => (int) (microtime(true) * 1000),
-        ];
-        @file_put_contents($logFile, json_encode($logEntry) . "\n", FILE_APPEND);
-        // #endregion
-
         if (!empty($data['competition_location_id'])) {
             $location = CompetitionLocation::find($data['competition_location_id']);
             if ($location && $location->is_banned) {
