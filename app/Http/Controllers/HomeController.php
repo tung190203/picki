@@ -156,7 +156,7 @@ class HomeController extends Controller
             ->select(
                 'users.*',
                 'scores.vndupr_score',
-                DB::raw('RANK() OVER (ORDER BY scores.vndupr_score DESC) as rank')
+                DB::raw('ROW_NUMBER() OVER (ORDER BY scores.vndupr_score DESC) as rank')
             )
             ->orderByDesc('scores.vndupr_score')
             ->limit($perPage)
