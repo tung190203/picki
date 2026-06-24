@@ -264,11 +264,9 @@ class MiniParticipantController extends Controller
             }
 
             try {
-                $paymentStatus = PaymentStatusEnum::CONFIRMED;
+                $paymentStatus = PaymentStatusEnum::PENDING;
                 if ($miniTournament->use_club_fund) {
-                    // CLB chi
-                } elseif ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
-                    $paymentStatus = PaymentStatusEnum::PENDING;
+                    $paymentStatus = PaymentStatusEnum::CONFIRMED;
                 }
 
                 $isSuperAdmin = Auth::user()?->is_super_admin ?? false;
@@ -895,13 +893,10 @@ class MiniParticipantController extends Controller
                 // Check max players
                 $this->checkMaxPlayers($miniTournament);
 
-                // Determine payment_status based on tournament fee settings
-                // use_club_fund = true: CLB chi tiền → CONFIRMED, không tạo payment
-                $paymentStatus = PaymentStatusEnum::CONFIRMED;
+                // Determine payment_status: PENDING mặc định, CONFIRMED khi CLB chi tiền
+                $paymentStatus = PaymentStatusEnum::PENDING;
                 if ($miniTournament->use_club_fund) {
-                    // CLB chi → CONFIRMED
-                } elseif ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
-                    $paymentStatus = PaymentStatusEnum::PENDING;
+                    $paymentStatus = PaymentStatusEnum::CONFIRMED;
                 }
 
                 // Create new participant
