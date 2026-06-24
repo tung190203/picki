@@ -264,11 +264,9 @@ class MiniParticipantController extends Controller
             }
 
             try {
-                $paymentStatus = PaymentStatusEnum::CONFIRMED;
+                $paymentStatus = PaymentStatusEnum::PENDING;
                 if ($miniTournament->use_club_fund) {
-                    // CLB chi
-                } elseif ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
-                    $paymentStatus = PaymentStatusEnum::PENDING;
+                    $paymentStatus = PaymentStatusEnum::CONFIRMED;
                 }
 
                 $isSuperAdmin = Auth::user()?->is_super_admin ?? false;
@@ -702,6 +700,97 @@ class MiniParticipantController extends Controller
         return ResponseHelper::success(null, 'Đã xóa người tham gia khỏi kèo đấu');
     }
 
+    /**
+     * Organizer xóa nhiều participants cùng lúc
+     */
+    public function deleteAll(Request $request)
+    {
+        $validated = $request->validate([
+            'participant_ids' => 'required|array|min:1',
+            'participant_ids.*' => 'integer',
+        ]);
+
+        $participantIds = $validated['participant_ids'];
+
+        if (empty($participantIds)) {
+            return ResponseHelper::error('Danh sách participant_ids trống', 400);
+        }
+
+        $participants = MiniParticipant::with(['miniTournament', 'user'])
+            ->whereIn('id', $participantIds)
+            ->get();
+
+        if ($participants->isEmpty()) {
+            return ResponseHelper::error('Không tìm thấy participant nào', 404);
+        }
+
+        $first = $participants->first();
+        $miniTournament = MiniTournament::with('staff')->findOrFail($first->mini_tournament_id);
+
+        if (!$miniTournament->hasOrganizer(Auth::id())) {
+            return ResponseHelper::error('Không có quyền', 403);
+        }
+
+        $hasStarted = in_array($miniTournament->status, [
+            MiniTournament::STATUS_OPEN,
+            MiniTournament::STATUS_CLOSED,
+        ], true);
+
+        $toDelete = $hasStarted
+            ? $participants->where('is_confirmed', false)
+            : $participants;
+
+        $skipped = $hasStarted
+            ? $participants->where('is_confirmed', true)
+            : collect();
+
+        DB::transaction(function () use ($toDelete, $miniTournament) {
+            foreach ($toDelete as $participant) {
+                MiniParticipantPayment::where('mini_tournament_id', $miniTournament->id)
+                    ->where('participant_id', $participant->id)
+                    ->delete();
+
+                if ($participant->is_guest && $participant->guarantor_user_id) {
+                    MiniParticipantPayment::where('mini_tournament_id', $miniTournament->id)
+                        ->where('user_id', $participant->guarantor_user_id)
+                        ->where('participant_id', $participant->id)
+                        ->delete();
+                }
+
+                $participant->delete();
+            }
+        });
+
+        foreach ($toDelete as $participant) {
+            $participantData = [
+                'id' => $participant->id,
+                'mini_tournament_id' => $miniTournament->id,
+                'tournament_name' => $miniTournament->name,
+                'user_id' => $participant->user_id,
+            ];
+
+            $participant->user?->notify(
+                new MiniTournamentRemovedNotification($participantData, Auth::id())
+            );
+
+            $this->pushToUsers(
+                [$participant->user_id],
+                'Bị xóa khỏi kèo đấu',
+                'Bạn đã bị xóa khỏi kèo đấu',
+                [
+                    'type' => 'MINI_TOURNAMENT_REMOVED',
+                    'mini_tournament_id' => $miniTournament->id,
+                ]
+            );
+        }
+
+        return ResponseHelper::success([
+            'deleted_count' => $toDelete->count(),
+            'skipped_count' => $skipped->count(),
+            'skipped_ids' => $hasStarted ? $skipped->pluck('id')->toArray() : [],
+        ], 'Đã xóa người tham gia khỏi kèo đấu');
+    }
+
     public function deleteStaff(Request $request, $staffId)
     {
         $tournamentStaff = DB::table('mini_tournament_staff')->where('id', $staffId)->first();
@@ -895,13 +984,10 @@ class MiniParticipantController extends Controller
                 // Check max players
                 $this->checkMaxPlayers($miniTournament);
 
-                // Determine payment_status based on tournament fee settings
-                // use_club_fund = true: CLB chi tiền → CONFIRMED, không tạo payment
-                $paymentStatus = PaymentStatusEnum::CONFIRMED;
+                // Determine payment_status: PENDING mặc định, CONFIRMED khi CLB chi tiền
+                $paymentStatus = PaymentStatusEnum::PENDING;
                 if ($miniTournament->use_club_fund) {
-                    // CLB chi → CONFIRMED
-                } elseif ($miniTournament->has_fee && !$miniTournament->auto_split_fee) {
-                    $paymentStatus = PaymentStatusEnum::PENDING;
+                    $paymentStatus = PaymentStatusEnum::CONFIRMED;
                 }
 
                 // Create new participant
