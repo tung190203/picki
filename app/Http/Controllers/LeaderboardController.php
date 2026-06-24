@@ -379,7 +379,7 @@ class LeaderboardController extends Controller
                 'users.is_anchor',
                 'users.is_verified',
                 'users.total_matches_has_anchor',
-                DB::raw('RANK() OVER (ORDER BY scores.vndupr_score DESC) as rank')
+                DB::raw('ROW_NUMBER() OVER (ORDER BY scores.vndupr_score DESC) as rank')
             )
             ->offset($offset)
             ->limit($perPage)
