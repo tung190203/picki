@@ -1070,6 +1070,102 @@ class MiniTournamentController extends Controller
     }
 
     /**
+     * Organizer / Club staff đánh dấu check-in nhiều participants cùng lúc.
+     * Body: { participant_ids: int[] }
+     */
+    public function markCheckInAll(Request $request, int $miniTournamentId)
+    {
+        $userId = Auth::id();
+
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        $validated = $request->validate([
+            'participant_ids' => 'required|array|min:1',
+            'participant_ids.*' => 'integer',
+        ]);
+
+        $participantIds = $validated['participant_ids'];
+
+        $miniTournament = MiniTournament::findOrFail($miniTournamentId);
+
+        // === Kèo thuộc CLB ===
+        if ($miniTournament->club_id) {
+            $club = Club::find($miniTournament->club_id);
+            if (!$club) {
+                return ResponseHelper::error('CLB không tồn tại', 404);
+            }
+
+            $clubMember = $club->activeMembers()->where('user_id', $userId)->first();
+            $isClubStaff = $clubMember && in_array(
+                $clubMember->role,
+                [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary],
+                true
+            );
+            $isTournamentOrganizer = $miniTournament->staff->contains(
+                fn ($staff) => (int) $staff->pivot->user_id === $userId
+                && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ORGANIZER
+            );
+
+            if (!$isClubStaff && !$isTournamentOrganizer) {
+                return ResponseHelper::error('Bạn không có quyền đánh dấu check-in cho kèo này', 403);
+            }
+        } else {
+            // === Kèo thường: chỉ organizer ===
+            if ($request->filled('club_id')) {
+                return ResponseHelper::error('Kèo không thuộc CLB. Không cần truyền club_id.', 422);
+            }
+
+            $isOrganizer = $miniTournament->staff->contains(
+                fn ($staff) => (int) $staff->pivot->user_id === $userId
+                && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ORGANIZER
+            );
+
+            if (!$isOrganizer) {
+                return ResponseHelper::error('Chỉ organizer kèo đấu mới có quyền đánh dấu check-in', 403);
+            }
+        }
+
+        $participants = $miniTournament->participants()
+            ->whereIn('id', $participantIds)
+            ->get();
+
+        if ($participants->isEmpty()) {
+            return ResponseHelper::error('Không tìm thấy thành viên nào trong danh sách', 404);
+        }
+
+        $updatedCount = 0;
+        $skippedIds = [];
+
+        foreach ($participants as $participant) {
+            if (!$participant->is_confirmed) {
+                $skippedIds[] = $participant->id;
+                continue;
+            }
+            if ($participant->checked_in_at) {
+                $skippedIds[] = $participant->id;
+                continue;
+            }
+
+            $participant->update([
+                'is_confirmed' => true,
+                'checked_in_at' => now(),
+                'is_absent' => false,
+            ]);
+
+            $this->syncMiniStaffAttendanceFromParticipant($participant);
+            $updatedCount++;
+        }
+
+        return ResponseHelper::success([
+            'updated_count' => $updatedCount,
+            'skipped_count' => count($skippedIds),
+            'skipped_ids' => $skippedIds,
+        ], "Đã đánh dấu check-in cho {$updatedCount} thành viên");
+    }
+
+    /**
      * Organizer / Club staff đánh dấu member vắng mặt kèo đấu.
      * - Kèo CLB: cần truyền club_id trong body, chỉ admin/manager/secretary hoặc organizer mới được phép.
      * - Kèo thường: không cần club_id, chỉ organizer mới được phép.
