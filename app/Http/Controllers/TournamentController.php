@@ -194,6 +194,11 @@ class TournamentController extends Controller
                 $validated['poster'] = $savedPath;
             }
 
+            // has_fee = true → has_financial_management mặc định là true
+            if (!empty($validated['has_fee'])) {
+                $validated['has_financial_management'] = true;
+            }
+
             $tournament = Tournament::create([
                 ...$validated,
                 'created_by' => auth()->id(),
@@ -222,7 +227,7 @@ class TournamentController extends Controller
                 Participant::create($participantData);
             }
 
-            if (!empty($validated['has_financial_management']) && !empty($validated['has_fee'])) {
+            if (!empty($validated['has_fee'])) {
                 $this->fundService->createTournamentFundCollection($tournament, $validated);
             }
         });
