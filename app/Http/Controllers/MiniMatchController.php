@@ -1063,11 +1063,6 @@ class MiniMatchController extends Controller
                 if ($actualDiff < $pointsDiff) {
                     return "Set {$sNum}: Thắng cách {$pointsDiff} điểm mới hợp lệ (hiện tại: {$actualDiff} điểm - {$scoreA}-{$scoreB})";
                 }
-            } else {
-                // Không áp dụng luật: chỉ kiểm tra tỉ số bất thường
-                if ($actualDiff < $pointsDiff) {
-                    return "Set {$sNum}: Cách biệt {$actualDiff} điểm ({$scoreA}-{$scoreB}) nhỏ hơn quy định ({$pointsDiff} điểm)";
-                }
             }
         }
 
