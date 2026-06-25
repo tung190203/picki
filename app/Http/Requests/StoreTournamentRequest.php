@@ -44,7 +44,6 @@ class StoreTournamentRequest extends FormRequest
             'creator_join' => 'nullable|boolean',
 
             // Financial fields
-            'has_financial_management' => 'nullable|boolean',
             'has_fee' => 'nullable|boolean',
             'fee_amount' => 'nullable|integer|min:0',
             'auto_split_fee' => 'nullable|boolean',
@@ -85,14 +84,13 @@ class StoreTournamentRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($validator) {
-            $hasFinancialMgmt = $this->boolean('has_financial_management');
             $hasFee = $this->boolean('has_fee');
 
-            // QR code required khi có phí + quản lý tài chính
-            if ($hasFee && $hasFinancialMgmt && !$this->boolean('use_cached_qr') && !$this->hasFile('qr_code_url') && !$this->input('qr_code_url')) {
+            // QR code required khi có phí + quản lý tài chính (has_fee = true → has_financial_management = true)
+            if ($hasFee && !$this->boolean('use_cached_qr') && !$this->hasFile('qr_code_url') && !$this->input('qr_code_url')) {
                 $validator->errors()->add(
                     'qr_code_url',
-                    'Mã QR thanh toán là bắt buộc khi bật thu phí và quản lý tài chính.'
+                    'Mã QR thanh toán là bắt buộc khi bật thu phí.'
                 );
             }
 
@@ -182,7 +180,7 @@ class StoreTournamentRequest extends FormRequest
 
         $boolKeys = [
             'enable_dupr', 'enable_vndupr', 'is_private', 'auto_approve',
-            'has_financial_management', 'has_fee', 'auto_split_fee', 'creator_join',
+            'has_fee', 'auto_split_fee', 'creator_join',
             'use_cached_qr',
         ];
 
@@ -209,5 +207,10 @@ class StoreTournamentRequest extends FormRequest
         }
 
         $this->merge($prepared);
+
+        // has_financial_management mặc định là true khi has_fee = true
+        if ($this->boolean('has_fee')) {
+            $this->merge(['has_financial_management' => true]);
+        }
     }
 }
