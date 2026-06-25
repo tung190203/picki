@@ -23,6 +23,7 @@ use App\Models\MiniParticipant;
 use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
 use App\Models\User;
+use App\Support\MiniTeamNameBuilder;
 use App\Notifications\MiniTournamentInvitationNotification;
 use App\Services\Club\ClubExpenseService;
 use App\Services\Club\ClubFundContributionService;
@@ -665,9 +666,9 @@ class ClubMiniTournamentController extends Controller
                             if (!empty($players1)) {
                                 $key1 = implode('-', $players1);
                                 if (!isset($miniTeamByKey[$key1])) {
-                                    $team1Names = array_map(fn($pid) => (string) $pid, $players1);
+                                    $team1UserIds = array_map(fn($pid) => $participantUserMap[$pid] ?? $pid, $players1);
                                     $team1 = \App\Models\MiniTeam::create([
-                                        'name' => implode('-', $team1Names),
+                                        'name' => MiniTeamNameBuilder::buildFromUserIds($team1UserIds, $miniTournament->id),
                                         'mini_tournament_id' => $miniTournament->id,
                                     ]);
                                     foreach ($players1 as $pid) {
@@ -683,9 +684,9 @@ class ClubMiniTournamentController extends Controller
                             } elseif (!empty($players2)) {
                                 $key2 = implode('-', $players2);
                                 if (!isset($miniTeamByKey[$key2])) {
-                                    $team2Names = array_map(fn($pid) => (string) $pid, $players2);
+                                    $team2UserIds = array_map(fn($pid) => $participantUserMap[$pid] ?? $pid, $players2);
                                     $team2 = \App\Models\MiniTeam::create([
-                                        'name' => implode('-', $team2Names),
+                                        'name' => MiniTeamNameBuilder::buildFromUserIds($team2UserIds, $miniTournament->id),
                                         'mini_tournament_id' => $miniTournament->id,
                                     ]);
                                     foreach ($players2 as $pid) {
@@ -712,9 +713,9 @@ class ClubMiniTournamentController extends Controller
 
                         $key1 = implode('-', $match['team1_players']);
                         if (!isset($miniTeamByKey[$key1])) {
-                            $team1Names = array_map(fn($pid) => (string) $pid, $match['team1_players']);
+                            $team1UserIds = array_map(fn($pid) => $participantUserMap[$pid] ?? $pid, $match['team1_players']);
                             $team1 = \App\Models\MiniTeam::create([
-                                'name' => implode('-', $team1Names),
+                                'name' => MiniTeamNameBuilder::buildFromUserIds($team1UserIds, $miniTournament->id),
                                 'mini_tournament_id' => $miniTournament->id,
                             ]);
                             foreach ($match['team1_players'] as $pid) {
@@ -729,9 +730,9 @@ class ClubMiniTournamentController extends Controller
 
                         $key2 = implode('-', $match['team2_players']);
                         if (!isset($miniTeamByKey[$key2])) {
-                            $team2Names = array_map(fn($pid) => (string) $pid, $match['team2_players']);
+                            $team2UserIds = array_map(fn($pid) => $participantUserMap[$pid] ?? $pid, $match['team2_players']);
                             $team2 = \App\Models\MiniTeam::create([
-                                'name' => implode('-', $team2Names),
+                                'name' => MiniTeamNameBuilder::buildFromUserIds($team2UserIds, $miniTournament->id),
                                 'mini_tournament_id' => $miniTournament->id,
                             ]);
                             foreach ($match['team2_players'] as $pid) {

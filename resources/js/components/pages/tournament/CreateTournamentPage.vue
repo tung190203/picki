@@ -414,20 +414,6 @@
                         </div>
 
                         <template v-if="hasFee">
-                            <!-- Quản lý tài chính -->
-                            <div class="flex items-center justify-between pb-3 border-b border-[#DCDEE6]">
-                                <div>
-                                    <p class="text-sm font-medium text-gray-700">Quản lý tài chính</p>
-                                    <p class="text-xs text-gray-500">Theo dõi và quản lý thu chi</p>
-                                </div>
-                                <button @click="hasFinancialManagement = !hasFinancialManagement"
-                                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                    :class="hasFinancialManagement ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                        :class="hasFinancialManagement ? 'translate-x-6' : 'translate-x-1'" />
-                                </button>
-                            </div>
-
                             <!-- Chia tiền tự động -->
                             <div class="flex items-center justify-between pb-3 border-b border-[#DCDEE6]">
                                 <div>
@@ -881,7 +867,6 @@ const earlyRegistrationDeadline = ref(null)
 const registrationClosedAt = ref(null)
 
 const hasFee = ref(false)
-const hasFinancialManagement = ref(false)
 const feeAmount = ref(100000)
 const autoSplitFee = ref(false)
 const feeDescription = ref('')
@@ -1225,7 +1210,6 @@ const handleSubmit = async () => {
         description: tournamentNote.value || null,
         club_id: selectedClubId.value,
         has_fee: hasFee.value,
-        has_financial_management: hasFinancialManagement.value,
         fee_amount: hasFee.value ? feeAmount.value : null,
         auto_split_fee: autoSplitFee.value,
         fee_description: feeDescription.value || null,
@@ -1328,7 +1312,6 @@ const prefillForm = (data) => {
     maxPlayer.value = data.max_player || 32
 
     hasFee.value = !!data.has_fee
-    hasFinancialManagement.value = !!data.has_financial_management
     feeAmount.value = Number(data.fee_amount) || 100000
     autoSplitFee.value = !!data.auto_split_fee
     feeDescription.value = data.fee_description || ''
@@ -1393,7 +1376,6 @@ const applyTemplate = (template) => {
     maxPlayer.value = s.max_player || 32
 
     hasFee.value = !!s.has_fee
-    hasFinancialManagement.value = !!s.has_financial_management
     feeAmount.value = Number(s.fee_amount) || 100000
     autoSplitFee.value = !!s.auto_split_fee
     feeDescription.value = s.fee_description || ''
@@ -1442,7 +1424,6 @@ const buildTemplateSettings = () => {
         creator_join: creatorJoin.value,
         club_id: selectedClubId.value,
         has_fee: hasFee.value,
-        has_financial_management: hasFinancialManagement.value,
         fee_amount: hasFee.value ? feeAmount.value : null,
         auto_split_fee: autoSplitFee.value,
         fee_description: feeDescription.value || null,
