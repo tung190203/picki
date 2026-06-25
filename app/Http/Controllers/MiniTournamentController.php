@@ -35,6 +35,7 @@ use App\Models\CompetitionLocation;
 use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
 use App\Models\User;
+use App\Support\MiniTeamNameBuilder;
 use App\Notifications\MiniTournamentInvitationNotification;
 use App\Notifications\PaymentConfirmedNotification;
 use App\Notifications\PaymentRejectedNotification;
@@ -433,6 +434,11 @@ class MiniTournamentController extends Controller
         $originalFormat = $miniTournament->match_format;
         $miniTournament->update($data);
 
+        // Reset participant groups and session state when match_format changes
+        if (isset($data['match_format']) && $data['match_format'] !== $originalFormat) {
+            $miniTournament->participants()->update(['player_group' => null]);
+        }
+
         // Sync session fields when match_format changes
         if (isset($data['match_format'])) {
             $newFormat = $data['match_format'];
@@ -684,14 +690,12 @@ class MiniTournamentController extends Controller
     }
 
     /**
-     * Clear Round Robin matches (partner_rotation / mixed_gender / rank_pairing).
+     * Clear all matches for a tournament when switching formats.
      */
     private function clearRoundRobinMatches(MiniTournament $miniTournament): void
     {
         DB::transaction(function () use ($miniTournament) {
-            MiniMatch::where('mini_tournament_id', $miniTournament->id)
-                ->whereNotNull('round_number')
-                ->delete();
+            MiniMatch::where('mini_tournament_id', $miniTournament->id)->delete();
 
             $teamIds = MiniTeam::where('mini_tournament_id', $miniTournament->id)
                 ->pluck('id')
@@ -838,8 +842,9 @@ class MiniTournamentController extends Controller
      */
     private function createMiniTeam(array $playerIds, int $miniTournamentId, array $participantUserMap): int
     {
+        $userIds = array_map(fn($pid) => $participantUserMap[$pid] ?? $pid, $playerIds);
         $team = MiniTeam::create([
-            'name' => implode('-', $playerIds),
+            'name' => MiniTeamNameBuilder::buildFromUserIds($userIds, $miniTournamentId),
             'mini_tournament_id' => $miniTournamentId,
         ]);
         foreach ($playerIds as $pid) {
@@ -1478,15 +1483,15 @@ class MiniTournamentController extends Controller
                             continue;
                         }
 
-                        // Build team name from member names
-                        $team1Names = array_map(fn($pid) => (string) $pid, $match['team1_players']);
-                        $team2Names = array_map(fn($pid) => (string) $pid, $match['team2_players']);
+                        // Build team name from user names
+                        $team1UserIds = array_map(fn($pid) => $participantUserMap[$pid] ?? $pid, $match['team1_players']);
+                        $team2UserIds = array_map(fn($pid) => $participantUserMap[$pid] ?? $pid, $match['team2_players']);
 
                         // Team 1: members in team1_players
                         $key1 = implode('-', $match['team1_players']);
                         if (!isset($miniTeamByKey[$key1])) {
                             $team1 = MiniTeam::create([
-                                'name' => implode('-', $team1Names),
+                                'name' => MiniTeamNameBuilder::buildFromUserIds($team1UserIds, $miniTournamentId),
                                 'mini_tournament_id' => $miniTournamentId,
                             ]);
                             foreach ($match['team1_players'] as $pid) {
@@ -1503,7 +1508,7 @@ class MiniTournamentController extends Controller
                         $key2 = implode('-', $match['team2_players']);
                         if (!isset($miniTeamByKey[$key2])) {
                             $team2 = MiniTeam::create([
-                                'name' => implode('-', $team2Names),
+                                'name' => MiniTeamNameBuilder::buildFromUserIds($team2UserIds, $miniTournamentId),
                                 'mini_tournament_id' => $miniTournamentId,
                             ]);
                             foreach ($match['team2_players'] as $pid) {
