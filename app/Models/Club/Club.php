@@ -432,13 +432,10 @@ class Club extends Model
         }
 
         return match ($timeFilter) {
-            'mine' => $query->where(function ($q) use ($userId) {
-                $q->where('created_by', $userId)
-                    ->orWhereHas('members', fn($m) => $m
-                        ->where('user_id', $userId)
-                        ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined->value)
-                    );
-            }),
+            'mine' => $query->whereHas('members', fn($m) => $m
+                ->where('user_id', $userId)
+                ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined->value)
+            ),
             'joined' => $query->whereHas('members', fn($m) => $m
                 ->where('user_id', $userId)
                 ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined->value)

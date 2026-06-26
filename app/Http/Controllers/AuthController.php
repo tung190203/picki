@@ -10,6 +10,7 @@ use App\Mail\ResetPasswordMail;
 use App\Models\DeviceToken;
 use App\Models\User;
 use App\Notifications\VerifyEmailNotification;
+use App\Models\SystemSetting;
 use App\Services\Club\ClubService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -751,7 +752,76 @@ class AuthController extends Controller
         if ($clubs->isNotEmpty()) {
             $this->clubService->attachUnreadNotificationCount($clubs, $user->id);
         }
+        $user->vn_rank = $this->getVNRankConsistent($user, 1);
         return ResponseHelper::success(new UserResource($user), 'Lấy thông tin người dùng thành công', 200);
+    }
+
+    /**
+     * Tính vn_rank nhất quán với leaderboard: COUNT(users có score cao hơn) + 1,
+     * có loại trừ email giống leaderboard.
+     */
+    private function getVNRankConsistent(User $user, int $sportId): ?int
+    {
+        $rankingMatches = (int) SystemSetting::where('key', 'ranking_matches')->first()?->value ?? 10;
+        $excludedEmail = 'vrplus2018@gmail.com';
+
+        $userScore = $user->vnduprScoresBySport($sportId)->max('score_value') ?? 0;
+        $userTotalMatches = $user->getTotalMatches($sportId);
+
+        if ($userTotalMatches < $rankingMatches) {
+            return null;
+        }
+
+        $totalMatchesRaw = "(
+            (
+                SELECT COUNT(DISTINCT m.id) FROM matches m
+                JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                JOIN tournaments t ON tt.tournament_id = t.id
+                JOIN team_members tm ON tm.team_id = m.home_team_id
+                WHERE tm.user_id = users.id AND t.sport_id = %d AND m.status = 'completed'
+            ) + (
+                SELECT COUNT(DISTINCT m.id) FROM matches m
+                JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                JOIN tournaments t ON tt.tournament_id = t.id
+                JOIN team_members tm ON tm.team_id = m.away_team_id
+                WHERE tm.user_id = users.id AND t.sport_id = %d AND m.status = 'completed'
+            ) + (
+                SELECT COUNT(DISTINCT mm.id) FROM mini_matches mm
+                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id
+                WHERE mtm.user_id = users.id AND mnt.sport_id = %d AND mm.status = 'completed'
+            ) + (
+                SELECT COUNT(DISTINCT mm.id) FROM mini_matches mm
+                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id
+                WHERE mtm.user_id = users.id AND mnt.sport_id = %d AND mm.status = 'completed'
+            ) + (
+                SELECT COUNT(DISTINCT mh.id) FROM match_histories mh
+                JOIN quick_matches qm ON mh.quick_match_id = qm.id
+                WHERE mh.user_id = users.id AND qm.status = 'completed'
+                    AND (qm.competition_location_id IS NULL OR EXISTS (
+                        SELECT 1 FROM competition_location_sport cls
+                        WHERE cls.competition_location_id = qm.competition_location_id AND cls.sport_id = %d
+                    ))
+            )
+        ) >= %d";
+
+        $totalMatchesRaw = sprintf(
+            $totalMatchesRaw,
+            $sportId, $sportId, $sportId, $sportId, $sportId,
+            $rankingMatches
+        );
+
+        return DB::table('users')
+            ->select(DB::raw('COUNT(DISTINCT users.id) + 1 as `rank`'))
+            ->join('user_sport', 'users.id', '=', 'user_sport.user_id')
+            ->join('user_sport_scores', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
+            ->where('user_sport.sport_id', $sportId)
+            ->where('user_sport_scores.score_type', 'vndupr_score')
+            ->where('user_sport_scores.score_value', '>', $userScore)
+            ->where('users.email', '!=', $excludedEmail)
+            ->whereRaw($totalMatchesRaw)
+            ->value('rank');
     }
 
     private function responseWithToken(string $accessToken, string $refreshToken, object $user): array
