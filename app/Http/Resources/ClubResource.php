@@ -69,6 +69,7 @@ class ClubResource extends JsonResource
                 ClubMember::where('club_id', $this->id)
                     ->where('user_id', auth()->id())
                     ->where('membership_status', ClubMembershipStatus::Pending)
+                    ->where('status', ClubMemberStatus::Pending)
                     ->whereNull('invited_by')
                     ->exists(),
                 false
@@ -77,6 +78,7 @@ class ClubResource extends JsonResource
                 ClubMember::where('club_id', $this->id)
                     ->where('user_id', auth()->id())
                     ->where('membership_status', ClubMembershipStatus::Pending)
+                    ->where('status', ClubMemberStatus::Pending)
                     ->whereNotNull('invited_by')
                     ->exists(),
                 false
@@ -129,11 +131,13 @@ class ClubResource extends JsonResource
             'has_pending_request' => auth()->check() && ClubMember::where('club_id', $this->id)
                 ->where('user_id', auth()->id())
                 ->where('membership_status', ClubMembershipStatus::Pending)
+                ->where('status', ClubMemberStatus::Pending)
                 ->whereNull('invited_by')
                 ->exists(),
             'has_invitation' => auth()->check() && ClubMember::where('club_id', $this->id)
                 ->where('user_id', auth()->id())
                 ->where('membership_status', ClubMembershipStatus::Pending)
+                ->where('status', ClubMemberStatus::Pending)
                 ->whereNotNull('invited_by')
                 ->exists(),
             'invited_by' => auth()->check() ? $this->getInvitedByInfo() : null,
