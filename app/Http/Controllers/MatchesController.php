@@ -1604,6 +1604,9 @@ class MatchesController extends Controller
 
         foreach ($teams as $data) {
             foreach ($data['team']->members as $user) {
+                if ($user->is_guest) {
+                    continue;
+                }
                 $userSport = $userSportRecords->get($user->id);
                 $scoreRecord = $userSport ? $scoreMap->get($userSport->id) : null;
                 $R_old = $scoreRecord ? (float) $scoreRecord->score_value : 0;

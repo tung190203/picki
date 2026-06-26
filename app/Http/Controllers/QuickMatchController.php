@@ -340,7 +340,7 @@ class QuickMatchController extends Controller
         foreach ($teamData as $data) {
             foreach ($data['memberIds'] as $userId) {
                 $user = User::find($userId);
-                if (!$user) {
+                if (!$user || $user->is_guest) {
                     continue;
                 }
 
