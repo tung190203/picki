@@ -1112,13 +1112,12 @@ class MiniMatchController extends Controller
         MiniMatchResult::whereIn('id', $resultIds)
             ->update(['status' => MiniMatchResult::STATUS_APPROVED]);
 
-        // ===== COMPETITION MODE + GUEST: skip VNDUPR for entire match =====
-        // If tournament play_mode is 'competition' and any participant in this match is a guest,
-        // skip VNDUPR scoring for ALL users in this match.
+        // ===== GUEST: skip VNDUPR + anchor counting for entire match if any guest is present =====
+        // Guest matches should not affect any user's rating or anchor count.
         $tournament = $match->miniTournament;
-        if ($tournament && $tournament->play_mode === MiniTournament::PLAY_MODE_COMPETITION) {
-            $hasGuest = $match->team1->members->contains('is_guest', true)
-                || $match->team2->members->contains('is_guest', true);
+        if ($tournament) {
+            $hasGuest = $match->team1->members->contains(fn($m) => $m->is_guest)
+                || $match->team2->members->contains(fn($m) => $m->is_guest);
             if ($hasGuest) {
                 return;
             }
@@ -1233,6 +1232,9 @@ class MiniMatchController extends Controller
 
         foreach ($teamData as $data) {
             foreach ($data['team']->members as $member) {
+                if ($member->is_guest) {
+                    continue;
+                }
                 $user = $member->user;
                 $userSport = $userSportRecords->get($user->id);
                 $scoreRecord = $userSport ? $scoreMap->get($userSport->id) : null;
