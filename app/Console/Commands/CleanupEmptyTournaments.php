@@ -32,7 +32,12 @@ class CleanupEmptyTournaments extends Command
         $count = 0;
 
         Tournament::query()
-            ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
+            ->whereIn('status', [
+                Tournament::DRAFT,
+                Tournament::OPEN,
+                Tournament::CLOSED,
+                Tournament::CANCELLED,
+            ])
             ->whereNotNull('start_date')
             ->where('start_date', '<=', now())
             ->with('creator')
@@ -52,7 +57,6 @@ class CleanupEmptyTournaments extends Command
                 $validParticipantCount = $tournament
                     ->participants()
                     ->where('user_id', '!=', $tournament->created_by)
-                    ->where('is_guest', false)
                     ->count();
 
                 if ($validParticipantCount > 0) {
