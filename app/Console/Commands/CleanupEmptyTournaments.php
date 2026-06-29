@@ -101,7 +101,12 @@ class CleanupEmptyTournaments extends Command
         $count = 0;
 
         MiniTournament::query()
-            ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
+            ->whereIn('status', [
+                MiniTournament::STATUS_DRAFT,
+                MiniTournament::STATUS_OPEN,
+                MiniTournament::STATUS_CLOSED,
+                MiniTournament::STATUS_CANCELLED,
+            ])
             ->whereNotNull('start_time')
             ->where('start_time', '<=', now())
             ->with('creator')
@@ -121,7 +126,6 @@ class CleanupEmptyTournaments extends Command
                 $validParticipantCount = $miniTournament
                     ->participants()
                     ->where('user_id', '!=', $miniTournament->created_by)
-                    ->where('is_guest', false)
                     ->whereNull('declined_at')
                     ->count();
 

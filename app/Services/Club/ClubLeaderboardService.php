@@ -96,7 +96,9 @@ class ClubLeaderboardService
      */
     public function getLeaderboard(Club $club): Collection
     {
-        $members = $club->joinedMembers()->with(['user.sports.scores'])->get();
+        $members = $club->joinedMembers()
+            ->with(['user.sports.scores'])
+            ->get();
 
         if ($members->isEmpty()) {
             return collect();
