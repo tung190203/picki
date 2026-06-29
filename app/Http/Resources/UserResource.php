@@ -63,6 +63,7 @@ class UserResource extends JsonResource
             'is_verified' => (bool)$this->is_verified,
             'is_banned' => (bool)$this->is_banned,
             'is_guest' => (bool)$this->is_guest,
+            'has_advanced_mini_tournament' => $this->resource->hasAdvancedMiniTournament(),
             'latest_used_qr' => $this->latest_used_qr,
             'created_at' => $this->created_at?->toISOString(),
         ];

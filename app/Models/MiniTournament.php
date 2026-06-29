@@ -578,33 +578,6 @@ class MiniTournament extends Model
         );
     }
 
-    private const REQUIRED_ORGANIZED_TOURNAMENTS = 3;
-
-    public function canInviteAround(): bool
-    {
-        if ($this->is_invited_around) {
-            return false;
-        }
-
-        $organizerIds = $this->staff
-            ->filter(fn($staff) => (int) ($staff->pivot->role ?? null) === MiniTournamentStaff::ROLE_ORGANIZER)
-            ->pluck('id')
-            ->toArray();
-
-        if (empty($organizerIds)) {
-            return false;
-        }
-
-        foreach ($organizerIds as $organizerId) {
-            $count = User::getSuccessfulOrganizedMiniTournamentsCount($organizerId);
-            if ($count < self::REQUIRED_ORGANIZED_TOURNAMENTS) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     public function hasOrganizerOrStaff(int $userId): bool
     {
         return $this->hasOrganizer($userId);
