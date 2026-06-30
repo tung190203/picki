@@ -17,7 +17,15 @@ class StoreMiniTournamentRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        return $this->user() && $this->user()->hasAdvancedMiniTournament();
+    }
+
+    protected function failedAuthorization()
+    {
+        throw new \App\Exceptions\BusinessException(
+            'Bạn chưa đủ điều kiện tạo mini-tournament. Cần tổ chức thành công ít nhất 3 mini-tournament.',
+            403
+        );
     }
 
     /**
