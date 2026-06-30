@@ -682,6 +682,75 @@ class TournamentPaymentController extends Controller
     }
 
     /**
+     * POST /api/tournaments/{id}/payments/mark-paid-all
+     * Admin đánh dấu nhiều thành viên đã thanh toán cùng lúc.
+     * Body: { participant_ids: int[] }
+     */
+    public function markPaidAll(Request $request, int $tournamentId)
+    {
+        $validated = $request->validate([
+            'participant_ids' => 'required|array|min:1',
+            'participant_ids.*' => 'integer',
+        ]);
+
+        $tournament = Tournament::findOrFail($tournamentId);
+        if ($err = $this->authorizeAdmin($tournament)) {
+            return $err;
+        }
+
+        $participants = Participant::where('tournament_id', $tournamentId)
+            ->whereIn('id', $validated['participant_ids'])
+            ->get();
+
+        if ($participants->isEmpty()) {
+            return ResponseHelper::error('Không tìm thấy thành viên nào trong danh sách', 404);
+        }
+
+        $confirmed = [];
+        $skipped = [];
+
+        DB::transaction(function () use ($tournament, $participants, &$confirmed, &$skipped) {
+            foreach ($participants as $participant) {
+                $existing = TournamentParticipantPayment::where('participant_id', $participant->id)
+                    ->where('tournament_id', $tournament->id)
+                    ->first();
+
+                if ($existing && $existing->status === TournamentParticipantPayment::STATUS_CONFIRMED) {
+                    $skipped[] = ['participant_id' => $participant->id, 'reason' => 'already_confirmed'];
+                    continue;
+                }
+
+                if ($existing) {
+                    $payment = $this->fundService->markPaidManually($tournament, $participant, auth()->user());
+                } else {
+                    $feePerPerson = $this->calculateFeePerPerson($tournament);
+                    $payment = TournamentParticipantPayment::create([
+                        'tournament_id' => $tournament->id,
+                        'participant_id' => $participant->id,
+                        'user_id' => $participant->user_id,
+                        'amount' => $feePerPerson,
+                        'status' => TournamentParticipantPayment::STATUS_CONFIRMED,
+                        'paid_at' => now(),
+                        'confirmed_at' => now(),
+                        'confirmed_by' => Auth::id(),
+                        'admin_note' => 'BTC đánh dấu đã thanh toán',
+                    ]);
+                    $participant->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
+                    PaymentConfirmed::dispatch($tournament->id, $payment->id, $payment->amount, $participant->user_id);
+                }
+
+                $confirmed[] = $participant;
+            }
+        });
+
+        return ResponseHelper::success([
+            'confirmed_count' => count($confirmed),
+            'skipped_count' => count($skipped),
+            'skipped' => $skipped,
+        ], 'Đã đánh dấu thanh toán cho ' . count($confirmed) . ' thành viên');
+    }
+
+    /**
      * POST /api/tournaments/{id}/payments/{participantId}/remind
      * Gửi nhắc nhở cho 1 thành viên
      */

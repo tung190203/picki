@@ -827,6 +827,62 @@ class TournamentController extends Controller
     }
 
     /**
+     * BTC / staff đánh dấu vắng mặt nhiều participants cùng lúc.
+     * Body: { participant_ids: int[] }
+     */
+    public function markAbsentAll(Request $request, int $tournamentId)
+    {
+        $userId = Auth::id();
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        $validated = $request->validate([
+            'participant_ids' => 'required|array|min:1',
+            'participant_ids.*' => 'integer',
+        ]);
+
+        $tournament = Tournament::with('staff')->findOrFail($tournamentId);
+
+        if ($err = $this->authorizeMarkParticipantAttendance($request, $tournament, $userId)) {
+            return $err;
+        }
+
+        $participants = $tournament->participants()
+            ->whereIn('id', $validated['participant_ids'])
+            ->get();
+
+        if ($participants->isEmpty()) {
+            return ResponseHelper::error('Không tìm thấy thành viên nào trong danh sách', 404);
+        }
+
+        $marked = [];
+        $skipped = [];
+
+        foreach ($participants as $participant) {
+            if ($participant->is_absent) {
+                $skipped[] = ['participant_id' => $participant->id, 'reason' => 'already_absent'];
+                continue;
+            }
+            if ($participant->checked_in_at) {
+                $skipped[] = ['participant_id' => $participant->id, 'reason' => 'already_checked_in'];
+                continue;
+            }
+
+            $participant->update(['is_absent' => true]);
+            $participant->load('user');
+            $this->syncStaffAttendanceFromParticipant($participant);
+            $marked[] = $participant;
+        }
+
+        return ResponseHelper::success([
+            'marked_count' => count($marked),
+            'skipped_count' => count($skipped),
+            'skipped' => $skipped,
+        ], 'Đã đánh dấu vắng mặt cho ' . count($marked) . ' thành viên');
+    }
+
+    /**
      * Thành viên tự check-in vào giải đấu (self-service).
      * - Đã check-in: không thể check-in lại.
      * - Đã vắng: cho phép check-in lại (đổi is_absent = false).
