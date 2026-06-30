@@ -1254,6 +1254,90 @@ class MiniTournamentController extends Controller
     }
 
     /**
+     * Organizer / Club staff đánh dấu vắng mặt nhiều participants cùng lúc.
+     * Body: { participant_ids: int[] }
+     */
+    public function markAbsentAll(Request $request, int $miniTournamentId)
+    {
+        $userId = Auth::id();
+        if (!$userId) {
+            return ResponseHelper::error('Bạn cần đăng nhập', 401);
+        }
+
+        $validated = $request->validate([
+            'participant_ids' => 'required|array|min:1',
+            'participant_ids.*' => 'integer',
+        ]);
+
+        $miniTournament = MiniTournament::with('staff')->findOrFail($miniTournamentId);
+
+        if ($miniTournament->club_id) {
+            $club = Club::find($miniTournament->club_id);
+            if (!$club) {
+                return ResponseHelper::error('CLB không tồn tại', 404);
+            }
+            $clubMember = $club->activeMembers()->where('user_id', $userId)->first();
+            $isClubStaff = $clubMember && in_array(
+                $clubMember->role,
+                [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary],
+                true
+            );
+            $isTournamentOrganizer = $miniTournament->staff->contains(
+                fn ($staff) => (int) $staff->pivot->user_id === $userId
+                && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ORGANIZER
+            );
+            if (!$isClubStaff && !$isTournamentOrganizer) {
+                return ResponseHelper::error('Bạn không có quyền đánh dấu vắng mặt cho kèo này', 403);
+            }
+        } else {
+            $isOrganizer = $miniTournament->staff->contains(
+                fn ($staff) => (int) $staff->pivot->user_id === $userId
+                && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ORGANIZER
+            );
+            if (!$isOrganizer) {
+                return ResponseHelper::error('Chỉ organizer kèo đấu mới có quyền đánh dấu vắng mặt', 403);
+            }
+        }
+
+        $participants = $miniTournament->participants()
+            ->whereIn('id', $validated['participant_ids'])
+            ->get();
+
+        if ($participants->isEmpty()) {
+            return ResponseHelper::error('Không tìm thấy thành viên nào trong danh sách', 404);
+        }
+
+        $marked = [];
+        $skipped = [];
+
+        foreach ($participants as $participant) {
+            if (!$participant->is_confirmed) {
+                $skipped[] = ['participant_id' => $participant->id, 'reason' => 'not_confirmed'];
+                continue;
+            }
+            if ($participant->is_absent) {
+                $skipped[] = ['participant_id' => $participant->id, 'reason' => 'already_absent'];
+                continue;
+            }
+            if ($participant->checked_in_at) {
+                $skipped[] = ['participant_id' => $participant->id, 'reason' => 'already_checked_in'];
+                continue;
+            }
+
+            $participant->update(['is_absent' => true]);
+            $participant->load('user');
+            $this->syncMiniStaffAbsentFromParticipant($participant);
+            $marked[] = $participant;
+        }
+
+        return ResponseHelper::success([
+            'marked_count' => count($marked),
+            'skipped_count' => count($skipped),
+            'skipped' => $skipped,
+        ], 'Đã đánh dấu vắng mặt cho ' . count($marked) . ' thành viên');
+    }
+
+    /**
      * Bắt đầu session Round Robin: lưu phân nhóm (nếu có) + sinh lịch đấu tự động (organizer only).
      * mixed_gender / rank_pairing: nhận participant_ids trong payload để lưu nhóm trước khi sinh lịch.
      * partner_rotation: không cần payload, đọc confirmed participants từ DB.

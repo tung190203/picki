@@ -421,6 +421,104 @@ class MiniParticipantController extends Controller
     }
 
     /**
+     * Organizer duyệt nhiều participants cùng lúc.
+     * Body: { participant_ids: int[] }
+     * (Mini participant IDs không cần kèo id trong URL vì 1 participant chỉ thuộc 1 kèo)
+     */
+    public function confirmAll(Request $request)
+    {
+        $validated = $request->validate([
+            'participant_ids' => 'required|array|min:1',
+            'participant_ids.*' => 'integer',
+        ]);
+
+        $participants = MiniParticipant::with(['miniTournament.staff'])
+            ->whereIn('id', $validated['participant_ids'])
+            ->get();
+
+        if ($participants->isEmpty()) {
+            return ResponseHelper::error('Không tìm thấy participant nào', 404);
+        }
+
+        // Tất cả phải thuộc cùng 1 kèo
+        $miniTournamentId = $participants->first()->mini_tournament_id;
+        if ($participants->contains(fn ($p) => $p->mini_tournament_id !== $miniTournamentId)) {
+            return ResponseHelper::error('Tất cả participants phải thuộc cùng 1 kèo đấu', 400);
+        }
+
+        $miniTournament = $participants->first()->miniTournament;
+
+        if (!$miniTournament->hasOrganizer(Auth::id())) {
+            return ResponseHelper::error('Không có quyền duyệt', 403);
+        }
+
+        $confirmed = [];
+        $skipped = [];
+
+        DB::transaction(function () use ($participants, $miniTournament, &$confirmed, &$skipped) {
+            foreach ($participants as $participant) {
+                if ($participant->is_confirmed) {
+                    $skipped[] = ['participant_id' => $participant->id, 'reason' => 'already_confirmed'];
+                    continue;
+                }
+
+                $paymentStatus = PaymentStatusEnum::CONFIRMED;
+                if (!$miniTournament->use_club_fund
+                    && $miniTournament->has_fee
+                    && !$miniTournament->auto_split_fee
+                ) {
+                    $paymentStatus = PaymentStatusEnum::PENDING;
+                }
+
+                $participant->update([
+                    'is_confirmed' => true,
+                    'payment_status' => $paymentStatus,
+                ]);
+
+                $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $participant->user_id);
+
+                if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
+                    MiniParticipantPayment::firstOrCreate(
+                        [
+                            'mini_tournament_id' => $miniTournament->id,
+                            'participant_id' => $participant->id,
+                        ],
+                        [
+                            'user_id' => $participant->user_id,
+                            'amount' => $miniTournament->fee_amount,
+                            'status' => MiniParticipantPayment::STATUS_PENDING,
+                        ]
+                    );
+                }
+
+                $confirmed[] = $participant;
+            }
+        });
+
+        foreach ($confirmed as $participant) {
+            $participant->user?->notify(
+                new MiniTournamentJoinConfirmedNotification($participant, Auth::id())
+            );
+            $this->pushToUsers(
+                [$participant->user_id],
+                'Đã được duyệt tham gia',
+                'Bạn đã được duyệt tham gia kèo đấu "' . ($miniTournament->name ?? '') . '".',
+                [
+                    'type' => 'MINI_TOURNAMENT_JOIN_CONFIRMED',
+                    'mini_tournament_id' => $miniTournament->id,
+                    'participant_id' => $participant->id,
+                ]
+            );
+        }
+
+        return ResponseHelper::success([
+            'confirmed_count' => count($confirmed),
+            'skipped_count' => count($skipped),
+            'skipped' => $skipped,
+        ], 'Đã duyệt ' . count($confirmed) . ' người tham gia');
+    }
+
+    /**
      * SuperAdmin xác nhận thay user
      */
     public function adminConfirm($tournamentId, $participantId)

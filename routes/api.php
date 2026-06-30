@@ -418,6 +418,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{id}/participants/{participantId}/mark-check-in', [TournamentController::class, 'markParticipantCheckIn']);
         Route::post('/{id}/participants/{participantId}/mark-absent', [TournamentController::class, 'markParticipantAbsent']);
         Route::post('/{id}/participants/mark-check-in-all', [TournamentController::class, 'markCheckInAll']);
+        Route::post('/{id}/participants/mark-absent-all', [TournamentController::class, 'markAbsentAll']);
         Route::post('/{id}/participants/delete-all', [TournamentController::class, 'deleteAll']);
 
         // Self-service (user tự check-in / báo vắng)
@@ -447,11 +448,13 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{id}/payments/{pid}/confirm', [TournamentPaymentController::class, 'confirm']);
         Route::post('/{id}/payments/{pid}/reject', [TournamentPaymentController::class, 'reject']);
         Route::post('/{id}/payments/{participant_id}/mark-paid', [TournamentPaymentController::class, 'markPaid']);
+        Route::post('/{id}/payments/mark-paid-all', [TournamentPaymentController::class, 'markPaidAll']);
         Route::post('/{id}/payments/remind/{participant_id}', [TournamentPaymentController::class, 'remind']);
         Route::post('/{id}/payments/remind-all', [TournamentPaymentController::class, 'remindAll']);
         Route::get('/{id}/fund-collection', [TournamentPaymentController::class, 'fundCollection']);
         Route::post('/{id}/lock-fee', [TournamentController::class, 'lockFee']);
         Route::post('/{id}/participants/{participantId}/admin-confirm', [ParticipantController::class, 'adminConfirm']);
+        Route::post('/{id}/participants/admin-confirm-all', [ParticipantController::class, 'adminConfirmAll']);
     });
 
     Route::prefix('tournament-staff')->group(function () {
@@ -709,6 +712,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{miniTournamentId}/participants/{participantId}/mark-check-in', [MiniTournamentController::class, 'markParticipantCheckIn']);
         Route::post('/{miniTournamentId}/participants/{participantId}/mark-absent', [MiniTournamentController::class, 'markParticipantAbsent']);
         Route::post('/{miniTournamentId}/participants/mark-check-in-all', [MiniTournamentController::class, 'markCheckInAll']);
+        Route::post('/{miniTournamentId}/participants/mark-absent-all', [MiniTournamentController::class, 'markAbsentAll']);
         Route::post('/{miniTournamentId}/participants/{participantId}/admin-confirm', [MiniParticipantController::class, 'adminConfirm']);
 
         // Round Robin session endpoints (gộp lưu nhóm + sinh lịch)
@@ -726,6 +730,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{id}/pay', [MiniTournamentPaymentController::class, 'pay']);
         Route::match(['get', 'post'], '/{id}/my-payment', [MiniTournamentPaymentController::class, 'myPayment']);
         Route::post('/{id}/payments/{participant_id}/mark-paid', [MiniTournamentPaymentController::class, 'markPaid']);
+        Route::post('/{id}/payments/mark-paid-all', [MiniTournamentPaymentController::class, 'markPaidAll']);
         Route::post('/{id}/payments/confirm/{participant_id}', [MiniTournamentPaymentController::class, 'confirm']);
         Route::post('/{id}/payments/reject/{participant_id}', [MiniTournamentPaymentController::class, 'reject']);
         Route::post('/{id}/payments/remind/{participant_id}', [MiniTournamentPaymentController::class, 'remind']);
@@ -768,6 +773,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::match(['get', 'post'], '/candidates/{miniTournamentId}', [MiniParticipantController::class, 'getCandidates']);
         Route::post('/delete/{participantId}', [MiniParticipantController::class, 'delete']);
         Route::post('/delete-all', [MiniParticipantController::class, 'deleteAll']);
+        Route::post('/confirm-all', [MiniParticipantController::class, 'confirmAll']);
         Route::post('/delete-staff/{staffId}', [MiniParticipantController::class, 'deleteStaff']);
         Route::post('/self/check-in/{miniTournamentId}', [MiniParticipantController::class, 'selfCheckIn']);
         Route::post('/self/absent/{miniTournamentId}', [MiniParticipantController::class, 'selfMarkAbsent']);
