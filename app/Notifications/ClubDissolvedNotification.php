@@ -11,6 +11,11 @@ class ClubDissolvedNotification extends ClubNotificationBase
     ) {
     }
 
+    public function via(object $notifiable): array
+    {
+        return ['database'];
+    }
+
     public function toDatabase(object $notifiable): array
     {
         $message = "CLB {$this->club->name} đã bị giải tán";
