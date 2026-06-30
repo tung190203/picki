@@ -26,7 +26,7 @@ class MiniTournamentJoinConfirmedNotification extends Notification implements Sh
 
     public function via($notifiable)
     {
-        return ['database', 'broadcast']; // hoặc thêm mail nếu muốn
+        return ['database', 'broadcast'];
     }
 
     public function toDatabase($notifiable)

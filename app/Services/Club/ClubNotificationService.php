@@ -295,6 +295,9 @@ class ClubNotificationService
      */
     public function syncClubRecipientRead(int $clubNotificationId, int $userId): void
     {
+        if (!ClubNotification::where('id', $clubNotificationId)->exists()) {
+            return;
+        }
         ClubNotificationRecipient::updateOrCreate(
             [
                 'club_notification_id' => $clubNotificationId,

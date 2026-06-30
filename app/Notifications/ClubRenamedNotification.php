@@ -13,6 +13,11 @@ class ClubRenamedNotification extends ClubNotificationBase
     ) {
     }
 
+    public function via(object $notifiable): array
+    {
+        return ['database'];
+    }
+
     public function toDatabase(object $notifiable): array
     {
         $message = "CLB {$this->oldName} đã được quản trị viên đổi tên thành {$this->newName}";

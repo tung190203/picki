@@ -13,6 +13,11 @@ class ClubNotificationSentNotification extends ClubNotificationBase
     ) {
     }
 
+    public function via(object $notifiable): array
+    {
+        return ['database'];
+    }
+
     public function toDatabase(object $notifiable): array
     {
         $title = $this->clubNotification->title ?: 'Thông báo từ CLB';

@@ -12,6 +12,11 @@ class ClubInvitationCancelledNotification extends ClubNotificationBase
     ) {
     }
 
+    public function via(object $notifiable): array
+    {
+        return ['database'];
+    }
+
     public function toDatabase(object $notifiable): array
     {
         $message = "Lời mời tham gia CLB {$this->club->name} đã bị hủy bởi {$this->inviterName}";
