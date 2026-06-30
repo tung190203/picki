@@ -1064,6 +1064,11 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             ->count('mnt.id');
     }
 
+    public function hasAdvancedMiniTournament(): bool
+    {
+        return self::getSuccessfulOrganizedMiniTournamentsCount($this->id) >= 3;
+    }
+
     public static function getSportStats(int $userId, int $sportId, bool $isOwnProfile = true): array
     {
         // Tournament matches - tách home và away

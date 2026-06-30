@@ -92,12 +92,12 @@ class Club extends Model
             ->where('membership_status', ClubMembershipStatus::Pending);
     }
 
-    /** Thành viên đã join (membership_status = joined). */
+    /** Thành viên đã join (membership_status = joined), không bao gồm đã xóa mềm. */
     public function joinedMembers()
     {
         return $this->hasMany(ClubMember::class)
-            ->whereHas('user') // Chỉ lấy members có user tồn tại
-            ->where('membership_status', ClubMembershipStatus::Joined);
+            ->where('membership_status', ClubMembershipStatus::Joined)
+            ->whereHas('user', fn ($q) => $q->withoutTrashed());
     }
 
     public function profile()

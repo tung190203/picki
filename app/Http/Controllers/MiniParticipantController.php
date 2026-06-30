@@ -231,11 +231,9 @@ class MiniParticipantController extends Controller
             'is_invite_around' => 'sometimes|boolean',
         ]);
 
-        if ($isInviteAround && !$miniTournament->canInviteAround()) {
+        if ($isInviteAround && !Auth::user()->hasAdvancedMiniTournament()) {
             return ResponseHelper::error(
-                $miniTournament->is_invited_around
-                    ? 'Bạn đã mời người xung quanh cho kèo này rồi. Không thể mời thêm.'
-                    : 'Các nhà tổ chức chưa đủ điều kiện mời người xung quanh.',
+                'Bạn chưa đủ điều kiện mời người xung quanh. Cần tổ chức thành công ít nhất 3 mini-tournament.',
                 422
             );
         }
