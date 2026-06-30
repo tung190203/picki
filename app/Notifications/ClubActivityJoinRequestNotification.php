@@ -15,6 +15,11 @@ class ClubActivityJoinRequestNotification extends ClubNotificationBase
     ) {
     }
 
+    public function via(object $notifiable): array
+    {
+        return ['database'];
+    }
+
     public function toDatabase(object $notifiable): array
     {
         $applicantName = $this->applicant->full_name ?: $this->applicant->email;
