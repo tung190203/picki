@@ -13,6 +13,11 @@ class ClubActivityCompletedFeeReminderNotification extends ClubNotificationBase
     ) {
     }
 
+    public function via(object $notifiable): array
+    {
+        return ['database'];
+    }
+
     public function toDatabase(object $notifiable): array
     {
         $message = "Hoạt động {$this->activity->title} đã hoàn thành. Hãy vào chốt bill thu tiền sự kiện tại CLB {$this->club->name}";

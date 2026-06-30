@@ -13,16 +13,16 @@ class CleanupEmptyTournaments extends Command
 {
     protected $signature = 'tournaments:cleanup-empty';
 
-    protected $description = 'Xoa cac giai dau va mini-tournament khong co participant hop le khi da qua thoi gian bat dau';
+    protected $description = 'Xóa các giải đấu và mini-tournament không có người tham gia hợp lệ khi đã quá thời gian bắt đầu';
 
-    private const CLEANUP_REASON = 'Khong co nguoi tham gia hop le ngoai nguoi tao khi da qua thoi gian bat dau.';
+    private const CLEANUP_REASON = 'Không có người tham gia hợp lệ khi đã quá thời gian bắt đầu.';
 
     public function handle(): int
     {
         $tournamentCount = $this->cleanupTournaments();
         $miniCount = $this->cleanupMiniTournaments();
 
-        $this->info("Da xoa {$tournamentCount} giai dau va {$miniCount} mini-tournament.");
+        $this->info("Đã xóa {$tournamentCount} giải đấu và {$miniCount} mini-tournament.");
 
         return Command::SUCCESS;
     }
@@ -81,7 +81,7 @@ class CleanupEmptyTournaments extends Command
 
                 if ($creator) {
                     $creator->notify(new TournamentCleanupNotification(
-                        tournamentType: 'giai dau',
+                        tournamentType: 'giải đấu',
                         tournamentName: $name,
                         reason: self::CLEANUP_REASON,
                         clubId: $clubId,

@@ -19,7 +19,7 @@ class FirebaseService
         $this->credentialsPath = storage_path('app/firebase/firebase.json');
     }
 
-    protected function isConfigured(): bool
+    public function isConfigured(): bool
     {
         if (empty($this->projectId) || !file_exists($this->credentialsPath)) {
             Log::warning('Firebase chưa cấu hình: cần FIREBASE_PROJECT_ID trong .env và file storage/app/firebase/firebase.json');
@@ -30,7 +30,7 @@ class FirebaseService
 
     protected function getAccessToken(): string
     {
-        return cache()->remember('firebase_access_token', 3300, function () {
+        return $this->getPersistentCache()->remember('firebase_access_token', 3300, function () {
             $credentials = new ServiceAccountCredentials(
                 ['https://www.googleapis.com/auth/firebase.messaging'],
                 $this->credentialsPath
@@ -39,6 +39,20 @@ class FirebaseService
             $token = $credentials->fetchAuthToken();
             return $token['access_token'];
         });
+    }
+
+    /**
+     * Dùng cache store persistent (file/redis) thay vì default driver,
+     * tránh token bị mất khi CACHE_DRIVER=array (mỗi request/process tạo instance mới).
+     */
+    protected function getPersistentCache(): \Illuminate\Contracts\Cache\Repository
+    {
+        $driver = config('cache.default');
+        if ($driver === 'array' || $driver === 'null') {
+            Log::warning('FirebaseService: CACHE_DRIVER là array/null, chuyển sang file cache cho FCM token persistence');
+            return cache()->store('file');
+        }
+        return cache()->store($driver);
     }
 
     public function sendToDevice(

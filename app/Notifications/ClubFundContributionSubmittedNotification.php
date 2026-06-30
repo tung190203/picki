@@ -17,6 +17,11 @@ class ClubFundContributionSubmittedNotification extends ClubNotificationBase
     ) {
     }
 
+    public function via(object $notifiable): array
+    {
+        return ['database'];
+    }
+
     public function toDatabase(object $notifiable): array
     {
         $submitterName = $this->submitter->full_name ?: $this->submitter->email;

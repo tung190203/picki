@@ -28,7 +28,7 @@ class MiniTournamentJoinRequestNotification extends Notification implements Shou
      */
     public function via(object $notifiable): array
     {
-        return ['database', 'broadcast']; // vừa lưu DB vừa realtime
+        return ['database', 'broadcast'];
     }
 
     public function toDatabase($notifiable): array

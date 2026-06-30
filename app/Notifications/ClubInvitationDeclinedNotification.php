@@ -13,6 +13,11 @@ class ClubInvitationDeclinedNotification extends ClubNotificationBase
     ) {
     }
 
+    public function via(object $notifiable): array
+    {
+        return ['database'];
+    }
+
     public function toDatabase(object $notifiable): array
     {
         $userName = $this->declinedUser->full_name ?: $this->declinedUser->email ?: 'Thành viên';

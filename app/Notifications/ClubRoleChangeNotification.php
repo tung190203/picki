@@ -15,6 +15,11 @@ class ClubRoleChangeNotification extends ClubNotificationBase
     ) {
     }
 
+    public function via(object $notifiable): array
+    {
+        return ['database'];
+    }
+
     public function toDatabase(object $notifiable): array
     {
         $message = "Bạn được bổ nhiệm làm {$this->newRoleLabel} trong CLB {$this->club->name}";

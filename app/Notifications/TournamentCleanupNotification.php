@@ -32,8 +32,8 @@ class TournamentCleanupNotification extends Notification implements ShouldQueue
             'action' => 'cleanup',
             'tournament_type' => $this->tournamentType,
             'tournament_id' => $this->tournamentId,
-            'title' => ucfirst($this->tournamentType) . ' bi xoa do khong co nguoi tham gia',
-            'message' => "{$this->tournamentType} \"{$this->tournamentName}\" da bi xoa tu dong. Ly do: {$this->reason}",
+            'title' => ucfirst($this->tournamentType) . ' đã được xóa tự động.',
+            'message' => "{$this->tournamentType} \"{$this->tournamentName}\" đã được xóa tự động. Lý do: {$this->reason}",
             'club_id' => $this->clubId,
         ];
     }

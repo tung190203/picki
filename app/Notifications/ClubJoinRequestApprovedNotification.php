@@ -11,6 +11,11 @@ class ClubJoinRequestApprovedNotification extends ClubNotificationBase
     ) {
     }
 
+    public function via(object $notifiable): array
+    {
+        return ['database'];
+    }
+
     public function toDatabase(object $notifiable): array
     {
         $message = "Bạn đã được chấp nhận tham gia CLB {$this->club->name}";
