@@ -136,8 +136,6 @@ class MiniTournamentResource extends JsonResource
             'session_status' => $this->session_status,
             'is_session_started' => $this->is_session_started,
             'can_update_match_format' => $model->canUpdateMatchFormat(),
-            'is_invited_around' => $this->is_invited_around,
-            'can_invite_around' => $this->canInviteAround(),
 
             // Recurring schedule
             // Same format as clubs: { period, week_days, recurring_date }
