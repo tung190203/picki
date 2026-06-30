@@ -491,6 +491,98 @@ class ParticipantController extends Controller
         return ResponseHelper::success(new ParticipantResource($participant), 'Đã xác nhận người tham gia thay user thành công');
     }
 
+    /**
+     * SuperAdmin xác nhận thay nhiều user cùng lúc.
+     * Body: { participant_ids: int[] }
+     */
+    public function adminConfirmAll(Request $request, int $tournamentId)
+    {
+        $validated = $request->validate([
+            'participant_ids' => 'required|array|min:1',
+            'participant_ids.*' => 'integer',
+        ]);
+
+        $tournament = Tournament::with('staff')->findOrFail($tournamentId);
+
+        if ($err = $this->authorizeAdminConfirm($tournament, Auth::id())) {
+            return $err;
+        }
+
+        if ($tournament->start_date < now()) {
+            return ResponseHelper::error('Giải đấu đã bắt đầu hoặc đã kết thúc. Không thể xác nhận.', 400);
+        }
+        if (in_array($tournament->status, ['closed', 'cancelled'])) {
+            return ResponseHelper::error('Giải đấu đã đóng hoặc bị hủy. Không thể xác nhận.', 400);
+        }
+
+        $participants = $tournament->participants()
+            ->whereIn('id', $validated['participant_ids'])
+            ->get();
+
+        if ($participants->isEmpty()) {
+            return ResponseHelper::error('Không tìm thấy thành viên nào trong danh sách', 404);
+        }
+
+        $participantType = $tournament->participant;
+        $capacity = $participantType === 'user'
+            ? ($tournament->player_per_team * $tournament->max_team)
+            : ($tournament->max_team * $tournament->player_per_team);
+        $currentConfirmed = $tournament->participants()->where('is_confirmed', true)->count();
+        $remainingSlots = max(0, $capacity - $currentConfirmed);
+
+        $confirmed = [];
+        $skipped = [];
+
+        DB::transaction(function () use ($participants, $tournament, &$confirmed, &$skipped, &$remainingSlots) {
+            foreach ($participants as $participant) {
+                if ($participant->is_confirmed) {
+                    $skipped[] = ['participant_id' => $participant->id, 'reason' => 'already_confirmed'];
+                    continue;
+                }
+                if ($remainingSlots <= 0) {
+                    $skipped[] = ['participant_id' => $participant->id, 'reason' => 'capacity_full'];
+                    continue;
+                }
+
+                $participant->update([
+                    'is_confirmed' => true,
+                    'self_confirmed' => false,
+                ]);
+
+                if ($tournament->has_financial_management
+                    && $tournament->has_fee
+                    && !$tournament->auto_split_fee
+                    && !$tournament->use_club_fund
+                ) {
+                    TournamentParticipantPayment::firstOrCreate(
+                        [
+                            'tournament_id' => $participant->tournament_id,
+                            'participant_id' => $participant->id,
+                        ],
+                        [
+                            'user_id' => $participant->user_id,
+                            'amount' => $tournament->fee_amount,
+                            'status' => TournamentParticipantPayment::STATUS_PENDING,
+                        ]
+                    );
+                }
+
+                $confirmed[] = $participant;
+                $remainingSlots--;
+            }
+        });
+
+        foreach ($confirmed as $participant) {
+            $participant->user?->notify(new TournamentJoinConfirmedNotification($participant));
+        }
+
+        return ResponseHelper::success([
+            'confirmed_count' => count($confirmed),
+            'skipped_count' => count($skipped),
+            'skipped' => $skipped,
+        ], 'Đã xác nhận ' . count($confirmed) . ' người tham gia');
+    }
+
     public function acceptInvite($participantId)
     {
         $participant = Participant::with('tournament')->findOrFail($participantId);

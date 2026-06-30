@@ -600,6 +600,104 @@ class MiniTournamentPaymentController extends Controller
         }
     }
 
+    /**
+     * POST /api/mini-tournaments/{id}/payments/mark-paid-all
+     * Organizer đánh dấu nhiều thành viên đã đóng tiền cùng lúc.
+     * Body: { participant_ids: int[] }
+     */
+    public function markPaidAll(Request $request, $miniTournamentId)
+    {
+        $validated = $request->validate([
+            'participant_ids' => 'required|array|min:1',
+            'participant_ids.*' => 'integer',
+        ]);
+
+        $miniTournament = MiniTournament::findOrFail($miniTournamentId);
+
+        if (!$miniTournament->hasOrganizer(Auth::id())) {
+            return ResponseHelper::error('Bạn không có quyền đánh dấu thanh toán', 403);
+        }
+
+        $participants = MiniParticipant::where('mini_tournament_id', $miniTournamentId)
+            ->whereIn('id', $validated['participant_ids'])
+            ->get();
+
+        if ($participants->isEmpty()) {
+            return ResponseHelper::error('Không tìm thấy thành viên nào trong danh sách', 404);
+        }
+
+        $confirmed = [];
+        $skipped = [];
+
+        DB::transaction(function () use ($miniTournament, $participants, &$confirmed, &$skipped) {
+            foreach ($participants as $participant) {
+                if ($participant->payment_status === PaymentStatusEnum::CONFIRMED) {
+                    $skipped[] = ['participant_id' => $participant->id, 'reason' => 'already_confirmed'];
+                    continue;
+                }
+
+                $payment = MiniParticipantPayment::where('participant_id', $participant->id)
+                    ->where('mini_tournament_id', $miniTournament->id)
+                    ->first();
+
+                if ($payment) {
+                    if ($payment->status === MiniParticipantPayment::STATUS_CONFIRMED) {
+                        $skipped[] = ['participant_id' => $participant->id, 'reason' => 'already_confirmed'];
+                        continue;
+                    }
+                    $payment->update([
+                        'status' => MiniParticipantPayment::STATUS_CONFIRMED,
+                        'paid_at' => now(),
+                        'confirmed_at' => now(),
+                        'confirmed_by' => Auth::id(),
+                    ]);
+                } else {
+                    $feePerPerson = 0;
+                    if ($miniTournament->has_fee) {
+                        if ($miniTournament->auto_split_fee) {
+                            $feePerPerson = $miniTournament->final_fee_per_person ?? $miniTournament->fee_amount;
+                        } else {
+                            $feePerPerson = $miniTournament->fee_amount;
+                        }
+                    }
+                    $payment = MiniParticipantPayment::create([
+                        'mini_tournament_id' => $miniTournament->id,
+                        'participant_id' => $participant->id,
+                        'user_id' => $participant->user_id,
+                        'amount' => $feePerPerson,
+                        'status' => MiniParticipantPayment::STATUS_CONFIRMED,
+                        'paid_at' => now(),
+                        'confirmed_at' => now(),
+                        'confirmed_by' => Auth::id(),
+                    ]);
+                }
+
+                $participant->confirmPayment();
+                $this->syncClubFundContributionForTournament($miniTournament, $participant->user_id, Auth::id(), $payment->receipt_image);
+
+                $payment->load('user');
+                if ($payment->user) {
+                    $payment->user->notify(new PaymentConfirmedNotification($payment));
+                }
+
+                PaymentConfirmed::dispatch(
+                    $miniTournament->id,
+                    $payment->id,
+                    $payment->amount,
+                    $participant->user_id
+                );
+
+                $confirmed[] = $participant;
+            }
+        });
+
+        return ResponseHelper::success([
+            'confirmed_count' => count($confirmed),
+            'skipped_count' => count($skipped),
+            'skipped' => $skipped,
+        ], 'Đã đánh dấu thanh toán cho ' . count($confirmed) . ' thành viên');
+    }
+
     private function processConfirmation(Request $request, $miniTournamentId, $participantId, bool $isConfirm)
     {
         $participant = MiniParticipant::where('id', $participantId)
