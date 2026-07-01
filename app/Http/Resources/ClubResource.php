@@ -14,11 +14,12 @@ class ClubResource extends JsonResource
 
     public function toArray(Request $request): array
     {
-        $isMember = auth()->check() && ClubMember::where('club_id', $this->id)
-            ->where('user_id', auth()->id())
-            ->where('membership_status', ClubMembershipStatus::Joined)
-            ->where('status', ClubMemberStatus::Active)
-            ->exists();
+        $isMember = auth()->check()
+            && (isset($this->resource->is_member) ? $this->resource->is_member : ClubMember::where('club_id', $this->id)
+                ->where('user_id', auth()->id())
+                ->where('membership_status', ClubMembershipStatus::Joined)
+                ->where('status', ClubMemberStatus::Active)
+                ->exists());
 
         if (!$isMember) {
             return $this->toLimitedArray();
@@ -65,24 +66,22 @@ class ClubResource extends JsonResource
             }, null),
             'is_member' => true,
             'is_joined' => $isMember,
-            'has_pending_request' => $this->when(auth()->check(), fn () =>
-                ClubMember::where('club_id', $this->id)
+            'has_pending_request' => isset($this->resource->has_pending_request)
+                ? $this->resource->has_pending_request
+                : ClubMember::where('club_id', $this->id)
                     ->where('user_id', auth()->id())
                     ->where('membership_status', ClubMembershipStatus::Pending)
                     ->where('status', ClubMemberStatus::Pending)
                     ->whereNull('invited_by')
                     ->exists(),
-                false
-            ),
-            'has_invitation' => $this->when(auth()->check(), fn () =>
-                ClubMember::where('club_id', $this->id)
+            'has_invitation' => isset($this->resource->has_invitation)
+                ? $this->resource->has_invitation
+                : ClubMember::where('club_id', $this->id)
                     ->where('user_id', auth()->id())
                     ->where('membership_status', ClubMembershipStatus::Pending)
                     ->where('status', ClubMemberStatus::Pending)
                     ->whereNotNull('invited_by')
                     ->exists(),
-                false
-            ),
             'invited_by' => auth()->check() ? $this->getInvitedByInfo() : null,
             'can_edit_footer' => $this->when(auth()->check(), fn () => $this->resource->canEditFooter(auth()->id()), false),
             'profile' => $this->whenLoaded('profile', fn () => static::formatProfile($this->profile), static::getDefaultProfile()),
@@ -105,7 +104,9 @@ class ClubResource extends JsonResource
         $profile = $this->profile;
         $activeMembers = $this->resource->relationLoaded('activeMembers')
             ? $this->resource->activeMembers
-            : $this->resource->activeMembers()->with(['user.vnduprScores', 'user.sports.scores'])->get();
+            : $this->resource->members
+                ? $this->resource->members->filter(fn($m) => $m->membership_status === ClubMembershipStatus::Joined && $m->status === ClubMemberStatus::Active)
+                : collect();
         $scores = $activeMembers->map(fn ($m) => $this->getMemberVnduprScore($m))->filter(fn ($s) => $s !== null);
         $skillLevel = $scores->isEmpty() ? null : [
             'min' => round($scores->min(), 1),
@@ -128,18 +129,22 @@ class ClubResource extends JsonResource
             'rank' => $this->rank ?? null,
             'is_member' => false,
             'is_joined' => false,
-            'has_pending_request' => auth()->check() && ClubMember::where('club_id', $this->id)
-                ->where('user_id', auth()->id())
-                ->where('membership_status', ClubMembershipStatus::Pending)
-                ->where('status', ClubMemberStatus::Pending)
-                ->whereNull('invited_by')
-                ->exists(),
-            'has_invitation' => auth()->check() && ClubMember::where('club_id', $this->id)
-                ->where('user_id', auth()->id())
-                ->where('membership_status', ClubMembershipStatus::Pending)
-                ->where('status', ClubMemberStatus::Pending)
-                ->whereNotNull('invited_by')
-                ->exists(),
+            'has_pending_request' => auth()->check() && (isset($this->resource->has_pending_request)
+                ? $this->resource->has_pending_request
+                : ClubMember::where('club_id', $this->id)
+                    ->where('user_id', auth()->id())
+                    ->where('membership_status', ClubMembershipStatus::Pending)
+                    ->where('status', ClubMemberStatus::Pending)
+                    ->whereNull('invited_by')
+                    ->exists()),
+            'has_invitation' => auth()->check() && (isset($this->resource->has_invitation)
+                ? $this->resource->has_invitation
+                : ClubMember::where('club_id', $this->id)
+                    ->where('user_id', auth()->id())
+                    ->where('membership_status', ClubMembershipStatus::Pending)
+                    ->where('status', ClubMemberStatus::Pending)
+                    ->whereNotNull('invited_by')
+                    ->exists()),
             'invited_by' => auth()->check() ? $this->getInvitedByInfo() : null,
             'profile' => [
                 'id' => $profile?->id,
@@ -239,6 +244,11 @@ class ClubResource extends JsonResource
 
     protected function getInvitedByInfo(): ?array
     {
+        // Use pre-loaded data from attachMembershipStatus if available.
+        if (isset($this->resource->_invited_by_user)) {
+            return $this->resource->_invited_by_user;
+        }
+
         $membership = ClubMember::where('club_id', $this->id)
             ->where('user_id', auth()->id())
             ->with('invitedBy')
