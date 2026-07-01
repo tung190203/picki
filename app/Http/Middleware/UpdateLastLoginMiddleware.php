@@ -21,15 +21,22 @@ class UpdateLastLoginMiddleware
                 || $lastActive->diffInMinutes(now()) >= self::ACTIVE_THRESHOLD_MINUTES;
 
             if ($shouldUpdate) {
-                $wasOnline = $user->last_active_at && $user->last_active_at->diffInMinutes(now()) < 15;
+                $wasOnline = $lastActive && $lastActive->diffInMinutes(now()) < 15;
                 $user->update(['last_active_at' => now()]);
                 if ($wasOnline === false) {
-                    event(new \App\Events\UserOnlineStatusChanged(
-                        $user->id,
-                        $user->full_name,
-                        $user->avatar_url,
-                        true
-                    ));
+                    try {
+                        event(new \App\Events\UserOnlineStatusChanged(
+                            $user->id,
+                            $user->full_name,
+                            $user->avatar_url,
+                            true
+                        ));
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::warning('UserOnlineStatusChanged broadcast failed', [
+                            'user_id' => $user->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
                 }
             }
         }

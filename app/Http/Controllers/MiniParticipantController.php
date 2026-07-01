@@ -158,30 +158,8 @@ class MiniParticipantController extends Controller
         }
 
         if ($participant->is_confirmed) {
-            $this->pushToUsers(
-                $organizerIds,
-                'Người tham gia mới',
-                $currentUser->full_name . ' đã tham gia kèo đấu "' . $miniTournament->name . '".',
-                [
-                    'type' => 'MINI_TOURNAMENT_JOINED',
-                    'mini_tournament_id' => $miniTournament->id,
-                    'participant_id' => $participant->id,
-                ]
-            );
-
             $currentUser?->notify(
                 new MiniTournamentJoinConfirmedNotification($participant, $currentUser->id)
-            );
-
-            $this->pushToUsers(
-                [$currentUser->id],
-                'Đã được duyệt tham gia',
-                'Bạn đã được duyệt tham gia kèo đấu "' . $miniTournament->name . '"',
-                [
-                    'type' => 'MINI_TOURNAMENT_JOIN_CONFIRMED',
-                    'mini_tournament_id' => $miniTournament->id,
-                    'participant_id' => $participant->id,
-                ]
             );
 
             foreach ($miniTournament->staff as $organizer) {
@@ -284,28 +262,8 @@ class MiniParticipantController extends Controller
 
                 if ($isSuperAdmin && !$isInviteAround) {
                     $user->notify(new MiniTournamentCreatorInvitationNotification($participant, Auth::id()));
-                    $this->pushToUsers(
-                        [$user->id],
-                        'Đã tham gia kèo đấu',
-                        'Bạn đã được thêm vào kèo đấu "' . $miniTournament->name . '" bởi quản trị viên',
-                        [
-                            'type' => 'MINI_TOURNAMENT_CONFIRMED',
-                            'mini_tournament_id' => $miniTournament->id,
-                            'participant_id' => $participant->id,
-                        ]
-                    );
                 } else {
                     $user->notify(new MiniTournamentCreatorInvitationNotification($participant, Auth::id()));
-                    $this->pushToUsers(
-                        [$user->id],
-                        'Lời mời tham gia kèo đấu',
-                        'Bạn được mời tham gia kèo đấu "' . $miniTournament->name . '"',
-                        [
-                            'type' => 'MINI_TOURNAMENT_INVITED',
-                            'mini_tournament_id' => $miniTournament->id,
-                            'participant_id' => $participant->id,
-                        ]
-                    );
                 }
 
                 if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
@@ -382,17 +340,6 @@ class MiniParticipantController extends Controller
 
         $participant->user->notify(
             new MiniTournamentJoinConfirmedNotification($participant, Auth::id())
-        );
-
-        $this->pushToUsers(
-            [$participant->user_id],
-            'Đã được duyệt tham gia',
-            'Bạn đã được duyệt tham gia kèo đấu "' . ($participant->miniTournament->name ?? '') . '".',
-            [
-                'type' => 'MINI_TOURNAMENT_JOIN_CONFIRMED',
-                'mini_tournament_id' => $participant->mini_tournament_id,
-                'participant_id' => $participant->id,
-            ]
         );
 
         // Tạo khoản thu PENDING nếu kèo thu phí VÀ KHÔNG phải use_club_fund VÀ KHÔNG phải auto_split_fee
@@ -499,16 +446,6 @@ class MiniParticipantController extends Controller
             $participant->user?->notify(
                 new MiniTournamentJoinConfirmedNotification($participant, Auth::id())
             );
-            $this->pushToUsers(
-                [$participant->user_id],
-                'Đã được duyệt tham gia',
-                'Bạn đã được duyệt tham gia kèo đấu "' . ($miniTournament->name ?? '') . '".',
-                [
-                    'type' => 'MINI_TOURNAMENT_JOIN_CONFIRMED',
-                    'mini_tournament_id' => $miniTournament->id,
-                    'participant_id' => $participant->id,
-                ]
-            );
         }
 
         return ResponseHelper::success([
@@ -595,17 +532,6 @@ class MiniParticipantController extends Controller
 
         $participant->user->notify(
             new MiniTournamentJoinConfirmedNotification($participant, Auth::id())
-        );
-
-        $this->pushToUsers(
-            [$participant->user_id],
-            'Đã được xác nhận tham gia',
-            'Bạn đã được quản trị viên xác nhận tham gia kèo đấu "' . ($participant->miniTournament->name ?? '') . '".',
-            [
-                'type' => 'MINI_TOURNAMENT_JOIN_CONFIRMED',
-                'mini_tournament_id' => $participant->mini_tournament_id,
-                'participant_id' => $participant->id,
-            ]
         );
 
         if ($participant->miniTournament->has_fee && !$participant->miniTournament->auto_split_fee && !$participant->miniTournament->use_club_fund) {
@@ -808,16 +734,6 @@ class MiniParticipantController extends Controller
             new MiniTournamentRemovedNotification($participantData, Auth::id())
         );
 
-        $this->pushToUsers(
-            [$participant->user_id],
-            'Bị xóa khỏi kèo đấu',
-            'Bạn đã bị xóa khỏi kèo đấu',
-            [
-                'type' => 'MINI_TOURNAMENT_REMOVED',
-                'mini_tournament_id' => $participant->mini_tournament_id,
-            ]
-        );
-
         return ResponseHelper::success(null, 'Đã xóa người tham gia khỏi kèo đấu');
     }
 
@@ -915,16 +831,6 @@ class MiniParticipantController extends Controller
 
             $participant->user?->notify(
                 new MiniTournamentRemovedNotification($participantData, Auth::id())
-            );
-
-            $this->pushToUsers(
-                [$participant->user_id],
-                'Bị xóa khỏi kèo đấu',
-                'Bạn đã bị xóa khỏi kèo đấu',
-                [
-                    'type' => 'MINI_TOURNAMENT_REMOVED',
-                    'mini_tournament_id' => $miniTournament->id,
-                ]
             );
         }
 
@@ -1069,7 +975,6 @@ class MiniParticipantController extends Controller
      */
     public function inviteFriends(Request $request, $tournamentId)
     {
-        $currentUser = Auth::user();
         $miniTournament = MiniTournament::with('staff')->findOrFail($tournamentId);
 
         // Check if allow_participant_add_friends is enabled
@@ -1135,7 +1040,7 @@ class MiniParticipantController extends Controller
                 }
 
                 // Create new participant
-                $newParticipant = $miniTournament->participants()->create([
+                $miniTournament->participants()->create([
                     'user_id' => $userId,
                     'is_confirmed' => $miniTournament->auto_approve && !$miniTournament->is_private,
                     'is_invited' => true,
@@ -1150,16 +1055,6 @@ class MiniParticipantController extends Controller
                 $user = User::find($userId);
                 if ($user) {
                     $user->notify(new MiniTournamentInvitationNotification($miniTournament));
-                    $this->pushToUsers(
-                        [$userId],
-                        'Lời mời tham gia kèo đấu',
-                        ($currentUser->full_name ?? 'Một người') . ' mời bạn tham gia kèo đấu "' . $miniTournament->name . '"',
-                        [
-                            'type' => 'MINI_TOURNAMENT_INVITED',
-                            'mini_tournament_id' => $miniTournament->id,
-                            'participant_id' => $newParticipant->id,
-                        ]
-                    );
                 }
 
                 $invitedCount++;
