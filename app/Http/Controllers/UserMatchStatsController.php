@@ -19,6 +19,7 @@ use App\Models\MatchHistory;
 use App\Models\QuickMatch;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Models\User;
 
 class UserMatchStatsController extends Controller
 {
@@ -518,10 +519,34 @@ class UserMatchStatsController extends Controller
             ->select('m.id')
             ->pluck('id');
 
+        $homeMatchIds = DB::table('matches as m')
+            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
+            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
+            ->join('team_members as tm', 'tm.team_id', '=', 'm.home_team_id')
+            ->where('tm.user_id', $userId)
+            ->whereColumn('tm.team_id', 'm.home_team_id')
+            ->where('t.sport_id', $sportId)
+            ->where('m.status', 'completed')
+            ->where('m.is_bye', false)
+            ->select('m.id')
+            ->pluck('id');
+
+        $awayMatchIds = DB::table('matches as m')
+            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
+            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
+            ->join('team_members as tm', 'tm.team_id', '=', 'm.away_team_id')
+            ->where('tm.user_id', $userId)
+            ->whereColumn('tm.team_id', 'm.away_team_id')
+            ->where('t.sport_id', $sportId)
+            ->where('m.status', 'completed')
+            ->where('m.is_bye', false)
+            ->select('m.id')
+            ->pluck('id');
+
         $tournamentMatchIds = $homeMatchIds->merge($awayMatchIds)->unique();
 
         // Lấy mini match IDs từ mini_team_members
-        $miniIds = DB::table('mini_team_members')
+        $miniTeamIds = DB::table('mini_team_members')
             ->join('mini_teams', 'mini_team_members.mini_team_id', '=', 'mini_teams.id')
             ->join('mini_matches', function ($join) {
                 $join->on('mini_matches.team1_id', '=', 'mini_teams.id')
@@ -534,6 +559,22 @@ class UserMatchStatsController extends Controller
             ->select('mini_matches.id')
             ->distinct()
             ->pluck('id');
+
+        // Lấy mini match IDs từ solo participant (mini_participants)
+        $miniParticipantIds = DB::table('mini_participants as mp')
+            ->join('mini_matches as mm', function ($join) {
+                $join->on('mm.participant1_id', '=', 'mp.id')
+                    ->orOn('mm.participant2_id', '=', 'mp.id');
+            })
+            ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
+            ->where('mp.user_id', $userId)
+            ->where('mnt.sport_id', $sportId)
+            ->where('mm.status', 'completed')
+            ->select('mm.id')
+            ->distinct()
+            ->pluck('id');
+
+        $miniIds = $miniTeamIds->merge($miniParticipantIds)->unique();
 
         // Lấy Matches với filter sport_id
         $matches = Matches::withFullRelations()
@@ -551,11 +592,6 @@ class UserMatchStatsController extends Controller
 
         // Load play_mode cho mini_tournaments (batch để tránh N+1)
         $miniPlayModes = collect();
-        if ($minis->isNotEmpty()) {
-            $miniPlayModes = DB::table('mini_tournaments')
-                ->whereIn('id', $minis->pluck('mini_tournament_id')->filter()->unique())
-                ->pluck('play_mode', 'id');
-        }
 
         // Lấy kết quả
         $matchResults = MatchResult::whereIn('match_id', $matches->pluck('id'))
@@ -744,6 +780,77 @@ class UserMatchStatsController extends Controller
             $team1UserIds = array_column($team1Members, 'user_id');
             $team2UserIds = array_column($team2Members, 'user_id');
 
+            // Solo participant match (team1_id và team2_id đều null)
+            $isSoloParticipant = ($mini->team1_id === null && $mini->team2_id === null);
+            $isSoloMyParticipant1 = $mini->participant1_id && $mini->participant1 && $mini->participant1->user_id == $userId;
+            $isSoloMyParticipant2 = $mini->participant2_id && $mini->participant2 && $mini->participant2->user_id == $userId;
+            $isSolo = $isSoloParticipant && ($isSoloMyParticipant1 || $isSoloMyParticipant2);
+
+            if ($isSolo) {
+                // Solo participant: participant1 vs participant2
+                $myParticipant = $mini->participant1;
+                $oppParticipant = $mini->participant2;
+                $myParticipantId = $mini->participant1_id;
+                $oppParticipantId = $mini->participant2_id;
+
+                $scores = [];
+                $is_win = false;
+
+                if ($miniResults->has($mini->id)) {
+                    $resultsBySet = $miniResults[$mini->id]->groupBy('set_number');
+
+                    foreach ($resultsBySet as $setNumber => $setResults) {
+                        $myScore = 0;
+                        $oppScore = 0;
+
+                        foreach ($setResults as $r) {
+                            if ($r->participant_id !== null && $r->participant_id > 0) {
+                                if ($r->participant_id == $myParticipantId) {
+                                    $myScore += $r->score;
+                                } elseif ($r->participant_id == $oppParticipantId) {
+                                    $oppScore += $r->score;
+                                }
+                            }
+                        }
+
+                        $scores[] = [
+                            'my_score' => (int) $myScore,
+                            'opponent_score' => (int) $oppScore,
+                            'set_number' => $setNumber
+                        ];
+                    }
+
+                    $is_win = ($mini->participant_win_id == $myParticipantId);
+                }
+
+                $vndupr = $vnduprByMini->get($mini->id);
+                $vnduprChange = $vndupr !== null
+                    ? round((float) $vndupr->score_after - (float) $vndupr->score_before, 3)
+                    : null;
+
+                $allMatches->push([
+                    'type_text' => $this->getTypeText('mini_tournament', $miniPlayModes[$mini->mini_tournament_id] ?? null),
+                    'format' => 'solo',
+                    'id' => $mini->id,
+                    'mini_tournament_id' => $mini->miniTournament->id ?? null,
+                    'mini_tournament_name' => $mini->miniTournament->name ?? null,
+                    'match_name' => $mini->name,
+                    'my_participant' => $myParticipant,
+                    'opponent_participant' => $oppParticipant,
+                    'my_participant_id' => $myParticipantId,
+                    'opponent_participant_id' => $oppParticipantId,
+                    'scores' => $scores,
+                    'is_win' => $is_win,
+                    'status' => $mini->status,
+                    'match_date' => $mini->match_date,
+                    'created_at' => $mini->updated_at,
+                    'match_type' => $this->getMatchTypeFromMiniTournament($mini),
+                    'vndupr_score_change' => $vnduprChange,
+                ]);
+                continue;
+            }
+
+            // Team-based match: bỏ qua nếu thiếu team
             if ($mini->team1_id === null || $mini->team2_id === null) {
                 continue;
             }
@@ -961,7 +1068,11 @@ class UserMatchStatsController extends Controller
         }
 
         // Phân trang thủ công
-        $total = $allMatches->count();
+        // Phân trang thủ công
+        // Dùng chung SQL đếm với User::countMatchesForBatch để đảm bảo con số nhất quán
+        $matchCounts = User::countMatchesForBatch([$userId], $sportId, true);
+        $total = $matchCounts[$userId]['total'] ?? $allMatches->count();
+
         $totalWin = $allMatches->filter(fn($m) => $m['is_win'] === true)->count();
         $totalLose = $allMatches->filter(fn($m) => $m['is_win'] === false)->count();
         $winRate = $total > 0 ? round(($totalWin / $total) * 100, 2) : 0;

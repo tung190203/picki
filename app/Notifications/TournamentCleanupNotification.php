@@ -25,15 +25,26 @@ class TournamentCleanupNotification extends Notification implements ShouldQueue
         return ['database'];
     }
 
+    private function getVietnameseTypeLabel(string $type): string
+    {
+        return match ($type) {
+            'mini-tournament' => 'Kèo đấu',
+            'tournament' => 'Giải đấu',
+            default => $type,
+        };
+    }
+
     public function toDatabase(object $notifiable): array
     {
+        $typeLabel = $this->getVietnameseTypeLabel($this->tournamentType);
+
         return [
             'type' => self::TYPE,
             'action' => 'cleanup',
             'tournament_type' => $this->tournamentType,
             'tournament_id' => $this->tournamentId,
-            'title' => ucfirst($this->tournamentType) . ' đã được xóa tự động.',
-            'message' => "{$this->tournamentType} \"{$this->tournamentName}\" đã được xóa tự động. Lý do: {$this->reason}",
+            'title' => $typeLabel . ' đã được xóa tự động.',
+            'message' => $typeLabel . " \"{$this->tournamentName}\" đã được xóa tự động. Lý do: {$this->reason}",
             'club_id' => $this->clubId,
         ];
     }

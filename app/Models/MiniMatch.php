@@ -88,6 +88,8 @@ class MiniMatch extends Model
     public function scopeWithFullRelations($query)
     {
         return $query->with([
+            'participant1',
+            'participant2',
             'team1.members.user',
             'team2.members.user',
             'team1.members.user.sports.scores',

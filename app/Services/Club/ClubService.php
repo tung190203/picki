@@ -450,7 +450,7 @@ class ClubService
         $clubs = $query->paginate($perPage);
 
         if ($userId && $clubs->isNotEmpty()) {
-            $this->attachUserMembershipStatus($clubs->items(), $userId);
+            $this->attachMembershipStatus($clubs->items(), $userId);
         } else {
             foreach ($clubs->items() as $club) {
                 $club->is_admin = false;
@@ -509,7 +509,7 @@ class ClubService
         $clubs = $query->get();
 
         if ($userId) {
-            $this->attachUserMembershipStatus($clubs->all(), $userId);
+            $this->attachMembershipStatus($clubs->all(), $userId);
         } else {
             foreach ($clubs as $club) {
                 $club->is_admin = false;
@@ -547,28 +547,60 @@ class ClubService
             ->where('status', ClubMemberStatus::Active->value)
             ->pluck('joined_at', 'club_id');
 
-        foreach ($clubs as $club) {
-            $broadcastUnread = DB::table('club_notifications')
-                ->where('club_id', $club->id)
-                ->where('status', 'sent')
-                ->whereRaw('NOT EXISTS (
-                    select 1 from club_notification_recipients
-                    where club_notification_recipients.club_notification_id = club_notifications.id
-                )')
-                ->where('sent_at', '>=', $memberJoinDates[$club->id] ?? now()->subYear())
-                ->count();
+        // Batch: single query for all broadcast unread counts.
+        $cutoffDates = [];
+        foreach ($clubIds as $clubId) {
+            $cutoffDates[$clubId] = $memberJoinDates[$clubId] ?? now()->subYear()->toDateTimeString();
+        }
+        $cutoffList = array_values($cutoffDates);
+        $clubIdList = array_keys($cutoffDates);
 
-            $club->unread_notification_count = (int) (($unreadCounts[$club->id] ?? 0) + $broadcastUnread);
+        $broadcastUnreadRows = DB::table('club_notifications')
+            ->select('club_id', DB::raw('COUNT(*) as broadcast_unread_count'))
+            ->whereIn('club_id', $clubIds)
+            ->where('status', 'sent')
+            ->whereRaw('NOT EXISTS (
+                select 1 from club_notification_recipients
+                where club_notification_recipients.club_notification_id = club_notifications.id
+            )')
+            ->where(function ($q) use ($clubIdList, $cutoffList) {
+                // Build a single WHERE that covers all club-specific cutoff dates
+                // using ROW construction for MySQL 8+: (club_id, cutoff) comparison
+                foreach ($clubIdList as $i => $clubId) {
+                    $q->orWhere(function ($sub) use ($clubId, $cutoffList, $i) {
+                        $sub->where('club_id', $clubId)
+                            ->where('sent_at', '>=', $cutoffList[$i]);
+                    });
+                }
+            })
+            ->groupBy('club_id')
+            ->get()
+            ->keyBy('club_id');
+
+        foreach ($clubs as $club) {
+            $club->unread_notification_count = (int) (
+                ($unreadCounts[$club->id] ?? 0)
+                + (($broadcastUnreadRows[$club->id]->broadcast_unread_count ?? 0))
+            );
         }
 
         return $clubs;
     }
 
-    private function attachUserMembershipStatus(array $clubs, int $userId): void
+    public function attachMembershipStatus(Collection|array $clubs, int $userId): Collection|array
     {
-        $clubIds = array_map(fn ($c) => $c->id, $clubs);
+        if (empty($clubs)) {
+            return $clubs;
+        }
+
+        $clubIds = collect($clubs)->pluck('id')->toArray();
+        if (empty($clubIds)) {
+            return $clubs;
+        }
+
         $memberships = ClubMember::whereIn('club_id', $clubIds)
             ->where('user_id', $userId)
+            ->with('invitedBy')
             ->get()
             ->groupBy('club_id');
 
@@ -585,7 +617,24 @@ class ClubService
             $club->has_invitation = $members->contains(fn ($m) =>
                 $m->membership_status === ClubMembershipStatus::Pending && $m->invited_by !== null
             );
+
+            // Pre-load inviter info for getInvitedByInfo()
+            $pendingInvite = $members->first(fn ($m) =>
+                $m->membership_status === ClubMembershipStatus::Pending && $m->invited_by !== null
+            );
+            if ($pendingInvite && $pendingInvite->relationLoaded('invitedBy') && $pendingInvite->invitedBy) {
+                $inviter = $pendingInvite->invitedBy;
+                $club->_invited_by_user = [
+                    'id' => $inviter->id,
+                    'full_name' => $inviter->full_name,
+                    'avatar_url' => $inviter->avatar_url,
+                ];
+            } else {
+                $club->_invited_by_user = null;
+            }
         }
+
+        return $clubs;
     }
 
     public function leaveClub(Club $club, int $userId, ?int $transferToUserId = null): array
