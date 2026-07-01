@@ -264,18 +264,6 @@ class ParticipantController extends Controller
                 $organizer->notify(
                     new TournamentJoinRequestNotification($participant)
                 );
-
-                // 🔔 PUSH
-                $this->pushToUsers(
-                    [$organizer->id],
-                    'Yêu cầu tham gia giải đấu',
-                    $user->full_name . ' yêu cầu tham gia giải "' . $tournament->name . '"',
-                    [
-                        'type' => 'TOURNAMENT_JOIN_REQUEST',
-                        'tournament_id' => $tournament->id,
-                        'participant_id' => $participant->id,
-                    ]
-                );
             }
         }else {
             foreach ($organizers as $organizer) {

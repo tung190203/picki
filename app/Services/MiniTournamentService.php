@@ -161,13 +161,12 @@ class MiniTournamentService
             if (empty($weekDays)) {
                 return [];
             }
-            $monthStart = $start->copy()->startOfMonth();
-            $monthEnd = $start->copy()->endOfMonth();
-            for ($d = $monthStart->copy(); $d->lte($monthEnd); $d->addDay()) {
+            $end = $start->copy()->addMonths(3)->endOfMonth();
+            for ($d = $start->copy()->startOfDay(); $d->lte($end); $d->addDay()) {
                 if (in_array((int) $d->dayOfWeek, array_map('intval', $weekDays), true)) {
-                    $d->setTimeFromTimeString($timeString);
-                    if ($d->gte($start)) {
-                        $list[] = $d->copy();
+                    $dWithTime = $d->copy()->setTimeFromTimeString($timeString);
+                    if ($dWithTime->gte($start)) {
+                        $list[] = $dWithTime;
                     }
                 }
             }
@@ -183,7 +182,7 @@ class MiniTournamentService
         $month = (int) $parts['month'];
 
         if ($period === 'monthly') {
-            for ($i = 0; $i < 3; $i++) {
+            for ($i = 0; $i < 12; $i++) {
                 $base = $start->copy()->addMonths($i)->startOfMonth();
                 $effectiveDay = min($day, $base->daysInMonth);
                 $occurrence = $base->copy()->day($effectiveDay)->setTimeFromTimeString($timeString);
@@ -196,25 +195,42 @@ class MiniTournamentService
 
         if ($period === 'quarterly') {
             $monthPositionInQuarter = (($month - 1) % 3) + 1;
-            $targetMonths = [$monthPositionInQuarter, $monthPositionInQuarter + 3, $monthPositionInQuarter + 6, $monthPositionInQuarter + 9];
-            $year = $start->year;
-            foreach ($targetMonths as $m) {
-                $base = Carbon::create($year, $m, 1);
+            $currentQuarter = (int) $start->quarter;
+            $startYear = $start->year;
+            $startMonth = ($currentQuarter - 1) * 3 + $monthPositionInQuarter;
+            if ($startMonth < $start->month) {
+                $startYear++;
+            } elseif ($startMonth === $start->month && $day < $start->day) {
+                $startYear++;
+            }
+
+            $count = 0;
+            $y = $startYear;
+            $m = $startMonth;
+            while ($count < 4) {
+                if ($m > 12) {
+                    $m -= 12;
+                    $y++;
+                }
+                $base = Carbon::create($y, $m, 1);
                 $effectiveDay = min($day, $base->daysInMonth);
-                $occurrence = Carbon::create($year, $m, $effectiveDay)->setTimeFromTimeString($timeString);
+                $occurrence = $base->copy()->day($effectiveDay)->setTimeFromTimeString($timeString);
                 if ($occurrence->gte($start)) {
                     $list[] = $occurrence;
+                    $count++;
                 }
+                $m += 3;
             }
             return $list;
         }
 
         if ($period === 'yearly') {
-            for ($y = 0; $y < 2; $y++) {
-                $year = $start->year + $y;
-                $base = Carbon::create($year, $month, 1);
+            $year = $start->year;
+            for ($y = 0; $y < 5; $y++) {
+                $targetYear = $year + $y;
+                $base = Carbon::create($targetYear, $month, 1);
                 $effectiveDay = min($day, $base->daysInMonth);
-                $occurrence = Carbon::create($year, $month, $effectiveDay)->setTimeFromTimeString($timeString);
+                $occurrence = $base->copy()->day($effectiveDay)->setTimeFromTimeString($timeString);
                 if ($occurrence->gte($start)) {
                     $list[] = $occurrence;
                 }

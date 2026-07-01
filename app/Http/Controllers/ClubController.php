@@ -243,10 +243,13 @@ class ClubController extends Controller
               });
         });
 
-        $clubs = $query->withFullRelations()->get();
+        $clubs = $query->withFullRelations()
+            ->with(['activeMembers.user.vnduprScores', 'activeMembers.user.sports.scores'])
+            ->get();
 
         if ($userId) {
             $this->clubService->attachUnreadNotificationCount($clubs, $userId);
+            $this->clubService->attachMembershipStatus($clubs, $userId);
         }
 
         return ResponseHelper::success(ClubResource::collection($clubs), 'Lấy danh sách câu lạc bộ của tôi thành công');

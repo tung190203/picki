@@ -6,7 +6,6 @@ use App\Events\MiniTournamentMessageSent;
 use App\Events\TournamentMessageSent;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MessageResource;
-use App\Jobs\SendPushJob;
 use App\Models\MiniTournament;
 use App\Models\MiniTournamentMessage;
 use App\Models\Tournament;
@@ -16,7 +15,6 @@ use App\Notifications\MiniTournamentMessageNotification;
 use App\Notifications\TournamentMessageNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
 
 class SendMessageController extends Controller
 {
@@ -67,24 +65,6 @@ class SendMessageController extends Controller
             }
         }
         broadcast(new MiniTournamentMessageSent(new MessageResource($message->load('user'))))->toOthers();
-
-        $recipientIds = $allUserIds
-            ->filter(fn ($id) => $id != Auth::id())
-            ->values()
-            ->toArray();
-
-        if (!empty($recipientIds)) {
-            $this->pushToUsers(
-                $recipientIds,
-                $tournament->name,
-                Auth::user()->full_name . ': ' . $this->formatChatPreview($message),
-                [
-                    'type' => 'MINI_TOURNAMENT_CHAT_MESSAGE',
-                    'mini_tournament_id' => $tournament->id,
-                    'message_id' => $message->id,
-                ]
-            );
-        }
 
         return ResponseHelper::success(new MessageResource($message->load('user')), 'Gửi tin nhắn thành công');
     }
@@ -163,24 +143,6 @@ class SendMessageController extends Controller
 
         broadcast(new TournamentMessageSent(new MessageResource($message->load('user'))))->toOthers();
 
-        $recipientIds = $allUserIds
-            ->filter(fn ($id) => $id != Auth::id())
-            ->values()
-            ->toArray();
-
-        if (!empty($recipientIds)) {
-            $this->pushToUsers(
-                $recipientIds,
-                $tournament->name,
-                Auth::user()->full_name . ': ' . $this->formatChatPreview($message),
-                [
-                    'type' => 'TOURNAMENT_CHAT_MESSAGE',
-                    'tournament_id' => $tournament->id,
-                    'message_id' => $message->id,
-                ]
-            );
-        }
-
         return ResponseHelper::success(new MessageResource($message->load('user')), 'Gửi tin nhắn thành công');
     }
 
@@ -212,29 +174,10 @@ class SendMessageController extends Controller
         ];
 
         return ResponseHelper::success(
-            MessageResource::collection($messages->reverse()->values()), 
-            'Lấy tin nhắn thành công', 
-            200, 
+            MessageResource::collection($messages->reverse()->values()),
+            'Lấy tin nhắn thành công',
+            200,
             $meta
         );
-    }
-
-    private function pushToUsers(array $userIds, string $title, string $body, array $data = [])
-    {
-        foreach ($userIds as $userId) {
-            SendPushJob::dispatch($userId, $title, $body, $data);
-        }
-    }
-
-    private function formatChatPreview($message): string
-    {
-        return match ($message->type) {
-            'text'  => Str::limit($message->content, 80),
-            'image' => 'Hình ảnh',
-            'voice' => 'Tin nhắn thoại',
-            'file'  => 'Tệp đính kèm',
-            'emoji' => $message->content,
-            default => 'Tin nhắn mới',
-        };
     }
 }
