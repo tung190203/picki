@@ -104,9 +104,9 @@ class ClubResource extends JsonResource
         $profile = $this->profile;
         $activeMembers = $this->resource->relationLoaded('activeMembers')
             ? $this->resource->activeMembers
-            : $this->resource->members
+            : ($this->resource->members
                 ? $this->resource->members->filter(fn($m) => $m->membership_status === ClubMembershipStatus::Joined && $m->status === ClubMemberStatus::Active)
-                : collect();
+                : collect());
         $scores = $activeMembers->map(fn ($m) => $this->getMemberVnduprScore($m))->filter(fn ($s) => $s !== null);
         $skillLevel = $scores->isEmpty() ? null : [
             'min' => round($scores->min(), 1),
