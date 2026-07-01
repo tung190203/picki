@@ -854,7 +854,9 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     /**
      * Batch compute vn_rank for multiple users in a single query.
-     * Avoids the heavy COUNT subquery being run per user.
+     * Mirrors `LeaderboardController::getSystemLeaderboard` (the system leaderboard):
+     * rank = 1 + count of all users in the system with MAX(vndupr_score) higher
+     * (filtered by total_matches >= ranking_matches and excluded email).
      *
      * @param array $userIds
      * @param int $sportId
@@ -921,33 +923,44 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             $rankingMatches
         );
 
-        $userScores = DB::table(DB::raw("({$scoreSubquery->toSql()}) AS scores"))
+        // Map target users -> their MAX(vndupr_score). null if they have none.
+        $targetScores = DB::table(DB::raw("({$scoreSubquery->toSql()}) AS scores"))
             ->mergeBindings($scoreSubquery)
             ->get()
             ->keyBy('user_id')
             ->mapWithKeys(fn($row) => [(int) $row->user_id => (float) ($row->max_score ?: 0)]);
 
-        $rankedCounts = DB::table('users as u2')
+        // All qualifying users in the system: MAX(vndupr_score) per user_id.
+        // This matches the leaderboard's ROW_NUMBER(...) OVER (ORDER BY MAX DESC).
+        $allRankedScores = DB::table('users as u2')
             ->join('user_sport as us2', 'u2.id', '=', 'us2.user_id')
             ->join('user_sport_scores as uss2', 'us2.id', '=', 'uss2.user_sport_id')
             ->where('us2.sport_id', $sportId)
             ->where('uss2.score_type', 'vndupr_score')
             ->whereRaw($totalMatchesRaw)
             ->whereNot('u2.email', 'vrplus2018@gmail.com')
-            ->whereIn('us2.user_id', $userIds)
-            ->select('us2.user_id', 'uss2.score_value')
+            ->groupBy('u2.id')
+            ->select('u2.id', DB::raw('MAX(uss2.score_value) AS max_score'))
             ->get()
-            ->groupBy('user_id');
+            ->keyBy('id');
 
         $result = [];
         foreach ($userIds as $userId) {
-            $userScore = $userScores[$userId] ?? 0;
+            $userId = (int) $userId;
+            if (!isset($targetScores[$userId])) {
+                $result[$userId] = null;
+                continue;
+            }
+            $userScore = $targetScores[$userId];
+
             $higherCount = 0;
-            if (isset($rankedCounts[$userId])) {
-                foreach ($rankedCounts[$userId] as $row) {
-                    if ((float) $row->score_value > $userScore) {
-                        $higherCount++;
-                    }
+            foreach ($allRankedScores as $rowId => $row) {
+                $rowId = (int) $rowId;
+                if ($rowId === $userId) {
+                    continue;
+                }
+                if ((float) $row->max_score > $userScore) {
+                    $higherCount++;
                 }
             }
             $result[$userId] = $higherCount + 1;
