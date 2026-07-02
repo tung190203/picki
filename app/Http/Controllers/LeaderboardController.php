@@ -310,6 +310,45 @@ class LeaderboardController extends Controller
         $rankingMatches = (int) SystemSetting::where('key', 'ranking_matches')->first()?->value ?: 10;
         $excludedEmail = 'vrplus2018@gmail.com';
 
+        // Precompute total_matches for ALL users with sport_id in a single CTE —
+        // avoids running 5 correlated subqueries per row in both COUNT and SELECT.
+        $totalMatchesCte = "
+            SELECT us.user_id,
+                (
+                    SELECT COUNT(DISTINCT m.id) FROM matches m
+                    JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                    JOIN tournaments t ON tt.tournament_id = t.id
+                    JOIN team_members tm ON tm.team_id = m.home_team_id
+                    WHERE tm.user_id = us.user_id AND t.sport_id = {$sportId} AND m.status = 'completed'
+                ) + (
+                    SELECT COUNT(DISTINCT m.id) FROM matches m
+                    JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                    JOIN tournaments t ON tt.tournament_id = t.id
+                    JOIN team_members tm ON tm.team_id = m.away_team_id
+                    WHERE tm.user_id = us.user_id AND t.sport_id = {$sportId} AND m.status = 'completed'
+                ) + (
+                    SELECT COUNT(DISTINCT mm.id) FROM mini_matches mm
+                    JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                    JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id
+                    WHERE mtm.user_id = us.user_id AND mnt.sport_id = {$sportId} AND mm.status = 'completed'
+                ) + (
+                    SELECT COUNT(DISTINCT mm.id) FROM mini_matches mm
+                    JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                    JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id
+                    WHERE mtm.user_id = us.user_id AND mnt.sport_id = {$sportId} AND mm.status = 'completed'
+                ) + (
+                    SELECT COUNT(DISTINCT mh.id) FROM match_histories mh
+                    JOIN quick_matches qm ON mh.quick_match_id = qm.id
+                    WHERE mh.user_id = us.user_id AND qm.status = 'completed'
+                        AND (qm.competition_location_id IS NULL OR EXISTS (
+                            SELECT 1 FROM competition_location_sport cls
+                            WHERE cls.competition_location_id = qm.competition_location_id AND cls.sport_id = {$sportId}
+                        ))
+                ) AS total_matches
+            FROM user_sport us
+            WHERE us.sport_id = {$sportId}
+        ";
+
         $scoreSubQuery = UserSportScore::query()
             ->select(
                 'user_sport.user_id',
@@ -320,54 +359,23 @@ class LeaderboardController extends Controller
             ->where('user_sport_scores.score_type', 'vndupr_score')
             ->groupBy('user_sport.user_id');
 
+        // Join against CTE instead of correlated subqueries per row.
         $baseQuery = User::query()
-            ->joinSub($scoreSubQuery, 'scores', 'scores.user_id', '=', 'users.id')
+            ->from(DB::raw("({$totalMatchesCte}) AS total_matches_cte"))
+            ->joinSub($scoreSubQuery, 'scores', 'scores.user_id', '=', 'total_matches_cte.user_id')
+            ->join('users', 'users.id', '=', 'total_matches_cte.user_id')
             ->where('users.email', '!=', $excludedEmail)
             ->select(
                 'users.id',
                 'scores.vndupr_score',
-                DB::raw("(
-                    SELECT COUNT(DISTINCT m.id)
-                    FROM matches m
-                    JOIN tournament_types tt ON m.tournament_type_id = tt.id
-                    JOIN tournaments t ON tt.tournament_id = t.id
-                    JOIN team_members tm ON tm.team_id = m.home_team_id
-                    WHERE tm.user_id = users.id AND t.sport_id = {$sportId} AND m.status = 'completed'
-                ) + (
-                    SELECT COUNT(DISTINCT m.id)
-                    FROM matches m
-                    JOIN tournament_types tt ON m.tournament_type_id = tt.id
-                    JOIN tournaments t ON tt.tournament_id = t.id
-                    JOIN team_members tm ON tm.team_id = m.away_team_id
-                    WHERE tm.user_id = users.id AND t.sport_id = {$sportId} AND m.status = 'completed'
-                ) + (
-                    SELECT COUNT(DISTINCT mm.id)
-                    FROM mini_matches mm
-                    JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
-                    JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id
-                    WHERE mtm.user_id = users.id AND mnt.sport_id = {$sportId} AND mm.status = 'completed'
-                ) + (
-                    SELECT COUNT(DISTINCT mm.id)
-                    FROM mini_matches mm
-                    JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
-                    JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id
-                    WHERE mtm.user_id = users.id AND mnt.sport_id = {$sportId} AND mm.status = 'completed'
-                ) + (
-                    SELECT COUNT(DISTINCT mh.id)
-                    FROM match_histories mh
-                    JOIN quick_matches qm ON mh.quick_match_id = qm.id
-                    WHERE mh.user_id = users.id AND qm.status = 'completed'
-                        AND (qm.competition_location_id IS NULL OR EXISTS (
-                            SELECT 1 FROM competition_location_sport cls
-                            WHERE cls.competition_location_id = qm.competition_location_id AND cls.sport_id = {$sportId}
-                        ))
-                ) as total_matches")
+                'total_matches_cte.total_matches'
             )
             ->with(['clubs:id,name'])
             ->orderByDesc('scores.vndupr_score')
-            ->having('total_matches', '>=', $rankingMatches);
+            ->where('total_matches_cte.total_matches', '>=', $rankingMatches);
 
-        $total = $baseQuery->count();
+        // Clone for COUNT to avoid re-running the CTE — same base query, just count.
+        $total = (clone $baseQuery)->count();
         $lastPage = max(1, (int) ceil($total / $perPage));
         $offset = ($page - 1) * $perPage;
 
@@ -385,7 +393,7 @@ class LeaderboardController extends Controller
             ->limit($perPage)
             ->get();
 
-        $items = $leaderboard->map(function ($user) use ($rankingMatches) {
+        $items = $leaderboard->map(function ($user) {
             return [
                 'id'           => $user->id,
                 'full_name'    => $user->full_name,

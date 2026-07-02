@@ -28,6 +28,18 @@ class ClubMemberController extends Controller
         $club = Club::findOrFail($clubId);
 
         $members = $this->memberManagementService->getMembers($club, $request->validated());
+
+        // Batch preload vn_rank for paginated members — avoids N+1 in ClubMemberUserResource
+        $memberUserIds = $members->pluck('user_id')->unique()->toArray();
+        if (count($memberUserIds) <= 500 && !empty($memberUserIds)) {
+            $preloadedRanks = User::getBatchVNRanks($memberUserIds, 1);
+            foreach ($members as $member) {
+                if ($member->user) {
+                    $member->user->vn_rank = $preloadedRanks[$member->user_id] ?? null;
+                }
+            }
+        }
+
         $statistics = $this->memberManagementService->getMemberStatistics($club);
 
         $data = [

@@ -15,6 +15,7 @@ use App\Services\Club\ClubService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -747,7 +748,16 @@ class AuthController extends Controller
                 'ban_reason' => $user->ban_reason,
             ]);
         }
-        User::loadSportStatsOnUsers(collect([$user]), 1);
+        // Collect all users needing stats: main user + club members.
+        $allUsersForStats = collect([$user]);
+        foreach ($user->clubs ?? [] as $club) {
+            foreach ($club->members ?? [] as $member) {
+                if ($member->user) {
+                    $allUsersForStats->push($member->user);
+                }
+            }
+        }
+        User::loadSportStatsOnUsers($allUsersForStats, 1);
         $clubs = $user->clubs;
         if ($clubs->isNotEmpty()) {
             $this->clubService->attachUnreadNotificationCount($clubs, $user->id);
