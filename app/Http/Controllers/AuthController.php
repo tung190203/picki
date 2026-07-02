@@ -14,7 +14,7 @@ use App\Models\SystemSetting;
 use App\Services\Club\ClubService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -753,15 +753,19 @@ class AuthController extends Controller
             $this->clubService->attachUnreadNotificationCount($clubs, $user->id);
         }
 
-        // Use batch rank: single query avoids the heavy COUNT(subquery) per user.
-        $rankingMatches = User::getRankingMatches();
-        $userTotalMatches = $user->getTotalMatches(1);
-        if ($userTotalMatches >= $rankingMatches) {
-            $ranks = User::getBatchVNRanks([$user->id], 1);
-            $user->vn_rank = $ranks[$user->id] ?? null;
-        } else {
-            $user->vn_rank = null;
-        }
+        // Cache vn_rank for 10 minutes. Cleared by MatchCacheObserver when any match completes.
+        $user->vn_rank = Cache::remember(
+            "user:{$user->id}:me_extras",
+            600,
+            function () use ($user) {
+                $totalMatches = $user->preloaded_sport_stats['total_matches'] ?? 0;
+                if ($totalMatches >= User::getRankingMatches()) {
+                    $ranks = User::getBatchVNRanks([$user->id], 1);
+                    return $ranks[$user->id] ?? null;
+                }
+                return null;
+            }
+        );
 
         return ResponseHelper::success(new UserResource($user), 'Lay thong tin nguoi dung thanh cong', 200);
     }
