@@ -372,7 +372,7 @@ class LeaderboardController extends Controller
             )
             ->with(['clubs:id,name'])
             ->orderByDesc('scores.vndupr_score')
-            ->having('total_matches', '>=', $rankingMatches);
+            ->where('total_matches_cte.total_matches', '>=', $rankingMatches);
 
         // Clone for COUNT to avoid re-running the CTE — same base query, just count.
         $total = (clone $baseQuery)->count();
