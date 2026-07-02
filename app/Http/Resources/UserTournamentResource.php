@@ -15,6 +15,34 @@ class UserTournamentResource extends JsonResource
      * @var int|null
      */
     protected ?int $targetUserId = null;
+    protected static array $preloadedRanks = [];
+    protected static array $preloadedRatings = [];
+
+    public static function preloadRanks(array $userIds, int $sportId = 1): void
+    {
+        self::$preloadedRanks = User::getBatchVNRanks($userIds, $sportId);
+    }
+
+    public static function preloadRatings(array $userIds, int $sportId = 1): void
+    {
+        if (empty($userIds)) {
+            self::$preloadedRatings = [];
+            return;
+        }
+        $rows = \DB::table('user_sport_scores')
+            ->join('user_sport', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
+            ->where('user_sport.sport_id', $sportId)
+            ->where('user_sport_scores.score_type', 'vndupr_score')
+            ->whereIn('user_sport.user_id', $userIds)
+            ->groupBy('user_sport.user_id')
+            ->select('user_sport.user_id', \DB::raw('MAX(user_sport_scores.score_value) as score_value'))
+            ->get();
+        $map = [];
+        foreach ($rows as $row) {
+            $map[$row->user_id] = (float) $row->score_value;
+        }
+        self::$preloadedRatings = $map;
+    }
 
     /**
      * Mapping round number -> tên vòng hiển thị.
@@ -439,14 +467,7 @@ class UserTournamentResource extends JsonResource
             return null;
         }
 
-        $user = User::find($this->targetUserId);
-        if (!$user) {
-            return null;
-        }
-
-        $score = $user->vnduprScoresBySport($sportId)->max('score_value');
-
-        return $score ? (float) $score : null;
+        return self::$preloadedRatings[$this->targetUserId] ?? null;
     }
 
     /**
@@ -458,13 +479,6 @@ class UserTournamentResource extends JsonResource
             return null;
         }
 
-        $user = User::find($this->targetUserId);
-        if (!$user) {
-            return null;
-        }
-
-        $rank = $user->getVNRank($sportId);
-
-        return $rank ? (int) $rank : null;
+        return self::$preloadedRanks[$this->targetUserId] ?? null;
     }
 }

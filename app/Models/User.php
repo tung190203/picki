@@ -366,7 +366,11 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             'playTimes' => fn($q) => $q->latest('id')->limit(50),
             'sports',
             'sports.sport',
+            'sports.scores',
             'clubs.members',
+            'clubs.members.user.sports',
+            'clubs.members.user.sports.scores',
+            'clubs.members.user.vnduprScores',
         ]);
 
         // Apply pickleball stats for vn_rank, defaulting to sport_id = 1 if not specified

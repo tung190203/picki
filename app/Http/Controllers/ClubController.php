@@ -247,6 +247,22 @@ class ClubController extends Controller
             ->with(['activeMembers.user.vnduprScores', 'activeMembers.user.sports.scores'])
             ->get();
 
+        // Batch preload vn_rank cho tất cả club members — tránh N+1 trong ClubResource
+        $allMemberUserIds = $clubs->flatMap(fn($club) =>
+            $club->members->pluck('user_id')
+        )->unique()->toArray();
+
+        if (count($allMemberUserIds) <= 500) {
+            $preloadedRanks = \App\Models\User::getBatchVNRanks($allMemberUserIds, 1);
+            foreach ($clubs as $club) {
+                foreach ($club->members as $member) {
+                    if ($member->user) {
+                        $member->user->vn_rank = $preloadedRanks[$member->user_id] ?? null;
+                    }
+                }
+            }
+        }
+
         if ($userId) {
             $this->clubService->attachUnreadNotificationCount($clubs, $userId);
             $this->clubService->attachMembershipStatus($clubs, $userId);
