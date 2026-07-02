@@ -18,8 +18,6 @@ use App\Notifications\MiniTournamentPaymentCreatedNotification;
 use App\Services\Club\ClubFundContributionService;
 use App\Services\Club\ClubWalletService;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-
 class MiniTournamentPaymentService
 {
     public function __construct(
@@ -50,8 +48,8 @@ class MiniTournamentPaymentService
         try {
             DB::beginTransaction();
 
-            // Lấy tất cả participants (bao gồm cả chủ kèo nếu họ tham gia)
-            $participants = $tournament->participants()->get();
+            // Lấy tất cả participants kèm user (1 query)
+            $participants = $tournament->participants()->with('user')->get();
             $participantCount = $participants->count();
 
             if ($participantCount === 0) {
@@ -68,20 +66,27 @@ class MiniTournamentPaymentService
                 'auto_payment_created' => true,
             ]);
 
-            // Lấy organizers
-            $organizers = $tournament->staff()->pluck('users.id')->toArray();
+            // Lấy organizers (1 query)
+            $organizerIds = $tournament->staff()->pluck('users.id')->toArray();
+            $organizerSet = array_flip($organizerIds);
 
-            // Load fundCollection để sync ClubFundContribution + wallet transaction (nếu có)
+            // Load fundCollection (1 query)
             $tournament->load('fundCollection');
+
+            // Pre-load tất cả existing payments cho tournament này (1 query thay N query)
+            $existingPayments = MiniParticipantPayment::where('mini_tournament_id', $tournament->id)
+                ->get()
+                ->keyBy('participant_id');
 
             // Tạo hoặc cập nhật payment cho tất cả participants
             foreach ($participants as $participant) {
-                $isOrganizer = in_array($participant->user_id, $organizers);
+                $userId = $participant->user_id;
+                $isOrganizer = isset($organizerSet[$userId]);
 
                 // Kiểm tra guest bảo lãnh bởi organizer
                 $isGuestByOrganizer = $participant->is_guest
                     && $participant->guarantor_user_id !== null
-                    && in_array($participant->guarantor_user_id, $organizers);
+                    && isset($organizerSet[$participant->guarantor_user_id]);
 
                 // Xác định status:
                 // Chỉ organizer + guest được organizer bảo lãnh → CONFIRMED
@@ -90,10 +95,8 @@ class MiniTournamentPaymentService
                 // chứ không thay đổi logic xếp confirmed_payments vs pending_payments
                 $shouldBeConfirmed = $isOrganizer || $isGuestByOrganizer;
 
-                // Kiểm tra xem đã có payment chưa
-                $existingPayment = MiniParticipantPayment::where('mini_tournament_id', $tournament->id)
-                    ->where('participant_id', $participant->id)
-                    ->first();
+                // Lookup từ RAM thay vì query lại DB
+                $existingPayment = $existingPayments->get($participant->id);
 
                 if ($existingPayment) {
                     // Cập nhật amount cho payments đã tạo trước đó
@@ -105,7 +108,7 @@ class MiniTournamentPaymentService
                         $updateData['status'] = MiniParticipantPayment::STATUS_CONFIRMED;
                         $updateData['paid_at'] = now();
                         $updateData['confirmed_at'] = now();
-                        $updateData['confirmed_by'] = $participant->user_id;
+                        $updateData['confirmed_by'] = $userId;
                     } elseif (!$shouldBeConfirmed && $existingPayment->status === MiniParticipantPayment::STATUS_CONFIRMED) {
                         $updateData['status'] = MiniParticipantPayment::STATUS_PENDING;
                         $updateData['paid_at'] = null;
@@ -122,27 +125,28 @@ class MiniTournamentPaymentService
                     $payment = MiniParticipantPayment::create([
                         'mini_tournament_id' => $tournament->id,
                         'participant_id' => $participant->id,
-                        'user_id' => $participant->user_id,
+                        'user_id' => $userId,
                         'amount' => $finalFeePerPerson,
                         'status' => $shouldBeConfirmed
                             ? MiniParticipantPayment::STATUS_CONFIRMED
                             : MiniParticipantPayment::STATUS_PENDING,
                         'paid_at' => $shouldBeConfirmed ? now() : null,
                         'confirmed_at' => $shouldBeConfirmed ? now() : null,
-                        'confirmed_by' => $shouldBeConfirmed ? $participant->user_id : null,
+                        'confirmed_by' => $shouldBeConfirmed ? $userId : null,
                     ]);
 
                     // Gửi notification cho người cần thanh toán (không gửi cho organizer/guest by organizer)
                     $isNewlyCreated = true;
                 }
 
-                if (!$shouldBeConfirmed && $participant->user_id && $isNewlyCreated) {
+                if (!$shouldBeConfirmed && $userId && $isNewlyCreated) {
+                    // User đã pre-loaded ở trên
                     $participant->user?->notify(
                         new MiniTournamentPaymentCreatedNotification($tournament, $existingPayment ?? $payment, $finalFeePerPerson)
                     );
                     // Gửi FCM push notification
                     SendPushJob::dispatch(
-                        $participant->user_id,
+                        $userId,
                         'Yêu cầu thanh toán kèo đấu',
                         "Kèo \"{$tournament->name}\" đã bắt đầu. Bạn cần thanh toán " . number_format($finalFeePerPerson, 0, ',', '.') . " VND để hoàn tất.",
                         [
@@ -162,11 +166,11 @@ class MiniTournamentPaymentService
 
                 // Khi organizer/guest được auto-confirmed → tạo ClubFundContribution Confirmed + wallet tx
                 // Chỉ thực hiện khi tournament có liên kết ClubFundCollection (use_club_fund = true)
-                if ($shouldBeConfirmed && $participant->user_id && $tournament->fundCollection) {
+                if ($shouldBeConfirmed && $userId && $tournament->fundCollection) {
                     $this->fundContributionService->createOrganizerConfirmedContribution(
                         $tournament->fundCollection,
-                        $participant->user_id,
-                        $participant->user_id,
+                        $userId,
+                        $userId,
                         (float) $finalFeePerPerson
                     );
                 }

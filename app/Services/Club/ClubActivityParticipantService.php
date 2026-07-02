@@ -182,35 +182,69 @@ class ClubActivityParticipantService
             throw new BusinessException('Chỉ admin/manager/secretary hoặc khi sự kiện cho phép thành viên mời mới có quyền mời');
         }
 
-        $currentCount = $activity->participants()->count();
         $maxParticipants = $activity->max_participants;
+        $currentCount = $activity->participants()->count();
 
-        $invited = [];
+        // Pre-load existing participant user_ids (1 query)
+        $existingUserIds = $activity->participants()->pluck('user_id')->toArray();
+        $existingSet = array_flip($existingUserIds);
+
+        // Lọc userIds: loại bỏ đã tham gia, loại bỏ quá giới hạn
+        $toInvite = [];
         foreach ($userIds as $userId) {
+            if (isset($existingSet[$userId])) {
+                continue;
+            }
             if ($maxParticipants !== null && $currentCount >= $maxParticipants) {
                 break;
             }
+            $toInvite[] = $userId;
+            $currentCount++;
+        }
 
-            if (!$activity->participants()->where('user_id', $userId)->exists()) {
-                $participant = ClubActivityParticipant::create([
-                    'club_activity_id' => $activity->id,
-                    'user_id' => $userId,
-                    'status' => ClubActivityParticipantStatus::Invited,
+        if (empty($toInvite)) {
+            return ['invited_count' => 0, 'participants' => []];
+        }
+
+        // Bulk insert participants
+        $now = now();
+        $insertRows = [];
+        foreach ($toInvite as $userId) {
+            $insertRows[] = [
+                'club_activity_id' => $activity->id,
+                'user_id' => $userId,
+                'status' => ClubActivityParticipantStatus::Invited,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+        ClubActivityParticipant::insert($insertRows);
+
+        // Load lại participants vừa insert để trả về + load user
+        $insertedIds = $activity->participants()
+            ->whereIn('user_id', $toInvite)
+            ->pluck('user_id')
+            ->toArray();
+
+        $invited = ClubActivityParticipant::where('club_activity_id', $activity->id)
+            ->whereIn('user_id', $insertedIds)
+            ->with('user')
+            ->get()
+            ->all();
+
+        // Pre-load users cho notification (1 query)
+        $usersToNotify = User::whereIn('id', $toInvite)->get()->keyBy('id');
+
+        foreach ($invited as $participant) {
+            $user = $usersToNotify->get($participant->user_id);
+            if ($user) {
+                $message = "Bạn được mời tham gia sự kiện {$activity->title} tại CLB {$club->name}";
+                $user->notify(new ClubActivityInvitationNotification($club, $activity));
+                SendPushJob::dispatch($user->id, 'Lời mời tham gia sự kiện', $message, [
+                    'type' => 'CLUB_ACTIVITY_INVITATION',
+                    'club_id' => (string) $club->id,
+                    'club_activity_id' => (string) $activity->id,
                 ]);
-                $participant->load('user');
-                $invited[] = $participant;
-                $currentCount++;
-
-                $user = User::find($userId);
-                if ($user) {
-                    $message = "Bạn được mời tham gia sự kiện {$activity->title} tại CLB {$club->name}";
-                    $user->notify(new ClubActivityInvitationNotification($club, $activity));
-                    SendPushJob::dispatch($user->id, 'Lời mời tham gia sự kiện', $message, [
-                        'type' => 'CLUB_ACTIVITY_INVITATION',
-                        'club_id' => (string) $club->id,
-                        'club_activity_id' => (string) $activity->id,
-                    ]);
-                }
             }
         }
 
