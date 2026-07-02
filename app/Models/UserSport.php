@@ -15,7 +15,8 @@ class UserSport extends Model
     protected $fillable = [
         'user_id',
         'sport_id',
-        'tier'
+        'tier',
+        'total_matches',
     ];
 
     public function user()
