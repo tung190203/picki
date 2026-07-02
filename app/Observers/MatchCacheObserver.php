@@ -20,22 +20,71 @@ class MatchCacheObserver
 
     public function updated($match): void
     {
-        if (! $this->statusChangedToCompleted($match)) {
+        if ($this->statusChangedToCompleted($match)) {
+            $this->handleCompleted($match);
+        } elseif ($this->statusRevertedFromCompleted($match)) {
+            $this->handleReverted($match);
+        }
+    }
+
+    protected function handleCompleted($match): void
+    {
+        $userIds = $this->extractUserIds($match);
+        $sportId = $this->getSportId($match);
+
+        foreach (array_unique($userIds) as $userId) {
+            Cache::forget("user:{$userId}:me_extras");
+        }
+
+        if ($sportId) {
+            $this->incrementCounter($match, $sportId);
+        }
+    }
+
+    protected function handleReverted($match): void
+    {
+        $userIds = $this->extractUserIds($match);
+        $sportId = $this->getSportId($match);
+
+        foreach (array_unique($userIds) as $userId) {
+            Cache::forget("user:{$userId}:me_extras");
+        }
+
+        if ($sportId) {
+            $this->decrementCounter($match, $sportId);
+        }
+    }
+
+    public function deleted($match): void
+    {
+        if (! $this->wasCompleted($match)) {
             return;
         }
 
         $userIds = $this->extractUserIds($match);
         $sportId = $this->getSportId($match);
 
-        // Clear cache
         foreach (array_unique($userIds) as $userId) {
             Cache::forget("user:{$userId}:me_extras");
         }
 
-        // Increment total_matches counter
         if ($sportId) {
-            $this->incrementCounter($match, $sportId);
+            $this->decrementCounter($match, $sportId);
         }
+    }
+
+    protected function wasCompleted($model): bool
+    {
+        if ($model instanceof MiniMatch) {
+            return $model->getOriginal('status') === MiniMatch::STATUS_COMPLETED;
+        }
+        if ($model instanceof QuickMatch) {
+            return $model->getOriginal('status') === QuickMatch::STATUS_COMPLETED;
+        }
+        if ($model instanceof Matches) {
+            return $model->getOriginal('status') === Matches::STATUS_COMPLETED;
+        }
+        return $model->getOriginal('status') === 'completed';
     }
 
     protected function statusChangedToCompleted($model): bool
@@ -57,6 +106,28 @@ class MatchCacheObserver
         }
 
         return $status === 'completed';
+    }
+
+    protected function statusRevertedFromCompleted($model): bool
+    {
+        if (! $model->isDirty('status')) {
+            return false;
+        }
+
+        $original = $model->getOriginal('status');
+        $current = $model->getAttribute('status');
+
+        if ($model instanceof MiniMatch) {
+            return $original === MiniMatch::STATUS_COMPLETED && $current !== MiniMatch::STATUS_COMPLETED;
+        }
+        if ($model instanceof QuickMatch) {
+            return $original === QuickMatch::STATUS_COMPLETED && $current !== QuickMatch::STATUS_COMPLETED;
+        }
+        if ($model instanceof Matches) {
+            return $original === Matches::STATUS_COMPLETED && $current !== Matches::STATUS_COMPLETED;
+        }
+
+        return $original === 'completed' && $current !== 'completed';
     }
 
     protected function getSportId($match): ?int
@@ -115,6 +186,50 @@ class MatchCacheObserver
             }
             if ($match->away_team_id) {
                 $this->matchCounter->incrementForTeam($match->away_team_id, $sportId);
+            }
+        }
+    }
+
+    protected function decrementCounter($match, int $sportId): void
+    {
+        if ($match instanceof MiniMatch) {
+            if ($match->team1_id) {
+                $this->matchCounter->decrementForMiniTeam($match->team1_id, $sportId);
+            }
+            if ($match->team2_id) {
+                $this->matchCounter->decrementForMiniTeam($match->team2_id, $sportId);
+            }
+            if ($match->participant1_id) {
+                $userId = $match->participant1?->user_id;
+                if ($userId) {
+                    $this->matchCounter->decrementForQuickMatchUser($userId, $sportId);
+                }
+            }
+            if ($match->participant2_id) {
+                $userId = $match->participant2?->user_id;
+                if ($userId) {
+                    $this->matchCounter->decrementForQuickMatchUser($userId, $sportId);
+                }
+            }
+            return;
+        }
+
+        if ($match instanceof QuickMatch) {
+            foreach ($match->team_a ?? [] as $userId) {
+                $this->matchCounter->decrementForQuickMatchUser($userId, $sportId);
+            }
+            foreach ($match->team_b ?? [] as $userId) {
+                $this->matchCounter->decrementForQuickMatchUser($userId, $sportId);
+            }
+            return;
+        }
+
+        if ($match instanceof Matches) {
+            if ($match->home_team_id) {
+                $this->matchCounter->decrementForTeam($match->home_team_id, $sportId);
+            }
+            if ($match->away_team_id) {
+                $this->matchCounter->decrementForTeam($match->away_team_id, $sportId);
             }
         }
     }

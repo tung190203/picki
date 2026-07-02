@@ -909,7 +909,6 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             GROUP BY target.user_id, target.max_score
         ";
 
-        $sportBindings = [$sportId, $sportId, $sportId, $sportId, $sportId];
         $rankRows = DB::select("
             WITH user_scores AS (
                 SELECT
@@ -918,13 +917,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                   u.email,
                   u.deleted_at,
                   ms.max_score,
-                  (
-                    + (SELECT COUNT(DISTINCT m.id) FROM matches m JOIN tournament_types tt ON m.tournament_type_id = tt.id JOIN tournaments t ON tt.tournament_id = t.id JOIN team_members tm ON tm.team_id = m.home_team_id WHERE tm.user_id = us.user_id AND t.sport_id = ? AND m.status = 'completed')
-                  + (SELECT COUNT(DISTINCT m.id) FROM matches m JOIN tournament_types tt ON m.tournament_type_id = tt.id JOIN tournaments t ON tt.tournament_id = t.id JOIN team_members tm ON tm.team_id = m.away_team_id WHERE tm.user_id = us.user_id AND t.sport_id = ? AND m.status = 'completed')
-                  + (SELECT COUNT(DISTINCT mm.id) FROM mini_matches mm JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id WHERE mtm.user_id = us.user_id AND mnt.sport_id = ? AND mm.status = 'completed')
-                  + (SELECT COUNT(DISTINCT mm.id) FROM mini_matches mm JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id WHERE mtm.user_id = us.user_id AND mnt.sport_id = ? AND mm.status = 'completed')
-                  + (SELECT COUNT(DISTINCT mh.id) FROM match_histories mh JOIN quick_matches qm ON mh.quick_match_id = qm.id WHERE mh.user_id = us.user_id AND qm.status = 'completed' AND (qm.competition_location_id IS NULL OR EXISTS (SELECT 1 FROM competition_location_sport cls WHERE cls.competition_location_id = qm.competition_location_id AND cls.sport_id = ?)))
-                  ) AS total_matches
+                  us.total_matches
                 FROM user_sport us
                 JOIN (
                     SELECT user_sport.user_id, MAX(user_sport_scores.score_value) AS max_score
@@ -938,7 +931,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                 WHERE us.sport_id = {$sportId}
             )
             {$ranksSql}
-        ", $sportBindings);
+        ");
 
         $result = [];
         foreach ($userIds as $userId) {
@@ -1779,11 +1772,15 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             $result[$uid]['win_rate'] = $winRate;
         }
 
-        // Ghi đè total_matches bằng cách đếm qua cùng logic với matches/list API
-        $matchCounts = self::countMatchesForBatch($userIds, $sportId, $isOwnProfile);
-        foreach ($matchCounts as $uid => $counts) {
+        // Read total_matches directly from user_sport column (maintained by MatchCacheObserver).
+        // This avoids expensive live COUNT queries on every request.
+        foreach ($userIds as $uid) {
+            $total = (int) DB::table('user_sport')
+                ->where('user_id', $uid)
+                ->where('sport_id', $sportId)
+                ->value('total_matches');
             if (isset($result[$uid])) {
-                $result[$uid]['total_matches'] = $counts['total'];
+                $result[$uid]['total_matches'] = $total;
             }
         }
 
