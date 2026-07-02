@@ -93,18 +93,34 @@ class TournamentFundService
         $userId = $tournament->created_by;
         $participantUserIds = $tournament->participants()->pluck('user_id')->toArray();
 
-        foreach ($participantUserIds as $uid) {
-            $collection->members()->attach($uid, ['amount_due' => $feePerTeam]);
+        if (empty($participantUserIds)) {
+            return;
+        }
 
-            TournamentFundContribution::create([
+        // Bulk attach members
+        $memberSync = [];
+        foreach ($participantUserIds as $uid) {
+            $memberSync[$uid] = ['amount_due' => $feePerTeam];
+        }
+        $collection->members()->syncWithoutDetaching($memberSync);
+
+        // Bulk insert contributions
+        $contributionRows = [];
+        foreach ($participantUserIds as $uid) {
+            $contributionRows[] = [
                 'tournament_fund_collection_id' => $collection->id,
                 'user_id' => $uid,
                 'amount' => $feePerTeam,
                 'status' => $uid === $userId ? 'confirmed' : 'pending',
                 'created_by' => $userId,
-            ]);
+            ];
+        }
+        TournamentFundContribution::insert($contributionRows);
 
-            TournamentParticipantPayment::create([
+        // Bulk insert payments
+        $paymentRows = [];
+        foreach ($participantUserIds as $uid) {
+            $paymentRows[] = [
                 'tournament_id' => $tournament->id,
                 'participant_id' => null,
                 'user_id' => $uid,
@@ -112,8 +128,9 @@ class TournamentFundService
                 'status' => $uid === $userId
                     ? TournamentParticipantPayment::STATUS_CONFIRMED
                     : TournamentParticipantPayment::STATUS_PENDING,
-            ]);
+            ];
         }
+        TournamentParticipantPayment::insert($paymentRows);
     }
 
     /**
@@ -128,44 +145,60 @@ class TournamentFundService
         $participantUserIds = $tournament->participants()->pluck('user_id')->toArray();
         $commonUserIds = array_intersect($clubMemberUserIds, $participantUserIds);
         $organizerIds = $tournament->staff()->pluck('user_id')->toArray();
-
-        // Organizers: exempt
-        $exemptUserIds = $organizerIds;
+        $organizerSet = array_flip($organizerIds);
 
         $allUserIds = array_unique(array_merge($commonUserIds, $organizerIds));
 
-        foreach ($allUserIds as $uid) {
-            $amountDue = in_array($uid, $exemptUserIds) ? 0 : $feePerTeam;
-            $collection->assignedMembers()->attach($uid, ['amount_due' => $amountDue]);
+        if (empty($allUserIds)) {
+            return;
+        }
 
-            ClubFundContribution::create([
+        // Bulk attach assigned members
+        $memberSync = [];
+        foreach ($allUserIds as $uid) {
+            $amountDue = isset($organizerSet[$uid]) ? 0 : $feePerTeam;
+            $memberSync[$uid] = ['amount_due' => $amountDue];
+        }
+        $collection->assignedMembers()->syncWithoutDetaching($memberSync);
+
+        // Bulk insert contributions
+        $contributionRows = [];
+        foreach ($allUserIds as $uid) {
+            $isExempt = isset($organizerSet[$uid]);
+            $amountDue = $isExempt ? 0 : $feePerTeam;
+            $contributionRows[] = [
                 'club_fund_collection_id' => $collection->id,
                 'user_id' => $uid,
                 'amount' => $amountDue,
-                'status' => in_array($uid, $exemptUserIds) ? 'confirmed' : 'pending',
+                'status' => $isExempt ? 'confirmed' : 'pending',
                 'created_by' => $userId,
-            ]);
+            ];
+        }
+        ClubFundContribution::insert($contributionRows);
 
-            // Tạo payment entry
-            TournamentParticipantPayment::create([
+        // Bulk insert payments
+        $paymentRows = [];
+        foreach ($allUserIds as $uid) {
+            $isExempt = isset($organizerSet[$uid]);
+            $amountDue = $isExempt ? 0 : $feePerTeam;
+            $paymentRows[] = [
                 'tournament_id' => $tournament->id,
                 'participant_id' => null,
                 'user_id' => $uid,
                 'amount' => $amountDue,
-                'status' => in_array($uid, $exemptUserIds)
+                'status' => $isExempt
                     ? TournamentParticipantPayment::STATUS_CONFIRMED
                     : TournamentParticipantPayment::STATUS_PENDING,
-            ]);
+            ];
         }
+        TournamentParticipantPayment::insert($paymentRows);
 
-        // Nếu organizer là exempt, tạo wallet transaction cho họ
-        foreach ($organizerIds as $oid) {
+        // Update notes for exempt organizers (batch)
+        if (!empty($organizerIds)) {
             $collection->contributions()
-                ->where('user_id', $oid)
+                ->whereIn('user_id', $organizerIds)
                 ->where('status', 'confirmed')
-                ->update([
-                    'note' => 'Admin tạo kèo CLB - bao phí',
-                ]);
+                ->update(['note' => 'Admin tạo kèo CLB - bao phí']);
         }
     }
 
