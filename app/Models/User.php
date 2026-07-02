@@ -897,7 +897,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                   AND user_scores.sport_id = {$sportId}
                   AND user_scores.total_matches >= {$rankingMatches}
             ) target
-            JOIN (
+            LEFT JOIN (
                 SELECT user_id, max_score
                 FROM user_scores
                 WHERE sport_id = {$sportId}
