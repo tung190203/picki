@@ -356,15 +356,22 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         return $this->hasMany(Message::class, 'receiver_id');
     }
 
-    public const FULL_RELATIONS = ['referee', 'follows', 'playTimes', 'sports', 'sports.sport', 'sports.scores', 'clubs'];
+    public const FULL_RELATIONS = ['referee', 'follows', 'playTimes', 'sports', 'sports.sport', 'clubs'];
 
-    public function scopeWithFullRelations($query, ?int $sportId = null)
+    public function scopeWithFullRelations($query, ?int $sportId = null, bool $skipRank = false)
     {
-        $query = $query->with(['referee', 'follows', 'playTimes', 'sports', 'sports.sport', 'sports.scores', 'clubs.members']);
+        $query = $query->with([
+            'referee',
+            'follows',
+            'playTimes' => fn($q) => $q->latest('id')->limit(50),
+            'sports',
+            'sports.sport',
+            'clubs.members',
+        ]);
 
         // Apply pickleball stats for vn_rank, defaulting to sport_id = 1 if not specified
         $effectiveSportId = $sportId ?? 1;
-        $query->withPickleballStats($effectiveSportId);
+        $query->withPickleballStats($effectiveSportId, $skipRank);
 
         return $query;
     }
@@ -459,7 +466,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         });
     }
 
-    public function scopeWithPickleballStats($query, $sportId)
+    public function scopeWithPickleballStats($query, $sportId, bool $skipRank = false)
     {
         if (!$sportId) return $query;
 
@@ -524,9 +531,11 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             ->mergeBindings($scoreSubquery)
             ->select(DB::raw('COUNT(DISTINCT u2.id) + 1'));
 
-        return $query->addSelect([
-            'vn_rank' => $rankSubquery
-        ]);
+        if ($skipRank) {
+            return $query;
+        }
+
+        return $query->addSelect(['vn_rank' => $rankSubquery]);
     }
 
     public function scopeWithInteractionStatus($query, $currentUserId)
@@ -869,104 +878,93 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         }
 
         $rankingMatches = self::getRankingMatches();
+        $userIdsCsv = implode(',', array_map('intval', $userIds));
 
-        $scoreSubquery = DB::table('user_sport')
-            ->join('user_sport_scores', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
-            ->where('user_sport.sport_id', $sportId)
-            ->where('user_sport_scores.score_type', 'vndupr_score')
-            ->whereIn('user_sport.user_id', $userIds)
-            ->groupBy('user_sport.user_id')
-            ->select('user_sport.user_id', DB::raw('MAX(user_sport_scores.score_value) AS max_score'));
+        // Single query: pre-compute (user_id, max_score, total_matches) once in "user_scores" CTE,
+        // then for each target user count how many users have a higher score AND >= rankingMatches.
+        $ranksSql = "
+            SELECT
+              target.user_id,
+              1 + COUNT(higher.user_id) AS rank
+            FROM (
+                SELECT user_scores.user_id, user_scores.max_score
+                FROM user_scores
+                WHERE user_scores.user_id IN ({$userIdsCsv})
+                  AND user_scores.sport_id = {$sportId}
+                  AND user_scores.total_matches >= {$rankingMatches}
+            ) target
+            JOIN (
+                SELECT user_id, max_score
+                FROM user_scores
+                WHERE sport_id = {$sportId}
+                  AND email != 'vrplus2018@gmail.com'
+                  AND deleted_at IS NULL
+                  AND max_score > 0
+                  AND total_matches >= {$rankingMatches}
+            ) higher ON higher.max_score > target.max_score
+            GROUP BY target.user_id, target.max_score
+        ";
 
-        $totalMatchesRaw = "(
-            (
-                SELECT COUNT(DISTINCT m.id)
-                FROM matches m
-                JOIN tournament_types tt ON m.tournament_type_id = tt.id
-                JOIN tournaments t ON tt.tournament_id = t.id
-                JOIN team_members tm ON tm.team_id = m.home_team_id
-                WHERE tm.user_id = u2.id AND t.sport_id = %d AND m.status = 'completed'
-            ) + (
-                SELECT COUNT(DISTINCT m.id)
-                FROM matches m
-                JOIN tournament_types tt ON m.tournament_type_id = tt.id
-                JOIN tournaments t ON tt.tournament_id = t.id
-                JOIN team_members tm ON tm.team_id = m.away_team_id
-                WHERE tm.user_id = u2.id AND t.sport_id = %d AND m.status = 'completed'
-            ) + (
-                SELECT COUNT(DISTINCT mm.id)
-                FROM mini_matches mm
-                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
-                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id
-                WHERE mtm.user_id = u2.id AND mnt.sport_id = %d AND mm.status = 'completed'
-            ) + (
-                SELECT COUNT(DISTINCT mm.id)
-                FROM mini_matches mm
-                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
-                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id
-                WHERE mtm.user_id = u2.id AND mnt.sport_id = %d AND mm.status = 'completed'
-            ) + (
-                SELECT COUNT(DISTINCT mh.id)
-                FROM match_histories mh
-                JOIN quick_matches qm ON mh.quick_match_id = qm.id
-                WHERE mh.user_id = u2.id AND qm.status = 'completed'
-                    AND (qm.competition_location_id IS NULL OR EXISTS (
-                        SELECT 1 FROM competition_location_sport cls
-                        WHERE cls.competition_location_id = qm.competition_location_id AND cls.sport_id = %d
-                    ))
+        $sportBindings = [$sportId, $sportId, $sportId, $sportId, $sportId];
+        $rankRows = DB::select("
+            WITH user_scores AS (
+                SELECT
+                  us.user_id,
+                  us.sport_id,
+                  u.email,
+                  u.deleted_at,
+                  ms.max_score,
+                  (
+                    + (SELECT COUNT(DISTINCT m.id) FROM matches m JOIN tournament_types tt ON m.tournament_type_id = tt.id JOIN tournaments t ON tt.tournament_id = t.id JOIN team_members tm ON tm.team_id = m.home_team_id WHERE tm.user_id = us.user_id AND t.sport_id = ? AND m.status = 'completed')
+                  + (SELECT COUNT(DISTINCT m.id) FROM matches m JOIN tournament_types tt ON m.tournament_type_id = tt.id JOIN tournaments t ON tt.tournament_id = t.id JOIN team_members tm ON tm.team_id = m.away_team_id WHERE tm.user_id = us.user_id AND t.sport_id = ? AND m.status = 'completed')
+                  + (SELECT COUNT(DISTINCT mm.id) FROM mini_matches mm JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id WHERE mtm.user_id = us.user_id AND mnt.sport_id = ? AND mm.status = 'completed')
+                  + (SELECT COUNT(DISTINCT mm.id) FROM mini_matches mm JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id WHERE mtm.user_id = us.user_id AND mnt.sport_id = ? AND mm.status = 'completed')
+                  + (SELECT COUNT(DISTINCT mh.id) FROM match_histories mh JOIN quick_matches qm ON mh.quick_match_id = qm.id WHERE mh.user_id = us.user_id AND qm.status = 'completed' AND (qm.competition_location_id IS NULL OR EXISTS (SELECT 1 FROM competition_location_sport cls WHERE cls.competition_location_id = qm.competition_location_id AND cls.sport_id = ?)))
+                  ) AS total_matches
+                FROM user_sport us
+                JOIN (
+                    SELECT user_sport.user_id, MAX(user_sport_scores.score_value) AS max_score
+                    FROM user_sport
+                    JOIN user_sport_scores ON user_sport.id = user_sport_scores.user_sport_id
+                    WHERE user_sport.sport_id = {$sportId}
+                      AND user_sport_scores.score_type = 'vndupr_score'
+                    GROUP BY user_sport.user_id
+                ) ms ON us.user_id = ms.user_id
+                JOIN users u ON us.user_id = u.id
+                WHERE us.sport_id = {$sportId}
             )
-        ) >= %d";
-
-        $totalMatchesRaw = sprintf(
-            $totalMatchesRaw,
-            $sportId, $sportId, $sportId, $sportId, $sportId,
-            $rankingMatches
-        );
-
-        // Map target users -> their MAX(vndupr_score). null if they have none.
-        $targetScores = DB::table(DB::raw("({$scoreSubquery->toSql()}) AS scores"))
-            ->mergeBindings($scoreSubquery)
-            ->get()
-            ->keyBy('user_id')
-            ->mapWithKeys(fn($row) => [(int) $row->user_id => (float) ($row->max_score ?: 0)]);
-
-        // All qualifying users in the system: MAX(vndupr_score) per user_id.
-        // This matches the leaderboard's ROW_NUMBER(...) OVER (ORDER BY MAX DESC).
-        $allRankedScores = DB::table('users as u2')
-            ->join('user_sport as us2', 'u2.id', '=', 'us2.user_id')
-            ->join('user_sport_scores as uss2', 'us2.id', '=', 'uss2.user_sport_id')
-            ->where('us2.sport_id', $sportId)
-            ->where('uss2.score_type', 'vndupr_score')
-            ->whereRaw($totalMatchesRaw)
-            ->whereNot('u2.email', 'vrplus2018@gmail.com')
-            ->groupBy('u2.id')
-            ->select('u2.id', DB::raw('MAX(uss2.score_value) AS max_score'))
-            ->get()
-            ->keyBy('id');
+            {$ranksSql}
+        ", $sportBindings);
 
         $result = [];
         foreach ($userIds as $userId) {
-            $userId = (int) $userId;
-            if (!isset($targetScores[$userId])) {
-                $result[$userId] = null;
-                continue;
+            $result[(int) $userId] = null;
+        }
+        foreach ($rankRows as $row) {
+            if (isset($row->rank)) {
+                $result[(int) $row->user_id] = (int) $row->rank;
             }
-            $userScore = $targetScores[$userId];
-
-            $higherCount = 0;
-            foreach ($allRankedScores as $rowId => $row) {
-                $rowId = (int) $rowId;
-                if ($rowId === $userId) {
-                    continue;
-                }
-                if ((float) $row->max_score > $userScore) {
-                    $higherCount++;
-                }
-            }
-            $result[$userId] = $higherCount + 1;
         }
 
         return $result;
+    }
+
+    private static function buildMatchCountSql(string $userIdCol, int $sportId): string
+    {
+        return sprintf(
+            "(
+                (SELECT COUNT(DISTINCT m.id) FROM matches m JOIN tournament_types tt ON m.tournament_type_id = tt.id JOIN tournaments t ON tt.tournament_id = t.id JOIN team_members tm ON tm.team_id = m.home_team_id WHERE tm.user_id = %s AND t.sport_id = %d AND m.status = 'completed')
+              + (SELECT COUNT(DISTINCT m.id) FROM matches m JOIN tournament_types tt ON m.tournament_type_id = tt.id JOIN tournaments t ON tt.tournament_id = t.id JOIN team_members tm ON tm.team_id = m.away_team_id WHERE tm.user_id = %s AND t.sport_id = %d AND m.status = 'completed')
+              + (SELECT COUNT(DISTINCT mm.id) FROM mini_matches mm JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id WHERE mtm.user_id = %s AND mnt.sport_id = %d AND mm.status = 'completed')
+              + (SELECT COUNT(DISTINCT mm.id) FROM mini_matches mm JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id WHERE mtm.user_id = %s AND mnt.sport_id = %d AND mm.status = 'completed')
+              + (SELECT COUNT(DISTINCT mh.id) FROM match_histories mh JOIN quick_matches qm ON mh.quick_match_id = qm.id WHERE mh.user_id = %s AND qm.status = 'completed' AND (qm.competition_location_id IS NULL OR EXISTS (SELECT 1 FROM competition_location_sport cls WHERE cls.competition_location_id = qm.competition_location_id AND cls.sport_id = %d)))
+            )",
+            $userIdCol, $sportId,
+            $userIdCol, $sportId,
+            $userIdCol, $sportId,
+            $userIdCol, $sportId,
+            $userIdCol, $sportId
+        );
     }
 
     // User.php
