@@ -671,6 +671,11 @@ class UserController extends Controller
         $perPage = min(200, max(1, (int) ($validated['per_page'] ?? 15)));
 
         $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+
+        // Preload rank & rating for the auth user — avoids N+1 in UserTournamentResource
+        UserTournamentResource::preloadRanks([$userId], $sportId ?? 1);
+        UserTournamentResource::preloadRatings([$userId], $sportId ?? 1);
+
         $tournaments = UserTournamentResource::collection($paginator->getCollection());
 
         $data = [
@@ -794,6 +799,11 @@ class UserController extends Controller
         $perPage = min(200, max(1, (int) ($validated['per_page'] ?? 15)));
 
         $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+
+        // Preload rank & rating for the auth user — avoids N+1 in UserMiniTournamentResource
+        UserMiniTournamentResource::preloadRanks([$userId], $sportId ?? 1);
+        UserMiniTournamentResource::preloadRatings([$userId], $sportId ?? 1);
+
         $miniTournaments = UserMiniTournamentResource::collection($paginator->getCollection());
 
         $data = [
