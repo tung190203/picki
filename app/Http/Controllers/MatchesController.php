@@ -1017,6 +1017,7 @@ class MatchesController extends Controller
     public function confirmResult($matchId)
     {
         $match = Matches::with([
+            'group',
             'results',
             'tournamentType.tournament',
             'homeTeam.members',

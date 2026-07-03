@@ -741,52 +741,23 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
-        $user = User::withFullRelations(1, true)->find($request->user()->id);
+        $user = User::withMeRelations(1)->find($request->user()->id);
         if ($user->is_banned) {
             return ResponseHelper::error('Tài khoản của bạn đã bị khóa: ' . ($user->ban_reason ?? 'Vui lòng liên hệ hỗ trợ'), 403, [
                 'status_code' => 'USER_BANNED',
                 'ban_reason' => $user->ban_reason,
             ]);
         }
-        // Collect all users needing stats: main user + club members.
-        $allUsersForStats = collect([$user]);
-        foreach ($user->clubs ?? [] as $club) {
-            foreach ($club->members ?? [] as $member) {
-                if ($member->user) {
-                    $allUsersForStats->push($member->user);
-                }
-            }
-        }
-        User::loadSportStatsOnUsers($allUsersForStats, 1);
+
+        // Load sport stats cho user hiện tại (loadSportStatsOnUsers nhắm vào $sport->preloaded_sport_stats
+        // mà UserSportResource đọc). Vì clubs.members không load nữa nên chỉ truyền 1 user — rất nhẹ.
+        User::loadSportStatsOnUsers(collect([$user]), 1);
+
+        $user->vn_rank = User::getBatchVNRanks([$user->id], 1)[$user->id] ?? null;
+
         $clubs = $user->clubs;
         if ($clubs->isNotEmpty()) {
             $this->clubService->attachUnreadNotificationCount($clubs, $user->id);
-        }
-
-        // Preload vn_rank for main user + all nested users in a single batch query.
-        // This avoids N+1 when UserResource serializes nested users (club members, etc.).
-        $allUserIds = collect([$user->id]);
-        foreach ($user->clubs ?? [] as $club) {
-            foreach ($club->members ?? [] as $member) {
-                $allUserIds->push($member->user_id ?? ($member->user->id ?? null));
-            }
-        }
-        $allUserIds = $allUserIds->unique()->filter()->values()->toArray();
-
-        $preloadedRanks = count($allUserIds) <= 500
-            ? User::getBatchVNRanks($allUserIds, 1)
-            : [];
-
-        $user->vn_rank = $preloadedRanks[$user->id] ?? null;
-
-        // Set vn_rank on nested User models so UserResource uses preloaded value (no N+1).
-        // ClubMemberResource wraps member's user via ClubMemberUserResource which extends UserResource.
-        foreach ($user->clubs ?? [] as $club) {
-            foreach ($club->members ?? [] as $member) {
-                if ($member->user) {
-                    $member->user->vn_rank = $preloadedRanks[$member->user_id] ?? null;
-                }
-            }
         }
 
         return ResponseHelper::success(new UserResource($user), 'Lay thong tin nguoi dung thanh cong', 200);

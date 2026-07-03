@@ -240,5 +240,10 @@ class UpdateTournamentRequest extends FormRequest
         }
 
         $this->merge(array_merge($boolNormalized, $nullableNormalized));
+
+        // has_fee = true → has_financial_management luôn mặc định là true
+        if ($this->boolean('has_fee')) {
+            $this->merge(['has_financial_management' => true]);
+        }
     }
 }

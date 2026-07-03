@@ -386,6 +386,33 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     }
 
     /**
+     * Scope dành riêng cho /me endpoint.
+     * Không eager load clubs.members.* để tránh N+1 khi user thuộc nhiều CLB lớn.
+     * Sử dụng withCount aggregate thay vì load toàn bộ collection.
+     */
+    public function scopeWithMeRelations($query, ?int $sportId = null)
+    {
+        $query = $query->with([
+            'referee',
+            'follows',
+            'playTimes' => fn($q) => $q->latest('id')->limit(50),
+            'sports',
+            'sports.sport',
+            'sports.scores',
+            'clubs' => fn($q) => $q->withCount([
+                'members as active_members_count' => fn($qq) => $qq
+                    ->where('membership_status', ClubMembershipStatus::Joined)
+                    ->where('status', ClubMemberStatus::Active),
+            ]),
+        ]);
+
+        $effectiveSportId = $sportId ?? 1;
+        $query->withPickleballStats($effectiveSportId, false);
+
+        return $query;
+    }
+
+    /**
      * Scope: Lọc chỉ guest accounts (is_guest = true)
      */
     public function scopeGuests($query)

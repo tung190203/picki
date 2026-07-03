@@ -30,6 +30,7 @@ use App\Services\Club\ClubFundContributionService;
 use App\Services\ImageOptimizationService;
 use App\Services\MiniTournamentService;
 use App\Services\RoundRobinSchedulerService;
+use App\Services\UserSportMatchCounter;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -760,5 +761,23 @@ class ClubMiniTournamentController extends Controller
                 'is_session_started' => true,
             ]);
         });
+
+        // Increment total_matches for bye matches (insert bypasses observer).
+        $byeMatches = collect($matchesToInsert)->where('status', \App\Models\MiniMatch::STATUS_COMPLETED)->where('is_bye', true);
+        if ($byeMatches->isNotEmpty()) {
+            $sportId = $miniTournament->sport_id;
+            $matchCounter = app(UserSportMatchCounter::class);
+            $insertedByeMatches = \App\Models\MiniMatch::with('team1.members')
+                ->where('mini_tournament_id', $miniTournament->id)
+                ->where('status', \App\Models\MiniMatch::STATUS_COMPLETED)
+                ->where('is_bye', true)
+                ->whereIn('team1_id', $byeMatches->pluck('team1_id')->filter()->unique()->values())
+                ->get();
+            foreach ($insertedByeMatches as $byeMatch) {
+                if ($byeMatch->team1_id) {
+                    $matchCounter->incrementForMiniTeam($byeMatch->team1_id, $sportId);
+                }
+            }
+        }
     }
 }

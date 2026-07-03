@@ -5,7 +5,6 @@ namespace App\Http\Resources\Search;
 use App\Enums\ClubMembershipStatus;
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
-use App\Models\Club\ClubMember;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -18,12 +17,11 @@ class SearchClubResource extends JsonResource
         $isMember = false;
         $isAdmin = false;
         $hasPendingRequest = false;
+        $hasInvitation = false;
         $invitedBy = null;
 
         if ($userId && $this->relationLoaded('members')) {
-            $membership = $this->members
-                ->where('user_id', $userId)
-                ->first();
+            $membership = $this->members->firstWhere('user_id', $userId);
 
             if ($membership) {
                 $status = $membership->membership_status;
@@ -33,15 +31,11 @@ class SearchClubResource extends JsonResource
                     && $membership->status !== ClubMemberStatus::Suspended;
                 $isAdmin = $this->created_by === $userId
                     || in_array($role, [ClubMemberRole::Admin->value, ClubMemberRole::Manager->value, ClubMemberRole::Secretary->value]);
+                $hasPendingRequest = $status === ClubMembershipStatus::Pending
+                    && $membership->invited_by === null;
+                $hasInvitation = $status === ClubMembershipStatus::Pending
+                    && $membership->invited_by !== null;
             }
-        }
-
-        if ($userId) {
-            $hasPendingRequest = ClubMember::where('club_id', $this->id)
-                ->where('user_id', $userId)
-                ->where('membership_status', ClubMembershipStatus::Pending)
-                ->whereNull('invited_by')
-                ->exists();
         }
 
         return [
@@ -59,11 +53,7 @@ class SearchClubResource extends JsonResource
             'is_admin'         => $isAdmin,
             'is_member'        => $isMember,
             'has_pending_request' => $hasPendingRequest,
-            'has_invitation' => $userId ? ClubMember::where('club_id', $this->id)
-                ->where('user_id', $userId)
-                ->where('membership_status', ClubMembershipStatus::Pending)
-                ->whereNotNull('invited_by')
-                ->exists() : false,
+            'has_invitation' => $hasInvitation,
             'invited_by'       => $invitedBy,
             'profile'          => $this->whenLoaded('profile', fn() => [
                 'description'     => $this->profile?->description,

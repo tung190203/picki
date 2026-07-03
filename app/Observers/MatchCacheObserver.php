@@ -7,6 +7,7 @@ use App\Models\MiniMatch;
 use App\Models\QuickMatch;
 use App\Services\UserSportMatchCounter;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Clears the /me endpoint cache when any match is completed.
@@ -21,8 +22,17 @@ class MatchCacheObserver
     public function updated($match): void
     {
         if ($this->statusChangedToCompleted($match)) {
+            Log::info('[MatchCacheObserver] Match completed', [
+                'class' => get_class($match),
+                'id' => $match->id,
+                'status' => $match->status,
+            ]);
             $this->handleCompleted($match);
         } elseif ($this->statusRevertedFromCompleted($match)) {
+            Log::info('[MatchCacheObserver] Match reverted from completed', [
+                'class' => get_class($match),
+                'id' => $match->id,
+            ]);
             $this->handleReverted($match);
         }
     }
@@ -32,12 +42,24 @@ class MatchCacheObserver
         $userIds = $this->extractUserIds($match);
         $sportId = $this->getSportId($match);
 
+        Log::info('[MatchCacheObserver] handleCompleted', [
+            'match_id' => $match->id,
+            'sport_id' => $sportId,
+            'user_ids' => $userIds,
+            'user_count' => count($userIds),
+        ]);
+
         foreach (array_unique($userIds) as $userId) {
             Cache::forget("user:{$userId}:me_extras");
         }
 
         if ($sportId) {
             $this->incrementCounter($match, $sportId);
+        } else {
+            Log::warning('[MatchCacheObserver] sportId is null, skipping increment', [
+                'match_id' => $match->id,
+                'class' => get_class($match),
+            ]);
         }
     }
 
@@ -133,14 +155,34 @@ class MatchCacheObserver
     protected function getSportId($match): ?int
     {
         if ($match instanceof MiniMatch) {
-            return $match->mini_tournament?->sport_id;
+            // miniTournament() is the relationship method — NOT mini_tournament (snake_case).
+            $sportId = $match->miniTournament?->sport_id;
+            Log::debug('[MatchCacheObserver] getSportId MiniMatch', [
+                'match_id' => $match->id,
+                'sport_id' => $sportId,
+                'miniTournament_loaded' => $match->relationLoaded('miniTournament'),
+                'mini_tournament_id' => $match->mini_tournament_id,
+            ]);
+            return $sportId;
         }
         if ($match instanceof QuickMatch) {
-            // QuickMatch: sport from its sport_id
             return $match->sport_id;
         }
         if ($match instanceof Matches) {
-            return $match->group?->tournamentType?->tournament?->sport_id;
+            $groupLoaded = $match->relationLoaded('group');
+            $tournamentTypeLoaded = $groupLoaded && $match->group?->relationLoaded('tournamentType');
+            $tournamentLoaded = $tournamentTypeLoaded && $match->group?->tournamentType?->relationLoaded('tournament');
+            $sportId = $match->group?->tournamentType?->tournament?->sport_id;
+            Log::debug('[MatchCacheObserver] getSportId Matches', [
+                'match_id' => $match->id,
+                'sport_id' => $sportId,
+                'group_loaded' => $groupLoaded,
+                'tournament_type_loaded' => $tournamentTypeLoaded,
+                'tournament_loaded' => $tournamentLoaded,
+                'group_id' => $match->group_id,
+                'group' => $match->group ? $match->group->id : 'null',
+            ]);
+            return $sportId;
         }
         return null;
     }
@@ -148,6 +190,13 @@ class MatchCacheObserver
     protected function incrementCounter($match, int $sportId): void
     {
         if ($match instanceof MiniMatch) {
+            Log::info('[MatchCacheObserver] increment MiniMatch', [
+                'match_id' => $match->id,
+                'team1_id' => $match->team1_id,
+                'team2_id' => $match->team2_id,
+                'participant1_id' => $match->participant1_id,
+                'participant2_id' => $match->participant2_id,
+            ]);
             if ($match->team1_id) {
                 $this->matchCounter->incrementForMiniTeam($match->team1_id, $sportId);
             }
@@ -181,6 +230,11 @@ class MatchCacheObserver
         }
 
         if ($match instanceof Matches) {
+            Log::info('[MatchCacheObserver] increment Matches', [
+                'match_id' => $match->id,
+                'home_team_id' => $match->home_team_id,
+                'away_team_id' => $match->away_team_id,
+            ]);
             if ($match->home_team_id) {
                 $this->matchCounter->incrementForTeam($match->home_team_id, $sportId);
             }
