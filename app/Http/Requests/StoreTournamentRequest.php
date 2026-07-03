@@ -181,9 +181,23 @@ class StoreTournamentRequest extends FormRequest
 
         $boolKeys = [
             'enable_dupr', 'enable_vndupr', 'is_private', 'auto_approve',
-            'has_financial_management', 'has_fee', 'auto_split_fee', 'creator_join',
-            'use_cached_qr',
+            'has_financial_management', 'has_fee', 'auto_split_fee', 'use_cached_qr',
         ];
+
+        $boolNormalized = [];
+        foreach ($boolKeys as $key) {
+            if (!$this->has($key)) {
+                continue;
+            }
+            $v = $this->input($key);
+            $boolNormalized[$key] = filter_var($v, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false;
+        }
+
+        // creator_join: giữ nguyên 1/0 (không chuyển sang boolean)
+        if ($this->has('creator_join')) {
+            $v = $this->input('creator_join');
+            $boolNormalized['creator_join'] = $v;
+        }
 
         $nullableKeys = ['main_phone', 'sub_phone'];
 
@@ -200,14 +214,7 @@ class StoreTournamentRequest extends FormRequest
 
         $this->merge($normalized);
 
-        $prepared = [];
-        foreach ($boolKeys as $key) {
-            if ($this->has($key)) {
-                $prepared[$key] = filter_var($this->input($key), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false;
-            }
-        }
-
-        $this->merge($prepared);
+        $this->merge($boolNormalized);
 
         // has_financial_management mặc định là true khi has_fee = true
         if ($this->boolean('has_fee')) {
