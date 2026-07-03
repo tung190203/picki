@@ -11,7 +11,6 @@ use App\Enums\PaymentStatusEnum;
 use App\Models\Club\ClubFundCollection;
 use App\Models\Club\ClubFundContribution;
 use App\Models\MiniTournament;
-use App\Jobs\SendPushJob;
 use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
 use App\Notifications\MiniTournamentPaymentCreatedNotification;
@@ -140,20 +139,8 @@ class MiniTournamentPaymentService
                 }
 
                 if (!$shouldBeConfirmed && $userId && $isNewlyCreated) {
-                    // User đã pre-loaded ở trên
                     $participant->user?->notify(
                         new MiniTournamentPaymentCreatedNotification($tournament, $existingPayment ?? $payment, $finalFeePerPerson)
-                    );
-                    // Gửi FCM push notification
-                    SendPushJob::dispatch(
-                        $userId,
-                        'Yêu cầu thanh toán kèo đấu',
-                        "Kèo \"{$tournament->name}\" đã bắt đầu. Bạn cần thanh toán " . number_format($finalFeePerPerson, 0, ',', '.') . " VND để hoàn tất.",
-                        [
-                            'type' => 'mini_tournament_payment_created',
-                            'mini_tournament_id' => (string) $tournament->id,
-                            'payment_id' => (string) ($existingPayment?->id ?? $payment->id),
-                        ]
                     );
                 }
 
