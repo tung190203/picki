@@ -1129,6 +1129,7 @@ const PAIRING_MODE_MANUAL = 'manual';
                     ]);
                 } else {
                     // Bye đơn giản (không có best loser)
+                    // Tạo trận bye cho round hiện tại
                     $matchNumber++;
                     $byeMatch = $type->matches()->create([
                         'tournament_type_id' => $type->id,
@@ -1143,10 +1144,34 @@ const PAIRING_MODE_MANUAL = 'manual';
 
                     $matchIds->push($byeMatch->id);
 
-                    $nextRoundTeams->push((object)[
-                        'team_id' => $byeTeamId,
-                        '_bye_match' => $byeMatch,
+                    // Tạo trận tiếp theo mà đội bye vào thẳng (home=null để chờ link)
+                    $nextMatchNumber = $matchNumber + 1;
+                    $nextByeAdvancementMatch = $type->matches()->create([
+                        'tournament_type_id' => $type->id,
+                        'home_team_id' => null,       // Sẽ được link sau với đội thắng trận khác
+                        'away_team_id' => $byeTeamId,  // Đội bye vào đây
+                        'round' => $roundIndex + 1,
+                        'leg' => 1,
+                        'status' => 'pending',
+                        'is_bye' => false,
+                        'name_of_match' => "Trận đấu số {$nextMatchNumber}",
                     ]);
+
+                    // Link trận bye → trận vòng sau
+                    $byeMatch->update([
+                        'next_match_id' => $nextByeAdvancementMatch->id,
+                        'next_position' => 'away',
+                    ]);
+
+                    // Thêm vào nextRoundTeams để xử lý tiếp vòng sau
+                    $nextRoundTeams->push((object)[
+                        'team_id' => null, // placeholder - đội sẽ được xác định từ trận bye
+                        '_bye_match' => $byeMatch,
+                        '_next_match_id' => $nextByeAdvancementMatch->id,
+                    ]);
+
+                    // Thêm trận tiếp theo vào matchIds để linking loop xử lý
+                    $matchIds->push($nextByeAdvancementMatch->id);
                 }
             }
 
@@ -1169,9 +1194,8 @@ const PAIRING_MODE_MANUAL = 'manual';
                 $match = $type->matches()->find($matchId);
                 if (!$match) continue;
 
-                // ✅ FIX: Bỏ điều kiện skip bye match để link được
-                // Trước: if ($match->is_bye && !$match->away_team_id) continue;
-                // Sau: Cho phép link cả bye match
+                // Bỏ qua match đã được link tại thời điểm tạo (ví dụ: trận bye simple đã tự link đến trận vòng sau)
+                if ($match->next_match_id) continue;
 
                 $targetIdx = intdiv($idx, 2);
                 $targetId = $nextMatchIds->get($targetIdx);
