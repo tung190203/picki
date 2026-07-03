@@ -14,7 +14,7 @@ use App\Events\SuperAdmin\DashboardStatUpdated;
 use App\Events\SuperAdmin\MiniTournamentCreated;
 use App\Events\SuperAdmin\MiniTournamentDeleted;
 use App\Events\SuperAdmin\MiniTournamentUpdated;
-use App\Jobs\SendPushJob;
+use App\Notifications\MiniTournamentCancelledNotification;
 use App\Helpers\ResponseHelper;
 use App\Http\Requests\StoreMiniTournamentRequest;
 use App\Http\Requests\UpdateMiniTournamentRequest;
@@ -584,25 +584,17 @@ class MiniTournamentController extends Controller
         }
 
         if (!empty($memberIds)) {
-            $this->pushToUsers(
-                $memberIds,
-                'Kèo đấu đã bị hủy',
-                'Kèo đấu "' . $miniTournament->name . '" đã bị chủ kèo hủy.',
-                [
-                    'type' => 'MINI_TOURNAMENT_CANCELLED',
-                    'mini_tournament_id' => $miniTournament->id,
-                ]
+            $notification = new MiniTournamentCancelledNotification(
+                $miniTournament->name,
+                $miniTournament->id,
+                Auth::id()
             );
+            foreach (User::whereIn('id', $memberIds)->get() as $member) {
+                $member->notify($notification);
+            }
         }
 
         return ResponseHelper::success(null, 'Xoá kèo đấu thành công');
-    }
-
-    private function pushToUsers(array $userIds, string $title, string $body, array $data = []): void
-    {
-        foreach ($userIds as $userId) {
-            SendPushJob::dispatch($userId, $title, $body, $data);
-        }
     }
 
 

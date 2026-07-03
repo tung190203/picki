@@ -11,7 +11,6 @@ use App\Models\MiniTournament;
 use App\Models\MiniParticipantPayment;
 use App\Models\Club\Club;
 use App\Http\Resources\MiniParticipantResource;
-use App\Jobs\SendPushJob;
 use App\Models\MiniTournamentStaff;
 use App\Models\User;
 use App\Notifications\MiniTournamentCreatorInvitationNotification;
@@ -19,6 +18,7 @@ use App\Notifications\MiniTournamentJoinConfirmedNotification;
 use App\Notifications\MiniTournamentJoinRequestNotification;
 use App\Notifications\MiniTournamentRemovedNotification;
 use App\Notifications\MiniTournamentInvitationNotification;
+use App\Notifications\MiniTournamentInviteDeclinedNotification;
 use App\Notifications\MiniTournamentMemberJoinedNotification;
 use App\Services\MiniTournamentService;
 use Illuminate\Http\Request;
@@ -91,7 +91,6 @@ class MiniParticipantController extends Controller
         $miniTournament = MiniTournament::with('staff')->findOrFail($tournamentId);
 
         $this->checkMaxPlayers($miniTournament);
-        $organizerIds = $miniTournament->staff->where('role', MiniTournamentStaff::ROLE_ORGANIZER)->pluck('user_id')->unique()->toArray();
 
         $exists = MiniParticipant::where('mini_tournament_id', $tournamentId)
             ->where('user_id', $currentUser->id)
@@ -144,17 +143,6 @@ class MiniParticipantController extends Controller
 
         if (!$participant->is_confirmed) {
             $this->notifyOrganizersJoinRequest($miniTournament, $participant);
-
-            $this->pushToUsers(
-                $organizerIds,
-                'Yêu cầu tham gia mới',
-                $currentUser->full_name . ' vừa gửi yêu cầu tham gia kèo đấu "' . $miniTournament->name . '".',
-                [
-                    'type' => 'MINI_TOURNAMENT_JOIN_REQUEST',
-                    'mini_tournament_id' => $miniTournament->id,
-                    'participant_id' => $participant->id,
-                ]
-            );
         }
 
         if ($participant->is_confirmed) {
@@ -592,22 +580,6 @@ class MiniParticipantController extends Controller
         // Gắn user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
         $this->tournamentService->attachUserToMiniTournamentClubFund($participant->miniTournament, Auth::id());
 
-        $organizerIds = $participant->miniTournament->staff
-            ->where('role', MiniTournamentStaff::ROLE_ORGANIZER)
-            ->pluck('user_id')
-            ->toArray();
-
-        $this->pushToUsers(
-            $organizerIds,
-            'Lời mời được chấp nhận',
-            $participant->user->full_name . ' đã chấp nhận lời mời tham gia kèo đấu "' . ($participant->miniTournament->name ?? '') . '".',
-            [
-                'type' => 'MINI_TOURNAMENT_INVITE_ACCEPTED',
-                'mini_tournament_id' => $participant->mini_tournament_id,
-                'participant_id' => $participant->id,
-            ]
-        );
-
         foreach ($participant->miniTournament->staff as $organizer) {
             $organizer->notify(new MiniTournamentMemberJoinedNotification($participant));
         }
@@ -642,28 +614,22 @@ class MiniParticipantController extends Controller
      */
     public function declineInvite($participantId)
     {
-        $participant = MiniParticipant::findOrFail($participantId);
+        $participant = MiniParticipant::with('miniTournament')->findOrFail($participantId);
 
         if ($participant->user_id !== Auth::id()) {
             return ResponseHelper::error('Không có quyền', 403);
         }
 
-        $organizerIds = $participant->miniTournament->staff->where('role', MiniTournamentStaff::ROLE_ORGANIZER)->pluck('user_id')->toArray();
-
-        $this->pushToUsers(
-            $organizerIds,
-            'Lời mời bị từ chối',
-            $participant->user->full_name . ' đã từ chối lời mời tham gia kèo đấu "' . ($participant->miniTournament->name ?? '') . '".',
-            [
-                'type' => 'MINI_TOURNAMENT_INVITE_DECLINED',
-                'mini_tournament_id' => $participant->mini_tournament_id,
-            ]
-        );
-
         $participant->update([
             'declined_at' => now(),
             'is_invited' => false,
         ]);
+
+        foreach ($participant->miniTournament->staff as $organizer) {
+            if ($organizer->id !== Auth::id()) {
+                $organizer->notify(new MiniTournamentInviteDeclinedNotification($participant));
+            }
+        }
 
         return ResponseHelper::success(null, 'Bạn đã từ chối lời mời tham gia kèo đấu');
     }
@@ -1500,13 +1466,6 @@ class MiniParticipantController extends Controller
                     new MiniTournamentJoinRequestNotification($participant)
                 );
             }
-        }
-    }
-
-    private function pushToUsers(array $userIds, string $title, string $body, array $data = [])
-    {
-        foreach ($userIds as $userId) {
-            SendPushJob::dispatch($userId, $title, $body, $data);
         }
     }
 
