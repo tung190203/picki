@@ -39,14 +39,7 @@ class ClubResource extends JsonResource
             'rank' => $this->rank ?? null,
             'created_by' => $this->created_by,
             'members' => ClubMemberResource::collection($this->whenLoaded('members')),
-            'quantity_members' => $this->whenLoaded('members', fn() =>
-                $this->members
-                    ->filter(fn($m) => $m->user !== null)
-                    ->where('membership_status', ClubMembershipStatus::Joined)
-                    ->where('status', ClubMemberStatus::Active)
-                    ->count(),
-                0
-            ),
+            'quantity_members' => (int) ($this->active_members_count ?? 0),
             'skill_level' => $this->whenLoaded('members', function () {
                 $scores = $this->members
                     ->filter(fn($m) => $m->user !== null)
@@ -124,7 +117,7 @@ class ClubResource extends JsonResource
             'is_public' => (bool) ($this->is_public ?? true),
             'is_verified' => (bool) $this->is_verified,
             'is_banned' => (bool) ($this->is_banned ?? false),
-            'quantity_members' => $activeMembers->count(),
+            'quantity_members' => (int) ($this->active_members_count ?? 0),
             'skill_level' => $skillLevel,
             'rank' => $this->rank ?? null,
             'is_member' => false,

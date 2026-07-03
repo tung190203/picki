@@ -194,11 +194,6 @@ class TournamentController extends Controller
                 $validated['poster'] = $savedPath;
             }
 
-            // has_fee = true → has_financial_management mặc định là true
-            if (!empty($validated['has_fee'])) {
-                $validated['has_financial_management'] = true;
-            }
-
             $tournament = Tournament::create([
                 ...$validated,
                 'created_by' => auth()->id(),

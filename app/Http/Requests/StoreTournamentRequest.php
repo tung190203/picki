@@ -44,6 +44,7 @@ class StoreTournamentRequest extends FormRequest
             'creator_join' => 'nullable|boolean',
 
             // Financial fields
+            'has_financial_management' => 'nullable|boolean',
             'has_fee' => 'nullable|boolean',
             'fee_amount' => 'nullable|integer|min:0',
             'auto_split_fee' => 'nullable|boolean',
@@ -180,7 +181,7 @@ class StoreTournamentRequest extends FormRequest
 
         $boolKeys = [
             'enable_dupr', 'enable_vndupr', 'is_private', 'auto_approve',
-            'has_fee', 'auto_split_fee', 'creator_join',
+            'has_financial_management', 'has_fee', 'auto_split_fee', 'creator_join',
             'use_cached_qr',
         ];
 

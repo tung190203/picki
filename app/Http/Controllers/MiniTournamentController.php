@@ -43,6 +43,7 @@ use App\Notifications\PaymentReminderNotification;
 use App\Services\Club\ClubFundContributionService;
 use App\Services\ImageOptimizationService;
 use App\Services\MiniTournamentService;
+use App\Services\UserSportMatchCounter;
 use App\Services\RoundRobinSchedulerService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -805,6 +806,26 @@ class MiniTournamentController extends Controller
                 'is_session_started' => true,
             ]);
         });
+
+        // Increment total_matches for bye matches (insert bypasses observer).
+        $byeMatches = collect($matchesToInsert)->where('status', MiniMatch::STATUS_COMPLETED);
+        if ($byeMatches->isNotEmpty()) {
+            $sportId = $miniTournament->sport_id;
+            $matchCounter = app(UserSportMatchCounter::class);
+            $insertedMatches = MiniMatch::where('mini_tournament_id', $miniTournament->id)
+                ->where('status', MiniMatch::STATUS_COMPLETED)
+                ->whereIn('round_number', $byeMatches->pluck('round_number')->unique()->values())
+                ->whereIn('team1_id', $byeMatches->pluck('team1_id')->filter()->unique()->values())
+                ->get();
+            foreach ($insertedMatches as $byeMatch) {
+                if ($byeMatch->team1_id) {
+                    $matchCounter->incrementForMiniTeam($byeMatch->team1_id, $sportId);
+                }
+                if ($byeMatch->team2_id) {
+                    $matchCounter->incrementForMiniTeam($byeMatch->team2_id, $sportId);
+                }
+            }
+        }
     }
 
     public function cancelRecurrenceSeries(Request $request, $tournamentId)
@@ -1636,6 +1657,24 @@ class MiniTournamentController extends Controller
             ]);
         });
 
+        // Increment total_matches for bye matches (insert bypasses observer).
+        $byeMatches = collect($matchesToInsert)->where('status', MiniMatch::STATUS_COMPLETED)->where('is_bye', true);
+        if ($byeMatches->isNotEmpty()) {
+            $sportId = $miniTournament->sport_id;
+            $matchCounter = app(UserSportMatchCounter::class);
+            $insertedByeMatches = MiniMatch::with('team1.members')
+                ->where('mini_tournament_id', $miniTournament->id)
+                ->where('status', MiniMatch::STATUS_COMPLETED)
+                ->where('is_bye', true)
+                ->whereIn('team1_id', $byeMatches->pluck('team1_id')->filter()->unique()->values())
+                ->get();
+            foreach ($insertedByeMatches as $byeMatch) {
+                if ($byeMatch->team1_id) {
+                    $matchCounter->incrementForMiniTeam($byeMatch->team1_id, $sportId);
+                }
+            }
+        }
+
         $responseRounds = $this->formatMatchesWithUserInfo($schedule['rounds'], $confirmedParticipants, $isDouble, $schedule['teams'] ?? []);
 
         return ResponseHelper::success([
@@ -1961,10 +2000,25 @@ class MiniTournamentController extends Controller
         }
 
         // Determine which team score to set to forfeit (0)
+        $sportId = $miniTournament->sport_id;
         if ((int) $match->participant1_id === (int) $participantId) {
             $match->update(['team_1_score' => 0, 'status' => MiniMatch::STATUS_COMPLETED]);
+            $matchCounter = app(UserSportMatchCounter::class);
+            if ($match->team1_id) {
+                $matchCounter->incrementForMiniTeam($match->team1_id, $sportId);
+            }
+            if ($match->team2_id) {
+                $matchCounter->incrementForMiniTeam($match->team2_id, $sportId);
+            }
         } elseif ((int) $match->participant2_id === (int) $participantId) {
             $match->update(['team_2_score' => 0, 'status' => MiniMatch::STATUS_COMPLETED]);
+            $matchCounter = app(UserSportMatchCounter::class);
+            if ($match->team1_id) {
+                $matchCounter->incrementForMiniTeam($match->team1_id, $sportId);
+            }
+            if ($match->team2_id) {
+                $matchCounter->incrementForMiniTeam($match->team2_id, $sportId);
+            }
         } else {
             return ResponseHelper::error('Người chơi không tham gia trận đấu này', 422);
         }
