@@ -117,7 +117,7 @@ class ClubTournamentController extends Controller
 
             $this->tournamentService->calculateEndDate($tournament);
 
-            if (!empty($validated['creator_join'])) {
+            if (isset($validated['creator_join']) && $validated['creator_join'] != 0) {
                 $participantData = [
                     'tournament_id' => $tournament->id,
                     'user_id' => $userId,
