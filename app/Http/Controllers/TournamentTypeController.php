@@ -218,6 +218,10 @@ const PAIRING_MODE_MANUAL = 'manual';
             }
         }
 
+        // Track pairing mode để dùng sau save
+        $oldPairingMode = null;
+        $newPairingMode = null;
+
         // ✅ KIỂM TRA THAY ĐỔI PAIRING MODE
         if (!empty($validated['format_specific_config'])) {
             $mainConfig = is_array($validated['format_specific_config']) && isset($validated['format_specific_config'][0])
@@ -226,36 +230,25 @@ const PAIRING_MODE_MANUAL = 'manual';
             $knockoutConfig = $mainConfig['knockout_stage'] ?? [];
             $newPairingMode = $knockoutConfig['pairing_mode'] ?? null;
 
-            if ($newPairingMode) {
-                $oldConfig = $tournamentType->format_specific_config ?? [];
-                $oldMainConfig = is_array($oldConfig) && isset($oldConfig[0]) ? $oldConfig[0] : $oldConfig;
-                $oldKnockoutConfig = $oldMainConfig['knockout_stage'] ?? [];
-                $oldPairingMode = $oldKnockoutConfig['pairing_mode'] ?? null;
+            $oldConfig = $tournamentType->format_specific_config ?? [];
+            $oldMainConfig = is_array($oldConfig) && isset($oldConfig[0]) ? $oldConfig[0] : $oldConfig;
+            $oldKnockoutConfig = $oldMainConfig['knockout_stage'] ?? [];
+            $oldPairingMode = $oldKnockoutConfig['pairing_mode'] ?? null;
 
-                if ($oldPairingMode && $oldPairingMode !== $newPairingMode) {
-                    if ($this->hasLockedMatches($tournamentType)) {
-                        return ResponseHelper::error(
-                            'Không thể thay đổi pairing mode. Đã có trận đấu hoàn thành và có kết quả được xác nhận.',
-                            400
-                        );
-                    }
+            if ($newPairingMode && $oldPairingMode && $oldPairingMode !== $newPairingMode) {
+                if ($this->hasLockedMatches($tournamentType)) {
+                    return ResponseHelper::error(
+                        'Không thể thay đổi pairing mode. Đã có trận đấu hoàn thành và có kết quả được xác nhận.',
+                        400
+                    );
                 }
             }
         }
 
         DB::beginTransaction();
         try {
-            // ✅ KIỂM TRA SỐ BẢNG CÓ THAY ĐỔI KHÔNG
+            // Đếm groups trước khi update
             $oldNumGroups = $tournamentType->groups()->count();
-            $newNumGroups = null;
-
-            if (!empty($validated['format_specific_config'])) {
-                $mainConfig = is_array($validated['format_specific_config']) && isset($validated['format_specific_config'][0])
-                    ? $validated['format_specific_config'][0]
-                    : $validated['format_specific_config'];
-                $poolConfig = $mainConfig['pool_stage'] ?? [];
-                $newNumGroups = max(1, (int)($poolConfig['number_competing_teams'] ?? 2));
-            }
 
             // ✅ CẬP NHẬT từng phần, GIỮ NGUYÊN dữ liệu cũ nếu không gửi lên
             if (array_key_exists('match_rules', $validated)) {
@@ -292,12 +285,17 @@ const PAIRING_MODE_MANUAL = 'manual';
 
             $tournamentType->save();
 
-            // ✅ NẾU SỐ BẢNG THAY ĐỔI -> TẠO LẠI BẢNG TRỐNG
-            if ($tournamentType->format === TournamentType::FORMAT_MIXED &&
-                $newNumGroups !== null &&
-                $newNumGroups !== $oldNumGroups) {
+            // ✅ Tính newNumGroups từ DB SAU KHI MERGE — không đọc từ payload thô
+            $savedConfig = $tournamentType->format_specific_config ?? [];
+            $savedMainConfig = is_array($savedConfig) && isset($savedConfig[0]) ? $savedConfig[0] : $savedConfig;
+            $savedPoolConfig = $savedMainConfig['pool_stage'] ?? [];
+            $newNumGroups = max(1, (int)($savedPoolConfig['number_competing_teams'] ?? 2));
 
-                // Xóa assignment và matches cũ
+            // ✅ Phát hiện thay đổi pairing_mode
+            $isChangingPairingMode = $oldPairingMode && $newPairingMode && $oldPairingMode !== $newPairingMode;
+
+            if ($tournamentType->format === TournamentType::FORMAT_MIXED && $newNumGroups !== $oldNumGroups) {
+                // Số bảng thay đổi thật sự → detach, xóa matches, tạo lại groups rỗng
                 foreach ($tournamentType->groups as $group) {
                     $group->teams()->detach();
                 }
@@ -305,12 +303,12 @@ const PAIRING_MODE_MANUAL = 'manual';
                     $match->results()->delete();
                     $match->delete();
                 });
-
-                // Tạo lại groups
                 $this->createEmptyGroups($tournamentType);
+            } elseif ($isChangingPairingMode) {
+                // Chỉ đổi pairing_mode → giữ nguyên groups & pool matches, regenerate knockout
+                $this->regenerateKnockoutOnly($tournamentType);
             } else {
-                // ✅ NẾU KHÔNG THAY ĐỔI SỐ BẢNG
-                // → Chỉ regenerate pool stage, GIỮ NGUYÊN knockout đã tạo
+                // Các thay đổi config khác → chỉ regenerate pool stage, giữ knockout
                 $this->generateMatchesForType($tournamentType, onlyPoolStage: true);
             }
 
@@ -3168,6 +3166,31 @@ const PAIRING_MODE_MANUAL = 'manual';
                 $q->where('confirmed', true);
             })
             ->exists();
+    }
+
+    /**
+     * Chỉ regenerate vòng knockout khi pairing_mode thay đổi.
+     * - Xóa các match round >= 2 (knockout) + results liên quan
+     * - Giữ nguyên groups, group_team, pool matches
+     * - Tái tạo bracket theo pairing_mode mới
+     */
+    private function regenerateKnockoutOnly(TournamentType $type): void
+    {
+        $type->matches()
+            ->where('round', '>=', 2)
+            ->each(function ($match) {
+                $match->results()->delete();
+                $match->delete();
+            });
+
+        $teams = $type->tournament->teams()->with('members')->get();
+        if ($teams->count() < 2) return;
+
+        $config = $type->format_specific_config ?? [];
+        $numLegs = $type->num_legs ?? 1;
+
+        // generateMixed với preserveKnockout=false vì knockout đã bị xóa ở trên
+        $this->generateMixed($type, $teams, $config, $numLegs, false);
     }
 
     private function deepMergeRecursive(array $old, array $new): array
