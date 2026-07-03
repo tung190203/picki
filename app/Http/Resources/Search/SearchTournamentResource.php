@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources\Search;
 
-use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -84,7 +83,11 @@ class SearchTournamentResource extends JsonResource
                 'is_confirmed' => (bool) $p->is_confirmed,
             ])->toArray() : [],
             // Created by
-            'created_by' => new UserResource($this->whenLoaded('createdBy')),
+            'created_by' => $this->whenLoaded('createdBy', fn() => [
+                'id' => $this->createdBy->id,
+                'full_name' => $this->createdBy->full_name,
+                'avatar_url' => $this->createdBy->avatar_url,
+            ]),
             'distance'     => $this->when(isset($this->distance), round($this->distance, 1)),
             'marker_type'  => 'tournament',
             // Membership — use preloaded batch data to avoid N+1

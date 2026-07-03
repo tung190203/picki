@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources\Search;
 
-use App\Http\Resources\UserResource;
 use App\Models\MiniTournamentStaff;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -69,10 +68,18 @@ class SearchMatchResource extends JsonResource
                     ->map(fn($s) => [
                         'mini_tournament_id' => (int) ($s->pivot->mini_tournament_id ?? $this->id),
                         'user_id' => $s->id,
-                        'user' => new UserResource($s),
+                        'user' => [
+                            'id' => $s->id,
+                            'full_name' => $s->full_name,
+                            'avatar_url' => $s->avatar_url,
+                        ],
                     ])->values()->toArray() : [],
             ],
-            'created_by' => new UserResource($this->whenLoaded('creator')),
+            'created_by' => $this->whenLoaded('creator', fn() => [
+                'id' => $this->creator->id,
+                'full_name' => $this->creator->full_name,
+                'avatar_url' => $this->creator->avatar_url,
+            ]),
             'is_private'   => (bool) $this->is_private,
             'min_rating'   => $this->min_rating,
             'max_rating'   => $this->max_rating,

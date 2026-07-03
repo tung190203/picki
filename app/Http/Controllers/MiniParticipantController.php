@@ -240,9 +240,9 @@ class MiniParticipantController extends Controller
             }
 
             try {
-                $paymentStatus = PaymentStatusEnum::PENDING;
-                if ($miniTournament->use_club_fund) {
-                    $paymentStatus = PaymentStatusEnum::CONFIRMED;
+                $paymentStatus = PaymentStatusEnum::CONFIRMED;
+                if ($miniTournament->has_fee && !$miniTournament->use_club_fund && !$miniTournament->auto_split_fee) {
+                    $paymentStatus = PaymentStatusEnum::PENDING;
                 }
 
                 $isSuperAdmin = Auth::user()?->is_super_admin ?? false;
