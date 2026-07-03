@@ -1219,7 +1219,7 @@ const handleSubmit = async () => {
         sub_phone: subPhone.value || null,
         is_public_branch: isPublicBranch.value,
         is_own_score: isOwnScore.value,
-        creator_join: creatorJoin.value,
+        creator_join: creatorJoin.value ? 1 : 0,
         use_cached_qr: useCachedQr.value,
     }
 
@@ -1421,7 +1421,7 @@ const buildTemplateSettings = () => {
         max_player: participant.value === 'player' ? maxPlayer.value : null,
         is_private: isPrivate.value,
         auto_approve: autoApprove.value,
-        creator_join: creatorJoin.value,
+        creator_join: creatorJoin.value ? 1 : 0,
         club_id: selectedClubId.value,
         has_fee: hasFee.value,
         fee_amount: hasFee.value ? feeAmount.value : null,
