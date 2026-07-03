@@ -44,6 +44,8 @@ import NotificationsPage from '@/components/pages/notifications/NotificationsPag
 import SettingsPage from '@/components/pages/profile/SettingsPage.vue'
 import MapPage from '@/components/pages/map/MapPage.vue'
 import CheckInSuccessPage from '@/components/pages/checkin/CheckInSuccessPage.vue'
+import PairingWheelPage from '@/components/pages/tools/PairingWheelPage.vue'
+import GroupDrawWheelPage from '@/components/pages/tools/GroupDrawWheelPage.vue'
 import { ROLE } from '@/constants/index.js'
 
 export const route = [
@@ -438,6 +440,16 @@ export const route = [
     path: '/tournament-landing/:id',
     name: 'tournament-landing',
     component: TournamentLandingPage
+  },
+  {
+    path: '/pairing-wheel',
+    name: 'pairing-wheel',
+    component: PairingWheelPage
+  },
+  {
+    path: '/group-draw-wheel',
+    name: 'group-draw-wheel',
+    component: GroupDrawWheelPage
   },
   {
     path: '/under-construction',
