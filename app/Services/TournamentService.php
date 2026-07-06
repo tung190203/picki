@@ -25,7 +25,18 @@ class TournamentService
             // Khởi tạo standings cho home team
             if (!isset($standings[$homeId])) {
                 $standings[$homeId] = [
-                    'team' => self::formatTeam($match->homeTeam),
+                    'team' => [
+                        'id' => $match->homeTeam->id,
+                        'name' => $match->homeTeam->name,
+                        'team_avatar' => $match->homeTeam->avatar,
+                        'members' => $match->homeTeam->members->map(fn($u) => [
+                            'id' => $u->id,
+                            'full_name' => $u->full_name,
+                            'avatar_url' => $u->avatar_url,
+                            'name' => $u->full_name,
+                            'avatar' => $u->avatar_url,
+                        ])->values(),
+                    ],
                     'played' => 0,
                     'won' => 0,
                     'draw' => 0,
@@ -42,7 +53,18 @@ class TournamentService
             // Khởi tạo standings cho away team
             if (!isset($standings[$awayId])) {
                 $standings[$awayId] = [
-                    'team' => self::formatTeam($match->awayTeam),
+                    'team' => [
+                        'id' => $match->awayTeam->id,
+                        'name' => $match->awayTeam->name,
+                        'team_avatar' => $match->awayTeam->avatar,
+                        'members' => $match->awayTeam->members->map(fn($u) => [
+                            'id' => $u->id,
+                            'full_name' => $u->full_name,
+                            'avatar_url' => $u->avatar_url,
+                            'name' => $u->full_name,
+                            'avatar' => $u->avatar_url,
+                        ])->values(),
+                    ],
                     'played' => 0,
                     'won' => 0,
                     'draw' => 0,

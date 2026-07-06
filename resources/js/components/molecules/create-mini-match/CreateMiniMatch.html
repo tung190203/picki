@@ -36,7 +36,10 @@
                                 <MatchScoreInput
                                     v-model="scores"
                                     :can-edit="isCreator"
+                                    :match-id="currentMatchId"
+                                    match-type="mini-tournament"
                                     @open-referee="openRefereeScreen"
+                                    @open-live-score="goToLiveScore"
                                 />
                             </div>
                         </div>

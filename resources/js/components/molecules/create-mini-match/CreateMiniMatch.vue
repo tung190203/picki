@@ -11,6 +11,7 @@ import UserCard from '@/components/molecules/UserCard.vue'
 import InviteUserParticipant from '@/components/molecules/InviteUserParticipant.vue'
 import RefereeScoringScreen from '@/components/molecules/referee-scoring/RefereeScoringScreen.vue'
 import MatchScoreInput from '@/components/molecules/MatchScoreInput.vue'
+import {useRouter} from 'vue-router'
 
 export default {
     name: 'CreateMiniMatch',
@@ -47,6 +48,7 @@ export default {
         const showUserModal = ref(false)
         const selectingTeam = ref(null)
         const MATCH_TYPE_SINGLE = 2
+        const router = useRouter()
 
         const scores = ref([{ team1: 0, team2: 0 }])
         const showRefereeScreen = ref(false)
@@ -260,6 +262,11 @@ export default {
             showRefereeScreen.value = false
         }
 
+        const goToLiveScore = ({ matchId, matchType }) => {
+            if (!matchId) return
+            router.push({ name: 'live-score', params: { matchType, matchId } })
+        }
+
         const team1ForReferee = computed(() => ({
             name: text_team1.value,
             members: team1Users.value.map(u => ({ user: u }))
@@ -377,6 +384,7 @@ export default {
             openRefereeScreen,
             onRefereeDone,
             onRefereeBack,
+            goToLiveScore,
             team1ForReferee,
             team2ForReferee,
             currentMatchId,
