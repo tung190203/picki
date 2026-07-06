@@ -46,6 +46,7 @@ import MapPage from '@/components/pages/map/MapPage.vue'
 import CheckInSuccessPage from '@/components/pages/checkin/CheckInSuccessPage.vue'
 import PairingWheelPage from '@/components/pages/tools/PairingWheelPage.vue'
 import GroupDrawWheelPage from '@/components/pages/tools/GroupDrawWheelPage.vue'
+import LiveScorePage from '@/components/pages/live-score/LiveScorePage.vue'
 import { ROLE } from '@/constants/index.js'
 
 export const route = [
@@ -440,6 +441,11 @@ export const route = [
     path: '/tournament-landing/:id',
     name: 'tournament-landing',
     component: TournamentLandingPage
+  },
+  {
+    path: '/live-score/:matchType/:matchId',
+    name: 'live-score',
+    component: LiveScorePage
   },
   {
     path: '/pairing-wheel',

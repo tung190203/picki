@@ -140,6 +140,7 @@ const linkClass = (path) => {
 };
 
 const goToProfile = (id) => {
+    if (!id) return;
     router.push({ name: 'profile', params: { id } });
 };
 </script>

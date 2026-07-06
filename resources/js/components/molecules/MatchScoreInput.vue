@@ -49,12 +49,18 @@
             <ClipboardIcon class="w-5 h-5" />
             <span class="text-sm">Nhập điểm trọng tài</span>
         </button>
+
+        <button v-if="matchId != null && matchType" @click="$emit('open-live-score', { matchId, matchType })"
+                class="w-full flex justify-center items-center gap-2 border-2 border-blue-400 p-3 rounded-lg text-blue-500 hover:bg-blue-50 transition-colors font-semibold">
+            <PlayIcon class="w-5 h-5" />
+            <span class="text-sm">Xem điểm trực tiếp</span>
+        </button>
     </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
-import { MinusIcon, PlusIcon, XMarkIcon } from '@heroicons/vue/24/solid'
+import { MinusIcon, PlusIcon, XMarkIcon, PlayIcon } from '@heroicons/vue/24/solid'
 import { ClipboardIcon } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
@@ -70,10 +76,18 @@ const props = defineProps({
     label: {
         type: String,
         default: 'Kết quả'
+    },
+    matchId: {
+        type: [Number, String],
+        default: null
+    },
+    matchType: {
+        type: String,
+        default: null
     }
 })
 
-const emit = defineEmits(['update:modelValue', 'open-referee'])
+const emit = defineEmits(['update:modelValue', 'open-referee', 'open-live-score'])
 
 const localScores = computed({
     get: () => props.modelValue,

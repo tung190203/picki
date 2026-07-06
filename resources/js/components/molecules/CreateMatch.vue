@@ -103,7 +103,10 @@
                                     v-model="scores"
                                     label="Kết quả"
                                     :can-edit="true"
+                                    :match-id="currentLeg.id"
+                                    match-type="tournament"
                                     @open-referee="openRefereeScreen"
+                                    @open-live-score="goToLiveScore"
                                 />
 
                                 <!-- Nút tiến vào vòng trong -->
@@ -207,6 +210,7 @@ import { useUserStore } from '@/store/auth'
 import { storeToRefs } from 'pinia'
 import RefereeScoringScreen from '@/components/molecules/referee-scoring/RefereeScoringScreen.vue'
 import MatchScoreInput from './MatchScoreInput.vue'
+import { useRouter } from 'vue-router'
 
 /* ===================== PROPS ===================== */
 const props = defineProps({
@@ -217,6 +221,7 @@ const props = defineProps({
 
 /* ===================== AUTH ===================== */
 const userStore = useUserStore()
+const router = useRouter()
 const { getUser } = storeToRefs(userStore)
 const isCreator = computed(() => {
     return props.tournament?.tournament_staff?.some(
@@ -402,6 +407,11 @@ const qrCodeUrl = computed(() => {
 const openRefereeScreen = () => {
     showRefereeScreen.value = true
 }
+
+        const goToLiveScore = ({ matchId, matchType }) => {
+            if (!matchId) return
+            router.push({ name: 'live-score', params: { matchType, matchId } })
+        }
 
 const onRefereeDone = (refereeScores) => {
     scores.value = refereeScores.map(s => ({

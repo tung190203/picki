@@ -335,13 +335,23 @@ class MiniTournament extends Model
         if ($this->status === self::STATUS_CLOSED) {
             return true;
         }
-        if ($this->end_time) {
-            $endTime = $this->end_time instanceof \Carbon\Carbon
-                ? $this->end_time
-                : \Carbon\Carbon::parse($this->end_time);
-            return $endTime->isPast();
+
+        $matches = $this->matches()->get();
+        if ($matches->isEmpty()) {
+            return false;
         }
-        return false;
+
+        $maxRound = $matches->max('round');
+
+        if ($this->format === self::FORMAT_SINGLE) {
+            $finalMatch = $matches
+                ->where('round', $maxRound)
+                ->where('participant_win_id', '!=', null)
+                ->first();
+            return $finalMatch !== null;
+        }
+
+        return $matches->every(fn($m) => $m->status === 'completed');
     }
 
     public function participants()
