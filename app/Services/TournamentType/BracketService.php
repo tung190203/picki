@@ -177,6 +177,36 @@ class BracketService
     }
 
     /**
+     * Format team data — lightweight (không hydrate members)
+     */
+    public function formatTeamLightweight($team, ?string $placeholderText = null): ?array
+    {
+        if (!$team) {
+            return [
+                'id' => null,
+                'name' => $placeholderText ?? 'TBD',
+                'team_avatar' => null,
+                'members' => [],
+            ];
+        }
+
+        $members = $team->members->map(fn($user) => [
+            'id' => $user->id,
+            'full_name' => $user->full_name,
+            'avatar_url' => $user->avatar_url,
+            'name' => $user->full_name,
+            'avatar' => $user->avatar_url,
+        ])->values();
+
+        return [
+            'id' => $team->id,
+            'name' => $team->name,
+            'team_avatar' => $team->avatar,
+            'members' => $members,
+        ];
+    }
+
+    /**
      * Lấy tên round dựa trên số cặp đấu
      */
     public function getRoundName(int $round, int $pairCount, int $format): string

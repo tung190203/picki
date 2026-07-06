@@ -233,6 +233,18 @@ class TournamentType extends Model
         return $this->hasMany(PoolAdvancementRule::class);
     }
 
+    public function teams()
+    {
+        return $this->hasManyThrough(
+            Team::class,
+            Tournament::class,
+            'id',
+            'tournament_id',
+            'tournament_id',
+            'id'
+        );
+    }
+
     protected static function boot()
     {
         parent::boot();
