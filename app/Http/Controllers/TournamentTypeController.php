@@ -1509,6 +1509,12 @@ const PAIRING_MODE_MANUAL = 'manual';
             ->orderBy('leg')
             ->get();
 
+        // Preload all next_match records to avoid N+1 queries
+        $nextMatchIds = $matches->pluck('next_match_id')->filter()->unique()->toArray();
+        $nextMatchesById = $nextMatchIds
+            ? Matches::whereIn('id', $nextMatchIds)->get()->keyBy('id')
+            : collect();
+
         // ✅ FIX: Tìm round chung kết (round cao nhất KHÔNG PHẢI tranh hạng 3)
         $finalRound = $matches
             ->filter(fn($m) => !($m->is_third_place ?? false))
@@ -1516,7 +1522,7 @@ const PAIRING_MODE_MANUAL = 'manual';
 
         $bracket = $matches
             ->groupBy('round')
-            ->map(function ($roundMatches, $round) use ($type, $finalRound, $tournamentId) {
+            ->map(function ($roundMatches, $round) use ($type, $finalRound, $tournamentId, $nextMatchesById) {
 
                 // ✅ SỬA: Group 2 leg thành 1 match - Dùng match_pair_id hoặc logic ổn định
                 $grouped = $roundMatches->groupBy(function ($match) {
@@ -1556,7 +1562,7 @@ const PAIRING_MODE_MANUAL = 'manual';
                 return [
                     'round' => $round,
                     'round_name' => $roundName,
-                    'matches' => $grouped->map(function ($matchGroup) use ($round, $finalRound, $tournamentId) {
+                    'matches' => $grouped->map(function ($matchGroup) use ($round, $finalRound, $tournamentId, $nextMatchesById) {
 
                         $first = $matchGroup->first();
                         $homeTeamId = $first->home_team_id;
@@ -1610,7 +1616,7 @@ const PAIRING_MODE_MANUAL = 'manual';
                                 'home' => $homeTotal,
                                 'away' => $awayTotal,
                             ],
-                            'winner_team_id' => $this->determineWinner($homeTotal, $awayTotal, $homeTeamId, $awayTeamId, $first, $matchGroup),
+                            'winner_team_id' => $this->determineWinner($homeTotal, $awayTotal, $homeTeamId, $awayTeamId, $first, $matchGroup, $nextMatchesById),
                             'next_match_id' => $first->next_match_id,
                             'next_position' => $first->next_position,
                             'best_loser_source_round' => $first->best_loser_source_round,
@@ -1726,6 +1732,12 @@ const PAIRING_MODE_MANUAL = 'manual';
             ->orderBy('leg')
             ->get();
 
+        // Preload all next_match records to avoid N+1 queries
+        $knockoutNextMatchIds = $knockoutMatches->pluck('next_match_id')->filter()->unique()->toArray();
+        $knockoutNextMatchesById = $knockoutNextMatchIds
+            ? Matches::whereIn('id', $knockoutNextMatchIds)->get()->keyBy('id')
+            : collect();
+
         // ✅ FIX: Tìm round chung kết knockout (round cao nhất KHÔNG PHẢI tranh hạng 3)
         $finalKnockoutRound = $knockoutMatches
             ->filter(fn($m) => !($m->is_third_place ?? false))
@@ -1735,7 +1747,8 @@ const PAIRING_MODE_MANUAL = 'manual';
             $type,
             $advancementRules,
             $finalKnockoutRound,
-            $tournamentId
+            $tournamentId,
+            $knockoutNextMatchesById
         ) {
             $numLegs = (int) ($type->num_legs ?? 1);
             $sortedMatches = $roundMatches->sortBy('id')->values();
@@ -1754,7 +1767,8 @@ const PAIRING_MODE_MANUAL = 'manual';
                     $advancementRules,
                     $round,
                     $finalKnockoutRound,
-                    $tournamentId
+                    $tournamentId,
+                    $knockoutNextMatchesById
                 ) {
                     $first = $matchGroup->first();
 
@@ -1833,7 +1847,7 @@ const PAIRING_MODE_MANUAL = 'manual';
                             'home' => $homeTotal,
                             'away' => $awayTotal,
                         ],
-                        'winner_team_id' => $this->determineWinner($homeTotal, $awayTotal, $homeTeamId, $awayTeamId, $first, $matchGroup),
+                        'winner_team_id' => $this->determineWinner($homeTotal, $awayTotal, $homeTeamId, $awayTeamId, $first, $matchGroup, $knockoutNextMatchesById),
                         'status' => $matchGroup->every(fn ($l) => $l->status === 'completed') ? 'completed' : 'pending',
                     ];
                 })->values(),
@@ -1963,11 +1977,17 @@ const PAIRING_MODE_MANUAL = 'manual';
             ->orderBy('leg')
             ->get();
 
+        // Preload all next_match records to avoid N+1 queries
+        $knockoutNextMatchIds = $knockoutMatches->pluck('next_match_id')->filter()->unique()->toArray();
+        $knockoutNextMatchesById = $knockoutNextMatchIds
+            ? Matches::whereIn('id', $knockoutNextMatchIds)->get()->keyBy('id')
+            : collect();
+
         $finalKnockoutRound = $knockoutMatches
             ->filter(fn($m) => !($m->is_third_place ?? false))
             ->max('round') ?? 2;
 
-        $allKnockoutRounds = $knockoutMatches->groupBy('round')->map(function ($roundMatches, $round) use ($type, $finalKnockoutRound, $tournamentId) {
+        $allKnockoutRounds = $knockoutMatches->groupBy('round')->map(function ($roundMatches, $round) use ($type, $finalKnockoutRound, $tournamentId, $knockoutNextMatchesById) {
             $numLegs = (int) ($type->num_legs ?? 1);
             $sortedMatches = $roundMatches->sortBy('id')->values();
             $matchGroups = $sortedMatches->chunk($numLegs);
@@ -1977,7 +1997,7 @@ const PAIRING_MODE_MANUAL = 'manual';
                 $roundName = 'Tranh hạng Ba';
             }
 
-            $matchesData = $matchGroups->map(function ($matchGroup) use ($round, $finalKnockoutRound, $tournamentId) {
+            $matchesData = $matchGroups->map(function ($matchGroup) use ($round, $finalKnockoutRound, $tournamentId, $knockoutNextMatchesById) {
                 $first = $matchGroup->first();
                 $homeTeamId = $first->home_team_id;
                 $awayTeamId = $first->away_team_id;
@@ -2008,7 +2028,7 @@ const PAIRING_MODE_MANUAL = 'manual';
                     'is_third_place' => $first->is_third_place ?? false,
                     'scheduled_at' => $firstLeg->scheduled_at,
                     'court' => $firstLeg->court,
-                    'winner_team_id' => $this->determineWinner($homeTotal, $awayTotal, $homeTeamId, $awayTeamId, $first, $matchGroup),
+                    'winner_team_id' => $this->determineWinner($homeTotal, $awayTotal, $homeTeamId, $awayTeamId, $first, $matchGroup, $knockoutNextMatchesById),
                     'next_match_id' => $first->next_match_id,
                     'next_position' => $first->next_position,
                 ];
@@ -3123,7 +3143,7 @@ const PAIRING_MODE_MANUAL = 'manual';
 
         return round($average, 2);
     }
-    private function determineWinner($homeTotal, $awayTotal, $homeTeamId, $awayTeamId, $firstMatch, $matchGroup)
+    private function determineWinner($homeTotal, $awayTotal, $homeTeamId, $awayTeamId, $firstMatch, $matchGroup, $nextMatchesById = [])
     {
         if (!$matchGroup->every(fn($l) => $l->status === 'completed')) {
             return null;
@@ -3132,9 +3152,12 @@ const PAIRING_MODE_MANUAL = 'manual';
         if ($homeTotal > $awayTotal) return $homeTeamId;
         if ($awayTotal > $homeTotal) return $awayTeamId;
 
-        // TH HÒA → Kiểm tra advance thủ công
+        // TH HÒA → Kiểm tra advance thủ công (dùng preloaded map để tránh N+1)
         if ($homeTotal === $awayTotal && $firstMatch->next_match_id) {
-            $nextMatch = Matches::find($firstMatch->next_match_id);
+            $nextMatch = $nextMatchesById instanceof \Illuminate\Support\Collection
+                ? $nextMatchesById->get($firstMatch->next_match_id)
+                : ($nextMatchesById[$firstMatch->next_match_id] ?? null);
+
             if ($nextMatch) {
                 $advancedTeamId = ($firstMatch->next_position === 'home')
                     ? $nextMatch->home_team_id
