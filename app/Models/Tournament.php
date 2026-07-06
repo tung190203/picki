@@ -341,13 +341,39 @@ class Tournament extends Model
         if ($this->status === self::CLOSED) {
             return true;
         }
-        if ($this->end_date) {
-            $endDate = $this->end_date instanceof \Carbon\Carbon
-                ? $this->end_date
-                : \Carbon\Carbon::parse($this->end_date);
-            return $endDate->isPast();
+
+        $tournamentType = $this->tournamentTypes->first();
+        if (!$tournamentType) {
+            return false;
         }
-        return false;
+
+        $allMatches = $tournamentType->matches()->get();
+        if ($allMatches->isEmpty()) {
+            return false;
+        }
+
+        $maxRound = $allMatches->max('round');
+
+        switch ($tournamentType->format) {
+            case TournamentType::FORMAT_ELIMINATION:
+                $finalMatch = $allMatches
+                    ->where('round', $maxRound)
+                    ->where('is_third_place', false)
+                    ->first();
+                return $finalMatch && $finalMatch->status === 'completed';
+
+            case TournamentType::FORMAT_MIXED:
+                $poolDone = $allMatches->where('round', 1)->every(fn($m) => $m->status === 'completed');
+                $finalMatch = $allMatches
+                    ->where('round', $maxRound)
+                    ->where('is_third_place', false)
+                    ->first();
+                return $poolDone && $finalMatch && $finalMatch->status === 'completed';
+
+            case TournamentType::FORMAT_ROUND_ROBIN:
+            default:
+                return $allMatches->every(fn($m) => $m->status === 'completed');
+        }
     }
 
     public function getPosterUrlAttribute()

@@ -1467,8 +1467,8 @@ const PAIRING_MODE_MANUAL = 'manual';
 
                     return [
                         'match_id' => $leg1->id,
-                        'home_team' => $this->formatTeam($leg1->homeTeam, null, $tournamentId),
-                        'away_team' => $this->formatTeam($leg1->awayTeam, null, $tournamentId),
+                        'home_team' => $this->bracketService->formatTeamLightweight($leg1->homeTeam),
+                        'away_team' => $this->bracketService->formatTeamLightweight($leg1->awayTeam),
                         'is_bye' => $leg1->is_bye,
                         'is_final' => $isFinal,
                         'legs' => $formattedLegs,
@@ -1487,6 +1487,7 @@ const PAIRING_MODE_MANUAL = 'manual';
             'format' => TournamentType::FORMAT_ROUND_ROBIN,
             'format_type_text' => 'round_robin',
             'bracket' => $rounds, // Dùng key 'bracket' để FE dùng chung logic map
+            'is_completed' => $type->tournament->is_completed,
         ]);
     }
 
@@ -1599,8 +1600,8 @@ const PAIRING_MODE_MANUAL = 'manual';
 
                         return [
                             'match_id' => $first->id,
-                            'home_team' => $this->formatTeam($first->homeTeam, null, $tournamentId),
-                            'away_team' => $this->formatTeam($first->awayTeam, $awayPlaceholder, $tournamentId),
+                            'home_team' => $this->bracketService->formatTeamLightweight($first->homeTeam),
+                            'away_team' => $this->bracketService->formatTeamLightweight($first->awayTeam, $awayPlaceholder),
                             'is_bye' => $first->is_bye,
                             'is_third_place' => $first->is_third_place ?? false,
                             'is_final' => $isFinal,
@@ -1623,6 +1624,7 @@ const PAIRING_MODE_MANUAL = 'manual';
             'format_type_text' => 'elimination',
             'bracket' => $bracket,
             'total_rounds' => $bracket->count(),
+            'is_completed' => $type->tournament->is_completed,
         ]);
     }
 
@@ -1691,8 +1693,8 @@ const PAIRING_MODE_MANUAL = 'manual';
 
                     return [
                         'match_id' => $first->id,
-                        'home_team' => $this->formatTeam($first->homeTeam, null, $tournamentId),
-                        'away_team' => $this->formatTeam($first->awayTeam, null, $tournamentId),
+                        'home_team' => $this->bracketService->formatTeamLightweight($first->homeTeam),
+                        'away_team' => $this->bracketService->formatTeamLightweight($first->awayTeam),
                         'is_bye' => $first->is_bye,
                         'is_final' => false, // ✅ Pool stage không có final
                         'legs' => $legs,
@@ -1821,8 +1823,8 @@ const PAIRING_MODE_MANUAL = 'manual';
 
                     return [
                         'match_id' => $first->id,
-                        'home_team' => $this->formatTeam($first->homeTeam, $homePlaceholder, $tournamentId),
-                        'away_team' => $this->formatTeam($first->awayTeam, $awayPlaceholder, $tournamentId),
+                        'home_team' => $this->bracketService->formatTeamLightweight($first->homeTeam, $homePlaceholder),
+                        'away_team' => $this->bracketService->formatTeamLightweight($first->awayTeam, $awayPlaceholder),
                         'is_bye' => $first->is_bye,
                         'is_third_place' => $first->is_third_place ?? false,
                         'is_final' => $isFinal, // ✅ FIXED
@@ -1843,6 +1845,7 @@ const PAIRING_MODE_MANUAL = 'manual';
             'format_type_text' => 'mixed',
             'pool_stage' => $poolStage,
             'knockout_stage' => $knockoutStage,
+            'is_completed' => $type->tournament->is_completed,
         ]);
     }
 
@@ -1856,15 +1859,6 @@ const PAIRING_MODE_MANUAL = 'manual';
             default => "Hạng {$rank}",
         };
     }
-
-    /**
-     * Format team data cho response
-     */
-    public function formatTeam($team, ?string $placeholderText = null, ?int $tournamentId = null): ?array
-    {
-        return $this->bracketService->formatTeam($team, $placeholderText, $tournamentId);
-    }
-
 
     /**
      * Lấy bracket với cấu trúc mới: poolStage, leftSide, rightSide, finalMatch
@@ -1940,8 +1934,8 @@ const PAIRING_MODE_MANUAL = 'manual';
 
                 return [
                     'match_id' => $first->id,
-                    'home_team' => $this->formatTeam($first->homeTeam, null, $tournamentId),
-                    'away_team' => $this->formatTeam($first->awayTeam, null, $tournamentId),
+                    'home_team' => $this->bracketService->formatTeamLightweight($first->homeTeam),
+                    'away_team' => $this->bracketService->formatTeamLightweight($first->awayTeam),
                     'home_score' => $homeTotal,
                     'away_score' => $awayTotal,
                     'status' => $status,
@@ -2005,8 +1999,8 @@ const PAIRING_MODE_MANUAL = 'manual';
 
                 return [
                     'match_id' => $first->id,
-                    'home_team' => $this->formatTeam($first->homeTeam, null, $tournamentId),
-                    'away_team' => $this->formatTeam($first->awayTeam, null, $tournamentId),
+                    'home_team' => $this->bracketService->formatTeamLightweight($first->homeTeam),
+                    'away_team' => $this->bracketService->formatTeamLightweight($first->awayTeam),
                     'home_score' => $homeTotal,
                     'away_score' => $awayTotal,
                     'status' => $status,
@@ -2129,6 +2123,7 @@ const PAIRING_MODE_MANUAL = 'manual';
             'rightSide' => $rightSide->values()->all(),
             'finalMatch' => $finalMatch,
             'thirdPlaceMatch' => $thirdPlaceMatch,
+            'is_completed' => $type->tournament->is_completed,
         ]);
     }
 
