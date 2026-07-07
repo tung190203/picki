@@ -2,14 +2,13 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class MatchResult extends Model
 {
-    use HasFactory;
-
     protected $table = 'match_results';
+
     protected $fillable = [
         'match_id',
         'team_id',
@@ -17,13 +16,26 @@ class MatchResult extends Model
         'set_number',
         'won_match',
         'confirmed',
+        'team_score',
+        'opponent_score',
+        'serving_position',
     ];
-    public function match()
+
+    protected $casts = [
+        'score' => 'integer',
+        'set_number' => 'integer',
+        'team_score' => 'integer',
+        'opponent_score' => 'integer',
+        'serving_position' => 'integer',
+    ];
+
+    public function match(): BelongsTo
     {
         return $this->belongsTo(Matches::class, 'match_id');
     }
-    public function participant()
+
+    public function team(): BelongsTo
     {
-        return $this->belongsTo(Participant::class, 'participant_id');
+        return $this->belongsTo(Team::class, 'team_id');
     }
 }

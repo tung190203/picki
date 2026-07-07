@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Matches;
 use App\Models\MiniTournament;
 use App\Models\QuickMatch;
 use App\Models\Tournament;
@@ -88,4 +89,25 @@ Broadcast::channel('user.presence', function ($user) {
         'full_name' => $user->full_name,
         'avatar_url' => $user->avatar_url,
     ];
+});
+
+/*
+|--------------------------------------------------------------------------
+| Match Score Channel
+|--------------------------------------------------------------------------
+*/
+
+Broadcast::channel('match.{matchId}', function ($user, $matchId) {
+    $match = Matches::find($matchId);
+    if (!$match) return false;
+
+    // Cho phép referee, super_admin, hoặc team members
+    if ($user->is_super_admin) return true;
+    if ((int) $match->referee_id === (int) $user->id) return true;
+
+    $userId = $user->id;
+    $isHomeTeam = $match->homeTeam && $match->homeTeam->members->contains('user_id', $userId);
+    $isAwayTeam = $match->awayTeam && $match->awayTeam->members->contains('user_id', $userId);
+
+    return $isHomeTeam || $isAwayTeam;
 });

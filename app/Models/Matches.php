@@ -32,6 +32,13 @@ class Matches extends Model
         'name_of_match',
         'best_loser_source_round',
         'best_loser_rank',
+        'match_version',
+        'live_status',
+        'started_at',
+        'current_set',
+        'serving_team_id',
+        'team1_timeout_used',
+        'team2_timeout_used',
     ];
 
     const PER_PAGE = 15;
@@ -39,6 +46,14 @@ class Matches extends Model
     const STATUS_PENDING = 'pending';
     const STATUS_COMPLETED = 'completed';
     const STATUS_DISPUTED = 'disputed';
+
+    const LIVE_STATUS_WAITING = 'waiting';
+    const LIVE_STATUS_PLAYING = 'playing';
+    const LIVE_STATUS_TIMEOUT = 'timeout';
+    const LIVE_STATUS_BETWEEN_SETS = 'between_sets';
+    const LIVE_STATUS_FINISHED = 'finished';
+    const LIVE_STATUS_CANCELLED = 'cancelled';
+
     public function tournamentType()
     {
         return $this->belongsTo(TournamentType::class);
@@ -73,6 +88,7 @@ class Matches extends Model
     {
         return $this->belongsTo(Team::class, 'away_team_id');
     }
+
     public function referee()
     {
         return $this->belongsTo(User::class, 'referee_id');

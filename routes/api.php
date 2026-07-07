@@ -8,6 +8,7 @@ use App\Http\Controllers\BannerController;
 use App\Http\Controllers\CompetitionLocationController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\MatchesController;
+use App\Http\Controllers\MatchScoreController;
 use App\Http\Controllers\MiniMatchController;
 use App\Http\Controllers\MiniParticipantController;
 use App\Http\Controllers\MiniTournamentNotificationController;
@@ -491,6 +492,13 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::get('/{matchId}/generate-qr', [MatchesController::class, 'generateQr']);
         Route::post('/confirm-result/{matchId}', [MatchesController::class, 'confirmResult']);
         Route::post('/{matchId}/advance-team-manual', [MatchesController::class, 'advanceTeamManual']);
+
+        // Match Score Realtime
+        Route::middleware(['auth:sanctum'])->prefix('{matchId}/score')->group(function () {
+            Route::post('/start', [MatchScoreController::class, 'start']);
+            Route::post('/update', [MatchScoreController::class, 'update']);
+            Route::get('/current', [MatchScoreController::class, 'current']);
+        });
     });
 
     Route::prefix('participants')->group(function () {
