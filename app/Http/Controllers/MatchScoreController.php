@@ -26,7 +26,7 @@ class MatchScoreController extends Controller
             return ResponseHelper::error(self::ERR_NOT_FOUND, 404);
         }
 
-        if ($match->referee_id !== $user->id && !$user->is_super_admin) {
+        if (!$match->hasScoringPermission($user->id)) {
             return ResponseHelper::error(self::ERR_FORBIDDEN, 403);
         }
 
@@ -58,7 +58,7 @@ class MatchScoreController extends Controller
             return ResponseHelper::error(self::ERR_NOT_FOUND, 404);
         }
 
-        if ($match->referee_id !== $user->id && !$user->is_super_admin) {
+        if (!$match->hasScoringPermission($user->id)) {
             return ResponseHelper::error(self::ERR_FORBIDDEN, 403);
         }
 

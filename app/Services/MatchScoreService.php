@@ -40,7 +40,7 @@ class MatchScoreService
             $match->refresh();
             $match->load(['homeTeam', 'awayTeam', 'results' => fn ($q) => $q->where('set_number', $match->current_set)]);
 
-            event(new MatchScoreUpdated($match));
+            event(new MatchScoreUpdated($match, $match->results));
 
             return $this->formatMatchResponse($match);
         });
@@ -94,7 +94,7 @@ class MatchScoreService
             $match->refresh();
             $match->load(['homeTeam', 'awayTeam', 'results' => fn ($q) => $q->where('set_number', $setNumber)]);
 
-            event(new MatchScoreUpdated($match));
+            event(new MatchScoreUpdated($match, $match->results));
 
             return [
                 'match_id' => $matchId,

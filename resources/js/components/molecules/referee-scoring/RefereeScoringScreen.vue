@@ -271,13 +271,37 @@
 
                     <!-- Action Buttons -->
                     <div class="bg-white px-4 py-2 border-t border-gray-100 flex-shrink-0 space-y-2 relative z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+
+                        <!-- Start Match Button (shown when match not started) -->
+                        <button
+                            v-if="!matchStarted"
+                            type="button"
+                            @click="handleStartMatch"
+                            :disabled="!canStartMatch || isStarting"
+                            class="w-full py-3 rounded-md font-bold text-sm transition-all disabled:opacity-40 shadow-sm flex items-center justify-center gap-2"
+                            :class="canStartMatch && !isStarting
+                                ? 'bg-[#5493E3] hover:bg-[#3a7fc9] active:bg-[#2d6bb0] text-white'
+                                : 'bg-[#5493E3]/30 text-white/60'"
+                        >
+                            <svg v-if="isStarting" class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            <svg v-else class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 3l14 9-14 9V3z"/>
+                            </svg>
+                            {{ isStarting ? 'Đang bắt đầu...' : 'BẮT ĐẦU TRẬN' }}
+                        </button>
+
+                        <!-- Point & Side Out Buttons (shown when match started) -->
+                        <template v-else>
                         <div class="grid grid-cols-2 gap-2">
                             <button
                                 type="button"
                                 @click="handleSideOut"
-                                :disabled="!canStartMatch"
+                                :disabled="!canScore"
                                 class="py-2 rounded-md font-semibold text-sm transition-all disabled:opacity-40 shadow-sm"
-                                :class="canStartMatch ? 'bg-red-600 hover:bg-red-700 active:bg-red-800 text-white' : 'bg-red-100 text-red-300'"
+                                :class="canScore ? 'bg-red-600 hover:bg-red-700 active:bg-red-800 text-white' : 'bg-red-100 text-red-300'"
                             >
                                 SIDE OUT
                                 <span class="block text-[9px] font-normal opacity-80">ĐỔI GIAO BÓNG</span>
@@ -285,9 +309,9 @@
                             <button
                                 type="button"
                                 @click="handlePoint"
-                                :disabled="!canStartMatch"
+                                :disabled="!canScore"
                                 class="py-2 rounded-md font-semibold text-sm transition-all disabled:opacity-40 shadow-sm"
-                                :class="canStartMatch ? 'bg-green-600 hover:bg-green-700 active:bg-green-800 text-white' : 'bg-green-100 text-green-300'"
+                                :class="canScore ? 'bg-green-600 hover:bg-green-700 active:bg-green-800 text-white' : 'bg-green-100 text-green-300'"
                             >
                                 POINT +1
                                 <span class="block text-[9px] font-normal opacity-80">GHI ĐIỂM</span>
@@ -307,12 +331,14 @@
                             <button
                                 type="button"
                                 @click="handleFinishSet"
+                                :disabled="!matchStarted"
                                 class="py-2 bg-[#5493E3] hover:bg-[white] hover:text-[#5493E3] text-white rounded-md font-semibold text-sm transition-all disabled:opacity-50 border border-[#5493E3] hover:border-[#5493E3] flex items-center justify-center gap-1.5"
                             >
                                 <CheckIcon class="w-4 h-4" />
                                 Xong Set
                             </button>
                         </div>
+                        </template>
                     </div>
 
                     <!-- Timeout Overlay -->
@@ -404,6 +430,7 @@ const team1TimeoutUsed = ref(false)
 const team2TimeoutUsed = ref(false)
 const isTimeoutActive = ref(false)
 const timeoutSeconds = ref(60)
+const isStarting = ref(false)
 let timeoutInterval = null
 
 // handIndex: người đang cầm giao bóng trong đội (tay 1 / tay 2)
@@ -575,22 +602,49 @@ const buildPayload = (statusOverride) => ({
 
 // Call API and update version on success
 const callUpdate = async (payload) => {
-    if (!props.matchId) return
+    console.log('[callUpdate] start', { matchId: props.matchId, payload })
+    if (!props.matchId) {
+        console.warn('[callUpdate] no matchId, skipping')
+        return
+    }
     try {
-        const res = await ScoreApi.updateScore(props.matchId, payload)
+        let res
+        if (liveStatus.value === 'waiting') {
+            // First action: start the match first
+            const startPayload = {
+                serving_team_id: payload.serving_team_id,
+                version: version.value,
+            }
+            const startRes = await ScoreApi.startMatchScore(props.matchId, startPayload)
+            // Merge team data from start response
+            if (startRes.team1) {
+                matchData.value = { ...matchData.value, team1: startRes.team1, team2: startRes.team2, sets: startRes.sets }
+            }
+            version.value = startRes.version
+            liveStatus.value = startRes.live_status ?? 'playing'
+            // Then call update with new version
+            res = await ScoreApi.updateScore(props.matchId, { ...payload, version: startRes.version })
+        } else {
+            res = await ScoreApi.updateScore(props.matchId, payload)
+        }
         version.value = res.version
         liveStatus.value = res.live_status ?? liveStatus.value
     } catch (err) {
         if (err.response?.status === 409) {
             toast.error('Trạng thái đã được cập nhật bởi thiết bị khác. Đang đồng bộ...')
-            if (err.response?.data?.data) {
-                syncFromRemote(err.response.data.data)
+            // 409 body: { success: false, error: {...}, data: { full_state } }
+            const remoteData = err.response?.data?.data
+            if (remoteData) {
+                syncFromRemote(remoteData)
             }
         } else {
             toast.error(err.response?.data?.message || 'Lỗi khi cập nhật điểm')
         }
     }
 }
+
+// Local match data for team info passed to Echo events
+const matchData = ref({})
 
 // Sync state from remote Echo / conflict response
 const syncFromRemote = (remoteData) => {
@@ -628,6 +682,32 @@ const swapTeams = () => {
     isSwapped.value = !isSwapped.value
 }
 
+const handleStartMatch = async () => {
+    if (!canStartMatch.value || matchStarted.value) return
+    if (!props.matchId) {
+        // Not a live match — just start locally
+        matchStarted.value = true
+        return
+    }
+
+    isStarting.value = true
+    try {
+        const payload = buildPayload('playing')
+        const res = await ScoreApi.startMatchScore(props.matchId, {
+            serving_team_id: payload.serving_team_id,
+            version: version.value,
+        })
+        version.value = res.version
+        liveStatus.value = res.live_status ?? 'playing'
+        matchStarted.value = true
+        pushHistory()
+    } catch (err) {
+        toast.error(err.response?.data?.message || 'Không thể bắt đầu trận')
+    } finally {
+        isStarting.value = false
+    }
+}
+
 const chooseBall = () => {
     // Trước khi bắt đầu: dùng để chọn đội cầm bóng đầu tiên
     if (!matchStarted.value) {
@@ -640,14 +720,9 @@ const chooseBall = () => {
 }
 
 const handlePoint = () => {
-    if (!matchStarted.value) {
-        if (!canStartMatch.value) return
-        pushHistory()
-        matchStarted.value = true
-    } else {
-        if (!canScore.value) return
-        pushHistory()
-    }
+    if (!matchStarted.value) return
+    if (!canScore.value) return
+    pushHistory()
 
     if (servingTeam.value === 'team1') {
         allSets.value[activeSetIndex.value].team1++
@@ -669,8 +744,8 @@ const handlePoint = () => {
         isFirstServe.value = false
     }
 
-    // Sync to API if live
-    if (props.isLive) {
+    // Sync to API when match has a backend ID
+    if (!!props.matchId) {
         callUpdate(buildPayload('playing'))
     }
 }
@@ -683,14 +758,9 @@ const switchToOpponentFirstServer = () => {
 }
 
 const handleSideOut = () => {
-    if (!matchStarted.value) {
-        if (!canStartMatch.value) return
-        pushHistory()
-        matchStarted.value = true
-    } else {
-        if (!canScore.value) return
-        pushHistory()
-    }
+    if (!matchStarted.value) return
+    if (!canScore.value) return
+    pushHistory()
 
     if (isFirstServe.value) {
         switchToOpponentFirstServer()
@@ -704,8 +774,8 @@ const handleSideOut = () => {
         switchToOpponentFirstServer()
     }
 
-    // Sync to API if live
-    if (props.isLive) {
+    // Sync to API when match has a backend ID
+    if (!!props.matchId) {
         callUpdate(buildPayload('playing'))
     }
 }
@@ -742,7 +812,7 @@ const selectSet = (idx) => {
 
 const handleAddSet = () => {
     // Sync current set before starting new one
-    if (props.isLive) {
+    if (!!props.matchId) {
         callUpdate(buildPayload('between_sets'))
     }
     finishCurrentSet()
@@ -761,7 +831,7 @@ const handleFinishSet = () => {
     }
 
     // Sync final state and emit done
-    if (props.isLive) {
+    if (!!props.matchId) {
         callUpdate(buildPayload('between_sets'))
     }
 
@@ -793,7 +863,7 @@ const startTimeout = (team) => {
         }
     }, 1000)
 
-    if (props.isLive) {
+    if (!!props.matchId) {
         callUpdate(buildPayload('timeout'))
     }
 }

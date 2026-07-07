@@ -275,7 +275,7 @@ const scores = ref([])
 
 /* ===================== LIVE SCORE ===================== */
 const isLiveMatch = computed(() =>
-    currentLeg.value?.live_status === 'playing'
+    !!currentLeg.value?.live_status
 )
 
 const fetchLiveScore = async () => {
@@ -472,11 +472,13 @@ const onRefereeBack = () => {
 }
 
 const team1ForReferee = computed(() => ({
+    id: props.data.home_team?.id,
     name: props.data.home_team?.name || 'Team A',
     members: (props.data.home_team?.members || [])
 }))
 
 const team2ForReferee = computed(() => ({
+    id: props.data.away_team?.id,
     name: props.data.away_team?.name || 'Team B',
     members: (props.data.away_team?.members || [])
 }))

@@ -504,7 +504,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         // GET /current: public - chỉ đọc điểm, ai cũng xem được
         Route::get('/{matchId}/score/current', [MatchScoreController::class, 'current']);
         // POST start/update: cần auth - chỉ trọng tài/super_admin mới được cập nhật
-        Route::middleware(['auth:sanctum'])->prefix('{matchId}/score')->group(function () {
+        Route::middleware(['auth:api'])->prefix('{matchId}/score')->group(function () {
             Route::post('/start', [MatchScoreController::class, 'start']);
             Route::post('/update', [MatchScoreController::class, 'update']);
         });

@@ -98,16 +98,7 @@ Broadcast::channel('user.presence', function ($user) {
 */
 
 Broadcast::channel('match.{matchId}', function ($user, $matchId) {
-    $match = Matches::find($matchId);
-    if (!$match) return false;
-
-    // Cho phép referee, super_admin, hoặc team members
-    if ($user->is_super_admin) return true;
-    if ((int) $match->referee_id === (int) $user->id) return true;
-
-    $userId = $user->id;
-    $isHomeTeam = $match->homeTeam && $match->homeTeam->members->contains('user_id', $userId);
-    $isAwayTeam = $match->awayTeam && $match->awayTeam->members->contains('user_id', $userId);
-
-    return $isHomeTeam || $isAwayTeam;
+    // Match score channel is public - anyone can listen for real-time score updates.
+    // Authorization to UPDATE score is enforced at controller level (referee/super_admin).
+    return true;
 });

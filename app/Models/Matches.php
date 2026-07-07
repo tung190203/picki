@@ -41,6 +41,11 @@ class Matches extends Model
         'team2_timeout_used',
     ];
 
+    protected $casts = [
+        'started_at' => 'datetime',
+        'scheduled_at' => 'datetime',
+    ];
+
     const PER_PAGE = 15;
 
     const STATUS_PENDING = 'pending';
@@ -92,6 +97,23 @@ class Matches extends Model
     public function referee()
     {
         return $this->belongsTo(User::class, 'referee_id');
+    }
+
+    public function tournament()
+    {
+        return $this->tournamentType?->tournament();
+    }
+
+    public function hasScoringPermission(int $userId): bool
+    {
+        if ($userId === $this->referee_id) return true;
+
+        $tournament = $this->tournament;
+        if ($tournament && method_exists($tournament, 'hasScoringPermission')) {
+            if ($tournament->hasScoringPermission($userId)) return true;
+        }
+
+        return false;
     }
 
     protected static function boot()
