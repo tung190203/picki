@@ -37,11 +37,12 @@ Route::middleware('crawler')->group(function () {
     Route::get('/mini-match/{id}/verify', [MetaPreviewController::class, 'miniMatch'])->where('id', '[0-9]+');
     Route::get('/clubs/{clubId}/activities/{activityId}', [MetaPreviewController::class, 'clubActivity'])
         ->where(['clubId' => '[0-9]+', 'activityId' => '[0-9]+']);
-    // Public live score page - không cần đăng nhập
-    Route::get('/live-score/{type}/{matchId}', function () {
-        return view('app');
-    })->where(['type' => 'tournament|mini', 'matchId' => '[0-9]+']);
 });
+
+// Public live score page - không cần đăng nhập, để ngoài crawler middleware
+Route::get('/live-score/{type}/{matchId}', function () {
+    return view('app');
+})->where(['type' => 'tournament|mini', 'matchId' => '[0-9]+']);
 
 /*
 |--------------------------------------------------------------------------
