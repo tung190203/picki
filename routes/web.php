@@ -39,6 +39,11 @@ Route::middleware('crawler')->group(function () {
         ->where(['clubId' => '[0-9]+', 'activityId' => '[0-9]+']);
 });
 
+// Public live score page - không cần đăng nhập, để ngoài crawler middleware
+Route::get('/live-score/{type}/{matchId}', function () {
+    return view('app');
+})->where(['type' => 'tournament|mini', 'matchId' => '[0-9]+']);
+
 /*
 |--------------------------------------------------------------------------
 | SPA catch-all

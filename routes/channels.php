@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Matches;
 use App\Models\MiniTournament;
 use App\Models\QuickMatch;
 use App\Models\Tournament;
@@ -88,4 +89,16 @@ Broadcast::channel('user.presence', function ($user) {
         'full_name' => $user->full_name,
         'avatar_url' => $user->avatar_url,
     ];
+});
+
+/*
+|--------------------------------------------------------------------------
+| Match Score Channel
+|--------------------------------------------------------------------------
+*/
+
+Broadcast::channel('match.{matchId}', function ($user, $matchId) {
+    // Match score channel is public - anyone can listen for real-time score updates.
+    // Authorization to UPDATE score is enforced at controller level (referee/super_admin).
+    return true;
 });

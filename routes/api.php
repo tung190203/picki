@@ -8,6 +8,7 @@ use App\Http\Controllers\BannerController;
 use App\Http\Controllers\CompetitionLocationController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\MatchesController;
+use App\Http\Controllers\MatchScoreController;
 use App\Http\Controllers\MiniMatchController;
 use App\Http\Controllers\MiniParticipantController;
 use App\Http\Controllers\MiniTournamentNotificationController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\PartnerController;
 use App\Http\Controllers\ParticipantController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentGuestController;
+use App\Http\Controllers\PublicLiveScoreController;
 use App\Http\Controllers\TournamentPaymentController;
 use App\Http\Controllers\TournamentTypeController;
 use App\Http\Controllers\UserController;
@@ -128,6 +130,12 @@ Route::prefix('tournaments')->group(function () {
     Route::get('/{id}', [TournamentController::class, 'show']);
     Route::get('/{id}/bracket', [TournamentController::class, 'getBracket']);
     Route::get('/{tournamentId}/leaderboard', [LeaderboardController::class, 'index']);
+});
+
+// Public Live Score Routes - không cần đăng nhập
+Route::prefix('live-score')->group(function () {
+    // {type} = 'tournament' | 'mini'
+    Route::get('/{type}/{matchId}', [PublicLiveScoreController::class, 'show']);
 });
 
 // Search V2 API - Unified search endpoint
@@ -491,6 +499,15 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::get('/{matchId}/generate-qr', [MatchesController::class, 'generateQr']);
         Route::post('/confirm-result/{matchId}', [MatchesController::class, 'confirmResult']);
         Route::post('/{matchId}/advance-team-manual', [MatchesController::class, 'advanceTeamManual']);
+
+        // Match Score Realtime
+        // GET /current: public - chỉ đọc điểm, ai cũng xem được
+        Route::get('/{matchId}/score/current', [MatchScoreController::class, 'current']);
+        // POST start/update: cần auth - chỉ trọng tài/super_admin mới được cập nhật
+        Route::middleware(['auth:api'])->prefix('{matchId}/score')->group(function () {
+            Route::post('/start', [MatchScoreController::class, 'start']);
+            Route::post('/update', [MatchScoreController::class, 'update']);
+        });
     });
 
     Route::prefix('participants')->group(function () {

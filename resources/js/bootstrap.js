@@ -44,6 +44,9 @@ function initEcho(token) {
 const storedToken = localStorage.getItem('access_token');
 if (storedToken && storedToken.trim() !== '') {
     initEcho(storedToken);
+} else {
+    // Initialize Echo for public pages (no auth required)
+    initEcho(null);
 }
 
 // Re-init Echo when the token changes (e.g., after login/register)
