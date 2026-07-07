@@ -17,7 +17,16 @@ class StoreMiniTournamentRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user() && $this->user()->hasAdvancedMiniTournament();
+        if (!$this->user()) {
+            return false;
+        }
+
+        // Only require 3 successful mini-tournaments when creating a recurring schedule
+        if ($this->filled('recurring_schedule')) {
+            return $this->user()->hasAdvancedMiniTournament();
+        }
+
+        return true;
     }
 
     protected function failedAuthorization()

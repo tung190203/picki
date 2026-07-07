@@ -28,6 +28,34 @@ class Handler extends ExceptionHandler
         $this->reportable(function (Throwable $e) {
             //
         });
+
+        $this->renderable(function (\App\Exceptions\VersionConflictException $e, $request) {
+            if ($request->is('api/*')) {
+                $currentMatch = $e->getMatch();
+                $data = null;
+                if ($currentMatch) {
+                    $currentMatch->load(['homeTeam', 'awayTeam', 'results' => fn ($q) => $q->where('set_number', $currentMatch->current_set)]);
+                    $data = [
+                        'match_id' => $currentMatch->id,
+                        'live_status' => $currentMatch->live_status,
+                        'started_at' => $currentMatch->started_at?->toIso8601String(),
+                        'current_set' => $currentMatch->current_set,
+                        'serving_team_id' => $currentMatch->serving_team_id,
+                        'team1_timeout_used' => $currentMatch->team1_timeout_used,
+                        'team2_timeout_used' => $currentMatch->team2_timeout_used,
+                        'version' => $currentMatch->match_version,
+                    ];
+                }
+                return response()->json([
+                    'success' => false,
+                    'error' => [
+                        'code' => 'VERSION_CONFLICT',
+                        'message' => $e->getMessage(),
+                    ],
+                    'data' => $data,
+                ], 409);
+            }
+        });
     }
 
     /**
