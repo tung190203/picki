@@ -343,16 +343,21 @@
 
 <script setup>
 import { CheckIcon, ChevronUpDownIcon, Square3Stack3DIcon, ArrowUturnLeftIcon, ArrowsRightLeftIcon } from '@heroicons/vue/24/outline';
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { toast } from 'vue3-toastify'
 import Ball from '@/assets/images/ball.svg'
 import Hourglass from '@/assets/images/hourglass.svg'
+import * as ScoreApi from '@/service/scoreApi.js'
 
 const props = defineProps({
     team1: { type: Object, required: true },
     team2: { type: Object, required: true },
     miniTournament: { type: Object, required: true },
-    initialScores: { type: Array, default: () => [] }
+    initialScores: { type: Array, default: () => [] },
+    matchId: { type: [Number, String], default: null },
+    isLive: { type: Boolean, default: false },
+    initialVersion: { type: Number, default: 0 },
+    initialServingTeamId: { type: [Number, String], default: null },
 })
 
 const emit = defineEmits(['done', 'back'])
@@ -413,6 +418,13 @@ const courtPositions = ref({
 
 const actionHistory = ref([])
 
+// Real-time state
+const version = ref(props.initialVersion)
+const liveStatus = ref('waiting')
+
+// Echo subscription
+let echoChannel = null
+
 const canStartMatch = computed(() => {
     const team = servingTeam.value
     const pos = serverHandIndex.value
@@ -443,13 +455,10 @@ const initCourt = () => {
 }
 
 const safeClone = (obj) => {
-    // structuredClone có thể tồn tại nhưng vẫn throw (DataCloneError) nếu object chứa ref không clone được (vd: window)
     if (typeof structuredClone === 'function') {
         try {
             return structuredClone(obj)
         } catch (e) {
-            // eslint-disable-next-line no-unused-vars
-            const _ignored = e
             // fallback bên dưới
         }
     }
@@ -459,10 +468,7 @@ const safeClone = (obj) => {
         if (typeof value === 'function') return undefined
         if (typeof value === 'symbol') return undefined
         if (value && typeof value === 'object') {
-            // loại bỏ các object không serialize được / gây vòng lặp
-            // eslint-disable-next-line no-undef
             if (typeof globalThis !== 'undefined' && value === globalThis) return undefined
-            // eslint-disable-next-line no-undef
             if (typeof document !== 'undefined' && value === document) return undefined
             if (seen.has(value)) return undefined
             seen.add(value)
@@ -547,14 +553,65 @@ const rightTeamInfo = computed(() => {
     }
 })
 
-const chooseBall = () => {
-    // Trước khi bắt đầu: dùng để chọn đội cầm bóng đầu tiên
-    if (!matchStarted.value) {
-        servingTeam.value = servingTeam.value === 'team1' ? 'team2' : 'team1'
-        serverNumber.value = 1
-        serverHandIndex.value = 0
-        serveBoxIndex.value = 0
-        isFirstServe.value = true
+// Build servingTeamId for API (home_team_id or away_team_id from team1/team2)
+const servingTeamId = computed(() => {
+    const team1Id = props.team1?.id || props.team1?.team_id
+    const team2Id = props.team2?.id || props.team2?.team_id
+    return servingTeam.value === 'team1' ? team1Id : team2Id
+})
+
+// Build payload for API
+const buildPayload = (statusOverride) => ({
+    team1_score: allSets.value[activeSetIndex.value]?.team1 ?? 0,
+    team2_score: allSets.value[activeSetIndex.value]?.team2 ?? 0,
+    serving_team_id: servingTeamId.value,
+    serving_position: serverHandIndex.value,
+    set_number: activeSetIndex.value + 1,
+    team1_timeout_used: team1TimeoutUsed.value ? 1 : 0,
+    team2_timeout_used: team2TimeoutUsed.value ? 1 : 0,
+    live_status: statusOverride ?? liveStatus.value,
+    version: version.value,
+})
+
+// Call API and update version on success
+const callUpdate = async (payload) => {
+    if (!props.matchId) return
+    try {
+        const res = await ScoreApi.updateScore(props.matchId, payload)
+        version.value = res.version
+        liveStatus.value = res.live_status ?? liveStatus.value
+    } catch (err) {
+        if (err.response?.status === 409) {
+            toast.error('Trạng thái đã được cập nhật bởi thiết bị khác. Đang đồng bộ...')
+            if (err.response?.data?.data) {
+                syncFromRemote(err.response.data.data)
+            }
+        } else {
+            toast.error(err.response?.data?.message || 'Lỗi khi cập nhật điểm')
+        }
+    }
+}
+
+// Sync state from remote Echo / conflict response
+const syncFromRemote = (remoteData) => {
+    version.value = remoteData.version ?? version.value
+    liveStatus.value = remoteData.live_status ?? liveStatus.value
+    servingTeam.value = remoteData.serving_team_id
+        ? (remoteData.serving_team_id == (props.team1?.id || props.team1?.team_id) ? 'team1' : 'team2')
+        : servingTeam.value
+    team1TimeoutUsed.value = remoteData.team1_timeout_used === 1
+    team2TimeoutUsed.value = remoteData.team2_timeout_used === 1
+
+    if (Array.isArray(remoteData.sets)) {
+        remoteData.sets.forEach(s => {
+            const idx = s.set_number - 1
+            if (idx >= 0 && idx < allSets.value.length) {
+                allSets.value[idx] = {
+                    team1: s.team1_score,
+                    team2: s.team2_score,
+                }
+            }
+        })
     }
 }
 
@@ -569,6 +626,17 @@ const swapPositions = (team) => {
 
 const swapTeams = () => {
     isSwapped.value = !isSwapped.value
+}
+
+const chooseBall = () => {
+    // Trước khi bắt đầu: dùng để chọn đội cầm bóng đầu tiên
+    if (!matchStarted.value) {
+        servingTeam.value = servingTeam.value === 'team1' ? 'team2' : 'team1'
+        serverNumber.value = 1
+        serverHandIndex.value = 0
+        serveBoxIndex.value = 0
+        isFirstServe.value = true
+    }
 }
 
 const handlePoint = () => {
@@ -589,7 +657,6 @@ const handlePoint = () => {
 
     if (isDoubles.value) {
         serveBoxIndex.value = serveBoxIndex.value === 0 ? 1 : 0
-
         const team = servingTeam.value
         const arr = courtPositions.value[team]
         if (arr.length >= 2) {
@@ -600,6 +667,11 @@ const handlePoint = () => {
 
     if (isFirstServe.value) {
         isFirstServe.value = false
+    }
+
+    // Sync to API if live
+    if (props.isLive) {
+        callUpdate(buildPayload('playing'))
     }
 }
 
@@ -623,21 +695,19 @@ const handleSideOut = () => {
     if (isFirstServe.value) {
         switchToOpponentFirstServer()
         isFirstServe.value = false
-        return
-    }
-
-    if (!isDoubles.value) {
+    } else if (!isDoubles.value) {
         switchToOpponentFirstServer()
-        return
-    }
-
-    if (serverNumber.value === 1) {
+    } else if (serverNumber.value === 1) {
         serverNumber.value = 2
         serverHandIndex.value = serverHandIndex.value === 0 ? 1 : 0
-        return
+    } else {
+        switchToOpponentFirstServer()
     }
 
-    switchToOpponentFirstServer()
+    // Sync to API if live
+    if (props.isLive) {
+        callUpdate(buildPayload('playing'))
+    }
 }
 
 const handleUndo = () => {
@@ -647,7 +717,6 @@ const handleUndo = () => {
 }
 
 const finishCurrentSet = () => {
-    // Lưu set hiện tại, thêm set mới vào allSets
     const prevSet = allSets.value[currentSetIndex.value]
     currentSetIndex.value++
     activeSetIndex.value = currentSetIndex.value
@@ -672,6 +741,10 @@ const selectSet = (idx) => {
 }
 
 const handleAddSet = () => {
+    // Sync current set before starting new one
+    if (props.isLive) {
+        callUpdate(buildPayload('between_sets'))
+    }
     finishCurrentSet()
 }
 
@@ -687,15 +760,25 @@ const handleFinishSet = () => {
         return
     }
 
-    // Lưu tất cả điểm và đóng màn hình
-    goBack()
+    // Sync final state and emit done
+    if (props.isLive) {
+        callUpdate(buildPayload('between_sets'))
+    }
+
+    const donePayload = allSets.value.map((s, idx) => ({
+        set_number: idx + 1,
+        team1_score: s.team1,
+        team2_score: s.team2,
+    }))
+
+    emit('done', donePayload)
 }
 
 const startTimeout = (team) => {
     if (team === 'team1' && team1TimeoutUsed.value) return
     if (team === 'team2' && team2TimeoutUsed.value) return
 
-    pushHistory() // Lưu snapshot để có thể hoàn tác
+    pushHistory()
     if (team === 'team1') team1TimeoutUsed.value = true
     if (team === 'team2') team2TimeoutUsed.value = true
 
@@ -709,6 +792,10 @@ const startTimeout = (team) => {
             stopTimeout()
         }
     }, 1000)
+
+    if (props.isLive) {
+        callUpdate(buildPayload('timeout'))
+    }
 }
 
 const stopTimeout = () => {
@@ -721,28 +808,74 @@ const handleTimeout = () => {
     // Placeholder for other global actions
 }
 
-
 const goBack = () => {
     const nonEmpty = allSets.value.filter(s => s.team1 > 0 || s.team2 > 0)
     if (nonEmpty.length > 0) {
-        emit('done', nonEmpty)
+        const donePayload = allSets.value.map((s, idx) => ({
+            set_number: idx + 1,
+            team1_score: s.team1,
+            team2_score: s.team2,
+        }))
+        emit('done', donePayload)
     } else {
         emit('back')
+    }
+}
+
+// Setup Echo subscription for live updates
+const setupEcho = () => {
+    if (!props.isLive || !props.matchId || !window.Echo) return
+
+    echoChannel = window.Echo.private(`match.${props.matchId}`)
+    echoChannel.listen('match.score_updated', (data) => {
+        syncFromRemote(data)
+    })
+}
+
+const cleanupEcho = () => {
+    if (echoChannel) {
+        echoChannel.stopListening('match.score_updated')
+        window.Echo.leave(`match.${props.matchId}`)
+        echoChannel = null
     }
 }
 
 onMounted(() => {
     initCourt()
 
+    // Initialize from API response format
     if (props.initialScores && props.initialScores.length > 0) {
-        const nonEmpty = props.initialScores.filter(s => s.team1 > 0 || s.team2 > 0)
-        if (nonEmpty.length > 0) {
-            allSets.value = nonEmpty.map(s => ({ team1: Number(s.team1), team2: Number(s.team2) }))
-            // Giữ set cuối cùng làm set live, không tạo thêm set trống
-            currentSetIndex.value = nonEmpty.length - 1
+        const hasRemoteFormat = props.initialScores[0]?.team1_score !== undefined
+        if (hasRemoteFormat) {
+            allSets.value = props.initialScores.map(s => ({
+                team1: Number(s.team1_score),
+                team2: Number(s.team2_score),
+            }))
+            currentSetIndex.value = allSets.value.length - 1
             activeSetIndex.value = currentSetIndex.value
             matchStarted.value = true
+        } else {
+            const nonEmpty = props.initialScores.filter(s => s.team1 > 0 || s.team2 > 0)
+            if (nonEmpty.length > 0) {
+                allSets.value = nonEmpty.map(s => ({ team1: Number(s.team1), team2: Number(s.team2) }))
+                currentSetIndex.value = nonEmpty.length - 1
+                activeSetIndex.value = currentSetIndex.value
+                matchStarted.value = true
+            }
         }
     }
+
+    // Initialize serving team from initialServingTeamId
+    if (props.initialServingTeamId) {
+        const team1Id = props.team1?.id || props.team1?.team_id
+        servingTeam.value = (props.initialServingTeamId == team1Id) ? 'team1' : 'team2'
+    }
+
+    setupEcho()
+})
+
+onBeforeUnmount(() => {
+    cleanupEcho()
+    if (timeoutInterval) clearInterval(timeoutInterval)
 })
 </script>

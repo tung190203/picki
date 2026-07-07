@@ -105,6 +105,8 @@
                                     :can-edit="true"
                                     :match-id="currentLeg.id"
                                     match-type="tournament"
+                                    :live-score="liveScore"
+                                    :is-live-match="isLiveMatch"
                                     @open-referee="openRefereeScreen"
                                     @open-live-score="goToLiveScore"
                                 />
@@ -192,13 +194,17 @@
         :team2="team2ForReferee"
         :miniTournament="tournamentRulesForReferee"
         :initialScores="scores"
+        :match-id="currentLeg.id"
+        :is-live="isLiveMatch"
+        :initialVersion="liveScore?.version ?? 0"
+        :initial-serving-team-id="liveScore?.serving_team_id"
         @done="onRefereeDone"
         @back="onRefereeBack"
     />
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { MinusIcon, PlusIcon, XMarkIcon, CheckBadgeIcon } from '@heroicons/vue/24/solid'
 import { ClipboardIcon, CalendarDaysIcon, MapPinIcon } from '@heroicons/vue/24/outline'
 import UserCard from './UserCard.vue'
@@ -206,6 +212,7 @@ import { formatEventDate } from '@/composables/formatDatetime.js'
 import QrcodeVue from 'qrcode.vue'
 import { toast } from 'vue3-toastify'
 import * as MatchesServices from '@/service/match.js'
+import * as ScoreApi from '@/service/scoreApi.js'
 import { useUserStore } from '@/store/auth'
 import { storeToRefs } from 'pinia'
 import RefereeScoringScreen from '@/components/molecules/referee-scoring/RefereeScoringScreen.vue'
@@ -245,6 +252,8 @@ const isOpen = computed({
 const isSaving = ref(false)
 const isAdvancing = ref(false)
 const showRefereeScreen = ref(false)
+const liveScore = ref(null)
+let echoChannel = null
 
 /* ===================== LEG LOGIC ===================== */
 const selectedLegIndex = ref(0)
@@ -264,6 +273,38 @@ const decrementCourt = () => {
 /* ===================== SCORES ===================== */
 const scores = ref([])
 
+/* ===================== LIVE SCORE ===================== */
+const isLiveMatch = computed(() =>
+    currentLeg.value?.live_status === 'playing'
+)
+
+const fetchLiveScore = async () => {
+    if (!currentLeg.value?.id) return
+    try {
+        const data = await ScoreApi.getCurrentScore(currentLeg.value.id)
+        liveScore.value = data
+    } catch {
+        // Non-fatal: match may not have started yet
+    }
+}
+
+const setupEchoLiveScore = () => {
+    if (!currentLeg.value?.id || !window.Echo) return
+    cleanupEchoLiveScore()
+    echoChannel = window.Echo.private(`match.${currentLeg.value.id}`)
+    echoChannel.listen('match.score_updated', (data) => {
+        liveScore.value = data
+    })
+}
+
+const cleanupEchoLiveScore = () => {
+    if (echoChannel) {
+        echoChannel.stopListening('match.score_updated')
+        window.Echo.leave(`match.${currentLeg.value?.id}`)
+        echoChannel = null
+    }
+}
+
 /* ===================== INIT SCORES ===================== */
 const initializeScores = () => {
     if (currentLeg.value?.sets) {
@@ -278,9 +319,12 @@ const initializeScores = () => {
 /* ===================== WATCH LEG ===================== */
 watch(
     currentLeg,
-    (leg) => {
+    async (leg) => {
         courtNumber.value = leg?.court || 1
         scores.value = initializeScores()
+        cleanupEchoLiveScore()
+        await fetchLiveScore()
+        setupEchoLiveScore()
     },
     { immediate: true }
 )
@@ -415,8 +459,8 @@ const openRefereeScreen = () => {
 
 const onRefereeDone = (refereeScores) => {
     scores.value = refereeScores.map(s => ({
-        team1: s.team1,
-        team2: s.team2
+        team1: s.team1_score,
+        team2: s.team2_score
     }))
     showRefereeScreen.value = false
 }
@@ -572,4 +616,14 @@ const handleDiscard = () => {
 const handleCancelClose = () => {
     showConfirmClose.value = false
 }
+
+watch(isOpen, (val) => {
+    if (!val) {
+        cleanupEchoLiveScore()
+    }
+})
+
+onBeforeUnmount(() => {
+    cleanupEchoLiveScore()
+})
 </script>

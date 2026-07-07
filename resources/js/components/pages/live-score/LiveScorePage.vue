@@ -145,6 +145,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import * as MatchesServices from '@/service/match.js'
 import * as MiniMatchService from '@/service/miniMatch.js'
+import * as ScoreApi from '@/service/scoreApi.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -155,6 +156,7 @@ const error = ref(null)
 const lastUpdated = ref(null)
 
 let pollInterval = null
+let echoChannel = null
 
 /* ===================== FETCH ===================== */
 const fetchMatchDetail = async () => {
@@ -164,7 +166,12 @@ const fetchMatchDetail = async () => {
         if (!matchId || matchId === 'undefined') return
         let res
         if (matchType === 'tournament') {
-            res = await MatchesServices.detailMatches(matchId)
+            // Prefer real-time score API
+            try {
+                res = await ScoreApi.getCurrentScore(matchId)
+            } catch {
+                res = await MatchesServices.detailMatches(matchId)
+            }
         } else {
             res = await MiniMatchService.detailMiniMatches(matchId)
         }
@@ -244,9 +251,23 @@ const team1ShortName = computed(() => team1Name.value.substring(0, 12))
 const team2ShortName = computed(() => team2Name.value.substring(0, 12))
 
 /* ===================== SETS ===================== */
+const liveSets = ref([])
+
 const displaySets = computed(() => {
     const m = matchData.value
     if (!m) return []
+
+    // New API format: sets array from /score/current response
+    if (m.sets && Array.isArray(m.sets)) {
+        return m.sets.map(s => {
+            const s1 = Number(s.team1_score ?? 0)
+            const s2 = Number(s.team2_score ?? 0)
+            let winner = null
+            if (s1 > s2) winner = 'team1'
+            else if (s2 > s1) winner = 'team2'
+            return { team1Score: s1, team2Score: s2, winner }
+        })
+    }
 
     // Mini-tournament: results_by_sets
     if (m.results_by_sets) {
@@ -316,7 +337,16 @@ onMounted(async () => {
     await fetchMatchDetail()
     enterFullscreen()
 
-    // Poll every 5 seconds
+    // Echo real-time subscription for tournament matches
+    if (route.params.matchType === 'tournament' && matchId && window.Echo) {
+        echoChannel = window.Echo.private(`match.${matchId}`)
+        echoChannel.listen('match.score_updated', (data) => {
+            matchData.value = { ...matchData.value, ...data }
+            lastUpdated.value = new Date()
+        })
+    }
+
+    // Poll every 5 seconds as fallback
     pollInterval = setInterval(async () => {
         await fetchMatchDetail()
     }, 5000)
@@ -326,6 +356,11 @@ onUnmounted(() => {
     if (pollInterval) {
         clearInterval(pollInterval)
         pollInterval = null
+    }
+    if (echoChannel) {
+        echoChannel.stopListening('match.score_updated')
+        window.Echo.leave(`match.${route.params.matchId}`)
+        echoChannel = null
     }
 })
 </script>
