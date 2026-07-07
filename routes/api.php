@@ -17,6 +17,7 @@ use App\Http\Controllers\PartnerController;
 use App\Http\Controllers\ParticipantController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentGuestController;
+use App\Http\Controllers\PublicLiveScoreController;
 use App\Http\Controllers\TournamentPaymentController;
 use App\Http\Controllers\TournamentTypeController;
 use App\Http\Controllers\UserController;
@@ -129,6 +130,12 @@ Route::prefix('tournaments')->group(function () {
     Route::get('/{id}', [TournamentController::class, 'show']);
     Route::get('/{id}/bracket', [TournamentController::class, 'getBracket']);
     Route::get('/{tournamentId}/leaderboard', [LeaderboardController::class, 'index']);
+});
+
+// Public Live Score Routes - không cần đăng nhập
+Route::prefix('live-score')->group(function () {
+    // {type} = 'tournament' | 'mini'
+    Route::get('/{type}/{matchId}', [PublicLiveScoreController::class, 'show']);
 });
 
 // Search V2 API - Unified search endpoint
