@@ -602,11 +602,7 @@ const buildPayload = (statusOverride) => ({
 
 // Call API and update version on success
 const callUpdate = async (payload) => {
-    console.log('[callUpdate] start', { matchId: props.matchId, payload })
-    if (!props.matchId) {
-        console.warn('[callUpdate] no matchId, skipping')
-        return
-    }
+    if (!props.matchId) return
     try {
         let res
         if (liveStatus.value === 'waiting') {

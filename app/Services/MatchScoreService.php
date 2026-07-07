@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Events\MatchScoreUpdated;
+use App\Events\MatchScorePublicUpdated;
 use App\Exceptions\VersionConflictException;
 use App\Models\MatchResult;
 use App\Models\Matches;
@@ -41,6 +42,7 @@ class MatchScoreService
             $match->load(['homeTeam', 'awayTeam', 'results' => fn ($q) => $q->where('set_number', $match->current_set)]);
 
             event(new MatchScoreUpdated($match, $match->results));
+            event(new MatchScorePublicUpdated($match, $match->results));
 
             return $this->formatMatchResponse($match);
         });
@@ -95,6 +97,7 @@ class MatchScoreService
             $match->load(['homeTeam', 'awayTeam', 'results' => fn ($q) => $q->where('set_number', $setNumber)]);
 
             event(new MatchScoreUpdated($match, $match->results));
+            event(new MatchScorePublicUpdated($match, $match->results));
 
             return [
                 'match_id' => $matchId,

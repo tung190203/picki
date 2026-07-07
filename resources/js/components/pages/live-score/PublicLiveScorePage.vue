@@ -168,7 +168,6 @@ const isError = ref(false)
 const errorMessage = ref('')
 const lastUpdated = ref(null)
 
-let pollInterval = null
 let echoChannel = null
 
 // Tournament
@@ -291,7 +290,7 @@ const fetchLiveScore = async () => {
 }
 
 onMounted(async () => {
-    const { matchId, type } = route.params
+    const { matchId } = route.params
     if (!matchId) {
         isLoading.value = false
         isError.value = true
@@ -300,26 +299,29 @@ onMounted(async () => {
     }
     await fetchLiveScore()
 
-    // Echo real-time subscription for tournament matches
-    if (type === 'tournament' && matchId && window.Echo) {
-        echoChannel = window.Echo.private(`match.${matchId}`)
-        echoChannel.listen('match.score_updated', (data) => {
-            matchData.value = { ...matchData.value, ...data }
+    // Echo real-time subscription for public view (no auth required)
+    if (matchId && window.Echo) {
+        echoChannel = window.Echo.channel(`match.${matchId}`)
+        echoChannel.listen('.match.score_updated', (data) => {
+            if (!matchData.value) return
+            matchData.value = {
+                ...matchData.value,
+                live_status: data.live_status,
+                current_set: data.current_set,
+                serving_team_id: data.serving_team_id,
+                team1_timeout_used: data.team1_timeout_used,
+                team2_timeout_used: data.team2_timeout_used,
+                version: data.version,
+                sets: data.sets || [],
+            }
             lastUpdated.value = new Date()
         })
     }
-
-    // Poll every 5 seconds as fallback
-    pollInterval = setInterval(fetchLiveScore, 5000)
 })
 
 onUnmounted(() => {
-    if (pollInterval) {
-        clearInterval(pollInterval)
-        pollInterval = null
-    }
     if (echoChannel) {
-        echoChannel.stopListening('match.score_updated')
+        echoChannel.stopListening('.match.score_updated')
         window.Echo.leave(`match.${route.params.matchId}`)
         echoChannel = null
     }
