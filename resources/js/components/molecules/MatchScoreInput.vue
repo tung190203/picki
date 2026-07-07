@@ -2,7 +2,46 @@
     <div>
         <label class="block text-sm font-semibold text-gray-700 mb-3">{{ label }}</label>
 
-        <div v-for="(score, index) in localScores" :key="index" class="mb-4">
+        <!-- Live score display mode -->
+        <div v-if="isLiveMatch && liveScore" class="space-y-3 mb-4">
+            <div v-for="(set, idx) in liveScore.sets" :key="idx"
+                class="grid grid-cols-[2fr_1fr_2fr] gap-4 items-center p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-[#5493E3]">{{ set.team1_score }}</div>
+                    <div class="text-xs text-gray-500 mt-1">Team 1</div>
+                </div>
+                <div class="flex flex-col items-center gap-1">
+                    <span class="text-sm font-semibold text-gray-600">Set {{ set.set_number }}</span>
+                    <span v-if="set.team1_score > set.team2_score" class="text-[10px] font-bold text-green-600">W</span>
+                    <span v-else-if="set.team2_score > set.team1_score" class="text-[10px] font-bold text-red-500">W</span>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-red-500">{{ set.team2_score }}</div>
+                    <div class="text-xs text-gray-500 mt-1">Team 2</div>
+                </div>
+            </div>
+
+            <!-- Serving indicator -->
+            <div v-if="liveScore.serving_team_id" class="flex items-center justify-center gap-2 text-xs text-gray-500">
+                <span>Đang giao bóng:</span>
+                <span class="font-semibold text-[#5493E3]">
+                    {{ liveScore.serving_team_id == liveScore.team1?.id ? liveScore.team1?.name : liveScore.team2?.name }}
+                </span>
+                <span v-if="liveScore.live_status === 'playing'" class="flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                    Đang đấu
+                </span>
+                <span v-else class="text-gray-400">{{ liveScore.live_status }}</span>
+            </div>
+
+            <!-- Total score -->
+            <div class="flex items-center justify-center gap-3 text-sm font-semibold text-gray-600 pt-1 border-t border-blue-100">
+                <span>Tổng: <span class="text-[#5493E3]">{{ totalTeam1 }}</span> - <span class="text-red-500">{{ totalTeam2 }}</span></span>
+            </div>
+        </div>
+
+        <!-- Manual score input mode -->
+        <div v-for="(score, index) in localScores" :key="'manual-' + index" class="mb-4">
             <div class="grid grid-cols-[2fr_1fr_2fr] gap-4 items-center">
                 <div class="border border-1 border-[#DCDEE6] rounded-lg p-3">
                     <button @click="incrementScore(index, '1')"
@@ -84,6 +123,14 @@ const props = defineProps({
     matchType: {
         type: String,
         default: null
+    },
+    liveScore: {
+        type: Object,
+        default: null
+    },
+    isLiveMatch: {
+        type: Boolean,
+        default: false
     }
 })
 
@@ -94,12 +141,22 @@ const localScores = computed({
     set: (val) => emit('update:modelValue', val)
 })
 
+const totalTeam1 = computed(() => {
+    if (!props.liveScore?.sets) return 0
+    return props.liveScore.sets.reduce((sum, s) => sum + (s.team1_score || 0), 0)
+})
+
+const totalTeam2 = computed(() => {
+    if (!props.liveScore?.sets) return 0
+    return props.liveScore.sets.reduce((sum, s) => sum + (s.team2_score || 0), 0)
+})
+
 const SCORE_UI_MAX = 999
 
 const incrementScore = (idx, team) => {
     const newScores = [...localScores.value]
     newScores[idx] = { ...newScores[idx] }
-    
+
     if (team === '1' && newScores[idx].team1 < SCORE_UI_MAX) newScores[idx].team1++
     if (team === '2' && newScores[idx].team2 < SCORE_UI_MAX) newScores[idx].team2++
     localScores.value = newScores
