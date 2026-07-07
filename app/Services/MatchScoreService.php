@@ -109,9 +109,12 @@ class MatchScoreService
     public function getCurrentState(int $matchId): array
     {
         $match = Matches::with([
-            'homeTeam',
-            'awayTeam',
+            'homeTeam.members.sports.scores',
+            'homeTeam.members.sports.sport',
+            'awayTeam.members.sports.scores',
+            'awayTeam.members.sports.sport',
             'results' => fn ($q) => $q->orderBy('set_number'),
+            'group.tournamentType.tournament.competitionLocation',
         ])->findOrFail($matchId);
 
         return $this->formatMatchResponse($match);
@@ -120,24 +123,66 @@ class MatchScoreService
     protected function formatMatchResponse(Matches $match): array
     {
         $currentSetResults = $match->results->where('team_id', $match->home_team_id);
+        $tournament = $match->group?->tournamentType?->tournament;
+        $tournamentType = $match->group?->tournamentType;
+        $location = $tournament?->competitionLocation;
+
+        $formatTeam = function ($team) {
+            if (!$team) return null;
+            $members = $team->members->map(function ($user) {
+                $vnduprScore = $user->sports
+                    ->where('sport_id', 1)
+                    ->flatMap(fn ($s) => $s->scores ?? [])
+                    ->first(fn ($score) => $score->score_type === 'vndupr_score')
+                    ?->score_value;
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'avatar' => $user->avatar_url
+                        ? (str_starts_with($user->avatar_url, 'http')
+                            ? $user->avatar_url
+                            : config('app.frontend_url') . '/storage/' . $user->avatar_url)
+                        : null,
+                    'vndupr' => $vnduprScore,
+                ];
+            })->values()->toArray();
+            return [
+                'id' => $team->id,
+                'name' => $team->name,
+                'avatar' => $team->avatar,
+                'members' => $members,
+            ];
+        };
 
         return [
             'match_id' => $match->id,
             'live_status' => $match->live_status,
             'started_at' => $match->started_at?->toIso8601String(),
+            'scheduled_at' => $match->scheduled_at?->toIso8601String(),
             'current_set' => $match->current_set,
             'serving_team_id' => $match->serving_team_id,
             'team1_timeout_used' => $match->team1_timeout_used,
             'team2_timeout_used' => $match->team2_timeout_used,
             'version' => $match->match_version,
-            'team1' => $match->homeTeam ? ['id' => $match->homeTeam->id, 'name' => $match->homeTeam->name] : null,
-            'team2' => $match->awayTeam ? ['id' => $match->awayTeam->id, 'name' => $match->awayTeam->name] : null,
+            'team1' => $formatTeam($match->homeTeam),
+            'team2' => $formatTeam($match->awayTeam),
             'sets' => $currentSetResults->map(fn ($r) => [
                 'set_number' => $r->set_number,
                 'team1_score' => $r->team_score,
                 'team2_score' => $r->opponent_score,
                 'serving_position' => $r->serving_position,
             ])->values()->toArray(),
+            'tournament' => $tournament ? [
+                'id' => $tournament->id,
+                'name' => $tournament->name,
+                'poster_url' => $tournament->poster_url,
+                'start_date' => $tournament->start_date,
+                'end_date' => $tournament->end_date,
+                'location_name' => $location?->name,
+                'location_address' => $location?->address,
+            ] : null,
+            'rules' => $tournamentType?->rules,
+            'match_rules' => $tournamentType?->match_rules,
         ];
     }
 }

@@ -100,6 +100,30 @@ class PublicLiveScoreController extends Controller
                 }
             }
 
+            $formatMiniTeamMembers = function ($team) {
+                if (!$team) return [];
+                return $team->members->map(function ($member) {
+                    $user = $member->user;
+                    if (!$user) return null;
+                    $vnduprScore = $user->sports
+                        ? $user->sports->flatMap(fn ($s) => $s->scores ?? [])
+                              ->first(fn ($score) => $score->score_type === 'vndupr_score')
+                              ?->score_value
+                        : null;
+                    $avatar = $user->avatar_url
+                        ? (str_starts_with($user->avatar_url, 'http')
+                            ? $user->avatar_url
+                            : config('app.frontend_url') . '/storage/' . $user->avatar_url)
+                        : null;
+                    return [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'avatar' => $avatar,
+                        'vndupr' => $vnduprScore,
+                    ];
+                })->filter()->values()->toArray();
+            };
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -109,11 +133,13 @@ class PublicLiveScoreController extends Controller
                         'id' => $match->team1?->id,
                         'name' => $team1Name,
                         'avatar' => $team1Avatar,
+                        'members' => $formatMiniTeamMembers($match->team1),
                     ],
                     'team2' => [
                         'id' => $match->team2?->id,
                         'name' => $team2Name,
                         'avatar' => $team2Avatar,
+                        'members' => $formatMiniTeamMembers($match->team2),
                     ],
                     'sets' => $sets,
                     'status' => $match->status,

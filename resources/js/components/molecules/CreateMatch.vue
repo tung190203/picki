@@ -454,7 +454,9 @@ const openRefereeScreen = () => {
 
         const goToLiveScore = ({ matchId, matchType }) => {
             if (!matchId) return
-            router.push({ name: 'live-score', params: { matchType, matchId } })
+            const typeMap = { tournament: 'tournament', 'mini-tournament': 'mini' }
+            const type = typeMap[matchType] || matchType
+            window.open(`/live-score/${type}/${matchId}`, '_blank')
         }
 
 const onRefereeDone = (refereeScores) => {
