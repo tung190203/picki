@@ -459,12 +459,17 @@ const openRefereeScreen = () => {
             window.open(`/live-score/${type}/${matchId}`, '_blank')
         }
 
-const onRefereeDone = (refereeScores) => {
+const onRefereeDone = async (refereeScores) => {
     scores.value = refereeScores.map(s => ({
         team1: s.team1_score,
         team2: s.team2_score
     }))
     showRefereeScreen.value = false
+    try {
+        await persistMatchScores()
+    } catch {
+        // persistMatchScores already shows error toast
+    }
 }
 
 const onRefereeBack = () => {
@@ -510,7 +515,7 @@ const formatResultsForAPI = () => {
 }
 
 /* ===================== SAVE MATCH ===================== */
-const saveMatch = async () => {
+const persistMatchScores = async () => {
     if (isSaving.value) return
     try {
         isSaving.value = true
@@ -519,14 +524,20 @@ const saveMatch = async () => {
             results: formatResultsForAPI()
         }
         const res = await MatchesServices.updateMatches(currentLeg.value.id, payload)
-        toast.success('Cập nhật kết quả thành công!')
         emit('updated', res.data)
-        isOpen.value = false
+        return res
     } catch (err) {
         toast.error(err.response?.data?.message || 'Lỗi khi cập nhật')
+        throw err
     } finally {
         isSaving.value = false
     }
+}
+
+const saveMatch = async () => {
+    await persistMatchScores()
+    toast.success('Cập nhật kết quả thành công!')
+    isOpen.value = false
 }
 
 /* ===================== CONFIRM MATCH ===================== */
