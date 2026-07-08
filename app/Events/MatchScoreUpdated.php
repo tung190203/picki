@@ -52,6 +52,7 @@ class MatchScoreUpdated implements ShouldBroadcast
             'serving_team_id' => $this->match->serving_team_id,
             'team1_timeout_used' => $this->match->team1_timeout_used,
             'team2_timeout_used' => $this->match->team2_timeout_used,
+            'elapsed_seconds' => $startedAt ? max(0, now()->diffInSeconds(\Carbon\Carbon::parse($startedAt))) : null,
             'version' => $this->match->match_version,
             'updated_at' => ($this->match->updated_at instanceof \Carbon\Carbon)
                 ? $this->match->updated_at->toIso8601String()
