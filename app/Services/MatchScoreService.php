@@ -4,19 +4,18 @@ namespace App\Services;
 
 use App\Events\MatchScoreUpdated;
 use App\Events\MatchScorePublicUpdated;
-use App\Exceptions\VersionConflictException;
 use App\Models\MatchResult;
 use App\Models\Matches;
 use Illuminate\Support\Facades\DB;
 
 class MatchScoreService
 {
-    public function startMatch(int $matchId, int $servingTeamId, int $version, int $userId): array
+    public function startMatch(int $matchId, int $servingTeamId, int $userId): array
     {
-        return DB::transaction(function () use ($matchId, $servingTeamId, $version, $userId) {
+        return DB::transaction(function () use ($matchId, $servingTeamId, $userId) {
             $match = Matches::lockForUpdate()->find($matchId);
-            if (!$match || $match->match_version !== $version) {
-                throw new VersionConflictException($match);
+            if (!$match) {
+                throw new \Illuminate\Database\Eloquent\ModelNotFoundException();
             }
 
             $match->update([
@@ -58,8 +57,8 @@ class MatchScoreService
     {
         return DB::transaction(function () use ($matchId, $data, $userId) {
             $match = Matches::lockForUpdate()->find($matchId);
-            if (!$match || $match->match_version !== $data['version']) {
-                throw new VersionConflictException($match);
+            if (!$match) {
+                throw new \Illuminate\Database\Eloquent\ModelNotFoundException();
             }
 
             $setNumber = $data['set_number'];
