@@ -683,6 +683,7 @@ const handleStartMatch = async () => {
         const res = await ScoreApi.startMatchScore(props.matchId, {
             user_id: payload.user_id,
             serving_team_id: payload.serving_team_id,
+            started_at: formatStartedAt(new Date()),
         })
         liveStatus.value = res.live_status ?? 'playing'
         matchStarted.value = true
@@ -692,6 +693,13 @@ const handleStartMatch = async () => {
     } finally {
         isStarting.value = false
     }
+}
+
+// Format Date as "yyyy/MM/dd HH:mm:ss" in local time (matches BE expectation).
+// Server treats this as Asia/Ho_Chi_Minh timezone.
+const formatStartedAt = (date) => {
+    const pad = (n) => String(n).padStart(2, '0')
+    return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
 const chooseBall = () => {

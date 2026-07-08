@@ -33,6 +33,7 @@ class MatchScoreController extends Controller
         $validated = $request->validate([
             'user_id' => 'nullable|integer|exists:users,id',
             'serving_team_id' => 'required|integer',
+            'started_at' => ['nullable', 'string', 'regex:/^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}$/'],
         ]);
 
         // Prefer the user_id sent in body (most recent referee action); fall back to the authenticated user.
@@ -41,7 +42,8 @@ class MatchScoreController extends Controller
         $data = $this->matchScoreService->startMatch(
             $matchId,
             $validated['serving_team_id'],
-            $refereeUserId
+            $refereeUserId,
+            $validated['started_at'] ?? null
         );
 
         return ResponseHelper::single($data, 'Match started successfully');
