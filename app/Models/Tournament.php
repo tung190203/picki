@@ -352,28 +352,7 @@ class Tournament extends Model
             return false;
         }
 
-        $maxRound = $allMatches->max('round');
-
-        switch ($tournamentType->format) {
-            case TournamentType::FORMAT_ELIMINATION:
-                $finalMatch = $allMatches
-                    ->where('round', $maxRound)
-                    ->where('is_third_place', false)
-                    ->first();
-                return $finalMatch && $finalMatch->status === 'completed';
-
-            case TournamentType::FORMAT_MIXED:
-                $poolDone = $allMatches->where('round', 1)->every(fn($m) => $m->status === 'completed');
-                $finalMatch = $allMatches
-                    ->where('round', $maxRound)
-                    ->where('is_third_place', false)
-                    ->first();
-                return $poolDone && $finalMatch && $finalMatch->status === 'completed';
-
-            case TournamentType::FORMAT_ROUND_ROBIN:
-            default:
-                return $allMatches->every(fn($m) => $m->status === 'completed');
-        }
+        return $allMatches->every(fn($m) => $m->status === 'completed');
     }
 
     public function getPosterUrlAttribute()

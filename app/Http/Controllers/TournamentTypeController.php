@@ -2363,14 +2363,68 @@ const PAIRING_MODE_MANUAL = 'manual';
                 return $item;
             });
 
-            return [
-                'group_id' => $group->id,
-                'group_name' => $group->name,
-                'rankings' => $rankings,
-            ];
+        return [
+            'group_id' => $group->id,
+            'group_name' => $group->name,
+            'rankings' => $rankings,
+        ];
         });
 
-        return ResponseHelper::success(['group_rankings' => $groupRankings]);
+        // ✅ TÍNH OVERALL RANKINGS (bảng xếp hạng tổng)
+        $overallRankings = $type->tournament->teams()
+            ->with('members')
+            ->get()
+            ->map(function ($team) use ($type) {
+                $stats = $this->getTeamStats($team->id, $type->id);
+                return array_merge([
+                    'team_id' => $team->id,
+                    'team_name' => $team->name ?? 'Unknown',
+                    'team_avatar' => $team->avatar ?? '',
+                ], $stats);
+            })
+            ->sort(function ($a, $b) use ($rankingRules, $allMatches) {
+                if (($a['played'] ?? 0) == 0 && ($b['played'] ?? 0) > 0) return 1;
+                if (($b['played'] ?? 0) == 0 && ($a['played'] ?? 0) > 0) return -1;
+
+                foreach ($rankingRules as $ruleId) {
+                    switch ($ruleId) {
+                        case TournamentType::RANKING_WIN_DRAW_LOSE_POINTS:
+                            if ($a['points'] !== $b['points']) {
+                                return $b['points'] <=> $a['points'];
+                            }
+                            break;
+                        case TournamentType::RANKING_WIN_RATE:
+                            if (($a['win_rate'] ?? 0) !== ($b['win_rate'] ?? 0)) {
+                                return ($b['win_rate'] ?? 0) <=> ($a['win_rate'] ?? 0);
+                            }
+                            break;
+                        case TournamentType::RANKING_POINTS_WON:
+                            if ($a['point_diff'] !== $b['point_diff']) {
+                                return $b['point_diff'] <=> $a['point_diff'];
+                            }
+                            break;
+                        case TournamentType::RANKING_HEAD_TO_HEAD:
+                            $h2h = $this->getHeadToHeadResultForRank($a['team_id'], $b['team_id'], $allMatches);
+                            if ($h2h !== 0) {
+                                return $h2h;
+                            }
+                            break;
+                        case TournamentType::RANKING_RANDOM_DRAW:
+                            return $a['team_id'] <=> $b['team_id'];
+                    }
+                }
+                if ($a['point_diff'] !== $b['point_diff']) {
+                    return $b['point_diff'] <=> $a['point_diff'];
+                }
+                return $a['team_id'] <=> $b['team_id'];
+            })
+            ->values()
+            ->map(fn($item, $index) => array_merge($item, ['overall_rank' => $index + 1]));
+
+        return ResponseHelper::success([
+            'group_rankings' => $groupRankings,
+            'overall_rankings' => $overallRankings,
+        ]);
     }
 
     /**
