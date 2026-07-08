@@ -196,7 +196,7 @@
         </div>
         <!-- Timeout Overlay -->
         <Transition name="timeout-fade">
-            <div v-if="isTimeoutActive" class="fixed inset-0 z-[70] flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div v-if="showTimeoutOverlay" class="fixed inset-0 z-[70] flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm">
                 <p class="text-white text-5xl font-black tracking-widest mb-8 uppercase drop-shadow-lg" style="font-family: Impact, sans-serif;">
                     Timeout
                 </p>
@@ -243,6 +243,7 @@ const errorMessage = ref('')
 const lastUpdated = ref(null)
 const now = ref(Date.now())
 const isClosingTimeout = ref(false)
+const showTimeoutOverlay = ref(false) // Local state to control overlay visibility
 
 let echoChannel = null
 let nowTimer = null
@@ -336,12 +337,9 @@ const timeoutSecondsDisplay = computed(() => {
     return Math.max(0, 60 - elapsed)
 })
 
-// Close timeout - fetch latest match data to sync with server state
-const closeTimeout = async () => {
-    if (isClosingTimeout.value) return
-    isClosingTimeout.value = true
-    await fetchLiveScore()
-    isClosingTimeout.value = false
+// Close timeout - hide overlay locally (actual timeout end is handled by referee via Echo/polling)
+const closeTimeout = () => {
+    showTimeoutOverlay.value = false
 }
 
 // Set tab label: "11-5" if both scores exist, else "-"
@@ -420,8 +418,15 @@ const getMemberVndupr = (member) => {
 
 // Auto-close timeout when countdown reaches 0
 watch(timeoutSecondsDisplay, (seconds) => {
-    if (isTimeoutActive.value && seconds === 0) {
-        closeTimeout()
+    if (showTimeoutOverlay.value && seconds === 0) {
+        showTimeoutOverlay.value = false
+    }
+})
+
+// Watch for timeout becoming active - show overlay
+watch(isTimeoutActive, (isActive) => {
+    if (isActive) {
+        showTimeoutOverlay.value = true
     }
 })
 
