@@ -123,7 +123,7 @@
                                         <!-- LEFT TOP (Team at Left Pos 2 / Singles Pos 2) -->
                                         <div class="relative flex flex-col items-center justify-center p-2">
                                             <template v-if="isDoubles ? leftTeamInfo.players[1] : (activeSinglesPos === 1 && leftTeamInfo.players[0])">
-                                                <span 
+                                                <span
                                                     class="absolute top-2 left-2 w-6 h-6 rounded-full bg-white border text-sm font-semibold flex items-center justify-center z-10 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
                                                     :class="leftTeamInfo.badgeClass"
                                                 >
@@ -149,7 +149,7 @@
                                         <!-- RIGHT TOP (Team at Right Pos 1 / Singles Pos 1) -->
                                         <div class="relative flex flex-col items-center justify-center p-2">
                                             <template v-if="isDoubles ? rightTeamInfo.players[0] : (activeSinglesPos === 0 && rightTeamInfo.players[0])">
-                                                <span 
+                                                <span
                                                     class="absolute top-2 right-2 w-6 h-6 rounded-full bg-white border text-sm font-semibold flex items-center justify-center z-10 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
                                                     :class="rightTeamInfo.badgeClass"
                                                 >
@@ -175,7 +175,7 @@
                                         <!-- LEFT BOTTOM (Team at Left Pos 1 / Singles Pos 1) -->
                                         <div class="relative flex flex-col items-center justify-center p-2">
                                             <template v-if="isDoubles ? leftTeamInfo.players[0] : (activeSinglesPos === 0 && leftTeamInfo.players[0])">
-                                                <span 
+                                                <span
                                                     class="absolute bottom-2 left-2 w-6 h-6 rounded-full bg-white border text-sm font-semibold flex items-center justify-center z-10 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
                                                     :class="leftTeamInfo.badgeClass"
                                                 >
@@ -201,7 +201,7 @@
                                         <!-- RIGHT BOTTOM (Team at Right Pos 2 / Singles Pos 2) -->
                                         <div class="relative flex flex-col items-center justify-center p-2">
                                             <template v-if="isDoubles ? rightTeamInfo.players[1] : (activeSinglesPos === 1 && rightTeamInfo.players[0])">
-                                                <span 
+                                                <span
                                                     class="absolute bottom-2 right-2 w-6 h-6 rounded-full bg-white border text-sm font-semibold flex items-center justify-center z-10 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
                                                     :class="rightTeamInfo.badgeClass"
                                                 >
@@ -344,7 +344,7 @@
                     <!-- Timeout Overlay -->
                     <div v-if="isTimeoutActive" class="absolute inset-0 bg-gray-900/65 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4">
                         <h3 class="text-white text-3xl font-bold tracking-[0.1em] mb-[60px] pb-6 uppercase drop-shadow-md">TIMEOUT</h3>
-                        
+
                         <!-- Circular Progress -->
                         <div class="relative w-44 h-44 flex items-center justify-center mb-12">
                             <svg class="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 100 100">
@@ -370,10 +370,15 @@
 <script setup>
 import { CheckIcon, ChevronUpDownIcon, Square3Stack3DIcon, ArrowUturnLeftIcon, ArrowsRightLeftIcon } from '@heroicons/vue/24/outline';
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { storeToRefs } from 'pinia'
 import { toast } from 'vue3-toastify'
 import Ball from '@/assets/images/ball.svg'
 import Hourglass from '@/assets/images/hourglass.svg'
+import { useUserStore } from '@/store/auth'
 import * as ScoreApi from '@/service/scoreApi.js'
+
+const userStore = useUserStore()
+const { getUser } = storeToRefs(userStore)
 
 const props = defineProps({
     team1: { type: Object, required: true },
@@ -589,6 +594,7 @@ const servingTeamId = computed(() => {
 
 // Build payload for API
 const buildPayload = (statusOverride) => ({
+    user_id: getUser.value?.id ?? null,
     team1_score: allSets.value[activeSetIndex.value]?.team1 ?? 0,
     team2_score: allSets.value[activeSetIndex.value]?.team2 ?? 0,
     serving_team_id: servingTeamId.value,
@@ -608,6 +614,7 @@ const callUpdate = async (payload) => {
         if (liveStatus.value === 'waiting') {
             // First action: start the match first
             const startPayload = {
+                user_id: payload.user_id,
                 serving_team_id: payload.serving_team_id,
                 version: version.value,
             }
@@ -690,6 +697,7 @@ const handleStartMatch = async () => {
     try {
         const payload = buildPayload('playing')
         const res = await ScoreApi.startMatchScore(props.matchId, {
+            user_id: payload.user_id,
             serving_team_id: payload.serving_team_id,
             version: version.value,
         })

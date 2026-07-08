@@ -31,16 +31,20 @@ class MatchScoreController extends Controller
         }
 
         $validated = $request->validate([
+            'user_id' => 'nullable|integer|exists:users,id',
             'serving_team_id' => 'required|integer',
             'version' => 'required|integer',
         ]);
+
+        // Prefer the user_id sent in body (most recent referee action); fall back to the authenticated user.
+        $refereeUserId = $validated['user_id'] ?? $user->id;
 
         try {
             $data = $this->matchScoreService->startMatch(
                 $matchId,
                 $validated['serving_team_id'],
                 $validated['version'],
-                $user->id
+                $refereeUserId
             );
 
             return ResponseHelper::single($data, 'Match started successfully');
@@ -63,6 +67,7 @@ class MatchScoreController extends Controller
         }
 
         $validated = $request->validate([
+            'user_id' => 'nullable|integer|exists:users,id',
             'team1_score' => 'required|integer|min:0',
             'team2_score' => 'required|integer|min:0',
             'serving_team_id' => 'required|integer',
@@ -76,11 +81,14 @@ class MatchScoreController extends Controller
 
         $validated['set_number'] = $validated['set_number'] ?? 1;
 
+        // Prefer the user_id sent in body (most recent referee action); fall back to the authenticated user.
+        $refereeUserId = $validated['user_id'] ?? $user->id;
+
         try {
             $data = $this->matchScoreService->updateState(
                 $matchId,
                 $validated,
-                $user->id
+                $refereeUserId
             );
 
             return ResponseHelper::single($data, 'Score updated successfully');
