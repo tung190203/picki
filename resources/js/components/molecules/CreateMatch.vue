@@ -196,7 +196,6 @@
         :initialScores="scores"
         :match-id="currentLeg.id"
         :is-live="isLiveMatch"
-        :initialVersion="liveScore?.version ?? 0"
         :initial-serving-team-id="liveScore?.serving_team_id"
         @done="onRefereeDone"
         @back="onRefereeBack"

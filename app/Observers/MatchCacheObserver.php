@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Models\Matches;
 use App\Models\MiniMatch;
+use App\Models\MiniTournament;
 use App\Models\QuickMatch;
 use App\Services\UserSportMatchCounter;
 use Illuminate\Support\Facades\Cache;
@@ -61,6 +62,9 @@ class MatchCacheObserver
                 'class' => get_class($match),
             ]);
         }
+
+        // Auto-complete tournament when all matches are completed
+        $this->checkAndCompleteTournament($match);
     }
 
     protected function handleReverted($match): void
@@ -74,6 +78,137 @@ class MatchCacheObserver
 
         if ($sportId) {
             $this->decrementCounter($match, $sportId);
+        }
+
+        // Revert tournament completion status
+        $this->revertTournamentCompletion($match);
+    }
+
+    protected function checkAndCompleteTournament($match): void
+    {
+        if ($match instanceof Matches) {
+            $this->completeTournamentIfAllMatchesDone($match);
+        } elseif ($match instanceof MiniMatch) {
+            $this->completeMiniTournamentIfAllMatchesDone($match);
+        }
+    }
+
+    protected function completeTournamentIfAllMatchesDone(Matches $match): void
+    {
+        $tournament = $match->group?->tournamentType?->tournament;
+        if (!$tournament) {
+            return;
+        }
+
+        if ($tournament->status === \App\Models\Tournament::CLOSED) {
+            return;
+        }
+
+        $tournamentType = $tournament->tournamentTypes->first();
+        if (!$tournamentType) {
+            return;
+        }
+
+        $allMatches = $tournamentType->matches()->get();
+        if ($allMatches->isEmpty()) {
+            return;
+        }
+
+        $allCompleted = $allMatches->every(fn($m) => $m->status === 'completed');
+        if ($allCompleted) {
+            Log::info('[MatchCacheObserver] All matches completed, auto-completing tournament', [
+                'tournament_id' => $tournament->id,
+                'match_id' => $match->id,
+            ]);
+            $tournament->update(['status' => \App\Models\Tournament::CLOSED]);
+        }
+    }
+
+    protected function completeMiniTournamentIfAllMatchesDone(MiniMatch $match): void
+    {
+        $miniTournament = $match->miniTournament;
+        if (!$miniTournament) {
+            return;
+        }
+
+        if ($miniTournament->status === MiniTournament::STATUS_CLOSED) {
+            return;
+        }
+
+        $allMatches = $miniTournament->matches()->get();
+        if ($allMatches->isEmpty()) {
+            return;
+        }
+
+        $allCompleted = $allMatches->every(fn($m) => $m->status === 'completed');
+        if ($allCompleted) {
+            Log::info('[MatchCacheObserver] All mini matches completed, auto-completing mini tournament', [
+                'mini_tournament_id' => $miniTournament->id,
+                'match_id' => $match->id,
+            ]);
+            $miniTournament->update(['status' => MiniTournament::STATUS_CLOSED]);
+        }
+    }
+
+    protected function revertTournamentCompletion($match): void
+    {
+        if ($match instanceof Matches) {
+            $this->revertTournamentStatus($match);
+        } elseif ($match instanceof MiniMatch) {
+            $this->revertMiniTournamentStatus($match);
+        }
+    }
+
+    protected function revertTournamentStatus(Matches $match): void
+    {
+        $tournament = $match->group?->tournamentType?->tournament;
+        if (!$tournament) {
+            return;
+        }
+
+        if ($tournament->status !== \App\Models\Tournament::CLOSED) {
+            return;
+        }
+
+        $tournamentType = $tournament->tournamentTypes->first();
+        if (!$tournamentType) {
+            return;
+        }
+
+        $hasIncomplete = $tournamentType->matches()
+            ->where('status', '!=', 'completed')
+            ->exists();
+
+        if ($hasIncomplete) {
+            Log::info('[MatchCacheObserver] Match reverted, reverting tournament status', [
+                'tournament_id' => $tournament->id,
+                'match_id' => $match->id,
+            ]);
+            $tournament->update(['status' => \App\Models\Tournament::OPEN]);
+        }
+    }
+
+    protected function revertMiniTournamentStatus(MiniMatch $match): void
+    {
+        $miniTournament = $match->miniTournament;
+        if (!$miniTournament) {
+            return;
+        }
+
+        if ($miniTournament->status !== MiniTournament::STATUS_CLOSED) {
+            return;
+        }
+
+        $hasIncomplete = $miniTournament->matches()
+            ->where('status', '!=', 'completed')
+            ->exists();
+
+        if ($hasIncomplete) {
+            Log::info('[MatchCacheObserver] Mini match reverted, reverting mini tournament status', [
+                'mini_tournament_id' => $miniTournament->id,
+                'match_id' => $match->id,
+            ]);
+            $miniTournament->update(['status' => MiniTournament::STATUS_OPEN]);
         }
     }
 

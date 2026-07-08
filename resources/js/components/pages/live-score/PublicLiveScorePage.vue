@@ -242,6 +242,8 @@ const isError = ref(false)
 const errorMessage = ref('')
 const lastUpdated = ref(null)
 const now = ref(Date.now())
+const tickStart = ref(Date.now())
+const elapsedTick = ref(0)
 const isClosingTimeout = ref(false)
 const showTimeoutOverlay = ref(false) // Local state to control overlay visibility
 
@@ -306,11 +308,12 @@ const winningRuleText = computed(() => {
 })
 
 // Elapsed time text MM:SS
+// Source of truth: elapsed_seconds from BE (computed at moment BE responded/Echo broadcast).
+// We add a local 1s tick so the counter keeps moving without re-fetching.
 const elapsedTimeText = computed(() => {
-    const startedAt = matchData.value?.started_at
-    if (!startedAt) return '00:00'
-    const started = new Date(startedAt).getTime()
-    const elapsed = Math.max(0, Math.floor((now.value - started) / 1000))
+    const baseline = matchData.value?.elapsed_seconds
+    if (baseline == null) return '00:00'
+    const elapsed = Math.max(0, Number(baseline) + Math.floor(elapsedTick.value / 1000))
     const minutes = Math.floor(elapsed / 60)
     const seconds = elapsed % 60
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
@@ -439,6 +442,9 @@ const fetchLiveScore = async () => {
             matchData.value = res.data
             lastUpdated.value = new Date()
             isError.value = false
+            // Reset tick baseline so elapsed counter starts from fresh BE value
+            tickStart.value = Date.now()
+            elapsedTick.value = 0
         } else {
             isError.value = true
             errorMessage.value = res.message || 'Không thể tải dữ liệu'
@@ -461,10 +467,15 @@ onMounted(async () => {
     }
     await fetchLiveScore()
 
-    // Timer for elapsed time display (1s tick)
+    // Timer for elapsed time display (1s tick). Baseline (elapsed_seconds) comes from BE;
+    // we just count ticks locally so the counter advances without re-fetching.
     nowTimer = setInterval(() => {
-        now.value = Date.now()
+        const nowMs = Date.now()
+        now.value = nowMs
+        elapsedTick.value = nowMs - tickStart.value
     }, 1000)
+
+    tickStart.value = Date.now()
 
     // Echo real-time subscription for public view (no auth required)
     if (matchId && window.Echo) {
@@ -478,9 +489,15 @@ onMounted(async () => {
                 serving_team_id: data.serving_team_id,
                 team1_timeout_used: data.team1_timeout_used,
                 team2_timeout_used: data.team2_timeout_used,
+                elapsed_seconds: data.elapsed_seconds ?? matchData.value.elapsed_seconds,
                 version: data.version,
                 sets: data.sets || [],
                 updated_at: data.updated_at || new Date().toISOString(),
+            }
+            // Reset local tick baseline so we add seconds on top of fresh BE value
+            if (typeof data.elapsed_seconds === 'number') {
+                tickStart.value = Date.now()
+                elapsedTick.value = 0
             }
             lastUpdated.value = new Date()
         })

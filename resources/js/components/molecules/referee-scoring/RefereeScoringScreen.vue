@@ -387,7 +387,6 @@ const props = defineProps({
     initialScores: { type: Array, default: () => [] },
     matchId: { type: [Number, String], default: null },
     isLive: { type: Boolean, default: false },
-    initialVersion: { type: Number, default: 0 },
     initialServingTeamId: { type: [Number, String], default: null },
 })
 
@@ -451,7 +450,6 @@ const courtPositions = ref({
 const actionHistory = ref([])
 
 // Real-time state
-const version = ref(props.initialVersion)
 const liveStatus = ref('waiting')
 
 // Echo subscription
@@ -603,10 +601,9 @@ const buildPayload = (statusOverride) => ({
     team1_timeout_used: team1TimeoutUsed.value ? 1 : 0,
     team2_timeout_used: team2TimeoutUsed.value ? 1 : 0,
     live_status: statusOverride ?? liveStatus.value,
-    version: version.value,
 })
 
-// Call API and update version on success
+// Call API and update live status on success
 const callUpdate = async (payload) => {
     if (!props.matchId) return
     try {
@@ -616,42 +613,29 @@ const callUpdate = async (payload) => {
             const startPayload = {
                 user_id: payload.user_id,
                 serving_team_id: payload.serving_team_id,
-                version: version.value,
             }
             const startRes = await ScoreApi.startMatchScore(props.matchId, startPayload)
             // Merge team data from start response
             if (startRes.team1) {
                 matchData.value = { ...matchData.value, team1: startRes.team1, team2: startRes.team2, sets: startRes.sets }
             }
-            version.value = startRes.version
             liveStatus.value = startRes.live_status ?? 'playing'
-            // Then call update with new version
-            res = await ScoreApi.updateScore(props.matchId, { ...payload, version: startRes.version })
+            // Then call update
+            res = await ScoreApi.updateScore(props.matchId, payload)
         } else {
             res = await ScoreApi.updateScore(props.matchId, payload)
         }
-        version.value = res.version
         liveStatus.value = res.live_status ?? liveStatus.value
     } catch (err) {
-        if (err.response?.status === 409) {
-            toast.error('Trạng thái đã được cập nhật bởi thiết bị khác. Đang đồng bộ...')
-            // 409 body: { success: false, error: {...}, data: { full_state } }
-            const remoteData = err.response?.data?.data
-            if (remoteData) {
-                syncFromRemote(remoteData)
-            }
-        } else {
-            toast.error(err.response?.data?.message || 'Lỗi khi cập nhật điểm')
-        }
+        toast.error(err.response?.data?.message || 'Lỗi khi cập nhật điểm')
     }
 }
 
 // Local match data for team info passed to Echo events
 const matchData = ref({})
 
-// Sync state from remote Echo / conflict response
+// Sync state from remote Echo
 const syncFromRemote = (remoteData) => {
-    version.value = remoteData.version ?? version.value
     liveStatus.value = remoteData.live_status ?? liveStatus.value
     servingTeam.value = remoteData.serving_team_id
         ? (remoteData.serving_team_id == (props.team1?.id || props.team1?.team_id) ? 'team1' : 'team2')
@@ -699,9 +683,8 @@ const handleStartMatch = async () => {
         const res = await ScoreApi.startMatchScore(props.matchId, {
             user_id: payload.user_id,
             serving_team_id: payload.serving_team_id,
-            version: version.value,
+            started_at: formatStartedAt(new Date()),
         })
-        version.value = res.version
         liveStatus.value = res.live_status ?? 'playing'
         matchStarted.value = true
         pushHistory()
@@ -710,6 +693,13 @@ const handleStartMatch = async () => {
     } finally {
         isStarting.value = false
     }
+}
+
+// Format Date as "yyyy/MM/dd HH:mm:ss" in local time (matches BE expectation).
+// Server treats this as Asia/Ho_Chi_Minh timezone.
+const formatStartedAt = (date) => {
+    const pad = (n) => String(n).padStart(2, '0')
+    return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
 const chooseBall = () => {

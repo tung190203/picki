@@ -33,24 +33,20 @@ class MatchScoreController extends Controller
         $validated = $request->validate([
             'user_id' => 'nullable|integer|exists:users,id',
             'serving_team_id' => 'required|integer',
-            'version' => 'required|integer',
+            'started_at' => ['nullable', 'string', 'regex:/^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}$/'],
         ]);
 
         // Prefer the user_id sent in body (most recent referee action); fall back to the authenticated user.
         $refereeUserId = $validated['user_id'] ?? $user->id;
 
-        try {
-            $data = $this->matchScoreService->startMatch(
-                $matchId,
-                $validated['serving_team_id'],
-                $validated['version'],
-                $refereeUserId
-            );
+        $data = $this->matchScoreService->startMatch(
+            $matchId,
+            $validated['serving_team_id'],
+            $refereeUserId,
+            $validated['started_at'] ?? null
+        );
 
-            return ResponseHelper::single($data, 'Match started successfully');
-        } catch (\App\Exceptions\VersionConflictException $e) {
-            return $this->handleVersionConflict($e, $matchId);
-        }
+        return ResponseHelper::single($data, 'Match started successfully');
     }
 
     public function update(Request $request, int $matchId): JsonResponse
@@ -76,7 +72,6 @@ class MatchScoreController extends Controller
             'team1_timeout_used' => 'nullable|integer|min:0',
             'team2_timeout_used' => 'nullable|integer|min:0',
             'live_status' => 'nullable|string',
-            'version' => 'required|integer',
         ]);
 
         $validated['set_number'] = $validated['set_number'] ?? 1;
@@ -84,17 +79,13 @@ class MatchScoreController extends Controller
         // Prefer the user_id sent in body (most recent referee action); fall back to the authenticated user.
         $refereeUserId = $validated['user_id'] ?? $user->id;
 
-        try {
-            $data = $this->matchScoreService->updateState(
-                $matchId,
-                $validated,
-                $refereeUserId
-            );
+        $data = $this->matchScoreService->updateState(
+            $matchId,
+            $validated,
+            $refereeUserId
+        );
 
-            return ResponseHelper::single($data, 'Score updated successfully');
-        } catch (\App\Exceptions\VersionConflictException $e) {
-            return $this->handleVersionConflict($e, $matchId);
-        }
+        return ResponseHelper::single($data, 'Score updated successfully');
     }
 
     public function current(int $matchId): JsonResponse
@@ -105,24 +96,5 @@ class MatchScoreController extends Controller
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return ResponseHelper::error(self::ERR_NOT_FOUND, 404);
         }
-    }
-
-    protected function handleVersionConflict(\App\Exceptions\VersionConflictException $e, int $matchId): JsonResponse
-    {
-        $currentMatch = $e->getMatch();
-
-        if ($currentMatch) {
-            $currentState = $this->matchScoreService->getCurrentState($matchId);
-            return response()->json([
-                'success' => false,
-                'error' => [
-                    'code' => 'VERSION_CONFLICT',
-                    'message' => 'Trạng thái đã được cập nhật bởi yêu cầu khác. Vui lòng thử lại.',
-                ],
-                'data' => $currentState,
-            ], 409);
-        }
-
-        return ResponseHelper::error('Version conflict', 409);
     }
 }
