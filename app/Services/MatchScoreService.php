@@ -13,7 +13,7 @@ class MatchScoreService
 {
     public function startMatch(int $matchId, int $servingTeamId, int $version, int $userId): array
     {
-        return DB::transaction(function () use ($matchId, $servingTeamId, $version) {
+        return DB::transaction(function () use ($matchId, $servingTeamId, $version, $userId) {
             $match = Matches::lockForUpdate()->find($matchId);
             if (!$match || $match->match_version !== $version) {
                 throw new VersionConflictException($match);
@@ -26,6 +26,7 @@ class MatchScoreService
                 'serving_team_id' => $servingTeamId,
                 'team1_timeout_used' => 0,
                 'team2_timeout_used' => 0,
+                'referee_id' => $userId,
                 'match_version' => DB::raw('match_version + 1'),
             ]);
 
@@ -39,7 +40,12 @@ class MatchScoreService
             );
 
             $match->refresh();
-            $match->load(['homeTeam', 'awayTeam', 'results' => fn ($q) => $q->where('set_number', $match->current_set)]);
+            $match->load([
+                'homeTeam',
+                'awayTeam',
+                'results' => fn ($q) => $q->where('set_number', $match->current_set),
+                'referee',
+            ]);
 
             event(new MatchScoreUpdated($match, $match->results));
             event(new MatchScorePublicUpdated($match, $match->results));
@@ -50,7 +56,7 @@ class MatchScoreService
 
     public function updateState(int $matchId, array $data, int $userId): array
     {
-        return DB::transaction(function () use ($matchId, $data) {
+        return DB::transaction(function () use ($matchId, $data, $userId) {
             $match = Matches::lockForUpdate()->find($matchId);
             if (!$match || $match->match_version !== $data['version']) {
                 throw new VersionConflictException($match);
@@ -81,6 +87,7 @@ class MatchScoreService
                 'current_set' => $setNumber,
                 'serving_team_id' => $data['serving_team_id'],
                 'live_status' => $data['live_status'] ?? 'playing',
+                'referee_id' => $userId,
                 'match_version' => DB::raw('match_version + 1'),
             ];
 
@@ -94,7 +101,12 @@ class MatchScoreService
             $match->update($updateFields);
 
             $match->refresh();
-            $match->load(['homeTeam', 'awayTeam', 'results' => fn ($q) => $q->where('set_number', $setNumber)]);
+            $match->load([
+                'homeTeam',
+                'awayTeam',
+                'results' => fn ($q) => $q->where('set_number', $setNumber),
+                'referee',
+            ]);
 
             event(new MatchScoreUpdated($match, $match->results));
             event(new MatchScorePublicUpdated($match, $match->results));
@@ -105,6 +117,7 @@ class MatchScoreService
                 'version' => $match->match_version,
                 'event_id' => $match->id,
                 'updated_at' => $match->updated_at?->toIso8601String(),
+                'referee_name' => $match->referee?->full_name,
             ];
         });
     }
@@ -118,6 +131,7 @@ class MatchScoreService
             'awayTeam.members.sports.sport',
             'results' => fn ($q) => $q->orderBy('set_number'),
             'group.tournamentType.tournament.competitionLocation',
+            'referee',
         ])->findOrFail($matchId);
 
         return $this->formatMatchResponse($match);
@@ -129,6 +143,19 @@ class MatchScoreService
         $tournament = $match->group?->tournamentType?->tournament;
         $tournamentType = $match->group?->tournamentType;
         $location = $tournament?->competitionLocation;
+        $rawMatchRules = $tournamentType?->match_rules ?? [];
+        // match_rules in DB may be stored as [{...}] (array of one) or {...} (associative).
+        // Normalize to a single associative array so the FE gets a stable shape.
+        if (is_array($rawMatchRules) && count($rawMatchRules) > 0 && array_is_list($rawMatchRules)) {
+            $matchRules = $rawMatchRules[0] ?? [];
+        } else {
+            $matchRules = is_array($rawMatchRules) ? $rawMatchRules : [];
+        }
+
+        $elapsedSeconds = null;
+        if ($match->started_at) {
+            $elapsedSeconds = max(0, now()->diffInSeconds($match->started_at));
+        }
 
         $formatTeam = function ($team) {
             if (!$team) return null;
@@ -140,7 +167,7 @@ class MatchScoreService
                     ?->score_value;
                 return [
                     'id' => $user->id,
-                    'name' => $user->name,
+                    'name' => $user->full_name,
                     'avatar' => $user->avatar_url
                         ? (str_starts_with($user->avatar_url, 'http')
                             ? $user->avatar_url
@@ -167,6 +194,9 @@ class MatchScoreService
             'team1_timeout_used' => $match->team1_timeout_used,
             'team2_timeout_used' => $match->team2_timeout_used,
             'version' => $match->match_version,
+            'elapsed_seconds' => $elapsedSeconds,
+            'referee_name' => $match->referee?->full_name,
+            'side_switch_interval' => $matchRules['side_switch_interval'] ?? null,
             'team1' => $formatTeam($match->homeTeam),
             'team2' => $formatTeam($match->awayTeam),
             'sets' => $currentSetResults->map(fn ($r) => [
@@ -185,7 +215,7 @@ class MatchScoreService
                 'location_address' => $location?->address,
             ] : null,
             'rules' => $tournamentType?->rules,
-            'match_rules' => $tournamentType?->match_rules,
+            'match_rules' => $matchRules,
         ];
     }
 }
