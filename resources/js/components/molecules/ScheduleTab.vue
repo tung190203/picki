@@ -79,6 +79,7 @@
         </template>
 
         <template v-else-if="data.tournament_types?.[0]?.format === 1">
+            <!-- Bảng xếp hạng theo bảng (vòng bảng) -->
             <div v-for="group in rank.group_rankings" :key="group.group_id" class="p-4 space-y-4">
                 <div class="bg-gray-100 rounded-lg shadow overflow-hidden">
                     <div
@@ -106,6 +107,54 @@
                                     {{ team.team_name }}
                                 </p>
                             </div>
+                            <span class="text-center font-bold text-lg text-blue-600">{{ team.points }}</span>
+                            <span class="text-center font-semibold" :class="{
+                                'text-green-600': team.point_diff > 0,
+                                'text-red-600': team.point_diff < 0,
+                                'text-gray-600': team.point_diff === 0,
+                            }">
+                                {{ team.point_diff > 0 ? "+" : ""
+                                }}{{ team.point_diff }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bảng xếp hạng tổng (chỉ hiển thị khi giải đấu đã hoàn thành) -->
+            <div v-if="data.is_completed && rank.overall_rankings?.length > 0" class="p-4 space-y-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <h3 class="font-bold text-lg text-gray-800">Bảng xếp hạng tổng</h3>
+                    <span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">Hoàn thành</span>
+                </div>
+                <div class="bg-gray-100 rounded-lg shadow overflow-hidden">
+                    <div
+                        class="grid grid-cols-[40px_1fr_80px_80px_80px] bg-gray-200 px-4 py-2 text-gray-600 font-semibold text-sm">
+                        <span>#</span>
+                        <span>Đội</span>
+                        <span class="text-center">Trận</span>
+                        <span class="text-center">Điểm</span>
+                        <span class="text-center">Hiệu số</span>
+                    </div>
+
+                    <div class="divide-y divide-gray-200">
+                        <div v-for="(team, index) in rank.overall_rankings" :key="team.team_id"
+                            class="grid grid-cols-[40px_1fr_80px_80px_80px] items-center px-4 py-3 bg-white hover:bg-blue-50 transition-colors duration-200 cursor-pointer">
+                            <span class="font-bold text-lg" :class="{
+                                'text-yellow-500': index === 0,
+                                'text-gray-400': index === 1,
+                                'text-orange-500': index === 2,
+                            }">{{ team.overall_rank ?? (index + 1) }}</span>
+                            <div class="flex items-center gap-2">
+                                <img :src="team.team_avatar ||
+                                    `https://placehold.co/40x40/BBBFCC/3E414C?text=${getTeamInitials(team.team_name)}`
+                                    " alt="logo team" class="w-8 h-8 rounded-full border border-gray-300" />
+                                <p
+                                    class="text-gray-800 font-medium text-sm break-words whitespace-normal leading-snug min-w-0">
+                                    {{ team.team_name }}
+                                </p>
+                            </div>
+                            <span class="text-center font-semibold text-gray-600">{{ team.played }}</span>
                             <span class="text-center font-bold text-lg text-blue-600">{{ team.points }}</span>
                             <span class="text-center font-semibold" :class="{
                                 'text-green-600': team.point_diff > 0,

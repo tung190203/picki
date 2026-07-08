@@ -4,24 +4,27 @@ namespace App\Services;
 
 use App\Events\MatchScoreUpdated;
 use App\Events\MatchScorePublicUpdated;
-use App\Exceptions\VersionConflictException;
 use App\Models\MatchResult;
 use App\Models\Matches;
 use Illuminate\Support\Facades\DB;
 
 class MatchScoreService
 {
-    public function startMatch(int $matchId, int $servingTeamId, int $version, int $userId): array
+    public function startMatch(int $matchId, int $servingTeamId, int $userId, ?string $startedAt = null): array
     {
-        return DB::transaction(function () use ($matchId, $servingTeamId, $version, $userId) {
+        return DB::transaction(function () use ($matchId, $servingTeamId, $userId, $startedAt) {
             $match = Matches::lockForUpdate()->find($matchId);
-            if (!$match || $match->match_version !== $version) {
-                throw new VersionConflictException($match);
+            if (!$match) {
+                throw new \Illuminate\Database\Eloquent\ModelNotFoundException();
             }
+
+            $resolvedStartedAt = $startedAt
+                ? \Carbon\Carbon::createFromFormat('Y/m/d H:i:s', $startedAt, config('app.timezone'))
+                : now();
 
             $match->update([
                 'live_status' => 'playing',
-                'started_at' => now(),
+                'started_at' => $resolvedStartedAt,
                 'current_set' => 1,
                 'serving_team_id' => $servingTeamId,
                 'team1_timeout_used' => 0,
@@ -58,8 +61,8 @@ class MatchScoreService
     {
         return DB::transaction(function () use ($matchId, $data, $userId) {
             $match = Matches::lockForUpdate()->find($matchId);
-            if (!$match || $match->match_version !== $data['version']) {
-                throw new VersionConflictException($match);
+            if (!$match) {
+                throw new \Illuminate\Database\Eloquent\ModelNotFoundException();
             }
 
             $setNumber = $data['set_number'];
