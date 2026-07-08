@@ -37,6 +37,10 @@ function initEcho(token) {
                 Accept: 'application/json',
             },
         },
+        // Low-latency options
+        disableStats: true,
+        pongTimeout: 30000,
+        activityTimeout: 30000,
     });
 }
 

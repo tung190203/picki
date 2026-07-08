@@ -90,7 +90,7 @@
         </button>
 
         <button v-if="matchId != null && matchType" @click="$emit('open-live-score', { matchId, matchType })"
-                class="w-full flex justify-center items-center gap-2 border-2 border-blue-400 p-3 rounded-lg text-blue-500 hover:bg-blue-50 transition-colors font-semibold">
+                class="w-full flex justify-center items-center gap-2 border-2 mt-4 border-blue-400 p-3 rounded-lg text-blue-500 hover:bg-blue-50 transition-colors font-semibold">
             <PlayIcon class="w-5 h-5" />
             <span class="text-sm">Xem điểm trực tiếp</span>
         </button>

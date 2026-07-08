@@ -117,7 +117,7 @@ class PublicLiveScoreController extends Controller
                         : null;
                     return [
                         'id' => $user->id,
-                        'name' => $user->name,
+                        'name' => $user->full_name,
                         'avatar' => $avatar,
                         'vndupr' => $vnduprScore,
                     ];
@@ -129,6 +129,18 @@ class PublicLiveScoreController extends Controller
                 'data' => [
                     'id' => $match->id,
                     'name' => $match->name ?? "{$team1Name} vs {$team2Name}",
+                    'live_status' => $match->status === 'going_on' ? 'playing' : 'waiting',
+                    'started_at' => null,
+                    'scheduled_at' => null,
+                    'current_set' => 1,
+                    'serving_team_id' => null,
+                    'serving_position' => 0,
+                    'team1_timeout_used' => 0,
+                    'team2_timeout_used' => 0,
+                    'version' => 0,
+                    'elapsed_seconds' => null,
+                    'referee_name' => null,
+                    'side_switch_interval' => null,
                     'team1' => [
                         'id' => $match->team1?->id,
                         'name' => $team1Name,
@@ -143,6 +155,17 @@ class PublicLiveScoreController extends Controller
                     ],
                     'sets' => $sets,
                     'status' => $match->status,
+                    'tournament' => $miniTournament ? [
+                        'id' => $miniTournament->id,
+                        'name' => $miniTournament->name ?? null,
+                        'poster_url' => null,
+                        'start_date' => null,
+                        'end_date' => null,
+                        'location_name' => $miniTournament->location_name ?? null,
+                        'location_address' => $miniTournament->location_address ?? null,
+                    ] : null,
+                    'rules' => null,
+                    'match_rules' => null,
                 ],
                 'type' => 'mini',
             ]);
