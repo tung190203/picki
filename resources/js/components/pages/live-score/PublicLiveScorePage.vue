@@ -105,11 +105,16 @@
                         <div class="flex items-center gap-2">
                             <template v-for="n in 3" :key="n">
                                 <button
-                                    class="px-3 py-1.5 rounded text-sm font-bold tracking-wide transition-colors min-w-[64px]"
+                                    class="px-3 py-1.5 rounded text-sm font-bold tracking-wide transition-colors min-w-[64px] flex items-center gap-1"
                                     :class="n === currentSetNumber
                                         ? 'bg-[rgba(67,146,224,0.22)] text-[#4392E0]'
                                         : 'bg-[rgba(237,238,242,0.22)] text-[#838799]'"
-                                >S{{ n }}: {{ getSetTabLabel(n) }}</button>
+                                >
+                                    S{{ n }}: {{ getSetTabLabel(n) }}
+                                    <svg v-if="isSetFinished(n)" class="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </button>
                                 <span v-if="n < 3" class="text-[#838799] text-sm">•</span>
                             </template>
                         </div>
@@ -353,6 +358,14 @@ const getSetTabLabel = (n) => {
     return `${s.team1_score}-${s.team2_score}`
 }
 
+// Check if a set has finished (has scores recorded and is before current set or status is 'finish')
+const isSetFinished = (n) => {
+    const s = sets.value.find(x => x.set_number === n)
+    if (!s) return false
+    if (s.team1_score == null && s.team2_score == null) return false
+    return n < currentSetNumber.value || matchData.value?.live_status === 'finish'
+}
+
 // Team serving
 const isTeamServing = (teamIndex) => {
     const servingTeamId = matchData.value?.serving_team_id
@@ -367,7 +380,7 @@ const status = computed(() => {
     const d = matchData.value
     if (!d) return 'pending'
     if (d.live_status === 'playing' || d.live_status === 'live') return 'going_on'
-    if (d.live_status === 'completed' || d.live_status === 'done' || d.live_status === 'finished') return 'completed'
+    if (d.live_status === 'completed' || d.live_status === 'done' || d.live_status === 'finished' || d.live_status === 'finish') return 'completed'
     return 'pending'
 })
 const statusLabel = computed(() => MATCH_STATUS_LABEL[status.value] || 'Chờ đấu')
