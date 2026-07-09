@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class UserSport extends Model
 {
@@ -18,6 +19,8 @@ class UserSport extends Model
         'tier',
         'total_matches',
     ];
+
+    protected $appends = ['win_rate'];
 
     public function user()
     {
@@ -36,72 +39,118 @@ class UserSport extends Model
 
     public function getWinRateAttribute(): float
     {
-        $userId = $this->user_id;
-        $sportId = $this->sport_id;
+        return self::calculateWinRate($this->user_id, $this->sport_id);
+    }
 
-        $matchCount = \DB::table('matches as m')
-            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
-            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
-            ->join('team_members as tm', 'tm.team_id', '=', 'm.home_team_id')
-            ->where('tm.user_id', $userId)
-            ->where('t.sport_id', $sportId)
-            ->where('m.status', 'completed')
-            ->count(DB::raw('DISTINCT m.id'));
+    public static function calculateWinRate(int $userId, int $sportId): float
+    {
+        $cacheKey = "user_sport_win_rate:{$userId}:{$sportId}";
 
-        $awayMatchCount = \DB::table('matches as m')
-            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
-            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
-            ->join('team_members as tm', 'tm.team_id', '=', 'm.away_team_id')
-            ->where('tm.user_id', $userId)
-            ->where('t.sport_id', $sportId)
-            ->where('m.status', 'completed')
-            ->count(DB::raw('DISTINCT m.id'));
+        return Cache::remember($cacheKey, 3600, function () use ($userId, $sportId) {
+            $result = DB::select("
+                SELECT 
+                    SUM(total_matches) as total_matches,
+                    SUM(wins) as wins
+                FROM (
+                    -- Tournament home matches
+                    SELECT COUNT(DISTINCT m.id) as total_matches, 0 as wins
+                    FROM matches m
+                    JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                    JOIN tournaments t ON tt.tournament_id = t.id
+                    JOIN team_members tm ON tm.team_id = m.home_team_id
+                    WHERE tm.user_id = ? AND t.sport_id = ? AND m.status = 'completed'
 
-        $miniMatchCount = \DB::table('mini_matches as mm')
-            ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
-            ->join('mini_team_members as mtm', 'mtm.mini_team_id', '=', 'mm.team1_id')
-            ->where('mtm.user_id', $userId)
-            ->where('mnt.sport_id', $sportId)
-            ->where('mm.status', 'completed')
-            ->count(DB::raw('DISTINCT mm.id'));
+                    UNION ALL
 
-        $awayMiniMatchCount = \DB::table('mini_matches as mm')
-            ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
-            ->join('mini_team_members as mtm', 'mtm.mini_team_id', '=', 'mm.team2_id')
-            ->where('mtm.user_id', $userId)
-            ->where('mnt.sport_id', $sportId)
-            ->where('mm.status', 'completed')
-            ->count(DB::raw('DISTINCT mm.id'));
+                    -- Tournament away matches
+                    SELECT COUNT(DISTINCT m.id) as total_matches, 0 as wins
+                    FROM matches m
+                    JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                    JOIN tournaments t ON tt.tournament_id = t.id
+                    JOIN team_members tm ON tm.team_id = m.away_team_id
+                    WHERE tm.user_id = ? AND t.sport_id = ? AND m.status = 'completed'
 
-        $totalMatches = ($matchCount + $awayMatchCount) + ($miniMatchCount + $awayMiniMatchCount);
+                    UNION ALL
 
-        if ($totalMatches === 0) {
-            return 0.0;
+                    -- Mini tournament team1 matches
+                    SELECT COUNT(DISTINCT mm.id) as total_matches, 0 as wins
+                    FROM mini_matches mm
+                    JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                    JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id
+                    WHERE mtm.user_id = ? AND mnt.sport_id = ? AND mm.status = 'completed'
+
+                    UNION ALL
+
+                    -- Mini tournament team2 matches
+                    SELECT COUNT(DISTINCT mm.id) as total_matches, 0 as wins
+                    FROM mini_matches mm
+                    JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                    JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id
+                    WHERE mtm.user_id = ? AND mnt.sport_id = ? AND mm.status = 'completed'
+
+                    UNION ALL
+
+                    -- Tournament home wins
+                    SELECT 0 as total_matches, COUNT(DISTINCT m.id) as wins
+                    FROM matches m
+                    JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                    JOIN tournaments t ON tt.tournament_id = t.id
+                    JOIN team_members tm ON tm.team_id = m.winner_id AND tm.user_id = ?
+                    WHERE tm.user_id = ? AND t.sport_id = ? AND m.status = 'completed' AND m.winner_id IS NOT NULL
+
+                    UNION ALL
+
+                    -- Tournament away wins
+                    SELECT 0 as total_matches, COUNT(DISTINCT m.id) as wins
+                    FROM matches m
+                    JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                    JOIN tournaments t ON tt.tournament_id = t.id
+                    JOIN team_members tm ON tm.team_id = m.winner_id AND tm.user_id = ?
+                    WHERE tm.user_id = ? AND t.sport_id = ? AND m.status = 'completed' AND m.winner_id IS NOT NULL
+
+                    UNION ALL
+
+                    -- Mini tournament team1 wins
+                    SELECT 0 as total_matches, COUNT(DISTINCT mm.id) as wins
+                    FROM mini_matches mm
+                    JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                    JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team_win_id
+                    WHERE mtm.user_id = ? AND mnt.sport_id = ? AND mm.status = 'completed' AND mm.team_win_id IS NOT NULL
+
+                    UNION ALL
+
+                    -- Mini tournament team2 wins
+                    SELECT 0 as total_matches, COUNT(DISTINCT mm.id) as wins
+                    FROM mini_matches mm
+                    JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                    JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team_win_id
+                    WHERE mtm.user_id = ? AND mnt.sport_id = ? AND mm.status = 'completed' AND mm.team_win_id IS NOT NULL
+                ) as combined
+            ", [
+                $userId, $sportId,
+                $userId, $sportId,
+                $userId, $sportId,
+                $userId, $sportId,
+                $userId, $userId, $sportId,
+                $userId, $userId, $sportId,
+                $userId, $sportId,
+                $userId, $sportId,
+            ]);
+
+            if (empty($result) || $result[0]->total_matches == 0) {
+                return 0.0;
+            }
+
+            return round(($result[0]->wins / $result[0]->total_matches) * 100, 2);
+        });
+    }
+
+    public static function invalidateWinRateCache(int $userId, ?int $sportId = null): void
+    {
+        if ($sportId) {
+            Cache::forget("user_sport_win_rate:{$userId}:{$sportId}");
+        } else {
+            Cache::flush();
         }
-
-        $wins = \DB::table('matches as m')
-            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
-            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
-            ->join('team_members as tm', function ($join) use ($userId) {
-                $join->on('tm.team_id', '=', 'm.winner_id')
-                    ->where('tm.user_id', $userId);
-            })
-            ->where('t.sport_id', $sportId)
-            ->where('m.status', 'completed')
-            ->whereNotNull('m.winner_id')
-            ->count(DB::raw('DISTINCT m.id'));
-
-        $miniWins = \DB::table('mini_matches as mm')
-            ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
-            ->join('mini_team_members as mtm', function ($join) use ($userId) {
-                $join->on('mtm.mini_team_id', '=', 'mm.team_win_id')
-                    ->where('mtm.user_id', $userId);
-            })
-            ->where('mnt.sport_id', $sportId)
-            ->where('mm.status', 'completed')
-            ->whereNotNull('mm.team_win_id')
-            ->count(DB::raw('DISTINCT mm.id'));
-
-        return round((($wins + $miniWins) / $totalMatches) * 100, 2);
     }
 }
