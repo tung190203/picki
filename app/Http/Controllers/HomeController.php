@@ -18,6 +18,7 @@ use App\Models\UserSport;
 use App\Models\UserSportScore;
 use App\Services\Club\ClubService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -112,19 +113,25 @@ class HomeController extends Controller
         if ($myClub->isNotEmpty()) {
             $this->clubService->attachUnreadNotificationCount($myClub, $userId);
         }
-    
-        // Leaderboard club
-        $leaderboardClub = Club::allClubs()
-            ->with(['members.user.vnduprScores'])
-            ->get()
-            ->map(function ($club) {
-                $club->members_max_vndupr_score = $club->members
-                    ->map(fn($member) => $member->user?->vnduprScores?->max('score_value') ?? 0)
-                    ->max();
-                return $club;
-            })
-            ->sortByDesc('members_max_vndupr_score')
-            ->take($validated['leaderboard_club_per_page'] ?? Club::PER_PAGE);
+
+        // Leaderboard club - CACHED (1 giờ)
+        $leaderboardClubPerPage = $validated['leaderboard_club_per_page'] ?? Club::PER_PAGE;
+        $leaderboardClubCacheKey = 'leaderboard_club:top:' . $leaderboardClubPerPage;
+
+        $leaderboardClub = Cache::remember($leaderboardClubCacheKey, 3600, function () use ($leaderboardClubPerPage) {
+            return Club::allClubs()
+                ->with(['members.user'])
+                ->get()
+                ->map(function ($club) {
+                    $maxScore = $club->members
+                        ->map(fn($member) => $member->user?->vnduprScores?->max('score_value') ?? 0)
+                        ->max() ?? 0;
+                    $club->cached_max_vndupr_score = $maxScore;
+                    return $club;
+                })
+                ->sortByDesc('cached_max_vndupr_score')
+                ->take($leaderboardClubPerPage);
+        });
 
         // Leaderboard
         $sportId = $sport->id;

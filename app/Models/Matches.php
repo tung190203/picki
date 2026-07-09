@@ -56,7 +56,7 @@ class Matches extends Model
     const LIVE_STATUS_PLAYING = 'playing';
     const LIVE_STATUS_TIMEOUT = 'timeout';
     const LIVE_STATUS_BETWEEN_SETS = 'between_sets';
-    const LIVE_STATUS_FINISHED = 'finished';
+    const LIVE_STATUS_FINISHED = 'finish';
     const LIVE_STATUS_CANCELLED = 'cancelled';
 
     public function tournamentType()
