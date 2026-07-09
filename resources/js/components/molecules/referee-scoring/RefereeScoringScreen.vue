@@ -826,7 +826,7 @@ const handleFinishSet = () => {
 
     // Sync final state and emit done
     if (!!props.matchId) {
-        callUpdate(buildPayload('between_sets'))
+        callUpdate(buildPayload('finish'))
     }
 
     const donePayload = allSets.value.map((s, idx) => ({

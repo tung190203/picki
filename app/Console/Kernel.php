@@ -26,6 +26,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('mini-tournaments:create-auto-payments')->everyMinute();
         $schedule->command('guests:cleanup-inactive')->daily();
         $schedule->command('users:sync-online-status')->everyMinute();
+        $schedule->command('clubs:precompute-ranks')->hourly();
         $schedule->command('tournaments:backfill-end-date')->dailyAt('00:05');
     }
 
