@@ -99,7 +99,17 @@
                         </div>
 
                         <!-- SET Label -->
-                        <p class="text-[#838799] font-bold text-base tracking-wide">SET {{ currentSetNumber }}</p>
+                        <div class="flex items-center gap-2">
+                            <p class="text-[#838799] font-bold text-base tracking-wide">SET {{ currentSetNumber }}</p>
+
+                            <!-- Verified badge when confirmed -->
+                            <div v-if="isConfirmed" class="px-2 py-0.5 rounded bg-green-500/20 border border-green-500/40 flex items-center gap-1">
+                                <svg class="w-3.5 h-3.5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span class="text-green-400 font-semibold text-xs tracking-wide">Đã xác nhận</span>
+                            </div>
+                        </div>
 
                         <!-- Set Tabs: S1: 11-5 / S2: - / S3: - -->
                         <div class="flex items-center gap-2">
@@ -385,6 +395,13 @@ const status = computed(() => {
 })
 const statusLabel = computed(() => MATCH_STATUS_LABEL[status.value] || 'Chờ đấu')
 
+// Match confirmed status
+const isConfirmed = computed(() => {
+    const d = matchData.value
+    if (!d) return false
+    return (d.home_team_confirm === 1 && d.away_team_confirm === 1) || d.status === 'completed'
+})
+
 // Rules
 const rulesText = computed(() => matchData.value?.rules || null)
 // match_rules from BE may be either an object or an array containing a single object (DB stored as [{...}]).
@@ -506,6 +523,9 @@ onMounted(async () => {
                 version: data.version,
                 sets: data.sets || [],
                 updated_at: data.updated_at || new Date().toISOString(),
+                home_team_confirm: data.home_team_confirm ?? matchData.value.home_team_confirm,
+                away_team_confirm: data.away_team_confirm ?? matchData.value.away_team_confirm,
+                status: data.status ?? matchData.value.status,
             }
             // Reset local tick baseline so we add seconds on top of fresh BE value
             if (typeof data.elapsed_seconds === 'number') {

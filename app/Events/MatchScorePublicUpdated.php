@@ -58,6 +58,9 @@ class MatchScorePublicUpdated implements ShouldBroadcast
             'updated_at' => ($this->match->updated_at instanceof \Carbon\Carbon)
                 ? $this->match->updated_at->toIso8601String()
                 : ($this->match->updated_at ? \Carbon\Carbon::parse($this->match->updated_at)->toIso8601String() : null),
+            'home_team_confirm' => $this->match->home_team_confirm,
+            'away_team_confirm' => $this->match->away_team_confirm,
+            'status' => $this->match->status,
             'sets' => $results
                 ->where('team_id', $this->match->home_team_id)
                 ->sortBy('set_number')

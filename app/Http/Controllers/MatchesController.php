@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Events\SuperAdmin\TournamentMatchUpdated;
+use App\Events\MatchScorePublicUpdated;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MatchDetailResource;
 use App\Http\Resources\MatchesResource;
@@ -14,6 +15,7 @@ use App\Models\TeamRanking;
 use App\Models\TournamentStaff;
 use App\Models\TournamentType;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\PoolAdvancementRule;
@@ -1155,6 +1157,8 @@ class MatchesController extends Controller
         }
 
         $match->save();
+
+        Broadcast::event(new MatchScorePublicUpdated($match->fresh(['results'])));
 
         $confirmedByAdmin = $isOrganizer;
         $confirmedByUser  = !$isOrganizer && $userTeam;
