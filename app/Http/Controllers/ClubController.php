@@ -121,7 +121,12 @@ class ClubController extends Controller
         } catch (BusinessException $e) {
             return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
-            return ResponseHelper::error('Có lỗi xảy ra khi lấy thông tin câu lạc bộ', 403);
+            \Log::error('ClubController::show error', [
+                'club_id' => $clubId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return ResponseHelper::error('Có lỗi xảy ra khi lấy thông tin câu lạc bộ: ' . $e->getMessage(), 500);
         }
     }
 
