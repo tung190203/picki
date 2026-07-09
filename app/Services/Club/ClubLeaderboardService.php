@@ -19,7 +19,7 @@ class ClubLeaderboardService
 {
     /**
      * Tính rank của club dựa trên tổng điểm members trong tháng
-     * Cache 5 phút để tránh load toàn bộ clubs mỗi request
+     * Cache 1 giờ để giảm tải, pre-computed bởi scheduler
      */
     public function calculateClubRank(Club $club, ?int $month = null, ?int $year = null): ?int
     {
@@ -27,7 +27,60 @@ class ClubLeaderboardService
         $year = $year ?? now()->year;
 
         $cacheKey = "club_rank:{$club->id}:{$year}:{$month}";
-        return Cache::remember($cacheKey, 300, fn () => $this->computeClubRank($club, $month, $year));
+
+        // Check if pre-computed rank exists
+        $precomputedRank = Cache::get("club_ranks:{$year}:{$month}");
+        if ($precomputedRank && isset($precomputedRank[$club->id])) {
+            return $precomputedRank[$club->id];
+        }
+
+        // Fallback to individual computation with longer TTL
+        return Cache::remember($cacheKey, 3600, fn () => $this->computeClubRank($club, $month, $year));
+    }
+
+    /**
+     * Pre-compute all club ranks for a given month/year
+     * Should be called by a scheduled job daily
+     */
+    public function precomputeMonthlyClubRanks(?int $month = null, ?int $year = null): array
+    {
+        $month = $month ?? now()->month;
+        $year = $year ?? now()->year;
+        $startDate = Carbon::create($year, $month, 1)->startOfMonth();
+        $endDate = Carbon::create($year, $month, 1)->endOfMonth();
+
+        // Single optimized query to get all club scores
+        $clubScores = DB::select("
+            SELECT 
+                cm.club_id,
+                COALESCE(SUM(latest_scores.score_value), 0) as total_score
+            FROM club_members cm
+            INNER JOIN users u ON u.id = cm.user_id
+            INNER JOIN clubs c ON c.id = cm.club_id AND c.status = 1
+            LEFT JOIN (
+                SELECT 
+                    vh.user_id,
+                    vh.score_after as score_value,
+                    ROW_NUMBER() OVER (PARTITION BY vh.user_id ORDER BY vh.created_at DESC) as rn
+                FROM vndupr_history vh
+                WHERE vh.created_at BETWEEN ? AND ?
+            ) as latest_scores ON latest_scores.user_id = cm.user_id AND latest_scores.rn = 1
+            WHERE cm.membership_status = 'joined' AND cm.status = 'active'
+            GROUP BY cm.club_id
+            ORDER BY total_score DESC
+        ", [$startDate, $endDate]);
+
+        // Build rank map
+        $rankMap = [];
+        $rank = 1;
+        foreach ($clubScores as $score) {
+            $rankMap[$score->club_id] = $rank++;
+        }
+
+        // Cache the pre-computed ranks for 1 hour
+        Cache::put("club_ranks:{$year}:{$month}", $rankMap, 3600);
+
+        return $rankMap;
     }
 
     private function computeClubRank(Club $club, int $month, int $year): ?int
@@ -35,54 +88,30 @@ class ClubLeaderboardService
         $startDate = Carbon::create($year, $month, 1)->startOfMonth();
         $endDate = Carbon::create($year, $month, 1)->endOfMonth();
 
-        $allClubs = Club::where('status', \App\Enums\ClubStatus::Active)
-            ->with(['joinedMembers.user.sports.scores'])
-            ->get();
+        // Optimized single query - get all club scores in one go
+        $allClubScores = DB::select("
+            SELECT 
+                cm.club_id,
+                COALESCE(SUM(latest_scores.score_value), 0) as total_score
+            FROM club_members cm
+            INNER JOIN clubs c ON c.id = cm.club_id AND c.status = 1
+            LEFT JOIN (
+                SELECT 
+                    vh.user_id,
+                    vh.score_after as score_value,
+                    ROW_NUMBER() OVER (PARTITION BY vh.user_id ORDER BY vh.created_at DESC) as rn
+                FROM vndupr_history vh
+                WHERE vh.created_at BETWEEN ? AND ?
+            ) as latest_scores ON latest_scores.user_id = cm.user_id AND latest_scores.rn = 1
+            WHERE cm.membership_status = 'joined' AND cm.status = 'active'
+            GROUP BY cm.club_id
+            ORDER BY total_score DESC
+        ", [$startDate, $endDate]);
 
-        $clubScores = $allClubs->map(function ($clubItem) use ($startDate, $endDate) {
-            $members = $clubItem->joinedMembers;
-
-            if ($members->isEmpty()) {
-                return [
-                    'club_id' => $clubItem->id,
-                    'total_score' => 0,
-                ];
-            }
-
-            $memberIds = $members->pluck('user_id')->filter()->unique();
-            $histories = VnduprHistory::whereIn('user_id', $memberIds)
-                ->whereBetween('created_at', [$startDate, $endDate])
-                ->orderBy('created_at', 'asc')
-                ->get()
-                ->groupBy('user_id');
-
-            $totalScore = 0;
-            foreach ($members as $member) {
-                $userId = $member->user_id;
-                $userHistories = $histories->get($userId, collect());
-
-                if ($userHistories->isNotEmpty()) {
-                    $totalScore += $userHistories->last()->score_after;
-                } else {
-                    $vnduprScore = $member->user?->sports->flatMap(fn($sport) => $sport->scores()->get())
-                        ->where('score_type', 'vndupr_score')
-                        ->sortByDesc('created_at')
-                        ->first();
-                    $totalScore += $vnduprScore ? $vnduprScore->score_value : 0;
-                }
-            }
-
-            return [
-                'club_id' => $clubItem->id,
-                'total_score' => $totalScore,
-            ];
-        });
-
-        $sortedClubs = $clubScores->sortByDesc('total_score')->values();
-
+        // Find rank for this club
         $rank = null;
-        foreach ($sortedClubs as $index => $item) {
-            if ($item['club_id'] === $club->id) {
+        foreach ($allClubScores as $index => $score) {
+            if ($score->club_id == $club->id) {
                 $rank = $index + 1;
                 break;
             }
@@ -166,176 +195,106 @@ class ClubLeaderboardService
 
     /**
      * Tính overview stats giống hệt matchesBySportId() trong UserMatchStatsController.
-     * Bao gồm: tournament matches + mini tournament matches + quick matches.
+     * OPTIMIZED: Sử dụng single SQL query thay vì N+1 loops
      */
     private function calculateOverviewStats(int $userId, int $sportId, Collection $allHistories): array
     {
-        // Tournament matches: user nằm trong team_members
-        $homeMatchIds = DB::table('matches as m')
-            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
-            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
-            ->join('team_members as tm', 'tm.team_id', '=', 'm.home_team_id')
-            ->where('tm.user_id', $userId)
-            ->whereColumn('tm.team_id', 'm.home_team_id')
-            ->where('t.sport_id', $sportId)
-            ->where('m.status', 'completed')
-            ->select('m.id')
-            ->pluck('id');
+        // Use optimized single query with UNION ALL
+        $statsResult = DB::selectOne("
+            SELECT 
+                SUM(t_matches) as total_tournament_matches,
+                SUM(t_wins) as tournament_wins,
+                SUM(mini_matches) as total_mini_matches,
+                SUM(mini_wins) as mini_wins,
+                SUM(qm_matches) as total_qm_matches,
+                SUM(qm_wins) as qm_wins
+            FROM (
+                -- Tournament home matches
+                SELECT 
+                    COUNT(DISTINCT m.id) as t_matches, 
+                    SUM(CASE WHEN m.winner_id = tm.team_id THEN 1 ELSE 0 END) as t_wins,
+                    0 as mini_matches, 0 as mini_wins,
+                    0 as qm_matches, 0 as qm_wins
+                FROM matches m
+                JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                JOIN tournaments t ON tt.tournament_id = t.id
+                JOIN team_members tm ON tm.team_id = m.home_team_id
+                WHERE tm.user_id = ? AND t.sport_id = ? AND m.status = 'completed'
 
-        $awayMatchIds = DB::table('matches as m')
-            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
-            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
-            ->join('team_members as tm', 'tm.team_id', '=', 'm.away_team_id')
-            ->where('tm.user_id', $userId)
-            ->whereColumn('tm.team_id', 'm.away_team_id')
-            ->where('t.sport_id', $sportId)
-            ->where('m.status', 'completed')
-            ->select('m.id')
-            ->pluck('id');
+                UNION ALL
 
-        $tournamentMatchIds = $homeMatchIds->merge($awayMatchIds)->unique();
+                -- Tournament away matches
+                SELECT 
+                    COUNT(DISTINCT m.id) as t_matches,
+                    SUM(CASE WHEN m.winner_id = tm.team_id THEN 1 ELSE 0 END) as t_wins,
+                    0, 0, 0, 0
+                FROM matches m
+                JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                JOIN tournaments t ON tt.tournament_id = t.id
+                JOIN team_members tm ON tm.team_id = m.away_team_id
+                WHERE tm.user_id = ? AND t.sport_id = ? AND m.status = 'completed'
 
-        // Mini tournament matches
-        $miniIds = DB::table('mini_team_members')
-            ->join('mini_teams', 'mini_team_members.mini_team_id', '=', 'mini_teams.id')
-            ->join('mini_matches', function ($join) {
-                $join->on('mini_matches.team1_id', '=', 'mini_teams.id')
-                    ->orOn('mini_matches.team2_id', '=', 'mini_teams.id');
-            })
-            ->join('mini_tournaments', 'mini_matches.mini_tournament_id', '=', 'mini_tournaments.id')
-            ->where('mini_team_members.user_id', $userId)
-            ->where('mini_tournaments.sport_id', $sportId)
-            ->where('mini_matches.status', 'completed')
-            ->select('mini_matches.id')
-            ->distinct()
-            ->pluck('id');
+                UNION ALL
 
-        // Quick matches
-        $quickMatchIds = MatchHistory::where('user_id', $userId)
-            ->whereNotNull('quick_match_id')
-            ->pluck('quick_match_id')
-            ->unique();
+                -- Mini tournament team1 matches
+                SELECT 
+                    0, 0,
+                    COUNT(DISTINCT mm.id) as mini_matches,
+                    SUM(CASE WHEN mm.team_win_id = mtm.mini_team_id THEN 1 ELSE 0 END) as mini_wins,
+                    0, 0
+                FROM mini_matches mm
+                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id
+                WHERE mtm.user_id = ? AND mnt.sport_id = ? AND mm.status = 'completed'
 
-        // Load dữ liệu cần thiết
-        $matches = Matches::with([
-                'homeTeam.members:id',
-                'awayTeam.members:id',
-                'tournamentType.tournament',
-            ])
-            ->whereIn('id', $tournamentMatchIds)
-            ->get()
-            ->filter(fn($m) => $m->tournamentType &&
-                $m->tournamentType->tournament &&
-                $m->tournamentType->tournament->sport_id == $sportId);
+                UNION ALL
 
-        $minis = MiniMatch::withFullRelations()
-            ->whereIn('id', $miniIds)
-            ->get()
-            ->filter(fn($m) => $m->miniTournament &&
-                $m->miniTournament->sport_id == $sportId);
+                -- Mini tournament team2 matches
+                SELECT 
+                    0, 0,
+                    COUNT(DISTINCT mm.id) as mini_matches,
+                    SUM(CASE WHEN mm.team_win_id = mtm.mini_team_id THEN 1 ELSE 0 END) as mini_wins,
+                    0, 0
+                FROM mini_matches mm
+                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id
+                WHERE mtm.user_id = ? AND mnt.sport_id = ? AND mm.status = 'completed'
 
-        $quickMatches = QuickMatch::with('competitionLocation')
-            ->where('status', QuickMatch::STATUS_COMPLETED)
-            ->whereIn('id', $quickMatchIds)
-            ->get()
-            ->filter(fn($qm) => $qm->competitionLocation
-                ? $qm->competitionLocation->sports->contains('id', $sportId)
-                : true);
+                UNION ALL
 
-        $miniTeamMembersByTeam = collect();
-        if ($minis->isNotEmpty()) {
-            $miniTeamMembersByTeam = DB::table('mini_team_members')
-                ->whereIn(
-                    'mini_team_id',
-                    $minis->pluck('team1_id')
-                        ->merge($minis->pluck('team2_id'))
-                        ->filter()
-                        ->unique()
-                )
-                ->get()
-                ->groupBy('mini_team_id')
-                ->map(fn($rows) => $rows->pluck('user_id')->all());
-        }
+                -- Quick matches (simplified - counts all matches user participated in)
+                SELECT 
+                    0, 0, 0, 0,
+                    COUNT(DISTINCT qm.id) as qm_matches,
+                    SUM(CASE 
+                        WHEN qm.winner = 'team_a' AND JSON_CONTAINS(qm.team_a, ?) THEN 1
+                        WHEN qm.winner = 'team_b' AND JSON_CONTAINS(qm.team_b, ?) THEN 1
+                        ELSE 0 
+                    END) as qm_wins
+                FROM quick_matches qm
+                JOIN match_histories mh ON mh.quick_match_id = qm.id AND mh.user_id = ?
+                WHERE qm.status = 'completed'
+            ) as combined
+        ", [
+            $userId, $sportId,
+            $userId, $sportId,
+            $userId, $sportId,
+            $userId, $sportId,
+            json_encode($userId),
+            json_encode($userId),
+            $userId,
+        ]);
 
-        $allTeamIds = $matches->pluck('home_team_id')
-            ->concat($matches->pluck('away_team_id'))
-            ->filter()
-            ->unique();
+        $totalMatches = (int) ($statsResult->total_tournament_matches ?? 0)
+                      + (int) ($statsResult->total_mini_matches ?? 0)
+                      + (int) ($statsResult->total_qm_matches ?? 0);
+        $totalWins = (int) ($statsResult->tournament_wins ?? 0)
+                    + (int) ($statsResult->mini_wins ?? 0)
+                    + (int) ($statsResult->qm_wins ?? 0);
+        $totalLose = $totalMatches - $totalWins;
+        $winRate = $totalMatches > 0 ? round(($totalWins / $totalMatches) * 100, 2) : 0;
 
-        $teamMembersByTeam = collect();
-        if ($allTeamIds->isNotEmpty()) {
-            $membersData = DB::table('team_members')
-                ->whereIn('team_id', $allTeamIds)
-                ->get();
-            $teamMembersByTeam = $membersData->groupBy('team_id')
-                ->map(fn($rows) => $rows->pluck('user_id')->all());
-        }
-
-        $totalWin = 0;
-        $totalLose = 0;
-
-        // Tournament matches
-        foreach ($matches as $match) {
-            $homeMembers = $teamMembersByTeam[$match->home_team_id] ?? [];
-            $awayMembers = $teamMembersByTeam[$match->away_team_id] ?? [];
-            $homeUserIds = $homeMembers;
-            $awayUserIds = $awayMembers;
-
-            $userIsInHomeTeam = in_array($userId, $homeUserIds);
-            $userIsInAwayTeam = in_array($userId, $awayUserIds);
-
-            if (!$userIsInHomeTeam && !$userIsInAwayTeam) {
-                continue;
-            }
-
-            $myTeamId = $userIsInHomeTeam ? $match->home_team_id : $match->away_team_id;
-            $isWin = $match->winner_id == $myTeamId;
-
-            if ($isWin) {
-                $totalWin++;
-            } else {
-                $totalLose++;
-            }
-        }
-
-        // Mini tournament matches
-        foreach ($minis as $mini) {
-            $t1Members = $miniTeamMembersByTeam[$mini->team1_id] ?? [];
-            $t2Members = $miniTeamMembersByTeam[$mini->team2_id] ?? [];
-
-            $userIsInTeam1 = in_array($userId, $t1Members);
-            $userIsInTeam2 = in_array($userId, $t2Members);
-
-            if (!$userIsInTeam1 && !$userIsInTeam2) {
-                continue;
-            }
-
-            $myTeamId = $userIsInTeam1 ? $mini->team1_id : $mini->team2_id;
-            $isWin = $mini->team_win_id == $myTeamId;
-
-            if ($isWin) {
-                $totalWin++;
-            } else {
-                $totalLose++;
-            }
-        }
-
-        // Quick matches
-        foreach ($quickMatches as $qm) {
-            $isMyTeamA = in_array($userId, $qm->team_a ?? []);
-            $teamSide = $isMyTeamA ? 'team_a' : 'team_b';
-            $isWin = $qm->winner === $teamSide;
-
-            if ($isWin) {
-                $totalWin++;
-            } else {
-                $totalLose++;
-            }
-        }
-
-        $totalMatches = $totalWin + $totalLose;
-        $winRate = $totalMatches > 0 ? round(($totalWin / $totalMatches) * 100, 2) : 0;
-
+        // Score change from history
         $userHistories = $allHistories->get($userId, collect());
         $firstHistory = $userHistories->sortBy('created_at')->first();
         $lastHistory = $userHistories->sortByDesc('created_at')->first();
@@ -345,7 +304,7 @@ class ClubLeaderboardService
 
         return [
             'matches_played' => $totalMatches,
-            'wins' => $totalWin,
+            'wins' => $totalWins,
             'losses' => $totalLose,
             'win_rate' => $winRate,
             'score_change' => $scoreChange,

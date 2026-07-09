@@ -185,6 +185,7 @@ class TournamentService
 
     /**
      * Cập nhật rating, rank cho tất cả participants khi giải đấu kết thúc.
+     * OPTIMIZED: Sử dụng ROW_NUMBER() window function thay vì correlated subquery
      */
     public function updateParticipantsRatingStats(Tournament $tournament): void
     {
@@ -217,34 +218,32 @@ class TournamentService
             ->get()
             ->keyBy('user_sport_id');
 
-        // Batch compute rank for all users: COUNT users with higher score + 1
-        $scoreMapByUser = $userSportRecords->mapWithKeys(function ($us) use ($scoreMap) {
-            $score = $scoreMap->get($us->id);
-            return [$us->user_id => $score ? (float) $score->score_value : null];
-        });
+        // OPTIMIZED: Get all scores for ranking calculation in single query
+        // Use ROW_NUMBER() window function to calculate rank instead of correlated subquery
+        $allScores = DB::select("
+            SELECT 
+                user_id,
+                score_value,
+                ROW_NUMBER() OVER (ORDER BY score_value DESC) as rank
+            FROM (
+                SELECT 
+                    us.user_id,
+                    MAX(uss.score_value) as score_value
+                FROM user_sport us
+                JOIN user_sport_scores uss ON uss.user_sport_id = us.id
+                WHERE us.sport_id = ?
+                  AND uss.score_type = 'vndupr_score'
+                  AND us.is_anchor = false
+                GROUP BY us.user_id
+            ) as ranked_users
+            ORDER BY rank
+        ", [$sportId]);
 
-        $rankMap = DB::table('users')
-            ->where('is_anchor', false)
-            ->select([
-                'users.id',
-                DB::raw('(
-                    SELECT COUNT(DISTINCT us_inner.user_id) + 1
-                    FROM user_sport us_inner
-                    JOIN user_sport_scores uss_inner ON uss_inner.user_sport_id = us_inner.id
-                    WHERE us_inner.sport_id = ' . (int) $sportId . '
-                      AND uss_inner.score_type = "vndupr_score"
-                      AND uss_inner.score_value > COALESCE(
-                          (SELECT uss2.score_value FROM user_sport_scores uss2
-                           JOIN user_sport us2 ON us2.id = uss2.user_sport_id
-                           WHERE us2.user_id = users.id AND us2.sport_id = ' . (int) $sportId . '
-                           AND uss2.score_type = "vndupr_score" LIMIT 1),
-                          0
-                      )
-                ) as `rank`')
-            ])
-            ->whereIn('id', $userIds)
-            ->get()
-            ->keyBy('id');
+        // Build rank map
+        $rankMap = [];
+        foreach ($allScores as $row) {
+            $rankMap[$row->user_id] = (int) $row->rank;
+        }
 
         foreach ($participants as $participant) {
             $user = $participant->user;
@@ -259,7 +258,7 @@ class TournamentService
                 $currentScore = $scoreRecord ? (float) $scoreRecord->score_value : null;
             }
 
-            $currentRank = $rankMap->get($user->id)?->rank;
+            $currentRank = $rankMap[$user->id] ?? null;
 
             $updateData = [
                 'rating_after' => $currentScore,
