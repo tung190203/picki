@@ -99,17 +99,32 @@
                         </div>
 
                         <!-- SET Label -->
-                        <p class="text-[#838799] font-bold text-base tracking-wide">SET {{ currentSetNumber }}</p>
+                        <div class="flex items-center gap-2">
+                            <p class="text-[#838799] font-bold text-base tracking-wide">SET {{ currentSetNumber }}</p>
+
+                            <!-- Verified badge when confirmed -->
+                            <div v-if="isConfirmed" class="px-2 py-0.5 rounded bg-green-500/20 border border-green-500/40 flex items-center gap-1">
+                                <svg class="w-3.5 h-3.5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span class="text-green-400 font-semibold text-xs tracking-wide">Đã xác nhận</span>
+                            </div>
+                        </div>
 
                         <!-- Set Tabs: S1: 11-5 / S2: - / S3: - -->
                         <div class="flex items-center gap-2">
                             <template v-for="n in 3" :key="n">
                                 <button
-                                    class="px-3 py-1.5 rounded text-sm font-bold tracking-wide transition-colors min-w-[64px]"
+                                    class="px-3 py-1.5 rounded text-sm font-bold tracking-wide transition-colors min-w-[64px] flex items-center gap-1"
                                     :class="n === currentSetNumber
                                         ? 'bg-[rgba(67,146,224,0.22)] text-[#4392E0]'
                                         : 'bg-[rgba(237,238,242,0.22)] text-[#838799]'"
-                                >S{{ n }}: {{ getSetTabLabel(n) }}</button>
+                                >
+                                    S{{ n }}: {{ getSetTabLabel(n) }}
+                                    <svg v-if="isSetFinished(n)" class="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </button>
                                 <span v-if="n < 3" class="text-[#838799] text-sm">•</span>
                             </template>
                         </div>
@@ -353,6 +368,14 @@ const getSetTabLabel = (n) => {
     return `${s.team1_score}-${s.team2_score}`
 }
 
+// Check if a set has finished (has scores recorded and is before current set or status is 'finish')
+const isSetFinished = (n) => {
+    const s = sets.value.find(x => x.set_number === n)
+    if (!s) return false
+    if (s.team1_score == null && s.team2_score == null) return false
+    return n < currentSetNumber.value || matchData.value?.live_status === 'finish'
+}
+
 // Team serving
 const isTeamServing = (teamIndex) => {
     const servingTeamId = matchData.value?.serving_team_id
@@ -367,10 +390,17 @@ const status = computed(() => {
     const d = matchData.value
     if (!d) return 'pending'
     if (d.live_status === 'playing' || d.live_status === 'live') return 'going_on'
-    if (d.live_status === 'completed' || d.live_status === 'done' || d.live_status === 'finished') return 'completed'
+    if (d.live_status === 'completed' || d.live_status === 'done' || d.live_status === 'finished' || d.live_status === 'finish') return 'completed'
     return 'pending'
 })
 const statusLabel = computed(() => MATCH_STATUS_LABEL[status.value] || 'Chờ đấu')
+
+// Match confirmed status
+const isConfirmed = computed(() => {
+    const d = matchData.value
+    if (!d) return false
+    return (d.home_team_confirm === 1 && d.away_team_confirm === 1) || d.status === 'completed'
+})
 
 // Rules
 const rulesText = computed(() => matchData.value?.rules || null)
@@ -493,6 +523,9 @@ onMounted(async () => {
                 version: data.version,
                 sets: data.sets || [],
                 updated_at: data.updated_at || new Date().toISOString(),
+                home_team_confirm: data.home_team_confirm ?? matchData.value.home_team_confirm,
+                away_team_confirm: data.away_team_confirm ?? matchData.value.away_team_confirm,
+                status: data.status ?? matchData.value.status,
             }
             // Reset local tick baseline so we add seconds on top of fresh BE value
             if (typeof data.elapsed_seconds === 'number') {

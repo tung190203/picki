@@ -305,7 +305,7 @@ class MiniTournamentService
 
         // Reset session fields per match_format (same logic as createTournament)
         $matchFormat = $tournament->match_format;
-        if ($matchFormat === MiniTournament::MATCH_FORMAT_STANDARD || $matchFormat === null) {
+        if ($matchFormat === MiniTournament::MATCH_FORMAT_STANDARD) {
             $newTournament->session_status = MiniTournament::SESSION_STATUS_ONGOING;
             $newTournament->is_session_started = true;
         } elseif ($matchFormat === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
@@ -316,6 +316,10 @@ class MiniTournamentService
             MiniTournament::MATCH_FORMAT_RANK_PAIRING,
         ], true)) {
             $newTournament->session_status = MiniTournament::SESSION_STATUS_PENDING_GROUP;
+            $newTournament->is_session_started = false;
+        } elseif ($matchFormat === null) {
+            // Kèo chưa chọn thể thức - giữ nguyên trạng thái chưa bắt đầu
+            $newTournament->session_status = null;
             $newTournament->is_session_started = false;
         } else {
             $newTournament->session_status = null;
