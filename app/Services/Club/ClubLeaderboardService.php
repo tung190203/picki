@@ -144,7 +144,7 @@ class ClubLeaderboardService
             ->groupBy('user_id');
 
         // Pre-load sports and scores for all users to avoid N+1 in calculateMemberStats
-        $userSports = DB::table('user_sports')
+        $userSports = DB::table('user_sport')
             ->whereIn('user_id', $memberUserIds)
             ->pluck('sport_id', 'user_id');
 
@@ -152,7 +152,7 @@ class ClubLeaderboardService
         if ($userSports->isNotEmpty()) {
             $scores = DB::table('user_sport_scores')
                 ->whereIn('user_sport_id', function ($q) use ($memberUserIds) {
-                    $q->select('id')->from('user_sports')->whereIn('user_id', $memberUserIds);
+                    $q->select('id')->from('user_sport')->whereIn('user_id', $memberUserIds);
                 })
                 ->where('score_type', 'vndupr_score')
                 ->get()
@@ -202,7 +202,7 @@ class ClubLeaderboardService
             $userSportId = $userSports->get($userId);
             $vnduprScore = null;
             if ($userSportId) {
-                $userSportRecord = DB::table('user_sports')->where('id', $userSportId)->first();
+                $userSportRecord = DB::table('user_sport')->where('id', $userSportId)->first();
                 if ($userSportRecord && isset($sportScores[$userSportId])) {
                     $vnduprScore = $sportScores[$userSportId];
                 }
