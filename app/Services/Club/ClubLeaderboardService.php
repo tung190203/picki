@@ -126,7 +126,7 @@ class ClubLeaderboardService
     public function getLeaderboard(Club $club): Collection
     {
         $members = $club->joinedMembers()
-            ->with(['user.sports.scores'])
+            ->with(['user'])
             ->get();
 
         if ($members->isEmpty()) {
@@ -136,13 +136,35 @@ class ClubLeaderboardService
         $sport = Sport::where('slug', 'pickleball')->first();
         $sportId = $sport?->id ?? 1;
 
-        $allHistories = VnduprHistory::whereIn('user_id', $members->pluck('user_id'))
+        // Eager load all vndupr histories for all members in single query
+        $memberUserIds = $members->pluck('user_id')->toArray();
+        $allHistories = VnduprHistory::whereIn('user_id', $memberUserIds)
             ->orderBy('created_at', 'asc')
             ->get()
             ->groupBy('user_id');
 
-        $leaderboardData = $members->map(function ($member) use ($allHistories, $sportId) {
-            return $this->calculateMemberStats($member, $allHistories, $sportId);
+        // Pre-load sports and scores for all users to avoid N+1 in calculateMemberStats
+        $userSports = DB::table('user_sports')
+            ->whereIn('user_id', $memberUserIds)
+            ->pluck('sport_id', 'user_id');
+
+        $sportScores = [];
+        if ($userSports->isNotEmpty()) {
+            $scores = DB::table('user_sport_scores')
+                ->whereIn('user_sport_id', function ($q) use ($memberUserIds) {
+                    $q->select('id')->from('user_sports')->whereIn('user_id', $memberUserIds);
+                })
+                ->where('score_type', 'vndupr_score')
+                ->get()
+                ->groupBy('user_sport_id');
+
+            foreach ($scores as $usId => $scoreCollection) {
+                $sportScores[$usId] = $scoreCollection->sortByDesc('created_at')->first();
+            }
+        }
+
+        $leaderboardData = $members->map(function ($member) use ($allHistories, $sportId, $userSports, $sportScores) {
+            return $this->calculateMemberStats($member, $allHistories, $sportId, $userSports, $sportScores);
         });
 
         $sorted = $leaderboardData->sortByDesc('vndupr_score')->values();
@@ -166,7 +188,9 @@ class ClubLeaderboardService
     private function calculateMemberStats(
         ClubMember $member,
         Collection $allHistories,
-        int $sportId
+        int $sportId,
+        Collection $userSports,
+        array $sportScores
     ): array {
         $userId = $member->user_id;
         $userHistories = $allHistories->get($userId, collect());
@@ -175,10 +199,14 @@ class ClubLeaderboardService
         if ($userHistories->isNotEmpty()) {
             $finalScore = $userHistories->last()->score_after;
         } else {
-            $vnduprScore = $member->user?->sports->flatMap(fn($sport) => $sport->scores()->get())
-                ->where('score_type', 'vndupr_score')
-                ->sortByDesc('created_at')
-                ->first();
+            $userSportId = $userSports->get($userId);
+            $vnduprScore = null;
+            if ($userSportId) {
+                $userSportRecord = DB::table('user_sports')->where('id', $userSportId)->first();
+                if ($userSportRecord && isset($sportScores[$userSportId])) {
+                    $vnduprScore = $sportScores[$userSportId];
+                }
+            }
             $finalScore = $vnduprScore ? $vnduprScore->score_value : 0;
         }
 
