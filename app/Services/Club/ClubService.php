@@ -375,13 +375,11 @@ class ClubService
             $club->setRelation('members', $members);
         }
 
-        // Load membership của user hiện tại để lấy invited_by
+        // Pre-load toàn bộ membership của user hiện tại (1 query) để tránh
+        // ClubResource fire 4 queries phụ (is_member, has_pending_request,
+        // has_invitation, getInvitedByInfo).
         if ($userId) {
-            $membership = $club->members()
-                ->where('user_id', $userId)
-                ->with('invitedBy')
-                ->first();
-            $club->currentUserMembership = $membership;
+            $this->attachMembershipStatus([$club], $userId);
         }
 
         return $club;
