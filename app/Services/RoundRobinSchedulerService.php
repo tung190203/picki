@@ -129,6 +129,7 @@ class RoundRobinSchedulerService
         }
 
         $isRankPairing = $miniTournament->match_format === MiniTournament::MATCH_FORMAT_RANK_PAIRING;
+        $isStandard = $miniTournament->match_format === MiniTournament::MATCH_FORMAT_STANDARD;
 
         $participants = MiniParticipant::with('user:id,full_name')
             ->where('mini_tournament_id', $miniTournamentId)
@@ -139,9 +140,11 @@ class RoundRobinSchedulerService
         // Map user_id -> participant_id for quick lookup
         $userToParticipant = $participants->map(fn($p) => $p->user_id)->flip()->toArray();
 
+        // Standard format: matches are created manually without round_number
+        // Non-standard formats: round_number is set by scheduler (including bye matches)
         $matches = MiniMatch::where('mini_tournament_id', $miniTournamentId)
-            ->whereNotNull('round_number')
             ->where('status', MiniMatch::STATUS_COMPLETED)
+            ->when(!$isStandard, fn($q) => $q->whereNotNull('round_number'))
             ->with([
                 'team1.members.user',
                 'team2.members.user',
