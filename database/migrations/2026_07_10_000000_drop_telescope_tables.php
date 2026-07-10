@@ -16,16 +16,17 @@ return new class extends Migration
         ];
 
         // MySQL/SQLite compatible approach - check and drop
-        if (Schema::hasTable('telescope_entries')) {
-            Schema::dropIfExists('telescope_entries');
-        }
-
+        // IMPORTANT: Must drop child tables before parent table due to foreign key constraints
         if (Schema::hasTable('telescope_entries_tags')) {
             Schema::dropIfExists('telescope_entries_tags');
         }
 
         if (Schema::hasTable('telescope_monitoring')) {
             Schema::dropIfExists('telescope_monitoring');
+        }
+
+        if (Schema::hasTable('telescope_entries')) {
+            Schema::dropIfExists('telescope_entries');
         }
     }
 
