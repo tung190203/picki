@@ -65,6 +65,7 @@ class Tournament extends Model
         'auto_split_fee' => 'bool',
         'final_fee_per_person' => 'integer',
         'auto_payment_created' => 'bool',
+        'creator_join' => 'bool',
     ];
 
     protected $appends = ['poster_url', 'qr_code_url'];

@@ -310,6 +310,7 @@ class TournamentController extends Controller
     {
         $validated = $request->validated();
         $tournament = Tournament::findOrFail($id);
+
         $isOrganizer = $tournament->hasOrganizer(Auth::id());
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền thay đổi giải đấu', 400);
@@ -318,7 +319,7 @@ class TournamentController extends Controller
         $oldCreatorJoin = $tournament->creator_join;
         $oldStatus = $tournament->status;
 
-        DB::transaction(function () use ($validated, $tournament, $request) {
+        DB::transaction(function () use ($validated, $tournament, $request, $oldCreatorJoin) {
             // Poster: resize + convert WebP + lưu ngay
             $newPosterPath = null;
             if ($request->hasFile('poster')) {
@@ -376,20 +377,21 @@ class TournamentController extends Controller
             }
 
             if (array_key_exists('creator_join', $validated)) {
-                $newCreatorJoin = !empty($validated['creator_join']);
+                $newCreatorJoin = (bool) $validated['creator_join'];
+                $wasCreatorJoin = (bool) $oldCreatorJoin;
 
-                if ($newCreatorJoin && !$tournament->getOriginal('creator_join')) {
+                if ($newCreatorJoin && !$wasCreatorJoin) {
                     Participant::firstOrCreate([
                         'tournament_id' => $tournament->id,
-                        'user_id' => Auth::id(),
+                        'user_id' => $tournament->created_by,
                     ], [
                         'is_confirmed' => true,
                     ]);
                 }
 
-                if (!$newCreatorJoin && $tournament->getOriginal('creator_join')) {
+                if (!$newCreatorJoin && $wasCreatorJoin) {
                     Participant::where('tournament_id', $tournament->id)
-                        ->where('user_id', Auth::id())
+                        ->where('user_id', $tournament->created_by)
                         ->whereNull('checked_in_at')
                         ->delete();
                 }
