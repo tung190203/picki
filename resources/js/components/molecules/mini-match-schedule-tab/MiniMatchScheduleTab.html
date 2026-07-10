@@ -1,7 +1,9 @@
-<!-- No format chosen yet -->
+<!-- Format selection (only shown when no format selected yet) -->
 <template v-if="!data.match_format">
 <div class="space-y-3">
-    <h3 class="font-semibold text-gray-900 mb-4">Chọn thể thức thi đấu</h3>
+    <h3 class="font-semibold text-gray-900 mb-4">
+        Chọn thể thức thi đấu
+    </h3>
 
     <!-- Tiêu chuẩn -->
     <div class="border border-[#BBBFCC] rounded-lg p-4 cursor-pointer hover:shadow-md transition"
@@ -109,7 +111,7 @@
 </div>
 </template>
 
-<!-- Locked format info strip (only when format is set but cannot be changed) -->
+<!-- Locked format info strip (only when format is set and cannot be changed) -->
 <template v-if="data.match_format && !data.can_update_match_format">
 <div class="mb-4">
     <div class="flex items-center justify-between mb-2">
@@ -135,7 +137,7 @@
 </div>
 </template>
 
-<!-- Standard format sub-tabs (always rendered when format is STANDARD) -->
+<!-- Standard format sub-tabs (always shown when format is STANDARD) -->
 <template v-if="data.match_format === MATCH_FORMAT.STANDARD">
     <div class="flex justify-start gap-2 mb-4">
         <button v-for="tab in subtabs" :key="tab.id" @click="subActiveTab = tab.id"
@@ -145,24 +147,145 @@
         </button>
     </div>
 
-    <!-- Standard: Trận đấu -->
-    <div v-if="subActiveTab === 'match'">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" v-if="miniMatches.length > 0">
-            <div v-for="match in miniMatches" :key="match.id" @click="showMiniMatchDetail(match.id)"
-                 class="border border-[#BBBFCC] p-4 rounded-lg cursor-pointer hover:shadow-md transition">
-                <MiniMatchCard :matchTitle="match.name" :matchTime="match.scheduled_at ? formatDate(match.scheduled_at) : null"
-                   :matchId="match.id"
-                   :courtName="`Sân ${match.yard_number || 1}`"
-                   :miniMatchType="match.match_type"
-                   :teamWinId="match.team_win_id"
-                   :team1="match.team1.members.map(m => ({ team_id: match.team1.id, id: m.id, name: m.full_name, avatar: m.avatar_url, rating: getUserRatingBySport(m, props.sportId), status: m.visibility }))"
-                   :team2="match.team2.members.map(m => ({ team_id: match.team2.id, id: m.id, name: m.full_name, avatar: m.avatar_url, rating: getUserRatingBySport(m, props.sportId), status: m.visibility }))"
-                   :sets="buildSets(match)"
-                   :selected="selectedMiniMatches.includes(match.id)"
-                   @update:selected="val => toggleSelectMiniMatch(match.id, val)"
-                />
+    <!-- Standard: Format Selection (shown when clicking "Thể thức" tab) -->
+    <div v-if="subActiveTab === 'format'">
+        <div class="space-y-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold text-gray-900">
+                    Thay đổi thể thức thi đấu
+                </h3>
+                <button @click="subActiveTab = 'match'; showStandardFormatSelection = false"
+                    class="text-xs text-blue-600 hover:underline">
+                    Quay lại xem nội dung
+                </button>
+            </div>
+
+            <!-- Tiêu chuẩn -->
+            <div class="border border-[#BBBFCC] rounded-lg p-4 cursor-pointer hover:shadow-md transition"
+                 @click="openFormatConfirm('standard')"
+                 :class="data.match_format === 'standard' ? 'border-red-500 bg-red-50' : ''">
+                <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded flex items-center justify-center bg-[#EDEEF2] shrink-0">
+                        <svg class="w-5 h-5 text-[#3E414C]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between mb-1">
+                            <h4 class="font-semibold text-[#3E414C] text-sm">Tiêu chuẩn</h4>
+                            <div class="flex gap-1.5 shrink-0">
+                                <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">2 - 8 người</span>
+                                <span class="bg-[#E0F2FE] text-[#1E40AF] text-xs px-2 py-0.5 rounded font-medium">1 trận</span>
+                            </div>
+                        </div>
+                        <p class="text-[#6B6F80] text-xs">1 trận đấu giữa 2 đội. Phù hợp cho kèo thông thường.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Xoay vòng partner -->
+            <div v-if="data.format === 'double' && confirmedParticipantsCount >= 6 && confirmedParticipantsCount <= 8"
+                 class="border border-[#BBBFCC] rounded-lg p-4 cursor-pointer hover:shadow-md transition"
+                 @click="openFormatConfirm('partner_rotation')"
+                 :class="data.match_format === 'partner_rotation' ? 'border-red-500 bg-red-50' : ''">
+                <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded flex items-center justify-center bg-[#FEF3C7] shrink-0">
+                        <svg class="w-5 h-5 text-[#92400E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 1l4 4-4 4"/>
+                            <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                            <path d="M7 23l-4-4 4-4"/>
+                            <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                        </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
+                            <h4 class="font-semibold text-[#3E414C] text-sm">Xoay vòng partner</h4>
+                            <div class="flex gap-1.5 shrink-0 flex-wrap">
+                                <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">Tối thiểu 6 người</span>
+                                <span class="bg-[#E0F2FE] text-[#1E40AF] text-xs px-2 py-0.5 rounded font-medium">5 - 7 vòng</span>
+                                <span class="bg-[#F0FDF4] text-[#166534] text-xs px-2 py-0.5 rounded font-medium">Hỗ trợ số lẻ</span>
+                            </div>
+                        </div>
+                        <p class="text-[#6B6F80] text-xs">Mỗi người lần lượt đứng cặp với tất cả người còn lại đúng 1 lần. Xếp hạng cá nhân cuối session.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mix nam nữ -->
+            <div class="border border-[#BBBFCC] rounded-lg p-4 cursor-pointer hover:shadow-md transition"
+                 @click="openFormatConfirm('mixed_gender')"
+                 :class="data.match_format === 'mixed_gender' ? 'border-red-500 bg-red-50' : ''">
+                <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded flex items-center justify-center bg-[#FEF3C7] shrink-0">
+                        <svg class="w-5 h-5 text-[#92400E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
+                            <h4 class="font-semibold text-[#3E414C] text-sm">Mix nam nữ</h4>
+                            <div class="flex gap-1.5 shrink-0 flex-wrap">
+                                <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">3 - 7 nam</span>
+                                <span class="bg-[#FCE7F3] text-[#9D174D] text-xs px-2 py-0.5 rounded font-medium">3 - 7 nữ</span>
+                                <span class="bg-[#F0FDF4] text-[#166534] text-xs px-2 py-0.5 rounded font-medium">Hỗ trợ số lẻ</span>
+                            </div>
+                        </div>
+                        <p class="text-[#6B6F80] text-xs">Mỗi người nam lần lượt đứng cặp với tất cả người nữ và ngược lại. Không cần số nam nữ bằng nhau.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ghép hạng A/B -->
+            <div class="border border-[#BBBFCC] rounded-lg p-4 cursor-pointer hover:shadow-md transition"
+                 @click="openFormatConfirm('rank_pairing')"
+                 :class="data.match_format === 'rank_pairing' ? 'border-red-500 bg-red-50' : ''">
+                <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded flex items-center justify-center bg-[#FEF3C7] shrink-0">
+                        <svg class="w-5 h-5 text-[#92400E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="20" x2="18" y2="10"/>
+                            <line x1="12" y1="20" x2="12" y2="4"/>
+                            <line x1="6" y1="20" x2="6" y2="14"/>
+                        </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between mb-1 flex-wrap gap-1">
+                            <h4 class="font-semibold text-[#3E414C] text-sm">Ghép hạng A/B</h4>
+                            <div class="flex gap-1.5 shrink-0 flex-wrap">
+                                <span class="bg-[#FEF3C7] text-[#92400E] text-xs px-2 py-0.5 rounded font-medium">3 - 7 hạng A</span>
+                                <span class="bg-[#E0F2FE] text-[#1E40AF] text-xs px-2 py-0.5 rounded font-medium">3 - 7 hạng B</span>
+                                <span class="bg-[#F0FDF4] text-[#166534] text-xs px-2 py-0.5 rounded font-medium">Hỗ trợ số lẻ</span>
+                            </div>
+                        </div>
+                        <p class="text-[#6B6F80] text-xs">Chia thành nhóm A (mạnh hơn) và B. Mỗi A xoay vòng đứng cặp với mỗi B. Xếp hạng riêng từng nhóm.</p>
+                    </div>
+                </div>
             </div>
         </div>
+    </div>
+
+    <!-- Standard: Trận đấu -->
+    <div v-if="subActiveTab === 'match'">
+        <template v-if="miniMatches.length > 0">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div v-for="match in miniMatches" :key="match.id" @click="showMiniMatchDetail(match.id)"
+                     class="border border-[#BBBFCC] p-4 rounded-lg cursor-pointer hover:shadow-md transition">
+                    <MiniMatchCard :matchTitle="match.name" :matchTime="match.scheduled_at ? formatDate(match.scheduled_at) : null"
+                       :matchId="match.id"
+                       :courtName="`Sân ${match.yard_number || 1}`"
+                       :miniMatchType="match.match_type"
+                       :teamWinId="match.team_win_id"
+                       :team1="match.team1.members.map(m => ({ team_id: match.team1.id, id: m.id, name: m.full_name, avatar: m.avatar_url, rating: getUserRatingBySport(m, props.sportId), status: m.visibility }))"
+                       :team2="match.team2.members.map(m => ({ team_id: match.team2.id, id: m.id, name: m.full_name, avatar: m.avatar_url, rating: getUserRatingBySport(m, props.sportId), status: m.visibility }))"
+                       :sets="buildSets(match)"
+                       :selected="selectedMiniMatches.includes(match.id)"
+                       @update:selected="val => toggleSelectMiniMatch(match.id, val)"
+                    />
+                </div>
+            </div>
+        </template>
         <div v-else class="min-h-[200px] flex items-center justify-center">
             <p class="text-center text-gray-500">Không có trận đấu nào.</p>
         </div>
@@ -265,10 +388,22 @@
             </div>
         </div>
     </div>
+
+    <!-- Standard: BXH -->
+    <div v-if="subActiveTab === 'ranking'">
+        <div class="mb-4">
+            <h3 class="font-semibold text-[#3E414C] text-base">Bảng xếp hạng</h3>
+            <p class="text-sm text-[#6B6F80] mt-1">Thống kê kết quả thi đấu của tất cả người chơi</p>
+        </div>
+        <MiniTournamentLeaderboard
+            :leaderboard="sessionLeaderboardData.leaderboard || []"
+            :is-rank-pairing="false"
+        />
+    </div>
 </template>
 
-<!-- Session formats sub-tabs (partner_rotation / mixed_gender / rank_pairing) -->
-<template v-else-if="data.match_format && data.match_format !== MATCH_FORMAT.STANDARD">
+<!-- Session formats sub-tabs (only shown when format is set AND cannot be changed) -->
+<template v-else-if="data.match_format && data.match_format !== MATCH_FORMAT.STANDARD && !data.can_update_match_format">
     <div class="flex justify-start gap-2 mb-4">
         <button v-for="tab in sessionSubtabs" :key="tab.id" @click="sessionSubTab = tab.id"
             class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors"

@@ -537,20 +537,45 @@ class LeaderboardController extends Controller
 
     private function getAllClubsLeaderboard(int $perPage, int $page): array
     {
-        $query = Club::allClubs()
-            ->with(['members.user.vnduprScores'])
-            ->get()
-            ->map(function ($club) {
-                $club->max_score = (float) ($club->members
-                    ->map(fn($m) => $m->user?->vnduprScores?->max('score_value') ?? 0)
-                    ->max() ?? 0);
-                return $club;
-            })
-            ->sortByDesc('max_score');
+        // Pre-load all club members with their vndupr scores in single queries to avoid N+1
+        $clubs = Club::allClubs()
+            ->with(['members.user'])
+            ->get();
 
-        $total = $query->count();
+        // Batch load vndupr scores for all users in all clubs
+        $allMemberUserIds = $clubs->flatMap(fn($club) =>
+            $club->members->pluck('user_id')
+        )->filter()->unique()->values()->toArray();
+
+        $userMaxScores = [];
+        if (!empty($allMemberUserIds)) {
+            $userScores = DB::table('user_sport_scores as uss')
+                ->join('user_sport as us', 'uss.user_sport_id', '=', 'us.id')
+                ->whereIn('us.user_id', $allMemberUserIds)
+                ->where('uss.score_type', 'vndupr_score')
+                ->select('us.user_id', DB::raw('MAX(uss.score_value) as max_score'))
+                ->groupBy('us.user_id')
+                ->get()
+                ->keyBy('user_id');
+
+            foreach ($userScores as $userId => $score) {
+                $userMaxScores[(int) $userId] = (float) $score->max_score;
+            }
+        }
+
+        // Calculate max score per club using pre-loaded data
+        $clubs = $clubs->map(function ($club) use ($userMaxScores) {
+            $maxScore = $club->members
+                ->map(fn($m) => $userMaxScores[$m->user_id] ?? null)
+                ->filter()
+                ->max();
+            $club->max_score = (float) ($maxScore ?? 0);
+            return $club;
+        })->sortByDesc('max_score');
+
+        $total = $clubs->count();
         $offset = ($page - 1) * $perPage;
-        $paginated = $query->slice($offset, $perPage)->values();
+        $paginated = $clubs->slice($offset, $perPage)->values();
 
         $items = $paginated->map(function ($club, $index) use ($page, $perPage) {
             return [
