@@ -118,8 +118,9 @@ class ClubDashboardService
 
     private function getRecentActivities(Club $club): Collection
     {
+        // Use query builder for eager loading to avoid N+1
         return $club->activities()
-            ->with(['creator', 'participants.user'])
+            ->with(['creator', 'acceptedParticipants.user'])
             ->orderBy('start_time', 'desc')
             ->limit(5)
             ->get();
@@ -128,7 +129,7 @@ class ClubDashboardService
     private function getRecentNotifications(Club $club): Collection
     {
         return $club->notifications()
-            ->with(['type', 'creator', 'recipients.user'])
+            ->with(['type', 'creator', 'recipients'])
             ->orderBy('created_at', 'desc')
             ->limit(5)
             ->get();

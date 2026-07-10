@@ -87,6 +87,7 @@ export default {
         const isLoadingPartnerMatches = ref(false)
         const partnerMatches = ref([])
         const isStartingSession = ref(false)
+        const showStandardFormatSelection = ref(false) // Toggle format selection in standard format
 
         const selectedRoundData = computed(() => {
             return sessionSchedule.value.find(r => r.round_number === currentRound.value) || null
@@ -421,6 +422,23 @@ export default {
             }
         })
 
+        // Load leaderboard when switching to ranking tab in standard format
+        watch(subActiveTab, (tab) => {
+            if (!props.data?.id) return
+
+            const isStandard = props.data?.match_format === MATCH_FORMAT.STANDARD
+            if (isStandard) {
+                if (tab === 'ranking') {
+                    loadSessionLeaderboard(props.data.id)
+                } else if (tab === 'format') {
+                    // User clicked "Thể thức" tab - show format selection
+                    showStandardFormatSelection.value = true
+                } else {
+                    showStandardFormatSelection.value = false
+                }
+            }
+        })
+
         // Auto-activate round matches when switching to a new round
         watch(currentRound, () => {
             if (sessionSubTab.value === 'schedule') {
@@ -499,14 +517,26 @@ export default {
         }, { immediate: true })
 
         // Reset sub-tabs when match_format changes (e.g. after API update via confirmFormatSelection)
-        watch(() => props.data?.match_format, (newFormat) => {
+        watch(() => props.data?.match_format, async (newFormat) => {
             if (!newFormat) {
                 // No format selected yet — show format selection
                 sessionSubTab.value = 'format'
                 subActiveTab.value = 'match'
+                showStandardFormatSelection.value = false
             } else if (newFormat === MATCH_FORMAT.STANDARD) {
-                sessionSubTab.value = 'format'
+                // Standard format selected
+                // Always show match tab by default
                 subActiveTab.value = 'match'
+                showStandardFormatSelection.value = false
+                // Load matches data when format changes to standard
+                if (props.data?.id) {
+                    try {
+                        await getMiniMatches(props.data.id)
+                        await getMyMiniMatches(props.data.id)
+                    } catch (e) {
+                        console.error('Error loading matches after format change:', e)
+                    }
+                }
             } else {
                 // Session format selected
                 sessionSubTab.value = 'format'
@@ -646,7 +676,16 @@ export default {
                 await updateMiniTournamentByClub(props.clubId, props.data.id, { match_format: selectedFormat.value })
 
                 // Switch tab based on new format after successful update
-                if (selectedFormat.value === MATCH_FORMAT.MIXED_GENDER || selectedFormat.value === MATCH_FORMAT.RANK_PAIRING) {
+                if (selectedFormat.value === MATCH_FORMAT.STANDARD) {
+                    // Standard format - switch to match tab and load matches
+                    subActiveTab.value = 'match'
+                    // Reset pagination and load matches
+                    if (pagination.value) {
+                        pagination.value.current_page = 1
+                    }
+                    await getMiniMatches(props.data.id)
+                    await getMyMiniMatches(props.data.id)
+                } else if (selectedFormat.value === MATCH_FORMAT.MIXED_GENDER || selectedFormat.value === MATCH_FORMAT.RANK_PAIRING) {
                     sessionSubTab.value = 'group'
                 } else {
                     sessionSubTab.value = 'schedule'
@@ -842,6 +881,7 @@ export default {
             sessionScores,
             isSavingSessionScore,
             onSaveSessionMatchScore,
+            showStandardFormatSelection,
         }
     }
 }
