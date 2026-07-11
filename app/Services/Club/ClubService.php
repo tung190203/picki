@@ -528,6 +528,7 @@ class ClubService
             return $clubs;
         }
 
+        // ===== 1. Per-user unread (recipient rõ ràng, chưa đọc) =====
         $unreadCounts = DB::table('club_notifications as cn')
             ->join('club_notification_recipients as cnr', 'cnr.club_notification_id', '=', 'cn.id')
             ->whereIn('cn.club_id', $clubIds)
@@ -538,47 +539,43 @@ class ClubService
             ->select('cn.club_id', DB::raw('COUNT(*) as unread_count'))
             ->pluck('unread_count', 'club_id');
 
-        $memberJoinDates = DB::table('club_members')
-            ->whereIn('club_id', $clubIds)
-            ->where('user_id', $userId)
-            ->where('membership_status', ClubMembershipStatus::Joined->value)
-            ->where('status', ClubMemberStatus::Active->value)
-            ->pluck('joined_at', 'club_id');
-
-        // Batch: single query for all broadcast unread counts.
-        $cutoffDates = [];
-        foreach ($clubIds as $clubId) {
-            $cutoffDates[$clubId] = $memberJoinDates[$clubId] ?? now()->subYear()->toDateTimeString();
-        }
-        $cutoffList = array_values($cutoffDates);
-        $clubIdList = array_keys($cutoffDates);
-
-        $broadcastUnreadRows = DB::table('club_notifications')
-            ->select('club_id', DB::raw('COUNT(*) as broadcast_unread_count'))
-            ->whereIn('club_id', $clubIds)
-            ->where('status', 'sent')
-            ->whereRaw('NOT EXISTS (
-                select 1 from club_notification_recipients
-                where club_notification_recipients.club_notification_id = club_notifications.id
-            )')
-            ->where(function ($q) use ($clubIdList, $cutoffList) {
-                // Build a single WHERE that covers all club-specific cutoff dates
-                // using ROW construction for MySQL 8+: (club_id, cutoff) comparison
-                foreach ($clubIdList as $i => $clubId) {
-                    $q->orWhere(function ($sub) use ($clubId, $cutoffList, $i) {
-                        $sub->where('club_id', $clubId)
-                            ->where('sent_at', '>=', $cutoffList[$i]);
-                    });
-                }
-            })
-            ->groupBy('club_id')
-            ->get()
-            ->keyBy('club_id');
+        // ===== 2. Broadcast unread (không có recipient row) =====
+        // Trước đây: build `orWhere` lặp theo từng club_id → SQL rất dài với N clubs.
+        // Cách mới: 1 raw query duy nhất, tính cutoff theo (club_id, joined_at)
+        // từ subquery — giữ semantics nhưng MySQL có thể dùng index tốt hơn.
+        $defaultCutoff = now()->subYear()->toDateTimeString();
+        $broadcastUnreadRows = DB::select(
+            'SELECT cn.club_id, COUNT(*) AS broadcast_unread_count
+             FROM club_notifications cn
+             LEFT JOIN (
+                 SELECT club_id, MAX(joined_at) AS joined_at
+                 FROM club_members
+                 WHERE user_id = ? AND membership_status = ? AND status = ?
+                 GROUP BY club_id
+             ) cm ON cm.club_id = cn.club_id
+             WHERE cn.club_id IN (' . implode(',', array_fill(0, count($clubIds), '?')) . ')
+               AND cn.status = ?
+               AND NOT EXISTS (
+                   SELECT 1 FROM club_notification_recipients cnr2
+                   WHERE cnr2.club_notification_id = cn.id
+               )
+               AND cn.sent_at >= COALESCE(cm.joined_at, ?)
+             GROUP BY cn.club_id',
+            [
+                $userId,
+                ClubMembershipStatus::Joined->value,
+                ClubMemberStatus::Active->value,
+                ...$clubIds,
+                'sent',
+                $defaultCutoff,
+            ]
+        );
+        $broadcastMap = collect($broadcastUnreadRows)->keyBy('club_id');
 
         foreach ($clubs as $club) {
             $club->unread_notification_count = (int) (
                 ($unreadCounts[$club->id] ?? 0)
-                + (($broadcastUnreadRows[$club->id]->broadcast_unread_count ?? 0))
+                + ($broadcastMap[$club->id]->broadcast_unread_count ?? 0)
             );
         }
 

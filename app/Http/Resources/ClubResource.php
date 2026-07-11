@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
 use App\Http\Resources\Club\ClubMemberResource;
@@ -76,7 +77,23 @@ class ClubResource extends JsonResource
                     ->whereNotNull('invited_by')
                     ->exists(),
             'invited_by' => auth()->check() ? $this->getInvitedByInfo() : null,
-            'can_edit_footer' => $this->when(auth()->check(), fn () => $this->resource->canEditFooter(auth()->id()), false),
+            'can_edit_footer' => $this->when(auth()->check(), function () use ($club) {
+                // Dùng relation đã eager-load thay vì gọi query mới
+                $relations = ['members', 'activeMembers', 'joinedMembers'];
+                $memberCollection = null;
+                foreach ($relations as $rel) {
+                    if ($this->resource->relationLoaded($rel)) {
+                        $memberCollection = $this->resource->{$rel};
+                        break;
+                    }
+                }
+                $member = $memberCollection?->first(fn ($m) =>
+                    (int) $m->user_id === (int) auth()->id()
+                    && $m->membership_status === ClubMembershipStatus::Joined
+                    && $m->status === ClubMemberStatus::Active
+                );
+                return $member && in_array($member->role, [ClubMemberRole::Admin, ClubMemberRole::Secretary]);
+            }, false),
             'profile' => $this->whenLoaded('profile', fn () => static::formatProfile($this->profile), static::getDefaultProfile()),
             'fund_qr' => $this->whenLoaded('mainWallet', fn () => [
                 'qr_code_url' => $this->mainWallet?->qr_code_url,
@@ -237,11 +254,31 @@ class ClubResource extends JsonResource
 
     protected function getInvitedByInfo(): ?array
     {
-        // Use pre-loaded data from attachMembershipStatus if available.
-        if (isset($this->resource->_invited_by_user)) {
-            return $this->resource->_invited_by_user;
+        // Ưu tiên data đã được pre-load bởi attachMembershipStatus (ClubService)
+        if ($this->resource->relationLoaded('members')) {
+            $userId = auth()->id();
+            $invitedBy = null;
+            foreach ($this->resource->members as $m) {
+                $isPending = $m->membership_status === ClubMembershipStatus::Pending
+                    && $m->status === ClubMemberStatus::Pending
+                    && $m->invited_by !== null
+                    && (int) $m->user_id === (int) $userId;
+                if ($isPending && $m->relationLoaded('invitedBy') && $m->invitedBy) {
+                    $invitedBy = $m->invitedBy;
+                    break;
+                }
+            }
+            if ($invitedBy) {
+                return [
+                    'id' => $invitedBy->id,
+                    'full_name' => $invitedBy->full_name,
+                    'avatar_url' => $invitedBy->avatar_url,
+                ];
+            }
+            return null;
         }
 
+        // Fallback khi relation members không load
         $membership = ClubMember::where('club_id', $this->id)
             ->where('user_id', auth()->id())
             ->with('invitedBy')

@@ -19,14 +19,13 @@ class ClubLeaderboardService
 {
     /**
      * Tính rank của club dựa trên tổng điểm members trong tháng
-     * Cache 1 giờ để giảm tải, pre-computed bởi scheduler
+     * Cache 6 giờ; pre-computed bởi scheduler mỗi ngày.
+     * Tránh compute on-demand — nếu cache miss thì trả về null để API không bị block.
      */
     public function calculateClubRank(Club $club, ?int $month = null, ?int $year = null): ?int
     {
         $month = $month ?? now()->month;
         $year = $year ?? now()->year;
-
-        $cacheKey = "club_rank:{$club->id}:{$year}:{$month}";
 
         // Check if pre-computed rank exists
         $precomputedRank = Cache::get("club_ranks:{$year}:{$month}");
@@ -34,8 +33,14 @@ class ClubLeaderboardService
             return $precomputedRank[$club->id];
         }
 
-        // Fallback to individual computation with longer TTL
-        return Cache::remember($cacheKey, 3600, fn () => $this->computeClubRank($club, $month, $year));
+        // Cache miss: KHÔNG compute on-demand để tránh block API show club.
+        // Pre-compute phải chạy scheduler; nếu cache miss, trả null và cache ngắn hạn
+        // để tránh một request khác cùng giờ phải compute lại.
+        return Cache::remember(
+            "club_rank_miss:{$club->id}:{$year}:{$month}",
+            300, // 5 phút
+            fn () => null
+        );
     }
 
     /**

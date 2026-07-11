@@ -15,9 +15,19 @@ class ClubNotificationResource extends JsonResource
 
         if ($userId && $this->created_by === $userId) {
             $isReadByMe = true;
-        } elseif ($userId && $this->relationLoaded('recipients')) {
-            $myRecipient = $this->recipients->firstWhere('user_id', $userId);
-            $isReadByMe = $myRecipient ? $myRecipient->is_read : null;
+        } elseif ($userId) {
+            // Lấy từ relation nếu có eager-load, fallback về giá trị fromExists
+            $myRecipient = $this->relationLoaded('recipients')
+                ? $this->recipients->firstWhere('user_id', $userId)
+                : null;
+
+            if ($myRecipient) {
+                $isReadByMe = (bool) $myRecipient->is_read;
+            } elseif ($this->getAttribute('recipient_for_user') !== null) {
+                $isReadByMe = (bool) $this->getAttribute('recipient_for_user');
+            } elseif (isset($this->is_read_by_me)) {
+                $isReadByMe = (bool) $this->is_read_by_me;
+            }
         }
 
         return [
@@ -34,12 +44,11 @@ class ClubNotificationResource extends JsonResource
             'scheduled_at' => $this->scheduled_at?->toISOString(),
             'sent_at' => $this->sent_at?->toISOString(),
             'created_by' => $this->created_by,
-            'read_count' => $this->when(isset($this->read_count), $this->read_count),
-            'unread_count' => $this->when(isset($this->unread_count), $this->unread_count),
+            'recipients_count' => (int) ($this->recipients_count ?? 0),
+            'read_count' => (int) ($this->read_count ?? 0),
             'is_read_by_me' => $isReadByMe,
             'type' => $this->whenLoaded('type'),
             'creator' => new UserResource($this->whenLoaded('creator')),
-            'recipients' => ClubNotificationRecipientResource::collection($this->whenLoaded('recipients')),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];
