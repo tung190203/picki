@@ -44,14 +44,24 @@ class ClubDetailAssembler
         $loadMembers = $options['include_members']
             ?? ($userId && ($club->is_member ?? false));
 
-        // 1. Attach membership status (1 query)
-        if ($userId) {
+        // 1. Attach membership status (already done by ClubService::getClubDetail — skip to avoid duplicate)
+        // NOTE: If assemble() is called without going through ClubService, uncomment the line below:
+        // if ($userId) { $this->attachMembershipStatus($club, $userId); }
+
+        if ($userId && !isset($club->is_member)) {
             $this->attachMembershipStatus($club, $userId);
+        }
+
+        if ($userId) {
             $this->attachUnreadNotificationCount($club, $userId);
         }
 
-        // 1a. Active member count (1 query, scalar)
-        $club->active_members_count = $club->activeMembers()->count();
+        // 1a. Active member count — use withCount from controller if available, else query
+        if (isset($club->active_members_count)) {
+            // already loaded via withCount('activeMembers') in controller
+        } else {
+            $club->active_members_count = $club->activeMembers()->count();
+        }
 
         // 2. Calculate rank (cached, ~0ms)
         $club->rank = $this->leaderboardService->calculateClubRank($club);
@@ -130,7 +140,7 @@ class ClubDetailAssembler
         $members = $club->activeMembers()
             ->with([
                 'user' => function ($q) {
-                    $q->select(['id', 'full_name', 'avatar_url', 'email'])
+                    $q->select(['id', 'full_name', 'avatar_url'])
                         ->with([
                             'sports' => function ($q) {
                                 $q->select(['id', 'user_id', 'sport_id'])

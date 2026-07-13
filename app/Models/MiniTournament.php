@@ -705,24 +705,16 @@ class MiniTournament extends Model
                 !empty($filter['slot_status']) && is_array($filter['slot_status']),
                 function ($q) use ($filter) {
                     $q->where(function ($subQuery) use ($filter) {
-                        foreach ($filter['slot_status'] as $slotStatus) {
-                            if ($slotStatus === 'con_trong') {
-                                $subQuery->orWhereRaw('(
-                                COALESCE(max_players, 0) - (
-                                    SELECT COUNT(*)
-                                    FROM mini_participants
-                                    WHERE mini_participants.mini_tournament_id = mini_tournaments.id
-                                )
-                            ) > 0');
-                            } elseif ($slotStatus === 'da_day') {
-                                $subQuery->orWhereRaw('(
-                                COALESCE(max_players, 0) - (
-                                    SELECT COUNT(*)
-                                    FROM mini_participants
-                                    WHERE mini_participants.mini_tournament_id = mini_tournaments.id
-                                )
-                            ) <= 0');
-                            }
+                        $slotStatuses = $filter['slot_status'];
+                        $hasConTrong = in_array('con_trong', $slotStatuses);
+                        $hasDaDay = in_array('da_day', $slotStatuses);
+
+                        if ($hasConTrong || $hasDaDay) {
+                            $q->whereRaw('COALESCE(max_players, 0) - (
+                                SELECT COUNT(*)
+                                FROM mini_participants
+                                WHERE mini_participants.mini_tournament_id = mini_tournaments.id
+                            ) ' . ($hasConTrong && $hasDaDay ? '>= 0' : ($hasConTrong ? '> 0' : '<= 0')));
                         }
                     });
                 }

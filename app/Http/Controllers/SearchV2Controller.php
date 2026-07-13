@@ -247,7 +247,7 @@ class SearchV2Controller extends Controller
 
     private function mapResponse($query, string $tab): \Illuminate\Http\JsonResponse
     {
-        $items = $query->get();
+        $items = $query->limit(200)->get();
         $userId = Auth::check() ? Auth::id() : null;
 
         // Eager-load batch stats for user tab to avoid N+1

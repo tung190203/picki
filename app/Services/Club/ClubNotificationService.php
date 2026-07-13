@@ -85,11 +85,6 @@ class ClubNotificationService
                     ->whereColumn('club_notification_id', 'club_notifications.id')
                     ->where('user_id', $userId)
                     ->limit(1),
-                'is_recipient_of_mine' => DB::table('club_notification_recipients')
-                    ->select(DB::raw('1'))
-                    ->whereColumn('club_notification_id', 'club_notifications.id')
-                    ->where('user_id', $userId)
-                    ->limit(1),
             ]);
         }
 
@@ -149,11 +144,19 @@ class ClubNotificationService
             ]);
 
             if (!empty($data['user_ids'])) {
+                $now = now();
+                $insertRows = [];
                 foreach ($data['user_ids'] as $recipientUserId) {
-                    $notification->recipients()->create([
+                    $insertRows[] = [
+                        'club_notification_id' => $notification->id,
                         'user_id' => $recipientUserId,
                         'is_read' => false,
-                    ]);
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+                foreach (array_chunk($insertRows, 500) as $chunk) {
+                    $notification->recipients()->insertOrIgnore($chunk);
                 }
             }
 
@@ -161,16 +164,28 @@ class ClubNotificationService
             $isSent = $status === ClubNotificationStatus::Sent
                 || (is_string($status) && strtolower($status) === 'sent');
             if ($isSent) {
-                if ($notification->recipients()->count() === 0) {
-                    $allMemberUserIds = $club->activeMembers()->pluck('user_id');
-                    foreach ($allMemberUserIds as $memberUserId) {
-                        $notification->recipients()->firstOrCreate(
-                            ['user_id' => $memberUserId],
-                            ['is_read' => false]
-                        );
+                $recipientCount = $notification->recipients()->count();
+                if ($recipientCount === 0) {
+                    $allMemberUserIds = $club->activeMembers()->pluck('user_id')->toArray();
+                    if (!empty($allMemberUserIds)) {
+                        $now = now();
+                        $insertRows = [];
+                        foreach ($allMemberUserIds as $memberUserId) {
+                            $insertRows[] = [
+                                'club_notification_id' => $notification->id,
+                                'user_id' => $memberUserId,
+                                'is_read' => false,
+                                'created_at' => $now,
+                                'updated_at' => $now,
+                            ];
+                        }
+                        foreach (array_chunk($insertRows, 500) as $chunk) {
+                            $notification->recipients()->insertOrIgnore($chunk);
+                        }
+                        $recipientCount = count($allMemberUserIds);
                     }
                 }
-                if ($notification->recipients()->count() > 0) {
+                if ($recipientCount > 0) {
                     $this->dispatchUserNotifications($club, $notification);
                 }
             }
@@ -215,13 +230,22 @@ class ClubNotificationService
         ]);
 
         if ($notification->recipients()->count() === 0) {
-            $allMembers = $club->activeMembers()->pluck('user_id');
-            foreach ($allMembers as $memberUserId) {
-                $notification->recipients()->firstOrCreate([
-                    'user_id' => $memberUserId,
-                ], [
-                    'is_read' => false,
-                ]);
+            $allMemberUserIds = $club->activeMembers()->pluck('user_id')->toArray();
+            if (!empty($allMemberUserIds)) {
+                $now = now();
+                $insertRows = [];
+                foreach ($allMemberUserIds as $memberUserId) {
+                    $insertRows[] = [
+                        'club_notification_id' => $notification->id,
+                        'user_id' => $memberUserId,
+                        'is_read' => false,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+                foreach (array_chunk($insertRows, 500) as $chunk) {
+                    $notification->recipients()->insertOrIgnore($chunk);
+                }
             }
         }
 
@@ -263,19 +287,37 @@ class ClubNotificationService
      */
     public function backfillNotificationsForNewMember(Club $club, int $userId, \DateTimeInterface $joinedAt): int
     {
-        $count = 0;
-
-        $club->notifications()
+        $count = $club->notifications()
             ->where('status', ClubNotificationStatus::Sent)
             ->whereDoesntHave('recipients', fn ($q) => $q->where('user_id', $userId))
             ->where('sent_at', '<', $joinedAt)
-            ->each(function ($notification) use ($userId, &$count) {
-                $notification->recipients()->firstOrCreate(
-                    ['user_id' => $userId],
-                    ['is_read' => false]
-                );
-                $count++;
-            });
+            ->count();
+
+        if ($count === 0) {
+            return 0;
+        }
+
+        $notificationIds = $club->notifications()
+            ->where('status', ClubNotificationStatus::Sent)
+            ->whereDoesntHave('recipients', fn ($q) => $q->where('user_id', $userId))
+            ->where('sent_at', '<', $joinedAt)
+            ->pluck('id')
+            ->toArray();
+
+        $now = now();
+        $insertRows = [];
+        foreach ($notificationIds as $notificationId) {
+            $insertRows[] = [
+                'club_notification_id' => $notificationId,
+                'user_id' => $userId,
+                'is_read' => false,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+        foreach (array_chunk($insertRows, 500) as $chunk) {
+            DB::table('club_notification_recipients')->insertOrIgnore($chunk);
+        }
 
         return $count;
     }
@@ -337,23 +379,9 @@ class ClubNotificationService
             $joinedAt = $member?->joined_at;
 
             if ($canManage) {
-                $notifications = $club->notifications()->get();
-
-                foreach ($notifications as $notification) {
-                    $recipient = $notification->recipients()->where('user_id', $userId)->first();
-
-                    if (!$recipient) {
-                        $notification->recipients()->firstOrCreate(
-                            ['user_id' => $userId],
-                            ['is_read' => true, 'read_at' => now()]
-                        );
-                    } else {
-                        $recipient->markAsRead();
-                    }
-                }
-            } else {
-                // Mark as read những notification user là recipient rõ ràng
-                $recipients = DB::table('club_notification_recipients')
+                // Manager: mark all club notifications as read for this user
+                // Step 1: bulk UPDATE existing recipients
+                DB::table('club_notification_recipients')
                     ->join('club_notifications', 'club_notification_recipients.club_notification_id', '=', 'club_notifications.id')
                     ->where('club_notifications.club_id', $club->id)
                     ->where('club_notification_recipients.user_id', $userId)
@@ -363,24 +391,80 @@ class ClubNotificationService
                         'club_notification_recipients.read_at' => now(),
                     ]);
 
-                // Mark as read những broadcast notification (gửi tất cả, không có recipients)
-                $club->notifications()
+                // Step 2: bulk INSERT missing recipients (notifications user is not yet recipient of)
+                $existingRecipientIds = DB::table('club_notification_recipients')
+                    ->join('club_notifications', 'club_notification_recipients.club_notification_id', '=', 'club_notifications.id')
+                    ->where('club_notifications.club_id', $club->id)
+                    ->where('club_notification_recipients.user_id', $userId)
+                    ->pluck('club_notification_id')
+                    ->toArray();
+
+                $notificationIds = DB::table('club_notifications')
+                    ->where('club_id', $club->id)
+                    ->pluck('id')
+                    ->toArray();
+
+                $missingIds = array_diff($notificationIds, $existingRecipientIds);
+                if (!empty($missingIds)) {
+                    $now = now();
+                    $insertRows = [];
+                    foreach ($missingIds as $notificationId) {
+                        $insertRows[] = [
+                            'club_notification_id' => $notificationId,
+                            'user_id' => $userId,
+                            'is_read' => true,
+                            'read_at' => $now,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    }
+                    foreach (array_chunk($insertRows, 500) as $chunk) {
+                        DB::table('club_notification_recipients')->insertOrIgnore($chunk);
+                    }
+                }
+            } else {
+                // Non-manager: mark notifications user is recipient of
+                DB::table('club_notification_recipients')
+                    ->join('club_notifications', 'club_notification_recipients.club_notification_id', '=', 'club_notifications.id')
+                    ->where('club_notifications.club_id', $club->id)
+                    ->where('club_notification_recipients.user_id', $userId)
+                    ->where('club_notification_recipients.is_read', false)
+                    ->update([
+                        'club_notification_recipients.is_read' => true,
+                        'club_notification_recipients.read_at' => now(),
+                    ]);
+
+                // Mark broadcast notifications as read for this user
+                $broadcastIds = DB::table('club_notifications')
+                    ->where('club_id', $club->id)
                     ->where('status', ClubNotificationStatus::Sent)
-                    ->whereDoesntHave('recipients')
+                    ->whereDoesntHave('recipients', fn ($q) => $q->where('user_id', $userId))
                     ->when($joinedAt, fn ($q) => $q->where('sent_at', '>=', $joinedAt))
-                    ->each(function ($notification) use ($userId) {
-                        $notification->recipients()->firstOrCreate(
-                            ['user_id' => $userId],
-                            ['is_read' => true, 'read_at' => now()]
-                        );
-                    });
+                    ->pluck('id')
+                    ->toArray();
+
+                if (!empty($broadcastIds)) {
+                    $now = now();
+                    $insertRows = [];
+                    foreach ($broadcastIds as $notificationId) {
+                        $insertRows[] = [
+                            'club_notification_id' => $notificationId,
+                            'user_id' => $userId,
+                            'is_read' => true,
+                            'read_at' => $now,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    }
+                    foreach (array_chunk($insertRows, 500) as $chunk) {
+                        DB::table('club_notification_recipients')->insertOrIgnore($chunk);
+                    }
+                }
             }
 
             $this->syncAllLaravelNotificationsForClub($club->id, $userId);
 
-            return $canManage
-                ? 'Đã đánh dấu đọc tất cả thông báo'
-                : 'Đã đánh dấu đọc tất cả thông báo';
+            return 'Đã đánh dấu đọc tất cả thông báo';
         });
     }
 
