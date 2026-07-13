@@ -63,7 +63,6 @@ class SearchRequest extends FormRequest
             'tab'      => 'mini-tournament',
             'sub_tab'  => SubTabFilter::ALL->value,
             'page'     => 1,
-            'per_page' => 15,
             'map_mode' => false,
         ], $validated, [
             'sport_id' => $this->input('sport_id', Sport::PICKLEBALL_ID),
