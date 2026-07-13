@@ -60,7 +60,7 @@ class SearchV2Controller extends Controller
         $query = $this->buildQuery($tab, $params, $filters, $subTab, $userId);
 
         if ($isMap) {
-            return $this->mapResponse($query, $tab);
+            return $this->mapResponse($query, $tab, $params);
         }
 
         if ($subTab === 'this_week') {
@@ -245,9 +245,13 @@ class SearchV2Controller extends Controller
         ];
     }
 
-    private function mapResponse($query, string $tab): \Illuminate\Http\JsonResponse
+    private function mapResponse($query, string $tab, array $params): \Illuminate\Http\JsonResponse
     {
-        $items = $query->limit(200)->get();
+        if (!empty($params['per_page'])) {
+            $items = $query->limit((int) $params['per_page'])->get();
+        } else {
+            $items = $query->get();
+        }
         $userId = Auth::check() ? Auth::id() : null;
 
         // Eager-load batch stats for user tab to avoid N+1
