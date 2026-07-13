@@ -43,26 +43,7 @@ class ClubMemberManagementService
             ->with([
                 'user' => function ($q) {
                     $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender'])
-                        ->with([
-                            'vnduprScores' => function ($q) {
-                                $q->select(['user_sport_scores.id', 'user_sport_scores.user_sport_id', 'user_sport_scores.score_type', 'user_sport_scores.score_value', 'user_sport_scores.created_at'])
-                                    ->where('user_sport_scores.score_type', 'vndupr_score')
-                                    ->latest('user_sport_scores.score_value')
-                                    ->limit(1);
-                            },
-                            'sports' => function ($q) {
-                                $q->select(['user_sport.id', 'user_sport.user_id', 'user_sport.sport_id'])
-                                    ->with([
-                                        'sport' => fn ($q) => $q->select(['id', 'name', 'icon']),
-                                        'scores' => function ($q) {
-                                            $q->select(['id', 'user_sport_id', 'score_type', 'score_value', 'created_at'])
-                                                ->where('score_type', 'vndupr_score')
-                                                ->latest('created_at')
-                                                ->limit(10);
-                                        },
-                                    ]);
-                            },
-                        ]);
+                        ->with('sports.sport');
                 },
                 'reviewer' => fn ($q) => $q->select(['id', 'full_name', 'avatar_url']),
             ]);
@@ -82,14 +63,69 @@ class ClubMemberManagementService
         }
 
         if ($useCursor && empty($filters['cursor'])) {
-            return $query->cursorPaginate($filters['per_page'] ?? 20);
+            $result = $query->cursorPaginate($filters['per_page'] ?? 20);
+            $this->loadMemberSportsRelations($result->items());
+            return $result;
         }
 
         if ($useCursor && !empty($filters['cursor'])) {
-            return $query->cursorPaginate($filters['per_page'] ?? 20);
+            $result = $query->cursorPaginate($filters['per_page'] ?? 20);
+            $this->loadMemberSportsRelations($result->items());
+            return $result;
         }
 
-        return $query->paginate($filters['per_page'] ?? 15);
+        $result = $query->paginate($filters['per_page'] ?? 15);
+        $this->loadMemberSportsRelations($result->items());
+        return $result;
+    }
+
+    /**
+     * Load scores and sport stats for member users — canonical source, same as /me.
+     * Call after fetching paginated/cursor results.
+     *
+     * @param array $items Array of ClubMember models
+     */
+    protected function loadMemberSportsRelations(array $items): void
+    {
+        if (empty($items)) {
+            return;
+        }
+
+        // Collect all user IDs from items
+        $userIds = array_filter(array_column($items, 'user_id'));
+
+        // Collect all user_sport ids for batch score loading
+        $userSportIds = [];
+        $usersToLoad = [];
+
+        foreach ($items as $member) {
+            $user = $member->relationLoaded('user') ? $member->user : null;
+            if ($user && $user->relationLoaded('sports')) {
+                $usersToLoad[$user->id] = $user;
+                foreach ($user->sports as $us) {
+                    $userSportIds[] = $us->id;
+                }
+            }
+        }
+
+        if (!empty($userSportIds)) {
+            // Batch load all scores for all user_sport ids (1 query)
+            $scores = \App\Models\UserSportScore::whereIn('user_sport_id', $userSportIds)
+                ->whereIn('score_type', ['personal_score', 'dupr_score', 'vndupr_score'])
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->groupBy('user_sport_id');
+
+            // Attach scores to each userSport model
+            foreach ($usersToLoad as $user) {
+                foreach ($user->sports as $us) {
+                    $us->setRelation('scores', $scores->get($us->id, collect()));
+                }
+            }
+        }
+
+        // Canonical stats source — same as /me
+        User::loadSportStatsOnUsers(collect($usersToLoad), 1);
     }
 
     public function getMemberStatistics(Club $club): array
