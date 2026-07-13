@@ -106,7 +106,9 @@ class ClubController extends Controller
             'creator:id,full_name,avatar_url',
             'profile',
             'mainWallet:id,club_id,currency,qr_code_url,qr_note',
-        ])->find($clubId);
+        ])
+            ->withCount('activeMembers')
+            ->find($clubId);
         if (!$club) {
             return ResponseHelper::error('Câu lạc bộ không còn tồn tại trong hệ thống', 404);
         }
