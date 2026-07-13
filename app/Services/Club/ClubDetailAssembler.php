@@ -7,6 +7,8 @@ use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
 use App\Models\Club\Club;
 use App\Models\Club\ClubMember;
+use App\Models\User;
+use App\Models\UserSportScore;
 use Illuminate\Support\Collection;
 
 /**
@@ -137,29 +139,50 @@ class ClubDetailAssembler
      */
     protected function loadMembers(Club $club, array $options): void
     {
+        // Load members + user (no nested relations yet — handle separately for clarity)
         $members = $club->activeMembers()
             ->with([
                 'user' => function ($q) {
                     $q->select(['id', 'full_name', 'avatar_url'])
-                        ->with([
-                            'sports' => function ($q) {
-                                $q->select(['id', 'user_id', 'sport_id'])
-                                    ->with([
-                                        'sport' => function ($q) {
-                                            $q->select(['id', 'name']);
-                                        },
-                                        'scores' => function ($q) {
-                                            $q->select(['id', 'user_sport_id', 'score_type', 'score_value', 'created_at'])
-                                                ->where('score_type', 'vndupr_score')
-                                                ->latest('created_at')
-                                                ->limit(10);
-                                        },
-                                    ]);
-                            },
-                        ]);
+                        ->with('sports.sport');
                 },
             ])
             ->get();
+
+        if ($members->isEmpty()) {
+            $club->setRelation('members', $members);
+            return;
+        }
+
+        // Manually load scores for all user_sport ids in a single query
+        $userSportIds = [];
+        foreach ($members as $member) {
+            if ($member->user && $member->user->relationLoaded('sports')) {
+                foreach ($member->user->sports as $us) {
+                    $userSportIds[] = $us->id;
+                }
+            }
+        }
+
+        if (!empty($userSportIds)) {
+            $scores = UserSportScore::whereIn('user_sport_id', $userSportIds)
+                ->whereIn('score_type', ['personal_score', 'dupr_score', 'vndupr_score'])
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->groupBy('user_sport_id');
+
+            foreach ($members as $member) {
+                if ($member->user && $member->user->relationLoaded('sports')) {
+                    foreach ($member->user->sports as $us) {
+                        $us->setRelation('scores', $scores->get($us->id, collect()));
+                    }
+                }
+            }
+        }
+
+        // Canonical stats source — same as /me
+        $memberUsers = $members->pluck('user')->filter();
+        User::loadSportStatsOnUsers($memberUsers, 1);
 
         $club->setRelation('members', $members);
     }
