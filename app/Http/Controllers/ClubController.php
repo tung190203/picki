@@ -16,6 +16,7 @@ use App\Http\Requests\Club\UpdateClubRequest;
 use App\Http\Requests\Club\VerifyClubRequest;
 use App\Http\Resources\Club\ClubDetailResource;
 use App\Http\Resources\Club\ClubLeaderboardResource;
+use App\Http\Resources\Club\ClubListResource;
 use App\Http\Resources\ClubResource;
 use App\Http\Resources\Map\MapClubResource;
 use App\Models\Club\Club;

@@ -9,6 +9,7 @@ use App\Http\Requests\Club\ApproveJoinRequestRequest;
 use App\Http\Requests\Club\GetJoinRequestsRequest;
 use App\Http\Requests\Club\RejectJoinRequestRequest;
 use App\Http\Requests\Club\SendJoinRequestRequest;
+use App\Http\Resources\Club\ClubJoinRequestResource;
 use App\Http\Resources\Club\ClubMemberResource;
 use App\Models\Club\Club;
 use App\Models\Club\ClubMember;
@@ -42,7 +43,7 @@ class ClubJoinRequestController extends Controller
         ];
 
         return ResponseHelper::success(
-            ClubMemberResource::collection($requests),
+            ClubJoinRequestResource::collection($requests),
             'Lấy danh sách yêu cầu tham gia thành công',
             200,
             $meta

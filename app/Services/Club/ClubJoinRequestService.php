@@ -37,9 +37,16 @@ class ClubJoinRequestService
         $query = ClubMember::where('club_id', $club->id)
             ->whereNull('invited_by')
             ->whereHas('user')
-            ->with(['user' => function ($q) {
-                $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
-            }, 'reviewer', 'inviter']);
+            ->with([
+                'user' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+                },
+                'user.sports' => function ($q) {
+                    $q->with(['scores']);
+                },
+                'reviewer',
+                'inviter',
+            ]);
 
         if ($status === 'pending') {
             $query->where('membership_status', ClubMembershipStatus::Pending);

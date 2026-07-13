@@ -18,7 +18,7 @@ class UpdateMemberRequest extends FormRequest
     {
         return [
             'role' => ['sometimes', Rule::enum(ClubMemberRole::class)],
-            'position' => 'nullable|string|max:255',
+            'position' => ['nullable', 'string', Rule::enum(ClubMemberRole::class)],
             'status' => ['sometimes', Rule::enum(ClubMemberStatus::class)],
             'notes' => 'nullable|string',
             'rejection_reason' => 'nullable|string',
