@@ -76,8 +76,8 @@ class ClubService
             ]);
 
             $club->load([
-                'members.user' => function ($query) {
-                    $query->with(User::FULL_RELATIONS);
+                'members.user' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender']);
                 },
                 'profile',
                 'creator'
@@ -263,6 +263,7 @@ class ClubService
             $newName = $club->name;
             if (isset($data['name']) && $oldName !== $newName) {
                 $message = "CLB {$oldName} đã được quản trị viên đổi tên thành {$newName}";
+                // Eager-load user to avoid N+1: activeMembers()->with('user') vs lazy-load in loop
                 $club->activeMembers()->with('user')->each(function (ClubMember $member) use ($club, $oldName, $newName, $message) {
                     $user = $member->user;
                     if ($user) {
@@ -276,8 +277,8 @@ class ClubService
             }
 
             $club->refresh()->load([
-                'members.user' => function ($query) {
-                    $query->with(User::FULL_RELATIONS);
+                'members.user' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender']);
                 },
                 'profile',
                 'creator'
@@ -334,60 +335,63 @@ class ClubService
         }
 
         $club->restore();
-        $club->refresh()->load([
-            'members.user' => function ($query) {
-                $query->with(User::FULL_RELATIONS);
-            },
-            'profile',
-            'creator'
-        ]);
-
+            $club->refresh()->load([
+                'members.user' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender']);
+                },
+                'profile',
+                'creator'
+            ]);
         return $club;
     }
 
+    /**
+     * Get club detail — access control + membership flags.
+     *
+     * Does NOT load members list. Member loading is done by ClubDetailAssembler
+     * which calls this method first, then adds members based on $club->is_member.
+     */
     public function getClubDetail(Club $club, ?int $userId): Club
     {
-        $isMember = $userId && $club->members()
-            ->where('user_id', $userId)
-            ->where('membership_status', ClubMembershipStatus::Joined)
-            ->where('status', ClubMemberStatus::Active)
-            ->exists();
+        // Check banned + private club access using cached is_super_admin
+        $isSuperAdmin = $userId && \App\Models\User::isSuperAdmin($userId);
 
         if ($club->status === \App\Enums\ClubStatus::Suspended) {
-            if (!$userId || !\App\Models\User::isSuperAdmin($userId)) {
+            if (!$isSuperAdmin) {
                 throw new BusinessException('CLB này đang bị đình chỉ và không thể truy cập');
             }
+        }
+
+        // Pre-load membership status FIRST (1 query) — this sets $club->is_member
+        if ($userId) {
+            $this->attachMembershipStatus([$club], $userId);
         }
 
         if (!$club->is_public) {
             if (!$userId) {
                 throw new BusinessException('CLB này là riêng tư. Bạn cần đăng nhập để xem');
             }
-            if (!$isMember && !\App\Models\User::isSuperAdmin($userId)) {
+            // Use is_member set by attachMembershipStatus above — NO extra query
+            if (!$club->is_member && !$isSuperAdmin) {
                 throw new BusinessException('Bạn không có quyền xem CLB riêng tư này');
             }
         }
 
-        if ($isMember) {
-            $members = $club->joinedMembers()
-                ->with(['user' => fn ($q) => $q->with(['sports', 'sports.sport', 'sports.scores'])])
-                ->get();
-            $club->setRelation('members', $members);
-        }
-
-        // Pre-load toàn bộ membership của user hiện tại (1 query) để tránh
-        // ClubResource fire 4 queries phụ (is_member, has_pending_request,
-        // has_invitation, getInvitedByInfo).
-        if ($userId) {
-            $this->attachMembershipStatus([$club], $userId);
-        }
+        // NOTE: Members list loading moved to ClubDetailAssembler.
+        // Do NOT load members here — Assembler decides based on include options.
 
         return $club;
     }
 
     public function searchClubs(array $filters, ?int $userId): LengthAwarePaginator
     {
-        $query = Club::with(['profile:id,club_id,cover_image_url,description'])->withCount('activeMembers')->orderBy('created_at', 'desc');
+        $query = Club::select([
+            'id', 'name', 'address', 'latitude', 'longitude', 'logo_url',
+            'status', 'is_public', 'is_verified', 'is_banned', 'created_by', 'created_at'
+        ])
+            ->with(['profile:id,club_id,cover_image_url,description'])
+            ->withCount('activeMembers')
+            ->orderBy('created_at', 'desc');
 
         if ($userId) {
             $isSuperAdmin = \App\Models\User::isSuperAdmin($userId);
@@ -461,7 +465,12 @@ class ClubService
     public function searchClubsForMap(array $filters, ?int $userId): Collection
     {
         $isSuperAdmin = $userId && \App\Models\User::isSuperAdmin($userId);
-        $query = Club::with(['profile:id,club_id,cover_image_url,description'])->withCount('activeMembers')
+        $query = Club::select([
+            'id', 'name', 'address', 'latitude', 'longitude', 'logo_url',
+            'status', 'is_public', 'is_verified', 'is_banned', 'created_by', 'created_at'
+        ])
+            ->with(['profile:id,club_id,cover_image_url,description'])
+            ->withCount('activeMembers')
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->where(function ($q) use ($isSuperAdmin) {
@@ -539,13 +548,12 @@ class ClubService
             ->select('cn.club_id', DB::raw('COUNT(*) as unread_count'))
             ->pluck('unread_count', 'club_id');
 
-        // ===== 2. Broadcast unread (không có recipient row) =====
-        // Trước đây: build `orWhere` lặp theo từng club_id → SQL rất dài với N clubs.
-        // Cách mới: 1 raw query duy nhất, tính cutoff theo (club_id, joined_at)
-        // từ subquery — giữ semantics nhưng MySQL có thể dùng index tốt hơn.
+        // ===== 2. Broadcast unread (không có recipient row) — cleaned up with bindings =====
         $defaultCutoff = now()->subYear()->toDateTimeString();
+        $placeholders = implode(',', array_fill(0, count($clubIds), '?'));
+
         $broadcastUnreadRows = DB::select(
-            'SELECT cn.club_id, COUNT(*) AS broadcast_unread_count
+            "SELECT cn.club_id, COUNT(*) AS broadcast_unread_count
              FROM club_notifications cn
              LEFT JOIN (
                  SELECT club_id, MAX(joined_at) AS joined_at
@@ -553,22 +561,19 @@ class ClubService
                  WHERE user_id = ? AND membership_status = ? AND status = ?
                  GROUP BY club_id
              ) cm ON cm.club_id = cn.club_id
-             WHERE cn.club_id IN (' . implode(',', array_fill(0, count($clubIds), '?')) . ')
-               AND cn.status = ?
+             WHERE cn.club_id IN ({$placeholders})
+               AND cn.status = 'sent'
                AND NOT EXISTS (
                    SELECT 1 FROM club_notification_recipients cnr2
                    WHERE cnr2.club_notification_id = cn.id
                )
                AND cn.sent_at >= COALESCE(cm.joined_at, ?)
-             GROUP BY cn.club_id',
-            [
-                $userId,
-                ClubMembershipStatus::Joined->value,
-                ClubMemberStatus::Active->value,
-                ...$clubIds,
-                'sent',
-                $defaultCutoff,
-            ]
+             GROUP BY cn.club_id",
+            array_merge(
+                [$userId, ClubMembershipStatus::Joined->value, ClubMemberStatus::Active->value],
+                $clubIds,
+                [$defaultCutoff]
+            )
         );
         $broadcastMap = collect($broadcastUnreadRows)->keyBy('club_id');
 

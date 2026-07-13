@@ -24,11 +24,48 @@ class ClubMemberManagementService
         protected ClubNotificationService $notificationService
     ) {}
 
-    public function getMembers(Club $club, array $filters): LengthAwarePaginator
+    /**
+     * Get paginated members with inline projection (no FULL_RELATIONS constant).
+     * Supports cursor pagination via `cursor` parameter.
+     *
+     * @param  Club  $club
+     * @param  array  $filters  Supports: search, role, status, per_page, cursor
+     * @param  bool  $useCursor  If true, uses cursorPaginate instead of paginate
+     * @return \Illuminate\Contracts\Pagination\LengthAwarePaginator|\Illuminate\Pagination\CursorPaginator
+     */
+    public function getMembers(Club $club, array $filters, bool $useCursor = false): LengthAwarePaginator|\Illuminate\Pagination\CursorPaginator
     {
         $query = $club->members()
-            ->whereHas('user')
-            ->with(['user' => User::FULL_RELATIONS, 'reviewer']);
+            ->select(['club_members.id', 'club_members.user_id', 'club_members.club_id',
+                'club_members.role', 'club_members.position', 'club_members.membership_status',
+                'club_members.status', 'club_members.message', 'club_members.joined_at',
+                'club_members.invited_by', 'club_members.reviewed_by', 'club_members.created_at'])
+            ->with([
+                'user' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender'])
+                        ->with([
+                            'vnduprScores' => function ($q) {
+                                $q->select(['user_sport_scores.id', 'user_sport_scores.user_sport_id', 'user_sport_scores.score_type', 'user_sport_scores.score_value', 'user_sport_scores.created_at'])
+                                    ->where('user_sport_scores.score_type', 'vndupr_score')
+                                    ->latest('user_sport_scores.score_value')
+                                    ->limit(1);
+                            },
+                            'sports' => function ($q) {
+                                $q->select(['user_sport.id', 'user_sport.user_id', 'user_sport.sport_id'])
+                                    ->with([
+                                        'sport' => fn ($q) => $q->select(['id', 'name', 'icon']),
+                                        'scores' => function ($q) {
+                                            $q->select(['id', 'user_sport_id', 'score_type', 'score_value', 'created_at'])
+                                                ->where('score_type', 'vndupr_score')
+                                                ->latest('created_at')
+                                                ->limit(10);
+                                        },
+                                    ]);
+                            },
+                        ]);
+                },
+                'reviewer' => fn ($q) => $q->select(['id', 'full_name', 'avatar_url']),
+            ]);
 
         if (!empty($filters['search'])) {
             $query->whereHas('user', function ($q) use ($filters) {
@@ -44,37 +81,60 @@ class ClubMemberManagementService
             $query->where('status', $filters['status']);
         }
 
-        $perPage = $filters['per_page'] ?? 15;
-        return $query->paginate($perPage);
+        if ($useCursor && empty($filters['cursor'])) {
+            return $query->cursorPaginate($filters['per_page'] ?? 20);
+        }
+
+        if ($useCursor && !empty($filters['cursor'])) {
+            return $query->cursorPaginate($filters['per_page'] ?? 20);
+        }
+
+        return $query->paginate($filters['per_page'] ?? 15);
     }
 
     public function getMemberStatistics(Club $club): array
     {
-        $allMembers = ClubMember::where('club_id', $club->id)->whereHas('user');
-        $joined = clone $allMembers;
-        $joined->where('membership_status', ClubMembershipStatus::Joined);
+        $row = ClubMember::where('club_id', $club->id)
+            ->whereNull('deleted_at')
+            ->selectRaw("
+                COUNT(*) AS total,
+                SUM(CASE WHEN membership_status = 'joined' AND status = 'active' THEN 1 ELSE 0 END) AS active_joined,
+                SUM(CASE WHEN membership_status = 'joined' AND status = 'active' AND role = 'admin' THEN 1 ELSE 0 END) AS admin_count,
+                SUM(CASE WHEN membership_status = 'joined' AND status = 'active' AND role = 'manager' THEN 1 ELSE 0 END) AS manager_count,
+                SUM(CASE WHEN membership_status = 'joined' AND status = 'active' AND role = 'secretary' THEN 1 ELSE 0 END) AS secretary_count,
+                SUM(CASE WHEN membership_status = 'joined' AND status = 'active' AND role = 'treasurer' THEN 1 ELSE 0 END) AS treasurer_count,
+                SUM(CASE WHEN membership_status = 'joined' AND status = 'active' AND role = 'member' THEN 1 ELSE 0 END) AS member_count,
+                SUM(CASE WHEN membership_status = 'pending' THEN 1 ELSE 0 END) AS pending_request,
+                SUM(CASE WHEN membership_status = 'joined' AND status = 'pending' THEN 1 ELSE 0 END) AS pending_join,
+                SUM(CASE WHEN membership_status = 'joined' AND status = 'inactive' THEN 1 ELSE 0 END) AS inactive,
+                SUM(CASE WHEN membership_status = 'joined' AND status = 'suspended' THEN 1 ELSE 0 END) AS suspended,
+                SUM(CASE WHEN membership_status = 'rejected' THEN 1 ELSE 0 END) AS rejected,
+                SUM(CASE WHEN membership_status = 'left' THEN 1 ELSE 0 END) AS left_club,
+                SUM(CASE WHEN membership_status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled
+            ")
+            ->first();
 
         return [
-            'total' => (clone $joined)->where('status', ClubMemberStatus::Active)->count(),
+            'total' => (int) $row->total,
             'by_role' => [
-                'admin' => (clone $joined)->where('status', ClubMemberStatus::Active)->where('role', ClubMemberRole::Admin)->count(),
-                'manager' => (clone $joined)->where('status', ClubMemberStatus::Active)->where('role', ClubMemberRole::Manager)->count(),
-                'treasurer' => (clone $joined)->where('status', ClubMemberStatus::Active)->where('role', ClubMemberRole::Treasurer)->count(),
-                'secretary' => (clone $joined)->where('status', ClubMemberStatus::Active)->where('role', ClubMemberRole::Secretary)->count(),
-                'member' => (clone $joined)->where('status', ClubMemberStatus::Active)->where('role', ClubMemberRole::Member)->count(),
+                'admin' => (int) $row->admin_count,
+                'manager' => (int) $row->manager_count,
+                'secretary' => (int) $row->secretary_count,
+                'treasurer' => (int) $row->treasurer_count,
+                'member' => (int) $row->member_count,
             ],
             'by_status' => [
-                'pending' => (clone $allMembers)->where('status', ClubMemberStatus::Pending)->count(),
-                'active' => (clone $allMembers)->where('status', ClubMemberStatus::Active)->count(),
-                'inactive' => (clone $allMembers)->where('status', ClubMemberStatus::Inactive)->count(),
-                'suspended' => (clone $allMembers)->where('status', ClubMemberStatus::Suspended)->count(),
+                'pending' => (int) $row->pending_request + (int) $row->pending_join,
+                'active' => (int) $row->active_joined,
+                'inactive' => (int) $row->inactive,
+                'suspended' => (int) $row->suspended,
             ],
             'by_membership_status' => [
-                'pending' => (clone $allMembers)->where('membership_status', ClubMembershipStatus::Pending)->count(),
-                'joined' => (clone $allMembers)->where('membership_status', ClubMembershipStatus::Joined)->count(),
-                'rejected' => (clone $allMembers)->where('membership_status', ClubMembershipStatus::Rejected)->count(),
-                'left' => (clone $allMembers)->where('membership_status', ClubMembershipStatus::Left)->count(),
-                'cancelled' => (clone $allMembers)->where('membership_status', ClubMembershipStatus::Cancelled)->count(),
+                'pending' => (int) $row->pending_request + (int) $row->pending_join,
+                'joined' => (int) $row->active_joined + (int) $row->inactive + (int) $row->suspended,
+                'rejected' => (int) $row->rejected,
+                'left' => (int) $row->left_club,
+                'cancelled' => (int) $row->cancelled,
             ],
         ];
     }

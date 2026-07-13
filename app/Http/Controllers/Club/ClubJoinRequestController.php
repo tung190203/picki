@@ -60,7 +60,9 @@ class ClubJoinRequestController extends Controller
 
         try {
             $member = $this->joinRequestService->sendJoinRequest($club, $userId, $request->input('message'));
-            $member->load(['user' => User::FULL_RELATIONS, 'club']);
+            $member->load(['user' => function ($q) {
+                $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+            }, 'club']);
 
             return ResponseHelper::success(new ClubMemberResource($member), 'Yêu cầu tham gia đã được gửi', 201);
         } catch (BusinessException $e) {
@@ -73,7 +75,9 @@ class ClubJoinRequestController extends Controller
     public function show($clubId, $requestId)
     {
         $member = ClubMember::where('club_id', $clubId)
-            ->with(['user' => User::FULL_RELATIONS, 'club', 'reviewer', 'inviter'])
+            ->with(['user' => function ($q) {
+                $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+            }, 'club', 'reviewer', 'inviter'])
             ->find($requestId);
 
         if (!$member) {
@@ -135,7 +139,9 @@ class ClubJoinRequestController extends Controller
 
         try {
             $member = $this->joinRequestService->approveRequest($member, $reviewerId, $request->input('role'));
-            $member->load(['user' => User::FULL_RELATIONS, 'reviewer']);
+            $member->load(['user' => function ($q) {
+                $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+            }, 'reviewer']);
 
             return ResponseHelper::success(new ClubMemberResource($member), 'Yêu cầu đã được duyệt');
         } catch (BusinessException $e) {
@@ -216,7 +222,9 @@ class ClubJoinRequestController extends Controller
 
         try {
             $member = $this->joinRequestService->acceptInvitation($clubId, $userId);
-            $member->load(['user' => User::FULL_RELATIONS, 'club', 'inviter']);
+            $member->load(['user' => function ($q) {
+                $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+            }, 'club', 'inviter']);
 
             return ResponseHelper::success(new ClubMemberResource($member), 'Bạn đã tham gia CLB thành công');
         } catch (BusinessException $e) {

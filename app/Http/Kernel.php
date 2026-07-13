@@ -71,5 +71,6 @@ class Kernel extends HttpKernel
         'crawler' => \App\Http\Middleware\DetectCrawlerMiddleware::class,
         'update.last_login' => \App\Http\Middleware\UpdateLastLoginMiddleware::class,
         'super_admin' => \App\Http\Middleware\SuperAdminMiddleware::class,
+        'performance' => \App\Http\Middleware\PerformanceMonitoringMiddleware::class,
     ];
 }

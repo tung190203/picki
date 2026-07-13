@@ -299,8 +299,12 @@ class ClubActivityController extends Controller
             Cache::increment('club_content_version:' . $clubId);
 
             $activity->load([
-                'creator' => User::FULL_RELATIONS,
-                'participants.user' => User::FULL_RELATIONS
+                'creator' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+                },
+                'participants.user' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+                }
             ]);
             $activity->loadSum(self::ACTIVITY_COLLECTED_SUM, 'amount');
 
@@ -316,14 +320,22 @@ class ClubActivityController extends Controller
     {
         $activity = ClubActivity::where('club_id', $clubId)
             ->with([
-                'creator' => User::FULL_RELATIONS,
+                'creator' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+                },
                 'club',
                 'participants',
-                'participants.user' => User::FULL_RELATIONS,
+                'participants.user' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+                },
                 'participants.walletTransaction',
                 'miniTournament',
-                'fundCollection.contributions.user' => User::FULL_RELATIONS,
-                'fundCollection.assignedMembers' => User::FULL_RELATIONS,
+                'fundCollection.contributions.user' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+                },
+                'fundCollection.assignedMembers' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+                },
             ])
             ->withSum(self::ACTIVITY_COLLECTED_SUM, 'amount')
             ->findOrFail($activityId);
@@ -346,8 +358,12 @@ class ClubActivityController extends Controller
             Cache::increment('club_content_version:' . $clubId);
 
             $activity->load([
-                'creator' => User::FULL_RELATIONS,
-                'participants.user' => User::FULL_RELATIONS
+                'creator' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+                },
+                'participants.user' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+                }
             ]);
             $activity->loadSum(self::ACTIVITY_COLLECTED_SUM, 'amount');
 
@@ -394,8 +410,12 @@ class ClubActivityController extends Controller
             Cache::increment('club_content_version:' . $clubId);
 
             $activity->load([
-                'creator' => User::FULL_RELATIONS,
-                'participants.user' => User::FULL_RELATIONS
+                'creator' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+                },
+                'participants.user' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+                }
             ]);
             $activity->loadSum(self::ACTIVITY_COLLECTED_SUM, 'amount');
 
@@ -427,8 +447,12 @@ class ClubActivityController extends Controller
             Cache::increment('club_content_version:' . $clubId);
 
             $activity->load([
-                'creator' => User::FULL_RELATIONS,
-                'participants.user' => User::FULL_RELATIONS
+                'creator' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+                },
+                'participants.user' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+                }
             ]);
             $activity->loadSum(self::ACTIVITY_COLLECTED_SUM, 'amount');
 
