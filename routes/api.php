@@ -142,6 +142,7 @@ Route::prefix('live-score')->group(function () {
 Route::prefix('search')->group(function () {
     Route::get('/', [SearchV2Controller::class, 'search']);
     Route::get('/quick', [SearchV2Controller::class, 'quick']);
+    Route::get('/debug-club-counts', [SearchV2Controller::class, 'debugClubCounts']);
 });
 
 // Search V2 - giữ nguyên endpoint cũ, chỉ sửa logic bên trong

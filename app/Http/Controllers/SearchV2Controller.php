@@ -195,7 +195,7 @@ class SearchV2Controller extends Controller
     {
         $isSuperAdmin = $userId && \App\Models\User::isSuperAdmin($userId);
 
-        return Club::withListRelations()
+        return Club::withSearchRelations($userId)
             ->with(['creator', 'members'])
             ->when(!$isSuperAdmin, fn($q) => $q->where('status', '!=', \App\Enums\ClubStatus::Suspended))
             ->where(function ($q) use ($userId, $isSuperAdmin) {
