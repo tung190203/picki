@@ -359,7 +359,7 @@
                                                     }}</h4>
                                                 <p class="text-xs text-[#838799] mt-1">
                                                     Trình {{
-                                                        Number(request.user?.sports[0]?.scores?.vndupr_score).toFixed(1) }}
+                                                        Number(request.user?.sports?.[0]?.scores?.vndupr_score).toFixed(1) }}
                                                     {{ request.message ? `• ${request.message}` : '' }}
                                                 </p>
                                             </div>

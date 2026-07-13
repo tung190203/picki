@@ -37,7 +37,16 @@ class ClubJoinRequestService
         $query = ClubMember::where('club_id', $club->id)
             ->whereNull('invited_by')
             ->whereHas('user')
-            ->with(['user' => User::FULL_RELATIONS, 'reviewer', 'inviter']);
+            ->with([
+                'user' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+                },
+                'user.sports' => function ($q) {
+                    $q->with(['scores']);
+                },
+                'reviewer',
+                'inviter',
+            ]);
 
         if ($status === 'pending') {
             $query->where('membership_status', ClubMembershipStatus::Pending);
@@ -90,7 +99,9 @@ class ClubJoinRequestService
                         'reviewed_by' => null,
                         'reviewed_at' => null,
                     ]);
-                    return $existing->fresh(['user' => User::FULL_RELATIONS, 'club']);
+                    return $existing->fresh(['user' => function ($q) {
+                        $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+                    }, 'club']);
                 }
 
                 throw new BusinessException('Không thể gửi yêu cầu tham gia');
@@ -224,7 +235,9 @@ class ClubJoinRequestService
         return ClubMember::where('user_id', $userId)
             ->where('membership_status', ClubMembershipStatus::Pending)
             ->whereNotNull('invited_by')
-            ->with(['user' => User::FULL_RELATIONS, 'club', 'inviter'])
+            ->with(['user' => function ($q) {
+                $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+            }, 'club', 'inviter'])
             ->orderBy('created_at', 'desc')
             ->get();
     }

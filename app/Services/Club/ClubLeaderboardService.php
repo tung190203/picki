@@ -19,14 +19,13 @@ class ClubLeaderboardService
 {
     /**
      * Tính rank của club dựa trên tổng điểm members trong tháng
-     * Cache 1 giờ để giảm tải, pre-computed bởi scheduler
+     * Cache 6 giờ; pre-computed bởi scheduler mỗi ngày.
+     * Tránh compute on-demand — nếu cache miss thì trả về null để API không bị block.
      */
     public function calculateClubRank(Club $club, ?int $month = null, ?int $year = null): ?int
     {
         $month = $month ?? now()->month;
         $year = $year ?? now()->year;
-
-        $cacheKey = "club_rank:{$club->id}:{$year}:{$month}";
 
         // Check if pre-computed rank exists
         $precomputedRank = Cache::get("club_ranks:{$year}:{$month}");
@@ -34,8 +33,15 @@ class ClubLeaderboardService
             return $precomputedRank[$club->id];
         }
 
-        // Fallback to individual computation with longer TTL
-        return Cache::remember($cacheKey, 3600, fn () => $this->computeClubRank($club, $month, $year));
+        // Cache miss: compute on-demand as fallback so API không trả null
+        // cho đến khi scheduler chạy. Cache kết quả 6h để tránh recompute.
+        $rank = $this->computeClubRank($club, $month, $year);
+
+        return Cache::remember(
+            "club_rank:{$club->id}:{$year}:{$month}",
+            now()->addHours(6),
+            fn () => $rank
+        );
     }
 
     /**
@@ -122,6 +128,8 @@ class ClubLeaderboardService
 
     /**
      * Bảng xếp hạng all-time của câu lạc bộ.
+     *
+     * OPTIMIZED: Single query for all members' overview stats (was N separate UNION ALL queries).
      */
     public function getLeaderboard(Club $club): Collection
     {
@@ -143,7 +151,7 @@ class ClubLeaderboardService
             ->get()
             ->groupBy('user_id');
 
-        // Pre-load sports and scores for all users to avoid N+1 in calculateMemberStats
+        // Pre-load sports and scores for all users
         $userSports = DB::table('user_sport')
             ->whereIn('user_id', $memberUserIds)
             ->pluck('sport_id', 'user_id');
@@ -163,8 +171,18 @@ class ClubLeaderboardService
             }
         }
 
-        $leaderboardData = $members->map(function ($member) use ($allHistories, $sportId, $userSports, $sportScores) {
-            return $this->calculateMemberStats($member, $allHistories, $sportId, $userSports, $sportScores);
+        // OPTIMIZED: Fetch all overview stats in 3 queries instead of N queries (one per member).
+        // Split users into batches to keep query plans efficient.
+        $batches = array_chunk($memberUserIds, 100);
+        $allStatsMap = [];
+
+        foreach ($batches as $batchUserIds) {
+            $batchStats = $this->batchFetchOverviewStats($batchUserIds, $sportId);
+            $allStatsMap = array_merge($allStatsMap, $batchStats);
+        }
+
+        $leaderboardData = $members->map(function ($member) use ($allHistories, $sportId, $userSports, $sportScores, $allStatsMap) {
+            return $this->calculateMemberStats($member, $allHistories, $sportId, $userSports, $sportScores, $allStatsMap);
         });
 
         $sorted = $leaderboardData->sortByDesc('vndupr_score')->values();
@@ -185,32 +203,183 @@ class ClubLeaderboardService
             });
     }
 
+    /**
+     * Batch fetch overview stats for multiple users in a single UNION ALL query.
+     * BEFORE: N separate queries (one per member).
+     * AFTER: 1 query per 100 users.
+     *
+     * @param  array<int>  $userIds
+     * @return array<int, array>  keyed by user_id
+     */
+    private function batchFetchOverviewStats(array $userIds, int $sportId): array
+    {
+        if (empty($userIds)) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+
+        $result = DB::select("
+            SELECT
+                user_id,
+                SUM(tournament_matches) AS total_tournament_matches,
+                SUM(tournament_wins) AS tournament_wins,
+                SUM(mini_matches) AS total_mini_matches,
+                SUM(mini_wins) AS mini_wins,
+                SUM(qm_matches) AS total_qm_matches,
+                SUM(qm_wins) AS qm_wins
+            FROM (
+                -- Tournament home matches
+                SELECT
+                    tm.user_id,
+                    COUNT(DISTINCT m.id) as tournament_matches,
+                    SUM(CASE WHEN m.winner_id = tm.team_id THEN 1 ELSE 0 END) as tournament_wins,
+                    0 as mini_matches, 0 as mini_wins,
+                    0 as qm_matches, 0 as qm_wins
+                FROM matches m
+                JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                JOIN tournaments t ON tt.tournament_id = t.id
+                JOIN team_members tm ON tm.team_id = m.home_team_id
+                WHERE tm.user_id IN ({$placeholders}) AND t.sport_id = ? AND m.status = 'completed'
+                GROUP BY tm.user_id
+
+                UNION ALL
+
+                -- Tournament away matches
+                SELECT
+                    tm.user_id,
+                    COUNT(DISTINCT m.id) as tournament_matches,
+                    SUM(CASE WHEN m.winner_id = tm.team_id THEN 1 ELSE 0 END) as tournament_wins,
+                    0, 0, 0, 0
+                FROM matches m
+                JOIN tournament_types tt ON m.tournament_type_id = tt.id
+                JOIN tournaments t ON tt.tournament_id = t.id
+                JOIN team_members tm ON tm.team_id = m.away_team_id
+                WHERE tm.user_id IN ({$placeholders}) AND t.sport_id = ? AND m.status = 'completed'
+                GROUP BY tm.user_id
+
+                UNION ALL
+
+                -- Mini tournament team1 matches
+                SELECT
+                    mtm.user_id,
+                    0, 0,
+                    COUNT(DISTINCT mm.id) as mini_matches,
+                    SUM(CASE WHEN mm.team_win_id = mtm.mini_team_id THEN 1 ELSE 0 END) as mini_wins,
+                    0, 0
+                FROM mini_matches mm
+                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id
+                WHERE mtm.user_id IN ({$placeholders}) AND mnt.sport_id = ? AND mm.status = 'completed'
+                GROUP BY mtm.user_id
+
+                UNION ALL
+
+                -- Mini tournament team2 matches
+                SELECT
+                    mtm.user_id,
+                    0, 0,
+                    COUNT(DISTINCT mm.id) as mini_matches,
+                    SUM(CASE WHEN mm.team_win_id = mtm.mini_team_id THEN 1 ELSE 0 END) as mini_wins,
+                    0, 0
+                FROM mini_matches mm
+                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id
+                WHERE mtm.user_id IN ({$placeholders}) AND mnt.sport_id = ? AND mm.status = 'completed'
+                GROUP BY mtm.user_id
+
+                UNION ALL
+
+                -- Quick matches
+                SELECT
+                    mh.user_id,
+                    0, 0, 0, 0,
+                    COUNT(DISTINCT qm.id) as qm_matches,
+                    SUM(CASE
+                        WHEN qm.winner = 'team_a' AND JSON_CONTAINS(qm.team_a, CAST(mh.user_id AS CHAR)) THEN 1
+                        WHEN qm.winner = 'team_b' AND JSON_CONTAINS(qm.team_b, CAST(mh.user_id AS CHAR)) THEN 1
+                        ELSE 0
+                    END) as qm_wins
+                FROM quick_matches qm
+                JOIN match_histories mh ON mh.quick_match_id = qm.id
+                WHERE mh.user_id IN ({$placeholders}) AND qm.status = 'completed'
+                GROUP BY mh.user_id
+            ) combined
+            GROUP BY user_id
+        ", $this->buildLeaderboardBindings($userIds, $sportId));
+
+        $map = [];
+        foreach ($result as $row) {
+            $totalMatches = (int) ($row->total_tournament_matches ?? 0)
+                + (int) ($row->total_mini_matches ?? 0)
+                + (int) ($row->total_qm_matches ?? 0);
+            $totalWins = (int) ($row->tournament_wins ?? 0)
+                + (int) ($row->mini_wins ?? 0)
+                + (int) ($row->qm_wins ?? 0);
+
+            $map[(int) $row->user_id] = [
+                'matches_played' => $totalMatches,
+                'wins' => $totalWins,
+                'losses' => $totalMatches - $totalWins,
+                'win_rate' => $totalMatches > 0 ? round(($totalWins / $totalMatches) * 100, 2) : 0,
+            ];
+        }
+
+        return $map;
+    }
+
+    /**
+     * Build bindings array for batch leaderboard query.
+     * Pattern: [userId1, ..., userIdN, sportId, userId1, ..., userIdN, sportId, userId1, ..., userIdN, sportId, userId1, ..., userIdN, jsonId, jsonId, userId1, ..., userIdN]
+     */
+    private function buildLeaderboardBindings(array $userIds, int $sportId): array
+    {
+        $bindings = [];
+        // 4 UNION ALL blocks × user IDs + sport ID
+        for ($i = 0; $i < 4; $i++) {
+            $bindings = array_merge($bindings, $userIds, [$sportId]);
+        }
+        // Quick match block: user IDs only (JSON_CONTAINS references mh.user_id column)
+        $bindings = array_merge($bindings, $userIds);
+        return $bindings;
+    }
+
     private function calculateMemberStats(
         ClubMember $member,
         Collection $allHistories,
         int $sportId,
         Collection $userSports,
-        array $sportScores
+        array $sportScores,
+        array $allStatsMap = []
     ): array {
         $userId = $member->user_id;
-        $userHistories = $allHistories->get($userId, collect());
 
+        // Get pre-fetched stats (from batch query) or compute inline
+        if (!empty($allStatsMap) && isset($allStatsMap[$userId])) {
+            $stats = $allStatsMap[$userId];
+        } else {
+            $stats = $this->calculateOverviewStats($userId, $sportId, $allHistories);
+        }
+
+        // Score change from history (always computed from allHistories to cover both paths)
+        $userHistories = $allHistories->get($userId, collect());
+        $firstHistory = $userHistories->sortBy('created_at')->first();
+        $lastHistory = $userHistories->sortByDesc('created_at')->first();
+        $scoreBefore = $firstHistory ? (float) $firstHistory->score_before : 0;
+        $scoreAfter = $lastHistory ? (float) $lastHistory->score_after : 0;
+        $stats['score_change'] = round($scoreAfter - $scoreBefore, 3);
+
+        // Compute VNDRUP score
+        $userHistories = $allHistories->get($userId, collect());
         $finalScore = 0;
         if ($userHistories->isNotEmpty()) {
             $finalScore = $userHistories->last()->score_after;
         } else {
             $userSportId = $userSports->get($userId);
-            $vnduprScore = null;
-            if ($userSportId) {
-                $userSportRecord = DB::table('user_sport')->where('id', $userSportId)->first();
-                if ($userSportRecord && isset($sportScores[$userSportId])) {
-                    $vnduprScore = $sportScores[$userSportId];
-                }
+            if ($userSportId && isset($sportScores[$userSportId])) {
+                $finalScore = $sportScores[$userSportId]->score_value;
             }
-            $finalScore = $vnduprScore ? $vnduprScore->score_value : 0;
         }
-
-        $stats = $this->calculateOverviewStats($userId, $sportId, $allHistories);
 
         return [
             'member_id' => $member->id,

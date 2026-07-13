@@ -27,25 +27,32 @@ class ClubMemberController extends Controller
     {
         $club = Club::findOrFail($clubId);
 
-        $members = $this->memberManagementService->getMembers($club, $request->validated());
+        $useCursor = $request->boolean('cursor_pagination', false);
+        $filters = $request->validated();
 
-        // Batch preload vn_rank for paginated members — avoids N+1 in ClubMemberUserResource
-        $memberUserIds = $members->pluck('user_id')->unique()->toArray();
-        if (count($memberUserIds) <= 500 && !empty($memberUserIds)) {
-            $preloadedRanks = User::getBatchVNRanks($memberUserIds, 1);
-            foreach ($members as $member) {
-                if ($member->user) {
-                    $member->user->vn_rank = $preloadedRanks[$member->user_id] ?? null;
-                }
-            }
-        }
+        $members = $this->memberManagementService->getMembers($club, $filters, $useCursor);
 
-        $statistics = $this->memberManagementService->getMemberStatistics($club);
+        // Only call getMemberStatistics when it's the main page (not subsequent cursor pages)
+        // For cursor pagination, statistics should be on the /statistics endpoint
+        $includeStats = ! $useCursor;
+        $statistics = $includeStats
+            ? $this->memberManagementService->getMemberStatistics($club)
+            : null;
 
         $data = [
             'members' => ClubMemberResource::collection($members),
-            'statistics' => $statistics,
         ];
+
+        if ($statistics !== null) {
+            $data['statistics'] = $statistics;
+        }
+
+        if ($useCursor) {
+            return ResponseHelper::success($data, 'Lấy danh sách thành viên thành công')->withHeaders([
+                'X-Pagination-Cursor' => $members->nextCursor()?->encode(),
+            ]);
+        }
+
         $meta = [
             'current_page' => $members->currentPage(),
             'per_page' => $members->perPage(),
@@ -67,7 +74,9 @@ class ClubMemberController extends Controller
 
         try {
             $member = $this->memberManagementService->inviteMember($club, $request->validated(), $userId);
-            $member->load(['user' => User::FULL_RELATIONS, 'club', 'inviter', 'reviewer']);
+            $member->load(['user' => function ($q) {
+                $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+            }, 'club', 'inviter', 'reviewer']);
 
             return ResponseHelper::success(
                 new ClubMemberResource($member),
@@ -86,7 +95,9 @@ class ClubMemberController extends Controller
     public function show($clubId, $memberId)
     {
         $member = ClubMember::where('club_id', $clubId)
-            ->with(['user' => User::FULL_RELATIONS, 'club', 'reviewer'])
+            ->with(['user' => function ($q) {
+                $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+            }, 'club', 'reviewer'])
             ->find($memberId);
 
         if (!$member) {
@@ -115,7 +126,9 @@ class ClubMemberController extends Controller
 
         try {
             $member = $this->memberManagementService->updateMember($member, $request->validated(), $userId, $club);
-            $member->load(['user' => User::FULL_RELATIONS, 'reviewer']);
+            $member->load(['user' => function ($q) {
+                $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+            }, 'reviewer']);
 
             return ResponseHelper::success(new ClubMemberResource($member), 'Cập nhật thành viên thành công');
         } catch (BusinessException $e) {
