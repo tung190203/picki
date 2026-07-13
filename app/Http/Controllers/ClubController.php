@@ -248,25 +248,10 @@ class ClubController extends Controller
               });
         });
 
-        $clubs = $query->withFullRelations()
-            ->with(['activeMembers.user.vnduprScores', 'activeMembers.user.sports.scores'])
+        $clubs = $query
+            ->with(['profile:id,club_id,cover_image_url,description', 'creator:id,full_name,avatar_url', 'mainWallet:id,club_id,qr_code_url,qr_note'])
+            ->withCount('activeMembers')
             ->get();
-
-        // Batch preload vn_rank cho tất cả club members — tránh N+1 trong ClubResource
-        $allMemberUserIds = $clubs->flatMap(fn($club) =>
-            $club->members->pluck('user_id')
-        )->unique()->toArray();
-
-        if (count($allMemberUserIds) <= 500) {
-            $preloadedRanks = \App\Models\User::getBatchVNRanks($allMemberUserIds, 1);
-            foreach ($clubs as $club) {
-                foreach ($club->members as $member) {
-                    if ($member->user) {
-                        $member->user->vn_rank = $preloadedRanks[$member->user_id] ?? null;
-                    }
-                }
-            }
-        }
 
         if ($userId) {
             $this->clubService->attachUnreadNotificationCount($clubs, $userId);

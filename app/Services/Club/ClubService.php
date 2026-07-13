@@ -387,7 +387,7 @@ class ClubService
 
     public function searchClubs(array $filters, ?int $userId): LengthAwarePaginator
     {
-        $query = Club::with(['profile:id,club_id,cover_image_url,description', 'activeMembers'])->orderBy('created_at', 'desc');
+        $query = Club::with(['profile:id,club_id,cover_image_url,description'])->withCount('activeMembers')->orderBy('created_at', 'desc');
 
         if ($userId) {
             $isSuperAdmin = \App\Models\User::isSuperAdmin($userId);
@@ -461,7 +461,7 @@ class ClubService
     public function searchClubsForMap(array $filters, ?int $userId): Collection
     {
         $isSuperAdmin = $userId && \App\Models\User::isSuperAdmin($userId);
-        $query = Club::with(['profile:id,club_id,cover_image_url,description', 'activeMembers'])
+        $query = Club::with(['profile:id,club_id,cover_image_url,description'])->withCount('activeMembers')
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->where(function ($q) use ($isSuperAdmin) {

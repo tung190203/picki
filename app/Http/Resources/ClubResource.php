@@ -77,18 +77,18 @@ class ClubResource extends JsonResource
                     ->whereNotNull('invited_by')
                     ->exists(),
             'invited_by' => auth()->check() ? $this->getInvitedByInfo() : null,
-            'can_edit_footer' => $this->when(auth()->check(), function () use ($club) {
+            'can_edit_footer' => $this->when(auth()->check(), function () {
                 // Dùng relation đã eager-load thay vì gọi query mới
-                $relations = ['members', 'activeMembers', 'joinedMembers'];
                 $memberCollection = null;
-                foreach ($relations as $rel) {
+                foreach (['members', 'activeMembers', 'joinedMembers'] as $rel) {
                     if ($this->resource->relationLoaded($rel)) {
                         $memberCollection = $this->resource->{$rel};
                         break;
                     }
                 }
+                $userId = (int) auth()->id();
                 $member = $memberCollection?->first(fn ($m) =>
-                    (int) $m->user_id === (int) auth()->id()
+                    (int) $m->user_id === $userId
                     && $m->membership_status === ClubMembershipStatus::Joined
                     && $m->status === ClubMemberStatus::Active
                 );
