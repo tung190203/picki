@@ -156,15 +156,15 @@ Route::match(['get', 'post'], '/courts/search', [SearchV2Controller::class, 'sea
 
 // Clubs API: không throttle để mobile gọi nhiều không bị lỗi 429
 Route::middleware(['auth:api', 'update.last_login'])->group(function () {
-    Route::prefix('clubs')->group(function () {
-        Route::get('/', [ClubController::class, 'index']);
-        Route::post('/', [ClubController::class, 'store']);
-        Route::get('/my-clubs', [ClubController::class, 'myClubs']);
-        Route::get('/my-joined-clubs', [ClubController::class, 'myJoinedClubs']);
-        Route::get('/my-invitations', [ClubJoinRequestController::class, 'myInvitations']);
-        Route::get('/search-location', [ClubController::class, 'searchLocation']);
-        Route::get('/location-detail', [ClubController::class, 'detailGooglePlace']);
-        Route::get('/members/candidates', [ClubMemberController::class, 'getCandidates']);
+Route::prefix('clubs')->middleware(['performance'])->group(function () {
+    Route::get('/', [ClubController::class, 'index']);
+    Route::post('/', [ClubController::class, 'store']);
+    Route::get('/my-clubs', [ClubController::class, 'myClubs']);
+    Route::get('/my-joined-clubs', [ClubController::class, 'myJoinedClubs']);
+    Route::get('/my-invitations', [ClubJoinRequestController::class, 'myInvitations']);
+    Route::get('/search-location', [ClubController::class, 'searchLocation']);
+    Route::get('/location-detail', [ClubController::class, 'detailGooglePlace']);
+    Route::get('/members/candidates', [ClubMemberController::class, 'getCandidates']);
         Route::get('/{clubId}', [ClubController::class, 'show']);
         Route::put('/{clubId}', [ClubController::class, 'update']);
         Route::delete('/{clubId}', [ClubController::class, 'destroy']);
@@ -533,7 +533,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::delete('/delete/{teamId}', [TeamController::class, 'deleteTeam']);
     });
 
-    Route::prefix('clubs')->middleware('throttle:clubs')->group(function () {
+    Route::prefix('clubs')->middleware(['throttle:clubs', 'performance'])->group(function () {
         Route::get('/', [ClubController::class, 'index']);
         Route::post('/', [ClubController::class, 'store']);
         Route::get('/my-clubs', [ClubController::class, 'myClubs']);

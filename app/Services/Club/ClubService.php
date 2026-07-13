@@ -76,8 +76,8 @@ class ClubService
             ]);
 
             $club->load([
-                'members.user' => function ($query) {
-                    $query->with(User::FULL_RELATIONS);
+                'members.user' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender']);
                 },
                 'profile',
                 'creator'
@@ -263,6 +263,7 @@ class ClubService
             $newName = $club->name;
             if (isset($data['name']) && $oldName !== $newName) {
                 $message = "CLB {$oldName} đã được quản trị viên đổi tên thành {$newName}";
+                // Eager-load user to avoid N+1: activeMembers()->with('user') vs lazy-load in loop
                 $club->activeMembers()->with('user')->each(function (ClubMember $member) use ($club, $oldName, $newName, $message) {
                     $user = $member->user;
                     if ($user) {
@@ -276,8 +277,8 @@ class ClubService
             }
 
             $club->refresh()->load([
-                'members.user' => function ($query) {
-                    $query->with(User::FULL_RELATIONS);
+                'members.user' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender']);
                 },
                 'profile',
                 'creator'
@@ -334,60 +335,63 @@ class ClubService
         }
 
         $club->restore();
-        $club->refresh()->load([
-            'members.user' => function ($query) {
-                $query->with(User::FULL_RELATIONS);
-            },
-            'profile',
-            'creator'
-        ]);
-
+            $club->refresh()->load([
+                'members.user' => function ($q) {
+                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender']);
+                },
+                'profile',
+                'creator'
+            ]);
         return $club;
     }
 
+    /**
+     * Get club detail — access control + membership flags.
+     *
+     * Does NOT load members list. Member loading is done by ClubDetailAssembler
+     * which calls this method first, then adds members based on $club->is_member.
+     */
     public function getClubDetail(Club $club, ?int $userId): Club
     {
-        $isMember = $userId && $club->members()
-            ->where('user_id', $userId)
-            ->where('membership_status', ClubMembershipStatus::Joined)
-            ->where('status', ClubMemberStatus::Active)
-            ->exists();
+        // Check banned + private club access using cached is_super_admin
+        $isSuperAdmin = $userId && \App\Models\User::isSuperAdmin($userId);
 
         if ($club->status === \App\Enums\ClubStatus::Suspended) {
-            if (!$userId || !\App\Models\User::isSuperAdmin($userId)) {
+            if (!$isSuperAdmin) {
                 throw new BusinessException('CLB này đang bị đình chỉ và không thể truy cập');
             }
+        }
+
+        // Pre-load membership status FIRST (1 query) — this sets $club->is_member
+        if ($userId) {
+            $this->attachMembershipStatus([$club], $userId);
         }
 
         if (!$club->is_public) {
             if (!$userId) {
                 throw new BusinessException('CLB này là riêng tư. Bạn cần đăng nhập để xem');
             }
-            if (!$isMember && !\App\Models\User::isSuperAdmin($userId)) {
+            // Use is_member set by attachMembershipStatus above — NO extra query
+            if (!$club->is_member && !$isSuperAdmin) {
                 throw new BusinessException('Bạn không có quyền xem CLB riêng tư này');
             }
         }
 
-        if ($isMember) {
-            $members = $club->joinedMembers()
-                ->with(['user' => fn ($q) => $q->with(['sports', 'sports.sport', 'sports.scores'])])
-                ->get();
-            $club->setRelation('members', $members);
-        }
-
-        // Pre-load toàn bộ membership của user hiện tại (1 query) để tránh
-        // ClubResource fire 4 queries phụ (is_member, has_pending_request,
-        // has_invitation, getInvitedByInfo).
-        if ($userId) {
-            $this->attachMembershipStatus([$club], $userId);
-        }
+        // NOTE: Members list loading moved to ClubDetailAssembler.
+        // Do NOT load members here — Assembler decides based on include options.
 
         return $club;
     }
 
     public function searchClubs(array $filters, ?int $userId): LengthAwarePaginator
     {
-        $query = Club::with(['profile:id,club_id,cover_image_url,description', 'activeMembers'])->orderBy('created_at', 'desc');
+        $query = Club::select([
+            'id', 'name', 'address', 'latitude', 'longitude', 'logo_url',
+            'status', 'is_public', 'is_verified', 'is_banned', 'created_by', 'created_at'
+        ])
+            ->with(['profile:id,club_id,cover_image_url,description'])
+            ->withCount('activeMembers')
+            ->orderBy('created_at', 'desc');
 
         if ($userId) {
             $isSuperAdmin = \App\Models\User::isSuperAdmin($userId);
@@ -461,7 +465,12 @@ class ClubService
     public function searchClubsForMap(array $filters, ?int $userId): Collection
     {
         $isSuperAdmin = $userId && \App\Models\User::isSuperAdmin($userId);
-        $query = Club::with(['profile:id,club_id,cover_image_url,description', 'activeMembers'])
+        $query = Club::select([
+            'id', 'name', 'address', 'latitude', 'longitude', 'logo_url',
+            'status', 'is_public', 'is_verified', 'is_banned', 'created_by', 'created_at'
+        ])
+            ->with(['profile:id,club_id,cover_image_url,description'])
+            ->withCount('activeMembers')
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->where(function ($q) use ($isSuperAdmin) {
@@ -528,6 +537,7 @@ class ClubService
             return $clubs;
         }
 
+        // ===== 1. Per-user unread (recipient rõ ràng, chưa đọc) =====
         $unreadCounts = DB::table('club_notifications as cn')
             ->join('club_notification_recipients as cnr', 'cnr.club_notification_id', '=', 'cn.id')
             ->whereIn('cn.club_id', $clubIds)
@@ -538,47 +548,39 @@ class ClubService
             ->select('cn.club_id', DB::raw('COUNT(*) as unread_count'))
             ->pluck('unread_count', 'club_id');
 
-        $memberJoinDates = DB::table('club_members')
-            ->whereIn('club_id', $clubIds)
-            ->where('user_id', $userId)
-            ->where('membership_status', ClubMembershipStatus::Joined->value)
-            ->where('status', ClubMemberStatus::Active->value)
-            ->pluck('joined_at', 'club_id');
+        // ===== 2. Broadcast unread (không có recipient row) — cleaned up with bindings =====
+        $defaultCutoff = now()->subYear()->toDateTimeString();
+        $placeholders = implode(',', array_fill(0, count($clubIds), '?'));
 
-        // Batch: single query for all broadcast unread counts.
-        $cutoffDates = [];
-        foreach ($clubIds as $clubId) {
-            $cutoffDates[$clubId] = $memberJoinDates[$clubId] ?? now()->subYear()->toDateTimeString();
-        }
-        $cutoffList = array_values($cutoffDates);
-        $clubIdList = array_keys($cutoffDates);
-
-        $broadcastUnreadRows = DB::table('club_notifications')
-            ->select('club_id', DB::raw('COUNT(*) as broadcast_unread_count'))
-            ->whereIn('club_id', $clubIds)
-            ->where('status', 'sent')
-            ->whereRaw('NOT EXISTS (
-                select 1 from club_notification_recipients
-                where club_notification_recipients.club_notification_id = club_notifications.id
-            )')
-            ->where(function ($q) use ($clubIdList, $cutoffList) {
-                // Build a single WHERE that covers all club-specific cutoff dates
-                // using ROW construction for MySQL 8+: (club_id, cutoff) comparison
-                foreach ($clubIdList as $i => $clubId) {
-                    $q->orWhere(function ($sub) use ($clubId, $cutoffList, $i) {
-                        $sub->where('club_id', $clubId)
-                            ->where('sent_at', '>=', $cutoffList[$i]);
-                    });
-                }
-            })
-            ->groupBy('club_id')
-            ->get()
-            ->keyBy('club_id');
+        $broadcastUnreadRows = DB::select(
+            "SELECT cn.club_id, COUNT(*) AS broadcast_unread_count
+             FROM club_notifications cn
+             LEFT JOIN (
+                 SELECT club_id, MAX(joined_at) AS joined_at
+                 FROM club_members
+                 WHERE user_id = ? AND membership_status = ? AND status = ?
+                 GROUP BY club_id
+             ) cm ON cm.club_id = cn.club_id
+             WHERE cn.club_id IN ({$placeholders})
+               AND cn.status = 'sent'
+               AND NOT EXISTS (
+                   SELECT 1 FROM club_notification_recipients cnr2
+                   WHERE cnr2.club_notification_id = cn.id
+               )
+               AND cn.sent_at >= COALESCE(cm.joined_at, ?)
+             GROUP BY cn.club_id",
+            array_merge(
+                [$userId, ClubMembershipStatus::Joined->value, ClubMemberStatus::Active->value],
+                $clubIds,
+                [$defaultCutoff]
+            )
+        );
+        $broadcastMap = collect($broadcastUnreadRows)->keyBy('club_id');
 
         foreach ($clubs as $club) {
             $club->unread_notification_count = (int) (
                 ($unreadCounts[$club->id] ?? 0)
-                + (($broadcastUnreadRows[$club->id]->broadcast_unread_count ?? 0))
+                + ($broadcastMap[$club->id]->broadcast_unread_count ?? 0)
             );
         }
 

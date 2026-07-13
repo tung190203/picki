@@ -16,6 +16,12 @@ class UserObserver
      */
     public function updated(User $user): void
     {
+        // Clear role cache when role or is_super_admin changes
+        if ($user->wasChanged('role') || $user->wasChanged('is_super_admin')) {
+            User::clearRoleCache($user->id);
+        }
+
+        // Auto-verify logic (existing)
         if (!$user->wasChanged('total_matches_has_anchor')) {
             return;
         }

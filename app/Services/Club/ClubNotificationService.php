@@ -68,7 +68,30 @@ class ClubNotificationService
 
     public function getNotifications(Club $club, int $userId, array $filters, bool $canManage): LengthAwarePaginator
     {
-        $query = $club->notifications()->with(['type', 'creator', 'recipients.user']);
+        $query = $club->notifications()
+            ->with(['type', 'creator'])
+            ->withCount([
+                'recipients as recipients_count',
+                'recipients as read_count' => fn ($q) => $q->where('is_read', true),
+                'recipients as unread_count' => fn ($q) => $q->where('is_read', false),
+            ]);
+
+        if ($userId && !$canManage) {
+            // Thay eager-load toàn bộ recipients bằng 1 subquery kiểm tra
+            // user hiện tại có phải recipient không + trạng thái is_read
+            $query->addSelect([
+                'is_read_by_me' => DB::table('club_notification_recipients')
+                    ->select('is_read')
+                    ->whereColumn('club_notification_id', 'club_notifications.id')
+                    ->where('user_id', $userId)
+                    ->limit(1),
+                'is_recipient_of_mine' => DB::table('club_notification_recipients')
+                    ->select(DB::raw('1'))
+                    ->whereColumn('club_notification_id', 'club_notifications.id')
+                    ->where('user_id', $userId)
+                    ->limit(1),
+            ]);
+        }
 
         if (!$canManage) {
             $member = $club->members()->where('user_id', $userId)->first();

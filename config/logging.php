@@ -134,6 +134,22 @@ return [
             'days' => 7,
             'replace_placeholders' => true,
         ],
+
+        'slow_api' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/slow_api.log'),
+            'level' => 'warning',
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
+        'club_performance' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/club_performance.log'),
+            'level' => 'info',
+            'days' => 7,
+            'replace_placeholders' => true,
+        ],
     ],
 
 ];
