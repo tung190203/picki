@@ -7,6 +7,8 @@ use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
 use App\Models\Club\Club;
 use App\Models\Club\ClubMember;
+use App\Models\User;
+use App\Models\UserSportScore;
 use Illuminate\Support\Collection;
 
 /**
@@ -44,14 +46,24 @@ class ClubDetailAssembler
         $loadMembers = $options['include_members']
             ?? ($userId && ($club->is_member ?? false));
 
-        // 1. Attach membership status (1 query)
-        if ($userId) {
+        // 1. Attach membership status (already done by ClubService::getClubDetail — skip to avoid duplicate)
+        // NOTE: If assemble() is called without going through ClubService, uncomment the line below:
+        // if ($userId) { $this->attachMembershipStatus($club, $userId); }
+
+        if ($userId && !isset($club->is_member)) {
             $this->attachMembershipStatus($club, $userId);
+        }
+
+        if ($userId) {
             $this->attachUnreadNotificationCount($club, $userId);
         }
 
-        // 1a. Active member count (1 query, scalar)
-        $club->active_members_count = $club->activeMembers()->count();
+        // 1a. Active member count — use withCount from controller if available, else query
+        if (isset($club->active_members_count)) {
+            // already loaded via withCount('activeMembers') in controller
+        } else {
+            $club->active_members_count = $club->activeMembers()->count();
+        }
 
         // 2. Calculate rank (cached, ~0ms)
         $club->rank = $this->leaderboardService->calculateClubRank($club);
@@ -127,29 +139,50 @@ class ClubDetailAssembler
      */
     protected function loadMembers(Club $club, array $options): void
     {
+        // Load members + user (no nested relations yet — handle separately for clarity)
         $members = $club->activeMembers()
             ->with([
                 'user' => function ($q) {
-                    $q->select(['id', 'full_name', 'avatar_url', 'email'])
-                        ->with([
-                            'sports' => function ($q) {
-                                $q->select(['id', 'user_id', 'sport_id'])
-                                    ->with([
-                                        'sport' => function ($q) {
-                                            $q->select(['id', 'name']);
-                                        },
-                                        'scores' => function ($q) {
-                                            $q->select(['id', 'user_sport_id', 'score_type', 'score_value', 'created_at'])
-                                                ->where('score_type', 'vndupr_score')
-                                                ->latest('created_at')
-                                                ->limit(10);
-                                        },
-                                    ]);
-                            },
-                        ]);
+                    $q->select(['id', 'full_name', 'avatar_url'])
+                        ->with('sports.sport');
                 },
             ])
             ->get();
+
+        if ($members->isEmpty()) {
+            $club->setRelation('members', $members);
+            return;
+        }
+
+        // Manually load scores for all user_sport ids in a single query
+        $userSportIds = [];
+        foreach ($members as $member) {
+            if ($member->user && $member->user->relationLoaded('sports')) {
+                foreach ($member->user->sports as $us) {
+                    $userSportIds[] = $us->id;
+                }
+            }
+        }
+
+        if (!empty($userSportIds)) {
+            $scores = UserSportScore::whereIn('user_sport_id', $userSportIds)
+                ->whereIn('score_type', ['personal_score', 'dupr_score', 'vndupr_score'])
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->groupBy('user_sport_id');
+
+            foreach ($members as $member) {
+                if ($member->user && $member->user->relationLoaded('sports')) {
+                    foreach ($member->user->sports as $us) {
+                        $us->setRelation('scores', $scores->get($us->id, collect()));
+                    }
+                }
+            }
+        }
+
+        // Canonical stats source — same as /me
+        $memberUsers = $members->pluck('user')->filter();
+        User::loadSportStatsOnUsers($memberUsers, 1);
 
         $club->setRelation('members', $members);
     }
