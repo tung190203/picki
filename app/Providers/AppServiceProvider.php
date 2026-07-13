@@ -27,6 +27,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(\App\Services\UserSportMatchCounter::class);
+        $this->app->singleton(\App\Services\Club\ClubDetailAssembler::class);
     }
 
     /**
@@ -52,12 +53,26 @@ class AppServiceProvider extends ServiceProvider
         }
 
         DB::listen(function ($query) {
-            if ($query->time > 100) {
-                Log::channel('slow_queries')->warning('Slow query (>100ms)', [
+            $time = ($query->time ?? 0) / 1000; // convert ms to seconds
+            if ($time > 0.1) { // >100ms
+                $context = [
                     'sql' => $query->sql,
                     'bindings' => $query->bindings,
-                    'time_ms' => round($query->time, 2),
-                ]);
+                    'time_ms' => round(($query->time ?? 0), 2),
+                    'connection' => $query->connectionName ?? 'default',
+                ];
+
+                // Add request context if available
+                if (app()->runningInConsole() === false) {
+                    $context['url'] = request()->fullUrl();
+                    $context['method'] = request()->method();
+                    $context['user_id'] = auth()->id();
+                    if (request()->route()) {
+                        $context['route'] = request()->route()->uri();
+                    }
+                }
+
+                Log::channel('slow_queries')->warning('Slow DB query (>100ms)', $context);
             }
         });
     }

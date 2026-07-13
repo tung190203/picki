@@ -20,7 +20,11 @@ class ClubListResource extends JsonResource
             'is_public' => (bool) ($this->is_public ?? true),
             'is_verified' => (bool) $this->is_verified,
             'created_by' => $this->created_by,
-            'quantity_members' => (int) ($this->activeMembers->count() ?? 0),
+            'quantity_members' => (int) (
+                $this->active_members_count
+                ?? $this->activeMembers_count
+                ?? ($this->relationLoaded('activeMembers') ? $this->activeMembers->count() : 0)
+            ),
             'cover_image_url' => $this->whenLoaded('profile', fn () => $this->profile?->cover_image_url),
             'profile' => $this->whenLoaded('profile', fn () => [
                 'description' => $this->profile?->description,

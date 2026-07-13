@@ -14,12 +14,14 @@ use App\Http\Requests\Club\StoreClubRequest;
 use App\Http\Requests\Club\UpdateClubFundRequest;
 use App\Http\Requests\Club\UpdateClubRequest;
 use App\Http\Requests\Club\VerifyClubRequest;
+use App\Http\Resources\Club\ClubDetailResource;
 use App\Http\Resources\Club\ClubLeaderboardResource;
 use App\Http\Resources\Club\ClubListResource;
 use App\Http\Resources\ClubResource;
 use App\Http\Resources\Map\MapClubResource;
 use App\Models\Club\Club;
 use App\Models\User;
+use App\Services\Club\ClubDetailAssembler;
 use App\Services\Club\ClubLeaderboardService;
 use App\Services\Club\ClubService;
 use App\Services\GeocodingService;
@@ -31,6 +33,7 @@ class ClubController extends Controller
     public function __construct(
         protected ClubService $clubService,
         protected ClubLeaderboardService $leaderboardService,
+        protected ClubDetailAssembler $clubDetailAssembler,
         protected GeocodingService $geocodingService
     ) {
     }
@@ -97,27 +100,35 @@ class ClubController extends Controller
         }
     }
 
-    public function show($clubId)
+    public function show(Request $request, $clubId)
     {
-        $club = Club::with(['creator', 'profile', 'mainWallet'])->find($clubId);
+        $club = Club::with([
+            'creator:id,full_name,avatar_url',
+            'profile',
+            'mainWallet:id,club_id,currency,qr_code_url,qr_note',
+        ])->find($clubId);
         if (!$club) {
             return ResponseHelper::error('Câu lạc bộ không còn tồn tại trong hệ thống', 404);
         }
 
-        if ($club->is_banned && !\App\Models\User::isSuperAdmin(auth()->id())) {
+        $userId = auth()->id();
+
+        if ($club->is_banned && !\App\Models\User::isSuperAdmin($userId)) {
             return ResponseHelper::error('CLB này tạm thời bị cấm truy cập', 403);
         }
 
-        $userId = auth()->id();
-
         try {
+            // Access control + membership flags via ClubService
             $club = $this->clubService->getClubDetail($club, $userId);
-            $club->rank = $this->leaderboardService->calculateClubRank($club);
-            if ($userId) {
-                $this->clubService->attachUnreadNotificationCount(collect([$club]), $userId);
-                $club->unread_notification_count = 0;
-            }
-            return ResponseHelper::success(new ClubResource($club), 'Lấy thông tin câu lạc bộ thành công');
+
+            // Assemble full detail: rank, unread count, members, skill level
+            // GET /clubs/{id} keeps detail behavior throughout rollout — no breaking change
+            $includeMembers = $request->boolean('include_members', true);
+            $club = $this->clubDetailAssembler->assemble($club, $userId, [
+                'include_members' => $includeMembers,
+            ]);
+
+            return ResponseHelper::success(new ClubDetailResource($club), 'Lấy thông tin câu lạc bộ thành công');
         } catch (BusinessException $e) {
             return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Exception $e) {
@@ -238,7 +249,10 @@ class ClubController extends Controller
     {
         $userId = auth()->id();
 
-        $query = Club::where(function ($q) use ($userId) {
+        $query = Club::select([
+            'id', 'name', 'address', 'latitude', 'longitude', 'logo_url',
+            'status', 'is_public', 'is_verified', 'is_banned', 'created_by', 'created_at'
+        ])->where(function ($q) use ($userId) {
             $q->where('created_by', $userId)
               ->orWhereHas('members', function ($q2) use ($userId) {
                   $q2->where('user_id', $userId)
@@ -248,25 +262,10 @@ class ClubController extends Controller
               });
         });
 
-        $clubs = $query->withFullRelations()
-            ->with(['activeMembers.user.vnduprScores', 'activeMembers.user.sports.scores'])
+        $clubs = $query
+            ->with(['profile:id,club_id,cover_image_url,description', 'creator:id,full_name,avatar_url', 'mainWallet:id,club_id,qr_code_url,qr_note'])
+            ->withCount('activeMembers')
             ->get();
-
-        // Batch preload vn_rank cho tất cả club members — tránh N+1 trong ClubResource
-        $allMemberUserIds = $clubs->flatMap(fn($club) =>
-            $club->members->pluck('user_id')
-        )->unique()->toArray();
-
-        if (count($allMemberUserIds) <= 500) {
-            $preloadedRanks = \App\Models\User::getBatchVNRanks($allMemberUserIds, 1);
-            foreach ($clubs as $club) {
-                foreach ($club->members as $member) {
-                    if ($member->user) {
-                        $member->user->vn_rank = $preloadedRanks[$member->user_id] ?? null;
-                    }
-                }
-            }
-        }
 
         if ($userId) {
             $this->clubService->attachUnreadNotificationCount($clubs, $userId);
@@ -293,7 +292,9 @@ class ClubController extends Controller
 
     public function getProfile($clubId)
     {
-        $club = Club::with(['profile', 'creator'])->findOrFail($clubId);
+        $club = Club::select(['id', 'name', 'address', 'latitude', 'longitude', 'logo_url', 'status'])
+            ->with(['profile', 'creator:id,full_name,avatar_url'])
+            ->findOrFail($clubId);
 
         return ResponseHelper::success([
             'club_id' => $club->id,
@@ -309,7 +310,9 @@ class ClubController extends Controller
 
     public function getFund($clubId)
     {
-        $club = Club::with(['mainWallet'])->findOrFail($clubId);
+        $club = Club::select(['id'])
+            ->with(['mainWallet:id,club_id,currency,qr_code_url,qr_note'])
+            ->findOrFail($clubId);
         $mainWallet = $club->mainWallet;
 
         $fund = [

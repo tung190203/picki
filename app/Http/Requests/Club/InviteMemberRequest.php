@@ -18,7 +18,7 @@ class InviteMemberRequest extends FormRequest
         return [
             'user_id' => 'required|exists:users,id',
             'role' => ['sometimes', Rule::enum(ClubMemberRole::class)],
-            'position' => 'nullable|string|max:255',
+            'position' => ['nullable', 'string', Rule::enum(ClubMemberRole::class)],
             'message' => 'nullable|string',
         ];
     }

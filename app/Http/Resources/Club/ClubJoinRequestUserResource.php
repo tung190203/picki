@@ -4,8 +4,9 @@ namespace App\Http\Resources\Club;
 
 use App\Http\Resources\UserSportResource;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
 
-class ClubMemberUserResource extends \Illuminate\Http\Resources\Json\JsonResource
+class ClubJoinRequestUserResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
