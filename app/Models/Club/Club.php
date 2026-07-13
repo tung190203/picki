@@ -272,6 +272,29 @@ class Club extends Model
             ->withCount('activeMembers');
     }
 
+    public function scopeWithSearchRelations($query, ?int $userId = null)
+    {
+        return $query->with(['profile:id,club_id,cover_image_url,description,address'])
+            ->withCount('activeMembers')
+            ->withCount([
+                'miniTournaments as active_matches_count' => fn($q) => $q
+                    ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN]),
+            ])
+            ->withCount([
+                'tournaments as active_tournaments_count' => fn($q) => $q
+                    ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN]),
+            ])
+            ->when($userId, function ($q) use ($userId) {
+                // Count notifications where user has unread recipients
+                $q->withCount([
+                    'notifications as announcements_count' => fn($q) => $q
+                        ->whereHas('recipients', fn($r) => $r
+                            ->where('user_id', $userId)
+                            ->where('is_read', false)),
+                ]);
+            });
+    }
+
     public function scopeSearch($query, $fillable, $searchTerm)
     {
         if ($searchTerm) {
@@ -415,8 +438,14 @@ class Club extends Model
 
     public function scopeOrderByDistance($query, $lat, $lng)
     {
+        // Only add select if not already present (avoid overwriting withCount attributes)
+        $hasSelect = collect($query->getQuery()->columns ?? [])->isNotEmpty();
+
+        if (!$hasSelect) {
+            $query->select('*');
+        }
+
         return $query
-            ->select('*')
             ->selectRaw("
                 (
                     6371 * acos(

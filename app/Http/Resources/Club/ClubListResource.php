@@ -25,6 +25,8 @@ class ClubListResource extends JsonResource
                 ?? $this->activeMembers_count
                 ?? ($this->relationLoaded('activeMembers') ? $this->activeMembers->count() : 0)
             ),
+            'active_matches_count' => $this->active_matches_count ?? 0,
+            'active_tournaments_count' => $this->active_tournaments_count ?? 0,
             'cover_image_url' => $this->whenLoaded('profile', fn () => $this->profile?->cover_image_url),
             'profile' => $this->whenLoaded('profile', fn () => [
                 'description' => $this->profile?->description,
@@ -33,13 +35,9 @@ class ClubListResource extends JsonResource
             'is_admin' => (bool) ($this->is_admin ?? false),
             'has_pending_request' => (bool) ($this->has_pending_request ?? false),
             'has_invitation' => (bool) ($this->has_invitation ?? false),
+            'announcements_count' => $this->announcements_count ?? 0,
             'created_at' => $this->created_at?->toISOString(),
             'distance' => $this->when(isset($this->distance), $this->distance),
-            'unread_notification_count' => $this->when(
-                isset($this->unread_notification_count),
-                fn () => (int) $this->unread_notification_count,
-                0
-            ),
         ];
     }
 }
