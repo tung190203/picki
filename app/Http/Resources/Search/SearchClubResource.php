@@ -61,11 +61,9 @@ class SearchClubResource extends JsonResource
             ]),
             'distance'         => $this->when(isset($this->distance), round($this->distance, 1)),
             'marker_type'      => 'club',
-            'unread_notification_count' => $this->when(
-                isset($this->unread_notification_count),
-                fn () => (int) $this->unread_notification_count,
-                0
-            ),
+            'active_matches_count' => $this->active_matches_count ?? 0,
+            'active_tournaments_count' => $this->active_tournaments_count ?? 0,
+            'announcements_count' => $this->announcements_count ?? 0,
         ];
     }
 }
