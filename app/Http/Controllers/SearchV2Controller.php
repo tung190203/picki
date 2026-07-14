@@ -217,12 +217,36 @@ class SearchV2Controller extends Controller
 
     private function paginate($query, array $params): array
     {
-        $page = (int) ($params['page'] ?? 1);
-        $perPage = min(200, max(1, (int) ($params['per_page'] ?? 15)));
-
-        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
         $tab = $params['tab'];
         $userId = Auth::check() ? Auth::id() : null;
+
+        // If client didn't pass per_page, return ALL results (no pagination).
+        // Clients can opt into pagination by sending per_page + page.
+        if (empty($params['per_page'])) {
+            $items = $query->get();
+
+            if ($tab === SearchFilterConfig::TAB_USER) {
+                User::loadSportStatsOnUsers($items, 1);
+            }
+            $this->loadBatchMembershipStatus($items, $tab, $userId);
+
+            $resourceClass = $this->searchService->resolveListResourceClass($tab);
+
+            return [
+                'data' => $resourceClass::collection($items),
+                'meta' => [
+                    'current_page' => 1,
+                    'last_page'    => 1,
+                    'per_page'     => $items->count(),
+                    'total'        => $items->count(),
+                ],
+            ];
+        }
+
+        $page = (int) ($params['page'] ?? 1);
+        $perPage = min(200, max(1, (int) $params['per_page']));
+
+        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
 
         // Eager-load batch stats for user tab to avoid N+1 (getSportStats is expensive)
         if ($tab === SearchFilterConfig::TAB_USER) {
@@ -247,11 +271,8 @@ class SearchV2Controller extends Controller
 
     private function mapResponse($query, string $tab, array $params): \Illuminate\Http\JsonResponse
     {
-        if (!empty($params['per_page'])) {
-            $items = $query->limit((int) $params['per_page'])->get();
-        } else {
-            $items = $query->get();
-        }
+        // map_mode always returns ALL matching items (per_page is intentionally ignored)
+        $items = $query->get();
         $userId = Auth::check() ? Auth::id() : null;
 
         // Eager-load batch stats for user tab to avoid N+1
@@ -280,9 +301,41 @@ class SearchV2Controller extends Controller
 
     private function timelineWeekResponse($query, string $tab, array $params): \Illuminate\Http\JsonResponse
     {
-        $page = (int) ($params['page'] ?? 1);
-        $perPage = min(200, max(1, (int) ($params['per_page'] ?? 15)));
         $userId = Auth::check() ? Auth::id() : null;
+
+        // If client didn't pass per_page, return ALL results for the week.
+        if (empty($params['per_page'])) {
+            $items = $query->get();
+
+            if ($tab === SearchFilterConfig::TAB_USER) {
+                User::loadSportStatsOnUsers($items, 1);
+            }
+            $this->loadBatchMembershipStatus($items, $tab, $userId);
+
+            $resourceClass = $this->searchService->resolveListResourceClass($tab);
+
+            $this->logSearch(
+                $userId,
+                $tab,
+                $params['keyword'] ?? null,
+                $params['filters'] ?? [],
+                'this_week',
+                $items->count()
+            );
+
+            return ResponseHelper::success([
+                'data' => $resourceClass::collection($items),
+                'meta' => [
+                    'current_page' => 1,
+                    'last_page'    => 1,
+                    'per_page'     => $items->count(),
+                    'total'        => $items->count(),
+                ],
+            ], 'Tìm kiếm thành công', 200);
+        }
+
+        $page = (int) ($params['page'] ?? 1);
+        $perPage = min(200, max(1, (int) $params['per_page']));
 
         $paginator = $query->paginate($perPage, ['*'], 'page', $page);
 
