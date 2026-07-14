@@ -724,6 +724,8 @@ class AuthController extends Controller
             \Log::error('Apple login - All keys failed to decode');
             return ResponseHelper::error('Token Apple không hợp lệ', 401, ['status_code' => 'INVALID_TOKEN']);
         }
+
+        try {
             $data = json_decode(json_encode($payload), true);
             $appleId = $data['sub'];
             $email = $data['email'] ?? null;
