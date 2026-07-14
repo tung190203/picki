@@ -672,6 +672,8 @@ class AuthController extends Controller
     {
         \Log::info('Apple login attempt', [
             'has_id_token' => $request->has('id_token'),
+            'id_token_length' => strlen($request->input('id_token', '')),
+            'id_token_prefix' => substr($request->input('id_token', ''), 0, 50),
             'platform' => $request->input('platform'),
             'ip' => $request->ip(),
         ]);
@@ -778,8 +780,15 @@ class AuthController extends Controller
             if($request->token && $request->platform) {
                 $this->handleDeviceLogin($user, $request->token, $request->platform);
             }
+            \Log::info("Before responseWithToken");
+
             $response = $this->responseWithToken($accessToken, $refreshToken, $user);
+
+            \Log::info("After responseWithToken");
+
             $response['status_code'] = 'VERIFIED';
+
+            \Log::info("After status_code added");
 
             \Log::info('Apple login success', [
                 'user_id' => $user->id,
@@ -787,7 +796,19 @@ class AuthController extends Controller
                 'apple_id' => $appleId,
             ]);
 
-            return ResponseHelper::success($response, 'Đăng nhập bằng Apple thành công');
+            \Log::info("Before ResponseHelper::success");
+
+            $result = ResponseHelper::success($response, 'Đăng nhập bằng Apple thành công');
+
+            \Log::info("After ResponseHelper::success - returning");
+
+            \Log::info("Apple login - returning access token", [
+                'access_token_length' => strlen($accessToken),
+                'access_token_prefix' => substr($accessToken, 0, 20),
+                'refresh_token_length' => strlen($refreshToken),
+            ]);
+
+            return $result;
         } catch (\Exception $e) {
             \Log::error('Apple login failed', [
                 'error' => $e->getMessage(),
@@ -823,17 +844,33 @@ class AuthController extends Controller
 
     private function responseWithToken(string $accessToken, string $refreshToken, object $user): array
     {
+        \Log::info("responseWithToken Step 1");
+
         $user->loadFullRelations();
+
+        \Log::info("responseWithToken Step 2 - loadFullRelations done");
+
         User::loadSportStatsOnUsers(collect([$user]), 1);
-        return [
+
+        \Log::info("responseWithToken Step 3 - loadSportStatsOnUsers done");
+
+        $resource = new UserResource($user);
+
+        \Log::info("responseWithToken Step 4 - UserResource created");
+
+        $result = [
             'token' => [
                 'access_token' => $accessToken,
                 'refresh_token' => $refreshToken,
                 'token_type' => 'Bearer',
                 'expires_in' => 3600,
             ],
-            'user' => new UserResource($user),
+            'user' => $resource,
         ];
+
+        \Log::info("responseWithToken Step 5 - returning");
+
+        return $result;
     }
 
     private function handleDeviceLogin(User $user, string $currentToken, string $platform)
