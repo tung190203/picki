@@ -357,6 +357,11 @@ class AuthController extends Controller
 
     public function loginWithGoogle(Request $request)
     {
+        \Log::info('Google login attempt', [
+            'has_id_token' => $request->has('id_token'),
+            'platform' => $request->input('platform'),
+            'ip' => $request->ip(),
+        ]);
         $request->validate([
             'id_token' => 'required|string',
             'token' => 'sometimes|string',
@@ -659,6 +664,11 @@ class AuthController extends Controller
 
     public function loginWithApple(Request $request)
     {
+        \Log::info('Apple login attempt', [
+            'has_id_token' => $request->has('id_token'),
+            'platform' => $request->input('platform'),
+            'ip' => $request->ip(),
+        ]);
         $request->validate([
             'id_token' => 'required|string',
             'token' => 'sometimes|string',
@@ -735,6 +745,10 @@ class AuthController extends Controller
             $response['status_code'] = 'VERIFIED';
             return ResponseHelper::success($response, 'Đăng nhập bằng Apple thành công');
         } catch (\Exception $e) {
+            \Log::error('Apple login failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             return ResponseHelper::error('Không thể đăng nhập bằng Apple', 500, ['status_code' => 'OAUTH_FAILED']);
         }
     }
