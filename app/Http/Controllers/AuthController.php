@@ -432,6 +432,12 @@ class AuthController extends Controller
         $response['platform'] = $platform;
         $response['status_code'] = 'VERIFIED';
 
+        \Log::info('Google login success', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'platform' => $platform,
+        ]);
+
         return ResponseHelper::success($response, 'Đăng nhập bằng Google thành công');
     }
 
@@ -675,20 +681,49 @@ class AuthController extends Controller
             'platform' => 'sometimes|in:ios,android',
         ]);
         $idToken = $request->input('id_token');
+
+        \Log::info('Apple login - Step 1: Fetching JWKS from Apple');
+
         try {
             $jwks = Http::get('https://appleid.apple.com/auth/keys')->json();
+            \Log::info('Apple login - Step 1 success', ['jwks_keys_count' => count($jwks['keys'] ?? [])]);
+        } catch (\Exception $e) {
+            \Log::error('Apple login - Step 1 failed: fetch JWKS', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return ResponseHelper::error('Không thể kết nối Apple để xác thực', 500, ['status_code' => 'APPLE_JWKS_FAILED']);
+        }
+
+        \Log::info('Apple login - Step 2: Parsing JWKS keys');
+
+        try {
             $keys = JWK::parseKeySet($jwks);
-            $payload = null;
-            foreach ($keys as $key) {
-                try {
-                    $payload = JWT::decode($idToken, $key);
-                    break;
-                } catch (\Throwable $e) {
-                }
+            \Log::info('Apple login - Step 2 success', ['keys_count' => count($keys)]);
+        } catch (\Exception $e) {
+            \Log::error('Apple login - Step 2 failed: parse JWKS', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return ResponseHelper::error('Không thể xử lý Apple key', 500, ['status_code' => 'APPLE_KEY_PARSE_FAILED']);
+        }
+
+        $payload = null;
+        foreach ($keys as $keyIndex => $key) {
+            try {
+                $payload = JWT::decode($idToken, $key);
+                \Log::info('Apple login - Step 3: Decoded successfully with key index ' . $keyIndex);
+                break;
+            } catch (\Throwable $e) {
+                \Log::warning('Apple login - Key ' . $keyIndex . ' decode failed', [
+                    'error' => $e->getMessage(),
+                ]);
             }
-            if (!$payload) {
-                return ResponseHelper::error('Token Apple không hợp lệ', 401, ['status_code' => 'INVALID_TOKEN']);
-            }
+        }
+        if (!$payload) {
+            \Log::error('Apple login - All keys failed to decode');
+            return ResponseHelper::error('Token Apple không hợp lệ', 401, ['status_code' => 'INVALID_TOKEN']);
+        }
             $data = json_decode(json_encode($payload), true);
             $appleId = $data['sub'];
             $email = $data['email'] ?? null;
@@ -743,6 +778,13 @@ class AuthController extends Controller
             }
             $response = $this->responseWithToken($accessToken, $refreshToken, $user);
             $response['status_code'] = 'VERIFIED';
+
+            \Log::info('Apple login success', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'apple_id' => $appleId,
+            ]);
+
             return ResponseHelper::success($response, 'Đăng nhập bằng Apple thành công');
         } catch (\Exception $e) {
             \Log::error('Apple login failed', [
