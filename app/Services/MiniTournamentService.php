@@ -82,35 +82,30 @@ class MiniTournamentService
             'is_session_started' => $isSessionStarted,
         ]);
 
-        // Creator always participates by default with confirmed payment status
-        // (creator is exempt from payment or auto-confirmed)
-        $participant = MiniParticipant::create([
-            'mini_tournament_id' => $miniTournament->id,
-            'user_id' => $userId,
-            'is_confirmed' => true,
-            'is_invited' => false,
-            'payment_status' => PaymentStatusEnum::CONFIRMED,
-        ]);
-
-        // Gắn creator vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
-        $this->attachUserToMiniTournamentClubFund($miniTournament, $userId);
-
-        // Tạo khoản thu cho chủ kèo nếu kèo có thu phí VÀ KHÔNG phải use_club_fund
-        // - use_club_fund = true: CLB chi tiền, không thu phí từ member → KHÔNG tạo payment
-        // - auto_split_fee = true: chỉ tạo payment khi kèo kết thúc (via command) → KHÔNG tạo payment ở đây
-        if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
-            $feePerPerson = $miniTournament->fee_amount;
-
-            MiniParticipantPayment::create([
+        // Chỉ tạo participant + payment cho creator khi creator_join = true
+        if ($miniTournament->creator_join) {
+            $participant = MiniParticipant::create([
                 'mini_tournament_id' => $miniTournament->id,
-                'participant_id' => $participant->id,
                 'user_id' => $userId,
-                'amount' => $feePerPerson,
-                'status' => MiniParticipantPayment::STATUS_CONFIRMED,
-                'paid_at' => now(),
-                'confirmed_at' => now(),
-                'confirmed_by' => $userId,
+                'is_confirmed' => true,
+                'is_invited' => false,
+                'payment_status' => PaymentStatusEnum::CONFIRMED,
             ]);
+
+            $this->attachUserToMiniTournamentClubFund($miniTournament, $userId);
+
+            if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
+                MiniParticipantPayment::create([
+                    'mini_tournament_id' => $miniTournament->id,
+                    'participant_id' => $participant->id,
+                    'user_id' => $userId,
+                    'amount' => $miniTournament->fee_amount,
+                    'status' => MiniParticipantPayment::STATUS_CONFIRMED,
+                    'paid_at' => now(),
+                    'confirmed_at' => now(),
+                    'confirmed_by' => $userId,
+                ]);
+            }
         }
 
         // Tạo batch occurrences nếu là recurring
@@ -376,40 +371,38 @@ class MiniTournamentService
             ]);
         }
 
-        // Creator should always be a confirmed participant in each occurrence.
-        $creatorParticipant = MiniParticipant::firstOrCreate(
-            [
-                'mini_tournament_id' => $target->id,
-                'user_id' => $userId,
-            ],
-            [
-                'is_confirmed' => true,
-                'is_invited' => false,
-                'payment_status' => PaymentStatusEnum::CONFIRMED,
-            ]
-        );
-
-        // Gắn creator vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
-        $this->attachUserToMiniTournamentClubFund($target, $userId);
-
-        // Tạo khoản thu cho creator nếu kèo có thu phí VÀ KHÔNG phải use_club_fund
-        // - use_club_fund = true: CLB chi tiền → KHÔNG tạo payment
-        // - auto_split_fee = true: chỉ tạo payment khi kèo kết thúc (via command) → KHÔNG tạo payment ở đây
-        if ($target->has_fee && !$target->auto_split_fee && !$target->use_club_fund) {
-            MiniParticipantPayment::firstOrCreate(
+        // Chỉ tạo participant + payment cho creator khi creator_join = true
+        if ($target->creator_join) {
+            $creatorParticipant = MiniParticipant::firstOrCreate(
                 [
                     'mini_tournament_id' => $target->id,
-                    'participant_id' => $creatorParticipant->id,
+                    'user_id' => $userId,
                 ],
                 [
-                    'user_id' => $userId,
-                    'amount' => $target->fee_amount ?? 0,
-                    'status' => MiniParticipantPayment::STATUS_CONFIRMED,
-                    'paid_at' => now(),
-                    'confirmed_at' => now(),
-                    'confirmed_by' => $userId,
+                    'is_confirmed' => true,
+                    'is_invited' => false,
+                    'payment_status' => PaymentStatusEnum::CONFIRMED,
                 ]
             );
+
+            $this->attachUserToMiniTournamentClubFund($target, $userId);
+
+            if ($target->has_fee && !$target->auto_split_fee && !$target->use_club_fund) {
+                MiniParticipantPayment::firstOrCreate(
+                    [
+                        'mini_tournament_id' => $target->id,
+                        'participant_id' => $creatorParticipant->id,
+                    ],
+                    [
+                        'user_id' => $userId,
+                        'amount' => $target->fee_amount ?? 0,
+                        'status' => MiniParticipantPayment::STATUS_CONFIRMED,
+                        'paid_at' => now(),
+                        'confirmed_at' => now(),
+                        'confirmed_by' => $userId,
+                    ]
+                );
+            }
         }
     }
 
