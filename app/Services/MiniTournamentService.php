@@ -161,11 +161,12 @@ class MiniTournamentService
             if (empty($weekDays)) {
                 return [];
             }
-            $end = $start->copy()->addMonths(3)->endOfMonth();
+            $lookAheadDate = Carbon::now()->addDays(30);
+            $end = $lookAheadDate->copy()->startOfDay();
             for ($d = $start->copy()->startOfDay(); $d->lte($end); $d->addDay()) {
                 if (in_array((int) $d->dayOfWeek, array_map('intval', $weekDays), true)) {
                     $dWithTime = $d->copy()->setTimeFromTimeString($timeString);
-                    if ($dWithTime->gte($start)) {
+                    if ($dWithTime->gte($start) && $dWithTime->gt(Carbon::now())) {
                         $list[] = $dWithTime;
                     }
                 }
@@ -182,11 +183,15 @@ class MiniTournamentService
         $month = (int) $parts['month'];
 
         if ($period === 'monthly') {
+            $lookAheadLimit = Carbon::now()->addDays(30);
             for ($i = 0; $i < 12; $i++) {
                 $base = $start->copy()->addMonths($i)->startOfMonth();
                 $effectiveDay = min($day, $base->daysInMonth);
                 $occurrence = $base->copy()->day($effectiveDay)->setTimeFromTimeString($timeString);
                 if ($occurrence->gte($start)) {
+                    if ($occurrence->gt($lookAheadLimit)) {
+                        break;
+                    }
                     $list[] = $occurrence;
                 }
             }
@@ -204,6 +209,7 @@ class MiniTournamentService
                 $startYear++;
             }
 
+            $lookAheadLimit = Carbon::now()->addDays(30);
             $count = 0;
             $y = $startYear;
             $m = $startMonth;
@@ -216,6 +222,9 @@ class MiniTournamentService
                 $effectiveDay = min($day, $base->daysInMonth);
                 $occurrence = $base->copy()->day($effectiveDay)->setTimeFromTimeString($timeString);
                 if ($occurrence->gte($start)) {
+                    if ($occurrence->gt($lookAheadLimit)) {
+                        break;
+                    }
                     $list[] = $occurrence;
                     $count++;
                 }
@@ -225,6 +234,7 @@ class MiniTournamentService
         }
 
         if ($period === 'yearly') {
+            $lookAheadLimit = Carbon::now()->addDays(30);
             $year = $start->year;
             for ($y = 0; $y < 5; $y++) {
                 $targetYear = $year + $y;
@@ -232,6 +242,9 @@ class MiniTournamentService
                 $effectiveDay = min($day, $base->daysInMonth);
                 $occurrence = $base->copy()->day($effectiveDay)->setTimeFromTimeString($timeString);
                 if ($occurrence->gte($start)) {
+                    if ($occurrence->gt($lookAheadLimit)) {
+                        break;
+                    }
                     $list[] = $occurrence;
                 }
             }
