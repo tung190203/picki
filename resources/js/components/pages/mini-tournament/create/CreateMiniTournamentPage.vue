@@ -582,6 +582,17 @@
                                 </button>
                             </div>
                         </div>
+
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-700">Tôi tham gia giải đấu</span>
+                            <button type="button" @click="creatorJoin = !creatorJoin"
+                                :aria-checked="creatorJoin"
+                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
+                                :class="creatorJoin ? 'bg-[#D72D36]' : 'bg-gray-300'">
+                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                    :class="creatorJoin ? 'translate-x-6' : 'translate-x-1'" />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -989,6 +1000,7 @@ const formattedFeeAmount = ref('')
 // CLB fund options
 const useClubFund = ref(false)
 const includedInClubFund = ref(false)
+const creatorJoin = ref(true)
 
 const sports = ref([])
 // Chỉ có 1 môn Pickleball, mặc định sport_id = 1
@@ -1452,6 +1464,9 @@ const applyTemplate = (template) => {
     if (s.included_in_club_fund !== undefined) {
         includedInClubFund.value = !!s.included_in_club_fund
     }
+    if (s.creator_join !== undefined) {
+        creatorJoin.value = !!s.creator_join
+    }
 
     // Trình độ
     if (s.min_rating !== undefined && s.min_rating !== null) {
@@ -1795,6 +1810,7 @@ const buildTemplateSettings = () => {
         zalo_link: zaloLink.value || null,
         main_phone: mainPhone.value || null,
         sub_phone: subPhone.value || null,
+        creator_join: creatorJoin.value,
         ...(selectedClubId.value ? {
             use_club_fund: useClubFund.value,
             included_in_club_fund: includedInClubFund.value,
@@ -1946,6 +1962,7 @@ const handleSubmit = async () => {
             zalo_link: zaloLink.value || null,
             main_phone: mainPhone.value || null,
             sub_phone: subPhone.value || null,
+            creator_join: creatorJoin.value,
             ...(selectedClubId.value ? {
                 use_club_fund: useClubFund.value,
                 included_in_club_fund: includedInClubFund.value,
@@ -2203,6 +2220,7 @@ const prefillForm = (data) => {
     selectedClubId.value = data?.club_id || null
     useClubFund.value = !!data?.use_club_fund
     includedInClubFund.value = !!data?.included_in_club_fund
+    creatorJoin.value = data?.creator_join !== undefined ? !!data.creator_join : true
 
     autoApprove.value = !!data?.auto_approve
     allowParticipantAddFriends.value = !!data?.allow_participant_add_friends

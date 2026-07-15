@@ -118,6 +118,7 @@ class UpdateMiniTournamentRequest extends FormRequest
             // Club fund integration
             'use_club_fund' => 'boolean',
             'included_in_club_fund' => 'boolean',
+            'creator_join' => 'boolean',
 
             // Rating
             'min_rating' => 'nullable|numeric|min:0',
@@ -358,6 +359,7 @@ class UpdateMiniTournamentRequest extends FormRequest
             'apply_rule', 'allow_cancellation', 'auto_approve',
             'allow_participant_add_friends',
             'use_club_fund', 'included_in_club_fund', 'use_cached_qr',
+            'creator_join',
         ];
         $boolNormalized = [];
         foreach ($boolKeys as $key) {
