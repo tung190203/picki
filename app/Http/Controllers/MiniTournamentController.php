@@ -500,6 +500,33 @@ class MiniTournamentController extends Controller
             }
         }
 
+        // Sync creator_join: thêm/xóa organizer khỏi participant list
+        if (array_key_exists('creator_join', $data)) {
+            $oldCreatorJoin = (bool) $miniTournament->creator_join;
+            $newCreatorJoin = (bool) $data['creator_join'];
+
+            if ($newCreatorJoin && !$oldCreatorJoin) {
+                // false → true: thêm organizer vào participant
+                $exists = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
+                    ->where('user_id', Auth::id())
+                    ->exists();
+                if (!$exists) {
+                    MiniParticipant::create([
+                        'mini_tournament_id' => $miniTournament->id,
+                        'user_id' => Auth::id(),
+                        'is_confirmed' => true,
+                        'is_invited' => false,
+                        'payment_status' => \App\Enums\PaymentStatusEnum::CONFIRMED,
+                    ]);
+                }
+            } elseif (!$newCreatorJoin && $oldCreatorJoin) {
+                // true → false: xóa organizer khỏi participant
+                MiniParticipant::where('mini_tournament_id', $miniTournament->id)
+                    ->where('user_id', Auth::id())
+                    ->delete();
+            }
+        }
+
         $imageService = app(ImageOptimizationService::class);
 
         if ($request->hasFile('poster')) {

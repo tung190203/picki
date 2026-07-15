@@ -8,6 +8,9 @@ use App\Enums\ClubWalletTransactionStatus;
 use App\Models\Club\ClubExpense;
 use App\Models\Club\ClubWallet;
 use App\Models\MiniTournament;
+use App\Models\MiniTournamentStaff;
+use App\Services\MiniTournamentService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -26,10 +29,21 @@ class MiniTournamentObserver
 
     /**
      * Handle the MiniTournament "updated" event.
+     */
+    public function updated(MiniTournament $tournament): void
+    {
+        // Hook use_club_fund: tạo expense khi chuyển sang STATUS_OPEN
+        $this->handleClubFundExpense($tournament);
+
+        // Hook auto-create: tạo occurrence tiếp theo khi kèo lặp được đóng
+        $this->handleRecurringAutoCreate($tournament);
+    }
+
+    /**
      * Khi kèo chuyển sang STATUS_OPEN (bắt đầu) mà use_club_fund = true,
      * tạo expense nếu chưa có (trường hợp kèo được tạo ở endpoint khác ClubMiniTournamentController).
      */
-    public function updated(MiniTournament $tournament): void
+    protected function handleClubFundExpense(MiniTournament $tournament): void
     {
         if (!$tournament->use_club_fund) {
             return;
@@ -44,6 +58,70 @@ class MiniTournamentObserver
         }
 
         $this->createTournamentExpenseIfNeeded($tournament);
+    }
+
+    /**
+     * Khi kèo lặp được đóng (STATUS_CLOSED), tạo occurrence tiếp theo ngay lập tức.
+     * Đảm bảo người dùng không phải đợi job hàng ngày mới thấy kèo tiếp theo.
+     */
+    protected function handleRecurringAutoCreate(MiniTournament $tournament): void
+    {
+        if (!$tournament->wasChanged('status')) {
+            return;
+        }
+
+        if ((int) $tournament->status !== MiniTournament::STATUS_CLOSED) {
+            return;
+        }
+
+        if (!$tournament->isRecurring() || $tournament->isRecurrenceSeriesCancelled()) {
+            return;
+        }
+
+        try {
+            $organizerId = $this->resolveOrganizerId($tournament);
+            if (!$organizerId) {
+                return;
+            }
+
+            $service = app(MiniTournamentService::class);
+            $nextOccurrence = $tournament->calculateNextOccurrence(Carbon::now());
+            if ($nextOccurrence) {
+                $service->createNextOccurrenceIfMissing(
+                    $tournament,
+                    $nextOccurrence,
+                    $organizerId,
+                    $tournament->recurrence_series_id
+                );
+            }
+        } catch (\Exception $e) {
+            Log::error('MiniTournamentObserver: Failed to create next occurrence', [
+                'tournament_id' => $tournament->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Resolve organizer ID từ staff roles hoặc first participant.
+     */
+    protected function resolveOrganizerId(MiniTournament $tournament): ?int
+    {
+        $tournament->loadMissing(['miniTournamentStaffs', 'participants']);
+
+        $organizerStaff = $tournament->miniTournamentStaffs
+            ->firstWhere('role', MiniTournamentStaff::ROLE_ORGANIZER);
+
+        if ($organizerStaff?->user_id) {
+            return (int) $organizerStaff->user_id;
+        }
+
+        $firstParticipant = $tournament->participants->first();
+        if ($firstParticipant?->user_id) {
+            return (int) $firstParticipant->user_id;
+        }
+
+        return null;
     }
 
     /**
