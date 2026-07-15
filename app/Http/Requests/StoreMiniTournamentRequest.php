@@ -106,6 +106,7 @@ class StoreMiniTournamentRequest extends FormRequest
             // Club fund integration
             'club_id' => 'nullable|integer|exists:clubs,id',
             'use_club_fund' => 'boolean',
+            'creator_join' => 'boolean',
             'included_in_club_fund' => 'boolean',
 
             // Rating
@@ -280,6 +281,7 @@ class StoreMiniTournamentRequest extends FormRequest
             'apply_rule', 'allow_cancellation', 'auto_approve',
             'allow_participant_add_friends',
             'use_club_fund', 'included_in_club_fund', 'use_cached_qr',
+            'creator_join',
         ];
         $boolNormalized = [];
         foreach ($boolKeys as $key) {
@@ -510,6 +512,9 @@ class StoreMiniTournamentRequest extends FormRequest
             'sub_phone.regex' => 'Số điện thoại phụ không hợp lệ',
             // Match format
             'match_format.in' => 'Thể thức thi đấu không hợp lệ (standard, partner_rotation, mixed_gender, rank_pairing)',
+
+            // Creator join
+            'creator_join.boolean' => 'Giá trị creator_join phải là true hoặc false',
         ];
     }
 }
