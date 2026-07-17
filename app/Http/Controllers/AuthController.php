@@ -357,11 +357,6 @@ class AuthController extends Controller
 
     public function loginWithGoogle(Request $request)
     {
-        \Log::info('Google login attempt', [
-            'has_id_token' => $request->has('id_token'),
-            'platform' => $request->input('platform'),
-            'ip' => $request->ip(),
-        ]);
         $request->validate([
             'id_token' => 'required|string',
             'token' => 'sometimes|string',
@@ -431,12 +426,6 @@ class AuthController extends Controller
         $response = $this->responseWithToken($accessToken, $refreshToken, $user);
         $response['platform'] = $platform;
         $response['status_code'] = 'VERIFIED';
-
-        \Log::info('Google login success', [
-            'user_id' => $user->id,
-            'email' => $user->email,
-            'platform' => $platform,
-        ]);
 
         return ResponseHelper::success($response, 'Đăng nhập bằng Google thành công');
     }
@@ -670,13 +659,6 @@ class AuthController extends Controller
 
     public function loginWithApple(Request $request)
     {
-        \Log::info('Apple login attempt', [
-            'has_id_token' => $request->has('id_token'),
-            'id_token_length' => strlen($request->input('id_token', '')),
-            'id_token_prefix' => substr($request->input('id_token', ''), 0, 50),
-            'platform' => $request->input('platform'),
-            'ip' => $request->ip(),
-        ]);
         $request->validate([
             'id_token' => 'required|string',
             'token' => 'sometimes|string',
@@ -684,29 +666,15 @@ class AuthController extends Controller
         ]);
         $idToken = $request->input('id_token');
 
-        \Log::info('Apple login - Step 1: Fetching JWKS from Apple');
-
         try {
             $jwks = Http::get('https://appleid.apple.com/auth/keys')->json();
-            \Log::info('Apple login - Step 1 success', ['jwks_keys_count' => count($jwks['keys'] ?? [])]);
         } catch (\Exception $e) {
-            \Log::error('Apple login - Step 1 failed: fetch JWKS', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
             return ResponseHelper::error('Không thể kết nối Apple để xác thực', 500, ['status_code' => 'APPLE_JWKS_FAILED']);
         }
 
-        \Log::info('Apple login - Step 2: Parsing JWKS keys');
-
         try {
             $keys = JWK::parseKeySet($jwks);
-            \Log::info('Apple login - Step 2 success', ['keys_count' => count($keys)]);
         } catch (\Exception $e) {
-            \Log::error('Apple login - Step 2 failed: parse JWKS', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
             return ResponseHelper::error('Không thể xử lý Apple key', 500, ['status_code' => 'APPLE_KEY_PARSE_FAILED']);
         }
 
@@ -714,16 +682,11 @@ class AuthController extends Controller
         foreach ($keys as $keyIndex => $key) {
             try {
                 $payload = JWT::decode($idToken, $key);
-                \Log::info('Apple login - Step 3: Decoded successfully with key index ' . $keyIndex);
                 break;
             } catch (\Throwable $e) {
-                \Log::warning('Apple login - Key ' . $keyIndex . ' decode failed', [
-                    'error' => $e->getMessage(),
-                ]);
             }
         }
         if (!$payload) {
-            \Log::error('Apple login - All keys failed to decode');
             return ResponseHelper::error('Token Apple không hợp lệ', 401, ['status_code' => 'INVALID_TOKEN']);
         }
 
@@ -780,40 +743,12 @@ class AuthController extends Controller
             if($request->token && $request->platform) {
                 $this->handleDeviceLogin($user, $request->token, $request->platform);
             }
-            \Log::info("Before responseWithToken");
 
             $response = $this->responseWithToken($accessToken, $refreshToken, $user);
-
-            \Log::info("After responseWithToken");
-
             $response['status_code'] = 'VERIFIED';
 
-            \Log::info("After status_code added");
-
-            \Log::info('Apple login success', [
-                'user_id' => $user->id,
-                'email' => $user->email,
-                'apple_id' => $appleId,
-            ]);
-
-            \Log::info("Before ResponseHelper::success");
-
-            $result = ResponseHelper::success($response, 'Đăng nhập bằng Apple thành công');
-
-            \Log::info("After ResponseHelper::success - returning");
-
-            \Log::info("Apple login - returning access token", [
-                'access_token_length' => strlen($accessToken),
-                'access_token_prefix' => substr($accessToken, 0, 20),
-                'refresh_token_length' => strlen($refreshToken),
-            ]);
-
-            return $result;
+            return ResponseHelper::success($response, 'Đăng nhập bằng Apple thành công');
         } catch (\Exception $e) {
-            \Log::error('Apple login failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
             return ResponseHelper::error('Không thể đăng nhập bằng Apple', 500, ['status_code' => 'OAUTH_FAILED']);
         }
     }
@@ -844,21 +779,13 @@ class AuthController extends Controller
 
     private function responseWithToken(string $accessToken, string $refreshToken, object $user): array
     {
-        \Log::info("responseWithToken Step 1");
-
         $user->loadFullRelations();
-
-        \Log::info("responseWithToken Step 2 - loadFullRelations done");
 
         User::loadSportStatsOnUsers(collect([$user]), 1);
 
-        \Log::info("responseWithToken Step 3 - loadSportStatsOnUsers done");
-
         $resource = new UserResource($user);
 
-        \Log::info("responseWithToken Step 4 - UserResource created");
-
-        $result = [
+        return [
             'token' => [
                 'access_token' => $accessToken,
                 'refresh_token' => $refreshToken,
@@ -867,10 +794,6 @@ class AuthController extends Controller
             ],
             'user' => $resource,
         ];
-
-        \Log::info("responseWithToken Step 5 - returning");
-
-        return $result;
     }
 
     private function handleDeviceLogin(User $user, string $currentToken, string $platform)
