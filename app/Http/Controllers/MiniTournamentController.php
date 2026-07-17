@@ -10,6 +10,7 @@ use App\Enums\ClubWalletTransactionDirection;
 use App\Enums\ClubWalletTransactionSourceType;
 use App\Enums\ClubWalletTransactionStatus;
 use App\Enums\PaymentMethod;
+use App\Enums\PaymentStatusEnum;
 use App\Events\SuperAdmin\DashboardStatUpdated;
 use App\Events\SuperAdmin\MiniTournamentCreated;
 use App\Events\SuperAdmin\MiniTournamentDeleted;
@@ -122,7 +123,7 @@ class MiniTournamentController extends Controller
             // - use_club_fund = true: CLB chi → invited users = CONFIRMED
             // - auto_split_fee = true: chia đều → CONFIRMED (chờ command tính)
             // - has_fee + auto_split_fee off: phí cố định → PENDING
-            $paymentStatus = \App\Enums\PaymentStatusEnum::CONFIRMED;
+            $paymentStatus = PaymentStatusEnum::CONFIRMED;
             if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
                 $paymentStatus = \App\Enums\PaymentStatusEnum::PENDING;
             }
@@ -433,6 +434,33 @@ class MiniTournamentController extends Controller
         }
 
         $originalFormat = $miniTournament->match_format;
+
+        // Sync creator_join: thêm/xóa organizer khỏi participant list
+        // So sánh giá trị CŨ từ model với giá trị MỚI từ request, TRƯỚC khi update
+        $oldCreatorJoin = (bool) $miniTournament->creator_join;
+        $newCreatorJoin = isset($data['creator_join']) ? (bool) $data['creator_join'] : $oldCreatorJoin;
+
+        if ($newCreatorJoin && !$oldCreatorJoin) {
+            // false → true: thêm organizer vào participant
+            $exists = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
+                ->where('user_id', Auth::id())
+                ->exists();
+            if (!$exists) {
+                MiniParticipant::create([
+                    'mini_tournament_id' => $miniTournament->id,
+                    'user_id' => Auth::id(),
+                    'is_confirmed' => true,
+                    'is_invited' => false,
+                    'payment_status' => PaymentStatusEnum::CONFIRMED,
+                ]);
+            }
+        } elseif (!$newCreatorJoin && $oldCreatorJoin) {
+            // true → false: xóa organizer khỏi participant
+            MiniParticipant::where('mini_tournament_id', $miniTournament->id)
+                ->where('user_id', Auth::id())
+                ->delete();
+        }
+
         $miniTournament->update($data);
 
         // Reset participant groups and session state when match_format changes
@@ -497,33 +525,6 @@ class MiniTournamentController extends Controller
             $feeAmountChanged = isset($data['fee_amount']) && (float) $data['fee_amount'] !== (float) $miniTournament->fee_amount;
             if ($autoSplitChanged || $feeAmountChanged) {
                 $this->syncParticipantsPaymentStatus($miniTournament, true);
-            }
-        }
-
-        // Sync creator_join: thêm/xóa organizer khỏi participant list
-        if (array_key_exists('creator_join', $data)) {
-            $oldCreatorJoin = (bool) $miniTournament->creator_join;
-            $newCreatorJoin = (bool) $data['creator_join'];
-
-            if ($newCreatorJoin && !$oldCreatorJoin) {
-                // false → true: thêm organizer vào participant
-                $exists = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
-                    ->where('user_id', Auth::id())
-                    ->exists();
-                if (!$exists) {
-                    MiniParticipant::create([
-                        'mini_tournament_id' => $miniTournament->id,
-                        'user_id' => Auth::id(),
-                        'is_confirmed' => true,
-                        'is_invited' => false,
-                        'payment_status' => \App\Enums\PaymentStatusEnum::CONFIRMED,
-                    ]);
-                }
-            } elseif (!$newCreatorJoin && $oldCreatorJoin) {
-                // true → false: xóa organizer khỏi participant
-                MiniParticipant::where('mini_tournament_id', $miniTournament->id)
-                    ->where('user_id', Auth::id())
-                    ->delete();
             }
         }
 
@@ -670,8 +671,8 @@ class MiniTournamentController extends Controller
                     ->where('participant_id', $participant->id)
                     ->update(['status' => MiniParticipantPayment::STATUS_REJECTED]);
             } elseif ($isOrganizer || $isSponsoredByOrganizer) {
-                if ($participant->payment_status !== \App\Enums\PaymentStatusEnum::CONFIRMED) {
-                    $participant->update(['payment_status' => \App\Enums\PaymentStatusEnum::CONFIRMED]);
+                if ($participant->payment_status !== PaymentStatusEnum::CONFIRMED) {
+                    $participant->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
                 }
                 $this->upsertPaymentRecord($miniTournament, $participant, 0, MiniParticipantPayment::STATUS_CONFIRMED);
             } else {
