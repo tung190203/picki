@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Helpers\ActivityLog;
 use App\Enums\ScoreVerificationStatus;
 use App\Models\ScoreVerificationRequest;
 use App\Models\User;
