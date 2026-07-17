@@ -73,6 +73,8 @@ use App\Http\Controllers\Admin\AdminNotificationController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\AdminClubManagementController;
 use App\Http\Controllers\Admin\AdminCompetitionLocationManagementController;
+use App\Http\Controllers\Admin\ScoreVerificationManagementController;
+use App\Http\Controllers\ScoreVerificationController;
 use App\Http\Controllers\QuickMatchController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
@@ -344,6 +346,13 @@ Route::prefix('clubs')->middleware(['performance'])->group(function () {
 Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::get('/dashboard/lists', [DashboardController::class, 'lists']);
+
+    Route::prefix('score-verifications')->group(function () {
+        Route::get('/', [ScoreVerificationManagementController::class, 'index']);
+        Route::get('/{verification}', [ScoreVerificationManagementController::class, 'show'])->where('verification', '[0-9]+');
+        Route::post('/{verification}/approve', [ScoreVerificationManagementController::class, 'approve'])->where('verification', '[0-9]+');
+        Route::post('/{verification}/reject', [ScoreVerificationManagementController::class, 'reject'])->where('verification', '[0-9]+');
+    });
 
     Route::get('/users', [UserManagementController::class, 'index']);
     Route::get('/users/{id}', [UserManagementController::class, 'show']);
@@ -886,4 +895,10 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     });
     // QR scan — no auth required (app scans this endpoint to preview before confirming)
     Route::get('/quick-matches/qr/{qr_code}', [QuickMatchController::class, 'scanQr']);
+
+    // Score Verification Routes
+    Route::prefix('score-verifications')->group(function () {
+        Route::post('/', [ScoreVerificationController::class, 'store']);
+        Route::get('/latest', [ScoreVerificationController::class, 'latest']);
+    });
 });
