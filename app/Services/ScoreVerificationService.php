@@ -44,9 +44,9 @@ class ScoreVerificationService
         return config('score_verification.max_difference');
     }
 
-    public function hasPendingRequest(int $userId): bool
+    public function hasPendingRequest(int $userId, ?string $scoreType = null): bool
     {
-        return $this->repository->findPendingByUser($userId) !== null;
+        return $this->repository->findPendingByUser($userId, $scoreType) !== null;
     }
 
     public function getLatestRequest(int $userId): ?array
