@@ -50,7 +50,9 @@ class UserResource extends JsonResource
         return [
             'id' => $request->id,
             'request_number' => $request->request_number,
-            'image_url' => $request->image_path ? Storage::url($request->image_path) : null,
+            'image_url' => $request->image_path
+                ? rtrim(config('app.url'), '/') . Storage::url($request->image_path)
+                : null,
             'submitted_score' => $request->submitted_score,
             'current_picki_score' => $currentScore,
             'difference' => $difference,
