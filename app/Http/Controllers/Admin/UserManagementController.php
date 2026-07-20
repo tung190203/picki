@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Helpers\ResponseHelper;
 use App\Models\User;
+use App\Models\UserSport;
+use App\Models\UserSportScore;
 use App\Services\Admin\UserManagementService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class UserManagementController extends Controller
 {
@@ -45,6 +48,54 @@ class UserManagementController extends Controller
     {
         $user = $this->userManagementService->getDetail($id);
         return ResponseHelper::single($user, 'Lấy chi tiết user thành công');
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'avatar' => 'nullable|image|max:2048',
+            'name' => 'required|string|max:255',
+            'phone' => 'required|unique:users,phone|regex:/^[0-9]{10,11}$/',
+            'vndupr_score' => 'nullable|numeric|min:0|max:10',
+            'email' => 'required|unique:users,email|email',
+            'password' => 'required|min:6|confirmed',
+            'gender' => 'required|in:0,1,2,3',
+        ]);
+
+        $avatarUrl = null;
+        if ($request->hasFile('avatar')) {
+            $avatarName = 'avatars/' . uniqid() . '.' . $request->file('avatar')->getClientOriginalExtension();
+            Storage::disk('public')->put($avatarName, file_get_contents($request->file('avatar')));
+            $avatarUrl = asset('storage/' . $avatarName);
+        }
+
+        $user = User::create([
+            'full_name' => $validated['name'],
+            'phone' => $validated['phone'],
+            'email' => $validated['email'],
+            'password' => $validated['password'],
+            'avatar_url' => $avatarUrl,
+            'gender' => $validated['gender'],
+            'email_verified_at' => now(),
+            'is_profile_completed' => true,
+        ]);
+
+        $userSport = UserSport::create([
+            'user_id' => $user->id,
+            'sport_id' => 1,
+        ]);
+
+        if (isset($validated['vndupr_score'])) {
+            UserSportScore::create([
+                'user_sport_id' => $userSport->id,
+                'score_type' => UserSportScore::VNDUPR_SCORE,
+                'score_value' => $validated['vndupr_score'],
+            ]);
+        }
+
+        $user->load(['sports', 'badges', 'clubs']);
+
+        return ResponseHelper::success($user, 'Tạo user thành công', 201);
     }
 
     public function ban(Request $request, int $id)
