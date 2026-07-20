@@ -28,6 +28,7 @@ class ScoreVerificationRequest extends Model
         'submitted_score' => 'decimal:3',
         'award_anchor_badge' => 'boolean',
         'reviewed_at' => 'datetime',
+        'status' => ScoreVerificationStatus::class,
     ];
 
     public function user(): BelongsTo
@@ -42,17 +43,17 @@ class ScoreVerificationRequest extends Model
 
     public function scopePending($query)
     {
-        return $query->where('status', ScoreVerificationStatus::PENDING);
+        return $query->where('status', ScoreVerificationStatus::PENDING->value);
     }
 
     public function scopeApproved($query)
     {
-        return $query->where('status', ScoreVerificationStatus::APPROVED);
+        return $query->where('status', ScoreVerificationStatus::APPROVED->value);
     }
 
     public function scopeRejected($query)
     {
-        return $query->where('status', ScoreVerificationStatus::REJECTED);
+        return $query->where('status', ScoreVerificationStatus::REJECTED->value);
     }
 
     protected static function boot()

@@ -46,7 +46,7 @@ class ScoreVerificationRepository
         ?string $rejectionReason = null
     ): ScoreVerificationRequest {
         return tap($request)->update([
-            'status' => $status,
+            'status' => $status->value,
             'reviewer_id' => $reviewerId,
             'reviewed_at' => now(),
             'rejection_reason' => $rejectionReason,
@@ -57,14 +57,14 @@ class ScoreVerificationRepository
     {
         return $this->model
             ->where('id', $id)
-            ->where('status', ScoreVerificationStatus::PENDING)
+            ->where('status', ScoreVerificationStatus::PENDING->value)
             ->lockForUpdate()
             ->first();
     }
 
     public function isPending(int $id): bool
     {
-        return $this->model->where('id', $id)->where('status', ScoreVerificationStatus::PENDING)->exists();
+        return $this->model->where('id', $id)->where('status', ScoreVerificationStatus::PENDING->value)->exists();
     }
 
     public function getSummary(): array
@@ -91,7 +91,7 @@ class ScoreVerificationRepository
         if (!empty($filters['status'])) {
             $query->where('status', $filters['status']);
         } else {
-            $query->where('status', ScoreVerificationStatus::PENDING);
+            $query->where('status', ScoreVerificationStatus::PENDING->value);
         }
 
         if (!empty($filters['score_type'])) {

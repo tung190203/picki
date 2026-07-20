@@ -306,6 +306,11 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             ->where('user_sport_scores.score_type', 'vndupr_score');
     }
 
+    public function scoreVerificationRequests()
+    {
+        return $this->hasMany(ScoreVerificationRequest::class);
+    }
+
     public function clubs()
     {
         return $this->belongsToMany(Club::class, 'club_members')
