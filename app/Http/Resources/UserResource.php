@@ -3,10 +3,13 @@
 namespace App\Http\Resources;
 
 use App\Models\Sport;
+use App\Models\ScoreVerificationRequest;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Http\Resources\ClubResource;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class UserResource extends JsonResource
 {
@@ -18,6 +21,45 @@ class UserResource extends JsonResource
             self::$_cachedPickleballSport = Sport::where('slug', 'pickleball')->first();
         }
         return self::$_cachedPickleballSport;
+    }
+
+    protected static function getLatestScoreVerification(int $userId, string $scoreType): ?array
+    {
+        $request = ScoreVerificationRequest::where('user_id', $userId)
+            ->where('score_type', $scoreType)
+            ->latest()
+            ->first();
+
+        if (!$request) {
+            return null;
+        }
+
+        $currentScore = DB::table('user_sport_scores')
+            ->join('user_sport', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
+            ->where('user_sport.user_id', $userId)
+            ->where('user_sport_scores.score_type', 'vndupr_score')
+            ->max('user_sport_scores.score_value');
+
+        $difference = $currentScore !== null
+            ? round(abs((float) $request->submitted_score - $currentScore), 3)
+            : null;
+
+        $threshold = config('score_verification.max_difference', 0.5);
+        $isOverThreshold = $difference !== null ? $difference >= $threshold : false;
+
+        return [
+            'id' => $request->id,
+            'request_number' => $request->request_number,
+            'image_url' => $request->image_path ? Storage::url($request->image_path) : null,
+            'submitted_score' => $request->submitted_score,
+            'current_picki_score' => $currentScore,
+            'difference' => $difference,
+            'threshold' => $threshold,
+            'is_over_threshold' => $isOverThreshold,
+            'status' => $request->status,
+            'created_at' => $request->created_at?->toISOString(),
+            'is_new' => $request->created_at && $request->created_at->diffInHours(now()) < 24,
+        ];
     }
 
     public function toArray(Request $request): array
@@ -85,6 +127,8 @@ class UserResource extends JsonResource
             'has_advanced_mini_tournament' => $this->resource->hasAdvancedMiniTournament(),
             'latest_used_qr' => $this->latest_used_qr,
             'created_at' => $this->created_at?->toISOString(),
+            'spcn_request' => self::getLatestScoreVerification($this->id, 'SPCN'),
+            'dupr_request' => self::getLatestScoreVerification($this->id, 'DUPR'),
         ];
     }
 }
