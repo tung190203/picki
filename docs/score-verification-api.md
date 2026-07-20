@@ -1,6 +1,7 @@
 # Score Verification API Documentation
 
 ## Base URL
+
 ```
 /api
 ```
@@ -14,19 +15,24 @@
 **POST** `/score-verifications`
 
 **Headers:**
+
 ```
 Authorization: Bearer {token}
 Content-Type: multipart/form-data
 ```
 
 **Form Data:**
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `score_type` | string | Yes | `SPCN` or `DUPR` |
-| `score` | number | Yes | Score value (0 - 8) |
-| `image` | file | Yes | Image file (jpeg, png, jpg, gif; max 5MB) |
+
+
+| Field        | Type   | Required | Description                               |
+| ------------ | ------ | -------- | ----------------------------------------- |
+| `score_type` | string | Yes      | `SPCN` or `DUPR`                          |
+| `score`      | number | Yes      | Score value (0 - 8)                       |
+| `image`      | file   | Yes      | Image file (jpeg, png, jpg, gif; max 5MB) |
+
 
 **Success Response (201):**
+
 ```json
 {
     "success": true,
@@ -48,6 +54,7 @@ Content-Type: multipart/form-data
 ```
 
 **Error Response (409 - Pending request exists):**
+
 ```json
 {
     "success": false,
@@ -58,6 +65,7 @@ Content-Type: multipart/form-data
 ```
 
 **Error Response (422 - Validation failed):**
+
 ```json
 {
     "success": false,
@@ -72,62 +80,28 @@ Content-Type: multipart/form-data
 
 ---
 
-### 2. Get Latest Request
-
-**GET** `/score-verifications/latest`
-
-**Headers:**
-```
-Authorization: Bearer {token}
-```
-
-**Success Response (200):**
-```json
-{
-    "success": true,
-    "data": {
-        "id": 1,
-        "request_number": "SV-20260717-000001",
-        "score_type": "SPCN",
-        "submitted_score": "2.000",
-        "current_picki_score": "1.448",
-        "difference": 0.552,
-        "threshold": 0.5,
-        "is_over_threshold": true,
-        "status": "PENDING",
-        "created_at": "2026-07-17T12:00:00Z",
-        "is_new": true
-    }
-}
-```
-
-**No Request Exists (200):**
-```json
-{
-    "success": true,
-    "data": null
-}
-```
-
----
-
-### 3. Get Verification History (Future)
+### 2. Get Verification History (Future)
 
 **GET** `/score-verifications`
 
 **Headers:**
+
 ```
 Authorization: Bearer {token}
 ```
 
 **Query Parameters:**
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `status` | string | - | `PENDING`, `APPROVED`, or `REJECTED` |
-| `page` | integer | 1 | Page number |
-| `per_page` | integer | 20 | Items per page (max 100) |
+
+
+| Parameter  | Type    | Default | Description                          |
+| ---------- | ------- | ------- | ------------------------------------ |
+| `status`   | string  | -       | `PENDING`, `APPROVED`, or `REJECTED` |
+| `page`     | integer | 1       | Page number                          |
+| `per_page` | integer | 20      | Items per page (max 100)             |
+
 
 **Success Response (200):**
+
 ```json
 {
     "success": true,
@@ -147,6 +121,7 @@ Authorization: Bearer {token}
 ## Admin Endpoints
 
 **Headers:**
+
 ```
 Authorization: Bearer {token}
 X-User-Role: super_admin
@@ -159,22 +134,27 @@ X-User-Role: super_admin
 **GET** `/admin/score-verifications`
 
 **Query Parameters:**
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `status` | string | `PENDING` | `PENDING`, `APPROVED`, or `REJECTED` |
-| `score_type` | string | - | `SPCN` or `DUPR` |
-| `keyword` | string | - | Search by user name |
-| `from_date` | date | - | Filter from date (YYYY-MM-DD) |
-| `to_date` | date | - | Filter to date (YYYY-MM-DD) |
-| `page` | integer | 1 | Page number |
-| `per_page` | integer | 20 | Items per page (max 100) |
+
+
+| Parameter    | Type    | Default   | Description                          |
+| ------------ | ------- | --------- | ------------------------------------ |
+| `status`     | string  | `PENDING` | `PENDING`, `APPROVED`, or `REJECTED` |
+| `score_type` | string  | -         | `SPCN` or `DUPR`                     |
+| `keyword`    | string  | -         | Search by user name                  |
+| `from_date`  | date    | -         | Filter from date (YYYY-MM-DD)        |
+| `to_date`    | date    | -         | Filter to date (YYYY-MM-DD)          |
+| `page`       | integer | 1         | Page number                          |
+| `per_page`   | integer | 20        | Items per page (max 100)             |
+
 
 **Example:**
+
 ```
 GET /admin/score-verifications?status=PENDING&score_type=SPCN&page=1&per_page=20
 ```
 
 **Success Response (200):**
+
 ```json
 {
     "success": true,
@@ -220,6 +200,7 @@ GET /admin/score-verifications?status=PENDING&score_type=SPCN&page=1&per_page=20
 **GET** `/admin/score-verifications/{verification}`
 
 **Success Response (200):**
+
 ```json
 {
     "success": true,
@@ -256,17 +237,21 @@ GET /admin/score-verifications?status=PENDING&score_type=SPCN&page=1&per_page=20
 **POST** `/admin/score-verifications/{verification}/approve`
 
 **Request Body:**
+
 ```json
 {
     "award_anchor_badge": true
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `award_anchor_badge` | boolean | No | Award Anchor badge to user (default: false) |
+
+| Field                | Type    | Required | Description                                 |
+| -------------------- | ------- | -------- | ------------------------------------------- |
+| `award_anchor_badge` | boolean | No       | Award Anchor badge to user (default: false) |
+
 
 **Success Response (200):**
+
 ```json
 {
     "success": true,
@@ -278,6 +263,7 @@ GET /admin/score-verifications?status=PENDING&score_type=SPCN&page=1&per_page=20
 ```
 
 **Error Response (400 - Already processed):**
+
 ```json
 {
     "success": false,
@@ -293,17 +279,21 @@ GET /admin/score-verifications?status=PENDING&score_type=SPCN&page=1&per_page=20
 **POST** `/admin/score-verifications/{verification}/reject`
 
 **Request Body:**
+
 ```json
 {
     "reason": "Điểm không khớp với hồ sơ"
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `reason` | string | Yes | Rejection reason (max 500 chars) |
+
+| Field    | Type   | Required | Description                      |
+| -------- | ------ | -------- | -------------------------------- |
+| `reason` | string | Yes      | Rejection reason (max 500 chars) |
+
 
 **Success Response (200):**
+
 ```json
 {
     "success": true,
@@ -321,8 +311,10 @@ GET /admin/score-verifications?status=PENDING&score_type=SPCN&page=1&per_page=20
 ```
 # User Routes (Authenticated)
 POST   /score-verifications                  - Create request
-GET    /score-verifications/latest           - Get latest request
 GET    /score-verifications                  - Get history (future)
+
+# Score Verification via /me endpoint
+# spcn_request and dupr_request fields are included in GET /me response
 
 # Admin Routes (super_admin)
 GET    /admin/score-verifications           - Dashboard + List
@@ -335,39 +327,69 @@ POST   /admin/score-verifications/{id}/reject  - Reject
 
 ## Response Fields Description
 
-| Field | Description |
-|-------|-------------|
-| `request_number` | Unique request ID (format: `SV-YYYYMMDD-NNNNNN`) |
-| `current_picki_score` | User's current score from `users.self_score` |
-| `difference` | Absolute difference between submitted and current score |
-| `threshold` | Max allowed difference (from config, default 0.5) |
-| `is_over_threshold` | `true` if difference > threshold |
-| `is_new` | `true` if request is less than 24 hours old |
 
----
+| Field                 | Description                                             |
+| --------------------- | ------------------------------------------------------- |
+| `request_number`      | Unique request ID (format: `SV-YYYYMMDD-NNNNNN`)        |
+| `image_url`           | URL of uploaded proof image                             |
+| `current_picki_score` | User's current score from `user_sport_scores` table      |
+| `difference`          | Absolute difference between submitted and current score |
+| `threshold`           | Max allowed difference (from config, default 0.5)       |
+| `is_over_threshold`   | `true` if difference > threshold                        |
+| `is_new`              | `true` if request is less than 24 hours old             |
 
-## Status Values
 
-| Status | Description |
-|--------|-------------|
-| `PENDING` | Chờ duyệt |
-| `APPROVED` | Đã duyệt |
-| `REJECTED` | Từ chối |
+## /me Endpoint - Score Verification Fields
 
----
+The `GET /me` endpoint includes `spcn_request` and `dupr_request` fields in the response.
+
+**Example Response (partial):**
+
+```json
+{
+    "id": 1,
+    "full_name": "Nguyễn Văn A",
+    "email": "user@example.com",
+    "avatar_url": "https://...",
+    "spcn_request": {
+        "id": 1,
+        "request_number": "SV-20260717-000001",
+        "image_url": "https://storage.example.com/verification/xxx.jpg",
+        "submitted_score": "2.000",
+        "current_picki_score": "1.448",
+        "difference": 0.552,
+        "threshold": 0.5,
+        "is_over_threshold": true,
+        "status": "PENDING",
+        "created_at": "2026-07-17T12:00:00Z",
+        "is_new": true
+    },
+    "dupr_request": null
+}
+```
+
+**Notes:**
+- If user has never submitted a request for that score type, the field will be `null`
+- `image_url` is only included when the request was made
+- Both fields use the same structure and field descriptions as the main Score Verification API
 
 ## Score Types
 
-| Type | Description |
-|------|-------------|
-| `SPCN` | Điểm SPCN |
-| `DUPR` | Điểm DUPR |
+
+| Type   | Description |
+| ------ | ----------- |
+| `SPCN` | Điểm SPCN   |
+| `DUPR` | Điểm DUPR   |
+
 
 ---
 
 ## Controller Structure
 
-| Controller | Namespace | Description |
-|------------|-----------|-------------|
-| `ScoreVerificationController` | `App\Http\Controllers\` | User endpoints |
+
+| Controller                              | Namespace                     | Description     |
+| --------------------------------------- | ----------------------------- | --------------- |
+| `ScoreVerificationController`           | `App\Http\Controllers\`       | User endpoints  |
 | `ScoreVerificationManagementController` | `App\Http\Controllers\Admin\` | Admin endpoints |
+
+
