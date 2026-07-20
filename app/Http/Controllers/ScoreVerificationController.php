@@ -30,12 +30,4 @@ class ScoreVerificationController extends Controller
 
         return ResponseHelper::success($data, 'Yêu cầu xác minh đã được gửi', 201);
     }
-
-    public function latest(): JsonResponse
-    {
-        $user = auth()->user();
-        $data = $this->service->getLatestRequest($user->id);
-
-        return ResponseHelper::success($data);
-    }
 }

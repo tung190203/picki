@@ -899,6 +899,5 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     // Score Verification Routes
     Route::prefix('score-verifications')->group(function () {
         Route::post('/', [ScoreVerificationController::class, 'store']);
-        Route::get('/latest', [ScoreVerificationController::class, 'latest']);
     });
 });
