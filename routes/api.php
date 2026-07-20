@@ -355,6 +355,7 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
     });
 
     Route::get('/users', [UserManagementController::class, 'index']);
+    Route::post('/users', [UserManagementController::class, 'store']);
     Route::get('/users/{id}', [UserManagementController::class, 'show']);
     Route::post('/users/{id}/ban', [UserManagementController::class, 'ban']);
     Route::post('/users/{id}/unban', [UserManagementController::class, 'unban']);
@@ -899,6 +900,5 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     // Score Verification Routes
     Route::prefix('score-verifications')->group(function () {
         Route::post('/', [ScoreVerificationController::class, 'store']);
-        Route::get('/latest', [ScoreVerificationController::class, 'latest']);
     });
 });
