@@ -17,12 +17,17 @@ class ScoreVerificationRepository
         return $this->model->with(['user', 'reviewer'])->findOrFail($id);
     }
 
-    public function findPendingByUser(int $userId): ?ScoreVerificationRequest
+    public function findPendingByUser(int $userId, ?string $scoreType = null): ?ScoreVerificationRequest
     {
-        return $this->model
+        $query = $this->model
             ->pending()
-            ->where('user_id', $userId)
-            ->first();
+            ->where('user_id', $userId);
+
+        if ($scoreType !== null) {
+            $query->where('score_type', $scoreType);
+        }
+
+        return $query->first();
     }
 
     public function getLatestByUser(int $userId): ?ScoreVerificationRequest
