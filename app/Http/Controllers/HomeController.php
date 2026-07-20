@@ -46,7 +46,7 @@ class HomeController extends Controller
         }
 
         $userSports = UserSport::where('user_id', $userId)
-            ->with('sport', 'scores')
+            ->with('sport', 'scores', 'user')
             ->get();
 
         // Load sport stats on the auth user for UserSportResource
@@ -156,7 +156,7 @@ class HomeController extends Controller
             ->with([
                 'sports' => function ($query) use ($sportId) {
                     $query->where('sport_id', $sportId)
-                        ->with('scores', 'sport');
+                        ->with('scores', 'sport', 'user.scoreVerificationRequests');
                 },
                 'clubs:id,name'
             ])

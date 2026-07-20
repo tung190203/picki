@@ -9,7 +9,7 @@ class UserSportResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $types = ['personal_score', 'dupr_score', 'vndupr_score'];
+        $types = ['personal_score', 'dupr_score', 'vndupr_score', 'spcn_score'];
 
         $scores = $this->relationLoaded('scores')
             ? $this->scores
@@ -17,9 +17,8 @@ class UserSportResource extends JsonResource
 
         $formattedScores = [];
         foreach ($types as $type) {
-            $latestScore = $scores->where('score_type', $type)->sortByDesc('created_at')->first();
-            $scoreValue = $latestScore ? $latestScore->score_value : 0;
-            $formattedScores[$type] = number_format($scoreValue, 3);
+            $scoreValue = $this->getScoreValue($type, $scores);
+            $formattedScores[$type] = $scoreValue !== null ? number_format($scoreValue, 3) : null;
         }
 
         // Use preloaded batch stats if available (set by SearchV2Controller), otherwise fall back.
@@ -54,5 +53,20 @@ class UserSportResource extends JsonResource
             'win_rate' => $stats['win_rate'],
             'performance' => $stats['performance'],
         ];
+    }
+
+    private function getScoreValue(string $type, $scores)
+    {
+        $latestScore = $scores->where('score_type', $type)->sortByDesc('created_at')->first();
+
+        if (!$latestScore) {
+            // dupr_score and spcn_score return null if no score
+            if (in_array($type, ['dupr_score', 'spcn_score'])) {
+                return null;
+            }
+            return 0;
+        }
+
+        return (float) $latestScore->score_value;
     }
 }
