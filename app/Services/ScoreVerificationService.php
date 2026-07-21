@@ -11,6 +11,7 @@ use App\Notifications\ScoreVerificationApprovedNotification;
 use App\Notifications\ScoreVerificationRejectedNotification;
 use App\Repositories\ScoreVerificationRepository;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class ScoreVerificationService
 {
@@ -227,7 +228,9 @@ class ScoreVerificationService
         }
 
         if ($isDetail || $request->relationLoaded('reviewer')) {
-            $data['image_url'] = $request->image_path;
+            $data['image_url'] = $request->image_path
+                ? rtrim(config('app.url'), '/') . Storage::url($request->image_path)
+                : null,
             $data['reviewed_at'] = $request->reviewed_at;
             $data['reviewer'] = $request->reviewer ? [
                 'id' => $request->reviewer->id,
