@@ -248,7 +248,7 @@ class ScoreVerificationService
         if ($isDetail || $request->relationLoaded('reviewer')) {
             $data['image_url'] = $request->image_path
                 ? rtrim(config('app.url'), '/') . Storage::url($request->image_path)
-                : null,
+                : null;
             $data['reviewed_at'] = $request->reviewed_at;
             $data['reviewer'] = $request->reviewer ? [
                 'id' => $request->reviewer->id,
