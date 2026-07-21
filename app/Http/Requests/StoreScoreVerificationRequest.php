@@ -15,16 +15,25 @@ class StoreScoreVerificationRequest extends FormRequest
 
     public function rules(): array
     {
-        return [
+        $rules = [
+            'id' => ['nullable', 'integer', 'exists:score_verification_requests,id'],
             'score_type' => ['required', Rule::enum(ScoreType::class)],
             'score' => ['required', 'numeric', 'between:0,8'],
-            'image' => ['required', 'image', 'mimes:jpeg,png,jpg,gif', 'max:5120'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif', 'max:5120'],
         ];
+
+        // Nếu không có id (tạo mới), bắt buộc upload image
+        if (!$this->filled('id')) {
+            $rules['image'][0] = 'required';
+        }
+
+        return $rules;
     }
 
     public function messages(): array
     {
         return [
+            'id.exists' => 'Yêu cầu không tồn tại.',
             'score_type.required' => 'Vui lòng chọn loại điểm.',
             'score_type.enum' => 'Loại điểm không hợp lệ.',
             'score.required' => 'Vui lòng nhập điểm.',

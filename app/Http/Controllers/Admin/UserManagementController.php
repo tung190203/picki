@@ -55,11 +55,11 @@ class UserManagementController extends Controller
         $validated = $request->validate([
             'avatar' => 'nullable|image|max:2048',
             'name' => 'required|string|max:255',
-            'phone' => 'required|unique:users,phone|regex:/^[0-9]{10,11}$/',
             'vndupr_score' => 'nullable|numeric|min:0|max:10',
             'email' => 'required|unique:users,email|email',
             'password' => 'required|min:6|confirmed',
-            'gender' => 'required|in:0,1,2,3',
+            'phone' => 'nullable|unique:users,phone|regex:/^[0-9]{10,11}$/',
+            'gender' => 'nullable|in:0,1,2,3',
         ]);
 
         $avatarUrl = null;
@@ -69,16 +69,24 @@ class UserManagementController extends Controller
             $avatarUrl = asset('storage/' . $avatarName);
         }
 
-        $user = User::create([
+        $userData = [
             'full_name' => $validated['name'],
-            'phone' => $validated['phone'],
             'email' => $validated['email'],
             'password' => $validated['password'],
             'avatar_url' => $avatarUrl,
-            'gender' => $validated['gender'],
             'email_verified_at' => now(),
             'is_profile_completed' => true,
-        ]);
+        ];
+
+        if (!empty($validated['phone'])) {
+            $userData['phone'] = $validated['phone'];
+        }
+
+        if (!empty($validated['gender'])) {
+            $userData['gender'] = $validated['gender'];
+        }
+
+        $user = User::create($userData);
 
         $userSport = UserSport::create([
             'user_id' => $user->id,
