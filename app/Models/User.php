@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Enums\BadgeType;
 use App\Enums\ClubMembershipStatus;
 use App\Enums\ClubMemberStatus;
 use App\Models\SuperAdminDraft;
 use App\Models\Club\Club;
 use App\Models\QuickMatch;
 use App\Models\SystemSetting;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -278,6 +280,21 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     {
         return $this->belongsToMany(Badge::class, 'user_badges')
             ->withTimestamps();
+    }
+
+    public function userBadges(): HasMany
+    {
+        return $this->hasMany(UserBadge::class);
+    }
+
+    public function getIsVerifiedAttribute(): bool
+    {
+        return $this->userBadges()->where('badge_type', BadgeType::VERIFIED->value)->exists();
+    }
+
+    public function getIsAnchorAttribute(): bool
+    {
+        return $this->userBadges()->where('badge_type', BadgeType::ANCHOR->value)->exists();
     }
 
     public function sport()

@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Models\User;
 use App\Http\Resources\UserSportResource;
+use App\Services\BadgeService;
 
 class MapUserResource extends JsonResource
 {
@@ -60,6 +61,7 @@ class MapUserResource extends JsonResource
                 ] : null
             ),
             'is_follow' => $isFollow,
+            'primary_badge' => app(BadgeService::class)->getUserBadges($this->id)['primary_badge'],
             'marker_type'  => 'user',
         ];
     }

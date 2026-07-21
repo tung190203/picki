@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\Sport;
 use App\Models\ScoreVerificationRequest;
+use App\Services\BadgeService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -132,6 +133,8 @@ class UserResource extends JsonResource
             'created_at' => $this->created_at?->toISOString(),
             'spcn_request' => self::getLatestScoreVerification($this->id, 'SPCN'),
             'dupr_request' => self::getLatestScoreVerification($this->id, 'DUPR'),
+            'badges' => app(BadgeService::class)->getUserBadges($this->id)['badges'],
+            'primary_badge' => app(BadgeService::class)->getUserBadges($this->id)['primary_badge'],
         ];
     }
 }

@@ -3,6 +3,8 @@
 namespace App\Observers;
 
 use App\Models\User;
+use App\Services\BadgeService;
+use App\Enums\BadgeType;
 
 class UserObserver
 {
@@ -11,8 +13,7 @@ class UserObserver
     /**
      * Handle the User "updated" event.
      * Auto-verify user when total_matches_has_anchor crosses the threshold (>= 10).
-     * Only increments when the user played with an anchor/verified partner,
-     * so this is the correct field to watch for verification.
+     * Awards VERIFIED badge via BadgeService instead of updating is_verified field directly.
      */
     public function updated(User $user): void
     {
@@ -21,7 +22,7 @@ class UserObserver
             User::clearRoleCache($user->id);
         }
 
-        // Auto-verify logic (existing)
+        // Auto-verify logic using BadgeService
         if (!$user->wasChanged('total_matches_has_anchor')) {
             return;
         }
@@ -35,7 +36,7 @@ class UserObserver
         }
 
         if ((int) $user->total_matches_has_anchor >= self::AUTO_VERIFY_THRESHOLD) {
-            $user->updateQuietly(['is_verified' => true]);
+            app(BadgeService::class)->awardBadge($user->id, BadgeType::VERIFIED);
         }
     }
 }

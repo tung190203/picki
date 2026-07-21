@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Search;
 
 use App\Models\User;
+use App\Services\BadgeService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Http\Resources\UserSportResource;
@@ -57,6 +58,7 @@ class SearchPlayerResource extends JsonResource
                 'logo_url' => $c->logo_url,
             ])),
             'is_follow' => $isFollow,
+            'primary_badge' => app(BadgeService::class)->getUserBadges($this->id)['primary_badge'],
             'marker_type' => 'user',
         ];
     }
