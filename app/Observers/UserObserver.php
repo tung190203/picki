@@ -13,7 +13,7 @@ class UserObserver
     /**
      * Handle the User "updated" event.
      * Auto-verify user when total_matches_has_anchor crosses the threshold (>= 10).
-     * Awards VERIFIED badge via BadgeService instead of updating is_verified field directly.
+     * Awards VERIFIED badge via BadgeService.
      */
     public function updated(User $user): void
     {
@@ -27,7 +27,8 @@ class UserObserver
             return;
         }
 
-        if ($user->is_verified) {
+        // Check if user already has any badge using BadgeService
+        if (app(BadgeService::class)->has_any_badge($user->id)) {
             return;
         }
 

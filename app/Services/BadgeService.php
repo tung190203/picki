@@ -10,25 +10,17 @@ use Illuminate\Support\Facades\DB;
 class BadgeService
 {
     /**
-     * Get all badges for a user with primary badge info.
+     * Get all badges for a user.
      *
-     * @return array{badges: array, primary_badge: array|null}
+     * @return array{badges: array<string>, primary_badge: string|null}
      */
     public function getUserBadges(int $userId): array
     {
         $userBadges = UserBadge::where('user_id', $userId)
-            ->orderByRaw("FIELD(badge_type, 'PICKI', 'CHAMPION', 'ANCHOR', 'VERIFIED')")
+            ->orderByRaw($this->getBadgeOrderByClause())
             ->get();
 
-        $badges = $userBadges->map(function (UserBadge $userBadge) {
-            return [
-                'type' => $userBadge->badge_type->value,
-                'label' => $userBadge->badge_type->label(),
-                'description' => $userBadge->badge_type->description(),
-                'created_at' => $userBadge->created_at?->toISOString(),
-            ];
-        })->toArray();
-
+        $badges = $userBadges->map(fn(UserBadge $userBadge) => $userBadge->badge_type->value)->toArray();
         $primaryBadge = $this->getPrimaryBadge($userId);
 
         return [
@@ -38,24 +30,57 @@ class BadgeService
     }
 
     /**
-     * Get the primary badge for a user based on priority config.
+     * Get all badges for a user (alias).
      */
-    public function getPrimaryBadge(int $userId): ?array
+    public function get_badges(int $userId): array
+    {
+        return $this->getUserBadges($userId);
+    }
+
+    /**
+     * Get the primary badge type for a user (badge with highest priority).
+     */
+    public function getPrimaryBadge(int $userId): ?string
     {
         $userBadge = UserBadge::where('user_id', $userId)
-            ->orderByRaw("FIELD(badge_type, 'PICKI', 'CHAMPION', 'ANCHOR', 'VERIFIED')")
+            ->orderByRaw($this->getBadgeOrderByClause())
             ->first();
 
-        if (!$userBadge) {
-            return null;
-        }
+        return $userBadge?->badge_type->value;
+    }
 
-        return [
-            'type' => $userBadge->badge_type->value,
-            'label' => $userBadge->badge_type->label(),
-            'description' => $userBadge->badge_type->description(),
-            'created_at' => $userBadge->created_at?->toISOString(),
-        ];
+    /**
+     * Get the primary badge for a user (alias).
+     */
+    public function get_primary_badge(int $userId): ?string
+    {
+        return $this->getPrimaryBadge($userId);
+    }
+
+    /**
+     * Check if a user has any badge.
+     */
+    public function has_any_badge(int $userId): bool
+    {
+        return UserBadge::where('user_id', $userId)->exists();
+    }
+
+    /**
+     * Check if a user has a specific badge type.
+     */
+    public function has_badge(int $userId, BadgeType $type): bool
+    {
+        return UserBadge::where('user_id', $userId)
+            ->where('badge_type', $type->value)
+            ->exists();
+    }
+
+    /**
+     * Check if a user has a specific badge (alias).
+     */
+    public function hasBadge(int $userId, BadgeType $type): bool
+    {
+        return $this->has_badge($userId, $type);
     }
 
     /**
@@ -86,18 +111,36 @@ class BadgeService
     }
 
     /**
-     * Check if a user has a specific badge.
+     * Get badge priority order from config (highest priority first).
+     * Config: VERIFIED=1 (lowest), ANCHOR=2, CHAMPION=3, PICKI=4 (highest)
      */
-    public function hasBadge(int $userId, BadgeType $type): bool
+    private function getBadgePriorityOrder(): array
     {
-        return UserBadge::where('user_id', $userId)
-            ->where('badge_type', $type->value)
-            ->exists();
+        $priority = config('badges.priority', [
+            BadgeType::VERIFIED->value => 1,
+            BadgeType::ANCHOR->value => 2,
+            BadgeType::CHAMPION->value => 3,
+            BadgeType::PICKI->value => 4,
+        ]);
+
+        arsort($priority);
+
+        return array_keys($priority);
+    }
+
+    /**
+     * Get ORDER BY clause for MySQL FIELD() function based on config priority.
+     */
+    private function getBadgeOrderByClause(): string
+    {
+        $order = $this->getBadgePriorityOrder();
+        $fieldValues = implode("', '", $order);
+
+        return "FIELD(badge_type, '{$fieldValues}')";
     }
 
     /**
      * Sync badges from legacy is_verified/is_anchor fields.
-     * Call this once during migration to migrate existing data.
      */
     public function syncFromLegacyFields(User $user): void
     {

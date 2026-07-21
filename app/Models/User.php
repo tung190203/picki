@@ -9,6 +9,7 @@ use App\Models\SuperAdminDraft;
 use App\Models\Club\Club;
 use App\Models\QuickMatch;
 use App\Models\SystemSetting;
+use App\Services\BadgeService;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -248,7 +249,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     {
         return [
             'is_super_admin' => (bool) $this->is_super_admin,
-            'is_verified' => (bool) $this->is_verified,
+            'primary_badge' => app(\App\Services\BadgeService::class)->getPrimaryBadge($this->id),
         ];
     }
     public function referee()
@@ -276,26 +277,20 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         return $this->isOnline();
     }
 
-    public function badges()
-    {
-        return $this->belongsToMany(Badge::class, 'user_badges')
-            ->withTimestamps();
-    }
-
     public function userBadges(): HasMany
     {
         return $this->hasMany(UserBadge::class)
             ->orderByRaw("FIELD(badge_type, 'PICKI', 'CHAMPION', 'ANCHOR', 'VERIFIED')");
     }
 
-    public function getIsVerifiedAttribute(): bool
+    public function getBadges(): array
     {
-        return $this->userBadges()->where('badge_type', BadgeType::VERIFIED->value)->exists();
+        return app(BadgeService::class)->getUserBadges($this->id);
     }
 
-    public function getIsAnchorAttribute(): bool
+    public function getPrimaryBadge(): ?string
     {
-        return $this->userBadges()->where('badge_type', BadgeType::ANCHOR->value)->exists();
+        return app(BadgeService::class)->getPrimaryBadge($this->id);
     }
 
     public function sport()

@@ -41,7 +41,7 @@ class SearchPlayerResource extends JsonResource
             'visibility'  => $this->visibility,
             'address'     => $this->address ?? null,
             'is_online'  => (bool) $this->is_online,
-            'is_verified' => (bool) $this->is_verified,
+            'primary_badge' => app(BadgeService::class)->getPrimaryBadge($this->id),
             'vn_rank'    => $this->vn_rank ?? null,
             'vndupr_score' => $vnduprScore?->score_value ?? null,
             'win_rate'   => $stats['win_rate'] ?? 0.0,
@@ -58,7 +58,6 @@ class SearchPlayerResource extends JsonResource
                 'logo_url' => $c->logo_url,
             ])),
             'is_follow' => $isFollow,
-            'primary_badge' => app(BadgeService::class)->getUserBadges($this->id)['primary_badge'],
             'marker_type' => 'user',
         ];
     }

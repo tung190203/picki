@@ -85,7 +85,7 @@ class DashboardService
         // ---------- Recent New Users (top 5) ----------
         $recentNewUsersQuery = User::with('sports.sport', 'sports.scores')
             ->where('is_guest', false)
-            ->select(['id', 'full_name', 'avatar_url', 'trust_score', 'total_matches_has_anchor', 'is_banned', 'is_verified', 'is_anchor', 'last_login', 'created_at'])
+            ->select(['id', 'full_name', 'avatar_url', 'trust_score', 'total_matches_has_anchor', 'is_banned', 'last_login', 'created_at'])
             ->orderBy('created_at', 'desc')
             ->limit(5);
 
@@ -272,8 +272,6 @@ class DashboardService
                 'trust_score',
                 'total_matches_has_anchor',
                 'is_banned',
-                'is_verified',
-                'is_anchor',
                 'last_login',
                 'created_at',
             ])
@@ -426,8 +424,6 @@ class DashboardService
                 'trust_score',
                 'total_matches_has_anchor',
                 'is_banned',
-                'is_verified',
-                'is_anchor',
                 'last_login',
                 'created_at',
             ])
