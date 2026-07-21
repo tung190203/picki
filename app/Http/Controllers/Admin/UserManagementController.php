@@ -189,4 +189,24 @@ class UserManagementController extends Controller
             'is_anchor' => $user->is_anchor,
         ], $user->is_anchor ? 'Đã set anchor' : 'Đã bỏ anchor');
     }
+
+    public function setPicki(int $id)
+    {
+        $user = User::findOrFail($id);
+        $admin = auth()->user();
+
+        $this->userManagementService->setPicki($user, $admin);
+
+        return ResponseHelper::success(null, 'Đã cấp Picki badge');
+    }
+
+    public function revokePicki(int $id)
+    {
+        $user = User::findOrFail($id);
+        $admin = auth()->user();
+
+        $this->userManagementService->revokePicki($user, $admin);
+
+        return ResponseHelper::success(null, 'Đã thu hồi Picki badge');
+    }
 }

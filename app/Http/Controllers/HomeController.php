@@ -58,12 +58,14 @@ class HomeController extends Controller
             'performance' => 0,
         ];
 
+        $badgeService = app(\App\Services\BadgeService::class);
+
         $userInfo = [
             'win_rate'    => $primarySportStats['win_rate'] ?? 0.0,
             'performance' => $primarySportStats['performance'] ?? 0,
             'sports'      => UserSportResource::collection($userSports),
-            'is_anchor' => (bool) $user->is_anchor,
-            'is_verify' => (bool) ($user->total_matches_has_anchor >= 10),
+            'badges'      => $badgeService->getUserBadges($userId)['badges'],
+            'primary_badge' => $badgeService->getPrimaryBadge($userId),
         ];
         $nowVN = Carbon::now('Asia/Ho_Chi_Minh')->toDateString();
     

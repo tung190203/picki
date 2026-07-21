@@ -215,6 +215,7 @@ class Club extends Model
         $sortDir = strtolower($sortDir) === 'asc' ? 'asc' : 'desc';
 
         return match ($sortBy) {
+            'created_at' => $query->orderBy('created_at', $sortDir),
             'members_count' => $query
                 ->withCount([
                     'activeMembers',

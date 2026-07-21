@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Tournament;
+use App\Models\Team;
 use App\Models\User;
+use App\Services\TournamentType\StandingsService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -274,6 +276,50 @@ class TournamentService
     }
 
     /**
+     * Xác định và cấp CHAMPION badge cho đội vô địch.
+     */
+    private function awardChampionBadge(Tournament $tournament): void
+    {
+        $tournamentType = $tournament->tournamentTypes->first();
+        if (!$tournamentType) {
+            return;
+        }
+
+        $tournamentType->load('groups.matches');
+
+        if ($tournamentType->isElimination()) {
+            $finalMatch = $tournamentType->groups
+                ->flatMap->matches
+                ->where('round', 4)
+                ->where('status', 'completed')
+                ->first();
+
+            if (!$finalMatch || !$finalMatch->winner_id) {
+                return;
+            }
+            $championTeamId = $finalMatch->winner_id;
+        } else {
+            $allMatches = $tournamentType->groups->flatMap->matches;
+            $standings = TournamentService::calculateGroupStandings($allMatches);
+            $championRank = $standings->first();
+            $championTeamId = $championRank['team']['id'] ?? null;
+        }
+
+        if (!$championTeamId) {
+            return;
+        }
+
+        $winnerTeam = Team::with('members')->find($championTeamId);
+        if (!$winnerTeam) {
+            return;
+        }
+
+        foreach ($winnerTeam->members as $member) {
+            app(BadgeService::class)->grant_champion($member->user_id, $tournament->created_by);
+        }
+    }
+
+    /**
      * Đóng giải đấu: đổi status = CLOSED và cập nhật stats cho participants.
      */
     public function closeTournament(Tournament $tournament): void
@@ -284,6 +330,7 @@ class TournamentService
 
         $tournament->update(['status' => Tournament::CLOSED]);
         $this->updateParticipantsRatingStats($tournament);
+        $this->awardChampionBadge($tournament);
     }
 
     /**

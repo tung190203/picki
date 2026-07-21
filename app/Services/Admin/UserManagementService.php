@@ -5,6 +5,8 @@ namespace App\Services\Admin;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Models\VnduprHistory;
+use App\Services\BadgeService;
+use App\Enums\BadgeType;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
@@ -36,7 +38,10 @@ class UserManagementService
             ->when($keyword, fn($q) => $q->keyword($keyword))
             ->when($status === 'banned', fn($q) => $q->banned())
             ->when($status === 'active', fn($q) => $q->notBanned())
-            ->when($status === 'verified', fn($q) => $q->where('is_verified', true))
+            ->when($status === 'verified', function ($q) {
+                // Filter users who have any badge (VERIFIED, ANCHOR, CHAMPION, or PICKI)
+                $q->whereHas('userBadges');
+            })
             ->where('is_guest', false);
 
         // Apply sorting after query building to ensure it's preserved with pagination
@@ -151,33 +156,73 @@ class UserManagementService
 
     public function verify(User $user, User $admin): void
     {
-        $oldValues = ['is_verified' => $user->is_verified];
+        $badgeService = app(BadgeService::class);
+        $oldHasBadge = $badgeService->hasBadge($user->id, BadgeType::VERIFIED);
 
-        $user->update(['is_verified' => true]);
+        $badgeService->awardBadge($user->id, BadgeType::VERIFIED, $admin->id);
 
         $this->auditLogService->log(
             $admin,
             'verify_user',
             User::class,
             $user->id,
-            $oldValues,
-            ['is_verified' => true]
+            ['has_verified_badge' => $oldHasBadge],
+            ['has_verified_badge' => true]
         );
     }
 
     public function setAnchor(User $user, User $admin): void
     {
-        $oldValues = ['is_anchor' => $user->is_anchor];
+        $badgeService = app(BadgeService::class);
+        $hasAnchor = $badgeService->hasBadge($user->id, BadgeType::ANCHOR);
 
-        $user->update(['is_anchor' => !$user->is_anchor]);
+        if ($hasAnchor) {
+            $badgeService->revokeBadge($user->id, BadgeType::ANCHOR);
+        } else {
+            $badgeService->awardBadge($user->id, BadgeType::ANCHOR, $admin->id);
+        }
 
         $this->auditLogService->log(
             $admin,
             'toggle_anchor',
             User::class,
             $user->id,
-            $oldValues,
-            ['is_anchor' => !$user->is_anchor]
+            ['has_anchor_badge' => $hasAnchor],
+            ['has_anchor_badge' => !$hasAnchor]
+        );
+    }
+
+    public function setPicki(User $user, User $admin): void
+    {
+        $badgeService = app(BadgeService::class);
+        $oldHasBadge = $badgeService->hasBadge($user->id, BadgeType::PICKI);
+
+        $badgeService->grant_picki($user->id, $admin->id);
+
+        $this->auditLogService->log(
+            $admin,
+            'grant_picki_badge',
+            User::class,
+            $user->id,
+            ['has_picki_badge' => $oldHasBadge],
+            ['has_picki_badge' => true]
+        );
+    }
+
+    public function revokePicki(User $user, User $admin): void
+    {
+        $badgeService = app(BadgeService::class);
+        $oldHasBadge = $badgeService->hasBadge($user->id, BadgeType::PICKI);
+
+        $badgeService->revokeBadge($user->id, BadgeType::PICKI);
+
+        $this->auditLogService->log(
+            $admin,
+            'revoke_picki_badge',
+            User::class,
+            $user->id,
+            ['has_picki_badge' => $oldHasBadge],
+            ['has_picki_badge' => false]
         );
     }
 }
