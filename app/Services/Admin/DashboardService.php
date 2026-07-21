@@ -94,6 +94,7 @@ class DashboardService
 
         // ---------- Recent New Clubs (top 3) ----------
         $recentNewClubsQuery = Club::with(['activeMembers', 'profile'])
+            ->withCount('activeMembers')
             ->orderBy('created_at', 'desc')
             ->limit(3);
 
