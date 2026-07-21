@@ -133,7 +133,7 @@ class UserController extends Controller
 
         if ($isMap) {
             $users = $query
-                ->select(['id', 'full_name', 'avatar_url', 'latitude', 'longitude', 'gender', 'is_online', 'is_verified'])
+                ->select(['id', 'full_name', 'avatar_url', 'latitude', 'longitude', 'gender', 'is_online'])
                 ->get();
 
             return ResponseHelper::success([

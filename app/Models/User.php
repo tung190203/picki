@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Enums\BadgeType;
 use App\Enums\ClubMembershipStatus;
 use App\Enums\ClubMemberStatus;
 use App\Models\SuperAdminDraft;
 use App\Models\Club\Club;
 use App\Models\QuickMatch;
 use App\Models\SystemSetting;
+use App\Services\BadgeService;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -246,7 +249,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     {
         return [
             'is_super_admin' => (bool) $this->is_super_admin,
-            'is_verified' => (bool) $this->is_verified,
+            'primary_badge' => app(\App\Services\BadgeService::class)->getPrimaryBadge($this->id),
         ];
     }
     public function referee()
@@ -274,10 +277,20 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         return $this->isOnline();
     }
 
-    public function badges()
+    public function userBadges(): HasMany
     {
-        return $this->belongsToMany(Badge::class, 'user_badges')
-            ->withTimestamps();
+        return $this->hasMany(UserBadge::class)
+            ->orderByRaw("FIELD(badge_type, 'PICKI', 'CHAMPION', 'ANCHOR', 'VERIFIED')");
+    }
+
+    public function getBadges(): array
+    {
+        return app(BadgeService::class)->getUserBadges($this->id);
+    }
+
+    public function getPrimaryBadge(): ?string
+    {
+        return app(BadgeService::class)->getPrimaryBadge($this->id);
     }
 
     public function sport()

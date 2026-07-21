@@ -28,7 +28,7 @@ class DatabaseSeeder extends Seeder
 
         // Tournament & Club fake data
         $this->call([
-            UserBadgeSeeder::class,
+            BadgeSeeder::class,  // Syncs badges from legacy fields
             ClubNotificationTypeSeeder::class,
             ClubMemberSeeder::class,
             ClubFakeDataSeeder::class,

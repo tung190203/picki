@@ -3,6 +3,7 @@
 namespace App\Events\SuperAdmin;
 
 use App\Models\User;
+use App\Services\BadgeService;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -46,8 +47,8 @@ class UserRegistered implements ShouldBroadcast
                 'gender' => $this->user->gender,
                 'gender_text' => $this->user->gender_text,
                 'role' => $this->user->role,
-                'is_verified' => $this->user->is_verified,
-                'is_anchor' => $this->user->is_anchor,
+                'badges' => app(BadgeService::class)->getUserBadges($this->user->id)['badges'],
+                'primary_badge' => app(BadgeService::class)->getPrimaryBadge($this->user->id),
                 'trust_score' => $this->user->trust_score,
                 'total_tournaments' => $this->user->total_tournaments ?? 0,
                 'total_mini_tournaments' => $this->user->total_mini_tournaments ?? 0,

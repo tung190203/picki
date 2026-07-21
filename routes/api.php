@@ -362,6 +362,8 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
     Route::post('/users/{id}/reset-rating', [UserManagementController::class, 'resetRating']);
     Route::post('/users/{id}/verify', [UserManagementController::class, 'verify']);
     Route::post('/users/{id}/set-anchor', [UserManagementController::class, 'setAnchor']);
+    Route::post('/users/{id}/set-picki', [UserManagementController::class, 'setPicki']);
+    Route::post('/users/{id}/revoke-picki', [UserManagementController::class, 'revokePicki']);
 
     Route::get('/clubs', [AdminClubManagementController::class, 'index']);
     Route::get('/clubs/{clubId}', [AdminClubManagementController::class, 'show']);

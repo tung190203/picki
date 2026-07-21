@@ -1130,21 +1130,21 @@ class MiniMatchController extends Controller
             ->unique()
             ->values();
 
-        $hasAnchorInMatch = User::whereIn('id', $allMemberUserIds)
-            ->where(function ($q) {
-                $q->where('is_anchor', true)
-                    ->orWhere('total_matches_has_anchor', '>=', 10);
-            })
-            ->exists();
+        $badgeService = app(\App\Services\BadgeService::class);
+
+        $allUserIds = $allMemberUserIds->toArray();
+        $hasAnchorInMatch = false;
+        foreach ($allUserIds as $userId) {
+            if ($badgeService->has_any_badge($userId)) {
+                $hasAnchorInMatch = true;
+                break;
+            }
+        }
 
         if ($hasAnchorInMatch) {
-            $nonAnchorIds = User::whereIn('id', $allMemberUserIds)
-                ->where('is_anchor', false)
-                ->where(function ($q) {
-                    $q->whereNull('total_matches_has_anchor')
-                        ->orWhere('total_matches_has_anchor', '<', 10);
-                })
-                ->pluck('id');
+            $nonAnchorIds = collect($allUserIds)
+                ->filter(fn($userId) => !$badgeService->has_any_badge($userId))
+                ->values();
 
             if ($nonAnchorIds->isNotEmpty()) {
                 DB::table('users')->whereIn('id', $nonAnchorIds)
