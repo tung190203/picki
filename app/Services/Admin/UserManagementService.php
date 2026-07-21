@@ -191,4 +191,38 @@ class UserManagementService
             ['has_anchor_badge' => !$hasAnchor]
         );
     }
+
+    public function setPicki(User $user, User $admin): void
+    {
+        $badgeService = app(BadgeService::class);
+        $oldHasBadge = $badgeService->hasBadge($user->id, BadgeType::PICKI);
+
+        $badgeService->grant_picki($user->id, $admin->id);
+
+        $this->auditLogService->log(
+            $admin,
+            'grant_picki_badge',
+            User::class,
+            $user->id,
+            ['has_picki_badge' => $oldHasBadge],
+            ['has_picki_badge' => true]
+        );
+    }
+
+    public function revokePicki(User $user, User $admin): void
+    {
+        $badgeService = app(BadgeService::class);
+        $oldHasBadge = $badgeService->hasBadge($user->id, BadgeType::PICKI);
+
+        $badgeService->revokeBadge($user->id, BadgeType::PICKI);
+
+        $this->auditLogService->log(
+            $admin,
+            'revoke_picki_badge',
+            User::class,
+            $user->id,
+            ['has_picki_badge' => $oldHasBadge],
+            ['has_picki_badge' => false]
+        );
+    }
 }

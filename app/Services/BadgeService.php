@@ -84,20 +84,57 @@ class BadgeService
     }
 
     /**
-     * Award a badge to a user.
+     * Create a badge for a user (idempotent, uses firstOrCreate).
+     */
+    private function _create_badge(int $userId, BadgeType $type, ?int $createdBy = null): ?UserBadge
+    {
+        return UserBadge::firstOrCreate(
+            ['user_id' => $userId, 'badge_type' => $type->value],
+            ['created_by' => $createdBy, 'created_at' => now()]
+        );
+    }
+
+    /**
+     * Grant VERIFIED badge to a user.
+     */
+    public function grant_verified(int $userId, ?int $createdBy = null): void
+    {
+        $this->_create_badge($userId, BadgeType::VERIFIED, $createdBy);
+    }
+
+    /**
+     * Grant ANCHOR badge to a user.
+     */
+    public function grant_anchor(int $userId, ?int $createdBy = null): void
+    {
+        $this->_create_badge($userId, BadgeType::ANCHOR, $createdBy);
+    }
+
+    /**
+     * Grant CHAMPION badge to a user. Automatically grants ANCHOR if not already present.
+     */
+    public function grant_champion(int $userId, ?int $createdBy = null): void
+    {
+        DB::transaction(function () use ($userId, $createdBy) {
+            $this->_create_badge($userId, BadgeType::CHAMPION, $createdBy);
+            $this->grant_anchor($userId, $createdBy);
+        });
+    }
+
+    /**
+     * Grant PICKI badge to a user.
+     */
+    public function grant_picki(int $userId, ?int $createdBy = null): void
+    {
+        $this->_create_badge($userId, BadgeType::PICKI, $createdBy);
+    }
+
+    /**
+     * Award a badge to a user (backward compatibility wrapper).
      */
     public function awardBadge(int $userId, BadgeType $type, ?int $createdBy = null): UserBadge
     {
-        return UserBadge::firstOrCreate(
-            [
-                'user_id' => $userId,
-                'badge_type' => $type->value,
-            ],
-            [
-                'created_by' => $createdBy,
-                'created_at' => now(),
-            ]
-        );
+        return $this->_create_badge($userId, $type, $createdBy);
     }
 
     /**
@@ -146,11 +183,11 @@ class BadgeService
     {
         DB::transaction(function () use ($user) {
             if ($user->getRawOriginal('is_verified')) {
-                $this->awardBadge($user->id, BadgeType::VERIFIED, $user->id);
+                $this->grant_verified($user->id, $user->id);
             }
 
             if ($user->getRawOriginal('is_anchor')) {
-                $this->awardBadge($user->id, BadgeType::ANCHOR, $user->id);
+                $this->grant_anchor($user->id, $user->id);
             }
         });
     }

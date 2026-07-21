@@ -18,7 +18,7 @@ class ScoreVerificationService
     public function __construct(
         private ScoreVerificationRepository $repository,
         private ImageOptimizationService $imageService,
-        private AwardBadgeService $badgeService
+        private BadgeService $badgeService
     ) {}
 
     public function getCurrentPickiScore(int $userId): ?float
@@ -159,7 +159,7 @@ class ScoreVerificationService
             );
 
             if ($awardAnchor) {
-                $this->badgeService->awardAnchorBadge($request->user_id);
+                $this->badgeService->grant_anchor($request->user_id, $reviewerId);
                 ActivityLog::log($request->user_id, 'badge_awarded', [
                     'badge' => 'Anchor',
                     'request_id' => $request->id,
