@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Models\User;
 use App\Http\Resources\UserSportResource;
+use App\Services\BadgeService;
 
 class MapUserResource extends JsonResource
 {
@@ -42,7 +43,7 @@ class MapUserResource extends JsonResource
             'visibility'   => $this->visibility,
             'address'      => $this->address ?? null,
             'is_online'    => (bool) $this->is_online,
-            'is_verified'  => (bool) $this->is_verified,
+            'primary_badge' => app(BadgeService::class)->getPrimaryBadge($this->id),
             'vn_rank'      => $this->vn_rank ?? null,
             'vndupr_score' => $vnduprScore?->score_value ?? null,
             'dupr_score'   => $duprScore?->score_value ?? null,

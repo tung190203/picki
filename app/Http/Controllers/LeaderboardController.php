@@ -15,6 +15,7 @@ use App\Models\Tournament;
 use App\Models\TournamentType;
 use App\Models\User;
 use App\Models\UserSportScore;
+use App\Services\BadgeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -363,7 +364,7 @@ class LeaderboardController extends Controller
                 'scores.vndupr_score',
                 'user_sport.total_matches'
             )
-            ->with(['clubs:id,name'])
+            ->with(['clubs:id,name', 'userBadges'])
             ->orderByDesc('scores.vndupr_score')
             ->where('user_sport.total_matches', '>=', $rankingMatches);
 
@@ -373,9 +374,6 @@ class LeaderboardController extends Controller
                 'users.full_name',
                 'users.visibility',
                 'users.avatar_url',
-                'users.is_anchor',
-                'users.is_verified',
-                'users.total_matches_has_anchor',
                 DB::raw('ROW_NUMBER() OVER (ORDER BY scores.vndupr_score DESC) as rank')
             )
             ->offset($offset)
@@ -383,6 +381,7 @@ class LeaderboardController extends Controller
             ->get();
 
         $items = $leaderboard->map(function ($user) {
+            $badgesData = $this->formatUserBadges($user->userBadges->all());
             return [
                 'id'           => $user->id,
                 'full_name'    => $user->full_name,
@@ -391,8 +390,8 @@ class LeaderboardController extends Controller
                 'rank'         => (int) $user->rank,
                 'vndupr_score' => round((float) $user->vndupr_score, 3),
                 'clubs'        => $user->clubs->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
-                'is_anchor'    => (bool) $user->is_anchor,
-                'is_verify'    => (bool) (($user->total_matches_has_anchor ?? 0) >= 10),
+                'badges'       => $badgesData['badges'],
+                'primary_badge' => $badgesData['primary_badge'],
             ];
         });
 
@@ -427,15 +426,12 @@ class LeaderboardController extends Controller
             ->joinSub($scoreSubQuery, 'scores', function ($join) {
                 $join->on('scores.user_id', '=', 'users.id');
             })
-            ->with(['clubs:id,name'])
+            ->with(['clubs:id,name', 'userBadges'])
             ->select(
                 'users.id',
                 'users.full_name',
                 'users.visibility',
                 'users.avatar_url',
-                'users.is_anchor',
-                'users.is_verified',
-                'users.total_matches_has_anchor',
                 'scores.vndupr_score'
             )
             ->orderByDesc('scores.vndupr_score');
@@ -447,6 +443,7 @@ class LeaderboardController extends Controller
         $leaderboard = $baseQuery->offset($offset)->limit($perPage)->get();
 
         $items = $leaderboard->map(function ($user, $index) use ($page, $perPage) {
+            $badgesData = $this->formatUserBadges($user->userBadges->all());
             return [
                 'id'         => $user->id,
                 'full_name'  => $user->full_name,
@@ -455,8 +452,8 @@ class LeaderboardController extends Controller
                 'rank'       => ($page - 1) * $perPage + $index + 1,
                 'vndupr_score' => round((float) $user->vndupr_score, 3),
                 'clubs'      => $user->clubs->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
-                'is_anchor'  => (bool) $user->is_anchor,
-                'is_verify'  => (bool) (($user->total_matches_has_anchor ?? 0) >= 10),
+                'badges'     => $badgesData['badges'],
+                'primary_badge' => $badgesData['primary_badge'],
             ];
         });
 
@@ -495,15 +492,12 @@ class LeaderboardController extends Controller
                 $join->on('scores.user_id', '=', 'users.id');
             })
             ->whereIn('users.id', $friendIds)
-            ->with(['clubs:id,name'])
+            ->with(['clubs:id,name', 'userBadges'])
             ->select(
                 'users.id',
                 'users.full_name',
                 'users.visibility',
                 'users.avatar_url',
-                'users.is_anchor',
-                'users.is_verified',
-                'users.total_matches_has_anchor',
                 'scores.vndupr_score'
             )
             ->orderByDesc('scores.vndupr_score');
@@ -515,6 +509,7 @@ class LeaderboardController extends Controller
         $leaderboard = $baseQuery->offset($offset)->limit($perPage)->get();
 
         $items = $leaderboard->map(function ($user, $index) use ($page, $perPage) {
+            $badgesData = $this->formatUserBadges($user->userBadges->all());
             return [
                 'id'         => $user->id,
                 'full_name'  => $user->full_name,
@@ -523,8 +518,8 @@ class LeaderboardController extends Controller
                 'rank'       => ($page - 1) * $perPage + $index + 1,
                 'vndupr_score' => round((float) $user->vndupr_score, 3),
                 'clubs'      => $user->clubs->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
-                'is_anchor'  => (bool) $user->is_anchor,
-                'is_verify'  => (bool) (($user->total_matches_has_anchor ?? 0) >= 10),
+                'badges'     => $badgesData['badges'],
+                'primary_badge' => $badgesData['primary_badge'],
             ];
         });
 
@@ -593,6 +588,42 @@ class LeaderboardController extends Controller
             'items'     => $items,
             'total'     => $total,
             'last_page' => (int) ceil($total / $perPage),
+        ];
+    }
+
+    /**
+     * Format badges data from userBadges relationship.
+     */
+    private function formatUserBadges(array $userBadges): array
+    {
+        if (empty($userBadges)) {
+            return [
+                'badges' => [],
+                'primary_badge' => null,
+            ];
+        }
+
+        $badges = array_map(function ($userBadge) {
+            $type = $userBadge->badge_type instanceof \BackedEnum
+                ? $userBadge->badge_type->value
+                : $userBadge->badge_type;
+
+            $label = $type;
+            if (method_exists($userBadge->badge_type, 'label')) {
+                $label = $userBadge->badge_type->label();
+            }
+
+            return [
+                'type' => $type,
+                'label' => $label,
+            ];
+        }, $userBadges);
+
+        $primaryBadge = $badges[0] ?? null;
+
+        return [
+            'badges' => $badges,
+            'primary_badge' => $primaryBadge,
         ];
     }
 }

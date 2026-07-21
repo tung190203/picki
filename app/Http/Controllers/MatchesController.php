@@ -1486,13 +1486,15 @@ class MatchesController extends Controller
             ->unique('id')
             ->values();
 
-        $hasAnchorInMatch = $allUsersInMatch->contains(function ($user) {
-            return $user->is_anchor || ($user->total_matches_has_anchor ?? 0) >= 10;
+        $badgeService = app(\App\Services\BadgeService::class);
+
+        $hasAnchorInMatch = $allUsersInMatch->contains(function ($user) use ($badgeService) {
+            return $badgeService->has_any_badge($user->id);
         });
 
         if ($hasAnchorInMatch) {
             $nonAnchorIds = $allUsersInMatch
-                ->filter(fn($user) => !($user->is_anchor || ($user->total_matches_has_anchor ?? 0) >= 10))
+                ->filter(fn($user) => !$badgeService->has_any_badge($user->id))
                 ->pluck('id');
 
             if ($nonAnchorIds->isNotEmpty()) {
