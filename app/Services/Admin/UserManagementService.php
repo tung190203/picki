@@ -37,9 +37,12 @@ class UserManagementService
             ->when($status === 'banned', fn($q) => $q->banned())
             ->when($status === 'active', fn($q) => $q->notBanned())
             ->when($status === 'verified', fn($q) => $q->where('is_verified', true))
-            ->where('is_guest', false)
-            ->orderByRaw("CASE WHEN last_active_at >= DATE_SUB(NOW(), INTERVAL 15 MINUTE) THEN 1 ELSE 0 END DESC")
-            ->orderByDesc('last_active_at');
+            ->where('is_guest', false);
+
+        // Apply sorting after query building to ensure it's preserved with pagination
+        $query->orderByRaw(
+            "IF(last_active_at >= DATE_SUB(NOW(), INTERVAL 15 MINUTE), 0, 1), last_active_at DESC"
+        );
 
         $paginated = $query->paginate($limit, ['*'], 'page', $page);
 
