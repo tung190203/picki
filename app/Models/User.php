@@ -284,7 +284,8 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     public function userBadges(): HasMany
     {
-        return $this->hasMany(UserBadge::class);
+        return $this->hasMany(UserBadge::class)
+            ->orderByRaw("FIELD(badge_type, 'PICKI', 'CHAMPION', 'ANCHOR', 'VERIFIED')");
     }
 
     public function getIsVerifiedAttribute(): bool

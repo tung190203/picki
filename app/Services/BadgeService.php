@@ -17,7 +17,7 @@ class BadgeService
     public function getUserBadges(int $userId): array
     {
         $userBadges = UserBadge::where('user_id', $userId)
-            ->orderByRaw("FIELD(badge_type, 'VERIFIED', 'CHAMPION', 'ANCHOR', 'PICKI')")
+            ->orderByRaw("FIELD(badge_type, 'PICKI', 'CHAMPION', 'ANCHOR', 'VERIFIED')")
             ->get();
 
         $badges = $userBadges->map(function (UserBadge $userBadge) {
@@ -43,7 +43,7 @@ class BadgeService
     public function getPrimaryBadge(int $userId): ?array
     {
         $userBadge = UserBadge::where('user_id', $userId)
-            ->orderByRaw("FIELD(badge_type, 'VERIFIED', 'CHAMPION', 'ANCHOR', 'PICKI')")
+            ->orderByRaw("FIELD(badge_type, 'PICKI', 'CHAMPION', 'ANCHOR', 'VERIFIED')")
             ->first();
 
         if (!$userBadge) {

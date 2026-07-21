@@ -18,7 +18,6 @@ return new class extends Migration
             $table->unsignedBigInteger('user_id');
             $table->string('badge_type', 50);
             $table->unsignedBigInteger('created_by')->nullable();
-            $table->timestamp('created_at')->useCurrent();
             $table->timestamps();
 
             $table->unique(['user_id', 'badge_type']);
