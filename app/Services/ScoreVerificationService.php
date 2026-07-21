@@ -63,13 +63,31 @@ class ScoreVerificationService
 
     public function createRequest(int $userId, array $data): array
     {
-        $imagePath = $this->imageService->processAndSaveImage(
-            $data['image'],
-            'score-verifications',
-            'verification_',
-            1080,
-            80
-        );
+        $imagePath = null;
+
+        // Nếu có id -> đang resubmit request bị reject trước đó, dùng lại image cũ
+        if (!empty($data['id'])) {
+            $oldRequest = $this->repository->findOrFail($data['id']);
+
+            // Verify old request belongs to user and is rejected
+            if ($oldRequest->user_id !== $userId) {
+                throw new \Exception('Request not found');
+            }
+            if ($oldRequest->status !== ScoreVerificationStatus::REJECTED) {
+                throw new \Exception('Can only resubmit rejected requests');
+            }
+
+            $imagePath = $oldRequest->image_path;
+        } else {
+            // Tạo mới - cần upload image
+            $imagePath = $this->imageService->processAndSaveImage(
+                $data['image'],
+                'score-verifications',
+                'verification_',
+                1080,
+                80
+            );
+        }
 
         $request = $this->repository->create([
             'user_id' => $userId,
