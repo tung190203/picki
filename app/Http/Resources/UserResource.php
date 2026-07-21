@@ -59,6 +59,7 @@ class UserResource extends JsonResource
             'threshold' => $threshold,
             'is_over_threshold' => $isOverThreshold,
             'status' => $request->status,
+            'rejection_reason' => $request->status === 'REJECTED' ? $request->rejection_reason : null,
             'created_at' => $request->created_at?->toISOString(),
             'is_new' => $request->created_at && $request->created_at->diffInHours(now()) < 24,
         ];
