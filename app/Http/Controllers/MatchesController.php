@@ -1622,7 +1622,7 @@ class MatchesController extends Controller
 
                 $K = 0.3;
 
-                if ($user->is_anchor) {
+                if ($user->is_anchor || $user->hasAnyBadge(['PICKI', 'CHAMPION', 'ANCHOR', 'VERIFIED'])) {
                     $K = 0.1;
                 } else {
                     $anchored = $user->total_matches_has_anchor ?? 0;
