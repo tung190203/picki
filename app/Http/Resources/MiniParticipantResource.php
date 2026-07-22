@@ -53,6 +53,8 @@ class MiniParticipantResource extends JsonResource
             'checked_in_at' => $this->checked_in_at?->format('d-m-Y H:i'),
             'is_declined' => $this->declined_at !== null,
             'player_group' => $this->player_group,
+            'modified_score' => $this->modified_score,
+            'effective_score' => $this->effective_score,
         ];
     }
 }
