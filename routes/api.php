@@ -475,6 +475,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{id}/lock-fee', [TournamentController::class, 'lockFee']);
         Route::post('/{id}/participants/{participantId}/admin-confirm', [ParticipantController::class, 'adminConfirm']);
         Route::post('/{id}/participants/admin-confirm-all', [ParticipantController::class, 'adminConfirmAll']);
+        Route::post('/{id}/participants/{participantId}/modify-score', [ParticipantController::class, 'modifyScore']);
     });
 
     Route::prefix('tournament-staff')->group(function () {
@@ -807,6 +808,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/self/check-in/{miniTournamentId}', [MiniParticipantController::class, 'selfCheckIn']);
         Route::post('/self/absent/{miniTournamentId}', [MiniParticipantController::class, 'selfMarkAbsent']);
         Route::post('/{miniTournamentId}/participants/{participantId}/admin-confirm', [MiniParticipantController::class, 'adminConfirm']);
+        Route::post('/{miniTournamentId}/participants/{participantId}/modify-score', [MiniParticipantController::class, 'modifyScore']);
     });
     // Mini Match Routes
     Route::prefix('mini-matches')->group(function (): void {

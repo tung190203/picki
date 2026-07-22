@@ -37,6 +37,7 @@ class MiniParticipant extends Model
         'is_pending_confirmation',
         'self_confirmed',
         'player_group',
+        'modified_score',
     ];
 
     protected $casts = [
@@ -53,6 +54,7 @@ class MiniParticipant extends Model
         'declined_at' => 'datetime',
         'is_pending_confirmation' => 'boolean',
         'self_confirmed' => 'boolean',
+        'modified_score' => 'decimal:2',
     ];
 
     const PER_PAGE = 20;
@@ -240,5 +242,21 @@ class MiniParticipant extends Model
     public function scopeWhereRankGroup($query)
     {
         return $query->whereIn('player_group', ['a', 'b']);
+    }
+
+    public function getEffectiveScoreAttribute(): ?float
+    {
+        if ($this->modified_score !== null) {
+            return (float) $this->modified_score;
+        }
+
+        $user = $this->user;
+        if (!$user) {
+            return null;
+        }
+
+        $vnduprScore = $user->vnduprScores()->max('score_value');
+
+        return $vnduprScore !== null ? (float) $vnduprScore : null;
     }
 }

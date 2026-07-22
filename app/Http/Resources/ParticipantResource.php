@@ -51,6 +51,8 @@ class ParticipantResource extends JsonResource
             'payment_status' => $this->payment_status,
             'payment_status_text' => $this->payment_status ? $this->payment_status->label() : null,
             'payment' => new TournamentParticipantPaymentResource($this->whenLoaded('payments')),
+            'modified_score' => $this->modified_score,
+            'effective_score' => $this->effective_score,
         ];
     }
 }
