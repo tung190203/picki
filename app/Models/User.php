@@ -293,6 +293,13 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         return app(BadgeService::class)->getPrimaryBadge($this->id);
     }
 
+    public function hasAnyBadge(array $badges): bool
+    {
+        return $this->userBadges()
+            ->whereIn('badge_type', $badges)
+            ->exists();
+    }
+
     public function sport()
     {
         return $this->belongsToMany(Sport::class, 'user_sport')
