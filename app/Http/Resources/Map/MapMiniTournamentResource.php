@@ -38,7 +38,7 @@ class MapMiniTournamentResource extends JsonResource
             'has_fee'        => (bool) $this->has_fee,
             'fee_amount'     => $this->has_fee ? (float) $this->fee_amount : null,
             'max_players'    => $this->max_players,
-            'match_format' => $this->match_format,
+            'match_format' => $this->match_format ?: null,
             'session_status' => $this->session_status,
             'is_session_started' => $this->is_session_started,
             'participants_count' => (int) ($this->participants_count ?? $participants?->where('is_confirmed', true)->count() ?? 0),

@@ -132,7 +132,7 @@ class MiniTournamentResource extends JsonResource
             ),
 
             // Match format & session
-            'match_format' => $this->match_format,
+            'match_format' => $this->match_format ?: null,
             'session_status' => $this->session_status,
             'is_session_started' => $this->is_session_started,
             'can_update_match_format' => $model->canUpdateMatchFormat(),
