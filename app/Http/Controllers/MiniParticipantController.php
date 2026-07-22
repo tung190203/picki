@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Enums\PaymentStatusEnum;
 use App\Events\SuperAdmin\MiniTournamentMemberAdded;
 use App\Helpers\ResponseHelper;
+use App\Http\Requests\ModifyParticipantScoreRequest;
+use App\Services\ParticipantScoreService;
 use App\Enums\ClubMemberRole;
 use App\Models\MiniParticipant;
 use App\Models\MiniTournament;
@@ -1467,6 +1469,60 @@ class MiniParticipantController extends Controller
                 );
             }
         }
+    }
+
+    public function modifyScore(ModifyParticipantScoreRequest $request, int $miniTournamentId, int $participantId)
+    {
+        $userId = Auth::id();
+        $miniTournament = MiniTournament::with('staff')->findOrFail($miniTournamentId);
+
+        if ($error = $this->authorizeMiniTournamentAdmin($miniTournament, $userId)) {
+            return $error;
+        }
+
+        $participant = MiniParticipant::where('id', $participantId)
+            ->where('mini_tournament_id', $miniTournamentId)
+            ->first();
+
+        if (!$participant) {
+            return ResponseHelper::error('Participant không tồn tại trong giải đấu này', 404);
+        }
+
+        $scoreService = new ParticipantScoreService();
+        $score = isset($request->validated()['score']) ? (float) $request->validated()['score'] : null;
+        $participant = $scoreService->modifyScore($participant, $score);
+
+        return ResponseHelper::success([
+            'participant_id' => $participant->id,
+            'modified_score' => $participant->modified_score,
+        ], 'Score đã được cập nhật', 200);
+    }
+
+    private function authorizeMiniTournamentAdmin(MiniTournament $miniTournament, int $userId): ?\Illuminate\Http\JsonResponse
+    {
+        if ($miniTournament->club_id) {
+            $club = Club::find($miniTournament->club_id);
+            if (!$club) {
+                return ResponseHelper::error('CLB không tồn tại', 404);
+            }
+
+            $clubMember = $club->activeMembers()->where('user_id', $userId)->first();
+            $isClubStaff = $clubMember && in_array(
+                $clubMember->role,
+                [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary],
+                true
+            );
+
+            if (!$isClubStaff && !$miniTournament->hasOrganizerOrStaff($userId)) {
+                return ResponseHelper::error('Bạn không có quyền thực hiện thao tác này với giải đấu', 403);
+            }
+        } else {
+            if (!$miniTournament->hasOrganizerOrStaff($userId)) {
+                return ResponseHelper::error('Bạn không có quyền thực hiện thao tác này với giải đấu', 403);
+            }
+        }
+
+        return null;
     }
 
     private function haversineDistance(float $lat1, float $lng1, float $lat2, float $lng2): float

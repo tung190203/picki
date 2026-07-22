@@ -6,11 +6,12 @@ use App\Events\SuperAdmin\TournamentMemberAdded;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\ParticipantResource;
 use App\Http\Resources\TournamentParticipantResource;
-use App\Jobs\SendPushJob;
+use App\Http\Requests\ModifyParticipantScoreRequest;
+use App\Services\ParticipantScoreService;
+use App\Models\Club\Club;
 use App\Enums\ClubMemberRole;
 use App\Models\Participant;
 use App\Models\SuperAdminDraft;
-use App\Models\Club\Club;
 use App\Models\Tournament;
 use App\Models\TournamentParticipantPayment;
 use App\Models\TournamentStaff;
@@ -1117,6 +1118,33 @@ class ParticipantController extends Controller
         }
 
         return null;
+    }
+
+    public function modifyScore(ModifyParticipantScoreRequest $request, int $tournamentId, int $participantId)
+    {
+        $userId = Auth::id();
+        $tournament = Tournament::findOrFail($tournamentId);
+
+        if ($error = $this->authorizeAdminConfirm($tournament, $userId)) {
+            return $error;
+        }
+
+        $participant = Participant::where('id', $participantId)
+            ->where('tournament_id', $tournamentId)
+            ->first();
+
+        if (!$participant) {
+            return ResponseHelper::error('Participant không tồn tại trong giải đấu này', 404);
+        }
+
+        $scoreService = new ParticipantScoreService();
+        $score = isset($request->validated()['score']) ? (float) $request->validated()['score'] : null;
+        $participant = $scoreService->modifyScore($participant, $score);
+
+        return ResponseHelper::success([
+            'participant_id' => $participant->id,
+            'modified_score' => $participant->modified_score,
+        ], 'Score đã được cập nhật', 200);
     }
 
     private function pushToUsers(array $userIds, string $title, string $body, array $data = [])

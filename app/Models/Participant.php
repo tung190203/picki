@@ -30,6 +30,7 @@ class Participant extends Model
         'rank_change',
         'payment_status',
         'self_confirmed',
+        'modified_score',
     ];
 
     protected $casts = [
@@ -45,6 +46,7 @@ class Participant extends Model
         'rank_change' => 'integer',
         'payment_status' => PaymentStatusEnum::class,
         'self_confirmed' => 'boolean',
+        'modified_score' => 'decimal:2',
     ];
 
     const PER_PAGE = 15;
@@ -137,5 +139,21 @@ class Participant extends Model
     public function scopeWithCancelledPayment($query)
     {
         return $query->where('payment_status', PaymentStatusEnum::CANCELLED);
+    }
+
+    public function getEffectiveScoreAttribute(): ?float
+    {
+        if ($this->modified_score !== null) {
+            return (float) $this->modified_score;
+        }
+
+        $user = $this->user;
+        if (!$user) {
+            return null;
+        }
+
+        $vnduprScore = $user->vnduprScores()->max('score_value');
+
+        return $vnduprScore !== null ? (float) $vnduprScore : null;
     }
 }
