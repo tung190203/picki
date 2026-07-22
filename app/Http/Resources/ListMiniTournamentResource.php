@@ -45,7 +45,7 @@ class ListMiniTournamentResource extends JsonResource
             'max_players' => $this->max_players,
             'play_mode' => $this->play_mode,
             'format' => $this->format,
-            'match_format' => $this->match_format,
+            'match_format' => $this->match_format ?: null,
             'session_status' => $this->session_status,
             'is_session_started' => $this->is_session_started,
             'apply_rule' => $this->apply_rule,
