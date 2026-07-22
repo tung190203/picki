@@ -193,15 +193,8 @@
                   Bạn
                 </span>
               </template>
-              <template v-else-if="item.is_anchor">
-                <svg class="w-4 h-4 text-[#4392E0] flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
-                </svg>
-              </template>
-              <template v-else-if="item.is_verify">
-                <svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                </svg>
+              <template v-else-if="item.primary_badge || (item.badges && item.badges.length)">
+                <BadgeIcon :badge="item.primary_badge || item.badges[0]" size="sm" />
               </template>
             </div>
             <div v-if="activeTab === 'allClubs'" class="flex items-center gap-2 mt-0.5">
@@ -246,6 +239,7 @@
 import { ref, computed, watch, inject, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { ArrowUpRightIcon, ChevronLeftIcon, ChevronRightIcon } from "@heroicons/vue/24/outline";
+import BadgeIcon from "@/components/atoms/BadgeIcon.vue";
 import * as LeaderboardService from "@/service/leaderboard";
 import { useUserStore } from "@/store/auth";
 import { storeToRefs } from "pinia";
