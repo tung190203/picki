@@ -593,6 +593,8 @@ class LeaderboardController extends Controller
 
     /**
      * Format badges data from userBadges relationship.
+     *
+     * @return array{badges: array<string>, primary_badge: string|null}
      */
     private function formatUserBadges(array $userBadges): array
     {
@@ -604,25 +606,15 @@ class LeaderboardController extends Controller
         }
 
         $badges = array_map(function ($userBadge) {
-            $type = $userBadge->badge_type instanceof \BackedEnum
+            return $userBadge->badge_type instanceof \BackedEnum
                 ? $userBadge->badge_type->value
                 : $userBadge->badge_type;
-
-            $label = $type;
-            if (method_exists($userBadge->badge_type, 'label')) {
-                $label = $userBadge->badge_type->label();
-            }
-
-            return [
-                'type' => $type,
-                'label' => $label,
-            ];
         }, $userBadges);
 
         $primaryBadge = $badges[0] ?? null;
 
         return [
-            'badges' => $badges,
+            'badges' => array_values($badges),
             'primary_badge' => $primaryBadge,
         ];
     }

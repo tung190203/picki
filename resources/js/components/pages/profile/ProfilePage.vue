@@ -82,6 +82,17 @@
                     <div class="flex items-center gap-2 mt-3">
                         <p class="text-[#3E414C] font-semibold text-2xl">{{ user.full_name ?? 'Không rõ' }}</p>
 
+                        <!-- Badge display -->
+                        <div v-if="user.badges?.length || user.primary_badge" class="flex items-center gap-1">
+                          <BadgeIcon
+                            v-for="badge in displayBadges"
+                            :key="badge"
+                            :badge="badge"
+                            size="sm"
+                            class="inline-block"
+                          />
+                        </div>
+
                         <div v-if="isOwner" class="relative" v-click-outside="closeVisibilityMenu">
                             <span class="px-2 py-1 rounded text-xs font-medium capitalize cursor-pointer" :class="{
                                 'bg-green-100 text-green-700': user.visibility === 'open',
@@ -294,6 +305,7 @@ import SportLevelCard from "@/components/molecules/SportLevelCard.vue";
 import SportSelectCard from "@/components/molecules/SportSelectCard.vue";
 import ImageCropperModal from "@/components/molecules/ImageCropperModal.vue";
 import MatchHistorySection from "@/components/organisms/MatchHistorySection.vue";
+import BadgeIcon from "@/components/atoms/BadgeIcon.vue";
 import { useRoute, useRouter } from "vue-router";
 import { toast } from "vue3-toastify";
 import { useUserStore } from "@/store/auth";
@@ -340,6 +352,16 @@ const thumbnailInput = ref(null);
 const triggerThumbnailPicker = () => thumbnailInput.value?.click();
 
 const isOwner = computed(() => user.value.id === getUser.value.id);
+
+const displayBadges = computed(() => {
+  if (user.value.badges?.length) {
+    const badgeOrder = ['picki', 'champion', 'anchor', 'verified']
+    return [...user.value.badges].sort((a, b) =>
+      badgeOrder.indexOf(a.toLowerCase()) - badgeOrder.indexOf(b.toLowerCase())
+    )
+  }
+  return []
+})
 
 const mappedSports = computed(() =>
     sports.value.map(s => ({
