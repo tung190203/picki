@@ -7,13 +7,9 @@ use App\Models\Participant;
 
 class ParticipantScoreService
 {
-    public function modifyScore(Participant|MiniParticipant $participant, ?float $score): Participant|MiniParticipant
+    public function modifyScore(Participant|MiniParticipant $participant, mixed $score): Participant|MiniParticipant
     {
-        if ($score === null) {
-            $participant->update(['modified_score' => null]);
-        } else {
-            $participant->update(['modified_score' => $score]);
-        }
+        $participant->update(['modified_score' => $score !== null ? (float) $score : null]);
 
         return $participant->fresh();
     }

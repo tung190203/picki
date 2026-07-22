@@ -1138,7 +1138,8 @@ class ParticipantController extends Controller
         }
 
         $scoreService = new ParticipantScoreService();
-        $participant = $scoreService->modifyScore($participant, $request->validated()['score']);
+        $score = isset($request->validated()['score']) ? (float) $request->validated()['score'] : null;
+        $participant = $scoreService->modifyScore($participant, $score);
 
         return ResponseHelper::success([
             'participant_id' => $participant->id,
