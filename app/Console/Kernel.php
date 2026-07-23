@@ -27,6 +27,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('guests:cleanup-inactive')->daily();
         $schedule->command('users:sync-online-status')->everyMinute();
         $schedule->command('clubs:precompute-ranks')->hourly();
+        $schedule->command('ranks:snapshot-weekly')->weeklyOn(0, '23:59');
         $schedule->command('tournaments:backfill-end-date')->dailyAt('00:05');
     }
 

@@ -19,10 +19,17 @@
                 </div>
                 <div class="cursor-pointer hover:opacity-80 transition-opacity" @click="navigateTo('/leaderboard')">
                   <div class="opacity-90 mb-1 text-[32px] font-semibold">VN RANK</div>
-                  <div class="text-5xl font-bold leading-none text-[100px]">{{
-                    // Number(homeData.user_info?.sports[0]?.scores.dupr_score || 0).toFixed(2)
-                    getUser.vn_rank || 'Unranked'
-                    }}</div>
+                  <div class="flex items-baseline gap-3">
+                    <div class="text-5xl font-bold leading-none text-[100px]">{{
+                      getUser.vn_rank || 'Unranked'
+                      }}</div>
+                    <div v-if="getWeeklyChange !== null" class="flex items-center gap-1 text-2xl font-semibold" :class="getWeeklyChangeClass">
+                      <ArrowTrendingUpIcon v-if="getWeeklyChange < 0" class="w-8 h-8" />
+                      <ArrowTrendingDownIcon v-else-if="getWeeklyChange > 0" class="w-8 h-8" />
+                      <MinusIcon v-else class="w-8 h-8" />
+                      {{ Math.abs(getWeeklyChange) }}
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -451,7 +458,10 @@ import {
   BellAlertIcon,
   ArrowUpRightIcon,
   PencilIcon,
-  XMarkIcon
+  XMarkIcon,
+  ArrowTrendingUpIcon,
+  ArrowTrendingDownIcon,
+  MinusIcon
 } from "@heroicons/vue/24/outline";
 import QRcodeModal from '@/components/molecules/QRcodeModal.vue'
 import { MapPinIcon, CalendarDaysIcon } from "@heroicons/vue/24/solid";
@@ -507,6 +517,21 @@ const getPerformanceLevel = computed(() => {
   if (performance >= 26) return 'Trung <br/> bình';
 
   return 'Kém';
+});
+
+const getWeeklyChange = computed(() => {
+  const leaderboard = homeData.value?.leaderboard || [];
+  const userId = getUser.value?.id;
+  const currentUser = leaderboard.find(u => u.id === userId);
+  return currentUser?.weekly_change ?? null;
+});
+
+const getWeeklyChangeClass = computed(() => {
+  const change = getWeeklyChange.value;
+  if (change === null) return '';
+  if (change < 0) return 'text-green-500'; // Cải thiện rank (số nhỏ hơn = rank cao hơn)
+  if (change > 0) return 'text-red-500';  // Tụt rank
+  return 'text-gray-400'; // Không đổi
 });
 const getHomeData = async () => {
   try {

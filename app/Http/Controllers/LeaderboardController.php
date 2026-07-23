@@ -380,7 +380,10 @@ class LeaderboardController extends Controller
             ->limit($perPage)
             ->get();
 
-        $items = $leaderboard->map(function ($user) {
+        $userIds = $leaderboard->pluck('id')->toArray();
+        $weeklyChanges = User::getBatchWeeklyChanges($userIds, $sportId);
+
+        $items = $leaderboard->map(function ($user) use ($weeklyChanges) {
             $badgesData = $this->formatUserBadges($user->userBadges->all());
             return [
                 'id'           => $user->id,
@@ -389,6 +392,7 @@ class LeaderboardController extends Controller
                 'avatar_url'   => $user->avatar_url,
                 'rank'         => (int) $user->rank,
                 'vndupr_score' => round((float) $user->vndupr_score, 3),
+                'weekly_change' => $weeklyChanges[$user->id] ?? null,
                 'clubs'        => $user->clubs->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
                 'badges'       => $badgesData['badges'],
                 'primary_badge' => $badgesData['primary_badge'],
@@ -442,7 +446,10 @@ class LeaderboardController extends Controller
 
         $leaderboard = $baseQuery->offset($offset)->limit($perPage)->get();
 
-        $items = $leaderboard->map(function ($user, $index) use ($page, $perPage) {
+        $userIds = $leaderboard->pluck('id')->toArray();
+        $weeklyChanges = User::getBatchWeeklyChanges($userIds, $sportId);
+
+        $items = $leaderboard->map(function ($user, $index) use ($page, $perPage, $weeklyChanges) {
             $badgesData = $this->formatUserBadges($user->userBadges->all());
             return [
                 'id'         => $user->id,
@@ -451,6 +458,7 @@ class LeaderboardController extends Controller
                 'avatar_url'  => $user->avatar_url,
                 'rank'       => ($page - 1) * $perPage + $index + 1,
                 'vndupr_score' => round((float) $user->vndupr_score, 3),
+                'weekly_change' => $weeklyChanges[$user->id] ?? null,
                 'clubs'      => $user->clubs->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
                 'badges'     => $badgesData['badges'],
                 'primary_badge' => $badgesData['primary_badge'],
@@ -508,7 +516,10 @@ class LeaderboardController extends Controller
 
         $leaderboard = $baseQuery->offset($offset)->limit($perPage)->get();
 
-        $items = $leaderboard->map(function ($user, $index) use ($page, $perPage) {
+        $userIds = $leaderboard->pluck('id')->toArray();
+        $weeklyChanges = User::getBatchWeeklyChanges($userIds, $sportId);
+
+        $items = $leaderboard->map(function ($user, $index) use ($page, $perPage, $weeklyChanges) {
             $badgesData = $this->formatUserBadges($user->userBadges->all());
             return [
                 'id'         => $user->id,
@@ -517,6 +528,7 @@ class LeaderboardController extends Controller
                 'avatar_url'  => $user->avatar_url,
                 'rank'       => ($page - 1) * $perPage + $index + 1,
                 'vndupr_score' => round((float) $user->vndupr_score, 3),
+                'weekly_change' => $weeklyChanges[$user->id] ?? null,
                 'clubs'      => $user->clubs->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
                 'badges'     => $badgesData['badges'],
                 'primary_badge' => $badgesData['primary_badge'],

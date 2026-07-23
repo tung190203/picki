@@ -93,12 +93,27 @@
                                     <h4 class="font-bold text-gray-800 line-clamp-1">{{ item.user.full_name }}</h4>
                                     <div class="flex items-center gap-2">
                                         <span class="text-xs text-gray-400">{{ item.all_time_stats?.matches_played || 0 }} Trận • Win {{ item.all_time_stats?.win_rate || 0 }}%</span>
+                                        <!-- Score change badge -->
                                         <div v-if="item.all_time_stats?.score_change" :class="[
                                             'px-1.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5',
                                             item.all_time_stats.score_change >= 0 ? 'bg-[#00B377] text-white' : 'bg-[#D72D36] text-white'
                                         ]">
                                             <component :is="item.all_time_stats.score_change >= 0 ? TriangleUp : TriangleDown" class="w-2 h-2" />
                                             {{ Math.abs(item.all_time_stats.score_change) }}
+                                        </div>
+                                        <!-- Weekly change badge -->
+                                        <div v-if="item.weekly_change !== undefined && item.weekly_change !== null" :class="[
+                                            'px-1.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5',
+                                            item.weekly_change < 0 ? 'bg-green-100 text-green-700' : item.weekly_change > 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
+                                        ]">
+                                            <svg v-if="item.weekly_change < 0" class="w-2 h-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                                            </svg>
+                                            <svg v-else-if="item.weekly_change > 0" class="w-2 h-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                            <span v-else>-</span>
+                                            {{ Math.abs(item.weekly_change) }}
                                         </div>
                                     </div>
                                 </div>
