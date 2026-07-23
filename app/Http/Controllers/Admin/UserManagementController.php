@@ -101,7 +101,7 @@ class UserManagementController extends Controller
             ]);
         }
 
-        $user->load(['sports', 'badges', 'clubs']);
+        $user->load(['sports', 'userBadges', 'clubs']);
 
         return ResponseHelper::success($user, 'Tạo user thành công', 201);
     }

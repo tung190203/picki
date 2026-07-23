@@ -104,12 +104,12 @@
                                         <!-- Weekly change badge -->
                                         <div v-if="item.weekly_change !== undefined && item.weekly_change !== null" :class="[
                                             'px-1.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5',
-                                            item.weekly_change < 0 ? 'bg-green-100 text-green-700' : item.weekly_change > 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
+                                            item.weekly_change > 0 ? 'bg-green-100 text-green-700' : item.weekly_change < 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
                                         ]">
-                                            <svg v-if="item.weekly_change < 0" class="w-2 h-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg v-if="item.weekly_change > 0" class="w-2 h-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
                                             </svg>
-                                            <svg v-else-if="item.weekly_change > 0" class="w-2 h-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg v-else-if="item.weekly_change < 0" class="w-2 h-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                                             </svg>
                                             <span v-else>-</span>
