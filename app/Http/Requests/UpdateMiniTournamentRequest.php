@@ -133,8 +133,8 @@ class UpdateMiniTournamentRequest extends FormRequest
             // Gender
             'gender' => 'sometimes|integer|in:' . implode(',', MiniTournament::GENDER),
 
-            // Match format
-            'match_format' => 'nullable|in:standard,partner_rotation,mixed_gender,rank_pairing',
+            // Match format: validated only when a string value is sent. Empty/null means "don't change".
+            'match_format' => 'nullable|string|in:standard,partner_rotation,mixed_gender,rank_pairing',
 
             // Additional fields
             'apply_rule' => 'boolean',
@@ -352,6 +352,14 @@ class UpdateMiniTournamentRequest extends FormRequest
         if ($normalized !== []) {
             $this->merge($normalized);
         }
+
+        // match_format: if sent as null or empty string, remove from request to preserve DB value.
+        // Frontend should omit the field entirely if they don't want to change match_format.
+        $matchFormat = $this->input('match_format');
+        if ($matchFormat === '' || $matchFormat === null) {
+            $this->offsetUnset('match_format');
+        }
+        // If field is absent entirely, it won't be in validated data → DB value is preserved.
 
         // Normalize string boolean values to actual booleans
         $boolKeys = [

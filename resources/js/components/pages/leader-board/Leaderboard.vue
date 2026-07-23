@@ -72,6 +72,7 @@
                   <th class="px-6 py-3">Khu vực</th>
                   <th class="px-6 py-3">Tier</th>
                   <th class="px-6 py-3">PICKI</th>
+                  <th class="px-6 py-3">Tuần</th>
                 </tr>
               </thead>
               <tbody>
@@ -85,6 +86,16 @@
                   <td class="px-6 py-4">{{ player.region }}</td>
                   <td class="px-6 py-4 font-bold text-blue-600">{{ player.tier }}</td>
                   <td class="px-6 py-4 font-bold text-blue-600">{{ player.vndupr }}</td>
+                  <td class="px-6 py-4">
+                    <span v-if="player.weekly_change !== undefined && player.weekly_change !== null"
+                      class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-semibold"
+                      :class="getWeeklyChangeClass(player.weekly_change)">
+                      <span v-if="player.weekly_change < 0">↑</span>
+                      <span v-else-if="player.weekly_change > 0">↓</span>
+                      <span v-else>-</span>
+                      {{ Math.abs(player.weekly_change) }}
+                    </span>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -139,5 +150,11 @@
       return matchesName && matchesClub && matchesTier && matchesRegion && matchesVNDUPR
     })
   })
+
+  const getWeeklyChangeClass = (change) => {
+    if (change < 0) return 'bg-green-100 text-green-700';
+    if (change > 0) return 'bg-red-100 text-red-700';
+    return 'bg-gray-100 text-gray-500';
+  }
   </script>
   

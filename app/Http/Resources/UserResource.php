@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Sport;
+use App\Models\User;
 use App\Models\ScoreVerificationRequest;
 use App\Services\BadgeService;
 use Carbon\Carbon;
@@ -122,6 +123,7 @@ class UserResource extends JsonResource
             'is_follow' => $isFollow,
             'is_friend' => $isFriend,
             'vn_rank' => $vnRank,
+            'weekly_change' => User::getWeeklyChange($this->id, 1),
             'last_login' => $this->last_login?->toISOString(),
             'is_online' => $this->isOnline(),
             'is_super_admin' => (bool)$this->is_super_admin,
