@@ -9,6 +9,7 @@ use App\Models\SuperAdminDraft;
 use App\Models\Club\Club;
 use App\Models\QuickMatch;
 use App\Models\SystemSetting;
+use App\Models\WeeklyRank;
 use App\Services\BadgeService;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -2007,5 +2008,56 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             // SearchPlayerResource / MapUserResource use sport_id = 1 (pickleball)
             $user->preloaded_sport_stats = $batchStats[$user->id][$pickleballSportId] ?? [];
         }
+    }
+
+    public static function getWeeklyChange(int $userId, int $sportId): ?int
+    {
+        $currentRank = self::getBatchVNRanks([$userId], $sportId)[$userId] ?? null;
+        if ($currentRank === null) {
+            return null;
+        }
+
+        $lastSundayRank = WeeklyRank::where('user_id', $userId)
+            ->where('sport_id', $sportId)
+            ->whereNotNull('recorded_at')
+            ->latest('recorded_at')
+            ->value('rank');
+
+        if ($lastSundayRank === null) {
+            return null;
+        }
+
+        return $currentRank - $lastSundayRank;
+    }
+
+    public static function getBatchWeeklyChanges(array $userIds, int $sportId): array
+    {
+        if (empty($userIds)) {
+            return [];
+        }
+
+        $currentRanks = self::getBatchVNRanks($userIds, $sportId);
+
+        $lastSundayRanks = WeeklyRank::whereIn('user_id', $userIds)
+            ->where('sport_id', $sportId)
+            ->whereNotNull('recorded_at')
+            ->orderByDesc('recorded_at')
+            ->get()
+            ->unique('user_id')
+            ->pluck('rank', 'user_id');
+
+        $result = [];
+        foreach ($userIds as $userId) {
+            $current = $currentRanks[$userId] ?? null;
+            $lastSunday = $lastSundayRanks[$userId] ?? null;
+
+            if ($current !== null && $lastSunday !== null) {
+                $result[$userId] = $current - $lastSunday;
+            } else {
+                $result[$userId] = null;
+            }
+        }
+
+        return $result;
     }
 }
