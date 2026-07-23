@@ -90,8 +90,8 @@
                     <span v-if="player.weekly_change !== undefined && player.weekly_change !== null"
                       class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-semibold"
                       :class="getWeeklyChangeClass(player.weekly_change)">
-                      <span v-if="player.weekly_change < 0">↑</span>
-                      <span v-else-if="player.weekly_change > 0">↓</span>
+                      <span v-if="player.weekly_change > 0">↑</span>
+                      <span v-else-if="player.weekly_change < 0">↓</span>
                       <span v-else>-</span>
                       {{ Math.abs(player.weekly_change) }}
                     </span>
@@ -152,8 +152,8 @@
   })
 
   const getWeeklyChangeClass = (change) => {
-    if (change < 0) return 'bg-green-100 text-green-700';
-    if (change > 0) return 'bg-red-100 text-red-700';
+    if (change > 0) return 'bg-green-100 text-green-700';
+    if (change < 0) return 'bg-red-100 text-red-700';
     return 'bg-gray-100 text-gray-500';
   }
   </script>
