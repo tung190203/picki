@@ -24,8 +24,8 @@
                       getUser.vn_rank || 'Unranked'
                       }}</div>
                     <div v-if="getWeeklyChange !== null" class="flex items-center gap-1 text-2xl font-semibold" :class="getWeeklyChangeClass">
-                      <ArrowTrendingUpIcon v-if="getWeeklyChange < 0" class="w-8 h-8" />
-                      <ArrowTrendingDownIcon v-else-if="getWeeklyChange > 0" class="w-8 h-8" />
+                      <ArrowTrendingUpIcon v-if="getWeeklyChange > 0" class="w-8 h-8" />
+                      <ArrowTrendingDownIcon v-else-if="getWeeklyChange < 0" class="w-8 h-8" />
                       <MinusIcon v-else class="w-8 h-8" />
                       {{ Math.abs(getWeeklyChange) }}
                     </div>
@@ -529,8 +529,8 @@ const getWeeklyChange = computed(() => {
 const getWeeklyChangeClass = computed(() => {
   const change = getWeeklyChange.value;
   if (change === null) return '';
-  if (change < 0) return 'text-green-500'; // Cải thiện rank (số nhỏ hơn = rank cao hơn)
-  if (change > 0) return 'text-red-500';  // Tụt rank
+  if (change > 0) return 'text-green-500'; // Lên hạng
+  if (change < 0) return 'text-red-500';    // Tụt hạng
   return 'text-gray-400'; // Không đổi
 });
 const getHomeData = async () => {

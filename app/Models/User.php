@@ -2027,7 +2027,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             return null;
         }
 
-        return $currentRank - $lastSundayRank;
+        return $lastSundayRank - $currentRank;
     }
 
     public static function getBatchWeeklyChanges(array $userIds, int $sportId): array
@@ -2052,7 +2052,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             $lastSunday = $lastSundayRanks[$userId] ?? null;
 
             if ($current !== null && $lastSunday !== null) {
-                $result[$userId] = $current - $lastSunday;
+                $result[$userId] = $lastSunday - $current;
             } else {
                 $result[$userId] = null;
             }

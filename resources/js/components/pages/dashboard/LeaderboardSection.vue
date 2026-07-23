@@ -215,8 +215,8 @@
             <div v-if="item.weekly_change !== null && item.weekly_change !== undefined"
               class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
               :class="getWeeklyChangeClass(item.weekly_change)">
-              <ArrowTrendingUpIcon v-if="item.weekly_change < 0" class="w-3 h-3" />
-              <ArrowTrendingDownIcon v-else-if="item.weekly_change > 0" class="w-3 h-3" />
+              <ArrowTrendingUpIcon v-if="item.weekly_change > 0" class="w-3 h-3" />
+              <ArrowTrendingDownIcon v-else-if="item.weekly_change < 0" class="w-3 h-3" />
               <MinusIcon v-else class="w-3 h-3" />
               {{ Math.abs(item.weekly_change) }}
             </div>
