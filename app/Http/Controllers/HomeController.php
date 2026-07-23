@@ -173,6 +173,9 @@ class HomeController extends Controller
 
         User::loadSportStatsOnUsers($leaderboard, $sportId);
 
+        $userIds = $leaderboard->pluck('id')->toArray();
+        $weeklyChanges = User::getBatchWeeklyChanges($userIds, $sportId);
+
         // Trả về data
         $data = [
             'user_info'              => $userInfo,
@@ -181,13 +184,14 @@ class HomeController extends Controller
             'banners'                   => BannerResource::collection($banners),
             'my_club'                   => ListClubResource::collection($myClub),
             'leaderboard_club'               => ListClubResource::collection($leaderboardClub),
-            'leaderboard' => $leaderboard->map(function($user) {
+            'leaderboard' => $leaderboard->map(function($user) use ($weeklyChanges) {
                 return [
                     'id' => $user->id,
                     'full_name' => $user->full_name,
                     'visibility' => $user->visibility,
                     'avatar_url' => $user->avatar_url,
                     'rank' => $user->rank,
+                    'weekly_change' => $weeklyChanges[$user->id] ?? null,
                     'sports' => $user->relationLoaded('sports') && $user->sports ? UserSportResource::collection($user->sports) : [],
                     'clubs' => $user->clubs->map(function($club) {
                         return [
