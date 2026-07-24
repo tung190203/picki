@@ -49,6 +49,8 @@ class BackfillVerifiedUsers extends Command
 
         $count = 0;
         foreach ($eligibleUsers as $user) {
+            $user->is_verified = true;
+            $user->saveQuietly();
             $badgeService->awardBadge($user->id, BadgeType::VERIFIED);
             $count++;
         }
