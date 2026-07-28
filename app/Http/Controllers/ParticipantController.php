@@ -771,9 +771,6 @@ class ParticipantController extends Controller
 
     public function getParticipantsNonTeam(Request $request, $tournamentId)
     {
-        $validated = $request->validate([
-            'per_page' => 'nullable|integer|min:1|max:200',
-        ]);
         $user_ids_in_teams = DB::table('team_members')
             ->join('teams', 'team_members.team_id', '=', 'teams.id')
             ->where('teams.tournament_id', $tournamentId)
@@ -784,20 +781,13 @@ class ParticipantController extends Controller
             ->where('tournament_id', $tournamentId)
             ->where('is_confirmed', 1)
             ->whereNotIn('user_id', $user_ids_in_teams)
-            ->paginate($validated['per_page'] ?? Participant::PER_PAGE);
+            ->get();
 
         $data = [
-            'participants' => TournamentParticipantResource::collection($nonTeamParticipants->items()),
+            'participants' => TournamentParticipantResource::collection($nonTeamParticipants),
         ];
 
-        $meta = [
-            'current_page' => $nonTeamParticipants->currentPage(),
-            'last_page' => $nonTeamParticipants->lastPage(),
-            'total' => $nonTeamParticipants->total(),
-            'per_page' => $nonTeamParticipants->perPage(),
-        ];
-
-        return ResponseHelper::success($data, 'Lấy danh sách người chơi thành công', 200, $meta);
+        return ResponseHelper::success($data, 'Lấy danh sách người chơi thành công');
     }
     /**
      * Lọc theo độ tuổi

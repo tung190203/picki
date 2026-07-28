@@ -19,6 +19,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use App\Http\Resources\TournamentParticipantPaymentResource;
+use App\Http\Resources\UserListResource;
+use App\Services\BadgeService;
 
 class TournamentPaymentController extends Controller
 {
@@ -127,6 +129,22 @@ class TournamentPaymentController extends Controller
         $paidPayments = $allPayments->filter(fn($p) => $p->status === TournamentParticipantPayment::STATUS_PAID);
         $confirmedPayments = $allPayments->filter(fn($p) => $p->status === TournamentParticipantPayment::STATUS_CONFIRMED);
 
+        // Preload badges for all users in payments to avoid N+1
+        $paymentUserIds = $allPayments->pluck('user_id')->merge($allPayments->pluck('confirmed_by'))->filter()->unique()->toArray();
+        $badgeService = app(BadgeService::class);
+        $batchBadges = $badgeService->getBatchUserBadges($paymentUserIds);
+        request()->attributes->set('batch_badges', $batchBadges);
+
+        // Preload guest statuses for participants
+        $participantUserIds = $allPayments
+            ->pluck('participant')
+            ->filter()
+            ->pluck('user_id')
+            ->filter()
+            ->unique()
+            ->toArray();
+        UserListResource::preloadTournamentGuestStatuses($tournamentId, $participantUserIds);
+
         $totalExpected = 0;
         if ($tournament->has_fee) {
             if ($tournament->auto_split_fee) {
@@ -164,6 +182,9 @@ class TournamentPaymentController extends Controller
             'awaiting_confirmation_payments' => TournamentParticipantPaymentResource::collection($paidPayments->values()),
             'confirmed_payments' => TournamentParticipantPaymentResource::collection($confirmedPayments->values()),
         ];
+
+        // Clean up batch data
+        UserListResource::clearBatchGuestStatuses();
 
         return ResponseHelper::success($data, 'Lấy danh sách thanh toán thành công');
     }

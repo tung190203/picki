@@ -384,7 +384,16 @@ class TournamentController extends Controller
             // Sync payment status khi has_fee thay đổi (free→paid hoặc paid→free)
             $wasPaid = (bool) ($tournament->getOriginal('has_fee') ?? false);
             $isNowPaid = isset($validated['has_fee']) ? (bool) $validated['has_fee'] : $wasPaid;
-            if ($wasPaid !== $isNowPaid) {
+
+            if (!$wasPaid && $isNowPaid) {
+                // Chuyển từ miễn phí sang thu phí → tạo fund collection
+                if ($tournament->has_fee && !$tournament->tournament_fund_collection_id) {
+                    $this->fundService->createTournamentFundCollection($tournament, $validated);
+                }
+                // Đồng thời sync payment status
+                $this->syncParticipantsPaymentStatus($tournament, $isNowPaid);
+            } elseif ($wasPaid && !$isNowPaid) {
+                // Chuyển từ thu phí sang miễn phí
                 $this->syncParticipantsPaymentStatus($tournament, $isNowPaid);
             }
 
