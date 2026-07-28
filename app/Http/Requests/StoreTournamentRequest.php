@@ -195,13 +195,12 @@ class StoreTournamentRequest extends FormRequest
             $boolNormalized[$key] = filter_var($v, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false;
         }
 
-        // creator_join: giữ nguyên 1/0 (không chuyển sang boolean)
         if ($this->has('creator_join')) {
             $v = $this->input('creator_join');
             $boolNormalized['creator_join'] = $v;
         }
 
-        $nullableKeys = ['main_phone', 'sub_phone'];
+        $nullableKeys = ['main_phone', 'sub_phone', 'min_level', 'max_level'];
 
         $normalized = [];
         foreach ($nullableKeys as $key) {
