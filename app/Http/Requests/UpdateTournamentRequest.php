@@ -227,7 +227,7 @@ class UpdateTournamentRequest extends FormRequest
             };
         }
 
-        $nullableKeys = ['main_phone', 'sub_phone'];
+        $nullableKeys = ['main_phone', 'sub_phone', 'min_level', 'max_level'];
         $nullableNormalized = [];
         foreach ($nullableKeys as $key) {
             if (!$this->has($key)) {

@@ -327,7 +327,7 @@ class TournamentController extends Controller
     public function update(UpdateTournamentRequest $request, $id)
     {
         $validated = $request->validated();
-        $tournament = Tournament::findOrFail($id);
+        $tournament = Tournament::with('staff')->findOrFail($id);
 
         $isOrganizer = $tournament->hasOrganizer(Auth::id());
         if (!$isOrganizer) {
@@ -338,7 +338,6 @@ class TournamentController extends Controller
         $oldStatus = $tournament->status;
 
         DB::transaction(function () use ($validated, $tournament, $request, $oldCreatorJoin) {
-            // Poster: resize + convert WebP + lưu ngay
             $newPosterPath = null;
             if ($request->hasFile('poster')) {
                 $newPosterPath = $this->imageService->processAndSaveImage(
@@ -357,7 +356,6 @@ class TournamentController extends Controller
                 unset($validated['poster']);
             }
 
-            // QR code: resize + convert WebP + lưu ngay
             if ($request->hasFile('qr_code_url')) {
                 $qrUrl = $this->imageService->processAndSaveImage(
                     $request->file('qr_code_url'),
@@ -413,13 +411,19 @@ class TournamentController extends Controller
                         'user_id' => $tournament->created_by,
                     ], [
                         'is_confirmed' => true,
+                        'payment_status' => PaymentStatusEnum::CONFIRMED,
                     ]);
                 }
 
                 if (!$newCreatorJoin && $wasCreatorJoin) {
+                    $userId = $tournament->created_by;
                     Participant::where('tournament_id', $tournament->id)
-                        ->where('user_id', $tournament->created_by)
+                        ->where('user_id', $userId)
                         ->whereNull('checked_in_at')
+                        ->delete();
+
+                    TournamentParticipantPayment::where('tournament_id', $tournament->id)
+                        ->where('user_id', $userId)
                         ->delete();
                 }
             }
@@ -435,7 +439,7 @@ class TournamentController extends Controller
 
     public function destroy(Request $request)
     {
-        $tournament = Tournament::find($request->id);
+        $tournament = Tournament::with('staff')->find($request->id);
 
         if (!$tournament) {
             return ResponseHelper::error('Giải đấu không tồn tại', 404);
@@ -487,7 +491,7 @@ class TournamentController extends Controller
      */
     public function lockFee(int $tournamentId)
     {
-        $tournament = Tournament::find($tournamentId);
+        $tournament = Tournament::with('staff')->find($tournamentId);
         if (!$tournament) {
             return ResponseHelper::error('Giải đấu không tồn tại', 404);
         }
