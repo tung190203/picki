@@ -19,7 +19,7 @@ class StoreTournamentRequest extends FormRequest
             'sport_id' => 'required|exists:sports,id',
             'name' => 'required|string',
             'competition_location_id' => 'nullable|exists:competition_locations,id',
-            'start_date' => 'nullable|date',
+            'start_date' => 'required|date|after_or_equal:today',
             'end_date' => 'nullable|date',
             'registration_open_at' => 'nullable|date',
             'registration_closed_at' => 'nullable|date',
@@ -122,7 +122,9 @@ class StoreTournamentRequest extends FormRequest
             'competition_location_id.exists' => 'Địa điểm thi đấu không hợp lệ',
 
             // Thời gian
+            'start_date.required' => 'Ngày bắt đầu là bắt buộc',
             'start_date.date' => 'Ngày bắt đầu không hợp lệ',
+            'start_date.after_or_equal' => 'Ngày bắt đầu phải là ngày hiện tại hoặc trong tương lai',
             'end_date.date' => 'Ngày kết thúc không hợp lệ',
             'registration_open_at.date' => 'Thời gian mở đăng ký không hợp lệ',
             'registration_closed_at.date' => 'Thời gian đóng đăng ký không hợp lệ',
