@@ -123,11 +123,11 @@ class UserResource extends JsonResource
             'is_follow' => $isFollow,
             'is_friend' => $isFriend,
             'vn_rank' => $vnRank,
-            'weekly_change' => User::getWeeklyChange($this->id, 1),
+            'weekly_change' => $currentUser ? User::getWeeklyChange($this->id, 1) : null,
             'last_login' => $this->last_login?->toISOString(),
             'is_online' => $this->isOnline(),
             'is_super_admin' => (bool)$this->is_super_admin,
-            'primary_badge' => app(BadgeService::class)->getPrimaryBadge($this->id),
+            'primary_badge' => $this->getBatchBadge('primary_badge'),
             'is_banned' => (bool)$this->is_banned,
             'is_guest' => (bool)$this->is_guest,
             'has_advanced_mini_tournament' => $this->resource->hasAdvancedMiniTournament(),
@@ -135,7 +135,25 @@ class UserResource extends JsonResource
             'created_at' => $this->created_at?->toISOString(),
             'spcn_request' => self::getLatestScoreVerification($this->id, 'SPCN'),
             'dupr_request' => self::getLatestScoreVerification($this->id, 'DUPR'),
-            'badges' => app(BadgeService::class)->getUserBadges($this->id)['badges'],
+            'badges' => $this->getBatchBadge('badges'),
         ];
+    }
+
+    /**
+     * Get badge data from batch preload if available.
+     */
+    private function getBatchBadge(string $key): mixed
+    {
+        $batchBadges = request()->attributes->get('batch_badges', []);
+        if (isset($batchBadges[$this->id])) {
+            return $batchBadges[$this->id][$key] ?? null;
+        }
+        // Fallback to individual query if batch not available
+        $badgeService = app(BadgeService::class);
+        if ($key === 'primary_badge') {
+            return $badgeService->getPrimaryBadge($this->id);
+        }
+        $badges = $badgeService->getUserBadges($this->id);
+        return $badges[$key] ?? null;
     }
 }

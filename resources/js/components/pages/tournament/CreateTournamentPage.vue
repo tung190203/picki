@@ -1181,6 +1181,20 @@ const fetchCompetitionLocations = async (keyword) => {
 // Submit
 // =================================================================================
 const handleSubmit = async () => {
+    if (!date.value) {
+        toast.error('Vui lòng chọn ngày & giờ bắt đầu giải đấu')
+        return
+    }
+
+    const now = new Date()
+    now.setHours(0, 0, 0, 0)
+    const selectedDate = new Date(date.value)
+    selectedDate.setHours(0, 0, 0, 0)
+    if (selectedDate < now) {
+        toast.error('Ngày bắt đầu phải là ngày hiện tại hoặc trong tương lai')
+        return
+    }
+
     const startsAt = formatToISOString(date.value)
     const regOpenAt = formatToISOString(registrationOpenAt.value)
     const earlyDeadline = formatToISOString(earlyRegistrationDeadline.value)
@@ -1257,7 +1271,17 @@ const updateTournament = async (id, data) => {
         }, 1000)
     } catch (error) {
         console.error('Error updating tournament:', error)
-        toast.error('Chỉnh sửa giải đấu thất bại. Vui lòng kiểm tra lại thông tin.')
+
+        if (error.response?.data?.errors) {
+            const errors = error.response.data.errors
+            const firstErrorKey = Object.keys(errors)[0]
+            const errorMessage = errors[firstErrorKey]?.[0] || 'Vui lòng kiểm tra lại thông tin'
+            toast.error(errorMessage)
+        } else if (error.response?.data?.message) {
+            toast.error(error.response.data.message)
+        } else {
+            toast.error('Chỉnh sửa giải đấu thất bại. Vui lòng kiểm tra lại thông tin.')
+        }
     }
 }
 
@@ -1272,7 +1296,17 @@ const createTournament = async (data) => {
         }
     } catch (error) {
         console.error('Error creating tournament:', error)
-        toast.error('Tạo giải đấu thất bại. Vui lòng kiểm tra lại thông tin.')
+
+        if (error.response?.data?.errors) {
+            const errors = error.response.data.errors
+            const firstErrorKey = Object.keys(errors)[0]
+            const errorMessage = errors[firstErrorKey]?.[0] || 'Vui lòng kiểm tra lại thông tin'
+            toast.error(errorMessage)
+        } else if (error.response?.data?.message) {
+            toast.error(error.response.data.message)
+        } else {
+            toast.error('Tạo giải đấu thất bại. Vui lòng kiểm tra lại thông tin.')
+        }
     }
 }
 
