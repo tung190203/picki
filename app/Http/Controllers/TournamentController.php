@@ -9,7 +9,6 @@ use App\Events\SuperAdmin\TournamentCreated;
 use App\Events\SuperAdmin\TournamentDeleted;
 use App\Events\SuperAdmin\TournamentUpdated;
 use App\Helpers\ResponseHelper;
-use App\Jobs\OptimizeTournamentImageJob;
 use App\Http\Controllers\TournamentTypeController;
 use App\Http\Requests\StoreTournamentRequest;
 use App\Http\Requests\UpdateTournamentRequest;
@@ -17,6 +16,8 @@ use App\Notifications\TournamentRemovedNotification;
 use App\Http\Resources\ParticipantResource;
 use App\Http\Resources\TournamentResource;
 use App\Http\Resources\TournamentStaffResource;
+use App\Http\Resources\UserListResource;
+use App\Services\BadgeService;
 use App\Models\User;
 use App\Models\Club\Club;
 use App\Models\Matches;
@@ -31,7 +32,6 @@ use App\Services\TournamentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class TournamentController extends Controller
 {
@@ -182,7 +182,6 @@ class TournamentController extends Controller
         $tournament = null;
 
         DB::transaction(function () use ($validated, &$tournament, $request) {
-            // Poster: resize + convert WebP + lưu ngay
             if ($request->hasFile('poster')) {
                 $savedPath = $this->imageService->processAndSaveImage(
                     $request->file('poster'),
@@ -214,9 +213,8 @@ class TournamentController extends Controller
                     'is_confirmed' => true,
                 ];
 
-                // Nếu giải có thu phí, chủ giải tự động tham gia thì xác nhận thanh toán luôn
                 if (!empty($validated['has_fee'])) {
-                    $participantData['payment_status'] = \App\Enums\PaymentStatusEnum::CONFIRMED;
+                    $participantData['payment_status'] = PaymentStatusEnum::CONFIRMED;
                 }
 
                 Participant::create($participantData);
@@ -279,7 +277,6 @@ class TournamentController extends Controller
             'tournaments' => TournamentResource::collection($tournaments),
         ];
 
-        // Load sport stats for staff so UserSportResource renders correctly
         $allStaffUsers = $tournaments->getCollection()->flatMap->tournamentStaffs->pluck('user')->filter();
         if ($allStaffUsers->isNotEmpty()) {
             User::loadSportStatsOnUsers($allStaffUsers, 1);
@@ -303,7 +300,28 @@ class TournamentController extends Controller
             return ResponseHelper::error('Giải đấu không tồn tại', 404);
         }
 
-        return ResponseHelper::success(new TournamentResource($tournament), 'Lấy chi tiết giải đấu thành công');
+        // Preload badges for all users (staff + participants + creator) to avoid N+1
+        $userIds = collect([
+            $tournament->created_by,
+            ...$tournament->tournamentStaffs->pluck('user_id'),
+            ...$tournament->participants->pluck('user_id'),
+        ])->filter()->unique()->values()->toArray();
+
+        $badgeService = app(BadgeService::class);
+        $batchBadges = $badgeService->getBatchUserBadges($userIds);
+
+        $participantUserIds = $tournament->participants->pluck('user_id')->filter()->toArray();
+        UserListResource::preloadTournamentGuestStatuses($id, $participantUserIds);
+
+        request()->attributes->set('batch_badges', $batchBadges);
+
+        try {
+            $response = ResponseHelper::success(new TournamentResource($tournament), 'Lấy chi tiết giải đấu thành công');
+        } finally {
+            UserListResource::clearBatchGuestStatuses();
+        }
+
+        return $response;
     }
 
     public function update(UpdateTournamentRequest $request, $id)
@@ -366,7 +384,16 @@ class TournamentController extends Controller
             // Sync payment status khi has_fee thay đổi (free→paid hoặc paid→free)
             $wasPaid = (bool) ($tournament->getOriginal('has_fee') ?? false);
             $isNowPaid = isset($validated['has_fee']) ? (bool) $validated['has_fee'] : $wasPaid;
-            if ($wasPaid !== $isNowPaid) {
+
+            if (!$wasPaid && $isNowPaid) {
+                // Chuyển từ miễn phí sang thu phí → tạo fund collection
+                if ($tournament->has_fee && !$tournament->tournament_fund_collection_id) {
+                    $this->fundService->createTournamentFundCollection($tournament, $validated);
+                }
+                // Đồng thời sync payment status
+                $this->syncParticipantsPaymentStatus($tournament, $isNowPaid);
+            } elseif ($wasPaid && !$isNowPaid) {
+                // Chuyển từ thu phí sang miễn phí
                 $this->syncParticipantsPaymentStatus($tournament, $isNowPaid);
             }
 

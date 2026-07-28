@@ -58,6 +58,69 @@ class BadgeService
     }
 
     /**
+     * Batch get primary badges for multiple users.
+     * Returns array of user_id => badge_type
+     */
+    public function getBatchPrimaryBadges(array $userIds): array
+    {
+        if (empty($userIds)) {
+            return [];
+        }
+
+        $orderClause = $this->getBadgeOrderByClause();
+
+        $rows = DB::table('user_badges as ub')
+            ->join(DB::raw("(SELECT user_id, MIN({$orderClause}) as min_order FROM user_badges WHERE user_id IN (" . implode(',', $userIds) . ") GROUP BY user_id) as ranked"), function ($join) {
+                $join->on('ub.user_id', '=', 'ranked.user_id');
+            })
+            ->whereRaw("({$orderClause}) = ranked.min_order")
+            ->whereIn('ub.user_id', $userIds)
+            ->select('ub.user_id', 'ub.badge_type')
+            ->get();
+
+        $result = [];
+        foreach ($userIds as $userId) {
+            $result[$userId] = null;
+        }
+        foreach ($rows as $row) {
+            $result[$row->user_id] = $row->badge_type;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Batch get all badges for multiple users.
+     * Returns array of user_id => ['badges' => [...], 'primary_badge' => ...]
+     */
+    public function getBatchUserBadges(array $userIds): array
+    {
+        if (empty($userIds)) {
+            return [];
+        }
+
+        $orderClause = $this->getBadgeOrderByClause();
+
+        $userBadges = UserBadge::whereIn('user_id', $userIds)
+            ->orderByRaw($orderClause)
+            ->get()
+            ->groupBy('user_id');
+
+        $primaryBadges = $this->getBatchPrimaryBadges($userIds);
+
+        $result = [];
+        foreach ($userIds as $userId) {
+            $badges = $userBadges->get($userId, collect());
+            $result[$userId] = [
+                'badges' => $badges->map(fn($ub) => $ub->badge_type->value)->toArray(),
+                'primary_badge' => $primaryBadges[$userId] ?? null,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
      * Check if a user has any badge.
      */
     public function has_any_badge(int $userId): bool
