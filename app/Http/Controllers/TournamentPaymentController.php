@@ -10,6 +10,7 @@ use App\Models\TournamentFundCollection;
 use App\Models\TournamentFundContribution;
 use App\Models\Participant;
 use App\Models\TournamentParticipantPayment;
+use App\Models\TournamentStaff;
 use App\Notifications\TournamentPaymentConfirmedNotification;
 use App\Services\ImageOptimizationService;
 use App\Services\TournamentFundService;
@@ -49,11 +50,6 @@ class TournamentPaymentController extends Controller
     public function index(int $tournamentId)
     {
         $tournament = Tournament::with([
-            'payments.user',
-            'payments.confirmer',
-            'payments.participant',
-            'payments.participant.guarantor',
-            'participants.guarantor',
             'staff',
         ])->find($tournamentId);
 
@@ -61,81 +57,121 @@ class TournamentPaymentController extends Controller
             return ResponseHelper::error('Giải đấu không tồn tại', 404);
         }
 
-        $allPayments = $tournament->payments()->orderBy('created_at', 'desc')->get();
+        $organizerIds = $tournament->staff
+            ->filter(fn($s) => $s->role === TournamentStaff::ROLE_ORGANIZER)
+            ->pluck('user_id')
+            ->toArray();
 
+        $participantCount = $tournament->participants()->where('is_confirmed', true)->count();
+        $qrUrl = $tournament->qr_code_url;
+
+        // Preload tất cả payments cùng relations trong 1 query
+        $allPayments = TournamentParticipantPayment::with([
+            'user',
+            'confirmer',
+            'participant',
+            'participant.guarantor',
+        ])
+            ->where('tournament_id', $tournamentId)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $feePerPerson = $this->calculateFeePerPerson($tournament);
+
+        // Auto-confirm payments cho organizers và guests được sponsor bởi organizer
+        $pendingPayments = $allPayments->filter(fn($p) => $p->status === TournamentParticipantPayment::STATUS_PENDING);
+
+        $autoConfirmPayments = $pendingPayments->filter(function ($payment) use ($organizerIds) {
+            if (in_array($payment->user_id, $organizerIds)) {
+                return true;
+            }
+            if ($payment->participant && $payment->participant->is_guest) {
+                $guarantorId = $payment->participant->guarantor_user_id;
+                return $guarantorId && in_array($guarantorId, $organizerIds);
+            }
+            return false;
+        });
+
+        if ($autoConfirmPayments->isNotEmpty()) {
+            $autoConfirmIds = $autoConfirmPayments->pluck('id')->toArray();
+            TournamentParticipantPayment::whereIn('id', $autoConfirmIds)
+                ->update([
+                    'status' => TournamentParticipantPayment::STATUS_CONFIRMED,
+                    'confirmed_at' => now(),
+                    'confirmed_by' => Auth::id(),
+                    'paid_at' => now(),
+                ]);
+            // Refresh lại payments đã được update
+            $autoConfirmPayments->each(fn($p) => $p->refresh());
+        }
+
+        // Tạo payment record cho organizers chưa có
+        if (!empty($organizerIds) && $tournament->has_fee) {
+            $existingOrgPayments = $allPayments->whereIn('user_id', $organizerIds)->pluck('user_id')->toArray();
+            $missingOrgIds = array_diff($organizerIds, $existingOrgPayments);
+
+            if (!empty($missingOrgIds)) {
+                $orgParticipants = Participant::where('tournament_id', $tournamentId)
+                    ->whereIn('user_id', $missingOrgIds)
+                    ->where('is_confirmed', true)
+                    ->get()
+                    ->keyBy('user_id');
+
+                $newPayments = [];
+                foreach ($missingOrgIds as $orgId) {
+                    if (isset($orgParticipants[$orgId])) {
+                        $participant = $orgParticipants[$orgId];
+                        $newPayments[] = [
+                            'tournament_id' => $tournamentId,
+                            'participant_id' => $participant->id,
+                            'user_id' => $orgId,
+                            'amount' => $feePerPerson,
+                            'status' => TournamentParticipantPayment::STATUS_CONFIRMED,
+                            'paid_at' => now(),
+                            'confirmed_at' => now(),
+                            'confirmed_by' => Auth::id(),
+                            'admin_note' => 'Auto tạo: chủ kèo mặc định đã đóng tiền',
+                        ];
+                    }
+                }
+
+                if (!empty($newPayments)) {
+                    TournamentParticipantPayment::insert($newPayments);
+                    // Load lại payments để include trong response
+                    $newPaymentIds = TournamentParticipantPayment::whereIn('user_id', $missingOrgIds)
+                        ->where('tournament_id', $tournamentId)
+                        ->pluck('id')
+                        ->toArray();
+                    $newPaymentsReloaded = TournamentParticipantPayment::with([
+                        'user',
+                        'confirmer',
+                        'participant',
+                        'participant.guarantor',
+                    ])
+                        ->whereIn('id', $newPaymentIds)
+                        ->get();
+                    $allPayments = $allPayments->merge($newPaymentsReloaded);
+                }
+            }
+        }
+
+        // Lọc payments theo status (đã bao gồm các payments vừa được auto-confirm)
         $pendingPayments = $allPayments->filter(fn($p) => $p->status === TournamentParticipantPayment::STATUS_PENDING);
         $paidPayments = $allPayments->filter(fn($p) => $p->status === TournamentParticipantPayment::STATUS_PAID);
         $confirmedPayments = $allPayments->filter(fn($p) => $p->status === TournamentParticipantPayment::STATUS_CONFIRMED);
         $rejectedPayments = $allPayments->filter(fn($p) => $p->status === TournamentParticipantPayment::STATUS_REJECTED);
 
-        $organizerIds = $tournament->staff->filter(fn($s) => $s->role === 1)->pluck('user_id')->toArray();
-
-        $participantCount = $tournament->participants()->where('is_confirmed', true)->count();
-
-        $qrUrl = $tournament->qr_code_url; // uses model's getQrCodeUrlAttribute() accessor
-
-        // Auto-confirm payments for organizers
-        foreach ($pendingPayments as $payment) {
-            if (in_array($payment->user_id, $organizerIds)) {
-                $this->fundService->confirmPayment($payment, Auth::user());
-                $confirmedPayments->push($payment);
-            }
-        }
-
-        // Auto-confirm payments for guests whose guarantor is an organizer
-        foreach ($pendingPayments as $payment) {
-            if ($payment->participant && $payment->participant->is_guest) {
-                $guarantorId = $payment->participant->guarantor_user_id;
-                if ($guarantorId && in_array($guarantorId, $organizerIds)) {
-                    $this->fundService->confirmPayment($payment, Auth::user());
-                    $confirmedPayments->push($payment);
-                }
-            }
-        }
-
-        // Đảm bảo organizer luôn có payment record STATUS_CONFIRMED
-        $feePerPerson = $this->calculateFeePerPerson($tournament);
-        foreach ($organizerIds as $orgId) {
-            $hasPayment = $allPayments->contains(fn($p) => $p->user_id === $orgId);
-            if (!$hasPayment) {
-                $existingParticipant = Participant::where('tournament_id', $tournament->id)
-                    ->where('user_id', $orgId)
-                    ->first();
-                if ($existingParticipant && $existingParticipant->is_confirmed) {
-                    TournamentParticipantPayment::create([
-                        'tournament_id' => $tournament->id,
-                        'participant_id' => $existingParticipant->id,
-                        'user_id' => $orgId,
-                        'amount' => $feePerPerson,
-                        'status' => TournamentParticipantPayment::STATUS_CONFIRMED,
-                        'paid_at' => now(),
-                        'confirmed_at' => now(),
-                        'confirmed_by' => Auth::id(),
-                        'admin_note' => 'Auto tạo: chủ kèo mặc định đã đóng tiền',
-                    ]);
-                }
-            }
-        }
-
-        // Refresh after auto-confirm
-        $allPayments = $tournament->payments()->with([
-            'user',
-            'confirmer',
-            'participant',
-            'participant.guarantor',
-        ])->orderBy('created_at', 'desc')->get();
-
-        $pendingPayments = $allPayments->filter(fn($p) => $p->status === TournamentParticipantPayment::STATUS_PENDING);
-        $paidPayments = $allPayments->filter(fn($p) => $p->status === TournamentParticipantPayment::STATUS_PAID);
-        $confirmedPayments = $allPayments->filter(fn($p) => $p->status === TournamentParticipantPayment::STATUS_CONFIRMED);
-
-        // Preload badges for all users in payments to avoid N+1
-        $paymentUserIds = $allPayments->pluck('user_id')->merge($allPayments->pluck('confirmed_by'))->filter()->unique()->toArray();
+        // Preload badges
+        $paymentUserIds = $allPayments->pluck('user_id')
+            ->merge($allPayments->pluck('confirmed_by'))
+            ->filter()
+            ->unique()
+            ->toArray();
         $badgeService = app(BadgeService::class);
         $batchBadges = $badgeService->getBatchUserBadges($paymentUserIds);
         request()->attributes->set('batch_badges', $batchBadges);
 
-        // Preload guest statuses for participants
+        // Preload guest statuses
         $participantUserIds = $allPayments
             ->pluck('participant')
             ->filter()
@@ -150,8 +186,7 @@ class TournamentPaymentController extends Controller
             if ($tournament->auto_split_fee) {
                 $totalExpected = $confirmedPayments->sum('amount');
             } else {
-                $organizerCount = count($organizerIds);
-                $memberParticipantCount = max(0, $participantCount - $organizerCount);
+                $memberParticipantCount = max(0, $participantCount - count($organizerIds));
                 $totalExpected = $tournament->fee_per_person * $memberParticipantCount;
             }
         }
@@ -183,7 +218,6 @@ class TournamentPaymentController extends Controller
             'confirmed_payments' => TournamentParticipantPaymentResource::collection($confirmedPayments->values()),
         ];
 
-        // Clean up batch data
         UserListResource::clearBatchGuestStatuses();
 
         return ResponseHelper::success($data, 'Lấy danh sách thanh toán thành công');
