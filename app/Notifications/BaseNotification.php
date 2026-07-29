@@ -15,13 +15,7 @@ abstract class BaseNotification extends Notification
      */
     public function via(object $notifiable): array
     {
-        $channels = ['database'];
-
-        if ($notifiable->fcm_token) {
-            $channels[] = 'fcm';
-        }
-
-        return $channels;
+        return ['database'];
     }
 
     /**

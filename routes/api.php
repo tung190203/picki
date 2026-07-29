@@ -76,6 +76,7 @@ use App\Http\Controllers\Admin\AdminCompetitionLocationManagementController;
 use App\Http\Controllers\Admin\ScoreVerificationManagementController;
 use App\Http\Controllers\ScoreVerificationController;
 use App\Http\Controllers\QuickMatchController;
+use App\Http\Controllers\MatchSuggestionController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
 
@@ -839,6 +840,11 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
 
     Route::prefix('mini-tournaments')->group(function () {
         Route::post('/{miniTournamentId}/participants/{participantId}/modify-score', [MiniParticipantController::class, 'modifyScore']);
+    });
+
+    Route::prefix('match-suggestions')->group(function () {
+        Route::post('/mini-tournaments/{miniTournamentId}/generate', [MatchSuggestionController::class, 'generate']);
+        Route::post('/mini-tournaments/{miniTournamentId}/regenerate', [MatchSuggestionController::class, 'regenerate']);
     });
 
     Route::prefix('messages')->group(function () {

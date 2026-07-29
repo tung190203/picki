@@ -590,15 +590,28 @@ class MiniTournament extends Model
         );
     }
 
+    public function hasReferee(int $userId): bool
+    {
+        return $this->staff->contains(
+            fn($staff) =>
+            (int) $staff->pivot->user_id === $userId
+                && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_REFEREE
+        );
+    }
+
     public function hasOrganizerOrStaff(int $userId): bool
     {
-        return $this->hasOrganizer($userId);
+        return $this->staff->contains(
+            fn($staff) =>
+            (int) $staff->pivot->user_id === $userId
+                && in_array((int) $staff->pivot->role, [MiniTournamentStaff::ROLE_ORGANIZER, MiniTournamentStaff::ROLE_REFEREE])
+        );
     }
 
     public function hasScoringPermission(int $userId): bool
     {
-        // Ai cũng được phép nhập điểm trận đấu thuộc mini-tournament
-        return true;
+        // Organizer và referee được phép nhập điểm
+        return $this->hasOrganizerOrStaff($userId);
     }
 
     public function scopeFilter($query, $filter)

@@ -17,8 +17,8 @@ class StoreTournamentRequest extends FormRequest
         return [
             'poster' => 'nullable|image|max:5120',
             'sport_id' => 'required|exists:sports,id',
-            'name' => 'required|string',
-            'competition_location_id' => 'nullable|exists:competition_locations,id',
+            'name' => 'required|string|max:255',
+            'competition_location_id' => 'required|exists:competition_locations,id',
             'start_date' => 'required|date|after_or_equal:today',
             'end_date' => 'nullable|date',
             'registration_open_at' => 'nullable|date',
@@ -117,8 +117,10 @@ class StoreTournamentRequest extends FormRequest
             'sport_id.exists' => 'Môn thể thao không tồn tại hoặc đã bị xóa',
             'name.required' => 'Vui lòng nhập tên giải đấu',
             'name.string' => 'Tên giải đấu phải là chuỗi ký tự',
+            'name.max' => 'Tên giải đấu không được vượt quá 255 ký tự',
 
             // Địa điểm
+            'competition_location_id.required' => 'Vui lòng chọn địa điểm thi đấu',
             'competition_location_id.exists' => 'Địa điểm thi đấu không hợp lệ',
 
             // Thời gian
@@ -140,11 +142,15 @@ class StoreTournamentRequest extends FormRequest
             'gender_policy_text.string' => 'Ghi chú chính sách giới tính phải là chuỗi ký tự',
 
             // Hình thức tham gia
+            'participant.required' => 'Vui lòng chọn hình thức tham gia',
             'participant.in' => 'Hình thức tham gia không hợp lệ (team hoặc user)',
+            'max_team.required' => 'Vui lòng nhập số đội tối đa',
             'max_team.required_if' => 'Vui lòng nhập số đội tối đa khi chọn hình thức thi đấu theo đội',
             'max_team.integer' => 'Số đội tối đa phải là số nguyên',
+            'player_per_team.required' => 'Vui lòng nhập số người mỗi đội',
             'player_per_team.required_if' => 'Vui lòng nhập số người mỗi đội khi chọn hình thức thi đấu theo đội',
             'player_per_team.integer' => 'Số người mỗi đội phải là số nguyên',
+            'max_player.required' => 'Vui lòng nhập số người chơi tối đa',
             'max_player.required_if' => 'Vui lòng nhập số người chơi tối đa khi chọn hình thức thi đấu cá nhân',
             'max_player.integer' => 'Số người chơi tối đa phải là số nguyên',
 
@@ -181,6 +187,27 @@ class StoreTournamentRequest extends FormRequest
             $this->merge(['sport_id' => \App\Models\Sport::PICKLEBALL_ID]);
         }
 
+        // Normalize empty strings to null (mobile app sends "" instead of null)
+        // Cần làm trước để các validation rule không bị "fail" vì empty string
+        $nullableKeys = [
+            'competition_location_id', 'club_id', 'fee_amount',
+            'min_level', 'max_level', 'max_team', 'player_per_team', 'max_player',
+            'duration', 'age_group', 'gender_policy',
+            'main_phone', 'sub_phone',
+        ];
+
+        $nullableNormalized = [];
+        foreach ($nullableKeys as $key) {
+            if (!$this->has($key)) {
+                continue;
+            }
+            $v = $this->input($key);
+            if ($v === '' || $v === null) {
+                $nullableNormalized[$key] = null;
+            }
+        }
+        $this->merge($nullableNormalized);
+
         $boolKeys = [
             'enable_dupr', 'enable_vndupr', 'is_private', 'auto_approve',
             'has_financial_management', 'has_fee', 'auto_split_fee', 'use_cached_qr',
@@ -199,21 +226,6 @@ class StoreTournamentRequest extends FormRequest
             $v = $this->input('creator_join');
             $boolNormalized['creator_join'] = $v;
         }
-
-        $nullableKeys = ['main_phone', 'sub_phone', 'min_level', 'max_level'];
-
-        $normalized = [];
-        foreach ($nullableKeys as $key) {
-            if (!$this->has($key)) {
-                continue;
-            }
-            $v = $this->input($key);
-            if ($v === '' || $v === null) {
-                $normalized[$key] = null;
-            }
-        }
-
-        $this->merge($normalized);
 
         $this->merge($boolNormalized);
 
