@@ -39,7 +39,7 @@ class TeamController extends Controller
     {
         $maxPlayers = $tournament->player_per_team;
         $currentCount = $team->members()->count();
-        $existingMemberIds = $team->members()->pluck('users.id')->toArray();
+        $existingParticipantIds = $team->members()->pluck('participant_id')->filter()->toArray();
 
         $validParticipantIds = [];
         $errors = [];
@@ -48,7 +48,7 @@ class TeamController extends Controller
         $participants = Participant::whereIn('id', $participantIds)
             ->where('tournament_id', $tournament->id)
             ->where('is_confirmed', true)
-            ->whereNotIn('user_id', $existingMemberIds)
+            ->whereNotIn('id', $existingParticipantIds)
             ->get()
             ->keyBy('id');
 
@@ -70,9 +70,56 @@ class TeamController extends Controller
         }
 
         if (!empty($validParticipantIds)) {
-            $userIds = $participants->only($validParticipantIds)->pluck('user_id')->toArray();
-            $team->members()->attach($userIds);
+            $participantsData = [];
+            foreach ($validParticipantIds as $pid) {
+                $participantsData[$participants[$pid]->user_id] = ['participant_id' => $pid];
+            }
+            $team->members()->attach($participantsData);
         }
+
+        return $errors;
+    }
+
+    /**
+     * Thay đổi toàn bộ thành viên của đội (dùng cho update).
+     */
+    private function syncMembersToTeam(Team $team, Tournament $tournament, array $participantIds): array
+    {
+        $maxPlayers = $tournament->player_per_team;
+        $errors = [];
+
+        // Validate participants
+        $participants = Participant::whereIn('id', $participantIds)
+            ->where('tournament_id', $tournament->id)
+            ->where('is_confirmed', true)
+            ->get()
+            ->keyBy('id');
+
+        // Kiểm tra số lượng
+        if ($maxPlayers && count($participantIds) > $maxPlayers) {
+            $errors[] = "Số lượng thành viên vượt quá tối đa {$maxPlayers}";
+            return $errors;
+        }
+
+        foreach ($participantIds as $pid) {
+            if (!isset($participants[$pid])) {
+                $errors[] = "Thành viên ID {$pid} không hợp lệ hoặc chưa được xác nhận tham gia giải đấu";
+            }
+        }
+
+        if (!empty($errors)) {
+            return $errors;
+        }
+
+        // Xoá toàn bộ member cũ
+        $team->members()->delete();
+
+        // Thêm members mới
+        $participantsData = [];
+        foreach ($participantIds as $pid) {
+            $participantsData[$participants[$pid]->user_id] = ['participant_id' => $pid];
+        }
+        $team->members()->attach($participantsData);
 
         return $errors;
     }
@@ -211,11 +258,11 @@ class TeamController extends Controller
 
         $team->save();
 
-        // Cập nhật thành viên nếu có participant_ids
+        // Cập nhật thành viên nếu có participant_ids (thay thế toàn bộ)
         if (isset($validated['participant_ids'])) {
-            $errors = $this->addMembersToTeam($team, $tournament, $validated['participant_ids']);
+            $errors = $this->syncMembersToTeam($team, $tournament, $validated['participant_ids']);
             if (!empty($errors)) {
-                // Load lại team sau khi thêm members
+                // Load lại team sau khi sync members
                 $team->load($this->withMembersRelations());
                 TournamentTeamMemberHydrator::hydrateTeam($team, $team->tournament_id);
 
