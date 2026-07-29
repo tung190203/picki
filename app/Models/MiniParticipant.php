@@ -38,6 +38,8 @@ class MiniParticipant extends Model
         'self_confirmed',
         'player_group',
         'modified_score',
+        'match_tier',
+        'skip_next_round',
     ];
 
     protected $casts = [
@@ -55,6 +57,8 @@ class MiniParticipant extends Model
         'is_pending_confirmation' => 'boolean',
         'self_confirmed' => 'boolean',
         'modified_score' => 'decimal:2',
+        'match_tier' => 'string',
+        'skip_next_round' => 'boolean',
     ];
 
     const PER_PAGE = 20;

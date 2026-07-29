@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Helpers\ResponseHelper;
 use App\Models\MiniTournamentTemplate;
+use App\Support\TournamentSettingsNormalizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -45,7 +46,7 @@ class MiniTournamentTemplateController extends Controller
         $template = MiniTournamentTemplate::create([
             'user_id' => $userId,
             'name' => $validated['name'],
-            'settings' => $validated['settings'],
+            'settings' => TournamentSettingsNormalizer::normalizeMiniTournamentSettings($validated['settings']),
         ]);
 
         return ResponseHelper::success(
@@ -76,7 +77,7 @@ class MiniTournamentTemplateController extends Controller
 
         $template->update([
             'name' => $validated['name'],
-            'settings' => $validated['settings'],
+            'settings' => TournamentSettingsNormalizer::normalizeMiniTournamentSettings($validated['settings']),
         ]);
 
         return ResponseHelper::success(

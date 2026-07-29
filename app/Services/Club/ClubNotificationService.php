@@ -268,16 +268,9 @@ class ClubNotificationService
         $recipientUserIds = $notification->recipients()->pluck('user_id')->unique();
         $users = User::whereIn('id', $recipientUserIds)->get();
 
-        $title = $notification->title ?: 'Thông báo từ CLB';
-        $body = $notification->content ?: $club->name;
-
         foreach ($users as $user) {
             $user->notify(new ClubNotificationSentNotification($club, $notification));
-            SendPushJob::dispatch($user->id, $title, $body, [
-                'type' => 'CLUB_NOTIFICATION',
-                'club_id' => (string) $club->id,
-                'club_notification_id' => (string) $notification->id,
-            ]);
+            // FCM được gửi qua SendPushNotificationListener → SendPushJob
         }
     }
 

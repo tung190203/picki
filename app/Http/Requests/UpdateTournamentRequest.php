@@ -17,8 +17,8 @@ class UpdateTournamentRequest extends FormRequest
             'poster' => 'nullable|image|max:5120',
             'remove_poster' => 'nullable|boolean',
             'sport_id' => 'nullable|exists:sports,id',
-            'name' => 'nullable|string',
-            'competition_location_id' => 'nullable|exists:competition_locations,id',
+            'name' => 'sometimes|required|string|max:255',
+            'competition_location_id' => 'sometimes|required|exists:competition_locations,id',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date',
             'registration_open_at' => 'nullable|date',
@@ -134,14 +134,18 @@ class UpdateTournamentRequest extends FormRequest
 
             // Thông tin cơ bản
             'sport_id.exists' => 'Môn thể thao không tồn tại hoặc đã bị xóa',
+            'name.required' => 'Vui lòng nhập tên giải đấu',
             'name.string' => 'Tên giải đấu phải là chuỗi ký tự',
             'name.max' => 'Tên giải đấu không được vượt quá 255 ký tự',
 
             // Địa điểm
+            'competition_location_id.required' => 'Vui lòng chọn địa điểm thi đấu',
             'competition_location_id.exists' => 'Địa điểm thi đấu không hợp lệ',
 
             // Thời gian
+            'start_date.required' => 'Ngày bắt đầu là bắt buộc',
             'start_date.date' => 'Ngày bắt đầu không hợp lệ',
+            'start_date.after_or_equal' => 'Ngày bắt đầu phải là ngày hiện tại hoặc trong tương lai',
             'end_date.date' => 'Ngày kết thúc không hợp lệ',
             'registration_open_at.date' => 'Thời gian mở đăng ký không hợp lệ',
             'registration_closed_at.date' => 'Thời gian đóng đăng ký không hợp lệ',
@@ -158,10 +162,13 @@ class UpdateTournamentRequest extends FormRequest
 
             // Hình thức tham gia
             'participant.in' => 'Hình thức tham gia không hợp lệ (team hoặc user)',
+            'max_team.required' => 'Vui lòng nhập số đội tối đa',
             'max_team.required_if' => 'Vui lòng nhập số đội tối đa khi chọn hình thức thi đấu theo đội',
             'max_team.integer' => 'Số đội tối đa phải là số nguyên',
+            'player_per_team.required' => 'Vui lòng nhập số người mỗi đội',
             'player_per_team.required_if' => 'Vui lòng nhập số người mỗi đội khi chọn hình thức thi đấu theo đội',
             'player_per_team.integer' => 'Số người mỗi đội phải là số nguyên',
+            'max_player.required' => 'Vui lòng nhập số người chơi tối đa',
             'max_player.required_if' => 'Vui lòng nhập số người chơi tối đa khi chọn hình thức thi đấu cá nhân',
             'max_player.integer' => 'Số người chơi tối đa phải là số nguyên',
 
@@ -227,7 +234,12 @@ class UpdateTournamentRequest extends FormRequest
             };
         }
 
-        $nullableKeys = ['main_phone', 'sub_phone', 'min_level', 'max_level'];
+        $nullableKeys = [
+            'main_phone', 'sub_phone', 'min_level', 'max_level',
+            'competition_location_id', 'club_id', 'fee_amount',
+            'max_team', 'player_per_team', 'max_player',
+            'duration', 'age_group', 'gender_policy',
+        ];
         $nullableNormalized = [];
         foreach ($nullableKeys as $key) {
             if (!$this->has($key)) {
