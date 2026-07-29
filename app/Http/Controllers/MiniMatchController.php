@@ -320,7 +320,7 @@ class MiniMatchController extends Controller
     {
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
 
-        if (!$miniTournament->hasOrganizer(Auth::id())) {
+        if (!$miniTournament->hasOrganizerOrStaff(Auth::id())) {
             return ResponseHelper::error('Bạn không có quyền tạo trận đấu', 403);
         }
 
@@ -450,7 +450,7 @@ class MiniMatchController extends Controller
             }
         }
 
-        if (!$miniTournament->hasOrganizer(Auth::id())) {
+        if (!$miniTournament->hasOrganizerOrStaff(Auth::id())) {
             return ResponseHelper::error('Bạn không có quyền sửa trận đấu', 403);
         }
 
@@ -677,8 +677,8 @@ class MiniMatchController extends Controller
     {
         $match = MiniMatch::with('miniTournament')->findOrFail($matchId);
         $tournament = $match->miniTournament->load('staff');
-        // Kiểm tra quyền xoá kết quả (chỉ organizer được xoá)
-        if (!$tournament->hasOrganizer(Auth::id())) {
+        // Kiểm tra quyền xoá kết quả (organizer hoặc referee được xoá)
+        if (!$tournament->hasOrganizerOrStaff(Auth::id())) {
             return ResponseHelper::error('Người dùng không có quyền xoá kết quả trận đấu trong kèo đấu này', 403);
         }
 
@@ -714,7 +714,7 @@ class MiniMatchController extends Controller
 
         foreach ($matches as $match) {
             $tournament = $match->miniTournament->load('staff');
-            if (!$tournament->hasOrganizer(Auth::id())) {
+            if (!$tournament->hasOrganizerOrStaff(Auth::id())) {
                 return ResponseHelper::error('Người dùng không có quyền xoá trận đấu này', 403);
             }
             if (!$match->isEditable()) {
@@ -766,8 +766,8 @@ class MiniMatchController extends Controller
             }
         }
 
-        // Kèo chưa công bố (status = 1 = STATUS_DRAFT): chỉ organizer mới thao tác được
-        if ($miniTournament->status === MiniTournament::STATUS_DRAFT && !$miniTournament->hasOrganizer(Auth::id())) {
+        // Kèo chưa công bố (status = 1 = STATUS_DRAFT): chỉ organizer hoặc referee mới thao tác được
+        if ($miniTournament->status === MiniTournament::STATUS_DRAFT && !$miniTournament->hasOrganizerOrStaff(Auth::id())) {
             return ResponseHelper::error('Kèo đấu chưa được công bố', 403);
         }
 
@@ -779,10 +779,14 @@ class MiniMatchController extends Controller
         $sportId = $tournament->sport_id;
         $currentUserId = Auth::id();
         $isOrganizer = $tournament->hasOrganizer($currentUserId);
+        $isReferee = $tournament->hasReferee($currentUserId);
 
         // Kiểm tra quyền xác nhận
+        // - Organizer: xác nhận trực tiếp (không cần đợi 2 đội)
+        // - Referee: xác nhận trực tiếp (không cần đợi 2 đội)
+        // - Người chơi trong đội: cần cả 2 đội confirm
         $userTeam = null;
-        if (!$isOrganizer) {
+        if (!$isOrganizer && !$isReferee) {
             if ($match->team1->members->contains('user_id', $currentUserId)) {
                 $userTeam = $match->team1;
             } elseif ($match->team2->members->contains('user_id', $currentUserId)) {
@@ -803,8 +807,9 @@ class MiniMatchController extends Controller
         }
 
         // Thực hiện confirm
-        $result = DB::transaction(function () use ($match, $isOrganizer, $userTeam, $sportId) {
-            if ($isOrganizer) {
+        $result = DB::transaction(function () use ($match, $isOrganizer, $isReferee, $userTeam, $sportId) {
+            if ($isOrganizer || $isReferee) {
+                // Organizer hoặc referee xác nhận trực tiếp, không cần đợi 2 đội
                 $match->team1_confirm = true;
                 $match->team2_confirm = true;
             } else {
