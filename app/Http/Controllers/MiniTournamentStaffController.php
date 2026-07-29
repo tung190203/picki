@@ -6,6 +6,7 @@ use App\Events\SuperAdmin\MiniTournamentMemberAdded;
 use App\Helpers\ResponseHelper;
 use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -15,8 +16,9 @@ class MiniTournamentStaffController extends Controller
     {
         $validatedData = $request->validate([
             'staff_id' => 'required|integer|exists:users,id',
+            'role' => 'sometimes|integer|in:' . MiniTournamentStaff::ROLE_ORGANIZER . ',' . MiniTournamentStaff::ROLE_REFEREE,
         ]);
-    
+
         $tournament = MiniTournament::findOrFail($tournamentId);
 
         $isOrganizer = $tournament->hasOrganizer(Auth::id());
@@ -25,12 +27,14 @@ class MiniTournamentStaffController extends Controller
             return ResponseHelper::error('Bạn không có quyền thêm người tổ chức', 403);
         }
         $staffId = $validatedData['staff_id'];
+        $role = $validatedData['role'] ?? MiniTournamentStaff::ROLE_ORGANIZER;
+
         if ($tournament->staff()->where('user_id', $staffId)->exists()) {
-            return ResponseHelper::error('Người dùng này đã là người tổ chức của giải đấu.', 409);
+            return ResponseHelper::error('Người dùng này đã là thành viên ban tổ chức của giải đấu.', 409);
         }
 
         $tournament->staff()->attach($staffId, [
-            'role' => MiniTournamentStaff::ROLE_ORGANIZER
+            'role' => $role
         ]);
 
         $staffUser = User::find($staffId);
@@ -45,11 +49,12 @@ class MiniTournamentStaffController extends Controller
                     'full_name' => $staffUser->full_name,
                     'avatar_url' => $staffUser->avatar_url,
                 ],
-                'role' => MiniTournamentStaff::ROLE_ORGANIZER,
+                'role' => $role,
             ],
             'staff'
         );
 
-        return ResponseHelper::success(['message' => 'Thêm người tổ chức thành công'], 201);
+        $roleText = MiniTournamentStaff::getRoleText($role);
+        return ResponseHelper::success(['message' => "Thêm {$roleText} thành công"], 201);
     }
 }

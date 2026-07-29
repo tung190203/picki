@@ -32,6 +32,98 @@ class TeamController extends Controller
         return ['members.sports.scores', 'members.sports.sport'];
     }
 
+    /**
+     * Thêm nhiều thành viên vào đội cùng lúc.
+     */
+    private function addMembersToTeam(Team $team, Tournament $tournament, array $participantIds): array
+    {
+        $maxPlayers = $tournament->player_per_team;
+        $currentCount = $team->members()->count();
+        $existingParticipantIds = $team->members()->pluck('participant_id')->filter()->toArray();
+
+        $validParticipantIds = [];
+        $errors = [];
+
+        // Validate và lọc participants hợp lệ
+        $participants = Participant::whereIn('id', $participantIds)
+            ->where('tournament_id', $tournament->id)
+            ->where('is_confirmed', true)
+            ->whereNotIn('id', $existingParticipantIds)
+            ->get()
+            ->keyBy('id');
+
+        foreach ($participantIds as $pid) {
+            if (!isset($participants[$pid])) {
+                if (!in_array($pid, $validParticipantIds)) {
+                    $errors[] = "Thành viên ID {$pid} không hợp lệ hoặc đã nằm trong đội khác";
+                }
+                continue;
+            }
+
+            // Kiểm tra số lượng tối đa
+            if ($maxPlayers && ($currentCount + count($validParticipantIds)) >= $maxPlayers) {
+                $errors[] = "Đội đã đạt số lượng tối đa {$maxPlayers} thành viên";
+                break;
+            }
+
+            $validParticipantIds[] = $pid;
+        }
+
+        if (!empty($validParticipantIds)) {
+            $participantsData = [];
+            foreach ($validParticipantIds as $pid) {
+                $participantsData[$participants[$pid]->user_id] = ['participant_id' => $pid];
+            }
+            $team->members()->attach($participantsData);
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Thay đổi toàn bộ thành viên của đội (dùng cho update).
+     */
+    private function syncMembersToTeam(Team $team, Tournament $tournament, array $participantIds): array
+    {
+        $maxPlayers = $tournament->player_per_team;
+        $errors = [];
+
+        // Validate participants
+        $participants = Participant::whereIn('id', $participantIds)
+            ->where('tournament_id', $tournament->id)
+            ->where('is_confirmed', true)
+            ->get()
+            ->keyBy('id');
+
+        // Kiểm tra số lượng
+        if ($maxPlayers && count($participantIds) > $maxPlayers) {
+            $errors[] = "Số lượng thành viên vượt quá tối đa {$maxPlayers}";
+            return $errors;
+        }
+
+        foreach ($participantIds as $pid) {
+            if (!isset($participants[$pid])) {
+                $errors[] = "Thành viên ID {$pid} không hợp lệ hoặc chưa được xác nhận tham gia giải đấu";
+            }
+        }
+
+        if (!empty($errors)) {
+            return $errors;
+        }
+
+        // Xoá toàn bộ member cũ
+        $team->members()->delete();
+
+        // Thêm members mới
+        $participantsData = [];
+        foreach ($participantIds as $pid) {
+            $participantsData[$participants[$pid]->user_id] = ['participant_id' => $pid];
+        }
+        $team->members()->attach($participantsData);
+
+        return $errors;
+    }
+
     public function listTeams(Request $request, $tournamentId)
     {
         $validated = $request->validate([
@@ -66,6 +158,8 @@ class TeamController extends Controller
             [
                 'name' => 'required|string|max:255',
                 'avatar' => 'nullable|image|max:2048',
+                'participant_ids' => 'nullable|array',
+                'participant_ids.*' => 'integer|exists:participants,id',
             ],
             [
                 'name.required' => 'Vui lòng nhập tên đội',
@@ -73,10 +167,13 @@ class TeamController extends Controller
                 'name.max' => 'Tên đội không được vượt quá 255 ký tự',
                 'avatar.image' => 'Ảnh đại diện phải là một tệp hình ảnh',
                 'avatar.max' => 'Ảnh đại diện không được vượt quá 2MB',
+                'participant_ids.array' => 'Danh sách thành viên phải là một mảng',
+                'participant_ids.*.integer' => 'ID thành viên phải là số nguyên',
+                'participant_ids.*.exists' => 'Thành viên không tồn tại trong giải đấu',
             ]
         );
 
-        $tournament = Tournament::findOrFail($tournamentId);
+        $tournament = Tournament::with('staff')->findOrFail($tournamentId);
         if ($tournament->max_team && $tournament->teams()->count() >= $tournament->max_team) {
             return ResponseHelper::error('Đã đạt số lượng đội tối đa cho giải đấu', 400);
         }
@@ -84,9 +181,7 @@ class TeamController extends Controller
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền tạo đội', 400);
         }
-        // if ($tournament->tournamentTypes()->exists()) {
-        //     return ResponseHelper::error('Không thể tạo đội khi giải đấu đã có loại hình thi đấu', 400);
-        // }
+
         $avatarPath = null;
         if ($request->hasFile('avatar')) {
             $avatarPath = $this->imageService->optimize(
@@ -101,6 +196,12 @@ class TeamController extends Controller
             'avatar' => $avatarPath,
         ]);
 
+        // Thêm thành viên vào đội nếu có participant_ids
+        $participantIds = $validated['participant_ids'] ?? [];
+        if (!empty($participantIds)) {
+            $this->addMembersToTeam($team, $tournament, $participantIds);
+        }
+
         $team->load($this->withMembersRelations());
         TournamentTeamMemberHydrator::hydrateTeam($team, $tournament->id);
 
@@ -113,16 +214,24 @@ class TeamController extends Controller
             [
                 'name' => 'sometimes|required|string|max:255',
                 'avatar' => 'nullable',
+                'participant_ids' => 'nullable|array',
+                'participant_ids.*' => 'integer|exists:participants,id',
             ],
             [
                 'name.required' => 'Vui lòng nhập tên đội',
                 'name.string' => 'Tên đội phải là chuỗi ký tự',
                 'name.max' => 'Tên đội không được vượt quá 255 ký tự',
+                'participant_ids.array' => 'Danh sách thành viên phải là một mảng',
+                'participant_ids.*.integer' => 'ID thành viên phải là số nguyên',
+                'participant_ids.*.exists' => 'Thành viên không tồn tại trong giải đấu',
             ]
         );
 
         $team = Team::findOrFail($request->route('teamId'));
         $tournament = $team->tournament;
+        if (!$tournament->relationLoaded('staff')) {
+            $tournament->load('staff');
+        }
         $isOrganizer = $tournament->hasOrganizer(Auth::id());
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền thay đổi vào đội', 400);
@@ -149,6 +258,21 @@ class TeamController extends Controller
 
         $team->save();
 
+        // Cập nhật thành viên nếu có participant_ids (thay thế toàn bộ)
+        if (isset($validated['participant_ids'])) {
+            $errors = $this->syncMembersToTeam($team, $tournament, $validated['participant_ids']);
+            if (!empty($errors)) {
+                // Load lại team sau khi sync members
+                $team->load($this->withMembersRelations());
+                TournamentTeamMemberHydrator::hydrateTeam($team, $team->tournament_id);
+
+                return ResponseHelper::success([
+                    'team' => new TeamResource($team),
+                    'warnings' => $errors,
+                ], 'Cập nhật đội thành công với một số cảnh báo');
+            }
+        }
+
         $team->load($this->withMembersRelations());
         TournamentTeamMemberHydrator::hydrateTeam($team, $team->tournament_id);
 
@@ -172,6 +296,9 @@ class TeamController extends Controller
 
         $team = Team::findOrFail($teamId);
         $tournament = $team->tournament;
+        if (!$tournament->relationLoaded('staff')) {
+            $tournament->load('staff');
+        }
         $isOrganizer = $tournament->hasOrganizer(Auth::id());
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền thêm người vào đội', 400);
@@ -206,7 +333,7 @@ class TeamController extends Controller
 
     public function autoAssignTeams($tournamentId)
     {
-        $tournament = Tournament::findOrFail($tournamentId);
+        $tournament = Tournament::with('staff')->findOrFail($tournamentId);
         $isOrganizer = $tournament->hasOrganizer(Auth::id());
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền tự động chia đội', 400);
@@ -294,6 +421,9 @@ class TeamController extends Controller
             ]
         );
         $tournament = Team::findOrFail($teamId)->tournament;
+        if (!$tournament->relationLoaded('staff')) {
+            $tournament->load('staff');
+        }
         $isOrganizer = $tournament->hasOrganizer(Auth::id());
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền xoá thành viên khỏi đội', 400);
@@ -328,6 +458,9 @@ class TeamController extends Controller
     {
         $team = Team::findOrFail($teamId);
         $tournament = $team->tournament;
+        if (!$tournament->relationLoaded('staff')) {
+            $tournament->load('staff');
+        }
         $isOrganizer = $tournament->hasOrganizer(Auth::id());
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền xoá đội', 400);

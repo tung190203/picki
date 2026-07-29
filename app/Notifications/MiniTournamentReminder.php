@@ -2,11 +2,9 @@
 
 namespace App\Notifications;
 
-use App\Services\FirebaseService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
-use NotificationChannels\WebPush\WebPushMessage;
 
 class MiniTournamentReminder extends Notification
 {
@@ -21,34 +19,7 @@ class MiniTournamentReminder extends Notification
 
     public function via($notifiable)
     {
-        $channels = ['database'];
-
-        // Push FCM rõ ràng qua FirebaseService, không phụ thuộc notification channel mặc định
-        if ($this->firebaseEnabled()) {
-            $this->sendPushNotification($notifiable);
-        }
-
-        return $channels;
-    }
-
-    protected function firebaseEnabled(): bool
-    {
-        return app(FirebaseService::class)->isConfigured();
-    }
-
-    protected function sendPushNotification($notifiable): void
-    {
-        $data = [
-            'type' => 'MINI_TOURNAMENT_REMINDER',
-            'mini_tournament_id' => (string) $this->miniTournament->id,
-        ];
-
-        app(FirebaseService::class)->sendToUser(
-            $notifiable->id,
-            $this->miniTournament->name,
-            "Kèo đấu '{$this->miniTournament->name}' sẽ bắt đầu lúc {$this->miniTournament->start_time}",
-            $data
-        );
+        return ['database'];
     }
 
     public function toDatabase($notifiable)

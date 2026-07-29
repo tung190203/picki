@@ -32,4 +32,20 @@ class ClubNotificationSentNotification extends ClubNotificationBase
             'created_by' => $this->clubNotification->created_by,
         ]);
     }
+
+    public function toFcm(object $notifiable): array
+    {
+        $title = $this->clubNotification->title ?: 'Thông báo từ CLB';
+        $body = (string) ($this->clubNotification->content ?: $this->club->name);
+
+        return [
+            'title' => $title,
+            'body' => $body,
+            'data' => [
+                'type' => 'CLUB_NOTIFICATION',
+                'club_id' => (string) $this->club->id,
+                'club_notification_id' => (string) $this->clubNotification->id,
+            ],
+        ];
+    }
 }
