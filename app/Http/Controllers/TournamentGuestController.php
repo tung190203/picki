@@ -192,6 +192,7 @@ class TournamentGuestController extends Controller
             $organizers = $tournament->staff()
                 ->wherePivot('role', TournamentStaff::ROLE_ORGANIZER)
                 ->where('users.id', '!=', Auth::id())
+                ->where('users.id', '!=', $guarantorUserId) // Loại trừ guarantor để tránh duplicate
                 ->get();
 
             foreach ($organizers as $organizer) {

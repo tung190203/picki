@@ -55,6 +55,6 @@ class MiniTournamentStaffController extends Controller
         );
 
         $roleText = MiniTournamentStaff::getRoleText($role);
-        return ResponseHelper::success(['message' => "Thêm {$roleText} thành công"], 201);
+        return ResponseHelper::success(null, "Thêm {$roleText} thành công", 201);
     }
 }

@@ -268,11 +268,12 @@ class GuestController extends Controller
             }
         }
 
-        // Nếu là VĐV bảo lãnh (chờ BTC duyệt), thông báo cho tất cả organizers
+        // Nếu là VĐV bảo lãnh (chờ BTC duyệt), thông báo cho tất cả organizers (trừ người tạo và trừ guarantor để tránh duplicate)
         if ($isPendingConfirmation) {
             $organizers = $miniTournament->staff()
                 ->where('mini_tournament_staff.role', MiniTournamentStaff::ROLE_ORGANIZER)
                 ->where('users.id', '!=', auth()->id())
+                ->where('users.id', '!=', $guarantorUserId) // Loại trừ guarantor để tránh duplicate
                 ->get();
 
             foreach ($organizers as $organizer) {

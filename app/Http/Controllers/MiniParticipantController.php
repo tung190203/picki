@@ -251,7 +251,7 @@ class MiniParticipantController extends Controller
                 $user = User::find($userId);
 
                 if ($isSuperAdmin && !$isInviteAround) {
-                    $user->notify(new MiniTournamentCreatorInvitationNotification($participant, Auth::id()));
+                    // Super admin tạo participant không cần notify
                 } else {
                     $user->notify(new MiniTournamentCreatorInvitationNotification($participant, Auth::id()));
                 }
