@@ -58,6 +58,8 @@ class MiniParticipantController extends Controller
 
         $participants = $query->paginate($validated['per_page'] ?? MiniParticipant::PER_PAGE);
 
+        $this->tournamentService->loadPlayedMatchesForParticipants($participants, $tournamentId);
+
         $data = [
             'participants' => MiniParticipantResource::collection($participants),
         ];
@@ -251,7 +253,7 @@ class MiniParticipantController extends Controller
                 $user = User::find($userId);
 
                 if ($isSuperAdmin && !$isInviteAround) {
-                    $user->notify(new MiniTournamentCreatorInvitationNotification($participant, Auth::id()));
+                    // Super admin tạo participant không cần notify
                 } else {
                     $user->notify(new MiniTournamentCreatorInvitationNotification($participant, Auth::id()));
                 }

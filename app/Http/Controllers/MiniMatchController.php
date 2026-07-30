@@ -109,6 +109,9 @@ class MiniMatchController extends Controller
             ->where('is_confirmed', true)
             ->get();
 
+        app(\App\Services\MiniTournamentService::class)
+            ->loadPlayedMatchesForParticipants($participants, $miniTournament->id);
+
         // Pre-compute statistics from the already-loaded $participants collection
         // instead of issuing additional DB queries per statistic.
         $groupedStats = $participants->reduce(function ($carry, $p) {
@@ -807,7 +810,8 @@ class MiniMatchController extends Controller
         }
 
         // Thực hiện confirm
-        $result = DB::transaction(function () use ($match, $isOrganizer, $isReferee, $userTeam, $sportId) {
+        $matchFullyConfirmed = false;
+        $result = DB::transaction(function () use ($match, $isOrganizer, $isReferee, $userTeam, $sportId, &$matchFullyConfirmed) {
             if ($isOrganizer || $isReferee) {
                 // Organizer hoặc referee xác nhận trực tiếp, không cần đợi 2 đội
                 $match->team1_confirm = true;
@@ -817,7 +821,9 @@ class MiniMatchController extends Controller
                 if ($userTeam->id === $match->team2_id) $match->team2_confirm = true;
             }
 
-            if ($match->team1_confirm && $match->team2_confirm) {
+            $matchFullyConfirmed = $match->team1_confirm && $match->team2_confirm;
+
+            if ($matchFullyConfirmed) {
                 $this->processMatchCompletion($match, $sportId);
                 $this->checkRoundActivation($match);
             }
@@ -826,24 +832,27 @@ class MiniMatchController extends Controller
             return $match;
         });
 
-        $team1UserIds = $match->team1->members()->pluck('user_id')->toArray();
-        $team2UserIds = $match->team2->members()->pluck('user_id')->toArray();
-        $allParticipantIds = array_unique(array_merge($team1UserIds, $team2UserIds));
-        $recipientIds = array_diff($allParticipantIds, [$currentUserId]);
+        // Chỉ gửi notification khi trận đấu được xác nhận hoàn toàn (cả 2 đội đã confirm)
+        if ($matchFullyConfirmed) {
+            $team1UserIds = $match->team1->members()->pluck('user_id')->toArray();
+            $team2UserIds = $match->team2->members()->pluck('user_id')->toArray();
+            $allParticipantIds = array_unique(array_merge($team1UserIds, $team2UserIds));
+            $recipientIds = array_diff($allParticipantIds, [$currentUserId]);
 
-        if (!empty($recipientIds)) {
-            $users = User::whereIn('id', $recipientIds)->get();
-            foreach ($users as $user) {
-                $user->notify(new MiniMatchResultConfirmedNotification($match));
+            if (!empty($recipientIds)) {
+                $users = User::whereIn('id', $recipientIds)->get();
+                foreach ($users as $user) {
+                    $user->notify(new MiniMatchResultConfirmedNotification($match));
+                }
             }
         }
 
-        $confirmedByOrganizer = $isOrganizer;
-        $confirmedByPlayer    = !$isOrganizer && $userTeam;
+        $confirmedByOrganizer = $isOrganizer || $isReferee;
+        $confirmedByPlayer    = !$isOrganizer && !$isReferee && $userTeam;
         $actorName = auth()->user()->full_name;
 
-        if ($confirmedByPlayer) {
-
+        // Thông báo riêng về việc ai đã xác nhận (chỉ khi chưa fully confirmed)
+        if (!$matchFullyConfirmed && $confirmedByPlayer) {
             $opponentTeam = $userTeam->id === $match->team1_id
                 ? $match->team2
                 : $match->team1;
@@ -861,32 +870,6 @@ class MiniMatchController extends Controller
                     'type' => 'MINI_MATCH_CONFIRM',
                     'match_id' => $match->id,
                     'by' => 'player',
-                ]
-            );
-        }
-
-        if ($confirmedByOrganizer) {
-
-            $team1UserIds = $match->team1->members()
-                ->where('user_id', '!=', $currentUserId)
-                ->pluck('user_id')
-                ->toArray();
-
-            $team2UserIds = $match->team2->members()
-                ->where('user_id', '!=', $currentUserId)
-                ->pluck('user_id')
-                ->toArray();
-
-            $recipientIds = array_unique(array_merge($team1UserIds, $team2UserIds));
-
-            $this->pushToUsers(
-                $recipientIds,
-                'Kết quả kèo đấu đã được xác nhận',
-                'Ban tổ chức đã xác nhận kết quả kèo đấu',
-                [
-                    'type' => 'MINI_MATCH_CONFIRM',
-                    'match_id' => $match->id,
-                    'by' => 'organizer',
                 ]
             );
         }
