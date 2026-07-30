@@ -109,6 +109,9 @@ class MiniMatchController extends Controller
             ->where('is_confirmed', true)
             ->get();
 
+        app(\App\Services\MiniTournamentService::class)
+            ->loadPlayedMatchesForParticipants($participants, $miniTournament->id);
+
         // Pre-compute statistics from the already-loaded $participants collection
         // instead of issuing additional DB queries per statistic.
         $groupedStats = $participants->reduce(function ($carry, $p) {

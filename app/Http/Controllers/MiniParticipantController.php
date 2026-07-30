@@ -58,6 +58,8 @@ class MiniParticipantController extends Controller
 
         $participants = $query->paginate($validated['per_page'] ?? MiniParticipant::PER_PAGE);
 
+        $this->tournamentService->loadPlayedMatchesForParticipants($participants, $tournamentId);
+
         $data = [
             'participants' => MiniParticipantResource::collection($participants),
         ];

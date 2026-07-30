@@ -55,6 +55,7 @@ class MiniParticipantResource extends JsonResource
             'player_group' => $this->player_group,
             'modified_score' => $this->modified_score,
             'effective_score' => $this->effective_score,
+            'played_matches' => $this->played_matches,
         ];
     }
 }
