@@ -111,8 +111,8 @@ class TeamController extends Controller
             return $errors;
         }
 
-        // Xoá toàn bộ member cũ
-        $team->members()->delete();
+        // Xoá toàn bộ member cũ (bao gồm soft-deleted)
+        $team->members()->withTrashed()->forceDelete();
 
         // Thêm members mới
         $participantsData = [];
