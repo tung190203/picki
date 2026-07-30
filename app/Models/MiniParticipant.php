@@ -263,4 +263,5 @@ class MiniParticipant extends Model
 
         return $vnduprScore !== null ? (float) $vnduprScore : null;
     }
+
 }

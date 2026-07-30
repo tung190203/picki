@@ -22,6 +22,11 @@ class MiniTournamentResource extends JsonResource
             ? $model->participants
             : collect();
 
+        if ($participants->isNotEmpty()) {
+            app(\App\Services\MiniTournamentService::class)
+                ->loadPlayedMatchesForParticipants($participants, $this->id);
+        }
+
         $qrUrl = $this->qr_code_url;
         if ($qrUrl && !str_starts_with($qrUrl, 'http')) {
             $qrUrl = asset('storage/' . ltrim($qrUrl, '/'));
