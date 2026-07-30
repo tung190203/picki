@@ -705,4 +705,80 @@ class MiniTournamentService
 
         return count($deleteIds);
     }
+
+    /**
+     * Load played_matches for a collection of participants.
+     * Counts completed matches based on team membership.
+     */
+    public function loadPlayedMatchesForParticipants(
+        \Illuminate\Support\Collection $participants,
+        int $miniTournamentId
+    ): void {
+        if ($participants->isEmpty()) {
+            return;
+        }
+
+        // Get all user IDs from participants
+        $userIds = $participants->pluck('user_id')->filter()->unique()->values();
+        if ($userIds->isEmpty()) {
+            return;
+        }
+
+        // Get all team IDs that belong to these users in this tournament
+        $teamMembers = DB::table('mini_team_members as mtm')
+            ->join('mini_teams as mt', 'mt.id', '=', 'mtm.mini_team_id')
+            ->where('mt.mini_tournament_id', $miniTournamentId)
+            ->whereIn('mtm.user_id', $userIds)
+            ->get(['mtm.user_id', 'mtm.mini_team_id']);
+
+        // Build lookup: user_id => [team_ids]
+        $userTeams = [];
+        $teamUsers = [];
+        foreach ($teamMembers as $tm) {
+            $userTeams[$tm->user_id][] = $tm->mini_team_id;
+            $teamUsers[$tm->mini_team_id][] = $tm->user_id;
+        }
+
+        if (empty($teamUsers)) {
+            return;
+        }
+
+        $teamIds = array_keys($teamUsers);
+
+        // Get all completed matches for these teams in this tournament
+        $matches = DB::table('mini_matches')
+            ->where('mini_tournament_id', $miniTournamentId)
+            ->where('status', MiniMatch::STATUS_COMPLETED)
+            ->where(function ($query) use ($teamIds) {
+                $query->whereIn('team1_id', $teamIds)
+                      ->orWhereIn('team2_id', $teamIds);
+            })
+            ->get(['id', 'team1_id', 'team2_id']);
+
+        // Count matches per user
+        $playedMatchesByUserId = [];
+        foreach ($teamMembers as $tm) {
+            $playedMatchesByUserId[$tm->user_id] = 0;
+        }
+
+        foreach ($matches as $match) {
+            // Both team1 and team2 count as played matches
+            if (isset($teamUsers[$match->team1_id])) {
+                foreach ($teamUsers[$match->team1_id] as $userId) {
+                    $playedMatchesByUserId[$userId]++;
+                }
+            }
+            if (isset($teamUsers[$match->team2_id])) {
+                foreach ($teamUsers[$match->team2_id] as $userId) {
+                    $playedMatchesByUserId[$userId]++;
+                }
+            }
+        }
+
+        // Assign played_matches to each participant
+        foreach ($participants as $participant) {
+            $userId = $participant->user_id;
+            $participant->played_matches = (int) ($playedMatchesByUserId[$userId] ?? 0);
+        }
+    }
 }

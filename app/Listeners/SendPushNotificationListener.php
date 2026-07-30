@@ -14,6 +14,12 @@ class SendPushNotificationListener
             return;
         }
 
+        // Chỉ xử lý cho channel 'database' để tránh duplicate FCM
+        // (channel 'broadcast' cũng fire NotificationSent event nhưng nội dung giống nhau)
+        if ($event->channel !== 'database') {
+            return;
+        }
+
         $payload = $this->resolvePayload($event);
 
         if ($payload === null) {

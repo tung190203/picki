@@ -141,10 +141,8 @@ const selectedSports = reactive([]);
 
 const sportSkillLevels = [
     { value: 1, label: "1.0" },
+    { value: 1.5, label: "1.5" },
     { value: 2, label: "2.0" },
-    { value: 3, label: "3.0" },
-    { value: 4, label: "4.0" },
-    { value: 5, label: "5.0" },
 ];
 
 const filteredSports = computed(() => {
@@ -230,7 +228,7 @@ const getClubs = async (searchQuery = "") => {
 
 const toggleClubSelection = async (club) => {
     const index = selectedClubs.findIndex((c) => c.id === club.id);
-    
+
     if (index > -1) {
         // Nếu đã chọn thì bỏ chọn (không gọi API leave vì chưa có)
         selectedClubs.splice(index, 1);
@@ -404,16 +402,9 @@ const handleClickOutside = (event) => {
 };
 
 const skillLevels = [
-    { value: "beginner", label: "Beginner" },
     { value: "1.0", label: "1.0" },
     { value: "1.5", label: "1.5" },
     { value: "2.0", label: "2.0" },
-    { value: "2.5", label: "2.5" },
-    { value: "3.0", label: "3.0" },
-    { value: "3.5", label: "3.5" },
-    { value: "4.0", label: "4.0" },
-    { value: "4.5", label: "4.5" },
-    { value: "5.0", label: "5.0" },
 ];
 
 onMounted(async () => {
