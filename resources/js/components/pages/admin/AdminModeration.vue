@@ -66,8 +66,10 @@
             <h3 class="font-headline font-bold text-xl">Quản lý người dùng</h3>
             <div class="relative">
               <input
+                v-model="userSearch"
+                @input="onUserSearchInput"
                 class="bg-surface-container-low border-none rounded-xl py-2 pl-10 pr-4 text-sm w-64 focus:ring-2 focus:ring-secondary/20 transition-all outline-none"
-                placeholder="Tìm kiếm theo ID hoặc tên..."
+                placeholder="Tìm kiếm theo tên, email, SĐT..."
                 type="text"
               />
               <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
@@ -78,9 +80,13 @@
             <table class="w-full text-left border-collapse">
               <thead>
                 <tr class="bg-surface-container-high">
-                  <th class="table-head">Thông tin người dùng</th>
-                  <th class="table-head">Độ tin cậy</th>
-                  <th class="table-head">Số trận</th>
+                  <th class="table-head">Người dùng</th>
+                  <th class="table-head">Liên hệ</th>
+                  <th class="table-head">Badge</th>
+                  <th class="table-head">VN Rank</th>
+                  <th class="table-head">Hoạt động</th>
+                  <th class="table-head">Trạng thái</th>
+                  <th class="table-head">Ngày tạo</th>
                   <th class="table-head text-right text-right-important">Hành động</th>
                 </tr>
               </thead>
@@ -88,34 +94,153 @@
                 <tr v-for="user in paginatedUsers" :key="user.id" class="hover:bg-surface-container-low transition-colors group">
                   <td class="px-6 py-4">
                     <div class="flex items-center gap-3">
-                      <img :src="user.avatar" class="w-10 h-10 rounded-full object-cover grayscale group-hover:grayscale-0 transition-all shadow-sm" />
+                      <div class="relative">
+                        <img :src="user.avatar" class="w-10 h-10 rounded-full object-cover shadow-sm" />
+                        <span v-if="user.is_online" class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-tertiary border-2 border-surface-container-lowest rounded-full"></span>
+                      </div>
                       <div>
-                        <p class="font-bold text-sm text-on-surface">{{ user.name }}</p>
-                        <p class="text-xs text-on-surface-variant">#{{ user.id }} • {{ user.location }}</p>
+                        <p class="font-bold text-sm text-on-surface flex items-center gap-1.5">
+                          {{ user.name }}
+                          <span v-if="user.is_super_admin" class="material-symbols-outlined text-xs text-primary" title="Super Admin">shield_person</span>
+                        </p>
+                        <p class="text-xs text-on-surface-variant">#{{ user.id }}</p>
                       </div>
                     </div>
                   </td>
                   <td class="px-6 py-4">
-                    <div class="flex flex-col gap-1">
-                      <div class="flex justify-between items-center w-24">
-                        <span class="text-[10px] font-bold" :class="user.reliabilityClass">{{ user.reliability }}%</span>
-                      </div>
-                      <div class="w-24 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
-                        <div class="h-full" :class="user.progressClass" :style="{ width: user.reliability + '%' }"></div>
-                      </div>
+                    <div class="text-xs space-y-0.5 max-w-[180px]">
+                      <p class="text-on-surface truncate" :title="user.email">
+                        <span class="material-symbols-outlined text-[10px] align-middle mr-1 text-on-surface-variant">mail</span>{{ user.email }}
+                      </p>
+                      <p class="text-on-surface-variant" v-if="user.phone">
+                        <span class="material-symbols-outlined text-[10px] align-middle mr-1">call</span>{{ user.phone }}
+                      </p>
+                      <p class="text-on-surface-variant" v-else>—</p>
                     </div>
                   </td>
                   <td class="px-6 py-4">
-                    <span class="text-sm font-manrope font-bold text-on-surface">{{ user.matches }}</span>
+                    <div v-if="user.badge_list.length" class="flex flex-wrap gap-1">
+                      <span
+                        v-for="badge in user.badge_list"
+                        :key="badge"
+                        :class="user.badge_classes[badge]"
+                        :title="user.badge_labels[badge]"
+                      >
+                        {{ user.badge_labels[badge] }}
+                      </span>
+                    </div>
+                    <span v-else class="text-xs text-on-surface-variant">—</span>
+                  </td>
+                  <td class="px-6 py-4">
+                    <div v-if="user.vn_rank" class="flex items-center gap-1.5">
+                      <span class="font-manrope font-extrabold text-sm text-primary">#{{ user.vn_rank }}</span>
+                      <span
+                        v-if="user.weekly_change !== null && user.weekly_change !== undefined"
+                        :class="user.weekly_change > 0 ? 'text-tertiary' : user.weekly_change < 0 ? 'text-error' : 'text-on-surface-variant'"
+                        class="material-symbols-outlined text-sm"
+                        :title="`Thay đổi tuần: ${user.weekly_change > 0 ? '+' : ''}${user.weekly_change}`"
+                      >
+                        {{ user.weekly_change > 0 ? 'trending_up' : user.weekly_change < 0 ? 'trending_down' : 'trending_flat' }}
+                      </span>
+                    </div>
+                    <span v-else class="text-xs text-on-surface-variant">—</span>
+                  </td>
+                  <td class="px-6 py-4">
+                    <div class="text-xs space-y-0.5">
+                      <p class="text-on-surface-variant">
+                        <span class="material-symbols-outlined text-[10px] align-middle mr-1">schedule</span>{{ user.last_login || '—' }}
+                      </p>
+                      <p class="text-on-surface-variant">
+                        <span class="material-symbols-outlined text-[10px] align-middle mr-1">sports_tennis</span>{{ user.matches }} trận
+                      </p>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4">
+                    <span :class="user.statusClass">{{ user.status }}</span>
+                  </td>
+                  <td class="px-6 py-4">
+                    <span class="text-xs text-on-surface-variant">{{ user.created_at }}</span>
                   </td>
                   <td class="px-6 py-4 text-right">
-                    <div class="flex justify-end gap-2">
-                      <button class="p-2 hover:bg-surface-variant rounded-lg transition-colors text-on-surface-variant">
-                        <span class="material-symbols-outlined text-lg">refresh</span>
+                    <div class="flex justify-end gap-1.5">
+                      <button
+                        v-if="!user.is_banned && !user.is_verified"
+                        :disabled="user.actionLoading === 'verify'"
+                        @click="verifyUser(user)"
+                        class="action-btn action-verify"
+                        title="Cấp Verified"
+                      >
+                        <span v-if="user.actionLoading === 'verify'" class="material-symbols-outlined text-base">progress_activity</span>
+                        <span v-else class="material-symbols-outlined text-base">verified</span>
                       </button>
-                      <button :class="user.buttonClass">
-                        {{ user.status }}
+                      <button
+                        :disabled="user.actionLoading === 'anchor'"
+                        @click="toggleAnchor(user)"
+                        class="action-btn"
+                        :class="user.is_anchor ? 'action-anchor-active' : 'action-anchor'"
+                        :title="user.is_anchor ? 'Bỏ Anchor' : 'Cấp Anchor'"
+                      >
+                        <span v-if="user.actionLoading === 'anchor'" class="material-symbols-outlined text-base">progress_activity</span>
+                        <span v-else class="material-symbols-outlined text-base">{{ user.is_anchor ? 'anchor' : 'add_link' }}</span>
                       </button>
+                      <button
+                        v-if="!user.is_banned"
+                        :disabled="user.actionLoading === 'ban'"
+                        @click="banUser(user)"
+                        class="action-btn action-ban"
+                        title="Ban"
+                      >
+                        <span v-if="user.actionLoading === 'ban'" class="material-symbols-outlined text-base">progress_activity</span>
+                        <span v-else class="material-symbols-outlined text-base">block</span>
+                      </button>
+                      <button
+                        v-else
+                        :disabled="user.actionLoading === 'unban'"
+                        @click="unbanUser(user)"
+                        class="action-btn action-unban"
+                        title="Mở khóa"
+                      >
+                        <span v-if="user.actionLoading === 'unban'" class="material-symbols-outlined text-base">progress_activity</span>
+                        <span v-else class="material-symbols-outlined text-base">lock_open</span>
+                      </button>
+                      <div class="relative">
+                        <button
+                          @click="toggleUserMenu(user.id)"
+                          class="action-btn action-more"
+                          title="Thêm"
+                        >
+                          <span class="material-symbols-outlined text-base">more_vert</span>
+                        </button>
+                        <div
+                          v-if="openUserMenu === user.id"
+                          class="absolute right-0 mt-1 w-44 bg-surface-container-lowest border border-outline-variant/10 rounded-xl shadow-lg z-20 py-1"
+                          @click.stop
+                        >
+                          <button
+                            @click="resetRating(user)"
+                            class="w-full text-left px-3 py-2 text-xs hover:bg-surface-container-low transition-colors flex items-center gap-2"
+                          >
+                            <span class="material-symbols-outlined text-base text-on-surface-variant">restart_alt</span>
+                            Reset rating
+                          </button>
+                          <button
+                            v-if="!user.has_picki"
+                            @click="grantPicki(user)"
+                            class="w-full text-left px-3 py-2 text-xs hover:bg-surface-container-low transition-colors flex items-center gap-2"
+                          >
+                            <span class="material-symbols-outlined text-base text-primary">workspace_premium</span>
+                            Cấp Picki
+                          </button>
+                          <button
+                            v-else
+                            @click="revokePicki(user)"
+                            class="w-full text-left px-3 py-2 text-xs hover:bg-surface-container-low transition-colors flex items-center gap-2"
+                          >
+                            <span class="material-symbols-outlined text-base text-error">workspace_premium</span>
+                            Thu hồi Picki
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -441,6 +566,8 @@ const allVenues = ref([])
 const togglingId = ref(null)
 const clubSearch = ref('')
 const venueSearch = ref('')
+const userSearch = ref('')
+const openUserMenu = ref(null)
 
 // Pagination metadata
 const usersMeta = ref({ current_page: 1, last_page: 1, total: 0 })
@@ -485,12 +612,18 @@ const syncTabFromRoute = () => {
 onMounted(() => {
   syncTabFromRoute()
   fetchDashboardStats()
+  document.addEventListener('click', closeUserMenuOnOutsideClick)
 })
 watch(() => route.query.tab, syncTabFromRoute)
+
+const closeUserMenuOnOutsideClick = () => {
+  openUserMenu.value = null
+}
 
 // Debounced search
 let clubSearchTimer = null
 let venueSearchTimer = null
+let userSearchTimer = null
 
 const onClubSearchInput = () => {
   clearTimeout(clubSearchTimer)
@@ -500,6 +633,15 @@ const onClubSearchInput = () => {
 const onVenueSearchInput = () => {
   clearTimeout(venueSearchTimer)
   venueSearchTimer = setTimeout(() => fetchVenues(1), 400)
+}
+
+const onUserSearchInput = () => {
+  clearTimeout(userSearchTimer)
+  userSearchTimer = setTimeout(() => fetchUsers(1), 400)
+}
+
+const toggleUserMenu = (id) => {
+  openUserMenu.value = openUserMenu.value === id ? null : id
 }
 
 // ===========================
@@ -520,7 +662,9 @@ const fetchDashboardStats = async () => {
 const fetchUsers = async (page = 1) => {
   try {
     loading.value = true
-    const res = await get('/admin/users', { params: { page, limit: 10 } })
+    const res = await get('/admin/users', {
+      params: { page, limit: 10, keyword: userSearch.value || undefined }
+    })
     allUsers.value = res.data.data
     usersMeta.value = {
       current_page: res.data.meta?.current_page ?? 1,
@@ -660,20 +804,63 @@ const onVenuesPageChange = (page) => {
 // MAPPED DATA
 // ===========================
 const paginatedUsers = computed(() => {
-  return allUsers.value.map(u => ({
-    id: u.id,
-    name: u.full_name,
-    avatar: u.avatar_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(u.full_name ?? '?'),
-    location: u.location_id || '—',
-    reliability: u.trust_score ? Math.round(u.trust_score) : 0,
-    matches: (u.sports?.reduce((sum, s) => sum + (s.total_matches || 0), 0)) || 0,
-    status: u.is_banned ? 'Banned' : 'Active',
-    reliabilityClass: u.is_banned ? 'text-error' : 'text-on-surface',
-    progressClass: u.is_banned ? 'bg-error' : 'bg-tertiary',
-    buttonClass: u.is_banned
-      ? 'px-3 py-1 bg-error text-on-error rounded-lg text-xs font-bold shadow-lg shadow-error/20'
-      : 'px-3 py-1 bg-surface-container-low text-primary rounded-lg text-xs font-bold hover:bg-error-container transition-colors'
-  }))
+  const badgeLabels = {
+    VERIFIED: 'Verified',
+    ANCHOR: 'Anchor',
+    CHAMPION: 'Champion',
+    PICKI: 'Picki'
+  }
+  const badgeClasses = {
+    VERIFIED: 'px-2 py-0.5 bg-secondary-container text-on-secondary-container text-[10px] font-bold rounded-full',
+    ANCHOR: 'px-2 py-0.5 bg-tertiary-container text-on-tertiary-container text-[10px] font-bold rounded-full',
+    CHAMPION: 'px-2 py-0.5 bg-primary/15 text-primary text-[10px] font-bold rounded-full',
+    PICKI: 'px-2 py-0.5 bg-tertiary-fixed-dim/20 text-tertiary text-[10px] font-bold rounded-full'
+  }
+  return allUsers.value.map(u => {
+    const badges = u.badges ?? []
+    const primary = u.primary_badge
+    const orderedBadges = primary
+      ? [primary, ...badges.filter(b => b !== primary)]
+      : badges
+
+    let status, statusClass
+    if (u.is_banned) {
+      status = 'Banned'
+      statusClass = 'px-2.5 py-1 bg-error text-on-error rounded-full text-[10px] font-bold shadow-lg shadow-error/20'
+    } else if (badges.includes('VERIFIED')) {
+      status = 'Verified'
+      statusClass = 'px-2.5 py-1 bg-secondary-container text-on-secondary-container rounded-full text-[10px] font-bold'
+    } else {
+      status = 'Active'
+      statusClass = 'px-2.5 py-1 bg-tertiary-container text-on-tertiary-container rounded-full text-[10px] font-bold'
+    }
+
+    return {
+      id: u.id,
+      name: u.full_name || '—',
+      avatar: u.avatar_url || (u.full_name ? 'https://ui-avatars.com/api/?name=' + encodeURIComponent(u.full_name) : 'https://ui-avatars.com/api/?name=U'),
+      email: u.email || '—',
+      phone: u.phone || null,
+      is_super_admin: !!u.is_super_admin,
+      is_online: !!u.is_online,
+      is_banned: !!u.is_banned,
+      is_verified: badges.includes('VERIFIED'),
+      is_anchor: badges.includes('ANCHOR'),
+      has_picki: badges.includes('PICKI'),
+      badges,
+      badge_list: orderedBadges,
+      badge_labels: badgeLabels,
+      badge_classes: badgeClasses,
+      vn_rank: u.vn_rank ?? null,
+      weekly_change: u.weekly_change ?? null,
+      last_login: u.last_login ? formatedDate(u.last_login) : null,
+      matches: (u.sports?.reduce((sum, s) => sum + (s.total_matches || 0), 0)) || 0,
+      status,
+      statusClass,
+      created_at: u.created_at ? formatedDate(u.created_at, 'dateDMY') : '—',
+      actionLoading: null
+    }
+  })
 })
 
 const paginatedMatches = computed(() => {
@@ -794,6 +981,83 @@ const toggleVenueStatus = async (venue) => {
     togglingId.value = null
   }
 }
+
+// ===========================
+// USER ACTION HANDLERS
+// ===========================
+const runUserAction = async (user, action, request, optimistic) => {
+  user.actionLoading = action
+  try {
+    await request()
+    if (optimistic) {
+      Object.assign(user, optimistic)
+    }
+    await fetchUsers(usersMeta.value.current_page)
+  } catch (e) {
+    const msg = e?.response?.data?.message || 'Có lỗi xảy ra'
+    alert(msg)
+    console.error(`User action ${action} error:`, e)
+  } finally {
+    user.actionLoading = null
+    openUserMenu.value = null
+  }
+}
+
+const banUser = (user) => {
+  const reason = prompt(`Lý do ban "${user.name}":`, '')
+  if (reason === null) return
+  runUserAction(user, 'ban',
+    () => post(`/admin/users/${user.id}/ban`, { reason: reason || 'Admin moderation' }),
+    { is_banned: true }
+  )
+}
+
+const unbanUser = (user) => {
+  if (!confirm(`Mở khóa user "${user.name}"?`)) return
+  runUserAction(user, 'unban',
+    () => post(`/admin/users/${user.id}/unban`),
+    { is_banned: false }
+  )
+}
+
+const verifyUser = (user) => {
+  runUserAction(user, 'verify',
+    () => post(`/admin/users/${user.id}/verify`),
+    null
+  )
+}
+
+const toggleAnchor = (user) => {
+  runUserAction(user, 'anchor',
+    () => post(`/admin/users/${user.id}/set-anchor`),
+    { is_anchor: !user.is_anchor }
+  )
+}
+
+const grantPicki = (user) => {
+  if (!confirm(`Cấp Picki badge cho "${user.name}"?`)) return
+  runUserAction(user, 'picki-grant',
+    () => post(`/admin/users/${user.id}/set-picki`),
+    { has_picki: true }
+  )
+}
+
+const revokePicki = (user) => {
+  if (!confirm(`Thu hồi Picki badge của "${user.name}"?`)) return
+  runUserAction(user, 'picki-revoke',
+    () => post(`/admin/users/${user.id}/revoke-picki`),
+    { has_picki: false }
+  )
+}
+
+const resetRating = (user) => {
+  const reason = prompt(`Lý do reset rating cho "${user.name}":`)
+  if (!reason) return
+  runUserAction(user, 'reset-rating',
+    () => post(`/admin/users/${user.id}/reset-rating`, { reason }),
+    null
+  )
+}
 </script>
 
 <style scoped>
@@ -837,5 +1101,41 @@ const toggleVenueStatus = async (venue) => {
 
 .icon-fill {
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.action-btn {
+  @apply p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center;
+  background-color: var(--surface-container-low, #fff0ef);
+}
+.action-btn:hover:not(:disabled) {
+  background-color: var(--surface-container-high, #ffe2de);
+}
+.action-btn:disabled {
+  background-color: var(--surface-container-low, #fff0ef);
+}
+.action-verify {
+  color: var(--secondary, #76584c);
+}
+.action-anchor {
+  color: var(--tertiary, #705c2e);
+}
+.action-anchor-active {
+  color: var(--tertiary, #705c2e);
+  background-color: var(--tertiary-container, #fde998);
+}
+.action-ban {
+  color: var(--error, #af101a);
+}
+.action-ban:hover:not(:disabled) {
+  background-color: var(--error-container, #ffdad6);
+}
+.action-unban {
+  color: var(--tertiary, #705c2e);
+}
+.action-unban:hover:not(:disabled) {
+  background-color: var(--tertiary-container, #fde998);
+}
+.action-more {
+  color: var(--on-surface-variant, #5b403d);
 }
 </style>
