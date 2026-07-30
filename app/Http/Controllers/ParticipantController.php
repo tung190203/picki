@@ -10,6 +10,7 @@ use App\Http\Requests\ModifyParticipantScoreRequest;
 use App\Services\ParticipantScoreService;
 use App\Models\Club\Club;
 use App\Enums\ClubMemberRole;
+use App\Jobs\SendPushJob;
 use App\Models\Participant;
 use App\Models\SuperAdminDraft;
 use App\Models\Tournament;
@@ -308,7 +309,6 @@ class ParticipantController extends Controller
         $participant = Participant::with('tournament')->findOrFail($participantId);
         $tournamentWithStaff = $participant->tournament->load('staff');
 
-        // BUG-01: Kiểm tra giải đấu còn mở không
         if ($tournamentWithStaff->start_date < now()) {
             return ResponseHelper::error('Giải đấu đã bắt đầu hoặc đã kết thúc. Không thể duyệt VĐV.', 400);
         }
