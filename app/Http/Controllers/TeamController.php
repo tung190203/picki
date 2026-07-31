@@ -88,6 +88,21 @@ class TeamController extends Controller
         $maxPlayers = $tournament->player_per_team;
         $errors = [];
 
+        // Kiểm tra nếu giải đấu đã có trận đấu với kết quả
+        if ($tournament->hasMatchesWithResults()) {
+            $errors[] = 'Không thể thay đổi thành viên đội. Giải đấu đã có trận đấu đang diễn ra/hoàn thành';
+            return $errors;
+        }
+
+        // Kiểm tra nếu team đã có trận đấu với kết quả
+        $matches = Matches::where('home_team_id', $team->id)
+            ->orWhere('away_team_id', $team->id)
+            ->get();
+        if ($matches->isNotEmpty() && MatchResult::whereIn('match_id', $matches->pluck('id'))->exists()) {
+            $errors[] = 'Không thể thay đổi thành viên đội. Đội đã có trận đấu đang diễn ra/hoàn thành';
+            return $errors;
+        }
+
         // Validate participants
         $participants = Participant::whereIn('id', $participantIds)
             ->where('tournament_id', $tournament->id)
@@ -111,8 +126,8 @@ class TeamController extends Controller
             return $errors;
         }
 
-        // Xoá toàn bộ member cũ (bao gồm soft-deleted)
-        $team->members()->withTrashed()->forceDelete();
+        // Xoá toàn bộ bản ghi trong pivot table team_members
+        $team->members()->detach();
 
         // Thêm members mới
         $participantsData = [];
