@@ -1479,6 +1479,15 @@ class MatchesController extends Controller
         $resultIds = $match->results->pluck('id');
         MatchResult::whereIn('id', $resultIds)->update(['confirmed' => true]);
 
+        // ===== GUEST: skip VNDUPR + anchor counting for entire match if any guest is present =====
+        // Guest matches should not affect any user's rating or anchor count.
+        $hasGuest = $match->homeTeam->members->contains(fn($m) => $m->is_guest)
+            || $match->awayTeam->members->contains(fn($m) => $m->is_guest);
+        if ($hasGuest) {
+            $this->checkAndAdvanceFromMultiLeg($match, $setsPerMatch);
+            return;
+        }
+
         // ===== ANCHOR MATCH LOGIC =====
         $allUsersInMatch = collect()
             ->merge($match->homeTeam->members)
