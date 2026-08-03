@@ -266,6 +266,12 @@ export default {
             )
         })
 
+        const isReferee = computed(() => {
+            return mini.value?.staff?.referee?.some(
+                staff => staff.user?.id === getUser.value.id
+            )
+        })
+
         // Tất cả người tham gia (confirmed, chưa checkin, chưa vắng) - base cho các section
         const allParticipants = computed(() => {
             if (!mini.value?.participants) return []
@@ -957,6 +963,7 @@ export default {
             showCreateMatchModal,
             toggleAutoApprove,
             isCreator,
+            isReferee,
             inviteGroupData,
             clubs,
             activeScope,

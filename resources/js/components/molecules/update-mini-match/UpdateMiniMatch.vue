@@ -45,6 +45,10 @@ export default {
             type: Boolean,
             default: false
         },
+        isReferee: {
+            type: Boolean,
+            default: false
+        },
     },
 
     emit: ['update:modelValue', 'updated'],
@@ -63,6 +67,10 @@ export default {
 
         const currentMiniMatch = computed(() => {
             return props.data
+        })
+
+        const canManageMatches = computed(() => {
+            return props.isCreator || props.isReferee
         })
 
         const qrCodeUrl = computed(() => {
@@ -120,6 +128,12 @@ export default {
 
         const saveMiniMatch = async () => {
             if (isSaving.value) return
+
+            if (!canManageMatches.value) {
+                toast.error('Bạn không có quyền sửa trận đấu')
+                return
+            }
+
             try {
                 isSaving.value = true
 
@@ -219,7 +233,7 @@ export default {
         }))
 
         const removeMemberFromTeam = (team, userId) => {
-            if (!props.isCreator) return
+            if (!canManageMatches.value) return
             if (team === 'team1') {
                 team1Users.value = team1Users.value.filter(u => u.id !== userId)
                 return
@@ -271,7 +285,8 @@ export default {
             team2ForReferee,
             team1Users,
             team2Users,
-            removeMemberFromTeam
+            removeMemberFromTeam,
+            canManageMatches
         }
     }
 }
