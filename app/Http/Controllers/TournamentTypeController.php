@@ -29,28 +29,31 @@ class TournamentTypeController extends Controller
         private \App\Services\TournamentType\TeamPairingService $teamPairingService
     ) {}
 
- /**
-  * ============================================================================
-  * CONSTANTS - Thêm vào đầu class TournamentTypeController
-  * ============================================================================
-  */
-const PAIRING_MODE_SEQUENTIAL = 'sequential';  // Tuần tự: A-B, C-D, E-F, G-H
-const PAIRING_MODE_SYMMETRIC = 'symmetric';    // Đối xứng: A-H, B-G, C-F, D-E
-const PAIRING_MODE_MANUAL = 'manual';
     /**
      * Tạo mới một thể thức cho giải đấu
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        // Pre-check for knockout-only request to adjust validation rules
+        $isKnockoutOnly = $this->isKnockoutOnlyRequest($request->all());
+
+        $rules = [
             'tournament_id' => 'required|integer|exists:tournaments,id',
-            'format' => 'required|integer|in:' . implode(',', TournamentType::FORMATS),
-            'num_legs' => 'integer|nullable|in:' . implode(',', TournamentType::NUM_LEGS_OPTIONS),
-            'match_rules' => 'required|array',
             'format_specific_config' => 'array|nullable',
             'rules' => 'string|nullable',
             'rules_file_path' => 'string|nullable',
-        ]);
+        ];
+
+        if (!$isKnockoutOnly) {
+            $rules['format'] = 'required|integer|in:' . implode(',', TournamentType::FORMATS);
+            $rules['match_rules'] = 'required|array';
+            $rules['num_legs'] = 'integer|nullable|in:' . implode(',', TournamentType::NUM_LEGS_OPTIONS);
+        }
+
+        $validated = $request->validate($rules);
+
+        // Re-check after validation (in case request was modified)
+        $isKnockoutOnly = $this->isKnockoutOnlyRequest($validated);
 
         $tournament = Tournament::withFullRelations()->find($validated['tournament_id']);
         if($tournament->teams()->count() < 2) {
@@ -78,12 +81,40 @@ const PAIRING_MODE_MANUAL = 'manual';
             }
         }
 
+        // Check if this is a knockout-only request
+        $isKnockoutOnly = $this->isKnockoutOnlyRequest($validated);
+
         DB::beginTransaction();
         try {
             if ($request->hasFile('rules_file_path')) {
                 $path = $request->file('rules_file_path')->store('tournament_rules', 'public');
                 $validated['rules_file_path'] = $path;
             }
+
+            // Knockout-only: chỉ tạo knockout, không tạo pool matches
+            if ($isKnockoutOnly) {
+                // Extract knockout_stage from array format
+                $configArray = $validated['format_specific_config'];
+                $mainConfig = is_array($configArray) && isset($configArray[0]) ? $configArray[0] : $configArray;
+                $knockoutConfig = $mainConfig['knockout_stage'] ?? [];
+
+                // Validate pairing mode
+                $newPairingMode = $knockoutConfig['pairing_mode'] ?? null;
+                if ($newPairingMode && !in_array($newPairingMode, ['sequential', 'symmetric', 'manual'])) {
+                    return ResponseHelper::error('Invalid pairing mode', 422);
+                }
+
+                // Use FORMAT_ELIMINATION (2) as default format for knockout-only
+                $type = TournamentType::createWithFormat(
+                    $validated['tournament_id'],
+                    TournamentType::FORMAT_ELIMINATION,
+                    ['format_specific_config' => $validated['format_specific_config']]
+                );
+                $this->handleKnockoutOnlyUpdate($type, $knockoutConfig);
+                DB::commit();
+                return ResponseHelper::success(new TournamentTypeResource($type->fresh()), 'Tạo ghép cặp nhánh đấu thành công');
+            }
+
             $type = TournamentType::createWithFormat(
                 $validated['tournament_id'],
                 $validated['format'],
@@ -215,6 +246,37 @@ const PAIRING_MODE_MANUAL = 'manual';
                 if($winningRule > $setPerMatch) {
                     return ResponseHelper::error('Quy tắc thắng phải nhỏ hơn số set trong trận', 422);
                 }
+            }
+        }
+
+        // Check if this is a knockout-only request
+        $isKnockoutOnly = $this->isKnockoutOnlyRequest($validated);
+
+        if ($isKnockoutOnly) {
+            // Extract knockout_stage from array format
+            $configArray = $validated['format_specific_config'];
+            $mainConfig = is_array($configArray) && isset($configArray[0]) ? $configArray[0] : $configArray;
+            $knockoutConfig = $mainConfig['knockout_stage'] ?? [];
+            
+            // Validate pairing mode
+            $newPairingMode = $knockoutConfig['pairing_mode'] ?? null;
+            if ($newPairingMode && !in_array($newPairingMode, ['sequential', 'symmetric', 'manual'])) {
+                return ResponseHelper::error('Invalid pairing mode', 422);
+            }
+            
+            // Check locked matches
+            if ($this->hasLockedMatches($tournamentType)) {
+                return ResponseHelper::error('Không thể thay đổi. Đã có trận đấu hoàn thành.', 400);
+            }
+            
+            DB::beginTransaction();
+            try {
+                $this->handleKnockoutOnlyUpdate($tournamentType, $knockoutConfig);
+                DB::commit();
+                return ResponseHelper::success(new TournamentTypeResource($tournamentType->fresh()), 'Cập nhật ghép cặp nhánh đấu thành công');
+            } catch (\Throwable $e) {
+                DB::rollBack();
+                return ResponseHelper::error('Có lỗi xảy ra: ' . $e->getMessage(), 500);
             }
         }
 
@@ -704,8 +766,12 @@ const PAIRING_MODE_MANUAL = 'manual';
         // Kiểm tra knockout stage đã tồn tại chưa
         $existingKnockoutMatches = $type->matches()->where('round', '>', 1)->exists();
 
-        // Nếu đã có knockout và flag preserveKnockout = true → chỉ tạo pool matches mới, giữ nguyên knockout
-        if ($existingKnockoutMatches && $preserveKnockout) {
+        // ✅ KIỂM TRA: Có groups với teams assigned không?
+        $groups = $type->groups()->with('teams.members')->get();
+        $hasAssignedTeams = $groups->isNotEmpty() && $groups->some(fn($g) => $g->teams->isNotEmpty());
+
+        // Nếu đã có knockout, flag preserveKnockout = true, VÀ không có teams mới được assign → chỉ tạo pool matches mới, giữ nguyên knockout
+        if ($existingKnockoutMatches && $preserveKnockout && !$hasAssignedTeams) {
             // Chỉ tạo pool matches (round = 1) - knockout đã có sẵn sẽ được giữ lại
             $this->generateMixedPoolOnly($type, $teams, $config, $numLegs);
             return;
@@ -725,10 +791,7 @@ const PAIRING_MODE_MANUAL = 'manual';
         $pairingMode = $knockoutConfig['pairing_mode'] ?? null;  // Không set default ở đây
         $manualPairings = $knockoutConfig['manual_pairings'] ?? null;
 
-        // ✅ KIỂM TRA: Có groups với teams assigned không?
-        $groups = $type->groups()->with('teams.members')->get();
-        $hasAssignedTeams = $groups->isNotEmpty() && $groups->some(fn($g) => $g->teams->isNotEmpty());
-
+        // ✅ KIỂM TRA: Có groups với teams assigned không? (Đã kiểm tra ở trên)
         if ($hasAssignedTeams) {
             // ✅ TRƯỜNG HỢP 1: ĐÃ ASSIGN TEAMS VÀO BẢNG
             $chunks = $groups->map(fn($g) => $g->teams)->filter(fn($chunk) => $chunk->count() > 0)->values();
@@ -880,7 +943,7 @@ const PAIRING_MODE_MANUAL = 'manual';
         }
 
         // ✅ SẮP XẾP ĐỘI ADVANCING THEO MODE ĐÃ CHỌN
-        $advancing = $this->arrangeAdvancingTeams($advancingByRank, $pairingMode, $manualPairings);
+        $advancing = $this->teamPairingService->arrangeAdvancingTeams($advancingByRank, $pairingMode, $manualPairings);
 
         // ✅ KIỂM TRA SỐ ĐỘI ADVANCING
         $totalAdvancing = $advancing->count();
@@ -2773,174 +2836,6 @@ const PAIRING_MODE_MANUAL = 'manual';
         }
     }
 
-    private function arrangeAdvancingTeams($advancingByRank, $pairingMode = null, $manualPairings = null)
-    {
-        // ✅ NORMALIZE: Trim và lowercase
-        $pairingMode = $pairingMode ? strtolower(trim($pairingMode)) : null;
-
-        switch ($pairingMode) {
-            case self::PAIRING_MODE_SYMMETRIC:
-            case 'symmetric':
-                return $this->arrangeAdvancingTeamsSymmetric($advancingByRank);
-
-            case self::PAIRING_MODE_MANUAL:
-            case 'manual':
-                return $this->arrangeAdvancingTeamsManual($advancingByRank, $manualPairings);
-
-            case self::PAIRING_MODE_SEQUENTIAL:
-            case 'sequential':
-            case null:
-            case '':
-            default:
-                return $this->arrangeAdvancingTeamsSequential($advancingByRank);
-        }
-    }
-
-    /**
-     * ============================================================================
-     * PAIRING MODE 1: SEQUENTIAL (Tuần tự)
-     * ============================================================================
-     */
-    /**
-    * Pattern: Nhất A vs Nhì B, Nhất B vs Nhì A, Nhất C vs Nhì D, Nhất D vs Nhì C...
-    * Ví dụ 8 bảng: A-B, B-A, C-D, D-C, E-F, F-E, G-H, H-G
-    */
-    private function arrangeAdvancingTeamsSequential($advancingByRank)
-    {
-        $advancing = collect();
-
-        $firstPlaceTeams = $advancingByRank->get(0, collect());
-        $secondPlaceTeams = $advancingByRank->get(1, collect());
-
-        $numFirstPlace = $firstPlaceTeams->count();
-        $numSecondPlace = $secondPlaceTeams->count();
-
-        // ✅ PATTERN TUẦN TỰ: Nhất A, Nhì B, Nhất B, Nhì A, Nhất C, Nhì D, Nhất D, Nhì C...
-        for ($i = 0; $i < max($numFirstPlace, $numSecondPlace); $i += 2) {
-            // Cặp thứ i: Nhất[i] vs Nhì[i+1]
-            if ($i < $numFirstPlace) {
-                $advancing->push($firstPlaceTeams->get($i));
-            }
-            if (($i + 1) < $numSecondPlace) {
-                $advancing->push($secondPlaceTeams->get($i + 1));
-            }
-
-            // Cặp thứ i+1: Nhất[i+1] vs Nhì[i]
-            if (($i + 1) < $numFirstPlace) {
-                $advancing->push($firstPlaceTeams->get($i + 1));
-            }
-            if ($i < $numSecondPlace) {
-                $advancing->push($secondPlaceTeams->get($i));
-            }
-        }
-
-        // Xử lý các hạng còn lại (hạng 3, 4...)
-        foreach ($advancingByRank as $rank => $teamsAtRank) {
-            if ($rank < 2) continue;
-            foreach ($teamsAtRank as $team) {
-                $advancing->push($team);
-            }
-        }
-
-        return $advancing;
-    }
-
-    /**
-     * ============================================================================
-     * PAIRING MODE 2: SYMMETRIC (Đối xứng)
-     * ============================================================================
-     */
-    /**
-     * Pattern: Nhất A vs Nhì H, Nhất B vs Nhì G, Nhất C vs Nhì F, Nhất D vs Nhì E...
-     * Ví dụ 8 bảng: A-H, B-G, C-F, D-E, E-D, F-C, G-B, H-A
-     */
-    private function arrangeAdvancingTeamsSymmetric($advancingByRank)
-    {
-        $advancing = collect();
-
-        $firstPlaceTeams = $advancingByRank->get(0, collect());
-        $secondPlaceTeams = $advancingByRank->get(1, collect());
-
-        $numFirstPlace = $firstPlaceTeams->count();
-        $numSecondPlace = $secondPlaceTeams->count();
-
-        // Pattern đối xứng: lấy từ 2 đầu mảng
-        for ($i = 0; $i < max($numFirstPlace, $numSecondPlace); $i++) {
-            // Thêm nhất bảng thứ i (A, B, C, D...)
-            if ($i < $numFirstPlace) {
-                $advancing->push($firstPlaceTeams->get($i));
-            }
-
-            // Thêm nhì bảng đối xứng từ cuối lên (H, G, F, E...)
-            $oppositeIndex = $numSecondPlace - 1 - $i;
-            if ($oppositeIndex >= 0 && $oppositeIndex < $numSecondPlace) {
-                $advancing->push($secondPlaceTeams->get($oppositeIndex));
-            }
-        }
-
-        // Xử lý các hạng còn lại
-        foreach ($advancingByRank as $rank => $teamsAtRank) {
-            if ($rank < 2) continue;
-            foreach ($teamsAtRank as $team) {
-                $advancing->push($team);
-            }
-        }
-
-        return $advancing;
-    }
-
-    /**
-     * ============================================================================
-     * PAIRING MODE 3: MANUAL (Thủ công)
-     * ============================================================================
-     */
-    /**
-     * Sắp xếp theo danh sách thủ công
-     * $manualPairings format:
-     * [
-     *   ['group' => 'A', 'rank' => 1, 'position' => 0],  // Vị trí 0
-     *   ['group' => 'C', 'rank' => 2, 'position' => 1],  // Vị trí 1
-     *   ['group' => 'B', 'rank' => 1, 'position' => 2],  // Vị trí 2
-     *   ...
-     * ]
-     */
-    private function arrangeAdvancingTeamsManual($advancingByRank, $manualPairings)
-    {
-        if (empty($manualPairings)) {
-            // Fallback về sequential nếu không có manual config
-            return $this->arrangeAdvancingTeamsSequential($advancingByRank);
-        }
-
-        $advancing = collect();
-
-        // Tạo map để tra cứu nhanh: "groupId_rank" => team object
-        $teamMap = [];
-        foreach ($advancingByRank as $rank => $teamsAtRank) {
-            foreach ($teamsAtRank as $team) {
-                $groupId = $team->_from_group ?? null;
-                if ($groupId) {
-                    $key = "{$groupId}_{$rank}";
-                    $teamMap[$key] = $team;
-                }
-            }
-        }
-
-        // Sắp xếp theo thứ tự manual
-        usort($manualPairings, fn($a, $b) => ($a['position'] ?? 0) <=> ($b['position'] ?? 0));
-
-        foreach ($manualPairings as $pairing) {
-            $groupId = $pairing['group_id'] ?? null;
-            $rank = $pairing['rank'] ?? 1;
-            $key = "{$groupId}_{$rank}";
-
-            if (isset($teamMap[$key])) {
-                $advancing->push($teamMap[$key]);
-            }
-        }
-
-        return $advancing;
-    }
-
     private function generateMixedWithAssignedTeams(TournamentType $type, $config, $numLegs)
     {
         $matchNumber = 0;
@@ -3059,7 +2954,7 @@ const PAIRING_MODE_MANUAL = 'manual';
         }
 
         // ✅ SẮP XẾP ĐỘI ADVANCING THEO MODE ĐÃ CHỌN
-        $advancing = $this->arrangeAdvancingTeams($advancingByRank, $pairingMode, $manualPairings);
+        $advancing = $this->teamPairingService->arrangeAdvancingTeams($advancingByRank, $pairingMode, $manualPairings);
 
         $totalAdvancing = $advancing->count();
         $willHaveBye = ($totalAdvancing % 2 !== 0);
@@ -3275,5 +3170,54 @@ const PAIRING_MODE_MANUAL = 'manual';
             }
         }
         return $old;
+    }
+
+    /**
+     * Xử lý cập nhật chỉ knockout stage - KHÔNG xóa matches khác
+     */
+    protected function handleKnockoutOnlyUpdate(TournamentType $type, array $knockoutConfig): void
+    {
+        $oldConfig = $type->format_specific_config ?? [];
+        $oldMainConfig = is_array($oldConfig) && isset($oldConfig[0]) ? $oldConfig[0] : $oldConfig;
+        
+        $mergedConfig = $oldMainConfig;
+        $mergedConfig['knockout_stage'] = array_merge(
+            $oldMainConfig['knockout_stage'] ?? [],
+            $knockoutConfig
+        );
+        
+        $type->format_specific_config = [$mergedConfig];
+        $type->save();
+        
+        $this->regenerateKnockoutOnly($type);
+    }
+
+    /**
+     * Kiểm tra body có phải knockout-only không
+     */
+    protected function isKnockoutOnlyRequest(array $data): bool
+    {
+        if (!isset($data['format_specific_config'])) {
+            return false;
+        }
+        
+        $config = $data['format_specific_config'];
+        
+        // Handle array format: [{"knockout_stage": {...}}]
+        if (is_array($config) && isset($config[0])) {
+            $mainConfig = $config[0];
+            if (is_array($mainConfig)) {
+                $keys = array_keys($mainConfig);
+                return count($keys) === 1 && $keys[0] === 'knockout_stage';
+            }
+        }
+        
+        // Handle object format: {"knockout_stage": {...}}
+        if (is_array($config)) {
+            $keys = array_keys($config);
+            return count($keys) === 1 && $keys[0] === 'knockout_stage';
+        }
+        
+        return false;
     }
 }
