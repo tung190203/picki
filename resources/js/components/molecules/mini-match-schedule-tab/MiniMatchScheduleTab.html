@@ -319,7 +319,7 @@
                     <p class="text-[#3E414C] font-semibold">{{ totalTimeMiniMatches(countMiniMatches) }} tiếng</p>
                 </div>
             </div>
-            <div class="col-span-3 flex justify-end items-center gap-4" v-if="props.isCreator">
+            <div class="col-span-3 flex justify-end items-center gap-4" v-if="props.isCreator || props.isReferee">
                 <button @click="showCreateMiniMatchModal = true"
                         class="bg-[#D72D36] border border-1 border-[#D72D36] text-white px-4 py-2 rounded hover:bg-red-700 transition">
                     Thêm trận đấu
@@ -740,9 +740,9 @@
     </div>
 </div>
 
-<CreateMiniMatch v-model="showCreateMiniMatchModal" :miniTournament="props.data" :isCreator="props.isCreator" :roundNumber="currentRound" @created="onMiniMatchCreated"/>
-<CreateMiniMatch v-model="showRRMatchModal" :miniTournament="props.data" :isCreator="props.isCreator" :match="sessionRRMatch" :roundNumber="sessionRRMatch?.round_number" @created="onSessionMatchUpdated" />
-<UpdateMiniMatch v-model="showUpdateMiniMatchModal" :data="detailData" :miniTournament="props.data" :isCreator="props.isCreator" @updated="onMiniMatchCreated" />
+<CreateMiniMatch v-model="showCreateMiniMatchModal" :miniTournament="props.data" :isCreator="props.isCreator" :isReferee="props.isReferee" :roundNumber="currentRound" @created="onMiniMatchCreated"/>
+<CreateMiniMatch v-model="showRRMatchModal" :miniTournament="props.data" :isCreator="props.isCreator" :isReferee="props.isReferee" :match="sessionRRMatch" :roundNumber="sessionRRMatch?.round_number" @created="onSessionMatchUpdated" />
+<UpdateMiniMatch v-model="showUpdateMiniMatchModal" :data="detailData" :miniTournament="props.data" :isCreator="props.isCreator" :isReferee="props.isReferee" @updated="onMiniMatchCreated" />
 <DeleteConfirmationModal v-model="showDeleteModal" title="Xác nhận hủy bỏ kèo đấu"
         message="Thao tác này không thể hoàn tác." confirmButtonText="Xác nhận" @confirm="cancelSelectedMiniMatches" />
 

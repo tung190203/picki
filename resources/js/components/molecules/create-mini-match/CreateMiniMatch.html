@@ -32,10 +32,10 @@
                                 </div>
                             </div>
 
-                            <div class="bg-white rounded-[8px] p-5" v-if="isCreator">
+                            <div class="bg-white rounded-[8px] p-5" v-if="canManageMatches">
                                 <MatchScoreInput
                                     v-model="scores"
-                                    :can-edit="isCreator"
+                                    :can-edit="canManageMatches"
                                     :match-id="currentMatchId"
                                     match-type="mini-tournament"
                                     @open-referee="openRefereeScreen"
@@ -61,7 +61,7 @@
                                                           :showHoverDelete="false" :name="user.full_name" :avatar="user.avatar_url"
                                                           :size="12" :badgeSize="5" class="cursor-pointer" />
                                                 <UserCard v-for="n in emptySlots('team1')" :key="'empty-team1-' + n"
-                                                          v-if="isCreator && !isRRSessionFormat"
+                                                          v-if="canManageMatches && !isRRSessionFormat"
                                                           @clickEmpty="openInviteModalDefault('team1')"
                                                           empty :size="12" :badgeSize="5" class="cursor-pointer"/>
                                             </div>
@@ -82,7 +82,7 @@
                                                           :showHoverDelete="false" :name="user.full_name" :avatar="user.avatar_url"
                                                           :size="12" :badgeSize="5" class="cursor-pointer" />
                                                 <UserCard v-for="n in emptySlots('team2')" :key="'empty-team2-' + n"
-                                                          empty v-if="isCreator && !isRRSessionFormat"
+                                                          empty v-if="canManageMatches && !isRRSessionFormat"
                                                           @clickEmpty="openInviteModalDefault('team2')"
                                                           :size="12" :badgeSize="5" class="cursor-pointer"/>
                                             </div>
@@ -96,12 +96,12 @@
 
                 <div class="px-4 py-4 bg-white rounded-b-lg border-t">
                     <div class="flex gap-3">
-                        <button @click="saveMiniMatch" :disabled="isSaving"
+                        <button v-if="canManageMatches" @click="saveMiniMatch" :disabled="isSaving"
                                 class="px-12 py-3 bg-red-500 text-white rounded font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                             {{ isSaving ? 'Đang lưu...' : 'Lưu' }}
                         </button>
 
-                        <button v-if="isCreator && hasScores" @click="confirmMiniMatch" :disabled="isSaving"
+                        <button v-if="canManageMatches && hasScores" @click="confirmMiniMatch" :disabled="isSaving"
                                 class="flex items-center justify-center gap-2 px-12 py-3 bg-green-500 text-white rounded font-medium hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                             {{ isSaving ? 'Đang xác nhận...' : 'Xác nhận' }}
                         </button>

@@ -32,6 +32,7 @@ export default {
         modelValue: Boolean,
         miniTournament: { type: Object, required: true },
         isCreator: Boolean,
+        isReferee: Boolean,
         match: { type: Object, default: null },
         editMatch: { type: Object, default: null },
         matchCount: { type: Number, default: 0 },
@@ -145,6 +146,10 @@ export default {
             return scores.value.some(s => s.team1 > 0 || s.team2 > 0)
         })
 
+        const canManageMatches = computed(() => {
+            return props.isCreator || props.isReferee
+        })
+
         const extractMember = (m) => {
             return m?.user ?? m
         }
@@ -193,6 +198,11 @@ export default {
 
         const saveMiniMatch = async () => {
             if (isSaving.value) return
+
+            if (!canManageMatches.value) {
+                toast.error('Bạn không có quyền tạo/sửa trận đấu')
+                return
+            }
 
             if (team1Users.value.length < playersPerTeam.value || team2Users.value.length < playersPerTeam.value) {
                 toast.error(`Mỗi đội phải có đủ ${playersPerTeam.value} người chơi`)
