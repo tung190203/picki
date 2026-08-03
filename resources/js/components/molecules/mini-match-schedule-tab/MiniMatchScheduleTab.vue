@@ -43,6 +43,10 @@ export default {
             type: Boolean,
             default: false
         },
+        isReferee: {
+            type: Boolean,
+            default: false
+        },
         data: {
             type: Object,
             required: true
@@ -101,7 +105,7 @@ export default {
         const isSavingSessionScore = ref(false)
 
         const onMatchClick = async (match) => {
-            if (props.isCreator) {
+            if (props.isCreator || props.isReferee) {
                 sessionRRMatch.value = match
                 showRRMatchModal.value = true
                 return

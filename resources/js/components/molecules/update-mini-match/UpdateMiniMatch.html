@@ -49,7 +49,7 @@
                                                 class="cursor-pointer"
                                             />
                                             <button
-                                                v-if="isCreator"
+                                                v-if="canManageMatches"
                                                 type="button"
                                                 class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white border border-gray-200 shadow flex items-center justify-center text-gray-500 hover:text-red-600 hover:border-red-200"
                                                 title="Xóa khỏi đội"
@@ -81,7 +81,7 @@
                                                 class="cursor-pointer"
                                             />
                                             <button
-                                                v-if="isCreator"
+                                                v-if="canManageMatches"
                                                 type="button"
                                                 class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white border border-gray-200 shadow flex items-center justify-center text-gray-500 hover:text-red-600 hover:border-red-200"
                                                 title="Xóa khỏi đội"
@@ -98,7 +98,7 @@
 
                             <MatchScoreInput
                                 v-model="scores"
-                                :can-edit="isCreator"
+                                :can-edit="canManageMatches"
                                 @open-referee="openRefereeScreen"
                             />
                         </div>
@@ -107,11 +107,11 @@
 
                 <div class="px-4 py-4 bg-white rounded-b-lg border-t">
                     <div class="flex gap-3">
-                        <button @click="saveMiniMatch" :disabled="isSaving"
+                        <button v-if="canManageMatches" @click="saveMiniMatch" :disabled="isSaving"
                                 class="px-12 py-3 bg-red-500 text-white rounded font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                             {{ isSaving ? 'Đang lưu...' : 'Lưu' }}
                         </button>
-                        <button v-if="isCreator" @click="confirmMiniMatchResult"
+                        <button v-if="canManageMatches" @click="confirmMiniMatchResult"
                                 :disabled="isSaving || currentMiniMatch.status === 'completed'"
                                 class="flex items-center justify-center gap-2 px-12 py-3 bg-green-500 text-white rounded font-medium hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                             <template v-if="currentMiniMatch.status === 'completed'">

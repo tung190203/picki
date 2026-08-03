@@ -57,4 +57,39 @@ class MiniTournamentStaffController extends Controller
         $roleText = MiniTournamentStaff::getRoleText($role);
         return ResponseHelper::success(null, "Thêm {$roleText} thành công", 201);
     }
+
+    public function removeStaff($tournamentId, $staffId)
+    {
+        $tournament = MiniTournament::findOrFail($tournamentId);
+
+        $isOrganizer = $tournament->hasOrganizer(Auth::id());
+
+        if (!$isOrganizer) {
+            return ResponseHelper::error('Bạn không có quyền xoá người tổ chức', 403);
+        }
+
+        $staff = MiniTournamentStaff::where('mini_tournament_id', $tournamentId)
+            ->where('id', $staffId)
+            ->first();
+
+        if (!$staff) {
+            return ResponseHelper::error('Không tìm thấy thành viên ban tổ chức', 404);
+        }
+
+        // Không cho phép xoá chính mình nếu là organizer cuối cùng
+        if ((int) $staff->role === MiniTournamentStaff::ROLE_ORGANIZER) {
+            $organizerCount = MiniTournamentStaff::where('mini_tournament_id', $tournamentId)
+                ->where('role', MiniTournamentStaff::ROLE_ORGANIZER)
+                ->count();
+
+            if ($organizerCount <= 1 && (int) $staff->user_id === Auth::id()) {
+                return ResponseHelper::error('Không thể xoá organizer cuối cùng của kèo đấu', 400);
+            }
+        }
+
+        $staff->delete();
+
+        $roleText = MiniTournamentStaff::getRoleText($staff->role);
+        return ResponseHelper::success(null, "Xoá {$roleText} thành công");
+    }
 }
