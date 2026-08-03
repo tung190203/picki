@@ -40,6 +40,7 @@ class CleanupEmptyTournaments extends Command
             ])
             ->whereNotNull('start_date')
             ->where('start_date', '<=', now())
+            ->whereNull('deleted_at')
             ->with('creator')
             ->chunkById(100, function ($tournaments) use (&$count) {
                 foreach ($tournaments as $tournament) {
@@ -113,6 +114,7 @@ class CleanupEmptyTournaments extends Command
             ])
             ->whereNotNull('start_time')
             ->where('start_time', '<=', now())
+            ->whereNull('deleted_at')
             ->with('creator')
             ->chunkById(100, function ($miniTournaments) use (&$count) {
                 foreach ($miniTournaments as $miniTournament) {

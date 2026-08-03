@@ -151,6 +151,7 @@ class LeaderboardController extends Controller
             ->whereIn('m.home_team_id', $teamIds)
             ->where('m.status', 'completed')
             ->whereNotNull('m.winner_id')
+            ->where('m.is_third_place', '!=', true)
             ->select('m.home_team_id as team_id', 'm.winner_id', 'm.round')
             ->unionAll(
                 DB::table('matches as m')
@@ -159,6 +160,7 @@ class LeaderboardController extends Controller
                     ->whereIn('m.away_team_id', $teamIds)
                     ->where('m.status', 'completed')
                     ->whereNotNull('m.winner_id')
+                    ->where('m.is_third_place', '!=', true)
                     ->select('m.away_team_id as team_id', 'm.winner_id', 'm.round')
             );
 
@@ -192,7 +194,8 @@ class LeaderboardController extends Controller
         $rankingsByType = $teamRankings->groupBy(fn($r) => $r->tournamentType->format);
 
         if (isset($rankingsByType[TournamentType::FORMAT_MIXED]) && $rankingsByType[TournamentType::FORMAT_MIXED]->count() > 1) {
-            return $rankingsByType[TournamentType::FORMAT_MIXED]->max('rank');
+            // Lấy rank TỐT NHẤT (số nhỏ nhất = thứ hạng cao nhất)
+            return $rankingsByType[TournamentType::FORMAT_MIXED]->min('rank');
         }
 
         return $teamRankings->min('rank');
