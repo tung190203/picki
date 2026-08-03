@@ -80,6 +80,11 @@ class MiniMatch extends Model
         return $this->belongsTo(MiniTournament::class, 'mini_tournament_id');
     }
 
+    public function vnduprHistory()
+    {
+        return $this->hasMany(VnduprHistory::class, 'mini_match_id');
+    }
+
     public function isEditable(): bool
     {
         return $this->status !== self::STATUS_COMPLETED;
