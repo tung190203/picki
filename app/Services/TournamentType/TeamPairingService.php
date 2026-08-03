@@ -149,7 +149,7 @@ class TeamPairingService
         usort($manualPairings, fn($a, $b) => ($a['position'] ?? 0) <=> ($b['position'] ?? 0));
 
         foreach ($manualPairings as $pairing) {
-            $groupId = $pairing['group_id'] ?? null;
+            $groupId = $pairing['_from_group'] ?? $pairing['group_id'] ?? null;
             $rank = $pairing['rank'] ?? 1;
             $key = "{$groupId}_{$rank}";
 
