@@ -2268,6 +2268,11 @@ class TournamentTypeController extends Controller
             ->map(fn($id) => (int)$id)
             ->toArray();
 
+        // ✅ Fallback: Tự động thêm HEAD_TO_HEAD nếu user không chọn
+        if (!in_array(TournamentType::RANKING_HEAD_TO_HEAD, $rankingRules)) {
+            $rankingRules[] = TournamentType::RANKING_HEAD_TO_HEAD;
+        }
+
         // Lấy toàn bộ trận đã hoàn thành để dùng cho rule đối đầu (5)
         $allMatches = Matches::where('tournament_type_id', $type->id)
             ->where('status', 'completed')

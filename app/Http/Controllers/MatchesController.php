@@ -406,6 +406,11 @@ class MatchesController extends Controller
             ->map(fn($id) => (int)$id)
             ->toArray();
 
+        // ✅ Fallback: Tự động thêm HEAD_TO_HEAD nếu user không chọn
+        if (!in_array(TournamentType::RANKING_HEAD_TO_HEAD, $rankingRules)) {
+            $rankingRules[] = TournamentType::RANKING_HEAD_TO_HEAD;
+        }
+
         // 1. Lấy tất cả các groups
         $groups = DB::table('groups')
             ->join('matches', 'groups.id', '=', 'matches.group_id')
@@ -606,6 +611,11 @@ class MatchesController extends Controller
         $rankingRules = collect($config['ranking'] ?? [1, 2])
             ->map(fn($id) => (int)$id)
             ->toArray();
+
+        // ✅ Fallback: Tự động thêm HEAD_TO_HEAD nếu user không chọn
+        if (!in_array(TournamentType::RANKING_HEAD_TO_HEAD, $rankingRules)) {
+            $rankingRules[] = TournamentType::RANKING_HEAD_TO_HEAD;
+        }
 
         $tournament_id = $tournamentType->tournament_id;
 
