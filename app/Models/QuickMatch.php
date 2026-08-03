@@ -141,4 +141,9 @@ class QuickMatch extends Model
     {
         return $this->isRankMatch() && $this->status === self::STATUS_COMPLETED;
     }
+
+    public function vnduprHistory()
+    {
+        return $this->hasMany(VnduprHistory::class, 'quick_match_id');
+    }
 }

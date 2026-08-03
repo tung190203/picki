@@ -102,7 +102,7 @@ class MatchHistoryRepository
     public function getPlayingParticipants(int $miniTournamentId): array
     {
         return MiniMatch::where('mini_tournament_id', $miniTournamentId)
-            ->where('status', MiniMatch::STATUS_GOING_ON)
+            ->whereIn('status', [MiniMatch::STATUS_GOING_ON, MiniMatch::STATUS_WAITING_CONFIRM])
             ->with(['team1.members', 'team2.members', 'participant1', 'participant2'])
             ->get()
             ->flatMap(function ($match) {
