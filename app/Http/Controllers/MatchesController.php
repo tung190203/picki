@@ -406,6 +406,11 @@ class MatchesController extends Controller
             ->map(fn($id) => (int)$id)
             ->toArray();
 
+        // ✅ Fallback: Tự động thêm HEAD_TO_HEAD nếu user không chọn
+        if (!in_array(TournamentType::RANKING_HEAD_TO_HEAD, $rankingRules)) {
+            $rankingRules[] = TournamentType::RANKING_HEAD_TO_HEAD;
+        }
+
         // 1. Lấy tất cả các groups
         $groups = DB::table('groups')
             ->join('matches', 'groups.id', '=', 'matches.group_id')
@@ -593,7 +598,7 @@ class MatchesController extends Controller
             $loserIndex++;
         }
     }
-    private function recalculateRankings($tournamentTypeId)
+    public function recalculateRankings($tournamentTypeId)
     {
         $tournamentType = TournamentType::find($tournamentTypeId);
         if (!$tournamentType) return;
@@ -606,6 +611,11 @@ class MatchesController extends Controller
         $rankingRules = collect($config['ranking'] ?? [1, 2])
             ->map(fn($id) => (int)$id)
             ->toArray();
+
+        // ✅ Fallback: Tự động thêm HEAD_TO_HEAD nếu user không chọn
+        if (!in_array(TournamentType::RANKING_HEAD_TO_HEAD, $rankingRules)) {
+            $rankingRules[] = TournamentType::RANKING_HEAD_TO_HEAD;
+        }
 
         $tournament_id = $tournamentType->tournament_id;
 
@@ -632,9 +642,10 @@ class MatchesController extends Controller
             ];
         }
 
-        // 3️⃣ Lấy dữ liệu trận đấu đã hoàn thành
+        // 3️⃣ Lấy dữ liệu trận đấu đã hoàn thành (không tính trận tranh hạng 3)
         $matches = Matches::where('tournament_type_id', $tournamentTypeId)
             ->where('status', 'completed')
+            ->where('is_third_place', '!=', true)
             ->with('results')
             ->get();
 
@@ -689,8 +700,42 @@ class MatchesController extends Controller
         }
         unset($s);
 
+        // 4b️⃣ Tính round cao nhất mà team thắng (dùng làm tie-breaker)
+        $highestWinRound = [];
+        foreach ($matches as $match) {
+            if ($match->winner_id) {
+                $round = $match->round ?? 0;
+                if (!isset($highestWinRound[$match->winner_id]) || $round > $highestWinRound[$match->winner_id]) {
+                    $highestWinRound[$match->winner_id] = $round;
+                }
+            }
+        }
+        foreach ($stats as &$s) {
+            $s['highest_win_round'] = $highestWinRound[$s['team_id']] ?? 0;
+        }
+        unset($s);
+
+        // 4c️⃣ Xác định trận đấu quyết định cuối cùng giữa 2 đội (dùng khi head-to-head hòa)
+        // Lọc các trận head-to-head và sắp xếp theo round giảm dần
+        $h2hDecidingMatch = [];
+        foreach ($matches as $match) {
+            $home = $match->home_team_id;
+            $away = $match->away_team_id;
+            $round = $match->round ?? 0;
+            foreach ([$home, $away] as $teamA) {
+                $other = ($teamA == $home) ? $away : $home;
+                $key = $teamA < $other ? "{$teamA}-{$other}" : "{$other}-{$teamA}";
+                if (!isset($h2hDecidingMatch[$key]) || $round > $h2hDecidingMatch[$key]['round']) {
+                    $h2hDecidingMatch[$key] = [
+                        'round' => $round,
+                        'winner_id' => $match->winner_id,
+                    ];
+                }
+            }
+        }
+
         // 5️⃣ Sắp xếp linh hoạt theo Ranking Rules
-        $sorted = collect($stats)->sort(function ($a, $b) use ($rankingRules, $matches) {
+        $sorted = collect($stats)->sort(function ($a, $b) use ($rankingRules, $matches, $h2hDecidingMatch) {
             // Đội đã đánh luôn đứng trên đội chưa đánh
             if ($a['played'] == 0 && $b['played'] > 0) return 1;
             if ($b['played'] == 0 && $a['played'] > 0) return -1;
@@ -712,10 +757,22 @@ class MatchesController extends Controller
                     case TournamentType::RANKING_HEAD_TO_HEAD: // Rule 5
                         $h2h = $this->getHeadToHeadResult($a['team_id'], $b['team_id'], $matches);
                         if ($h2h !== 0) return $h2h;
+                        // Head-to-head hòa: xem trận quyết định cuối cùng (round cao nhất)
+                        $key = $a['team_id'] < $b['team_id'] ? "{$a['team_id']}-{$b['team_id']}" : "{$b['team_id']}-{$a['team_id']}";
+                        if (isset($h2hDecidingMatch[$key])) {
+                            $decidingWinner = $h2hDecidingMatch[$key]['winner_id'];
+                            if ($decidingWinner == $a['team_id']) return -1;
+                            if ($decidingWinner == $b['team_id']) return 1;
+                        }
                         break;
                     case TournamentType::RANKING_RANDOM_DRAW: // Rule 6
                         return $a['team_id'] <=> $b['team_id'];
                 }
+            }
+
+            // Tie-breaker đặc biệt cho knockout: round cao nhất thắng được
+            if ($a['highest_win_round'] !== $b['highest_win_round']) {
+                return $b['highest_win_round'] <=> $a['highest_win_round'];
             }
 
             // Cầu chì cuối cùng: Nếu tất cả các luật cài đặt đều bằng nhau,

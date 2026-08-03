@@ -29,10 +29,9 @@ class TeamLeaderboardResource extends JsonResource
 
         return match (true) {
             $round === 1  => 'Vòng bảng',
-            $round === 2  => 'Vòng 1/8',
-            $round === 3  => 'Tứ kết',
-            $round === 4  => 'Bán kết',
-            $round >= 5   => 'Chung kết',
+            $round === 2  => 'Tứ kết',
+            $round === 3  => 'Bán kết',
+            $round >= 4   => 'Chung kết',
             default       => null,
         };
     }
