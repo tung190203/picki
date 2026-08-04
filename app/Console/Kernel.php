@@ -2,6 +2,7 @@
 
 namespace App\Console;
 
+use App\Jobs\SendMiniTournamentDraftRemindersJob;
 use App\Jobs\SendMiniTournamentRemindersJob;
 use App\Models\DeviceToken;
 use Illuminate\Console\Scheduling\Schedule;
@@ -12,6 +13,7 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         $schedule->job(new SendMiniTournamentRemindersJob())->everyMinute();
+        $schedule->job(new SendMiniTournamentDraftRemindersJob())->everyMinute();
         $schedule->command('system:send-notifications')->everyMinute();
         $schedule->command('clubs:send-scheduled-notifications')->everyMinute();
         $schedule->call(function () {
