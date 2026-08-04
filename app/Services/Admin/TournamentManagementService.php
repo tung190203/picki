@@ -26,7 +26,7 @@ class TournamentManagementService
             'participants.user',
             'tournamentStaffs.user',
         ])
-            ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
+            ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN, Tournament::CLOSED])
             ->select([
                 'tournaments.id',
                 'tournaments.poster',
@@ -55,7 +55,8 @@ class TournamentManagementService
                 'tournaments.created_by',
                 'tournaments.created_at',
             ])
-            ->orderBy('created_at', 'desc');
+            ->orderByRaw("FIELD(status, " . Tournament::OPEN . ", " . Tournament::DRAFT . ", " . Tournament::CLOSED . ") ASC")
+            ->orderBy('tournaments.created_at', 'desc');
 
         if ($status !== null && $status !== '') {
             $query->where('tournaments.status', $status);

@@ -274,7 +274,7 @@ const scopeMap = {
 
 const activeTab = ref("all");
 const items = ref([]);
-const meta = ref({ page: 1, last_page: 1, per_page: 20, total: 0 });
+const meta = ref({ page: 1, last_page: 1, per_page: 10, total: 0 });
 const loading = ref(false);
 const myClubs = inject('myClubs', ref([]));
 const clubSelectorLoaded = ref(false);
@@ -288,12 +288,18 @@ const emptyMessage = computed(() => {
   return "Chưa có dữ liệu bảng xếp hạng.";
 });
 
-const topThree = computed(() => items.value.slice(0, 3));
+const topThree = computed(() => {
+  if (meta.value.page !== 1) return [];
+  return items.value.slice(0, 3);
+});
+
 const restItems = computed(() => {
   const userId = getUser.value?.id;
-  return items.value.slice(3).map(item => ({
+  const startIndex = meta.value.page === 1 ? 3 : 0;
+  return items.value.slice(startIndex).map(item => ({
     ...item,
     is_current_user: item.id === userId,
+    rank: item.rank || (startIndex + items.value.indexOf(item) + 1),
   }));
 });
 
@@ -306,7 +312,7 @@ const fetchLeaderboard = async (page = 1) => {
   loading.value = true;
   const params = {
     scope: scopeMap[activeTab.value],
-    per_page: activeTab.value === "allClubs" ? 12 : 20,
+    per_page: activeTab.value === "allClubs" ? 12 : 10,
     page,
   };
   if (activeTab.value === "clubMembers" && selectedClubId.value) {
@@ -324,7 +330,7 @@ const fetchLeaderboard = async (page = 1) => {
     };
   } catch {
     items.value = [];
-    meta.value = { page: 1, last_page: 1, per_page: 20, total: 0 };
+    meta.value = { page: 1, last_page: 1, per_page: 10, total: 0 };
   } finally {
     loading.value = false;
   }
