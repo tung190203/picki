@@ -18,7 +18,7 @@ return new class extends Migration
             $table->timestamp('sent_at');
             $table->timestamps();
 
-            $table->unique(['mini_tournament_id', 'user_id']);
+            $table->unique(['mini_tournament_id', 'user_id'], 'draft_reminders_tournament_user_unique');
             $table->index(['sent_at']);
         });
     }
