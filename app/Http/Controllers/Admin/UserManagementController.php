@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ClubMemberRole;
+use App\Enums\ClubMemberStatus;
+use App\Enums\ClubMembershipStatus;
 use App\Http\Controllers\Controller;
 use App\Helpers\ResponseHelper;
+use App\Models\Club\ClubMember;
 use App\Models\User;
 use App\Models\UserSport;
 use App\Models\UserSportScore;
@@ -60,6 +64,8 @@ class UserManagementController extends Controller
             'password' => 'required|min:6|confirmed',
             'phone' => 'nullable|unique:users,phone|regex:/^[0-9]{10,11}$/',
             'gender' => 'nullable|in:0,1,2,3',
+            'club_ids' => 'nullable|array',
+            'club_ids.*' => 'integer|exists:clubs,id',
         ]);
 
         $avatarUrl = null;
@@ -99,6 +105,19 @@ class UserManagementController extends Controller
                 'score_type' => UserSportScore::VNDUPR_SCORE,
                 'score_value' => $validated['vndupr_score'],
             ]);
+        }
+
+        if (!empty($validated['club_ids'])) {
+            foreach ($validated['club_ids'] as $clubId) {
+                ClubMember::create([
+                    'club_id' => $clubId,
+                    'user_id' => $user->id,
+                    'role' => ClubMemberRole::Member,
+                    'membership_status' => ClubMembershipStatus::Joined,
+                    'status' => ClubMemberStatus::Active,
+                    'joined_at' => now(),
+                ]);
+            }
         }
 
         $user->load(['sports', 'userBadges', 'clubs']);
