@@ -11,7 +11,7 @@ class MiniTournamentDraftReminderNotification extends BaseNotification
         $this->miniTournament = $miniTournament;
     }
 
-    public function toDatabase($notifiable)
+    public function toDatabase(object $notifiable): array
     {
         $name = $this->miniTournament->name;
 
