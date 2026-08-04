@@ -36,9 +36,9 @@ class MiniParticipantPaymentResource extends JsonResource
             'guarantor_id' => $this->whenLoaded('participant', fn() => $this->participant?->guarantor_user_id),
             'guarantor' => $this->whenLoaded('participant', fn() => $this->participant?->guarantor ? new UserResource($this->participant->guarantor) : null),
             // Participant info để FE tách từng item (hiện tại là guest)
-            'participant' => $this->whenLoaded('participant', fn() => new MiniParticipantResource($this->participant)),
+            'participant' => $this->whenLoaded('participant', fn() => $this->participant ? new MiniParticipantResource($this->participant) : null),
             // Flag để FE dễ phân biệt payment thuộc guest hay member
-            'is_guest' => $this->whenLoaded('participant', fn() => $this->participant?->is_guest ?? false),
+            'is_guest' => $this->whenLoaded('participant', fn() => $this->participant?->is_guest),
         ];
     }
 }

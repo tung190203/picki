@@ -43,4 +43,10 @@ class MiniTournamentStaff extends Model
             default => 'unknown',
         };
     }
+
+    public function draftReminders()
+    {
+        return $this->hasMany(MiniTournamentDraftReminder::class, 'user_id')
+            ->where('mini_tournament_id', $this->mini_tournament_id);
+    }
 }
