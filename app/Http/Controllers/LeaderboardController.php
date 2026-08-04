@@ -314,13 +314,11 @@ class LeaderboardController extends Controller
     {
         $rankingMatches = (int) SystemSetting::where('key', 'ranking_matches')->first()?->value ?: 10;
         $excludedEmail = 'vrplus2018@gmail.com';
-
-        // Query relies on user_sport.total_matches being maintained by MatchCacheObserver.
-        // Each match completion increments the counter atomically — O(1) per request.
+        $maxTotal = 50;
 
         // OPTIMIZED: Cache the total count for 5 minutes instead of counting every request
-        $cacheKey = "leaderboard_total:{$sportId}:{$rankingMatches}";
-        $total = Cache::remember($cacheKey, 300, function () use ($sportId, $rankingMatches, $excludedEmail) {
+        $cacheKey = "leaderboard_total:{$sportId}:{$rankingMatches}:{$maxTotal}";
+        $total = Cache::remember($cacheKey, 300, function () use ($sportId, $rankingMatches, $excludedEmail, $maxTotal) {
             $scoreSubQuery = UserSportScore::query()
                 ->select(
                     'user_sport.user_id',
@@ -332,16 +330,16 @@ class LeaderboardController extends Controller
                 ->where('user_sport.total_matches', '>=', $rankingMatches)
                 ->groupBy('user_sport.user_id');
 
-            return User::query()
+            $count = User::query()
                 ->joinSub($scoreSubQuery, 'scores', 'scores.user_id', '=', 'users.id')
                 ->join('user_sport', 'user_sport.user_id', '=', 'users.id')
                 ->where('user_sport.sport_id', $sportId)
                 ->where('users.email', '!=', $excludedEmail)
                 ->where('user_sport.total_matches', '>=', $rankingMatches)
                 ->count();
-        });
 
-        $lastPage = max(1, (int) ceil($total / $perPage));
+            return min($count, $maxTotal);
+        });
 
         // For large offsets (>100), use cursor-based pagination for better performance
         $offset = ($page - 1) * $perPage;
@@ -372,6 +370,9 @@ class LeaderboardController extends Controller
             ->where('user_sport.total_matches', '>=', $rankingMatches);
 
         // Use ROW_NUMBER() for ranking - more efficient than offset for large datasets
+        // Cap limit to not exceed maxTotal
+        $effectiveLimit = min($perPage, max(0, $maxTotal - $offset));
+
         $leaderboard = $baseQuery
             ->addSelect(
                 'users.full_name',
@@ -380,7 +381,7 @@ class LeaderboardController extends Controller
                 DB::raw('ROW_NUMBER() OVER (ORDER BY scores.vndupr_score DESC) as rank')
             )
             ->offset($offset)
-            ->limit($perPage)
+            ->limit($effectiveLimit)
             ->get();
 
         $userIds = $leaderboard->pluck('id')->toArray();
@@ -405,7 +406,7 @@ class LeaderboardController extends Controller
         return [
             'items'     => $items,
             'total'     => $total,
-            'last_page' => $lastPage,
+            'last_page' => (int) ceil($total / $perPage),
         ];
     }
 
