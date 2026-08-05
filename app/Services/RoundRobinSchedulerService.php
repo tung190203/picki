@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\PaymentStatusEnum;
 use App\Models\MiniMatch;
 use App\Models\MiniTournament;
 use App\Models\MiniParticipant;
@@ -131,11 +132,19 @@ class RoundRobinSchedulerService
         $isRankPairing = $miniTournament->match_format === MiniTournament::MATCH_FORMAT_RANK_PAIRING;
         $isStandard = $miniTournament->match_format === MiniTournament::MATCH_FORMAT_STANDARD;
 
-        $participants = MiniParticipant::with('user:id,full_name')
+        // Check if tournament has fee - filter by payment_status if so
+        // Note: use_club_fund = true means club pays, so no fee from members
+        $hasFee = $miniTournament->has_fee && !$miniTournament->use_club_fund;
+
+        $participantQuery = MiniParticipant::with('user:id,full_name')
             ->where('mini_tournament_id', $miniTournamentId)
-            ->where('is_confirmed', true)
-            ->get()
-            ->keyBy('id');
+            ->where('is_confirmed', true);
+
+        if ($hasFee) {
+            $participantQuery->where('payment_status', PaymentStatusEnum::Confirmed);
+        }
+
+        $participants = $participantQuery->get()->keyBy('id');
 
         // Map user_id -> participant_id for quick lookup
         $userToParticipant = $participants->map(fn($p) => $p->user_id)->flip()->toArray();
