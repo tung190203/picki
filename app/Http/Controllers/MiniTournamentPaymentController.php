@@ -907,7 +907,7 @@ class MiniTournamentPaymentController extends Controller
         // Lấy payment (nếu có participant)
         $payment = null;
         if ($participant) {
-            $payment = MiniParticipantPayment::with(['user', 'confirmer'])
+            $payment = MiniParticipantPayment::with(['user', 'confirmer', 'participant', 'participant.guarantor'])
                 ->where('mini_tournament_id', $miniTournamentId)
                 ->where('participant_id', $participant->id)
                 ->first();

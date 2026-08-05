@@ -32,13 +32,13 @@ class MiniParticipantPaymentResource extends JsonResource
             'confirmer' => $this->whenLoaded('confirmer', fn() => new UserResource($this->confirmer)),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-            // Guarantor info khi payment thuộc về guest
-            'guarantor_id' => $this->whenLoaded('participant', fn() => $this->participant?->guarantor_user_id),
+            // Guarantor info khi payment thuộc về guest (luôn trả về key, null khi không có)
+            'guarantor_id' => $this->whenLoaded('participant', fn() => $this->participant?->guarantor_user_id !== null ? (int) $this->participant->guarantor_user_id : null),
             'guarantor' => $this->whenLoaded('participant', fn() => $this->participant?->guarantor ? new UserResource($this->participant->guarantor) : null),
             // Participant info để FE tách từng item (hiện tại là guest)
             'participant' => $this->whenLoaded('participant', fn() => $this->participant ? new MiniParticipantResource($this->participant) : null),
             // Flag để FE dễ phân biệt payment thuộc guest hay member
-            'is_guest' => $this->whenLoaded('participant', fn() => $this->participant?->is_guest),
+            'is_guest' => $this->whenLoaded('participant', fn() => $this->participant?->is_guest !== null ? (bool) $this->participant->is_guest : null),
         ];
     }
 }
