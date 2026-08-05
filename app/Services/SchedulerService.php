@@ -40,7 +40,12 @@ class SchedulerService
         }
 
         $match = null;
-        if ($settings->prefer_high_tier_match && $this->canFormHighTierMatch($pool)) {
+        // Ưu tiên ghép "Căng tay" (A với A, B với B) trước
+        $sameTierMatch = $this->tryCreateSameTierMatch($pool);
+        if ($sameTierMatch) {
+            $match = $sameTierMatch;
+            $rulesApplied[] = 'same_tier_match';
+        } elseif ($settings->prefer_high_tier_match && $this->canFormHighTierMatch($pool)) {
             $match = $this->createHighTierMatch($pool, $userDataMap);
             $rulesApplied[] = 'prefer_high_tier_match';
         } else {
@@ -144,6 +149,35 @@ class SchedulerService
         return count($tierA) >= 4;
     }
 
+    /**
+     * Thử tạo trận "Căng tay" - ghép cùng tier (A với A, B với B).
+     * Ưu tiên ghép A với A trước, rồi mới đến B với B.
+     */
+    private function tryCreateSameTierMatch(array $pool): ?SuggestionMatchDTO
+    {
+        $tierAPlayers = array_values(array_filter($pool, fn($p) => $p->tier === MatchTier::A));
+        $tierBPlayers = array_values(array_filter($pool, fn($p) => $p->tier === MatchTier::B));
+
+        // Ghép A với A (căng tay)
+        if (count($tierAPlayers) >= 4) {
+            $tierAPlayers = $this->sortByPartnerHistory($tierAPlayers, $pool);
+            $team1Players = array_slice($tierAPlayers, 0, 2);
+            $team2Players = array_slice($tierAPlayers, 2, 2);
+            return $this->buildMatchDTO($team1Players, $team2Players, [], false);
+        }
+
+        // Ghép B với B (căng tay)
+        if (count($tierBPlayers) >= 4) {
+            $tierBPlayers = $this->sortByPartnerHistory($tierBPlayers, $pool);
+            $team1Players = array_slice($tierBPlayers, 0, 2);
+            $team2Players = array_slice($tierBPlayers, 2, 2);
+            return $this->buildMatchDTO($team1Players, $team2Players, [], false);
+        }
+
+        // Không đủ 4 người cùng tier → fallback sang logic khác
+        return null;
+    }
+
     private function createHighTierMatch(array $pool, array $userDataMap): SuggestionMatchDTO
     {
         $tierAPlayers = array_filter($pool, fn($p) => $p->tier === MatchTier::A);
@@ -205,7 +239,7 @@ class SchedulerService
             team_id: null,
             full_name: $player->full_name,
             avatar_url: $player->avatar_url,
-            is_guest: false,
+            is_guest: $player->is_guest,
             visibility: $userData['visibility'] ?? 'open',
             sports: $userData['sports'] ?? [],
             tier: $player->tier->value,
