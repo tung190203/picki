@@ -12,24 +12,25 @@ class PlayerContextDTO
         public readonly int $user_id,
         public readonly string $full_name,
         public readonly ?string $avatar_url,
-        
+        public readonly bool $is_guest,
+
         // Tier
         public readonly MatchTier $tier,
         public readonly bool $is_manual_override,
-        
+
         // Calculated from MatchHistory
         public readonly int $played_count,
         public readonly int $consecutive_count,
         public readonly int $rest_count,
-        
+
         // Partner history (from MiniTeamMember)
         public readonly array $partner_ids,
-        
+
         // Status
         public readonly bool $is_checked_in,
         public readonly bool $is_playing,
         public readonly bool $skip_next_round,
-        
+
         // Backup flag
         public readonly bool $is_backup,
     ) {}
@@ -41,6 +42,7 @@ class PlayerContextDTO
             user_id: $data['user_id'],
             full_name: $data['full_name'],
             avatar_url: $data['avatar_url'] ?? null,
+            is_guest: $data['is_guest'] ?? false,
             tier: $data['tier'] instanceof MatchTier ? $data['tier'] : MatchTier::from($data['tier']),
             is_manual_override: $data['is_manual_override'] ?? false,
             played_count: $data['played_count'] ?? 0,
@@ -61,6 +63,7 @@ class PlayerContextDTO
             'user_id' => $this->user_id,
             'full_name' => $this->full_name,
             'avatar_url' => $this->avatar_url,
+            'is_guest' => $this->is_guest,
             'tier' => $this->tier->value,
             'is_manual_override' => $this->is_manual_override,
             'played_count' => $this->played_count,
