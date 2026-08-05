@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PaymentStatusEnum;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\TeamLeaderboardResource;
 use App\Models\Club\Club;
@@ -54,6 +55,7 @@ class LeaderboardController extends Controller
 
         $tournament = Tournament::find($tournamentId);
         $isFinal = $tournament && $tournament->status === Tournament::CLOSED;
+        $hasFee = $tournament && $tournament->has_fee;
 
         $rankings = TeamRanking::with(['team.members'])
             ->whereIn('tournament_type_id', $tournamentTypeIds)
@@ -70,6 +72,7 @@ class LeaderboardController extends Controller
         );
 
         // Preload participant records cho tất cả members thuộc các team trong leaderboard
+        // Filter by payment_status nếu tournament có thu phí
         $allMemberIds = $rankings
             ->pluck('team.members')
             ->flatten()
@@ -78,10 +81,14 @@ class LeaderboardController extends Controller
             ->unique()
             ->values();
 
-        $participants = Participant::where('tournament_id', $tournamentId)
-            ->whereIn('user_id', $allMemberIds)
-            ->get()
-            ->keyBy('user_id');
+        $participantQuery = Participant::where('tournament_id', $tournamentId)
+            ->whereIn('user_id', $allMemberIds);
+
+        if ($hasFee) {
+            $participantQuery->where('payment_status', PaymentStatusEnum::Confirmed);
+        }
+
+        $participants = $participantQuery->get()->keyBy('user_id');
 
         $currentUserId = Auth::id();
 

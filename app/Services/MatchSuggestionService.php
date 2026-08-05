@@ -111,23 +111,31 @@ class MatchSuggestionService
             $userId = $user->id;
             $partnerIds = $partnerHistory[$userId] ?? [];
 
-            // Use tier từ Frontend (source of truth), không tự tính lại
-            $tier = $feP->tier;
+            // Guest: tự động tính tier từ estimated_level_min
+            // User thật: dùng tier từ Frontend
+            if ($participant->is_guest) {
+                $tier = MatchTier::fromRating($participant->estimated_level_min);
+                $isManualOverride = false;
+            } else {
+                $tier = $feP->tier;
+                $isManualOverride = true;
+            }
 
             $players[] = new PlayerContextDTO(
                 mini_participant_id: $participant->id,
                 user_id: $userId,
                 full_name: $user->full_name,
                 avatar_url: $user->avatar_url,
-                tier: $tier,  // Từ FE, không phải từ DB
-                is_manual_override: true,  // FE đã set tier thủ công
+                is_guest: $participant->is_guest,
+                tier: $tier,
+                is_manual_override: $isManualOverride,
                 played_count: $playedCounts[$userId] ?? 0,
                 consecutive_count: $consecutiveCounts[$userId] ?? 0,
                 rest_count: 0,
                 partner_ids: $partnerIds,
-                is_checked_in: true,  // FE chỉ gửi người đã check-in
+                is_checked_in: true,
                 is_playing: in_array($userId, $playingParticipants),
-                skip_next_round: false,  // FE không gửi người bị skip
+                skip_next_round: false,
                 is_backup: false,
             );
         }
