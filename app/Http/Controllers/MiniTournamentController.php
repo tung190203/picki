@@ -114,7 +114,10 @@ class MiniTournamentController extends Controller
         }
 
         $miniTournament = $this->tournamentService->createTournament($data, Auth::id());
-        $miniTournament->staff()->attach(Auth::id(), ['role' => MiniTournamentStaff::ROLE_ORGANIZER]);
+        // Dùng syncWithoutDetaching để tránh lỗi trùng khi recurring tạo occurrence
+        $miniTournament->staff()->syncWithoutDetaching([
+            Auth::id() => ['role' => MiniTournamentStaff::ROLE_ORGANIZER]
+        ]);
 
         if ($request->has('invite_user')) {
             $inviteUsers = $request->input('invite_user', []);

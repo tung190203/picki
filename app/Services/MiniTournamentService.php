@@ -82,6 +82,14 @@ class MiniTournamentService
             'is_session_started' => $isSessionStarted,
         ]);
 
+        // Thêm creator làm organizer để tính hasAdvancedMiniTournament
+        MiniTournamentStaff::firstOrCreate([
+            'mini_tournament_id' => $miniTournament->id,
+            'user_id' => $userId,
+        ], [
+            'role' => MiniTournamentStaff::ROLE_ORGANIZER,
+        ]);
+
         // Chỉ tạo participant + payment cho creator khi creator_join = true
         if ($miniTournament->creator_join) {
             $participant = MiniParticipant::create([
@@ -364,11 +372,17 @@ class MiniTournamentService
             ->exists();
 
         if (!$hasOrganizer && $userId > 0) {
-            MiniTournamentStaff::firstOrCreate([
-                'mini_tournament_id' => $target->id,
-                'user_id' => $userId,
-                'role' => MiniTournamentStaff::ROLE_ORGANIZER,
-            ]);
+            try {
+                MiniTournamentStaff::firstOrCreate([
+                    'mini_tournament_id' => $target->id,
+                    'user_id' => $userId,
+                    'role' => MiniTournamentStaff::ROLE_ORGANIZER,
+                ]);
+            } catch (\Illuminate\Database\QueryException $e) {
+                if (!str_contains($e->getMessage(), 'Duplicate entry')) {
+                    throw $e;
+                }
+            }
         }
 
         // Chỉ tạo participant + payment cho creator khi creator_join = true
