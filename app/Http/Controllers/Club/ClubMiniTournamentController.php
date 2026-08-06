@@ -86,7 +86,10 @@ class ClubMiniTournamentController extends Controller
         }
 
         $miniTournament = $this->tournamentService->createTournament($data, $userId);
-        $miniTournament->staff()->attach($userId, ['role' => MiniTournamentStaff::ROLE_ORGANIZER]);
+        // Dùng syncWithoutDetaching để tránh lỗi trùng khi recurring tạo occurrence
+        $miniTournament->staff()->syncWithoutDetaching([
+            $userId => ['role' => MiniTournamentStaff::ROLE_ORGANIZER]
+        ]);
 
         // === use_club_fund = true: tạo khoản chi từ quỹ CLB ===
         // CLB chi tiền cho kèo đấu → trừ quỹ chung + hiển thị trong lịch sử thu chi
