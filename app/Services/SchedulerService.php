@@ -307,8 +307,12 @@ class SchedulerService
     }
 
     /**
-     * Find optimal team pairing using VN DUPR scores.
+     * Find optimal team pairing using VN DUPR scores and tier distribution.
      * Evaluates all possible combinations and selects the most balanced one.
+     * 
+     * When prefer_high_tier_match is enabled, prioritizes:
+     * 1. Same tier in each team (e.g., đỏ đỏ vs đỏ đỏ)
+     * 2. Corresponding tier distribution (e.g., xanh đỏ vs xanh đỏ)
      * 
      * @return array|null ['team_a' => PlayerContextDTO[], 'team_b' => PlayerContextDTO[], 'is_high_tier' => bool, 'rules_applied' => string[]]
      */
@@ -327,6 +331,8 @@ class SchedulerService
         
         $bestPairing = null;
         $bestBalanceDiff = PHP_FLOAT_MAX;
+        $bestTierMatch = 0.0;
+        $preferHighTier = $settings->prefer_high_tier_match ?? false;
 
         foreach ($permutations as $perm) {
             $teamAIds = array_slice($perm, 0, 2);
@@ -342,26 +348,57 @@ class SchedulerService
 
             // Calculate VN DUPR balance
             $balanceDiff = $this->calculateBalanceDiff($playersA, $playersB, $userDataMap);
+            
+            // Calculate tier distribution match score
+            $tierMatch = $this->calculateTierDistributionMatch($playersA, $playersB);
+            
+            // When prefer_high_tier_match is enabled, prioritize tier matching
+            // Tier match bonus: perfect (2.0) >> corresponding (1.0) >> mismatched (0.0)
+            // We use a large multiplier (100) to ensure tier match outweighs balance diff
+            if ($preferHighTier) {
+                $adjustedScore = $balanceDiff - ($tierMatch * 100);
+            } else {
+                $adjustedScore = $balanceDiff;
+            }
 
-            if ($balanceDiff < $bestBalanceDiff) {
-                $bestBalanceDiff = $balanceDiff;
+            // Update best pairing
+            // Compare: first by adjusted score, then by tier match, then by balance diff
+            $shouldUpdate = false;
+            if ($bestPairing === null) {
+                $shouldUpdate = true;
+            } elseif ($adjustedScore < $bestBalanceDiff) {
+                $shouldUpdate = true;
+            } elseif ($adjustedScore === $bestBalanceDiff) {
+                // Tie-breaker: prefer higher tier match score
+                if ($tierMatch > $bestTierMatch) {
+                    $shouldUpdate = true;
+                }
+            }
+
+            if ($shouldUpdate) {
+                $bestBalanceDiff = $adjustedScore;
+                $bestTierMatch = $tierMatch;
                 $bestPairing = [
                     'team_a' => $playersA,
                     'team_b' => $playersB,
                     'is_high_tier' => $this->isHighTierMatch($playersA, $playersB),
                     'rules_applied' => [],
+                    'tier_match_score' => $tierMatch,
                 ];
             }
         }
 
         // Mark rules applied
-        if ($bestPairing && $bestPairing['is_high_tier'] && $settings->prefer_high_tier_match) {
+        if ($bestPairing && $bestPairing['is_high_tier'] && $preferHighTier) {
             $bestPairing['rules_applied'][] = 'prefer_high_tier_match';
         }
 
         if ($bestPairing && $settings->balance_team) {
             $bestPairing['rules_applied'][] = 'balance_team';
         }
+
+        // Remove internal field before returning
+        unset($bestPairing['tier_match_score']);
 
         return $bestPairing;
     }
@@ -487,17 +524,63 @@ class SchedulerService
     }
 
     /**
+     * Calculate tier distribution match score for prefer_high_tier_match setting.
+     * 
+     * Returns:
+     * - 3.0: Perfect same-tier match - both teams have same internal tier (e.g., [C,C] vs [C,C])
+     * - 2.0: Perfect distribution - same tier distribution after sorting (e.g., [A,B] vs [A,B])
+     * - 0.0: Mismatched distribution (e.g., [A,A] vs [B,B])
+     * 
+     * When prefer_high_tier_match is enabled, algorithm prioritizes:
+     * 1. Same tier in each team (e.g., đỏ đỏ vs đỏ đỏ)
+     * 2. If not enough, corresponding distribution (e.g., xanh đỏ vs xanh đỏ)
+     */
+    private function calculateTierDistributionMatch(array $teamA, array $teamB): float
+    {
+        $tiersA = array_map(fn($p) => $p->tier->priority(), $teamA);
+        $tiersB = array_map(fn($p) => $p->tier->priority(), $teamB);
+        
+        // Check if each team has same internal tier (e.g., [C,C] or [A,A])
+        $sameTierA = $tiersA[0] === $tiersA[1];
+        $sameTierB = $tiersB[0] === $tiersB[1];
+        
+        // Perfect match: both teams have same internal tier AND they match each other
+        // e.g., Team A [C,C] and Team B [C,C] = đỏ đỏ vs đỏ đỏ
+        if ($sameTierA && $sameTierB && $tiersA[0] === $tiersB[0]) {
+            return 3.0;
+        }
+        
+        // Sort for distribution comparison
+        sort($tiersA);
+        sort($tiersB);
+        
+        // Perfect distribution: same tier distribution after sorting
+        // e.g., Team A [A,B] = [1,3] and Team B [A,B] = [1,3] = xanh đỏ vs xanh đỏ
+        if ($tiersA === $tiersB) {
+            return 2.0;
+        }
+        
+        return 0.0;
+    }
+
+    /**
      * Calculate overall match quality score.
-     * Lower is better (balance diff).
+     * Lower balance diff is better (higher returned value).
+     * When prefer_high_tier_match is enabled, also considers tier distribution.
      */
     private function calculateMatchScore(array $teamA, array $teamB, $settings, array $userDataMap): float
     {
-        // Score = negative balance diff (lower is better)
-        // Higher returned value = better match
         $balanceDiff = $this->calculateBalanceDiff($teamA, $teamB, $userDataMap);
         
+        // When prefer_high_tier_match is enabled, add tier matching bonus
+        $tierBonus = 0;
+        if ($settings->prefer_high_tier_match ?? false) {
+            $tierMatch = $this->calculateTierDistributionMatch($teamA, $teamB);
+            $tierBonus = $tierMatch * 10;
+        }
+        
         // Normalize: subtract from a large number so higher = better
-        return 1000 - $balanceDiff;
+        return 1000 - $balanceDiff + $tierBonus;
     }
 
     /**
