@@ -10,7 +10,7 @@ use App\Models\Club\ClubWallet;
 use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
 use App\Services\MiniTournamentService;
-use Carbon\Carbon;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
