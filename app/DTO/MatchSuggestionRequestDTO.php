@@ -2,20 +2,20 @@
 
 namespace App\DTO;
 
-use App\Enums\MatchTier;
+use App\Enums\PlayerTier;
 
 class ParticipantTierDTO
 {
     public function __construct(
         public readonly int $mini_participant_id,
-        public readonly MatchTier $tier,
+        public readonly PlayerTier $tier,
     ) {}
 
     public static function fromArray(array $data): self
     {
         $tier = $data['tier'];
         if (is_string($tier)) {
-            $tier = MatchTier::from($tier);
+            $tier = PlayerTier::from($tier);
         }
 
         return new self(

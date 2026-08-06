@@ -14,12 +14,11 @@ class MatchSuggestionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Required
-            'mini_tournament_id' => ['required', 'integer'],
+            // mini_tournament_id is in URL, not body
             'participants' => ['required', 'array', 'min:1'],
             'participants.*.mini_participant_id' => ['required', 'integer'],
-            'participants.*.tier' => ['required', 'string', 'in:A,B'],
-            
+            'participants.*.tier' => ['required', 'string', 'in:purple,red,yellow,green'],
+
             // Settings
             'settings' => ['sometimes', 'array'],
             'settings.fair_play' => ['sometimes', 'boolean'],
@@ -27,26 +26,37 @@ class MatchSuggestionRequest extends FormRequest
             'settings.prefer_high_tier_match' => ['sometimes', 'boolean'],
             'settings.prevent_three_consecutive' => ['sometimes', 'boolean'],
             'settings.organizer_as_backup' => ['sometimes', 'boolean'],
-            
+
             // Optional
             'seed' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:999999'],
+            'exclude_player_ids' => ['sometimes', 'nullable', 'array'],
+            'exclude_player_ids.*' => ['integer'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'mini_tournament_id.required' => 'mini_tournament_id là bắt buộc.',
-            'mini_tournament_id.integer' => 'mini_tournament_id phải là số nguyên.',
             'participants.required' => 'Danh sách participants là bắt buộc.',
             'participants.array' => 'Danh sách participants phải là mảng.',
             'participants.min' => 'Cần ít nhất 1 participant.',
             'participants.*.mini_participant_id.required' => 'mini_participant_id là bắt buộc.',
             'participants.*.tier.required' => 'tier là bắt buộc.',
-            'participants.*.tier.in' => 'tier phải là A hoặc B.',
+            'participants.*.tier.in' => 'tier phải là purple, red, yellow hoặc green.',
             'seed.integer' => 'Seed phải là số nguyên.',
             'seed.min' => 'Seed phải lớn hơn 0.',
             'seed.max' => 'Seed không được lớn hơn 999999.',
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        // mini_tournament_id from URL is available in route
+        // Add it to validated data for DTO
+        if ($this->route('miniTournamentId')) {
+            $this->merge([
+                'mini_tournament_id' => (int) $this->route('miniTournamentId'),
+            ]);
+        }
     }
 }
