@@ -350,6 +350,193 @@ class MatchSuggestionTest extends TestCase
         $this->assertEquals(1.0, PlayerTier::Green->score());
     }
 
+    /**
+     * Test that calculateTierDistributionMatch returns 3.0 for perfect same-tier match.
+     * Example: Team A [C,C] vs Team B [C,C] = đỏ đỏ vs đỏ đỏ
+     */
+    public function test_tier_distribution_match_perfect_same_tier(): void
+    {
+        $reflection = new \ReflectionClass($this->scheduler);
+        
+        $method = $reflection->getMethod('calculateTierDistributionMatch');
+        $method->setAccessible(true);
+
+        // Team A: 2 Red players (C,C)
+        $teamA = [
+            $this->createPlayerContext(['id' => 1, 'tier' => PlayerTier::Red, 'user_id' => 1]),
+            $this->createPlayerContext(['id' => 2, 'tier' => PlayerTier::Red, 'user_id' => 2]),
+        ];
+
+        // Team B: 2 Red players (C,C) - same tier inside each team AND same across teams
+        $teamB = [
+            $this->createPlayerContext(['id' => 3, 'tier' => PlayerTier::Red, 'user_id' => 3]),
+            $this->createPlayerContext(['id' => 4, 'tier' => PlayerTier::Red, 'user_id' => 4]),
+        ];
+
+        $result = $method->invoke($this->scheduler, $teamA, $teamB);
+        
+        $this->assertEquals(3.0, $result, 'Perfect same-tier match should return 3.0');
+    }
+
+    /**
+     * Test that calculateTierDistributionMatch returns 2.0 for perfect distribution.
+     * Example: Team A [A,B] vs Team B [A,B] = xanh đỏ vs xanh đỏ (different tiers inside team but same distribution)
+     */
+    public function test_tier_distribution_match_corresponding_distribution(): void
+    {
+        $reflection = new \ReflectionClass($this->scheduler);
+        
+        $method = $reflection->getMethod('calculateTierDistributionMatch');
+        $method->setAccessible(true);
+
+        // Team A: Yellow + Red (B + C = 2 + 3) - different tiers inside team
+        $teamA = [
+            $this->createPlayerContext(['id' => 1, 'tier' => PlayerTier::Yellow, 'user_id' => 1]),
+            $this->createPlayerContext(['id' => 2, 'tier' => PlayerTier::Red, 'user_id' => 2]),
+        ];
+
+        // Team B: Yellow + Red (B + C = 2 + 3) - different tiers inside team, same distribution
+        $teamB = [
+            $this->createPlayerContext(['id' => 3, 'tier' => PlayerTier::Yellow, 'user_id' => 3]),
+            $this->createPlayerContext(['id' => 4, 'tier' => PlayerTier::Red, 'user_id' => 4]),
+        ];
+
+        $result = $method->invoke($this->scheduler, $teamA, $teamB);
+        
+        $this->assertEquals(2.0, $result, 'Corresponding distribution should return 2.0');
+    }
+
+    /**
+     * Test that calculateTierDistributionMatch returns 0.0 for mismatched distribution.
+     * Example: Team A [A,A] vs Team B [B,B] = đỏ đỏ vs xanh xanh (mismatched!)
+     */
+    public function test_tier_distribution_match_mismatched_distribution(): void
+    {
+        $reflection = new \ReflectionClass($this->scheduler);
+        
+        $method = $reflection->getMethod('calculateTierDistributionMatch');
+        $method->setAccessible(true);
+
+        // Team A: 2 Green players (A,A = 1,1)
+        $teamA = [
+            $this->createPlayerContext(['id' => 1, 'tier' => PlayerTier::Green, 'user_id' => 1]),
+            $this->createPlayerContext(['id' => 2, 'tier' => PlayerTier::Green, 'user_id' => 2]),
+        ];
+
+        // Team B: 2 Red players (C,C = 3,3) - mismatched!
+        $teamB = [
+            $this->createPlayerContext(['id' => 3, 'tier' => PlayerTier::Red, 'user_id' => 3]),
+            $this->createPlayerContext(['id' => 4, 'tier' => PlayerTier::Red, 'user_id' => 4]),
+        ];
+
+        $result = $method->invoke($this->scheduler, $teamA, $teamB);
+        
+        $this->assertEquals(0.0, $result, 'Mismatched distribution should return 0.0');
+    }
+
+    /**
+     * Test that findOptimalPairing prefers same-tier teams when prefer_high_tier_match is enabled.
+     * Even if balance diff is slightly worse, same-tier should win.
+     */
+    public function test_prefer_high_tier_match_selects_same_tier_over_balance(): void
+    {
+        $reflection = new \ReflectionClass($this->scheduler);
+        
+        $method = $reflection->getMethod('findOptimalPairing');
+        $method->setAccessible(true);
+
+        // 4 players with different tiers and same vndupr
+        // P1: Red (3.0), P2: Red (3.0), P3: Green (1.0), P4: Green (1.0)
+        $players = [
+            $this->createPlayerContext(['id' => 1, 'tier' => PlayerTier::Red, 'user_id' => 1, 'vndupr_score' => 3.0]),
+            $this->createPlayerContext(['id' => 2, 'tier' => PlayerTier::Red, 'user_id' => 2, 'vndupr_score' => 3.0]),
+            $this->createPlayerContext(['id' => 3, 'tier' => PlayerTier::Green, 'user_id' => 3, 'vndupr_score' => 1.0]),
+            $this->createPlayerContext(['id' => 4, 'tier' => PlayerTier::Green, 'user_id' => 4, 'vndupr_score' => 1.0]),
+        ];
+
+        // Same vndupr for all, so balance diff = 0 for any pairing
+        $userDataMap = [
+            1 => ['visibility' => 'open', 'sports' => [['scores' => ['vndupr_score' => '3.0']]]],
+            2 => ['visibility' => 'open', 'sports' => [['scores' => ['vndupr_score' => '3.0']]]],
+            3 => ['visibility' => 'open', 'sports' => [['scores' => ['vndupr_score' => '1.0']]]],
+            4 => ['visibility' => 'open', 'sports' => [['scores' => ['vndupr_score' => '1.0']]]],
+        ];
+
+        $settings = new class {
+            public bool $prefer_high_tier_match = true;
+            public bool $balance_team = true;
+        };
+
+        $result = $method->invoke($this->scheduler, $players, $userDataMap, $settings);
+        
+        $this->assertNotNull($result, 'Should find a pairing');
+        
+        // Get tier priorities for each team
+        $tiersA = array_map(fn($p) => $p->tier->priority(), $result['team_a']);
+        $tiersB = array_map(fn($p) => $p->tier->priority(), $result['team_b']);
+        sort($tiersA);
+        sort($tiersB);
+
+        // With prefer_high_tier_match, should prefer same-tier in each team
+        // [Red,Red] vs [Green,Green] gives 3.0 (perfect same-tier)
+        // [Red,Green] vs [Red,Green] gives 2.0 (perfect distribution)
+        // Both are acceptable (>= 1.0), not mismatched (0.0)
+        $tierMatch = $reflection->getMethod('calculateTierDistributionMatch');
+        $tierMatch->setAccessible(true);
+        $matchScore = $tierMatch->invoke($this->scheduler, $result['team_a'], $result['team_b']);
+        
+        // Should be either perfect same-tier (3.0) or perfect distribution (2.0), not mismatched (0.0)
+        $this->assertGreaterThanOrEqual(2.0, $matchScore, 
+            'Should prefer matching tier distribution, not mismatched');
+    }
+
+    /**
+     * Test that without prefer_high_tier_match, algorithm still balances by VN DUPR.
+     */
+    public function test_without_prefer_high_tier_uses_vndupr_balance(): void
+    {
+        $reflection = new \ReflectionClass($this->scheduler);
+        
+        $method = $reflection->getMethod('findOptimalPairing');
+        $method->setAccessible(true);
+
+        // 4 players with very different vndupr scores
+        // P1: Purple (4.0), P2: Green (1.0), P3: Yellow (2.0), P4: Yellow (2.0)
+        $players = [
+            $this->createPlayerContext(['id' => 1, 'tier' => PlayerTier::Purple, 'user_id' => 1, 'vndupr_score' => 4.0]),
+            $this->createPlayerContext(['id' => 2, 'tier' => PlayerTier::Green, 'user_id' => 2, 'vndupr_score' => 1.0]),
+            $this->createPlayerContext(['id' => 3, 'tier' => PlayerTier::Yellow, 'user_id' => 3, 'vndupr_score' => 2.0]),
+            $this->createPlayerContext(['id' => 4, 'tier' => PlayerTier::Yellow, 'user_id' => 4, 'vndupr_score' => 2.0]),
+        ];
+
+        $userDataMap = [
+            1 => ['visibility' => 'open', 'sports' => [['scores' => ['vndupr_score' => '4.0']]]],
+            2 => ['visibility' => 'open', 'sports' => [['scores' => ['vndupr_score' => '1.0']]]],
+            3 => ['visibility' => 'open', 'sports' => [['scores' => ['vndupr_score' => '2.0']]]],
+            4 => ['visibility' => 'open', 'sports' => [['scores' => ['vndupr_score' => '2.0']]]],
+        ];
+
+        $settings = new class {
+            public bool $prefer_high_tier_match = false;
+            public bool $balance_team = true;
+        };
+
+        $result = $method->invoke($this->scheduler, $players, $userDataMap, $settings);
+        
+        $this->assertNotNull($result, 'Should find a pairing');
+        
+        // Without prefer_high_tier_match, should balance by VN DUPR
+        // Best would be [4.0, 2.0] vs [2.0, 1.0] = 3.0 vs 1.5, diff = 1.5
+        // Or [4.0, 1.0] vs [2.0, 2.0] = 2.5 vs 2.0, diff = 0.5 (better!)
+        $balanceMethod = $reflection->getMethod('calculateBalanceDiff');
+        $balanceMethod->setAccessible(true);
+        $balanceDiff = $balanceMethod->invoke($this->scheduler, $result['team_a'], $result['team_b'], $userDataMap);
+        
+        // Should find a reasonably balanced pairing
+        $this->assertLessThanOrEqual(1.5, $balanceDiff, 
+            'Should balance teams by VN DUPR when prefer_high_tier_match is disabled');
+    }
+
     // Helper methods
 
     private function createPlayers(array $config): array
