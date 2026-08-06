@@ -132,16 +132,25 @@ class RoundRobinSchedulerService
         $isRankPairing = $miniTournament->match_format === MiniTournament::MATCH_FORMAT_RANK_PAIRING;
         $isStandard = $miniTournament->match_format === MiniTournament::MATCH_FORMAT_STANDARD;
 
-        // Check if tournament has fee - filter by payment_status if so
-        // Note: use_club_fund = true means club pays, so no fee from members
-        $hasFee = $miniTournament->has_fee && !$miniTournament->use_club_fund;
-
+        // Filter participants who actually participated in the tournament:
+        // 1. is_confirmed = true (confirmed registration)
+        // 2. checked_in_at IS NOT NULL (physically checked in)
+        // 3. is_absent = false (not marked as absent)
+        // 4. payment_status = CONFIRMED if tournament has fee
+        //    (except: auto_split_fee, use_club_fund, or free tournaments)
         $participantQuery = MiniParticipant::with('user:id,full_name')
             ->where('mini_tournament_id', $miniTournamentId)
-            ->where('is_confirmed', true);
+            ->where('is_confirmed', true)
+            ->whereNotNull('checked_in_at')
+            ->where('is_absent', false);
 
-        if ($hasFee) {
-            $participantQuery->where('payment_status', PaymentStatusEnum::CONFIRMED);
+        // Payment check: only if tournament has fee that members must pay
+        $needsPaymentCheck = $miniTournament->has_fee 
+            && !$miniTournament->auto_split_fee 
+            && !$miniTournament->use_club_fund;
+
+        if ($needsPaymentCheck) {
+            $participantQuery->where('payment_status', PaymentStatusEnum::Confirmed);
         }
 
         $participants = $participantQuery->get()->keyBy('id');
