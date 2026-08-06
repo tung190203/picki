@@ -124,26 +124,27 @@ class UserMatchStatsController extends Controller
         $since = now()->subYear();
 
         // ========== 1. TOURNAMENT MATCHES ==========
-        // team_members → teams → matches (home/away) → tournament_types → tournaments
-        $teamIds = DB::table('team_members')->where('user_id', $userId)->pluck('team_id');
-
-        $matchIds = DB::table('matches')
-            ->whereIn('home_team_id', $teamIds)
-            ->orWhereIn('away_team_id', $teamIds)
-            ->whereNotNull('winner_id')
-            ->where('updated_at', '>=', $since)
-            ->pluck('id')
+        // Lấy match_ids TỪ match_results - chỉ những trận user THỰC SỰ đánh (có kết quả set)
+        $tournamentMatchIds = DB::table('match_results as mr')
+            ->join('matches as m', 'mr.match_id', '=', 'm.id')
+            ->join('tournament_types as tt', 'm.tournament_type_id', '=', 'tt.id')
+            ->join('tournaments as t', 'tt.tournament_id', '=', 't.id')
+            ->join('team_members as tm', 'mr.team_id', '=', 'tm.team_id')
+            ->where('tm.user_id', $userId)
+            ->whereNotNull('m.winner_id')
+            ->where('m.updated_at', '>=', $since)
+            ->where('t.sport_id', $sportId)
+            ->pluck('mr.match_id')
             ->unique();
 
         $matches = collect();
-        if ($matchIds->isNotEmpty()) {
+        if ($tournamentMatchIds->isNotEmpty()) {
             $matches = Matches::with([
                     'homeTeam.members:id',
                     'awayTeam.members:id',
                     'tournamentType.tournament',
                 ])
-                ->whereIn('id', $matchIds)
-                ->whereHas('tournamentType.tournament', fn($q) => $q->where('sport_id', $sportId))
+                ->whereIn('id', $tournamentMatchIds)
                 ->get()
                 ->keyBy('id');
         }
@@ -153,31 +154,18 @@ class UserMatchStatsController extends Controller
             ->groupBy('match_id');
 
         // ========== 2. MINI TOURNAMENT MATCHES ==========
-        // 2a. Đánh đơn: user nằm trong mini_participants (is_confirmed, user_id direct)
-        $singleTournamentIds = DB::table('mini_participants')
-            ->where('user_id', $userId)
-            ->where('is_confirmed', 1)
-            ->whereNotNull('mini_tournament_id')
-            ->pluck('mini_tournament_id')
+        // Lấy mini_match_ids TỪ mini_match_results - chỉ những trận user THỰC SỰ đánh
+        // mini_match_results có team_id → mini_team_members có user_id
+        $miniMatchIds = DB::table('mini_match_results as mmr')
+            ->join('mini_matches as mm', 'mmr.mini_match_id', '=', 'mm.id')
+            ->join('mini_tournaments as mnt', 'mm.mini_tournament_id', '=', 'mnt.id')
+            ->join('mini_team_members as mtm', 'mmr.team_id', '=', 'mtm.mini_team_id')
+            ->where('mtm.user_id', $userId)
+            ->whereNotNull('mm.team_win_id')
+            ->where('mm.updated_at', '>=', $since)
+            ->where('mnt.sport_id', $sportId)
+            ->pluck('mmr.mini_match_id')
             ->unique();
-
-        // 2b. Đánh đôi/team: user nằm trong mini_team_members
-        $teamMatchTournamentIds = DB::table('mini_team_members')
-            ->join('mini_teams', 'mini_team_members.mini_team_id', '=', 'mini_teams.id')
-            ->where('mini_team_members.user_id', $userId)
-            ->pluck('mini_teams.mini_tournament_id')
-            ->unique();
-
-        $allMiniTournamentIds = $singleTournamentIds->merge($teamMatchTournamentIds)->unique();
-
-        $miniMatchIds = collect();
-        if ($allMiniTournamentIds->isNotEmpty()) {
-            $miniMatchIds = DB::table('mini_matches')
-                ->whereIn('mini_tournament_id', $allMiniTournamentIds)
-                ->whereNotNull('team_win_id')
-                ->where('updated_at', '>=', $since)
-                ->pluck('id');
-        }
 
         $minis = collect();
         if ($miniMatchIds->isNotEmpty()) {
