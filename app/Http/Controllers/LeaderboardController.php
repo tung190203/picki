@@ -85,7 +85,7 @@ class LeaderboardController extends Controller
             ->whereIn('user_id', $allMemberIds);
 
         if ($hasFee) {
-            $participantQuery->where('payment_status', PaymentStatusEnum::Confirmed);
+            $participantQuery->where('payment_status', PaymentStatusEnum::CONFIRMED);
         }
 
         $participants = $participantQuery->get()->keyBy('user_id');
