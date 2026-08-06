@@ -86,6 +86,10 @@ class MatchSuggestionRequestDTO
             $participants[] = ParticipantTierDTO::fromArray($p);
         }
 
+        if (!isset($data['mini_tournament_id'])) {
+            throw new \InvalidArgumentException('mini_tournament_id là bắt buộc.');
+        }
+
         return new self(
             mini_tournament_id: $data['mini_tournament_id'],
             participants: $participants,

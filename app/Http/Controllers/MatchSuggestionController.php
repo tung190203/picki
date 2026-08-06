@@ -57,7 +57,10 @@ class MatchSuggestionController extends Controller
             ], 422);
         }
 
-        $dto = MatchSuggestionRequestDTO::fromArray($request->validated());
+        $dto = MatchSuggestionRequestDTO::fromArray([
+            'mini_tournament_id' => $miniTournamentId,
+            ...$request->validated(),
+        ]);
 
         try {
             $suggestion = $this->matchSuggestionService->generate($dto);
@@ -97,7 +100,10 @@ class MatchSuggestionController extends Controller
             ], 422);
         }
 
-        $dto = MatchSuggestionRequestDTO::fromArray($request->validated());
+        $dto = MatchSuggestionRequestDTO::fromArray([
+            'mini_tournament_id' => $miniTournamentId,
+            ...$request->validated(),
+        ]);
         
         $previousSuggestion = null;
         if ($request->has('previous_suggestion') && is_array($request->input('previous_suggestion'))) {

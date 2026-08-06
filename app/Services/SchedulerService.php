@@ -151,6 +151,8 @@ class SchedulerService
     /**
      * Find all valid gender-compatible groups.
      * Returns array of player arrays, each containing 4+ players.
+     * 
+     * PRIORITY: Mixed gender (nam nữ) is preferred over same-gender groups.
      */
     private function findGenderCompatibleGroups(array $pool): array
     {
@@ -161,21 +163,27 @@ class SchedulerService
 
         $groups = [];
 
-        // Mixed gender: need at least 2 males and 2 females for 2v2
+        // Mixed gender FIRST: need at least 2 males and 2 females for 2v2
         if (count($males) >= 2 && count($females) >= 2) {
             $mixedGroup = array_merge(
-                array_slice($males, 0, 4), // Will be filtered to 2-2 later
+                array_slice($males, 0, 4),
                 array_slice($females, 0, 4)
             );
             $groups[] = $mixedGroup;
         }
+        
+        // Only allow same-gender groups if mixed is not possible
+        // Check if we already have mixed gender - if yes, skip same-gender
+        if (!empty($groups)) {
+            return $groups;
+        }
 
-        // All male: need at least 4 males
+        // All male: fallback only if mixed not possible
         if (count($males) >= 4) {
             $groups[] = array_values($males);
         }
 
-        // All female: need at least 4 females
+        // All female: fallback only if mixed not possible
         if (count($females) >= 4) {
             $groups[] = array_values($females);
         }
@@ -196,9 +204,48 @@ class SchedulerService
     /**
      * Select 4 players using fair play priority.
      * Priority: played_count (ascending) > waiting_rounds (descending) > tier priority
+     * 
+     * For mixed gender groups, ensures 2-2 split.
      */
     private function selectPlayers(array $players, MatchSuggestionRequestDTO $request): array
     {
+        // Count genders
+        $males = array_filter($players, fn($p) => $p->gender === User::MALE);
+        $females = array_filter($players, fn($p) => $p->gender === User::FEMALE);
+        
+        $isMixedGroup = count($males) >= 2 && count($females) >= 2;
+        
+        if ($isMixedGroup) {
+            // Mixed gender: select 2 males + 2 females with fair play priority
+            $freshMales = array_filter($males, fn($p) => $p->played_count === 0);
+            $freshFemales = array_filter($females, fn($p) => $p->played_count === 0);
+            $playedMales = array_filter($males, fn($p) => $p->played_count > 0);
+            $playedFemales = array_filter($females, fn($p) => $p->played_count > 0);
+
+            if ($request->settings->fair_play) {
+                $freshMales = $this->applyFairPlayPriority($freshMales);
+                $freshFemales = $this->applyFairPlayPriority($freshFemales);
+                $playedMales = $this->applyRestPriority($playedMales);
+                $playedFemales = $this->applyRestPriority($playedFemales);
+            }
+
+            // Take 2 from each gender
+            $selected = array_merge(
+                array_slice($freshMales, 0, 2),
+                array_slice($freshFemales, 0, 2)
+            );
+
+            // Fill with played if needed
+            if (count($selected) < 4) {
+                $remainingMales = array_slice($playedMales, 0, 4 - count($selected));
+                $remainingFemales = array_slice($playedFemales, 0, 4 - count($selected));
+                $selected = array_merge($selected, $remainingMales, $remainingFemales);
+            }
+
+            return array_slice($selected, 0, 4);
+        }
+
+        // Same gender or unknown: use original logic
         $fresh = array_filter($players, fn($p) => $p->played_count === 0);
         $justPlayed = array_filter($players, fn($p) => $p->played_count > 0);
 
@@ -579,6 +626,10 @@ class SchedulerService
      */
     private function shuffleWithSeed(array $players, ?int $seed): array
     {
+        if (empty($players)) {
+            return $players;
+        }
+
         if ($seed === null) {
             shuffle($players);
             return $players;
@@ -591,7 +642,9 @@ class SchedulerService
 
         $shuffled = [];
         foreach ($indexes as $i) {
-            $shuffled[] = $players[$i];
+            if (isset($players[$i])) {
+                $shuffled[] = $players[$i];
+            }
         }
 
         return $shuffled;
