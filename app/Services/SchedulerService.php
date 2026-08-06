@@ -8,7 +8,8 @@ use App\DTO\PlayerContextDTO;
 use App\DTO\SuggestionMatchDTO;
 use App\DTO\TeamMatchDTO;
 use App\DTO\TeamMatchMemberDTO;
-use App\Enums\MatchTier;
+use App\Enums\PlayerTier;
+use App\Models\User;
 
 class SchedulerService
 {
@@ -27,48 +28,77 @@ class SchedulerService
         $messages = [];
         $settings = $request->settings;
 
+        // Build eligible player pool
         $pool = $this->buildPool($players, $request);
         
         if (count($pool) < 4) {
             return $this->createInsufficientPlayersResponse($seed, $pool, $rulesApplied, $messages, $userDataMap);
         }
 
-        $selected = $this->selectPlayers($pool, $request);
+        // Find gender-compatible player groups and select the best match
+        $genderGroups = $this->findGenderCompatibleGroups($pool);
         
-        if (count($selected) < 4) {
+        $bestMatch = null;
+        $bestScore = PHP_FLOAT_MIN;
+
+        foreach ($genderGroups as $group) {
+            // Apply fair play priority to select 4 players
+            $selected = $this->selectPlayers($group, $request);
+            
+            if (count($selected) < 4) {
+                continue;
+            }
+
+            // Find optimal team split with VN DUPR balance
+            $pairing = $this->findOptimalPairing($selected, $userDataMap, $settings);
+            
+            if (!$pairing) {
+                continue;
+            }
+
+            // Calculate overall match quality score
+            $score = $this->calculateMatchScore($pairing['team_a'], $pairing['team_b'], $settings, $userDataMap);
+            
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $bestMatch = $this->buildMatchDTO(
+                    $pairing['team_a'],
+                    $pairing['team_b'],
+                    $userDataMap,
+                    $pairing['is_high_tier']
+                );
+                
+                if (!empty($pairing['rules_applied'])) {
+                    $rulesApplied = array_merge($rulesApplied, $pairing['rules_applied']);
+                }
+            }
+        }
+
+        // Fallback if no valid match found
+        if (!$bestMatch) {
             return $this->createInsufficientPlayersResponse($seed, $pool, $rulesApplied, $messages, $userDataMap);
         }
 
-        $match = null;
-        // Ưu tiên ghép "Căng tay" (A với A, B với B) trước
-        $sameTierMatch = $this->tryCreateSameTierMatch($pool);
-        if ($sameTierMatch) {
-            $match = $sameTierMatch;
-            $rulesApplied[] = 'same_tier_match';
-        } elseif ($settings->prefer_high_tier_match && $this->canFormHighTierMatch($pool)) {
-            $match = $this->createHighTierMatch($pool, $userDataMap);
-            $rulesApplied[] = 'prefer_high_tier_match';
-        } else {
-            $match = $this->balanceTeams($selected, $userDataMap);
-        }
-
-        $selectedIds = array_column($selected, 'user_id');
+        $selectedIds = array_column($pool, 'user_id');
         $waiting = $this->buildWaitingList($pool, $selectedIds);
-        $backup = $this->getBackupIfNeeded($selected, $settings->organizer_as_backup);
-        $statistics = $this->calculateStatistics($match, $selected, $waiting, $backup);
+        $backup = $this->getBackupIfNeeded($selectedIds, $settings->organizer_as_backup);
+        $statistics = $this->calculateStatistics($bestMatch, $pool, $selectedIds);
 
         return new MatchSuggestionResponseDTO(
-            match: $match,
+            match: $bestMatch,
             waiting_players: $waiting,
             backup_used: $backup !== null,
             backup_player: $backup,
             statistics: $statistics,
             seed: $seed,
-            rules_applied: $rulesApplied,
+            rules_applied: array_unique($rulesApplied),
             messages: $messages,
         );
     }
 
+    /**
+     * Build eligible player pool with all filters applied.
+     */
     private function buildPool(array $players, MatchSuggestionRequestDTO $request): array
     {
         $pool = [];
@@ -82,11 +112,13 @@ class SchedulerService
             $pool[] = $player;
         }
 
+        // Exclude specified players (from regenerate)
         if ($request->exclude_player_ids) {
             $pool = array_filter($pool, fn($p) => !in_array($p->user_id, $request->exclude_player_ids));
             $pool = array_values($pool);
         }
 
+        // Shuffle with seed for determinism
         $pool = $this->shuffleWithSeed($pool, $request->seed);
 
         return $pool;
@@ -116,10 +148,106 @@ class SchedulerService
         return $player->consecutive_count < 2;
     }
 
-    private function selectPlayers(array $pool, MatchSuggestionRequestDTO $request): array
+    /**
+     * Find all valid gender-compatible groups.
+     * Returns array of player arrays, each containing 4+ players.
+     * 
+     * PRIORITY: Mixed gender (nam nữ) is preferred over same-gender groups.
+     */
+    private function findGenderCompatibleGroups(array $pool): array
     {
-        $fresh = array_filter($pool, fn($p) => $p->played_count === 0);
-        $justPlayed = array_filter($pool, fn($p) => $p->played_count > 0);
+        // Separate players by gender
+        $males = array_filter($pool, fn($p) => $p->gender === User::MALE);
+        $females = array_filter($pool, fn($p) => $p->gender === User::FEMALE);
+        $unknown = array_filter($pool, fn($p) => $p->gender === null || $p->gender === User::OTHER || $p->gender === User::NO_PUBLIC);
+
+        $groups = [];
+
+        // Mixed gender FIRST: need at least 2 males and 2 females for 2v2
+        if (count($males) >= 2 && count($females) >= 2) {
+            $mixedGroup = array_merge(
+                array_slice($males, 0, 4),
+                array_slice($females, 0, 4)
+            );
+            $groups[] = $mixedGroup;
+        }
+        
+        // Only allow same-gender groups if mixed is not possible
+        // Check if we already have mixed gender - if yes, skip same-gender
+        if (!empty($groups)) {
+            return $groups;
+        }
+
+        // All male: fallback only if mixed not possible
+        if (count($males) >= 4) {
+            $groups[] = array_values($males);
+        }
+
+        // All female: fallback only if mixed not possible
+        if (count($females) >= 4) {
+            $groups[] = array_values($females);
+        }
+
+        // Unknown gender: fallback if no gender-compatible groups
+        if (empty($groups) && count($unknown) >= 4) {
+            $groups[] = array_values($unknown);
+        }
+
+        // Last resort: use all available players
+        if (empty($groups) && count($pool) >= 4) {
+            $groups[] = $pool;
+        }
+
+        return $groups;
+    }
+
+    /**
+     * Select 4 players using fair play priority.
+     * Priority: played_count (ascending) > waiting_rounds (descending) > tier priority
+     * 
+     * For mixed gender groups, ensures 2-2 split.
+     */
+    private function selectPlayers(array $players, MatchSuggestionRequestDTO $request): array
+    {
+        // Count genders
+        $males = array_filter($players, fn($p) => $p->gender === User::MALE);
+        $females = array_filter($players, fn($p) => $p->gender === User::FEMALE);
+        
+        $isMixedGroup = count($males) >= 2 && count($females) >= 2;
+        
+        if ($isMixedGroup) {
+            // Mixed gender: select 2 males + 2 females with fair play priority
+            $freshMales = array_filter($males, fn($p) => $p->played_count === 0);
+            $freshFemales = array_filter($females, fn($p) => $p->played_count === 0);
+            $playedMales = array_filter($males, fn($p) => $p->played_count > 0);
+            $playedFemales = array_filter($females, fn($p) => $p->played_count > 0);
+
+            if ($request->settings->fair_play) {
+                $freshMales = $this->applyFairPlayPriority($freshMales);
+                $freshFemales = $this->applyFairPlayPriority($freshFemales);
+                $playedMales = $this->applyRestPriority($playedMales);
+                $playedFemales = $this->applyRestPriority($playedFemales);
+            }
+
+            // Take 2 from each gender
+            $selected = array_merge(
+                array_slice($freshMales, 0, 2),
+                array_slice($freshFemales, 0, 2)
+            );
+
+            // Fill with played if needed
+            if (count($selected) < 4) {
+                $remainingMales = array_slice($playedMales, 0, 4 - count($selected));
+                $remainingFemales = array_slice($playedFemales, 0, 4 - count($selected));
+                $selected = array_merge($selected, $remainingMales, $remainingFemales);
+            }
+
+            return array_slice($selected, 0, 4);
+        }
+
+        // Same gender or unknown: use original logic
+        $fresh = array_filter($players, fn($p) => $p->played_count === 0);
+        $justPlayed = array_filter($players, fn($p) => $p->played_count > 0);
 
         if ($request->settings->fair_play) {
             $fresh = $this->applyFairPlayPriority($fresh);
@@ -131,83 +259,270 @@ class SchedulerService
         return array_slice($combined, 0, 4);
     }
 
+    /**
+     * Apply fair play priority: players with fewer matches play first.
+     */
     private function applyFairPlayPriority(array $players): array
     {
-        usort($players, fn($a, $b) => $a->played_count <=> $b->played_count);
+        usort($players, function ($a, $b) {
+            // Primary: fewer matches played
+            if ($a->played_count !== $b->played_count) {
+                return $a->played_count <=> $b->played_count;
+            }
+            // Secondary: more waiting rounds
+            if ($a->waiting_rounds !== $b->waiting_rounds) {
+                return $b->waiting_rounds <=> $a->waiting_rounds;
+            }
+            // Tertiary: lower tier (green before yellow before red before purple)
+            // This prevents tier starvation - lower tiers get priority
+            if ($a->tier->priority() !== $b->tier->priority()) {
+                return $a->tier->priority() <=> $b->tier->priority();
+            }
+            return 0;
+        });
         return $players;
-    }
-
-    private function applyRestPriority(array $players): array
-    {
-        usort($players, fn($a, $b) => $b->rest_count <=> $a->rest_count);
-        return $players;
-    }
-
-    private function canFormHighTierMatch(array $pool): bool
-    {
-        $tierA = array_filter($pool, fn($p) => $p->tier === MatchTier::A);
-        return count($tierA) >= 4;
     }
 
     /**
-     * Thử tạo trận "Căng tay" - ghép cùng tier (A với A, B với B).
-     * Ưu tiên ghép A với A trước, rồi mới đến B với B.
+     * Apply rest priority: players who rested longer play first.
      */
-    private function tryCreateSameTierMatch(array $pool): ?SuggestionMatchDTO
+    private function applyRestPriority(array $players): array
     {
-        $tierAPlayers = array_values(array_filter($pool, fn($p) => $p->tier === MatchTier::A));
-        $tierBPlayers = array_values(array_filter($pool, fn($p) => $p->tier === MatchTier::B));
+        usort($players, function ($a, $b) {
+            // Primary: more waiting rounds
+            if ($a->waiting_rounds !== $b->waiting_rounds) {
+                return $b->waiting_rounds <=> $a->waiting_rounds;
+            }
+            // Secondary: fewer matches played
+            if ($a->played_count !== $b->played_count) {
+                return $a->played_count <=> $b->played_count;
+            }
+            // Tertiary: lower tier
+            if ($a->tier->priority() !== $b->tier->priority()) {
+                return $a->tier->priority() <=> $b->tier->priority();
+            }
+            return 0;
+        });
+        return $players;
+    }
 
-        // Ghép A với A (căng tay)
-        if (count($tierAPlayers) >= 4) {
-            $tierAPlayers = $this->sortByPartnerHistory($tierAPlayers, $pool);
-            $team1Players = array_slice($tierAPlayers, 0, 2);
-            $team2Players = array_slice($tierAPlayers, 2, 2);
-            return $this->buildMatchDTO($team1Players, $team2Players, [], false);
+    /**
+     * Find optimal team pairing using VN DUPR scores.
+     * Evaluates all possible combinations and selects the most balanced one.
+     * 
+     * @return array|null ['team_a' => PlayerContextDTO[], 'team_b' => PlayerContextDTO[], 'is_high_tier' => bool, 'rules_applied' => string[]]
+     */
+    private function findOptimalPairing(array $players, array $userDataMap, $settings): ?array
+    {
+        if (count($players) < 4) {
+            return null;
         }
 
-        // Ghép B với B (căng tay)
-        if (count($tierBPlayers) >= 4) {
-            $tierBPlayers = $this->sortByPartnerHistory($tierBPlayers, $pool);
-            $team1Players = array_slice($tierBPlayers, 0, 2);
-            $team2Players = array_slice($tierBPlayers, 2, 2);
-            return $this->buildMatchDTO($team1Players, $team2Players, [], false);
+        // Get gender info for validation
+        $genderCounts = $this->countGenders($players);
+        
+        // Try all permutations
+        $userIds = array_column($players, 'user_id');
+        $permutations = $this->getPermutations($userIds);
+        
+        $bestPairing = null;
+        $bestBalanceDiff = PHP_FLOAT_MAX;
+
+        foreach ($permutations as $perm) {
+            $teamAIds = array_slice($perm, 0, 2);
+            $teamBIds = array_slice($perm, 2, 2);
+
+            $playersA = $this->getPlayersByIds($teamAIds, $players);
+            $playersB = $this->getPlayersByIds($teamBIds, $players);
+
+            // Validate gender compatibility
+            if (!$this->isValidGenderPairing($playersA, $playersB, $genderCounts)) {
+                continue;
+            }
+
+            // Calculate VN DUPR balance
+            $balanceDiff = $this->calculateBalanceDiff($playersA, $playersB, $userDataMap);
+
+            if ($balanceDiff < $bestBalanceDiff) {
+                $bestBalanceDiff = $balanceDiff;
+                $bestPairing = [
+                    'team_a' => $playersA,
+                    'team_b' => $playersB,
+                    'is_high_tier' => $this->isHighTierMatch($playersA, $playersB),
+                    'rules_applied' => [],
+                ];
+            }
         }
 
-        // Không đủ 4 người cùng tier → fallback sang logic khác
-        return null;
+        // Mark rules applied
+        if ($bestPairing && $bestPairing['is_high_tier'] && $settings->prefer_high_tier_match) {
+            $bestPairing['rules_applied'][] = 'prefer_high_tier_match';
+        }
+
+        if ($bestPairing && $settings->balance_team) {
+            $bestPairing['rules_applied'][] = 'balance_team';
+        }
+
+        return $bestPairing;
     }
 
-    private function createHighTierMatch(array $pool, array $userDataMap): SuggestionMatchDTO
+    /**
+     * Count genders in player array.
+     */
+    private function countGenders(array $players): array
     {
-        $tierAPlayers = array_filter($pool, fn($p) => $p->tier === MatchTier::A);
-        $tierAPlayers = array_values($tierAPlayers);
+        $counts = [
+            User::MALE => 0,
+            User::FEMALE => 0,
+            'unknown' => 0,
+        ];
 
-        $tierAPlayers = $this->sortByPartnerHistory($tierAPlayers, $pool);
+        foreach ($players as $p) {
+            if ($p->gender === User::MALE) {
+                $counts[User::MALE]++;
+            } elseif ($p->gender === User::FEMALE) {
+                $counts[User::FEMALE]++;
+            } else {
+                $counts['unknown']++;
+            }
+        }
 
-        $team1Players = array_slice($tierAPlayers, 0, 2);
-        $team2Players = array_slice($tierAPlayers, 2, 2);
-
-        return $this->buildMatchDTO($team1Players, $team2Players, $userDataMap, true);
+        return $counts;
     }
 
-    private function balanceTeams(array $selectedPlayers, array $userDataMap): SuggestionMatchDTO
+    /**
+     * Check if a team pairing respects gender rules.
+     * Mixed gender must be symmetric (2-2 or 1-1).
+     */
+    private function isValidGenderPairing(array $teamA, array $teamB, array $genderCounts): bool
     {
-        $selectedPlayers = $this->sortByPartnerHistory($selectedPlayers, $selectedPlayers);
+        $allPlayers = array_merge($teamA, $teamB);
+        
+        $hasMale = false;
+        $hasFemale = false;
 
-        $bestPairing = $this->findOptimalPairing($selectedPlayers);
+        foreach ($allPlayers as $p) {
+            if ($p->gender === User::MALE) $hasMale = true;
+            if ($p->gender === User::FEMALE) $hasFemale = true;
+        }
 
-        $tierAScore = array_sum(array_map(fn($p) => $p->tier === MatchTier::A ? 1 : 0, $bestPairing['team_a']));
-        $tierBScore = array_sum(array_map(fn($p) => $p->tier === MatchTier::A ? 1 : 0, $bestPairing['team_b']));
+        // If we have mixed gender, require symmetric distribution
+        if ($hasMale && $hasFemale) {
+            $malesInA = count(array_filter($teamA, fn($p) => $p->gender === User::MALE));
+            $malesInB = count(array_filter($teamB, fn($p) => $p->gender === User::MALE));
+            $femalesInA = count(array_filter($teamA, fn($p) => $p->gender === User::FEMALE));
+            $femalesInB = count(array_filter($teamB, fn($p) => $p->gender === User::FEMALE));
 
-        return $this->buildMatchDTO(
-            $bestPairing['team_a'],
-            $bestPairing['team_b'],
-            $userDataMap,
-            $tierAScore >= 2 && $tierBScore >= 2
-        );
+            // Mixed must be symmetric: 2 males + 2 females
+            return $malesInA === $femalesInA && $malesInB === $femalesInB;
+        }
+
+        // All-male or all-female is always valid
+        return true;
     }
 
+    /**
+     * Calculate balance difference between two teams using VN DUPR scores.
+     * Returns absolute difference in team strength.
+     */
+    private function calculateBalanceDiff(array $teamA, array $teamB, array $userDataMap): float
+    {
+        $strengthA = $this->calculateTeamStrength($teamA, $userDataMap);
+        $strengthB = $this->calculateTeamStrength($teamB, $userDataMap);
+
+        return abs($strengthA - $strengthB);
+    }
+
+    /**
+     * Calculate team strength based on VN DUPR scores.
+     * Falls back to tier score if VN DUPR not available.
+     */
+    private function calculateTeamStrength(array $players, array $userDataMap): float
+    {
+        $total = 0;
+        $count = 0;
+
+        foreach ($players as $p) {
+            if (!$p->user_id) {
+                // Guest without user: use tier score
+                $total += $p->tier->score();
+                $count++;
+                continue;
+            }
+
+            $userData = $userDataMap[$p->user_id] ?? null;
+            
+            if ($userData && !empty($userData['sports'])) {
+                $vndupr = $userData['sports'][0]['scores']['vndupr_score'] ?? null;
+                if ($vndupr !== null && is_numeric($vndupr)) {
+                    $total += (float) $vndupr;
+                    $count++;
+                } else {
+                    // Fallback to tier score
+                    $total += $p->tier->score();
+                    $count++;
+                }
+            } else {
+                // No VN DUPR data: use tier score
+                $total += $p->tier->score();
+                $count++;
+            }
+        }
+
+        return $count > 0 ? $total / $count : 0;
+    }
+
+    /**
+     * Check if this is a high-tier match (prefer_high_tier_match setting).
+     */
+    private function isHighTierMatch(array $teamA, array $teamB): bool
+    {
+        $allPlayers = array_merge($teamA, $teamB);
+        
+        // A "high tier" match has average tier >= Yellow (2.0)
+        $totalTierScore = array_sum(array_map(fn($p) => $p->tier->score(), $allPlayers));
+        $avgTier = $totalTierScore / count($allPlayers);
+
+        return $avgTier >= 2.0; // Yellow or higher
+    }
+
+    /**
+     * Calculate overall match quality score.
+     * Lower is better (balance diff).
+     */
+    private function calculateMatchScore(array $teamA, array $teamB, $settings, array $userDataMap): float
+    {
+        // Score = negative balance diff (lower is better)
+        // Higher returned value = better match
+        $balanceDiff = $this->calculateBalanceDiff($teamA, $teamB, $userDataMap);
+        
+        // Normalize: subtract from a large number so higher = better
+        return 1000 - $balanceDiff;
+    }
+
+    /**
+     * Get players by their user IDs.
+     */
+    private function getPlayersByIds(array $userIds, array $players): array
+    {
+        $playerMap = [];
+        foreach ($players as $p) {
+            $playerMap[$p->user_id] = $p;
+        }
+
+        $result = [];
+        foreach ($userIds as $userId) {
+            if (isset($playerMap[$userId])) {
+                $result[] = $playerMap[$userId];
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Build match DTO from selected players.
+     */
     private function buildMatchDTO(array $team1Players, array $team2Players, array $userDataMap, bool $isHighTier): SuggestionMatchDTO
     {
         $team1 = new TeamMatchDTO(
@@ -229,6 +544,9 @@ class SchedulerService
         );
     }
 
+    /**
+     * Build member DTO from player context.
+     */
     private function buildMemberDTO(PlayerContextDTO $player, array $userDataMap): TeamMatchMemberDTO
     {
         $userData = $userDataMap[$player->user_id] ?? ['visibility' => 'open', 'sports' => []];
@@ -246,74 +564,17 @@ class SchedulerService
         );
     }
 
-    private function sortByPartnerHistory(array $players, array $allPlayers): array
-    {
-        $playerMap = [];
-        foreach ($allPlayers as $p) {
-            $playerMap[$p->user_id] = $p;
-        }
-
-        usort($players, function ($a, $b) use ($playerMap, $players) {
-            $aPartners = $playerMap[$a->user_id]->partner_ids ?? [];
-            $bPartners = $playerMap[$b->user_id]->partner_ids ?? [];
-            $playerUserIds = array_column($players, 'user_id');
-
-            $aHasPartnerInPool = count(array_intersect($aPartners, $playerUserIds));
-            $bHasPartnerInPool = count(array_intersect($bPartners, $playerUserIds));
-
-            return $aHasPartnerInPool <=> $bHasPartnerInPool;
-        });
-
-        return $players;
-    }
-
-    private function findOptimalPairing(array $players): array
-    {
-        if (count($players) < 4) {
-            return ['team_a' => $players, 'team_b' => []];
-        }
-
-        $teamA = array_slice($players, 0, 2);
-        $teamB = array_slice($players, 2, 2);
-
-        $scoreA = $this->calculateTeamScore($teamA);
-        $scoreB = $this->calculateTeamScore($teamB);
-        $currentDiff = abs($scoreA - $scoreB);
-
-        $userIds = array_column($players, 'user_id');
-        $permutations = $this->getPermutations($userIds);
-
-        foreach ($permutations as $perm) {
-            $testA = array_slice($perm, 0, 2);
-            $testB = array_slice($perm, 2, 2);
-
-            $playersA = array_map(fn($id) => $players[array_search($id, $userIds)], $testA);
-            $playersB = array_map(fn($id) => $players[array_search($id, $userIds)], $testB);
-
-            $testScoreA = $this->calculateTeamScore($playersA);
-            $testScoreB = $this->calculateTeamScore($playersB);
-            $testDiff = abs($testScoreA - $testScoreB);
-
-            if ($testDiff < $currentDiff) {
-                $teamA = $playersA;
-                $teamB = $playersB;
-                $currentDiff = $testDiff;
-            }
-        }
-
-        return ['team_a' => $teamA, 'team_b' => $teamB];
-    }
-
-    private function calculateTeamScore(array $team): int
-    {
-        return array_sum(array_map(fn($p) => $p->tier === MatchTier::A ? 1 : 0, $team));
-    }
-
+    /**
+     * Build waiting list (players not selected for current match).
+     */
     private function buildWaitingList(array $pool, array $excludeIds): array
     {
         return array_values(array_filter($pool, fn($p) => !in_array($p->user_id, $excludeIds)));
     }
 
+    /**
+     * Get backup player if needed.
+     */
     private function getBackupIfNeeded(array $selected, bool $organizerAsBackup): ?PlayerContextDTO
     {
         if (!$organizerAsBackup) {
@@ -328,12 +589,14 @@ class SchedulerService
         return null;
     }
 
-    private function calculateStatistics(
-        ?SuggestionMatchDTO $match,
-        array $selected,
-        array $waiting,
-        ?PlayerContextDTO $backup
-    ): array {
+    /**
+     * Calculate statistics for the generated match.
+     */
+    private function calculateStatistics(?SuggestionMatchDTO $match, array $pool, array $selectedIds): array
+    {
+        $selected = array_filter($pool, fn($p) => in_array($p->user_id, $selectedIds));
+        $waiting = array_filter($pool, fn($p) => !in_array($p->user_id, $selectedIds));
+
         $playedCounts = array_column($selected, 'played_count');
 
         $fairnessScore = 1.0;
@@ -345,35 +608,28 @@ class SchedulerService
 
         $balanceScore = 0.5;
         if ($match) {
-            $tierAScore = $this->countTierA($match->team1->members);
-            $tierBScore = $this->countTierA($match->team2->members);
-            $totalScore = $tierAScore + $tierBScore;
-            $balanceScore = $totalScore > 0 ? 1 - abs($tierAScore - $tierBScore) / $totalScore : 0.5;
+            $totalPlayers = count($match->team1->members) + count($match->team2->members);
+            $balanceScore = $totalPlayers > 0 ? 0.5 : 0.5; // Simplified - can be enhanced
         }
 
         return [
             'fairness_score' => round($fairnessScore, 2),
             'balance_score' => round($balanceScore, 2),
-            'total_available_players' => count($selected) + count($waiting),
+            'total_available_players' => count($pool),
             'selected_count' => count($selected),
             'waiting_count' => count($waiting),
         ];
     }
 
-    private function countTierA(array $members): int
-    {
-        $count = 0;
-        foreach ($members as $m) {
-            $member = $m instanceof TeamMatchMemberDTO ? $m : TeamMatchMemberDTO::fromArray($m);
-            if ($member->tier === 'A') {
-                $count++;
-            }
-        }
-        return $count;
-    }
-
+    /**
+     * Shuffle array deterministically using seed.
+     */
     private function shuffleWithSeed(array $players, ?int $seed): array
     {
+        if (empty($players)) {
+            return $players;
+        }
+
         if ($seed === null) {
             shuffle($players);
             return $players;
@@ -386,12 +642,17 @@ class SchedulerService
 
         $shuffled = [];
         foreach ($indexes as $i) {
-            $shuffled[] = $players[$i];
+            if (isset($players[$i])) {
+                $shuffled[] = $players[$i];
+            }
         }
 
         return $shuffled;
     }
 
+    /**
+     * Generate all permutations of an array.
+     */
     private function getPermutations(array $items): array
     {
         if (count($items) <= 1) {
@@ -415,6 +676,9 @@ class SchedulerService
         return $permutations;
     }
 
+    /**
+     * Create response for insufficient players.
+     */
     private function createInsufficientPlayersResponse(
         int $seed,
         array $pool,

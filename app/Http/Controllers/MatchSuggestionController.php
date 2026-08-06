@@ -16,9 +16,11 @@ use Illuminate\Http\JsonResponse;
  * APIs for generating match suggestions in Mini Tournaments.
  * 
  * **Business Rules:**
- * - Frontend (mobile app) is the source of truth for participant list and tier (A/B).
+ * - Frontend (mobile app) is the source of truth for participant list and tier (purple/red/yellow/green).
  * - Only participants that are available for matching should be sent.
- * - Backend uses tier from Frontend and merges with DB stats (played_count, consecutive, etc.)
+ * - Backend uses tier from Frontend and merges with DB stats (played_count, consecutive, gender, vndupr, etc.)
+ * - Gender is read from Database, NOT from Frontend.
+ * - Guests are included in the pool and treated as normal participants.
  */
 class MatchSuggestionController extends Controller
 {
@@ -55,7 +57,10 @@ class MatchSuggestionController extends Controller
             ], 422);
         }
 
-        $dto = MatchSuggestionRequestDTO::fromArray($request->validated());
+        $dto = MatchSuggestionRequestDTO::fromArray([
+            'mini_tournament_id' => $miniTournamentId,
+            ...$request->validated(),
+        ]);
 
         try {
             $suggestion = $this->matchSuggestionService->generate($dto);
@@ -95,7 +100,10 @@ class MatchSuggestionController extends Controller
             ], 422);
         }
 
-        $dto = MatchSuggestionRequestDTO::fromArray($request->validated());
+        $dto = MatchSuggestionRequestDTO::fromArray([
+            'mini_tournament_id' => $miniTournamentId,
+            ...$request->validated(),
+        ]);
         
         $previousSuggestion = null;
         if ($request->has('previous_suggestion') && is_array($request->input('previous_suggestion'))) {

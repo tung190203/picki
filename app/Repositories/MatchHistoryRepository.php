@@ -68,6 +68,56 @@ class MatchHistoryRepository
         return $counts;
     }
 
+    /**
+     * Get waiting rounds for each player.
+     * A "waiting round" is a round where the player was eligible but didn't play.
+     */
+    public function getWaitingRounds(int $miniTournamentId): array
+    {
+        $matches = $this->getSessionMatches($miniTournamentId);
+        
+        if ($matches->isEmpty()) {
+            return [];
+        }
+
+        $totalRounds = $matches->max('round_number') ?? 0;
+        
+        if ($totalRounds <= 1) {
+            return [];
+        }
+
+        // Track which rounds each player played
+        $playedRounds = [];
+        foreach ($matches as $match) {
+            $playerIds = $this->getMatchPlayerIds($match);
+            $roundNumber = $match->round_number ?? 0;
+            
+            if ($roundNumber <= 0) {
+                continue;
+            }
+
+            foreach ($playerIds as $userId) {
+                if (!isset($playedRounds[$userId])) {
+                    $playedRounds[$userId] = [];
+                }
+                if (!in_array($roundNumber, $playedRounds[$userId])) {
+                    $playedRounds[$userId][] = $roundNumber;
+                }
+            }
+        }
+
+        // Calculate waiting rounds for each player
+        $waitingRounds = [];
+        $allRounds = range(1, $totalRounds);
+        
+        foreach ($playedRounds as $userId => $rounds) {
+            $missed = array_diff($allRounds, $rounds);
+            $waitingRounds[$userId] = count($missed);
+        }
+
+        return $waitingRounds;
+    }
+
     public function getPartnerHistory(int $miniTournamentId): array
     {
         $matches = $this->getSessionMatches($miniTournamentId);

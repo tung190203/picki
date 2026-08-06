@@ -2,26 +2,38 @@
 
 namespace App\DTO;
 
-use App\Enums\MatchTier;
+use App\Enums\PlayerTier;
 
+/**
+ * Player context for match suggestion algorithm.
+ * Contains all information needed to make fair match decisions.
+ */
 class PlayerContextDTO
 {
     public function __construct(
         // Identity
         public readonly int $mini_participant_id,
-        public readonly int $user_id,
+        public readonly ?int $user_id,
         public readonly string $full_name,
         public readonly ?string $avatar_url,
-        public readonly bool $is_guest,
 
-        // Tier
-        public readonly MatchTier $tier,
+        // Tier (from Frontend)
+        public readonly PlayerTier $tier,
         public readonly bool $is_manual_override,
+
+        // Gender (from DB, not FE)
+        public readonly ?int $gender,
+
+        // Guest flag
+        public readonly bool $is_guest,
 
         // Calculated from MatchHistory
         public readonly int $played_count,
         public readonly int $consecutive_count,
-        public readonly int $rest_count,
+        public readonly int $waiting_rounds,
+
+        // VN DUPR Score (from DB)
+        public readonly ?float $vndupr_score,
 
         // Partner history (from MiniTeamMember)
         public readonly array $partner_ids,
@@ -37,17 +49,24 @@ class PlayerContextDTO
 
     public static function fromArray(array $data): self
     {
+        $tier = $data['tier'];
+        if (is_string($tier)) {
+            $tier = PlayerTier::from($tier);
+        }
+
         return new self(
             mini_participant_id: $data['mini_participant_id'],
-            user_id: $data['user_id'],
+            user_id: $data['user_id'] ?? null,
             full_name: $data['full_name'],
             avatar_url: $data['avatar_url'] ?? null,
-            is_guest: $data['is_guest'] ?? false,
-            tier: $data['tier'] instanceof MatchTier ? $data['tier'] : MatchTier::from($data['tier']),
+            tier: $tier,
             is_manual_override: $data['is_manual_override'] ?? false,
+            gender: $data['gender'] ?? null,
+            is_guest: $data['is_guest'] ?? false,
             played_count: $data['played_count'] ?? 0,
             consecutive_count: $data['consecutive_count'] ?? 0,
-            rest_count: $data['rest_count'] ?? 0,
+            waiting_rounds: $data['waiting_rounds'] ?? 0,
+            vndupr_score: $data['vndupr_score'] ?? null,
             partner_ids: $data['partner_ids'] ?? [],
             is_checked_in: $data['is_checked_in'] ?? false,
             is_playing: $data['is_playing'] ?? false,
@@ -63,12 +82,14 @@ class PlayerContextDTO
             'user_id' => $this->user_id,
             'full_name' => $this->full_name,
             'avatar_url' => $this->avatar_url,
-            'is_guest' => $this->is_guest,
             'tier' => $this->tier->value,
             'is_manual_override' => $this->is_manual_override,
+            'gender' => $this->gender,
+            'is_guest' => $this->is_guest,
             'played_count' => $this->played_count,
             'consecutive_count' => $this->consecutive_count,
-            'rest_count' => $this->rest_count,
+            'waiting_rounds' => $this->waiting_rounds,
+            'vndupr_score' => $this->vndupr_score,
             'partner_ids' => $this->partner_ids,
             'is_checked_in' => $this->is_checked_in,
             'is_playing' => $this->is_playing,

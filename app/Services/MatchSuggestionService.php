@@ -6,9 +6,10 @@ use App\DTO\MatchSuggestionRequestDTO;
 use App\DTO\MatchSuggestionResponseDTO;
 use App\DTO\ParticipantTierDTO;
 use App\DTO\PlayerContextDTO;
-use App\Enums\MatchTier;
+use App\Enums\PlayerTier;
 use App\Models\MiniParticipant;
 use App\Models\User;
+use App\Models\UserSportScore;
 use App\Repositories\MatchHistoryRepository;
 
 class MatchSuggestionService
@@ -20,14 +21,15 @@ class MatchSuggestionService
 
     /**
      * Generate match suggestion.
-     * - Participants list & tier từ Frontend (source of truth)
-     * - Stats từ Database
+     * - Participants list & tier from Frontend (source of truth)
+     * - Stats from Database
+     * - Gender from Database (not FE)
      */
     public function generate(MatchSuggestionRequestDTO $request): MatchSuggestionResponseDTO
     {
         $miniTournamentId = $request->mini_tournament_id;
 
-        // Build player contexts: merge FE tier với DB stats
+        // Build player contexts: merge FE tier with DB stats
         $players = $this->buildPlayerContexts($miniTournamentId, $request->participants);
         
         // Apply backup filter
@@ -70,11 +72,10 @@ class MatchSuggestionService
     }
 
     /**
-     * Build player contexts: merge FE data (tier) với DB data (stats).
+     * Build player contexts: merge FE data (tier) with DB data (stats, gender, vndupr).
      * 
-     * @param int $miniTournamentId
-     * @param ParticipantTierDTO[] $feParticipants - Tier từ Frontend
-     * @return PlayerContextDTO[]
+     * IMPORTANT: Gender is read from DB, not from FE.
+     * Guests are included in the pool - they should be treated as normal participants.
      */
     private function buildPlayerContexts(int $miniTournamentId, array $feParticipants): array
     {
@@ -89,15 +90,19 @@ class MatchSuggestionService
         $participantIds = array_column($feParticipants, 'mini_participant_id');
         $participants = MiniParticipant::where('mini_tournament_id', $miniTournamentId)
             ->whereIn('id', $participantIds)
-            ->with(['user', 'team.members'])
+            ->with(['user:id,full_name,avatar_url,gender', 'guarantor'])
             ->get()
             ->keyBy('id');
 
         // Query stats from DB
         $playedCounts = $this->matchHistoryRepository->getPlayedCounts($miniTournamentId);
         $consecutiveCounts = $this->matchHistoryRepository->getConsecutiveCounts($miniTournamentId);
+        $waitingRounds = $this->matchHistoryRepository->getWaitingRounds($miniTournamentId);
         $partnerHistory = $this->matchHistoryRepository->getPartnerHistory($miniTournamentId);
         $playingParticipants = $this->matchHistoryRepository->getPlayingParticipants($miniTournamentId);
+
+        // Get VN DUPR scores
+        $vnduprScores = $this->getVnduprScores($miniTournamentId);
 
         $players = [];
 
@@ -106,41 +111,93 @@ class MatchSuggestionService
             if (!$participant) continue;
 
             $user = $participant->user;
-            if (!$user) continue;
+            $userId = $user?->id;
 
-            $userId = $user->id;
-            $partnerIds = $partnerHistory[$userId] ?? [];
+            // Guest: get name from participant data if user is null
+            $fullName = $user?->full_name
+                ?? $participant->guest_name
+                ?? 'Guest';
+            
+            $avatarUrl = $user?->avatar_url
+                ?? $participant->guest_avatar;
 
-            // Guest: tự động tính tier từ estimated_level_min
-            // User thật: dùng tier từ Frontend
-            if ($participant->is_guest) {
-                $tier = MatchTier::fromRating($participant->estimated_level_min);
-                $isManualOverride = false;
-            } else {
-                $tier = $feP->tier;
-                $isManualOverride = true;
-            }
+            // Gender from DB (not FE) - critical for gender balancing
+            $gender = $user?->gender ?? null;
+
+            // VN DUPR score
+            $vnduprScore = $userId ? ($vnduprScores[$userId] ?? null) : null;
+
+            // Partner IDs
+            $partnerIds = $userId ? ($partnerHistory[$userId] ?? []) : [];
+
+            // Use tier from Frontend (source of truth), don't recalculate
+            $tier = $feP->tier;
 
             $players[] = new PlayerContextDTO(
                 mini_participant_id: $participant->id,
                 user_id: $userId,
-                full_name: $user->full_name,
-                avatar_url: $user->avatar_url,
-                is_guest: $participant->is_guest,
+                full_name: $fullName,
+                avatar_url: $avatarUrl,
                 tier: $tier,
-                is_manual_override: $isManualOverride,
-                played_count: $playedCounts[$userId] ?? 0,
-                consecutive_count: $consecutiveCounts[$userId] ?? 0,
-                rest_count: 0,
+                is_manual_override: true,
+                gender: $gender,
+                is_guest: $participant->is_guest,
+                played_count: $userId ? ($playedCounts[$userId] ?? 0) : 0,
+                consecutive_count: $userId ? ($consecutiveCounts[$userId] ?? 0) : 0,
+                waiting_rounds: $userId ? ($waitingRounds[$userId] ?? 0) : 0,
+                vndupr_score: $vnduprScore,
                 partner_ids: $partnerIds,
-                is_checked_in: true,
-                is_playing: in_array($userId, $playingParticipants),
-                skip_next_round: false,
+                is_checked_in: $participant->checked_in_at !== null,
+                is_playing: $userId ? in_array($userId, $playingParticipants) : false,
+                skip_next_round: $participant->skip_next_round ?? false,
                 is_backup: false,
             );
         }
 
         return $players;
+    }
+
+    /**
+     * Get VN DUPR scores for all participants.
+     * Returns array: user_id => score_value
+     */
+    private function getVnduprScores(int $miniTournamentId): array
+    {
+        // Get all user IDs from participants
+        $participantUserIds = MiniParticipant::where('mini_tournament_id', $miniTournamentId)
+            ->whereNotNull('user_id')
+            ->where('is_guest', false)
+            ->pluck('user_id')
+            ->unique()
+            ->values()
+            ->toArray();
+
+        if (empty($participantUserIds)) {
+            return [];
+        }
+
+        // Get user_sport IDs for these users (sport_id = 1 for Pickleball)
+        $userSportIds = \Illuminate\Support\Facades\DB::table('user_sport')
+            ->whereIn('user_id', $participantUserIds)
+            ->where('sport_id', 1)
+            ->pluck('id')
+            ->values()
+            ->toArray();
+
+        if (empty($userSportIds)) {
+            return [];
+        }
+
+        // Get latest VN DUPR scores
+        $scores = UserSportScore::whereIn('user_sport_id', $userSportIds)
+            ->where('score_type', 'vndupr_score')
+            ->get()
+            ->groupBy(fn($s) => $s->userSport?->user_id)
+            ->map(fn($col) => $col->sortByDesc('created_at')->first()?->score_value)
+            ->filter()
+            ->toArray();
+
+        return $scores;
     }
 
     /**
@@ -151,8 +208,12 @@ class MatchSuggestionService
      */
     private function loadUserDataMap(array $players): array
     {
-        $userIds = array_column($players, 'user_id');
+        $userIds = array_filter(array_column($players, 'user_id'));
         
+        if (empty($userIds)) {
+            return [];
+        }
+
         $users = User::whereIn('id', $userIds)
             ->with('sports.scores')
             ->get()
@@ -160,6 +221,8 @@ class MatchSuggestionService
 
         $userDataMap = [];
         foreach ($players as $player) {
+            if (!$player->user_id) continue;
+            
             $user = $users->get($player->user_id);
             if (!$user) continue;
 

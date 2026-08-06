@@ -2,6 +2,12 @@
 
 namespace App\Enums;
 
+/**
+ * @deprecated Use PlayerTier instead.
+ * This enum is kept for backward compatibility with existing data.
+ * 
+ * MatchTier uses A/B while PlayerTier uses purple/red/yellow/green.
+ */
 enum MatchTier: string
 {
     case A = 'A';
