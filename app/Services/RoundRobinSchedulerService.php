@@ -150,7 +150,7 @@ class RoundRobinSchedulerService
             && !$miniTournament->use_club_fund;
 
         if ($needsPaymentCheck) {
-            $participantQuery->where('payment_status', PaymentStatusEnum::Confirmed);
+            $participantQuery->where('payment_status', PaymentStatusEnum::CONFIRMED);
         }
 
         $participants = $participantQuery->get()->keyBy('id');
