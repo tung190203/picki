@@ -86,10 +86,11 @@ class MatchSuggestionService
             $feTierMap[$feP->mini_participant_id] = $feP->tier;
         }
 
-        // Query DB for participant details
+        // Query DB for participant details (exclude absent users)
         $participantIds = array_column($feParticipants, 'mini_participant_id');
         $participants = MiniParticipant::where('mini_tournament_id', $miniTournamentId)
             ->whereIn('id', $participantIds)
+            ->where('is_absent', false)
             ->with(['user:id,full_name,avatar_url,gender', 'guarantor'])
             ->get()
             ->keyBy('id');
