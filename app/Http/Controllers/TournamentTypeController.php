@@ -3142,18 +3142,21 @@ class TournamentTypeController extends Controller
 
     /**
      * Chỉ regenerate vòng knockout khi pairing_mode thay đổi.
-     * - Xóa các match round >= 2 (knockout) + results liên quan
-     * - Giữ nguyên groups, group_team, pool matches
+     * - Xóa TẤT CẢ matches (cả pool round=1 và knockout round>=2) + results liên quan
+     * - Giữ nguyên groups, group_team (cấu trúc bảng, đội đã assign)
      * - Tái tạo bracket theo pairing_mode mới
+     *
+     * Lý do xóa cả pool matches: hàm generateMixed() sẽ tạo lại TOÀN BỘ matches (cả pool lẫn knockout).
+     * Nếu chỉ xóa matches round>=2, các pool matches cũ sẽ bị duplicate → bracket trả về legs có nhiều items.
      */
     private function regenerateKnockoutOnly(TournamentType $type): void
     {
-        $type->matches()
-            ->where('round', '>=', 2)
-            ->each(function ($match) {
-                $match->results()->delete();
-                $match->delete();
-            });
+        // ✅ FIX: Xóa TẤT CẢ matches (cả pool round=1 và knockout round>=2) + results liên quan
+        // vì generateMixed() sẽ tạo lại toàn bộ matches, nếu không xóa pool matches cũ sẽ bị duplicate
+        $type->matches()->each(function ($match) {
+            $match->results()->delete();
+            $match->delete();
+        });
 
         $teams = $type->tournament->teams()->with('members')->get();
         if ($teams->count() < 2) return;
