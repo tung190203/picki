@@ -7,6 +7,7 @@ use App\Helpers\ResponseHelper;
 use App\Http\Resources\TeamLeaderboardResource;
 use App\Models\Club\Club;
 use App\Models\Club\ClubMember;
+use App\Models\Matches;
 use App\Models\Participant;
 use App\Models\Sport;
 use App\Models\SystemSetting;
@@ -92,15 +93,27 @@ class LeaderboardController extends Controller
 
         $currentUserId = Auth::id();
 
+        $athleteChampionTeamIds = collect($tournamentTypeIds)
+            ->mapWithKeys(fn ($typeId) => [
+                $typeId => $this->getChampionTeamId((int) $typeId),
+            ])
+            ->filter()
+            ->all();
+
         $leaderboard = $rankings
             ->groupBy('team_id')
-            ->map(function ($teamRankings, $teamId) use ($teamStats, $sportId, $participants, $currentUserId) {
+            ->map(function ($teamRankings, $teamId) use ($teamStats, $sportId, $participants, $currentUserId, $athleteChampionTeamIds) {
                 $firstRanking = $teamRankings->first();
                 $team = $firstRanking->team;
                 $stats = $teamStats[$teamId] ?? ['total_matches' => 0, 'win_rate' => 0, 'vndupr_avg' => 0, 'last_round' => null];
                 $lastRound = $stats['last_round'] ?? null;
 
-                $rank = $this->resolveFinalRank($teamRankings);
+                $isChampion = $teamRankings->contains(
+                    fn ($r) => isset($athleteChampionTeamIds[(int) $r->tournament_type_id])
+                        && (int) $athleteChampionTeamIds[(int) $r->tournament_type_id] === (int) $teamId
+                );
+
+                $rank = $isChampion ? 1 : $this->resolveFinalRank($teamRankings);
 
                 $tournamentTypes = $teamRankings->map(fn($r) => [
                     'id'   => $r->tournamentType->id,
@@ -128,18 +141,40 @@ class LeaderboardController extends Controller
                     ];
                 })->values()->all();
 
-                return new TeamLeaderboardResource([
-                    'id'            => $team->id,
-                    'name'          => $team->name,
-                    'avatar'        => $team->avatar,
-                    'vndupr_avg'    => $stats['vndupr_avg'],
-                    'members'       => $members,
+                return [
+                    'team' => $team,
+                    'rank' => $rank,
+                    'total_matches' => $stats['total_matches'],
+                    'win_rate' => $stats['win_rate'],
+                    'last_round' => $lastRound,
+                    'vndupr_avg' => $stats['vndupr_avg'],
+                    'avatar' => $team->avatar,
+                    'members' => $members,
                     'tournament_types' => $tournamentTypes,
-                    'is_my_team'    => $isMyTeam,
-                ], $rank, $stats['total_matches'], $stats['win_rate'], $lastRound);
+                    'is_my_team' => $isMyTeam,
+                    'is_champion' => $isChampion,
+                ];
             })
-            ->sortBy(fn($item) => $item->rank)
+            ->sortBy(function ($item) {
+                if ($item['is_champion']) {
+                    return 0;
+                }
+                return $item['rank'];
+            })
             ->values()
+            ->map(function ($item, $index) {
+                $finalRank = $index + 1;
+
+                return new TeamLeaderboardResource([
+                    'id'            => $item['team']->id,
+                    'name'          => $item['team']->name,
+                    'avatar'        => $item['avatar'],
+                    'vndupr_avg'    => $item['vndupr_avg'],
+                    'members'       => $item['members'],
+                    'tournament_types' => $item['tournament_types'],
+                    'is_my_team'    => $item['is_my_team'],
+                ], $finalRank, $item['total_matches'], $item['win_rate'], $item['last_round']);
+            })
             ->take($perPage);
 
         return ResponseHelper::success([
@@ -206,6 +241,32 @@ class LeaderboardController extends Controller
         }
 
         return $teamRankings->min('rank');
+    }
+
+    private function getChampionTeamId(int $tournamentTypeId): ?int
+    {
+        $finalMatch = Matches::where('tournament_type_id', $tournamentTypeId)
+            ->where('status', 'completed')
+            ->whereNotNull('winner_id')
+            ->where(function ($q) {
+                $q->where('is_third_place', false)
+                  ->orWhereNull('is_third_place');
+            })
+            ->orderByDesc('round')
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$finalMatch) {
+            return null;
+        }
+
+        $winnerId = (int) $finalMatch->winner_id;
+        if ($winnerId !== (int) $finalMatch->home_team_id
+            && $winnerId !== (int) $finalMatch->away_team_id) {
+            return null;
+        }
+
+        return $winnerId;
     }
 
     private function loadVnduprAvg(array &$stats, $teamIds, int $sportId): void
