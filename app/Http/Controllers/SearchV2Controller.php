@@ -47,6 +47,7 @@ class SearchV2Controller extends Controller
 
         // Inject location filters into filters array
         $filters = $params['filters'] ?? [];
+
         if (!empty($params['keyword'])) {
             $filters['keyword'] = $params['keyword'];
         }

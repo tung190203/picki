@@ -8,6 +8,12 @@ export const createTournamentType = async (tournamentData) => {
     .then((response) => response.data.data);
 }
 
+export const updateTournamentType = async (tournamentTypeId, data) => {
+  // Gửi PUT request - sử dụng axios.put (Laravel tự nhận PUT qua route match)
+  return axiosInstance.put(`${tournamentTypeEndpoint}/${tournamentTypeId}`, data)
+    .then((response) => response.data.data);
+}
+
 export const deleteTournamentType = async (tournamentTypeId) => {
   return axiosInstance.delete(`${tournamentTypeEndpoint}/${tournamentTypeId}`)
     .then((response) => response.data.data)

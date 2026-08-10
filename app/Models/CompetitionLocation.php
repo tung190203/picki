@@ -206,6 +206,13 @@ class CompetitionLocation extends Model
             ->when(
                 !empty($filters['facility_id']) && is_array($filters['facility_id']),
                 fn($q) => $q->whereHas('facilities', fn($fq) => $fq->whereIn('facilities.id', $filters['facility_id']))
+            )
+            // Handle distance filter: [min_km, max_km] range
+            // Only applies when distance alias is already selected (via orderByDistance or nearBy)
+            ->when(
+                !empty($filters['distance']) && is_array($filters['distance']),
+                fn($q) => $q->having('distance', '>=', $filters['distance'][0])
+                            ->having('distance', '<=', $filters['distance'][1] ?? PHP_INT_MAX)
             );
     }
 
