@@ -82,6 +82,7 @@ class UserResource extends JsonResource
             'spcn_request' => $this->spcn_request ?? null,
             'dupr_request' => $this->dupr_request ?? null,
             'badges' => $this->getBatchBadge('badges'),
+            'platform' => $this->platform,
         ];
     }
 

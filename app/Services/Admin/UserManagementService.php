@@ -26,6 +26,7 @@ class UserManagementService
             ->with([
                 'sports.sport',
                 'sports.scores',
+                'deviceTokens',
             ])
             ->select([
                 'id',
