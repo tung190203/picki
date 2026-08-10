@@ -160,6 +160,7 @@ class SearchV2Controller extends Controller
         $lat = $params['lat'] ?? null;
         $lng = $params['lng'] ?? null;
         $radius = $params['radius'] ?? null;
+        $filters = $params['filters'] ?? [];
 
         if ($lat !== null && $lng !== null) {
             if ($tab === SearchFilterConfig::TAB_USER || $tab === SearchFilterConfig::TAB_CLUB || $tab === SearchFilterConfig::TAB_COURT) {
@@ -171,6 +172,18 @@ class SearchV2Controller extends Controller
 
         if ($lat !== null && $lng !== null && $radius !== null) {
             $query->nearBy($lat, $lng, $radius);
+        }
+
+        // Handle distance filter: [min_km, max_km] range for TAB_COURT
+        // Must be applied after orderByDistance() which selects the distance column
+        if ($tab === SearchFilterConfig::TAB_COURT
+            && !empty($filters['distance'])
+            && is_array($filters['distance'])
+        ) {
+            $query->having('distance', '>=', $filters['distance'][0]);
+            if (isset($filters['distance'][1])) {
+                $query->having('distance', '<=', $filters['distance'][1]);
+            }
         }
 
         $hasFilter = !empty($params['keyword']) || !empty($params['sport_id']) ||
