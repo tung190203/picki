@@ -17,8 +17,8 @@ class MergeDuplicateLocations extends Command
         // Define duplicate mappings: source_id => target_id
         // Key = location name without prefix, Value = correct location_id
         $duplicates = [
-            // 'ha-noi' => 1,      // Uncomment and modify as needed
-            // 'ho-chi-minh' => 28,
+             'ha-noi' => 1,      
+             'ho-chi-minh' => 28,
         ];
 
         if (empty($duplicates)) {

@@ -284,6 +284,16 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             ->orderByRaw("FIELD(badge_type, 'PICKI', 'CHAMPION', 'ANCHOR', 'VERIFIED')");
     }
 
+    public function deviceTokens(): HasMany
+    {
+        return $this->hasMany(DeviceToken::class);
+    }
+
+    public function getPlatformAttribute(): ?string
+    {
+        return $this->deviceTokens()->latest('last_seen_at')->value('platform');
+    }
+
     public function getBadges(): array
     {
         return app(BadgeService::class)->getUserBadges($this->id);
