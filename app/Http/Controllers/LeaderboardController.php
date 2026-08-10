@@ -105,7 +105,7 @@ class LeaderboardController extends Controller
             ->map(function ($teamRankings, $teamId) use ($teamStats, $sportId, $participants, $currentUserId, $athleteChampionTeamIds) {
                 $firstRanking = $teamRankings->first();
                 $team = $firstRanking->team;
-                $stats = $teamStats[$teamId] ?? ['total_matches' => 0, 'win_rate' => 0, 'vndupr_avg' => 0, 'last_round' => null];
+                $stats = $teamStats[$teamId] ?? ['total_matches' => 0, 'win_rate' => 0, 'total_vndupr' => 0, 'last_round' => null];
                 $lastRound = $stats['last_round'] ?? null;
 
                 $isChampion = $teamRankings->contains(
@@ -147,7 +147,7 @@ class LeaderboardController extends Controller
                     'total_matches' => $stats['total_matches'],
                     'win_rate' => $stats['win_rate'],
                     'last_round' => $lastRound,
-                    'vndupr_avg' => $stats['vndupr_avg'],
+                    'total_vndupr' => $stats['total_vndupr'],
                     'avatar' => $team->avatar,
                     'members' => $members,
                     'tournament_types' => $tournamentTypes,
@@ -169,7 +169,7 @@ class LeaderboardController extends Controller
                     'id'            => $item['team']->id,
                     'name'          => $item['team']->name,
                     'avatar'        => $item['avatar'],
-                    'vndupr_avg'    => $item['vndupr_avg'],
+                    'total_vndupr'    => $item['total_vndupr'],
                     'members'       => $item['members'],
                     'tournament_types' => $item['tournament_types'],
                     'is_my_team'    => $item['is_my_team'],
@@ -221,12 +221,12 @@ class LeaderboardController extends Controller
             $stats[$teamId] = [
                 'total_matches' => (int) ($row->total ?? 0),
                 'win_rate'      => $row && $row->total > 0 ? round(($row->wins / $row->total) * 100, 2) : 0,
-                'vndupr_avg'    => 0,
+                'total_vndupr'    => 0,
                 'last_round'    => $row->last_round ?? null,
             ];
         }
 
-        $this->loadVnduprAvg($stats, $teamIds, $sportId);
+        $this->loadVnduprAvg($stats, $teamIds, $sportId, $tournamentId);
 
         return $stats;
     }
@@ -269,7 +269,7 @@ class LeaderboardController extends Controller
         return $winnerId;
     }
 
-    private function loadVnduprAvg(array &$stats, $teamIds, int $sportId): void
+    private function loadVnduprAvg(array &$stats, $teamIds, int $sportId, int $tournamentId): void
     {
         if (empty($stats)) return;
 
@@ -277,11 +277,30 @@ class LeaderboardController extends Controller
             $q->where('sport_id', $sportId);
         }])->whereIn('id', $teamIds)->get();
 
+        $allMemberIds = $teams->flatMap(fn($t) => $t->members->pluck('id'))->filter()->unique()->values()->all();
+        if (empty($allMemberIds)) return;
+
+        // Load guest participants: use estimated_level instead of vndupr_score
+        $guestScores = [];
+        if (!empty($allMemberIds)) {
+            $guestScores = Participant::where('tournament_id', $tournamentId)
+                ->whereIn('user_id', $allMemberIds)
+                ->where('is_guest', true)
+                ->whereNotNull('estimated_level')
+                ->get()
+                ->keyBy('user_id')
+                ->map(fn($p) => (float) $p->estimated_level);
+        }
+
         $allUserSportIds = collect();
         $memberToSports = [];
 
         foreach ($teams as $team) {
             foreach ($team->members as $member) {
+                // Skip guests — they use estimated_level, not UserSportScore
+                if ($guestScores->has($member->id)) {
+                    continue;
+                }
                 foreach ($member->sports as $us) {
                     $allUserSportIds->push($us->id);
                     $memberToSports[$member->id][] = $us->id;
@@ -289,7 +308,21 @@ class LeaderboardController extends Controller
             }
         }
 
-        if ($allUserSportIds->isEmpty()) return;
+        if ($allUserSportIds->isEmpty()) {
+            // Only guests in team — use estimated_level totals
+            foreach ($teams as $team) {
+                if (!isset($stats[$team->id])) continue;
+                $teamScores = [];
+                foreach ($team->members as $member) {
+                    if ($guestScores->has($member->id)) {
+                        $teamScores[] = $guestScores->get($member->id);
+                    }
+                }
+                $stats[$team->id]['total_vndupr'] = !empty($teamScores)
+                    ? round(array_sum($teamScores), 3) : 0.0;
+            }
+            return;
+        }
 
         $scoreMap = UserSportScore::whereIn('user_sport_id', $allUserSportIds)
             ->where('score_type', UserSportScore::VNDUPR_SCORE)
@@ -300,6 +333,12 @@ class LeaderboardController extends Controller
         foreach ($teams as $team) {
             $scores = [];
             foreach ($team->members as $member) {
+                // Guest: use estimated_level
+                if ($guestScores->has($member->id)) {
+                    $scores[] = $guestScores->get($member->id);
+                    continue;
+                }
+                // Real user: use vndupr_score from UserSportScore
                 $sportIds = $memberToSports[$member->id] ?? [];
                 foreach ($sportIds as $usId) {
                     $latest = $scoreMap->get($usId);
@@ -309,8 +348,8 @@ class LeaderboardController extends Controller
                 }
             }
             if (isset($stats[$team->id])) {
-                $stats[$team->id]['vndupr_avg'] = !empty($scores)
-                    ? round(array_sum($scores) / count($scores), 3) : 0.0;
+                $stats[$team->id]['total_vndupr'] = !empty($scores)
+                    ? round(array_sum($scores), 3) : 0.0;
             }
         }
     }

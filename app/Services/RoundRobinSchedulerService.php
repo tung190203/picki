@@ -134,19 +134,17 @@ class RoundRobinSchedulerService
 
         // Filter participants who actually participated in the tournament:
         // 1. is_confirmed = true (confirmed registration)
-        // 2. checked_in_at IS NOT NULL (physically checked in)
-        // 3. is_absent = false (not marked as absent)
-        // 4. payment_status = CONFIRMED if tournament has fee
+        // 2. is_absent = false (not marked as absent)
+        // 3. payment_status = CONFIRMED if tournament has fee
         //    (except: auto_split_fee, use_club_fund, or free tournaments)
         $participantQuery = MiniParticipant::with('user:id,full_name')
             ->where('mini_tournament_id', $miniTournamentId)
             ->where('is_confirmed', true)
-            ->whereNotNull('checked_in_at')
             ->where('is_absent', false);
 
         // Payment check: only if tournament has fee that members must pay
-        $needsPaymentCheck = $miniTournament->has_fee 
-            && !$miniTournament->auto_split_fee 
+        $needsPaymentCheck = $miniTournament->has_fee
+            && !$miniTournament->auto_split_fee
             && !$miniTournament->use_club_fund;
 
         if ($needsPaymentCheck) {

@@ -661,6 +661,60 @@
                     </div>
                   </div>
                 </template>
+
+                <!-- ✅ Section Ghép cặp đấu vòng loại trực tiếp - Chỉ hiển thị khi format=Mixed -->
+                <template v-if="tournament?.tournament_types?.[0]?.format === FORMAT_MIXED">
+                  <div class="border border-[#BBBFCC] rounded my-4 px-4 py-4">
+                    <div class="flex items-center justify-between mb-3">
+                      <h3 class="font-semibold text-gray-900">Ghép cặp đấu vòng loại trực tiếp</h3>
+                    </div>
+                    <p class="text-sm text-gray-500 mb-3">Chọn cách ghép cặp đội từ vòng bảng vào vòng loại trực tiếp</p>
+                    <div class="grid grid-cols-3 gap-3">
+                      <button v-for="option in PAIRING_MODE_OPTIONS.slice(0, 2)" :key="option.id"
+                        @click="selectPairingMode(option.id)" :class="[
+                          'p-3 rounded-lg border-2 text-center transition-all',
+                          pairingMode === option.id
+                            ? 'border-[#D72D36] bg-red-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                      ]">
+                        <div class="font-medium text-sm" :class="pairingMode === option.id ? 'text-[#D72D36]' : 'text-gray-700'">
+                          {{ option.label }}
+                        </div>
+                        <div class="text-xs text-gray-400 mt-1">{{ option.subtitle }}</div>
+                      </button>
+                      <button @click="openManualPairingModal" :class="[
+                        'p-3 rounded-lg border-2 text-center transition-all',
+                        pairingMode === 'manual'
+                          ? 'border-[#D72D36] bg-red-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      ]">
+                        <div class="font-medium text-sm" :class="pairingMode === 'manual' ? 'text-[#D72D36]' : 'text-gray-700'">
+                          Tự chọn
+                        </div>
+                        <div class="text-xs text-gray-400 mt-1">Tự thiết kế cặp đấu</div>
+                      </button>
+                    </div>
+
+                    <!-- Preview when manual is configured -->
+                    <div v-if="pairingMode === 'manual' && manualPairings.length > 0" class="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                      <div class="text-xs text-gray-500 mb-2 font-medium">
+                        Đã cấu hình {{ manualPairings.length / 2 }} cặp đấu
+                      </div>
+                      <div class="grid grid-cols-4 gap-2">
+                        <div v-for="(pairing, idx) in manualPairings.filter((_, i) => i % 2 === 0)" :key="idx"
+                          class="text-xs text-center bg-white border border-gray-200 rounded px-2 py-1">
+                          {{ getGroupName(pairing.group_id) }}{{ pairing.rank === 1 ? '1' : '2' }}
+                          <span class="text-gray-400">vs</span>
+                          {{ getGroupName(manualPairings[idx * 2 + 1]?.group_id) }}{{ manualPairings[idx * 2 + 1]?.rank === 1 ? '1' : '2' }}
+                        </div>
+                      </div>
+                      <button @click="openManualPairingModal" class="mt-2 text-xs text-[#D72D36] hover:underline font-medium">
+                        Chỉnh sửa ghép cặp
+                      </button>
+                    </div>
+                  </div>
+                </template>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 my-4 pb-4">
                   <div>
                     <p class="text-sm font-semibold uppercase">Giá trị điểm</p>
@@ -782,11 +836,19 @@
       v-model:isOpen="showPaymentManagementModal"
       :tournamentId="id"
     />
+
+    <!-- ✅ Manual Pairing Modal cho ghép cặp vòng loại trực tiếp -->
+    <ManualPairingModal
+      v-model="showManualPairingModal"
+      :num-groups="pairingNumGroups"
+      :existing-pairings="manualPairings"
+      @apply="handleManualPairingApply"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { AdjustmentsVerticalIcon, ArrowUpTrayIcon, ChevronRightIcon, EnvelopeIcon, LinkIcon, LockClosedIcon, LockOpenIcon, QrCodeIcon, XMarkIcon } from '@heroicons/vue/24/solid'
 import {
   CalendarDaysIcon,
@@ -845,6 +907,7 @@ import AddTournamentGuestModal from '@/components/pages/tournament/partials/AddT
 import TournamentPaymentModal from '@/components/pages/tournament/partials/TournamentPaymentModal.vue'
 import TournamentPaymentManagementModal from '@/components/pages/tournament/partials/TournamentPaymentManagementModal.vue'
 import MemberActionModal from '@/components/molecules/MemberActionModal.vue'
+import ManualPairingModal from '@/components/molecules/ManualPairingModal.vue'
 import TableChartIcon from '@/assets/images/table_chart.svg';
 import ScheduleIcon from '@/assets/images/branch.svg';
 
@@ -885,6 +948,130 @@ const showInviteModal = ref(false)
 const showDeleteModal = ref(false);
 const showDeleteTournamentTypeModal = ref(false);
 const showReGenerateBracketModal = ref(false);
+
+// ✅ Refs cho Ghép cặp vòng loại trực tiếp
+const pairingMode = ref('sequential');  // Mặc định là sequential
+const manualPairings = ref([]);
+const showManualPairingModal = ref(false);
+const pairingNumGroups = ref(0);  // Số bảng đấu
+
+const PAIRING_MODE_OPTIONS = [
+    { id: 'sequential', label: 'Tuần tự', subtitle: 'A-B, B-A, C-D, D-C...' },
+    { id: 'symmetric', label: 'Đối xứng', subtitle: 'A-H, B-G, C-F, D-E...' },
+    { id: 'manual', label: 'Tự chọn', subtitle: 'Tự thiết kế cặp đấu' },
+];
+
+// ✅ Load pairing mode từ tournament_type hiện tại khi mount
+const loadPairingConfig = () => {
+    const tournamentType = tournament.value?.tournament_types?.[0];
+    if (!tournamentType) return;
+
+    // Load pairing_mode từ config
+    const knockoutStage = tournamentType.format_specific_config?.[0]?.knockout_stage;
+    if (knockoutStage?.pairing_mode) {
+        pairingMode.value = knockoutStage.pairing_mode;
+    } else {
+        pairingMode.value = 'sequential';  // Default fallback
+    }
+
+    // Load manual_pairings nếu có
+    if (knockoutStage?.manual_pairings) {
+        manualPairings.value = knockoutStage.manual_pairings;
+    } else {
+        manualPairings.value = [];
+    }
+
+    // Load số bảng đấu từ pool_stage
+    pairingNumGroups.value = parseInt(tournamentType.format_specific_config?.[0]?.pool_stage?.number_competing_teams) || 0;
+};
+
+// ✅ Chọn pairing mode - auto-save khi chọn Tuần tự hoặc Đối xứng
+const selectPairingMode = async (mode) => {
+    pairingMode.value = mode;
+    // Reset manual pairings khi chọn mode khác
+    if (mode !== 'manual') {
+        manualPairings.value = [];
+    }
+    await savePairingConfig();
+};
+
+// ✅ Mở modal ghép cặp thủ công
+const openManualPairingModal = () => {
+    showManualPairingModal.value = true;
+};
+
+// ✅ Xử lý khi apply manual pairing
+const handleManualPairingApply = (pairings) => {
+    manualPairings.value = pairings;
+    pairingMode.value = 'manual';
+    savePairingConfig();
+};
+
+// ✅ Lưu pairing config qua API PUT
+const savePairingConfig = async () => {
+    const tournamentType = tournament.value?.tournament_types?.[0];
+    if (!tournamentType || !tournamentType.id) {
+        toast.error('Không tìm thấy thể thức thi đấu để cập nhật.');
+        return;
+    }
+
+    try {
+        const formData = new FormData();
+
+        // Build knockout_stage data
+        const knockoutStageData = {
+            pairing_mode: pairingMode.value,
+        };
+        if (pairingMode.value === 'manual' && manualPairings.value.length > 0) {
+            knockoutStageData.manual_pairings = manualPairings.value;
+        }
+
+        // Build format_specific_config as array: [{ knockout_stage: {...} }]
+        const formatSpecificConfig = [{
+            knockout_stage: knockoutStageData
+        }];
+
+        // Append correctly for Laravel to receive as array
+        // format_specific_config[0][knockout_stage][pairing_mode] = ...
+        buildFormDataFromObject(formData, formatSpecificConfig, 'format_specific_config');
+
+        await TournamentTypeService.updateTournamentType(tournamentType.id, formData);
+        toast.success('Đã cập nhật ghép cặp vòng loại trực tiếp thành công!');
+
+        // Reload tournament data để cập nhật UI
+        await detailTournament(id);
+    } catch (error) {
+        toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi cập nhật ghép cặp.');
+    }
+};
+
+// ✅ Helper function để build FormData từ nested object (giống FormatType.vue)
+const buildFormDataFromObject = (formData, data, parentKey = '') => {
+    if (data && typeof data === 'object' && !(data instanceof File)) {
+        Object.keys(data).forEach(key => {
+            const value = data[key];
+            const newKey = parentKey ? `${parentKey}[${key}]` : key;
+            buildFormDataFromObject(formData, value, newKey);
+        });
+    } else {
+        const finalValue = data === null || data === undefined ? '' : data;
+        formData.append(parentKey, finalValue);
+    }
+};
+
+// ✅ Lấy tên bảng từ groupId
+const getGroupName = (groupId) => {
+    if (!groupId) return '?';
+    const groupNames = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    return groupNames[groupId - 1] || groupId;
+};
+
+// ✅ Watcher để reload pairing config khi tournament data thay đổi
+watch(() => tournament.value?.tournament_types, () => {
+    // Reload pairing config khi tournament types thay đổi
+    loadPairingConfig();
+}, { deep: true });
+
 const isEditingDescription = ref(false);
 const descriptionModel = ref('');
 const inviteGroupData = ref([]);
@@ -1999,6 +2186,8 @@ onMounted(async () => {
     ])
     await getMyClubs();
     await getInviteGroupData();
+    // ✅ Load pairing config sau khi tournament data đã load
+    loadPairingConfig();
   }
 })
 </script>
