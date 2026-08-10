@@ -34,14 +34,14 @@ class SearchRequest extends FormRequest
             'page'         => 'nullable|integer|min:1',
             'per_page'     => 'nullable|integer|min:1|max:200',
 
-            // Shared filters
+            // Shared filters (root level)
             'keyword'      => 'nullable|string|max:255',
             'sport_id'     => 'nullable|integer|exists:sports,id',
             'location_id'  => 'nullable|integer|exists:locations,id',
             'club_id'      => 'nullable|integer|exists:clubs,id',
 
             // Filters bundle (V2 structured format)
-            'filters'      => 'nullable|array',
+            'filters'                => 'nullable|array',
         ];
     }
 

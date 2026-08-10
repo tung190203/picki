@@ -8,6 +8,7 @@ use App\DTO\PlayerContextDTO;
 use App\DTO\SuggestionMatchDTO;
 use App\DTO\TeamMatchDTO;
 use App\DTO\TeamMatchMemberDTO;
+use App\Enums\PaymentStatusEnum;
 use App\Enums\PlayerTier;
 use App\Models\User;
 
@@ -17,11 +18,13 @@ class SchedulerService
      * @param array $players PlayerContextDTO[]
      * @param MatchSuggestionRequestDTO $request
      * @param array $userDataMap [user_id => ['visibility' => string, 'sports' => array]]
-     */
+     * @param bool $needsPaymentCheck if true, exclude participants with unpaid status
+    */
     public function generate(
         array $players,
         MatchSuggestionRequestDTO $request,
-        array $userDataMap = []
+        array $userDataMap = [],
+        bool $needsPaymentCheck = false
     ): MatchSuggestionResponseDTO {
         $seed = $request->seed ?? random_int(1, 999999);
         $rulesApplied = [];
@@ -29,7 +32,7 @@ class SchedulerService
         $settings = $request->settings;
 
         // Build eligible player pool
-        $pool = $this->buildPool($players, $request);
+        $pool = $this->buildPool($players, $request, $needsPaymentCheck);
         
         if (count($pool) < 4) {
             return $this->createInsufficientPlayersResponse($seed, $pool, $rulesApplied, $messages, $userDataMap);
@@ -99,12 +102,12 @@ class SchedulerService
     /**
      * Build eligible player pool with all filters applied.
      */
-    private function buildPool(array $players, MatchSuggestionRequestDTO $request): array
+    private function buildPool(array $players, MatchSuggestionRequestDTO $request, bool $needsPaymentCheck): array
     {
         $pool = [];
 
         foreach ($players as $player) {
-            if (!$this->filterByCheckIn($player)) continue;
+            if (!$this->filterByAvailability($player, $needsPaymentCheck)) continue;
             if (!$this->filterByPlayingStatus($player)) continue;
             if (!$this->filterBySkipStatus($player)) continue;
             if (!$this->filterByForcedRest($player, $request->settings->prevent_three_consecutive)) continue;
@@ -124,9 +127,25 @@ class SchedulerService
         return $pool;
     }
 
-    private function filterByCheckIn(PlayerContextDTO $player): bool
+    /**
+     * Filter player by availability: not absent, and paid if tournament has fee.
+     * Replaces filterByCheckIn which only checked is_checked_in.
+     */
+    private function filterByAvailability(PlayerContextDTO $player, bool $needsPaymentCheck): bool
     {
-        return $player->is_checked_in;
+        // Exclude absent players
+        if ($player->is_absent) {
+            return false;
+        }
+
+        // If tournament has fee that requires payment, exclude unpaid participants
+        if ($needsPaymentCheck && $player->payment_status !== null) {
+            if ($player->payment_status !== PaymentStatusEnum::CONFIRMED->value) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function filterByPlayingStatus(PlayerContextDTO $player): bool

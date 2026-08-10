@@ -220,6 +220,13 @@ class TournamentTypeController extends Controller
      */
     public function update(Request $request, TournamentType $tournamentType)
     {
+        // Parse nested FormData keys như format_specific_config[0][knockout_stage][pairing_mode]
+        $all = $this->parseNestedFormData($request->all());
+        $request->merge($all);
+
+        // DEBUG: Log parsed input
+        \Log::info('UPDATE DEBUG - Parsed format_specific_config:', $all['format_specific_config'] ?? []);
+
         $validated = $request->validate([
             'match_rules' => 'sometimes|array',
             'format_specific_config' => 'array|nullable',
@@ -324,8 +331,17 @@ class TournamentTypeController extends Controller
                 $newMainConfig = is_array($validated['format_specific_config']) && isset($validated['format_specific_config'][0])
                     ? $validated['format_specific_config'][0]
                     : $validated['format_specific_config'];
+
+                // DEBUG: Log before merge
+                \Log::info('UPDATE DEBUG - oldMainConfig:', $oldMainConfig);
+                \Log::info('UPDATE DEBUG - newMainConfig:', $newMainConfig);
+
                 // Dùng deepMergeRecursive để merge đệ quy mọi cấp nested, giữ nguyên những key không có trong request
-                $tournamentType->format_specific_config = [$this->deepMergeRecursive($oldMainConfig, $newMainConfig)];
+                $mergedConfig = $this->deepMergeRecursive($oldMainConfig, $newMainConfig);
+                $tournamentType->format_specific_config = [$mergedConfig];
+
+                // DEBUG: Log after merge
+                \Log::info('UPDATE DEBUG - mergedConfig:', $mergedConfig);
             }
 
             // Ghi đè rules và file path
@@ -936,7 +952,7 @@ class TournamentTypeController extends Controller
                 $advancingByRank[$k]->push((object)[
                     'team_id' => null,
                     '_from_group' => $group->id,
-                    '_group_index' => $index,
+                    '_group_index' => $index + 1,  // Frontend dùng 1-based index (1=A, 2=B, 3=C, 4=D)
                     '_rank' => $k + 1,
                 ]);
             }
@@ -3168,12 +3184,72 @@ class TournamentTypeController extends Controller
         $this->generateMixed($type, $teams, $config, $numLegs, false);
     }
 
+    /**
+     * Parse nested FormData keys như format_specific_config[0][knockout_stage][pairing_mode]
+     * thành mảng đa chiều Laravel có thể hiểu
+     */
+    private function parseNestedFormData(array $data): array
+    {
+        $result = [];
+        foreach ($data as $key => $value) {
+            // Tìm keys dạng parentKey[index][subKey]...
+            if (preg_match('/^([^\[\]]+)(\[[^\[\]]+\])+$/', $key, $matches)) {
+                $baseKey = $matches[1];
+                preg_match_all('/\[([^\[\]]+)\]/', $key, $indices);
+                $indices = $indices[1];
+
+                // Build nested array
+                $nested = $value;
+                for ($i = count($indices) - 1; $i >= 0; $i--) {
+                    $idx = $indices[$i];
+                    // Check if index is numeric
+                    if (is_numeric($idx)) {
+                        $idx = (int) $idx;
+                    }
+                    $nested = [$idx => $nested];
+                }
+
+                // Merge vào result
+                if (!isset($result[$baseKey])) {
+                    $result[$baseKey] = [];
+                }
+                $result[$baseKey] = $this->arrayMergeRecursiveDistinct($result[$baseKey], $nested);
+            } else {
+                $result[$key] = $value;
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * Merge arrays đệ quy, giữ nguyên giá trị cũ nếu không có trong new
+     */
+    private function arrayMergeRecursiveDistinct(array &$array1, array &$array2): array
+    {
+        $merged = $array1;
+        foreach ($array2 as $key => &$value) {
+            if (is_array($value) && isset($merged[$key]) && is_array($merged[$key])) {
+                $merged[$key] = $this->arrayMergeRecursiveDistinct($merged[$key], $value);
+            } else {
+                $merged[$key] = $value;
+            }
+        }
+        return $merged;
+    }
+
     private function deepMergeRecursive(array $old, array $new): array
     {
+        // Nếu old là empty array, trả về new ngay
+        if (empty($old)) {
+            return $new;
+        }
+
         foreach ($new as $key => $value) {
-            if (is_array($value) && isset($old[$key]) && is_array($old[$key])) {
+            if (is_array($value) && array_key_exists($key, $old) && is_array($old[$key])) {
+                // Recursively merge nested arrays
                 $old[$key] = $this->deepMergeRecursive($old[$key], $value);
             } else {
+                // Replace with new value (overwrites old)
                 $old[$key] = $value;
             }
         }

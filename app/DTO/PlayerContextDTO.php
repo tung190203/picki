@@ -43,6 +43,12 @@ class PlayerContextDTO
         public readonly bool $is_playing,
         public readonly bool $skip_next_round,
 
+        // Absent status
+        public readonly bool $is_absent,
+
+        // Payment status
+        public readonly ?string $payment_status,
+
         // Backup flag
         public readonly bool $is_backup,
     ) {}
@@ -71,6 +77,8 @@ class PlayerContextDTO
             is_checked_in: $data['is_checked_in'] ?? false,
             is_playing: $data['is_playing'] ?? false,
             skip_next_round: $data['skip_next_round'] ?? false,
+            is_absent: $data['is_absent'] ?? false,
+            payment_status: $data['payment_status'] ?? null,
             is_backup: $data['is_backup'] ?? false,
         );
     }
@@ -94,6 +102,8 @@ class PlayerContextDTO
             'is_checked_in' => $this->is_checked_in,
             'is_playing' => $this->is_playing,
             'skip_next_round' => $this->skip_next_round,
+            'is_absent' => $this->is_absent,
+            'payment_status' => $this->payment_status,
             'is_backup' => $this->is_backup,
         ];
     }
