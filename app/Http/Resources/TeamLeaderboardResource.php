@@ -44,7 +44,7 @@ class TeamLeaderboardResource extends JsonResource
             'id'               => $team['id'],
             'name'             => $team['name'],
             'avatar_url'       => $team['avatar'],
-            'vndupr_avg'       => $team['vndupr_avg'],
+            'total_vndupr'       => $team['total_vndupr'],
             'members'          => $team['members'],
             'tournament_types' => $team['tournament_types'] ?? [],
             'is_my_team'       => $team['is_my_team'] ?? false,

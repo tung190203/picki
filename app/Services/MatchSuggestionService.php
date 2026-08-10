@@ -29,8 +29,15 @@ class MatchSuggestionService
     {
         $miniTournamentId = $request->mini_tournament_id;
 
+        // Get mini tournament to check if payment is required
+        $miniTournament = \App\Models\MiniTournament::find($miniTournamentId);
+        $needsPaymentCheck = $miniTournament
+            && $miniTournament->has_fee
+            && !$miniTournament->auto_split_fee
+            && !$miniTournament->use_club_fund;
+
         // Build player contexts: merge FE tier with DB stats
-        $players = $this->buildPlayerContexts($miniTournamentId, $request->participants);
+        $players = $this->buildPlayerContexts($miniTournamentId, $request->participants, $needsPaymentCheck);
         
         // Apply backup filter
         $players = $this->filterByBackup($players, $request->settings->organizer_as_backup);
@@ -38,7 +45,7 @@ class MatchSuggestionService
         // Load user data with sports for response
         $userDataMap = $this->loadUserDataMap($players);
 
-        return $this->schedulerService->generate($players, $request, $userDataMap);
+        return $this->schedulerService->generate($players, $request, $userDataMap, $needsPaymentCheck);
     }
 
     /**
@@ -48,6 +55,13 @@ class MatchSuggestionService
         MatchSuggestionRequestDTO $request,
         ?MatchSuggestionResponseDTO $previousSuggestion
     ): MatchSuggestionResponseDTO {
+        // Get mini tournament to check if payment is required
+        $miniTournament = \App\Models\MiniTournament::find($request->mini_tournament_id);
+        $needsPaymentCheck = $miniTournament
+            && $miniTournament->has_fee
+            && !$miniTournament->auto_split_fee
+            && !$miniTournament->use_club_fund;
+
         $excludeIds = [];
 
         if ($previousSuggestion && $previousSuggestion->match) {
@@ -68,7 +82,16 @@ class MatchSuggestionService
             exclude_player_ids: $excludeIds,
         );
 
-        return $this->generate($newRequest);
+        // Build player contexts with payment check
+        $players = $this->buildPlayerContexts($request->mini_tournament_id, $request->participants, $needsPaymentCheck);
+        
+        // Apply backup filter
+        $players = $this->filterByBackup($players, $request->settings->organizer_as_backup);
+
+        // Load user data with sports for response
+        $userDataMap = $this->loadUserDataMap($players);
+
+        return $this->schedulerService->generate($players, $newRequest, $userDataMap, $needsPaymentCheck);
     }
 
     /**
@@ -77,7 +100,7 @@ class MatchSuggestionService
      * IMPORTANT: Gender is read from DB, not from FE.
      * Guests are included in the pool - they should be treated as normal participants.
      */
-    private function buildPlayerContexts(int $miniTournamentId, array $feParticipants): array
+    private function buildPlayerContexts(int $miniTournamentId, array $feParticipants, bool $needsPaymentCheck): array
     {
         // FE sends mini_participant_id + tier
         // Create lookup map
@@ -86,11 +109,10 @@ class MatchSuggestionService
             $feTierMap[$feP->mini_participant_id] = $feP->tier;
         }
 
-        // Query DB for participant details (exclude absent users)
+        // Query DB for participant details
         $participantIds = array_column($feParticipants, 'mini_participant_id');
         $participants = MiniParticipant::where('mini_tournament_id', $miniTournamentId)
             ->whereIn('id', $participantIds)
-            ->where('is_absent', false)
             ->with(['user:id,full_name,avatar_url,gender', 'guarantor'])
             ->get()
             ->keyBy('id');
@@ -151,6 +173,8 @@ class MatchSuggestionService
                 is_checked_in: $participant->checked_in_at !== null,
                 is_playing: $userId ? in_array($userId, $playingParticipants) : false,
                 skip_next_round: $participant->skip_next_round ?? false,
+                is_absent: $participant->is_absent,
+                payment_status: $needsPaymentCheck ? ($participant->payment_status?->value ?? null) : null,
                 is_backup: false,
             );
         }

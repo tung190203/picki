@@ -25,25 +25,33 @@ class TeamResource extends JsonResource
             $participant = $member->relationLoaded('tournamentParticipant')
                 ? $member->tournamentParticipant
                 : null;
+
             if ($participant?->is_guest) {
-                $scores[] = (float) ($participant->estimated_level ?? 0);
+                // Guest: use estimated_level from participant record
+                $score = (float) ($participant->estimated_level ?? 0);
+                if ($score > 0) {
+                    $scores[] = $score;
+                }
             } else {
+                // Real user: use vndupr_score from UserSportScore
                 $memberSports = $member->relationLoaded('sports') ? $member->sports : collect();
-                $vndupr = 0.0;
                 foreach ($memberSports as $sport) {
                     $sportScores = $sport->relationLoaded('scores') ? $sport->scores : collect();
                     $latest = $sportScores->where('score_type', 'vndupr_score')
                         ->sortByDesc('created_at')->first();
                     if ($latest) {
-                        $vndupr = (float) $latest->score_value;
-                        break;
+                        $score = (float) $latest->score_value;
+                        if ($score > 0) {
+                            $scores[] = $score;
+                        }
+                        break; // one sport per member
                     }
                 }
-                $scores[] = $vndupr;
             }
         }
-        $vnduprAvg = count($scores) >= 1
-            ? round(array_sum($scores) / count($scores), 3)
+
+        $totalVndupr = count($scores) >= 1
+            ? round(array_sum($scores), 3)
             : null;
 
         return [
@@ -53,7 +61,7 @@ class TeamResource extends JsonResource
             'tournament_type_id' => $this->tournament_type_id,
             'avatar' => $this->avatar,
             'members' => TeamMemberResource::collection($members),
-            'vndupr_avg' => $vnduprAvg,
+            'total_vndupr' => $totalVndupr,
         ];
     }
 }

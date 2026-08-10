@@ -134,11 +134,14 @@ class TeamPairingService
         $advancing = collect();
 
         // Tạo map để tra cứu nhanh: "groupId_rank" => team object
+        // Ưu tiên dùng _group_index (frontend index 1,2,3,4) thay vì _from_group (database ID)
+        // vì frontend gửi group_id là index, không phải database ID
         $teamMap = [];
         foreach ($advancingByRank as $rank => $teamsAtRank) {
             foreach ($teamsAtRank as $team) {
-                $groupId = $team->_from_group ?? null;
-                if ($groupId) {
+                // Ưu tiên _group_index (frontend index), fallback về _from_group (database ID)
+                $groupId = $team->_group_index ?? $team->_from_group ?? null;
+                if ($groupId !== null) {
                     $key = "{$groupId}_{$rank}";
                     $teamMap[$key] = $team;
                 }
