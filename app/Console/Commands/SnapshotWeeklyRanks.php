@@ -76,7 +76,14 @@ class SnapshotWeeklyRanks extends Command
         }
 
         if (!empty($records)) {
-            WeeklyRank::insert($records);
+            // Use upsert so the command is idempotent and safe to re-run within the same week.
+            // Unique key in DB is expected on (user_id, sport_id, recorded_at) — NULL is treated
+            // as a distinct value in MySQL, so upsert lets us refresh the current snapshot rows.
+            WeeklyRank::upsert(
+                $records,
+                ['user_id', 'sport_id', 'recorded_at'],
+                ['rank', 'updated_at']
+            );
             $this->info("Inserted " . count($records) . " current rank records.");
         }
 
