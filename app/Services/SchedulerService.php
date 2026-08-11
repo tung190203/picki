@@ -349,8 +349,8 @@ class SchedulerService
         $permutations = $this->getPermutations($userIds);
         
         $bestPairing = null;
+        $bestTierScore = -1.0;      // Tier score cao nhất tìm được
         $bestBalanceDiff = PHP_FLOAT_MAX;
-        $bestTierMatch = 0.0;
         $preferHighTier = $settings->prefer_high_tier_match ?? false;
 
         foreach ($permutations as $perm) {
@@ -365,44 +365,38 @@ class SchedulerService
                 continue;
             }
 
+            // Calculate tier distribution score (only when preferHighTier is enabled)
+            $tierScore = $preferHighTier 
+                ? $this->calculateTierDistributionMatch($playersA, $playersB)
+                : 0.0;
+
             // Calculate VN DUPR balance
             $balanceDiff = $this->calculateBalanceDiff($playersA, $playersB, $userDataMap);
-            
-            // Calculate tier distribution match score
-            $tierMatch = $this->calculateTierDistributionMatch($playersA, $playersB);
-            
-            // When prefer_high_tier_match is enabled, prioritize tier matching
-            // Tier match bonus: perfect (2.0) >> corresponding (1.0) >> mismatched (0.0)
-            // We use a large multiplier (100) to ensure tier match outweighs balance diff
-            if ($preferHighTier) {
-                $adjustedScore = $balanceDiff - ($tierMatch * 100);
-            } else {
-                $adjustedScore = $balanceDiff;
-            }
 
-            // Update best pairing
-            // Compare: first by adjusted score, then by tier match, then by balance diff
+            // 2-LEVEL COMPARISON: Tier first, then VN DUPR as tiebreaker
             $shouldUpdate = false;
+
             if ($bestPairing === null) {
                 $shouldUpdate = true;
-            } elseif ($adjustedScore < $bestBalanceDiff) {
-                $shouldUpdate = true;
-            } elseif ($adjustedScore === $bestBalanceDiff) {
-                // Tie-breaker: prefer higher tier match score
-                if ($tierMatch > $bestTierMatch) {
+            } else {
+                // Ưu tiên 1: Tier score cao hơn
+                if ($tierScore > $bestTierScore) {
+                    $shouldUpdate = true;
+                }
+                // Ưu tiên 2: Balance diff thấp hơn (chỉ khi tier bằng nhau)
+                elseif ($tierScore === $bestTierScore && $balanceDiff < $bestBalanceDiff) {
                     $shouldUpdate = true;
                 }
             }
 
             if ($shouldUpdate) {
-                $bestBalanceDiff = $adjustedScore;
-                $bestTierMatch = $tierMatch;
+                $bestTierScore = $tierScore;
+                $bestBalanceDiff = $balanceDiff;
                 $bestPairing = [
                     'team_a' => $playersA,
                     'team_b' => $playersB,
                     'is_high_tier' => $this->isHighTierMatch($playersA, $playersB),
                     'rules_applied' => [],
-                    'tier_match_score' => $tierMatch,
                 ];
             }
         }
@@ -415,9 +409,6 @@ class SchedulerService
         if ($bestPairing && $settings->balance_team) {
             $bestPairing['rules_applied'][] = 'balance_team';
         }
-
-        // Remove internal field before returning
-        unset($bestPairing['tier_match_score']);
 
         return $bestPairing;
     }
@@ -553,32 +544,40 @@ class SchedulerService
      * When prefer_high_tier_match is enabled, algorithm prioritizes:
      * 1. Same tier in each team (e.g., đỏ đỏ vs đỏ đỏ)
      * 2. If not enough, corresponding distribution (e.g., xanh đỏ vs xanh đỏ)
+     * 3. Internal mismatch penalty: both teams have same internal tier but DIFFERENT between teams
      */
     private function calculateTierDistributionMatch(array $teamA, array $teamB): float
     {
         $tiersA = array_map(fn($p) => $p->tier->priority(), $teamA);
         $tiersB = array_map(fn($p) => $p->tier->priority(), $teamB);
         
-        // Check if each team has same internal tier (e.g., [C,C] or [A,A])
+        // Check if each team has same internal tier (e.g., [2,2] or [3,3])
         $sameTierA = $tiersA[0] === $tiersA[1];
         $sameTierB = $tiersB[0] === $tiersB[1];
         
-        // Perfect match: both teams have same internal tier AND they match each other
-        // e.g., Team A [C,C] and Team B [C,C] = đỏ đỏ vs đỏ đỏ
+        // Case 1: Perfect match - both teams have same internal tier AND they match each other
+        // e.g., Team A [đỏ,đỏ] and Team B [đỏ,đỏ] = 3.0
         if ($sameTierA && $sameTierB && $tiersA[0] === $tiersB[0]) {
             return 3.0;
         }
         
-        // Sort for distribution comparison
-        sort($tiersA);
-        sort($tiersB);
-        
-        // Perfect distribution: same tier distribution after sorting
-        // e.g., Team A [A,B] = [1,3] and Team B [A,B] = [1,3] = xanh đỏ vs xanh đỏ
-        if ($tiersA === $tiersB) {
+        // Case 2: Same distribution after sorting
+        // e.g., Team A [xanh,đỏ] = [1,3] and Team B [xanh,đỏ] = [1,3] = 2.0
+        $sortedA = $tiersA;
+        $sortedB = $tiersB;
+        sort($sortedA);
+        sort($sortedB);
+        if ($sortedA === $sortedB) {
             return 2.0;
         }
         
+        // Case 3: Both teams have same internal tier but DIFFERENT between teams
+        // e.g., Team A [vàng,vàng] and Team B [đỏ,đỏ] = 1.0 (PENALTY)
+        if ($sameTierA && $sameTierB && $tiersA[0] !== $tiersB[0]) {
+            return 1.0;
+        }
+        
+        // Case 4: All other cases = 0.0
         return 0.0;
     }
 

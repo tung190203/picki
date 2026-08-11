@@ -60,6 +60,7 @@ class MatchesController extends Controller
     {
         $validated = $request->validate([
             'court' => 'nullable|integer',
+            'referee_id' => 'nullable|integer|exists:users,id',
             'results' => 'nullable|array|min:1',
             'results.*.id' => 'sometimes|exists:match_results,id',
             'results.*.set_number' => 'required|integer|min:1',
@@ -83,7 +84,12 @@ class MatchesController extends Controller
             return ResponseHelper::error('Kết quả trận đấu đã được xác nhận không thể thay đổi điểm số', 400);
         }
 
-        $match->update(['court' => $validated['court'] ?? $match->court]);
+        // Cập nhật court và referee
+        $matchUpdate = ['court' => $validated['court'] ?? $match->court];
+        if (isset($validated['referee_id'])) {
+            $matchUpdate['referee_id'] = $validated['referee_id'];
+        }
+        $match->update($matchUpdate);
 
         // Validate cơ bản: mỗi set phải có đủ 2 đội
         $sets = collect($validated['results'] ?? [])->groupBy('set_number');
@@ -129,7 +135,7 @@ class MatchesController extends Controller
             'away_team_confirm' => 0,
         ]);
 
-        $match->load(['results', 'homeTeam', 'awayTeam', 'tournamentType.tournament']);
+        $match->load(['results', 'homeTeam', 'awayTeam', 'referee', 'tournamentType.tournament']);
         TournamentMatchUpdated::dispatch($match);
 
         return ResponseHelper::success(new MatchDetailResource($match));
