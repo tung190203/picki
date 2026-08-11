@@ -191,15 +191,14 @@ class SchedulerService
      * Find all valid gender-compatible groups.
      * Returns array of player arrays, each containing 4+ players.
      *
-     * PRIORITY ORDER (gender balance between teams, not who plays first):
-     * 1. All-Male groups (Nam-Nam vs Nam-Nam): if >=4 males available
-     * 2. All-Female groups (Nữ-Nữ vs Nữ-Nữ): if >=4 females available
-     * 3. Unknown gender: if >=4 unknown gender available and no other group
-     * 4. Mixed groups (Nam-Nữ vs Nam-Nữ symmetric): if >=2 males AND >=2 females
-     * 5. Last resort: use all available players (backup BTC case)
-     *
-     * Note: This prioritizes same-gender matches to keep teams balanced.
-     * Mixed gender is only used when same-gender groups are not possible.
+     * PRIORITY ORDER (strict, first valid group wins):
+     * 1. Same-tier within same gender (e.g., 4 red males)
+     * 2. All-male (mixed-tier fallback within same gender)
+     * 3. All-female (mixed-tier fallback within same gender)
+     * 4. Same-tier mixed gender (e.g., 2 red M + 2 red F) - same tier across genders
+     * 5. Unknown gender groups
+     * 6. Mixed gender (Nam-Nữ vs Nam-Nữ symmetric)
+     * 7. Last resort: use all available players (backup BTC case)
      */
     private function findGenderCompatibleGroups(array $pool): array
     {
@@ -210,24 +209,33 @@ class SchedulerService
 
         $groups = [];
 
-        // PRIORITY 1: All-male group (Nam vs Nam) - symmetric pairing
+        // PRIORITY 1A: Same-tier groups within each single gender
+        $this->addSameTierGroupsForGender($groups, $males);
+        $this->addSameTierGroupsForGender($groups, $females);
+
+        // PRIORITY 2: All-male groups (mixed-tier fallback within same gender)
         if (count($males) >= 4) {
             $sortedMales = $this->sortByTierForBalance($males);
             $groups[] = array_slice($sortedMales, 0, max(4, count($sortedMales)));
         }
 
-        // PRIORITY 2: All-female group (Nữ vs Nữ) - symmetric pairing
+        // PRIORITY 3: All-female groups
         if (count($females) >= 4) {
             $sortedFemales = $this->sortByTierForBalance($females);
             $groups[] = array_slice($sortedFemales, 0, max(4, count($sortedFemales)));
         }
 
-        // PRIORITY 3: Unknown gender (only if no valid same-gender group yet)
-        if (empty($groups) && count($unknown) >= 4) {
-            $groups[] = $unknown;
+        // PRIORITY 4: Same-tier mixed gender groups (e.g., 2 red M + 2 red F)
+        $this->addSameTierMixedGenderGroups($groups, $males, $females);
+
+        // PRIORITY 5: Unknown gender groups
+        if (count($unknown) >= 4) {
+            $this->addSameTierGroupsForGender($groups, $unknown);
+            $sortedUnknown = $this->sortByTierForBalance($unknown);
+            $groups[] = $sortedUnknown;
         }
 
-        // PRIORITY 4: Mixed gender (Nam-Nữ vs Nam-Nữ symmetric) - last resort before backup
+        // PRIORITY 6: Mixed gender (Nam-Nữ vs Nam-Nữ symmetric) - last resort before backup
         if (empty($groups) && count($males) >= 2 && count($females) >= 2) {
             $sortedMales = $this->sortByTierForBalance($males);
             $sortedFemales = $this->sortByTierForBalance($females);
@@ -237,13 +245,76 @@ class SchedulerService
             );
         }
 
-        // PRIORITY 5 (Backup): Last resort - use all available players
-        // This handles asymmetric cases like 3M+2F where we can't form a clean 2-2 split
+        // PRIORITY 7 (Backup): Last resort - use all available players
         if (empty($groups) && count($pool) >= 4) {
             $groups[] = array_values($pool);
         }
 
         return $groups;
+    }
+
+    /**
+     * Add same-tier groups for a single gender.
+     * E.g., if there are 4+ red males, add them as a group.
+     */
+    private function addSameTierGroupsForGender(array &$groups, array $players): void
+    {
+        if (count($players) < 4) return;
+
+        // Group by tier
+        $byTier = [];
+        foreach ($players as $p) {
+            $tierKey = strtolower($p->tier->name);
+            $byTier[$tierKey][] = $p;
+        }
+
+        // Sort tiers by priority (highest first)
+        $tiers = array_keys($byTier);
+        usort($tiers, fn($a, $b) => PlayerTier::from($b)->priority() - PlayerTier::from($a)->priority());
+
+        // Push groups for tiers with >=4 players
+        foreach ($tiers as $tier) {
+            if (count($byTier[$tier]) >= 4) {
+                $groups[] = array_values($byTier[$tier]);
+            }
+        }
+    }
+
+    /**
+     * Add same-tier MIXED GENDER groups.
+     * E.g., if there are 2 red males + 2 red females, add them as a mixed same-tier group.
+     * Only triggers if neither gender alone has 4 of the same tier.
+     */
+    private function addSameTierMixedGenderGroups(array &$groups, array $males, array $females): void
+    {
+        // Group males by tier
+        $malesByTier = [];
+        foreach ($males as $p) {
+            $tierKey = strtolower($p->tier->name);
+            $malesByTier[$tierKey][] = $p;
+        }
+
+        // Group females by tier
+        $femalesByTier = [];
+        foreach ($females as $p) {
+            $tierKey = strtolower($p->tier->name);
+            $femalesByTier[$tierKey][] = $p;
+        }
+
+        $allTiers = array_unique(array_merge(array_keys($malesByTier), array_keys($femalesByTier)));
+        usort($allTiers, fn($a, $b) => PlayerTier::from($b)->priority() - PlayerTier::from($a)->priority());
+
+        foreach ($allTiers as $tier) {
+            $malesInTier = $malesByTier[$tier] ?? [];
+            $femalesInTier = $femalesByTier[$tier] ?? [];
+
+            $total = count($malesInTier) + count($femalesInTier);
+            if ($total >= 4) {
+                // Need symmetric pairing: same number per team
+                // Take 2M+2F if possible, or other split
+                $groups[] = array_merge(array_values($malesInTier), array_values($femalesInTier));
+            }
+        }
     }
 
     /**
@@ -344,7 +415,16 @@ class SchedulerService
             return array_slice($selected, 0, 4);
         }
 
-        // Same gender or unknown: use original logic
+        // Same gender or unknown
+        // Priority: prefer 4 players of SAME TIER if available
+        // Then fallback to fair play priority
+        $selected = $this->selectSameTierFirst($players, $request);
+
+        if (count($selected) >= 4) {
+            return array_slice($selected, 0, 4);
+        }
+
+        // Fallback to fair play priority
         $fresh = array_filter($players, fn($p) => $p->played_count === 0);
         $justPlayed = array_filter($players, fn($p) => $p->played_count > 0);
 
@@ -355,7 +435,49 @@ class SchedulerService
 
         $combined = array_merge($fresh, $justPlayed);
 
-        return array_slice($combined, 0, 4);
+        // Filter out already-selected (same-tier) to avoid duplicates
+        $selectedIds = array_column($selected, 'user_id');
+        foreach ($combined as $p) {
+            if (!in_array($p->user_id, $selectedIds, true)) {
+                $selected[] = $p;
+                if (count($selected) >= 4) break;
+            }
+        }
+
+        return array_slice($selected, 0, 4);
+    }
+
+    /**
+     * Try to select 4 players of the same tier.
+     * Order tier priority: highest first (purple > red > yellow > green).
+     * Within tier: fair play priority.
+     * Returns at least 4 players if any tier has >=4 players.
+     */
+    private function selectSameTierFirst(array $players, MatchSuggestionRequestDTO $request): array
+    {
+        // Group by tier
+        $byTier = [];
+        foreach ($players as $p) {
+            $tierKey = strtolower($p->tier->name);
+            $byTier[$tierKey][] = $p;
+        }
+
+        // Sort tiers by priority (highest first)
+        $tiers = array_keys($byTier);
+        usort($tiers, fn($a, $b) => PlayerTier::from($b)->priority() - PlayerTier::from($a)->priority());
+
+        // Find first tier with >=4 players
+        foreach ($tiers as $tier) {
+            if (count($byTier[$tier]) >= 4) {
+                $tierPlayers = $byTier[$tier];
+                if ($request->settings->fair_play) {
+                    $tierPlayers = $this->applyFairPlayPriority($tierPlayers);
+                }
+                return array_slice($tierPlayers, 0, 4);
+            }
+        }
+
+        return [];
     }
 
     /**
@@ -519,12 +641,17 @@ class SchedulerService
 
     /**
      * Check if a team pairing respects gender rules.
-     * Mixed gender must be symmetric (2-2 or 1-1).
+     *
+     * Rules:
+     * - All-male vs all-male: VALID (Nam-Nam vs Nam-Nam)
+     * - All-female vs all-female: VALID (Nữ-Nữ vs Nữ-Nữ)
+     * - Mixed: MUST be symmetric - 1M+1F vs 1M+1F (Nam-Nữ vs Nam-Nữ)
+     * - Asymmetric (all-male vs all-female, or 2M+0F vs 0M+2F): INVALID
      */
     private function isValidGenderPairing(array $teamA, array $teamB, array $genderCounts): bool
     {
         $allPlayers = array_merge($teamA, $teamB);
-        
+
         $hasMale = false;
         $hasFemale = false;
 
@@ -533,18 +660,30 @@ class SchedulerService
             if ($p->gender === User::FEMALE) $hasFemale = true;
         }
 
-        // If we have mixed gender, require symmetric distribution
-        if ($hasMale && $hasFemale) {
-            $malesInA = count(array_filter($teamA, fn($p) => $p->gender === User::MALE));
-            $malesInB = count(array_filter($teamB, fn($p) => $p->gender === User::MALE));
-            $femalesInA = count(array_filter($teamA, fn($p) => $p->gender === User::FEMALE));
-            $femalesInB = count(array_filter($teamB, fn($p) => $p->gender === User::FEMALE));
+        $malesInA = count(array_filter($teamA, fn($p) => $p->gender === User::MALE));
+        $malesInB = count(array_filter($teamB, fn($p) => $p->gender === User::MALE));
+        $femalesInA = count(array_filter($teamA, fn($p) => $p->gender === User::FEMALE));
+        $femalesInB = count(array_filter($teamB, fn($p) => $p->gender === User::FEMALE));
 
-            // Mixed must be symmetric: 2 males + 2 females
+        // If we have mixed gender (both male and female in match), require symmetric distribution
+        if ($hasMale && $hasFemale) {
+            // Mixed must be symmetric: e.g., 1M+1F vs 1M+1F
             return $malesInA === $femalesInA && $malesInB === $femalesInB;
         }
 
-        // All-male or all-female is always valid
+        // Same-gender match: both teams must have the same gender composition
+        // Reject asymmetric pairings like all-male vs all-female
+        if ($hasMale && !$hasFemale) {
+            // All-male match: both teams must be all-male
+            return $malesInA === count($teamA) && $malesInB === count($teamB);
+        }
+
+        if ($hasFemale && !$hasMale) {
+            // All-female match: both teams must be all-female
+            return $femalesInA === count($teamA) && $femalesInB === count($teamB);
+        }
+
+        // Unknown gender only - allow
         return true;
     }
 
