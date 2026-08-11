@@ -1114,6 +1114,99 @@ class MatchSuggestionTest extends TestCase
         $this->assertTrue($result, 'Should accept Nam-Nữ vs Nam-Nữ symmetric pairing');
     }
 
+    /**
+     * Same-gender priority: When there are 4+ males of the same tier,
+     * prefer SAME-TIER all-male match over mixed-tier all-male match.
+     */
+    public function test_same_tier_priority_within_gender(): void
+    {
+        // 4 reds + 2 yellows, all male
+        // Should pick the 4 reds (same tier) not the mixed group
+        $players = $this->createPlayers([
+            ['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 5, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 6, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+        ]);
+
+        // Use reflection to inspect findGenderCompatibleGroups
+        $reflection = new \ReflectionClass($this->scheduler);
+        $method = $reflection->getMethod('findGenderCompatibleGroups');
+        $method->setAccessible(true);
+        $groups = $method->invoke($this->scheduler, $players);
+
+        // Confirm we have at least 2 groups (same-tier first, mixed fallback)
+        $this->assertGreaterThanOrEqual(2, count($groups), 'Should produce same-tier + mixed-tier groups');
+        // First group should be the same-tier one (4 reds)
+        $this->assertCount(4, $groups[0], 'First group should have exactly 4 same-tier players');
+        $firstGroupTiers = array_map(fn($p) => strtolower($p->tier->name), $groups[0]);
+        $this->assertCount(4, array_filter($firstGroupTiers, fn($t) => $t === 'red'), 'First group should be all reds');
+
+        $request = $this->createRequest();
+        $result = $this->scheduler->generate($players, $request);
+
+        $this->assertNotNull($result->match, 'Should find a match');
+
+        // All 4 selected should be red tier (note: tier in match is string, not enum)
+        $tiers = [];
+        foreach ($result->match->team1->members as $m) $tiers[] = $m->tier;
+        foreach ($result->match->team2->members as $m) $tiers[] = $m->tier;
+
+        $allRed = true;
+        foreach ($tiers as $t) {
+            if ($t !== 'red') $allRed = false;
+        }
+        $this->assertTrue($allRed, 'Should pick same-tier (4 reds) match when available');
+    }
+
+    /**
+     * Same-tier priority with mixed-gender fallback: When not enough same-tier
+     * same-gender, but enough same-tier mixed-gender, prefer that.
+     */
+    public function test_same_tier_mixed_gender_when_no_same_gender_same_tier(): void
+    {
+        // 2 red males + 2 red females = 4 reds total
+        // Should pick all 4 reds (mixed gender same tier) - but same gender is priority 1 first
+        // Since no group has 4 same-gender same-tier, mixed gender same-tier wins
+        $players = $this->createPlayers([
+            ['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 4, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 5, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 6, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+        ]);
+
+        // Map user_id -> gender for assertion
+        $genderMap = [];
+        foreach ($players as $p) {
+            $genderMap[$p->user_id] = $p->gender;
+        }
+
+        $request = $this->createRequest();
+        $result = $this->scheduler->generate($players, $request);
+
+        $this->assertNotNull($result->match, 'Should find a match');
+
+        // Both teams should have same internal tier (red+red each)
+        $team1Tiers = [];
+        foreach ($result->match->team1->members as $m) $team1Tiers[] = $m->tier;
+        $team2Tiers = [];
+        foreach ($result->match->team2->members as $m) $team2Tiers[] = $m->tier;
+
+        $this->assertCount(2, $team1Tiers);
+        $this->assertCount(2, $team2Tiers);
+
+        // Each team should have 2 reds (tier in match is string)
+        $team1Reds = count(array_filter($team1Tiers, fn($t) => $t === 'red'));
+        $team2Reds = count(array_filter($team2Tiers, fn($t) => $t === 'red'));
+
+        $this->assertEquals(2, $team1Reds, 'Team 1 should have 2 reds');
+        $this->assertEquals(2, $team2Reds, 'Team 2 should have 2 reds');
+    }
+
     // Helper methods
 
     private function createPlayers(array $config): array
