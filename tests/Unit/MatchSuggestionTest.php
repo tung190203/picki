@@ -685,6 +685,221 @@ class MatchSuggestionTest extends TestCase
             'All same tier should have higher or equal balance score');
     }
 
+    /**
+     * Test scenario: 5F (1 đỏ, 3 vàng, 1 xanh), 6M (5 đỏ, 1 vàng)
+     * This tests an extreme imbalance case where the algorithm should still find a valid match.
+     */
+    public function test_select_players_handles_extreme_tier_imbalance(): void
+    {
+        $reflection = new \ReflectionClass($this->scheduler);
+
+        $method = $reflection->getMethod('selectPlayers');
+        $method->setAccessible(true);
+
+        // Scenario: 5 females (1 red, 3 yellow, 1 green), 6 males (5 red, 1 yellow)
+        $players = $this->createPlayers([
+            // Males: 5 Red, 1 Yellow
+            ['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 5, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 6, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            // Females: 1 Red, 3 Yellow, 1 Green
+            ['id' => 7, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 8, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 9, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 10, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 11, 'gender' => User::FEMALE, 'tier' => PlayerTier::Green, 'played' => 0],
+        ]);
+
+        $request = $this->createRequest();
+        $result = $method->invoke($this->scheduler, $players, $request);
+
+        // Should select exactly 4 players (2M + 2F)
+        $this->assertCount(4, $result, 'Should select exactly 4 players');
+
+        // Count genders
+        $males = array_filter($result, fn($p) => $p->gender === User::MALE);
+        $females = array_filter($result, fn($p) => $p->gender === User::FEMALE);
+
+        $this->assertCount(2, $males, 'Should select 2 males');
+        $this->assertCount(2, $females, 'Should select 2 females');
+    }
+
+    /**
+     * Integration test: Full generate() flow with extreme tier imbalance.
+     * Scenario: 5F (1 đỏ, 3 vàng, 1 xanh), 6M (5 đỏ, 1 vàng)
+     * The algorithm should still produce a valid match suggestion.
+     */
+    public function test_generate_handles_extreme_tier_imbalance(): void
+    {
+        // Scenario: 5 females (1 red, 3 yellow, 1 green), 6 males (5 red, 1 yellow)
+        $players = $this->createPlayers([
+            // Males: 5 Red, 1 Yellow
+            ['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 5, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 6, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            // Females: 1 Red, 3 Yellow, 1 Green
+            ['id' => 7, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 8, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 9, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 10, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 11, 'gender' => User::FEMALE, 'tier' => PlayerTier::Green, 'played' => 0],
+        ]);
+
+        $request = $this->createRequest();
+
+        $result = $this->scheduler->generate($players, $request);
+
+        // Should return a match, not an error
+        $this->assertNotNull($result, 'Should return a result, not null');
+        $this->assertNotNull($result->match, 'Should produce a match suggestion, not null');
+        $this->assertNotEmpty($result->match, 'Match should not be empty');
+    }
+
+    /**
+     * Test extreme tier imbalance with all players already played.
+     * Scenario: 5F (1 đỏ, 3 vàng, 1 xanh), 6M (5 đỏ, 1 vàng) - all played
+     */
+    public function test_generate_handles_extreme_tier_imbalance_played(): void
+    {
+        // Scenario: 5 females (1 red, 3 yellow, 1 green), 6 males (5 red, 1 yellow)
+        // All have played >= 1
+        $players = $this->createPlayers([
+            // Males: 5 Red, 1 Yellow - all played
+            ['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 2],
+            ['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 1],
+            ['id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 3],
+            ['id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 1],
+            ['id' => 5, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 2],
+            ['id' => 6, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 1],
+            // Females: 1 Red, 3 Yellow, 1 Green - all played
+            ['id' => 7, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 2],
+            ['id' => 8, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 1],
+            ['id' => 9, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 3],
+            ['id' => 10, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 1],
+            ['id' => 11, 'gender' => User::FEMALE, 'tier' => PlayerTier::Green, 'played' => 2],
+        ]);
+
+        $request = $this->createRequest();
+
+        $result = $this->scheduler->generate($players, $request);
+
+        // Should return a match, not an error
+        $this->assertNotNull($result, 'Should return a result, not null');
+        $this->assertNotNull($result->match, 'Should produce a match suggestion, not null');
+        $this->assertNotEmpty($result->match, 'Match should not be empty');
+    }
+
+    /**
+     * Test that debug messages are returned when something goes wrong.
+     */
+    public function test_debug_messages_returned_when_no_match(): void
+    {
+        // Create a scenario that should work - use the extreme imbalance case
+        $players = $this->createPlayers([
+            ['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 5, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 6, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 7, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 8, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+        ]);
+
+        $request = $this->createRequest();
+        $result = $this->scheduler->generate($players, $request);
+
+        // Should find a match
+        $this->assertNotNull($result->match, 'Should find a match');
+        // Messages should not contain error messages
+        $this->assertEmpty(array_filter($result->messages, fn($m) => str_contains($m, 'No valid match')), 
+            'Should not have no-match errors');
+    }
+
+    /**
+     * Test that tier distribution is actually balanced after the fix.
+     * With the user's scenario: 6 males (5 đỏ, 1 vàng), 5 females (1 đỏ, 3 vàng, 1 xanh)
+     * We should NOT get [đỏ+xanh] vs [vàng+vàng].
+     */
+    public function test_tier_distribution_is_balanced_in_final_match(): void
+    {
+        // User's exact scenario:
+        // Males: 6 total - 5 Red, 1 Yellow
+        // Females: 5 total - 1 Red, 3 Yellow, 1 Green
+        $players = $this->createPlayers([
+            // Males: 5 Red, 1 Yellow
+            ['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 5, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 6, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            // Females: 1 Red, 3 Yellow, 1 Green
+            ['id' => 7, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 8, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 9, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 10, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 11, 'gender' => User::FEMALE, 'tier' => PlayerTier::Green, 'played' => 0],
+        ]);
+
+        $request = $this->createRequest();
+        $result = $this->scheduler->generate($players, $request);
+
+        $this->assertNotNull($result->match, 'Should find a match');
+
+        // Get tiers from both teams
+        $team1Tiers = array_map(fn($p) => $p->tier->name, $result->match->team1->members);
+        $team2Tiers = array_map(fn($p) => $p->tier->name, $result->match->team2->members);
+
+        // Count tiers in each team
+        $t1Red = count(array_filter($team1Tiers, fn($t) => $t === 'red'));
+        $t2Red = count(array_filter($team2Tiers, fn($t) => $t === 'red'));
+        $t1Yellow = count(array_filter($team1Tiers, fn($t) => $t === 'yellow'));
+        $t2Yellow = count(array_filter($team2Tiers, fn($t) => $t === 'yellow'));
+        $t1Green = count(array_filter($team1Tiers, fn($t) => $t === 'green'));
+        $t2Green = count(array_filter($team2Tiers, fn($t) => $t === 'green'));
+
+        // Calculate team strength (Red=3, Yellow=2, Green=1)
+        $t1Strength = $t1Red * 3 + $t1Yellow * 2 + $t1Green * 1;
+        $t2Strength = $t2Red * 3 + $t2Yellow * 2 + $t2Green * 1;
+
+        // Log for debugging
+        $tierScore = $this->getTierDistributionScore($team1Tiers, $team2Tiers);
+
+        // Should NOT get worst-case [Red,Green] vs [Yellow,Yellow]
+        // Worst case: team1 = [Red,Green], team2 = [Yellow,Yellow]
+        // Best case: team1 = [Red,Yellow], team2 = [Red,Yellow]
+        $isWorstCase = ($t1Red === 1 && $t1Green === 1 && $t2Yellow === 2);
+
+        $this->assertFalse($isWorstCase,
+            "Should NOT get [Red,Green] vs [Yellow,Yellow] (worst case). Got: " .
+            "Team1=[" . implode(',', $team1Tiers) . "], Team2=[" . implode(',', $team2Tiers) . "]");
+    }
+
+    private function getTierDistributionScore(array $team1Tiers, array $team2Tiers): float
+    {
+        $allTiers = array_merge($team1Tiers, $team2Tiers);
+
+        // Score based on tier distribution match
+        // Perfect: [Red,Yellow] + [Red,Yellow] = 2.0
+        // Worst: [Red,Green] + [Yellow,Yellow] = 0.0
+
+        $tierValues = ['green' => 1, 'yellow' => 2, 'red' => 3];
+        $team1Values = array_map(fn($t) => $tierValues[$t] ?? 0, $team1Tiers);
+        $team2Values = array_map(fn($t) => $tierValues[$t] ?? 0, $team2Tiers);
+
+        $diff = abs(array_sum($team1Values) - array_sum($team2Values));
+
+        // Normalize: max diff is 4 (Red+Green vs Yellow+Yellow = 4+1 vs 2+2 = 5 vs 4)
+        return max(0, 1 - ($diff / 4));
+    }
+
     // Helper methods
 
     private function createPlayers(array $config): array

@@ -35,20 +35,26 @@ class SchedulerService
         $pool = $this->buildPool($players, $request, $needsPaymentCheck);
         
         if (count($pool) < 4) {
+            $messages[] = 'Pool has less than 4 players after filters: ' . count($pool);
             return $this->createInsufficientPlayersResponse($seed, $pool, $rulesApplied, $messages, $userDataMap);
         }
 
         // Find gender-compatible player groups and select the best match
         $genderGroups = $this->findGenderCompatibleGroups($pool);
         
+        if (empty($genderGroups)) {
+            $messages[] = 'No gender-compatible groups found';
+        }
+        
         $bestMatch = null;
         $bestScore = PHP_FLOAT_MIN;
 
-        foreach ($genderGroups as $group) {
+        foreach ($genderGroups as $groupIdx => $group) {
             // Apply fair play priority to select 4 players
             $selected = $this->selectPlayers($group, $request);
             
             if (count($selected) < 4) {
+                $messages[] = "Group {$groupIdx}: selectPlayers returned only " . count($selected) . " players";
                 continue;
             }
 
@@ -56,6 +62,7 @@ class SchedulerService
             $pairing = $this->findOptimalPairing($selected, $userDataMap, $settings);
             
             if (!$pairing) {
+                $messages[] = "Group {$groupIdx}: findOptimalPairing returned null";
                 continue;
             }
 
@@ -79,6 +86,7 @@ class SchedulerService
 
         // Fallback if no valid match found
         if (!$bestMatch) {
+            $messages[] = 'No valid match found after evaluating all groups';
             return $this->createInsufficientPlayersResponse($seed, $pool, $rulesApplied, $messages, $userDataMap);
         }
 
@@ -931,63 +939,56 @@ class SchedulerService
         // Get unique tiers sorted by priority (high to low)
         $maleTiers = array_keys($malesByTier);
         $femaleTiers = array_keys($femalesByTier);
-        usort($maleTiers, fn($a, $b) => PlayerTier::from($a)->priority() - PlayerTier::from($b)->priority());
-        usort($femaleTiers, fn($a, $b) => PlayerTier::from($a)->priority() - PlayerTier::from($b)->priority());
+        usort($maleTiers, fn($a, $b) => PlayerTier::from($b)->priority() - PlayerTier::from($a)->priority());
+        usort($femaleTiers, fn($a, $b) => PlayerTier::from($b)->priority() - PlayerTier::from($a)->priority());
+
+        // Create low-tier versions (reversed)
+        $maleTiersLow = array_reverse($maleTiers);
+        $femaleTiersLow = array_reverse($femaleTiers);
 
         $selected = [];
-        $maleIdx = 0;
-        $femaleIdx = 0;
+        $maleHighIdx = 0;
+        $maleLowIdx = 0;
+        $femaleHighIdx = 0;
+        $femaleLowIdx = 0;
 
-        // Pick 1 high-tier and 1 low-tier from each gender when possible
-        // This creates better tier distribution for pairing later
+        // Pick $count pairs, alternating high/low tier for balance
         for ($i = 0; $i < $count; $i++) {
-            // Even iteration: pick highest available tier from males, lowest from females
-            // Odd iteration: pick lowest from males, highest from females
+            // Even iteration: male gets high tier, female gets low tier
+            // Odd iteration: male gets low tier, female gets high tier
             if ($i % 2 === 0) {
-                // Pick male from high tier
-                if ($maleIdx < count($maleTiers)) {
-                    $tierName = $maleTiers[$maleIdx];
-                    if (!empty($malesByTier[$tierName])) {
-                        $selected[] = array_shift($malesByTier[$tierName]);
-                        if (empty($malesByTier[$tierName])) {
-                            $maleIdx++;
-                        }
-                    }
+                // Male: pick from high tier (index 0 = highest priority)
+                while ($maleHighIdx < count($maleTiers) && empty($malesByTier[$maleTiers[$maleHighIdx]])) {
+                    $maleHighIdx++;
                 }
-                // Pick female from low tier (reverse order)
-                $femalePickIdx = count($femaleTiers) - 1 - $femaleIdx;
-                if ($femalePickIdx >= 0 && $femalePickIdx < count($femaleTiers)) {
-                    $tierName = $femaleTiers[$femalePickIdx];
-                    if (!empty($femalesByTier[$tierName])) {
-                        $selected[] = array_shift($femalesByTier[$tierName]);
-                        if (empty($femalesByTier[$tierName])) {
-                            unset($femaleTiers[$femalePickIdx]);
-                            $femaleTiers = array_values($femaleTiers);
-                        }
-                    }
+                if ($maleHighIdx < count($maleTiers)) {
+                    $tierName = $maleTiers[$maleHighIdx];
+                    $selected[] = array_shift($malesByTier[$tierName]);
+                }
+                // Female: pick from low tier (index 0 = lowest priority in reversed array)
+                while ($femaleLowIdx < count($femaleTiersLow) && empty($femalesByTier[$femaleTiersLow[$femaleLowIdx]])) {
+                    $femaleLowIdx++;
+                }
+                if ($femaleLowIdx < count($femaleTiersLow)) {
+                    $tierName = $femaleTiersLow[$femaleLowIdx];
+                    $selected[] = array_shift($femalesByTier[$tierName]);
                 }
             } else {
-                // Pick female from high tier
-                if ($femaleIdx < count($femaleTiers)) {
-                    $tierName = $femaleTiers[$femaleIdx];
-                    if (!empty($femalesByTier[$tierName])) {
-                        $selected[] = array_shift($femalesByTier[$tierName]);
-                        if (empty($femalesByTier[$tierName])) {
-                            array_splice($femaleTiers, $femaleIdx, 1);
-                        }
-                    }
+                // Female: pick from high tier
+                while ($femaleHighIdx < count($femaleTiers) && empty($femalesByTier[$femaleTiers[$femaleHighIdx]])) {
+                    $femaleHighIdx++;
                 }
-                // Pick male from low tier (reverse order)
-                $malePickIdx = count($maleTiers) - 1 - $maleIdx;
-                if ($malePickIdx >= 0 && $malePickIdx < count($maleTiers)) {
-                    $tierName = $maleTiers[$malePickIdx];
-                    if (!empty($malesByTier[$tierName])) {
-                        $selected[] = array_shift($malesByTier[$tierName]);
-                        if (empty($malesByTier[$tierName])) {
-                            unset($maleTiers[$malePickIdx]);
-                            $maleTiers = array_values($maleTiers);
-                        }
-                    }
+                if ($femaleHighIdx < count($femaleTiers)) {
+                    $tierName = $femaleTiers[$femaleHighIdx];
+                    $selected[] = array_shift($femalesByTier[$tierName]);
+                }
+                // Male: pick from low tier
+                while ($maleLowIdx < count($maleTiersLow) && empty($malesByTier[$maleTiersLow[$maleLowIdx]])) {
+                    $maleLowIdx++;
+                }
+                if ($maleLowIdx < count($maleTiersLow)) {
+                    $tierName = $maleTiersLow[$maleLowIdx];
+                    $selected[] = array_shift($malesByTier[$tierName]);
                 }
             }
         }
