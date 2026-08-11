@@ -22,6 +22,7 @@ class Matches extends Model
         'away_team_id',
         'leg',
         'referee_id',
+        'leg_referee_id',
         'status',
         'is_bye',
         'is_loser_bracket',
@@ -97,6 +98,11 @@ class Matches extends Model
     public function referee()
     {
         return $this->belongsTo(User::class, 'referee_id');
+    }
+
+    public function legReferee()
+    {
+        return $this->belongsTo(User::class, 'leg_referee_id');
     }
 
     public function tournament()
