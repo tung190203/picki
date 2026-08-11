@@ -50,6 +50,7 @@ class MatchDetailResource extends JsonResource
                             'status' => $this->status,
                             'court' => $this->court,
                             'scheduled_at' => $this->scheduled_at,
+                            'referee' => $this->referee ? ['id' => $this->referee->id, 'name' => $this->referee->name] : null,
                             'sets' => $sets,
                         ],
                     ]);
@@ -63,7 +64,7 @@ class MatchDetailResource extends JsonResource
                 default:
                     if ($this->home_team_id && $this->away_team_id) {
 
-                        $legs = Matches::with('results')
+                        $legs = Matches::with(['results', 'referee', 'legReferee'])
                             ->where('tournament_type_id', $this->tournament_type_id)
                             ->where('round', $this->round) // ✅ QUAN TRỌNG
                             ->where(function ($q) {
@@ -98,6 +99,9 @@ class MatchDetailResource extends JsonResource
                                     'status' => $match->status,
                                     'court' => $match->court,
                                     'scheduled_at' => $match->scheduled_at,
+                                    'referee' => $match->leg == 1
+                                        ? ($match->referee ? ['id' => $match->referee->id, 'name' => $match->referee->name] : null)
+                                        : ($match->legReferee ? ['id' => $match->legReferee->id, 'name' => $match->legReferee->name] : null),
                                     'sets' => $sets,
                                 ];
                             });
