@@ -408,7 +408,7 @@ class MatchSuggestionTest extends TestCase
 
     /**
      * Test that calculateTierDistributionMatch returns 0.0 for mismatched distribution.
-     * Example: Team A [A,A] vs Team B [B,B] = đỏ đỏ vs xanh xanh (mismatched!)
+     * Example: Team A [A,B] vs Team B [B,C] = xanh đỏ vs đỏ vàng (mixed without matching distribution)
      */
     public function test_tier_distribution_match_mismatched_distribution(): void
     {
@@ -417,13 +417,42 @@ class MatchSuggestionTest extends TestCase
         $method = $reflection->getMethod('calculateTierDistributionMatch');
         $method->setAccessible(true);
 
-        // Team A: 2 Green players (A,A = 1,1)
+        // Team A: Green + Yellow (A,B = 1,2)
+        $teamA = [
+            $this->createPlayerContext(['id' => 1, 'tier' => PlayerTier::Green, 'user_id' => 1]),
+            $this->createPlayerContext(['id' => 2, 'tier' => PlayerTier::Yellow, 'user_id' => 2]),
+        ];
+
+        // Team B: Yellow + Red (B,C = 2,3) - different distribution
+        $teamB = [
+            $this->createPlayerContext(['id' => 3, 'tier' => PlayerTier::Yellow, 'user_id' => 3]),
+            $this->createPlayerContext(['id' => 4, 'tier' => PlayerTier::Red, 'user_id' => 4]),
+        ];
+
+        $result = $method->invoke($this->scheduler, $teamA, $teamB);
+        
+        // This is NOT internal mismatch (teams have mixed tiers), so it should be 0.0
+        $this->assertEquals(0.0, $result, 'Mixed distribution without matching should return 0.0');
+    }
+
+    /**
+     * Test that calculateTierDistributionMatch returns 1.0 for internal mismatch penalty.
+     * Example: Team A [đỏ,đỏ] vs Team B [xanh,xanh] - both teams have uniform tiers but different from each other.
+     */
+    public function test_tier_distribution_match_internal_mismatch_penalty(): void
+    {
+        $reflection = new \ReflectionClass($this->scheduler);
+        
+        $method = $reflection->getMethod('calculateTierDistributionMatch');
+        $method->setAccessible(true);
+
+        // Team A: 2 Green players (A,A = 1,1) - same tier inside
         $teamA = [
             $this->createPlayerContext(['id' => 1, 'tier' => PlayerTier::Green, 'user_id' => 1]),
             $this->createPlayerContext(['id' => 2, 'tier' => PlayerTier::Green, 'user_id' => 2]),
         ];
 
-        // Team B: 2 Red players (C,C = 3,3) - mismatched!
+        // Team B: 2 Red players (C,C = 3,3) - same tier inside but DIFFERENT from team A
         $teamB = [
             $this->createPlayerContext(['id' => 3, 'tier' => PlayerTier::Red, 'user_id' => 3]),
             $this->createPlayerContext(['id' => 4, 'tier' => PlayerTier::Red, 'user_id' => 4]),
@@ -431,7 +460,37 @@ class MatchSuggestionTest extends TestCase
 
         $result = $method->invoke($this->scheduler, $teamA, $teamB);
         
-        $this->assertEquals(0.0, $result, 'Mismatched distribution should return 0.0');
+        // Both teams have uniform tiers but different from each other = 1.0 (PENALTY)
+        $this->assertEquals(1.0, $result, 'Internal mismatch should return 1.0 (penalty)');
+    }
+
+    /**
+     * Test that calculateTierDistributionMatch returns 1.0 for internal mismatch with Yellow.
+     * Example: Team A [vàng,vàng] vs Team B [đỏ,đỏ] - this was the original bug scenario.
+     */
+    public function test_tier_distribution_match_yellow_red_internal_mismatch(): void
+    {
+        $reflection = new \ReflectionClass($this->scheduler);
+        
+        $method = $reflection->getMethod('calculateTierDistributionMatch');
+        $method->setAccessible(true);
+
+        // Team A: 2 Yellow players - same tier inside
+        $teamA = [
+            $this->createPlayerContext(['id' => 1, 'tier' => PlayerTier::Yellow, 'user_id' => 1]),
+            $this->createPlayerContext(['id' => 2, 'tier' => PlayerTier::Yellow, 'user_id' => 2]),
+        ];
+
+        // Team B: 2 Red players - same tier inside but DIFFERENT from team A
+        $teamB = [
+            $this->createPlayerContext(['id' => 3, 'tier' => PlayerTier::Red, 'user_id' => 3]),
+            $this->createPlayerContext(['id' => 4, 'tier' => PlayerTier::Red, 'user_id' => 4]),
+        ];
+
+        $result = $method->invoke($this->scheduler, $teamA, $teamB);
+        
+        // This is the original bug case - should return 1.0 (penalty) now
+        $this->assertEquals(1.0, $result, 'Yellow vs Red internal mismatch should return 1.0 (penalty)');
     }
 
     /**
@@ -560,6 +619,8 @@ class MatchSuggestionTest extends TestCase
                 is_checked_in: true,
                 is_playing: false,
                 skip_next_round: false,
+                is_absent: false,
+                payment_status: null,
                 is_backup: false,
             );
         }
@@ -585,6 +646,8 @@ class MatchSuggestionTest extends TestCase
             is_checked_in: true,
             is_playing: false,
             skip_next_round: false,
+            is_absent: false,
+            payment_status: null,
             is_backup: false,
         );
     }

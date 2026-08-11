@@ -137,6 +137,10 @@ for BUILD in "${BUILDS[@]}"; do
   CURRENT_STEP="Checkout $BRANCH"
   git checkout "$BRANCH"
 
+CURRENT_STEP="Cập nhật $BRANCH từ remote"
+  git fetch origin "$BRANCH" || true
+  git reset --hard "origin/$BRANCH" || true
+  
   CURRENT_STEP="Merge main"
   git merge main --no-edit
 

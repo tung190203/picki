@@ -50,7 +50,7 @@ class MatchDetailResource extends JsonResource
                             'status' => $this->status,
                             'court' => $this->court,
                             'scheduled_at' => $this->scheduled_at,
-                            'referee' => $this->referee ? ['id' => $this->referee->id, 'name' => $this->referee->name] : null,
+                            'referee' => $this->referee ? ['id' => $this->referee->id, 'name' => $this->referee->full_name] : null,
                             'sets' => $sets,
                         ],
                     ]);
@@ -100,8 +100,8 @@ class MatchDetailResource extends JsonResource
                                     'court' => $match->court,
                                     'scheduled_at' => $match->scheduled_at,
                                     'referee' => $match->leg == 1
-                                        ? ($match->referee ? ['id' => $match->referee->id, 'name' => $match->referee->name] : null)
-                                        : ($match->legReferee ? ['id' => $match->legReferee->id, 'name' => $match->legReferee->name] : null),
+                                        ? ($match->referee ? ['id' => $match->referee->id, 'name' => $match->referee->full_name] : null)
+                                        : ($match->legReferee ? ['id' => $match->legReferee->id, 'name' => $match->legReferee->full_name] : null),
                                     'sets' => $sets,
                                 ];
                             });

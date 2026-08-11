@@ -1538,8 +1538,8 @@ class TournamentTypeController extends Controller
                             'scheduled_at' => $leg->scheduled_at,
                             'is_completed' => $leg->status === 'completed',
                             'referee' => $leg->leg == 1
-                                ? ($leg->referee ? ['id' => $leg->referee->id, 'name' => $leg->referee->name] : null)
-                                : ($leg->legReferee ? ['id' => $leg->legReferee->id, 'name' => $leg->legReferee->name] : null),
+                                ? ($leg->referee ? ['id' => $leg->referee->id, 'name' => $leg->referee->full_name] : null)
+                                : ($leg->legReferee ? ['id' => $leg->legReferee->id, 'name' => $leg->legReferee->full_name] : null),
                             // Group sets để Modal CreateMatch hiển thị đúng
                             'sets' => $leg->results->groupBy('set_number')->map(function($setGroup) use ($leg) {
                                 return $setGroup->map(fn($s) => ['team_id' => $s->team_id, 'score' => $s->score])->values();
@@ -1681,8 +1681,8 @@ class TournamentTypeController extends Controller
                                 'scheduled_at' => $leg->scheduled_at,
                                 'is_completed' => $leg->status === 'completed',
                                 'referee' => $leg->leg == 1
-                                    ? ($leg->referee ? ['id' => $leg->referee->id, 'name' => $leg->referee->name] : null)
-                                    : ($leg->legReferee ? ['id' => $leg->legReferee->id, 'name' => $leg->legReferee->name] : null),
+                                    ? ($leg->referee ? ['id' => $leg->referee->id, 'name' => $leg->referee->full_name] : null)
+                                    : ($leg->legReferee ? ['id' => $leg->legReferee->id, 'name' => $leg->legReferee->full_name] : null),
                                 'sets' => $details['sets'],
                             ];
                         })->values();
@@ -1779,8 +1779,8 @@ class TournamentTypeController extends Controller
                             'scheduled_at' => $leg->scheduled_at,
                             'is_completed' => $leg->status === 'completed',
                             'referee' => $leg->leg == 1
-                                ? ($leg->referee ? ['id' => $leg->referee->id, 'name' => $leg->referee->name] : null)
-                                : ($leg->legReferee ? ['id' => $leg->legReferee->id, 'name' => $leg->legReferee->name] : null),
+                                ? ($leg->referee ? ['id' => $leg->referee->id, 'name' => $leg->referee->full_name] : null)
+                                : ($leg->legReferee ? ['id' => $leg->legReferee->id, 'name' => $leg->legReferee->full_name] : null),
                             'sets' => $details['sets'],
                         ];
                     })->values();
@@ -1920,8 +1920,8 @@ class TournamentTypeController extends Controller
                             'scheduled_at' => $leg->scheduled_at,
                             'is_completed' => $leg->status === 'completed',
                             'referee' => $leg->leg == 1
-                                ? ($leg->referee ? ['id' => $leg->referee->id, 'name' => $leg->referee->name] : null)
-                                : ($leg->legReferee ? ['id' => $leg->legReferee->id, 'name' => $leg->legReferee->name] : null),
+                                ? ($leg->referee ? ['id' => $leg->referee->id, 'name' => $leg->referee->full_name] : null)
+                                : ($leg->legReferee ? ['id' => $leg->legReferee->id, 'name' => $leg->legReferee->full_name] : null),
                             'sets' => $details['sets'],
                         ];
                     })->values();
