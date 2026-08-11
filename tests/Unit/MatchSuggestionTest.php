@@ -197,15 +197,15 @@ class MatchSuggestionTest extends TestCase
 
         // Player with 2 consecutive matches should be filtered
         $player2Consecutive = $this->createPlayerContext([
-            'id' => 1, 
-            'consecutive_count' => 2, 
+            'id' => 1,
+            'consecutive_count' => 2,
             'user_id' => 1
         ]);
 
         // Player with 1 consecutive match should pass
         $player1Consecutive = $this->createPlayerContext([
-            'id' => 2, 
-            'consecutive_count' => 1, 
+            'id' => 2,
+            'consecutive_count' => 1,
             'user_id' => 2
         ]);
 
@@ -214,6 +214,71 @@ class MatchSuggestionTest extends TestCase
 
         $this->assertFalse($result2, 'Player with 2 consecutive matches should be filtered');
         $this->assertTrue($result1, 'Player with 1 consecutive match should pass');
+    }
+
+    /**
+     * Test that filterByPlayingStatus rejects players currently flagged
+     * is_playing=true (i.e. they sit on a pending/going_on/waiting_confirm match).
+     */
+    public function test_filters_out_players_currently_in_an_active_match(): void
+    {
+        $reflection = new \ReflectionClass($this->scheduler);
+        $method = $reflection->getMethod('filterByPlayingStatus');
+        $method->setAccessible(true);
+
+        $playing = $this->createPlayerContext(['id' => 1, 'user_id' => 1, 'is_playing' => true]);
+        $idle = $this->createPlayerContext(['id' => 2, 'user_id' => 2, 'is_playing' => false]);
+
+        $this->assertFalse($method->invoke($this->scheduler, $playing), 'is_playing player must be filtered out');
+        $this->assertTrue($method->invoke($this->scheduler, $idle), 'idle player must pass the filter');
+    }
+
+    /**
+     * Player with is_playing=true (any non-completed match) must never end
+     * up in the candidate pool produced by /generate.
+     */
+    public function test_generate_does_not_pick_player_already_in_an_active_match(): void
+    {
+        $players = $this->createPlayers([
+            ['id' => 1, 'user_id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'is_playing' => true],
+            ['id' => 2, 'user_id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'is_playing' => true],
+            ['id' => 3, 'user_id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'is_playing' => false],
+            ['id' => 4, 'user_id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'is_playing' => false],
+            ['id' => 5, 'user_id' => 5, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'is_playing' => false],
+            ['id' => 6, 'user_id' => 6, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'is_playing' => false],
+        ]);
+
+        // Sanity: all 6 players created
+        $this->assertCount(6, $players);
+        $this->assertTrue($players[0]->is_playing);
+        $this->assertTrue($players[1]->is_playing);
+
+        // Verify the filter rejects is_playing=true
+        $reflection = new \ReflectionClass($this->scheduler);
+        $filterMethod = $reflection->getMethod('filterByPlayingStatus');
+        $filterMethod->setAccessible(true);
+        $this->assertFalse($filterMethod->invoke($this->scheduler, $players[0]));
+        $this->assertTrue($filterMethod->invoke($this->scheduler, $players[2]));
+
+        // Verify buildPool removes them
+        $buildPoolMethod = $reflection->getMethod('buildPool');
+        $buildPoolMethod->setAccessible(true);
+        $pool = $buildPoolMethod->invoke($this->scheduler, $players, $this->createRequest(), false);
+        $poolIds = array_column($pool, 'user_id');
+        sort($poolIds);
+        $this->assertEquals([3, 4, 5, 6], $poolIds, 'Pool should only contain non-playing players');
+
+        $request = $this->createRequest();
+        $response = $this->scheduler->generate($players, $request, []);
+
+        $this->assertNotNull($response->match);
+
+        $selectedUserIds = [];
+        foreach ($response->match->team1->members as $m) $selectedUserIds[] = $m->user_id;
+        foreach ($response->match->team2->members as $m) $selectedUserIds[] = $m->user_id;
+
+        $this->assertNotContains(1, $selectedUserIds, 'User 1 (is_playing=true) must not appear in the match');
+        $this->assertNotContains(2, $selectedUserIds, 'User 2 (is_playing=true) must not appear in the match');
     }
 
     /**
@@ -1228,7 +1293,7 @@ class MatchSuggestionTest extends TestCase
                 vndupr_score: null,
                 partner_ids: [],
                 is_checked_in: true,
-                is_playing: false,
+                is_playing: $c['is_playing'] ?? false,
                 skip_next_round: false,
                 is_absent: false,
                 payment_status: null,
@@ -1255,7 +1320,7 @@ class MatchSuggestionTest extends TestCase
             vndupr_score: $config['vndupr_score'] ?? null,
             partner_ids: [],
             is_checked_in: true,
-            is_playing: false,
+            is_playing: $config['is_playing'] ?? false,
             skip_next_round: false,
             is_absent: false,
             payment_status: null,

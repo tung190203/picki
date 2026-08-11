@@ -24,7 +24,8 @@ class SchedulerService
         array $players,
         MatchSuggestionRequestDTO $request,
         array $userDataMap = [],
-        bool $needsPaymentCheck = false
+        bool $needsPaymentCheck = false,
+        bool $isRotateCall = false,
     ): MatchSuggestionResponseDTO {
         $seed = $request->seed ?? random_int(1, 999999);
         $rulesApplied = [];
@@ -33,74 +34,29 @@ class SchedulerService
 
         // Build eligible player pool
         $pool = $this->buildPool($players, $request, $needsPaymentCheck);
-        
+
         if (count($pool) < 4) {
             $messages[] = 'Pool has less than 4 players after filters: ' . count($pool);
             return $this->createInsufficientPlayersResponse($seed, $pool, $rulesApplied, $messages, $userDataMap);
         }
 
-        // Find gender-compatible player groups and select the best match
-        $genderGroups = $this->findGenderCompatibleGroups($pool);
-        
-        if (empty($genderGroups)) {
+        $evaluation = $this->enumerateCandidates($pool, $request, $userDataMap);
+
+        if (empty($evaluation['candidates'])) {
             $messages[] = 'No gender-compatible groups found';
-        }
-        
-        $bestMatch = null;
-        $bestScore = PHP_FLOAT_MIN;
-
-        foreach ($genderGroups as $groupIdx => $group) {
-            // Apply fair play priority to select 4 players
-            $selected = $this->selectPlayers($group, $request);
-
-            if (count($selected) < 4) {
-                $messages[] = "Group {$groupIdx}: selectPlayers returned only " . count($selected) . " players";
-                continue;
-            }
-
-            // Find optimal team split with VN DUPR balance
-            $pairing = $this->findOptimalPairing($selected, $userDataMap, $settings);
-
-            if (!$pairing) {
-                $messages[] = "Group {$groupIdx}: findOptimalPairing returned null";
-                continue;
-            }
-
-            // Calculate overall match quality score
-            $score = $this->calculateMatchScore($pairing['team_a'], $pairing['team_b'], $settings, $userDataMap);
-
-            // Gender priority bonus: earlier groups (higher priority) get a significant bonus
-            // This ensures priority 1 (all-male) beats priority 2 (all-female) etc.
-            $genderPriorityBonus = (count($genderGroups) - $groupIdx) * 100;
-
-            // If we already found a valid match and the current group's score
-            // is much lower than the best, skip it (gender priority is strict)
-            if ($bestMatch !== null && $score + $genderPriorityBonus <= $bestScore) {
-                continue;
-            }
-
-            $adjustedScore = $score + $genderPriorityBonus;
-
-            if ($adjustedScore > $bestScore) {
-                $bestScore = $adjustedScore;
-                $bestMatch = $this->buildMatchDTO(
-                    $pairing['team_a'],
-                    $pairing['team_b'],
-                    $userDataMap,
-                    $pairing['is_high_tier']
-                );
-
-                if (!empty($pairing['rules_applied'])) {
-                    $rulesApplied = array_merge($rulesApplied, $pairing['rules_applied']);
-                }
-            }
-        }
-
-        // Fallback if no valid match found
-        if (!$bestMatch) {
             $messages[] = 'No valid match found after evaluating all groups';
             return $this->createInsufficientPlayersResponse($seed, $pool, $rulesApplied, $messages, $userDataMap);
         }
+
+        $bestCandidate = $evaluation['candidates'][0];
+        $rulesApplied = array_merge($rulesApplied, $bestCandidate['rules_applied']);
+
+        $bestMatch = $this->buildMatchDTO(
+            $bestCandidate['team_a'],
+            $bestCandidate['team_b'],
+            $userDataMap,
+            $bestCandidate['is_high_tier']
+        );
 
         $selectedIds = array_column($pool, 'user_id');
         $waiting = $this->buildWaitingList($pool, $selectedIds);
@@ -114,9 +70,142 @@ class SchedulerService
             backup_player: $backup,
             statistics: $statistics,
             seed: $seed,
-            rules_applied: array_unique($rulesApplied),
+            rules_applied: array_values(array_unique($rulesApplied)),
             messages: $messages,
+            total_candidates: count($evaluation['candidates']),
+            selected_offset: 0,
+            wrapped: false,
         );
+    }
+
+    /**
+     * Enumerate all valid match candidates for the given pool.
+     *
+     * Returns an associative array:
+     *   - candidates: list of candidates sorted by score DESC, each entry is:
+     *       [team_a, team_b, is_high_tier, rules_applied, score, gender_priority_bonus, signature]
+     *   - total_candidates
+     *
+     * `signature` is a sorted list of the 4 user_ids that participate in the
+     * candidate (used by regenerate() to skip already-tried combos).
+     *
+     * @return array{candidates: array<int, array>, total_candidates: int}
+     */
+    public function enumerateCandidates(
+        array $pool,
+        MatchSuggestionRequestDTO $request,
+        array $userDataMap = [],
+    ): array {
+        $settings = $request->settings;
+
+        $genderGroups = $this->findGenderCompatibleGroups($pool);
+
+        // Collect all valid (score-ranked) candidates across groups.
+        $candidates = [];
+        $genderGroupCount = count($genderGroups);
+        // Track signatures so that the same 4-user-id combo is never returned
+        // twice even when it would be produced by more than one gender group.
+        $seenSignatures = [];
+
+        foreach ($genderGroups as $groupIdx => $group) {
+            $selected = $this->selectPlayers($group, $request);
+
+            if (count($selected) < 4) {
+                continue;
+            }
+
+            $pairing = $this->findOptimalPairing($selected, $userDataMap, $settings);
+
+            if (!$pairing) {
+                continue;
+            }
+
+            $score = $this->calculateMatchScore($pairing['team_a'], $pairing['team_b'], $settings, $userDataMap);
+
+            // Earlier groups (higher priority) get a meaningful bonus so the
+            // "best" combo overall aligns with the gender priority policy.
+            $genderPriorityBonus = ($genderGroupCount - $groupIdx) * 100;
+            $adjustedScore = $score + $genderPriorityBonus;
+
+            $signature = $this->buildCandidateSignature($pairing['team_a'], $pairing['team_b']);
+
+            // Dedupe across groups: same 4-player combo should only appear once.
+            if (isset($seenSignatures[$signatureKey = implode(',', $signature)])) {
+                continue;
+            }
+            $seenSignatures[$signatureKey] = true;
+
+            $candidates[] = [
+                'team_a' => $pairing['team_a'],
+                'team_b' => $pairing['team_b'],
+                'is_high_tier' => $pairing['is_high_tier'],
+                'rules_applied' => $pairing['rules_applied'] ?? [],
+                'score' => $score,
+                'gender_priority_bonus' => $genderPriorityBonus,
+                'adjusted_score' => $adjustedScore,
+                'signature' => $signature,
+            ];
+        }
+
+        // Sort descending by adjusted score. Stable sort by score then signature
+        // for determinism when several candidates tie.
+        usort($candidates, function ($a, $b) {
+            if ($a['adjusted_score'] !== $b['adjusted_score']) {
+                return $b['adjusted_score'] <=> $a['adjusted_score'];
+            }
+            return $a['signature'] <=> $b['signature'];
+        });
+
+        return [
+            'candidates' => $candidates,
+            'total_candidates' => count($candidates),
+        ];
+    }
+
+    /**
+     * Build a stable signature (sorted user_ids) from a candidate's two teams.
+     *
+     * @return array<int>
+     */
+    public function buildCandidateSignature(array $teamA, array $teamB): array
+    {
+        $ids = array_merge(array_column($teamA, 'user_id'), array_column($teamB, 'user_id'));
+        $ids = array_values(array_map('intval', array_filter($ids, fn($v) => $v !== null)));
+        sort($ids);
+        return $ids;
+    }
+
+    /**
+     * Public wrapper around buildMatchDTO for callers that already have
+     * candidate arrays (e.g. MatchSuggestionService rotation flow).
+     */
+    public function buildMatchDTOForCandidate(array $team1Players, array $team2Players, array $userDataMap, bool $isHighTier): SuggestionMatchDTO
+    {
+        return $this->buildMatchDTO($team1Players, $team2Players, $userDataMap, $isHighTier);
+    }
+
+    /**
+     * Public wrapper around buildWaitingList.
+     */
+    public function buildWaitingListPublic(array $pool, array $excludeIds): array
+    {
+        return $this->buildWaitingList($pool, $excludeIds);
+    }
+
+    /**
+     * Public wrapper around getBackupIfNeeded.
+     */
+    public function getBackupIfNeededPublic(array $selected, bool $organizerAsBackup): ?PlayerContextDTO
+    {
+        return $this->getBackupIfNeeded($selected, $organizerAsBackup);
+    }
+
+    /**
+     * Public wrapper around calculateStatistics.
+     */
+    public function calculateStatisticsPublic(?SuggestionMatchDTO $match, array $pool, array $selectedIds): array
+    {
+        return $this->calculateStatistics($match, $pool, $selectedIds);
     }
 
     /**
