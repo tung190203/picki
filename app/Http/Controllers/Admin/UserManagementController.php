@@ -7,6 +7,7 @@ use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
 use App\Http\Controllers\Controller;
 use App\Helpers\ResponseHelper;
+use App\Http\Resources\UserResource;
 use App\Models\Club\ClubMember;
 use App\Models\User;
 use App\Models\UserSport;
@@ -120,9 +121,9 @@ class UserManagementController extends Controller
             }
         }
 
-        $user->load(['sports', 'userBadges', 'clubs']);
+        $user->load(['sports.sport', 'sports.scores', 'userBadges', 'clubs']);
 
-        return ResponseHelper::success($user, 'Tạo user thành công', 201);
+        return ResponseHelper::success(new UserResource($user), 'Tạo user thành công', 201);
     }
 
     public function ban(Request $request, int $id)
