@@ -26,7 +26,7 @@ class SnapshotWeeklyRanks extends Command
         }
 
         $sportId = $sport->id;
-        $lastSunday = Carbon::now()->startOfWeek(Carbon::SUNDAY)->endOfDay();
+        $lastSunday = Carbon::now()->subWeek()->startOfWeek(Carbon::SUNDAY)->endOfDay();
 
         // Archive current snapshot: set recorded_at on existing NULL records
         WeeklyRank::where('sport_id', $sportId)

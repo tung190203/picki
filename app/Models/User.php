@@ -2048,14 +2048,16 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
         $currentRanks = self::getBatchVNRanks($userIds, $sportId);
 
-        // Only accept snapshots from the past 7 days — older data is stale
-        // and produces misleading weekly_change values.
-        $sevenDaysAgo = \Carbon\Carbon::now()->subDays(7);
+        // Only accept snapshots from the last Sunday (not the current week)
+        // This ensures we're comparing against the correct previous week's data
+        $lastWeekSunday = \Carbon\Carbon::now()->subWeek()->startOfWeek(\Carbon\Carbon::SUNDAY);
+        $currentWeekSunday = \Carbon\Carbon::now()->startOfWeek(\Carbon\Carbon::SUNDAY);
 
         $lastSundayRanks = WeeklyRank::whereIn('user_id', $userIds)
             ->where('sport_id', $sportId)
             ->whereNotNull('recorded_at')
-            ->where('recorded_at', '>=', $sevenDaysAgo)
+            ->where('recorded_at', '>=', $lastWeekSunday)
+            ->where('recorded_at', '<', $currentWeekSunday)
             ->orderByDesc('recorded_at')
             ->get()
             ->unique('user_id')
