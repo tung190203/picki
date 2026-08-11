@@ -52,7 +52,7 @@ class SchedulerService
         foreach ($genderGroups as $groupIdx => $group) {
             // Apply fair play priority to select 4 players
             $selected = $this->selectPlayers($group, $request);
-            
+
             if (count($selected) < 4) {
                 $messages[] = "Group {$groupIdx}: selectPlayers returned only " . count($selected) . " players";
                 continue;
@@ -60,7 +60,7 @@ class SchedulerService
 
             // Find optimal team split with VN DUPR balance
             $pairing = $this->findOptimalPairing($selected, $userDataMap, $settings);
-            
+
             if (!$pairing) {
                 $messages[] = "Group {$groupIdx}: findOptimalPairing returned null";
                 continue;
@@ -68,16 +68,28 @@ class SchedulerService
 
             // Calculate overall match quality score
             $score = $this->calculateMatchScore($pairing['team_a'], $pairing['team_b'], $settings, $userDataMap);
-            
-            if ($score > $bestScore) {
-                $bestScore = $score;
+
+            // Gender priority bonus: earlier groups (higher priority) get a significant bonus
+            // This ensures priority 1 (all-male) beats priority 2 (all-female) etc.
+            $genderPriorityBonus = (count($genderGroups) - $groupIdx) * 100;
+
+            // If we already found a valid match and the current group's score
+            // is much lower than the best, skip it (gender priority is strict)
+            if ($bestMatch !== null && $score + $genderPriorityBonus <= $bestScore) {
+                continue;
+            }
+
+            $adjustedScore = $score + $genderPriorityBonus;
+
+            if ($adjustedScore > $bestScore) {
+                $bestScore = $adjustedScore;
                 $bestMatch = $this->buildMatchDTO(
                     $pairing['team_a'],
                     $pairing['team_b'],
                     $userDataMap,
                     $pairing['is_high_tier']
                 );
-                
+
                 if (!empty($pairing['rules_applied'])) {
                     $rulesApplied = array_merge($rulesApplied, $pairing['rules_applied']);
                 }
@@ -178,62 +190,57 @@ class SchedulerService
     /**
      * Find all valid gender-compatible groups.
      * Returns array of player arrays, each containing 4+ players.
-     * 
-     * PRIORITY: Mixed gender (nam nữ) is preferred over same-gender groups.
-     * For mixed gender, also considers tier distribution to avoid imbalanced groups.
+     *
+     * PRIORITY ORDER (gender balance between teams, not who plays first):
+     * 1. All-Male groups (Nam-Nam vs Nam-Nam): if >=4 males available
+     * 2. All-Female groups (Nữ-Nữ vs Nữ-Nữ): if >=4 females available
+     * 3. Unknown gender: if >=4 unknown gender available and no other group
+     * 4. Mixed groups (Nam-Nữ vs Nam-Nữ symmetric): if >=2 males AND >=2 females
+     * 5. Last resort: use all available players (backup BTC case)
+     *
+     * Note: This prioritizes same-gender matches to keep teams balanced.
+     * Mixed gender is only used when same-gender groups are not possible.
      */
     private function findGenderCompatibleGroups(array $pool): array
     {
         // Separate players by gender
-        $males = array_filter($pool, fn($p) => $p->gender === User::MALE);
-        $females = array_filter($pool, fn($p) => $p->gender === User::FEMALE);
-        $unknown = array_filter($pool, fn($p) => $p->gender === null || $p->gender === User::OTHER || $p->gender === User::NO_PUBLIC);
+        $males = array_values(array_filter($pool, fn($p) => $p->gender === User::MALE));
+        $females = array_values(array_filter($pool, fn($p) => $p->gender === User::FEMALE));
+        $unknown = array_values(array_filter($pool, fn($p) => $p->gender === null || $p->gender === User::OTHER || $p->gender === User::NO_PUBLIC));
 
         $groups = [];
 
-        // Mixed gender FIRST: need at least 2 males and 2 females for 2v2
-        if (count($males) >= 2 && count($females) >= 2) {
-            // Sort by tier for better selection (high priority tiers first)
+        // PRIORITY 1: All-male group (Nam vs Nam) - symmetric pairing
+        if (count($males) >= 4) {
+            $sortedMales = $this->sortByTierForBalance($males);
+            $groups[] = array_slice($sortedMales, 0, max(4, count($sortedMales)));
+        }
+
+        // PRIORITY 2: All-female group (Nữ vs Nữ) - symmetric pairing
+        if (count($females) >= 4) {
+            $sortedFemales = $this->sortByTierForBalance($females);
+            $groups[] = array_slice($sortedFemales, 0, max(4, count($sortedFemales)));
+        }
+
+        // PRIORITY 3: Unknown gender (only if no valid same-gender group yet)
+        if (empty($groups) && count($unknown) >= 4) {
+            $groups[] = $unknown;
+        }
+
+        // PRIORITY 4: Mixed gender (Nam-Nữ vs Nam-Nữ symmetric) - last resort before backup
+        if (empty($groups) && count($males) >= 2 && count($females) >= 2) {
             $sortedMales = $this->sortByTierForBalance($males);
             $sortedFemales = $this->sortByTierForBalance($females);
-
-            // If we have many players, try to find the best combination for tier balance
-            if (count($males) > 4 || count($females) > 4) {
-                $mixedGroup = $this->buildBalancedMixedGroup($sortedMales, $sortedFemales);
-            } else {
-                // Just take all available
-                $mixedGroup = array_merge(
-                    array_slice($sortedMales, 0, 4),
-                    array_slice($sortedFemales, 0, 4)
-                );
-            }
-            $groups[] = $mixedGroup;
-        }
-        
-        // Only allow same-gender groups if mixed is not possible
-        // Check if we already have mixed gender - if yes, skip same-gender
-        if (!empty($groups)) {
-            return $groups;
+            $groups[] = array_merge(
+                array_slice($sortedMales, 0, 4),
+                array_slice($sortedFemales, 0, 4)
+            );
         }
 
-        // All male: fallback only if mixed not possible
-        if (count($males) >= 4) {
-            $groups[] = array_values($males);
-        }
-
-        // All female: fallback only if mixed not possible
-        if (count($females) >= 4) {
-            $groups[] = array_values($females);
-        }
-
-        // Unknown gender: fallback if no gender-compatible groups
-        if (empty($groups) && count($unknown) >= 4) {
-            $groups[] = array_values($unknown);
-        }
-
-        // Last resort: use all available players
+        // PRIORITY 5 (Backup): Last resort - use all available players
+        // This handles asymmetric cases like 3M+2F where we can't form a clean 2-2 split
         if (empty($groups) && count($pool) >= 4) {
-            $groups[] = $pool;
+            $groups[] = array_values($pool);
         }
 
         return $groups;

@@ -900,6 +900,220 @@ class MatchSuggestionTest extends TestCase
         return max(0, 1 - ($diff / 4));
     }
 
+    /**
+     * PRIORITY 1: When 4+ males available, prefer all-male group (Nam vs Nam)
+     * over mixed group.
+     */
+    public function test_priority_1_male_only_when_4plus_males(): void
+    {
+        // 5 males, 6 females - both groups possible, but male should win
+        $players = $this->createPlayers([
+            ['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 5, 'gender' => User::MALE, 'tier' => PlayerTier::Green, 'played' => 0],
+            ['id' => 6, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 7, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 8, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 9, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 10, 'gender' => User::FEMALE, 'tier' => PlayerTier::Green, 'played' => 0],
+            ['id' => 11, 'gender' => User::FEMALE, 'tier' => PlayerTier::Green, 'played' => 0],
+        ]);
+
+        $request = $this->createRequest();
+        $result = $this->scheduler->generate($players, $request);
+
+        $this->assertNotNull($result->match, 'Should find a match');
+
+        // Map user_id -> gender
+        $genderMap = [];
+        foreach ($players as $p) {
+            $genderMap[$p->user_id] = $p->gender;
+        }
+
+        // All 4 players in the match should be male
+        $allMales = true;
+        foreach ($result->match->team1->members as $m) {
+            $gender = $genderMap[$m->user_id] ?? null;
+            if ($gender !== User::MALE) $allMales = false;
+        }
+        foreach ($result->match->team2->members as $m) {
+            $gender = $genderMap[$m->user_id] ?? null;
+            if ($gender !== User::MALE) $allMales = false;
+        }
+        $this->assertTrue($allMales, 'Should pick all-male group when 4+ males available');
+    }
+
+    /**
+     * PRIORITY 2: When <4 males but 4+ females available, prefer all-female group.
+     */
+    public function test_priority_2_female_only_when_4plus_females(): void
+    {
+        // 3 males, 5 females - all-male not possible, all-female wins
+        $players = $this->createPlayers([
+            ['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Green, 'played' => 0],
+            ['id' => 4, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 5, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 6, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 7, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 8, 'gender' => User::FEMALE, 'tier' => PlayerTier::Green, 'played' => 0],
+        ]);
+
+        $request = $this->createRequest();
+        $result = $this->scheduler->generate($players, $request);
+
+        $this->assertNotNull($result->match, 'Should find a match');
+
+        // Map user_id -> gender
+        $genderMap = [];
+        foreach ($players as $p) {
+            $genderMap[$p->user_id] = $p->gender;
+        }
+
+        // All 4 players should be female
+        $allFemales = true;
+        foreach ($result->match->team1->members as $m) {
+            $gender = $genderMap[$m->user_id] ?? null;
+            if ($gender !== User::FEMALE) $allFemales = false;
+        }
+        foreach ($result->match->team2->members as $m) {
+            $gender = $genderMap[$m->user_id] ?? null;
+            if ($gender !== User::FEMALE) $allFemales = false;
+        }
+        $this->assertTrue($allFemales, 'Should pick all-female group when <4 males and 4+ females available');
+    }
+
+    /**
+     * PRIORITY 3: When <4 males AND <4 females but >=2 of each, fall back to mixed.
+     */
+    public function test_priority_3_mixed_when_2m_2f(): void
+    {
+        // 2 males, 3 females - can't form same-gender 4, use mixed
+        $players = $this->createPlayers([
+            ['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 3, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 4, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 5, 'gender' => User::FEMALE, 'tier' => PlayerTier::Green, 'played' => 0],
+        ]);
+
+        $request = $this->createRequest();
+        $result = $this->scheduler->generate($players, $request);
+
+        $this->assertNotNull($result->match, 'Should find a match');
+
+        // Map user_id -> gender
+        $genderMap = [];
+        foreach ($players as $p) {
+            $genderMap[$p->user_id] = $p->gender;
+        }
+
+        // Should be mixed (2 males + 2 females)
+        $team1Males = 0;
+        $team2Males = 0;
+        $team1Females = 0;
+        $team2Females = 0;
+
+        foreach ($result->match->team1->members as $m) {
+            $gender = $genderMap[$m->user_id] ?? null;
+            if ($gender === User::MALE) $team1Males++;
+            if ($gender === User::FEMALE) $team1Females++;
+        }
+        foreach ($result->match->team2->members as $m) {
+            $gender = $genderMap[$m->user_id] ?? null;
+            if ($gender === User::MALE) $team2Males++;
+            if ($gender === User::FEMALE) $team2Females++;
+        }
+
+        $totalMales = $team1Males + $team2Males;
+        $totalFemales = $team1Females + $team2Females;
+
+        $this->assertEquals(2, $totalMales, 'Should have 2 males in mixed match');
+        $this->assertEquals(2, $totalFemales, 'Should have 2 females in mixed match');
+        $this->assertEquals(1, $team1Males, 'Should be symmetric: 1 male per team');
+        $this->assertEquals(1, $team1Females, 'Should be symmetric: 1 female per team');
+    }
+
+    /**
+     * PRIORITY 5 (Backup): When cannot form any clean group (e.g. 3M+2F),
+     * use all available players as backup.
+     */
+    public function test_backup_uses_all_remaining_players(): void
+    {
+        // 3 males, 2 females - cannot form 4-male or 4-female or symmetric 2-2 mixed
+        // Backup uses all players
+        $players = $this->createPlayers([
+            ['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Green, 'played' => 0],
+            ['id' => 4, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 5, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+        ]);
+
+        $request = $this->createRequest();
+        $result = $this->scheduler->generate($players, $request);
+
+        // Should still find some match (4 players total)
+        $this->assertNotNull($result->match, 'Backup should find a match');
+        $totalMembers = count($result->match->team1->members) + count($result->match->team2->members);
+        $this->assertEquals(4, $totalMembers, 'Match should have 4 players');
+    }
+
+    /**
+     * Verify asymmetric pairing (Nam-Nam vs Nữ-Nữ) is rejected.
+     */
+    public function test_rejects_nam_nam_vs_nu_nu_pairing(): void
+    {
+        $reflection = new \ReflectionClass($this->scheduler);
+        $method = $reflection->getMethod('isValidGenderPairing');
+        $method->setAccessible(true);
+
+        // Team A: 2 males
+        $teamA = [
+            $this->createPlayerContext(['id' => 1, 'gender' => User::MALE, 'user_id' => 1]),
+            $this->createPlayerContext(['id' => 2, 'gender' => User::MALE, 'user_id' => 2]),
+        ];
+
+        // Team B: 2 females (asymmetric!)
+        $teamB = [
+            $this->createPlayerContext(['id' => 3, 'gender' => User::FEMALE, 'user_id' => 3]),
+            $this->createPlayerContext(['id' => 4, 'gender' => User::FEMALE, 'user_id' => 4]),
+        ];
+
+        $result = $method->invoke($this->scheduler, $teamA, $teamB, []);
+
+        $this->assertFalse($result, 'Should reject Nam-Nam vs Nữ-Nữ asymmetric pairing');
+    }
+
+    /**
+     * Verify symmetric pairing (Nam-Nữ vs Nam-Nữ) is accepted.
+     */
+    public function test_accepts_nam_nu_vs_nam_nu_pairing(): void
+    {
+        $reflection = new \ReflectionClass($this->scheduler);
+        $method = $reflection->getMethod('isValidGenderPairing');
+        $method->setAccessible(true);
+
+        // Team A: 1 male, 1 female
+        $teamA = [
+            $this->createPlayerContext(['id' => 1, 'gender' => User::MALE, 'user_id' => 1]),
+            $this->createPlayerContext(['id' => 2, 'gender' => User::FEMALE, 'user_id' => 2]),
+        ];
+
+        // Team B: 1 male, 1 female (symmetric!)
+        $teamB = [
+            $this->createPlayerContext(['id' => 3, 'gender' => User::MALE, 'user_id' => 3]),
+            $this->createPlayerContext(['id' => 4, 'gender' => User::FEMALE, 'user_id' => 4]),
+        ];
+
+        $result = $method->invoke($this->scheduler, $teamA, $teamB, []);
+
+        $this->assertTrue($result, 'Should accept Nam-Nữ vs Nam-Nữ symmetric pairing');
+    }
+
     // Helper methods
 
     private function createPlayers(array $config): array
