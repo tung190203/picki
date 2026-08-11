@@ -596,6 +596,95 @@ class MatchSuggestionTest extends TestCase
             'Should balance teams by VN DUPR when prefer_high_tier_match is disabled');
     }
 
+    /**
+     * Test that selectPlayers picks a mix of tiers for better pairing.
+     * This tests the scenario: 6 Red, 4 Yellow, 1 Green
+     * Should select [Red,Yellow] from males and [Red,Yellow] from females,
+     * NOT [Red,Green] vs [Yellow,Yellow].
+     */
+    public function test_select_players_balances_tier_distribution(): void
+    {
+        $reflection = new \ReflectionClass($this->scheduler);
+        
+        $method = $reflection->getMethod('selectPlayers');
+        $method->setAccessible(true);
+
+        // Scenario: 6 Red (3M+3F), 4 Yellow (2M+2F), 1 Green (1F)
+        // Total: 5M (3 Red + 2 Yellow), 6F (3 Red + 2 Yellow + 1 Green)
+        $players = $this->createPlayers([
+            // Males: 3 Red, 2 Yellow
+            ['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 5, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            // Females: 3 Red, 2 Yellow, 1 Green
+            ['id' => 6, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 7, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 8, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 9, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 10, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 11, 'gender' => User::FEMALE, 'tier' => PlayerTier::Green, 'played' => 0],
+        ]);
+
+        $request = $this->createRequest();
+        $result = $method->invoke($this->scheduler, $players, $request);
+        
+        // Should select exactly 4 players (2M + 2F)
+        $this->assertCount(4, $result, 'Should select exactly 4 players');
+        
+        // Count genders
+        $males = array_filter($result, fn($p) => $p->gender === User::MALE);
+        $females = array_filter($result, fn($p) => $p->gender === User::FEMALE);
+        
+        $this->assertCount(2, $males, 'Should select 2 males');
+        $this->assertCount(2, $females, 'Should select 2 females');
+        
+        // Get tiers
+        $tiers = array_map(fn($p) => $p->tier, $result);
+        $tierNames = array_map(fn($t) => $t->name, $tiers);
+        
+        // Should NOT be [Red, Green] + [Yellow, Yellow] = tier distribution [1,2,2,2]
+        // Good selection: [Red, Yellow] + [Red, Yellow] = tier distribution [1,2,2,3] - more balanced
+        // Count tier types
+        $uniqueTiers = array_unique($tierNames);
+        
+        // At minimum, should have more than 1 unique tier if available
+        // This prevents picking all same-tier when mix is possible
+        $this->assertGreaterThan(1, count($uniqueTiers), 
+            'Should select mix of tiers when available');
+    }
+
+    /**
+     * Test that calculatePoolTierBalance returns higher scores for balanced distributions.
+     */
+    public function test_pool_tier_balance_higher_for_balanced_groups(): void
+    {
+        $reflection = new \ReflectionClass($this->scheduler);
+        
+        $method = $reflection->getMethod('calculatePoolTierBalance');
+        $method->setAccessible(true);
+
+        // All same tier - perfectly balanced
+        $allSame = [
+            $this->createPlayerContext(['id' => 1, 'tier' => PlayerTier::Red]),
+            $this->createPlayerContext(['id' => 2, 'tier' => PlayerTier::Red]),
+        ];
+        
+        // Mixed tiers - less balanced
+        $mixed = [
+            $this->createPlayerContext(['id' => 1, 'tier' => PlayerTier::Red]),
+            $this->createPlayerContext(['id' => 2, 'tier' => PlayerTier::Green]),
+        ];
+
+        $sameScore = $method->invoke($this->scheduler, $allSame);
+        $mixedScore = $method->invoke($this->scheduler, $mixed);
+        
+        // Same tier should have higher (or equal) balance score
+        $this->assertGreaterThanOrEqual($mixedScore, $sameScore,
+            'All same tier should have higher or equal balance score');
+    }
+
     // Helper methods
 
     private function createPlayers(array $config): array

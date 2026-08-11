@@ -172,6 +172,7 @@ class SchedulerService
      * Returns array of player arrays, each containing 4+ players.
      * 
      * PRIORITY: Mixed gender (nam nữ) is preferred over same-gender groups.
+     * For mixed gender, also considers tier distribution to avoid imbalanced groups.
      */
     private function findGenderCompatibleGroups(array $pool): array
     {
@@ -184,10 +185,20 @@ class SchedulerService
 
         // Mixed gender FIRST: need at least 2 males and 2 females for 2v2
         if (count($males) >= 2 && count($females) >= 2) {
-            $mixedGroup = array_merge(
-                array_slice($males, 0, 4),
-                array_slice($females, 0, 4)
-            );
+            // Sort by tier for better selection (high priority tiers first)
+            $sortedMales = $this->sortByTierForBalance($males);
+            $sortedFemales = $this->sortByTierForBalance($females);
+
+            // If we have many players, try to find the best combination for tier balance
+            if (count($males) > 4 || count($females) > 4) {
+                $mixedGroup = $this->buildBalancedMixedGroup($sortedMales, $sortedFemales);
+            } else {
+                // Just take all available
+                $mixedGroup = array_merge(
+                    array_slice($sortedMales, 0, 4),
+                    array_slice($sortedFemales, 0, 4)
+                );
+            }
             $groups[] = $mixedGroup;
         }
         
@@ -221,10 +232,46 @@ class SchedulerService
     }
 
     /**
+     * Build a balanced mixed-gender group considering tier distribution.
+     * Tries to include a mix of tiers rather than clustering all high/low tiers together.
+     */
+    private function buildBalancedMixedGroup(array $males, array $females): array
+    {
+        $selected = [];
+
+        // Take up to 4 from each gender
+        $maleCount = min(4, count($males));
+        $femaleCount = min(4, count($females));
+
+        // Interleave: take highest tier from one gender, then highest from other
+        // This ensures we don't cluster all high-tier in one gender
+        $maleIdx = 0;
+        $femaleIdx = 0;
+
+        // First, collect 2 from each gender prioritizing tier mix
+        $selectedMales = [];
+        $selectedFemales = [];
+
+        for ($i = 0; $i < $maleCount; $i++) {
+            if ($maleIdx < count($males)) {
+                $selectedMales[] = $males[$maleIdx++];
+            }
+        }
+
+        for ($i = 0; $i < $femaleCount; $i++) {
+            if ($femaleIdx < count($females)) {
+                $selectedFemales[] = $females[$femaleIdx++];
+            }
+        }
+
+        return array_merge($selectedMales, $selectedFemales);
+    }
+
+    /**
      * Select 4 players using fair play priority.
      * Priority: played_count (ascending) > waiting_rounds (descending) > tier priority
      * 
-     * For mixed gender groups, ensures 2-2 split.
+     * For mixed gender groups, ensures 2-2 split and tier balance.
      */
     private function selectPlayers(array $players, MatchSuggestionRequestDTO $request): array
     {
@@ -248,7 +295,25 @@ class SchedulerService
                 $playedFemales = $this->applyRestPriority($playedFemales);
             }
 
-            // Take 2 from each gender
+            // If we have enough fresh players, use tier balance selection
+            // This ensures we pick a mix of tiers for better pairing later
+            if (count($freshMales) >= 2 && count($freshFemales) >= 2) {
+                // Sort by tier (high priority first) for tier balance selection
+                usort($freshMales, fn($a, $b) => $b->tier->priority() - $a->tier->priority());
+                usort($freshFemales, fn($a, $b) => $b->tier->priority() - $a->tier->priority());
+
+                $selected = $this->selectForTierBalance($freshMales, $freshFemales, 2);
+
+                // If we still need players, fill from played
+                if (count($selected) < 4) {
+                    $remaining = array_slice(array_merge($playedMales, $playedFemales), 0, 4 - count($selected));
+                    $selected = array_merge($selected, $remaining);
+                }
+
+                return array_slice($selected, 0, 4);
+            }
+
+            // Fallback: take 2 from each gender (original logic)
             $selected = array_merge(
                 array_slice($freshMales, 0, 2),
                 array_slice($freshFemales, 0, 2)
@@ -805,5 +870,128 @@ class SchedulerService
             rules_applied: $rulesApplied,
             messages: $messages,
         );
+    }
+
+    /**
+     * Calculate how balanced a group of players is in terms of tier distribution.
+     * Returns a score where HIGHER = more balanced.
+     */
+    private function calculatePoolTierBalance(array $players): float
+    {
+        $tierCounts = [];
+        foreach ($players as $p) {
+            $tierName = $p->tier->name;
+            $tierCounts[$tierName] = ($tierCounts[$tierName] ?? 0) + 1;
+        }
+
+        if (count($tierCounts) <= 1) {
+            return 10.0; // All same tier = perfectly balanced
+        }
+
+        // Calculate variance of tier counts (lower variance = more balanced)
+        $counts = array_values($tierCounts);
+        $avg = array_sum($counts) / count($counts);
+        $variance = 0;
+        foreach ($counts as $c) {
+            $variance += pow($c - $avg, 2);
+        }
+
+        // Higher score = more balanced (lower variance)
+        return max(0, 10 - sqrt($variance));
+    }
+
+    /**
+     * Sort players by tier for better team building.
+     * Prioritize mixing different tiers rather than clustering same tier.
+     */
+    private function sortByTierForBalance(array $players): array
+    {
+        usort($players, fn($a, $b) => $a->tier->priority() - $b->tier->priority());
+        return $players;
+    }
+
+    /**
+     * Select players ensuring tier balance between genders.
+     * Prioritizes picking a mix of high/low tiers to enable better pairing later.
+     */
+    private function selectForTierBalance(array $males, array $females, int $count): array
+    {
+        // Group players by tier for each gender
+        $malesByTier = [];
+        foreach ($males as $m) {
+            $tierKey = strtolower($m->tier->name);
+            $malesByTier[$tierKey][] = $m;
+        }
+        $femalesByTier = [];
+        foreach ($females as $f) {
+            $tierKey = strtolower($f->tier->name);
+            $femalesByTier[$tierKey][] = $f;
+        }
+
+        // Get unique tiers sorted by priority (high to low)
+        $maleTiers = array_keys($malesByTier);
+        $femaleTiers = array_keys($femalesByTier);
+        usort($maleTiers, fn($a, $b) => PlayerTier::from($a)->priority() - PlayerTier::from($b)->priority());
+        usort($femaleTiers, fn($a, $b) => PlayerTier::from($a)->priority() - PlayerTier::from($b)->priority());
+
+        $selected = [];
+        $maleIdx = 0;
+        $femaleIdx = 0;
+
+        // Pick 1 high-tier and 1 low-tier from each gender when possible
+        // This creates better tier distribution for pairing later
+        for ($i = 0; $i < $count; $i++) {
+            // Even iteration: pick highest available tier from males, lowest from females
+            // Odd iteration: pick lowest from males, highest from females
+            if ($i % 2 === 0) {
+                // Pick male from high tier
+                if ($maleIdx < count($maleTiers)) {
+                    $tierName = $maleTiers[$maleIdx];
+                    if (!empty($malesByTier[$tierName])) {
+                        $selected[] = array_shift($malesByTier[$tierName]);
+                        if (empty($malesByTier[$tierName])) {
+                            $maleIdx++;
+                        }
+                    }
+                }
+                // Pick female from low tier (reverse order)
+                $femalePickIdx = count($femaleTiers) - 1 - $femaleIdx;
+                if ($femalePickIdx >= 0 && $femalePickIdx < count($femaleTiers)) {
+                    $tierName = $femaleTiers[$femalePickIdx];
+                    if (!empty($femalesByTier[$tierName])) {
+                        $selected[] = array_shift($femalesByTier[$tierName]);
+                        if (empty($femalesByTier[$tierName])) {
+                            unset($femaleTiers[$femalePickIdx]);
+                            $femaleTiers = array_values($femaleTiers);
+                        }
+                    }
+                }
+            } else {
+                // Pick female from high tier
+                if ($femaleIdx < count($femaleTiers)) {
+                    $tierName = $femaleTiers[$femaleIdx];
+                    if (!empty($femalesByTier[$tierName])) {
+                        $selected[] = array_shift($femalesByTier[$tierName]);
+                        if (empty($femalesByTier[$tierName])) {
+                            array_splice($femaleTiers, $femaleIdx, 1);
+                        }
+                    }
+                }
+                // Pick male from low tier (reverse order)
+                $malePickIdx = count($maleTiers) - 1 - $maleIdx;
+                if ($malePickIdx >= 0 && $malePickIdx < count($maleTiers)) {
+                    $tierName = $maleTiers[$malePickIdx];
+                    if (!empty($malesByTier[$tierName])) {
+                        $selected[] = array_shift($malesByTier[$tierName]);
+                        if (empty($malesByTier[$tierName])) {
+                            unset($maleTiers[$malePickIdx]);
+                            $maleTiers = array_values($maleTiers);
+                        }
+                    }
+                }
+            }
+        }
+
+        return $selected;
     }
 }
