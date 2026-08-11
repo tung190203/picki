@@ -7,21 +7,26 @@ class MatchSuggestionResponseDTO
     public function __construct(
         // Match được gợi ý
         public readonly ?SuggestionMatchDTO $match,
-        
+
         // Danh sách chờ
         public readonly array $waiting_players,
-        
+
         // Backup
         public readonly bool $backup_used,
         public readonly ?PlayerContextDTO $backup_player,
-        
+
         // Statistics
         public readonly array $statistics,
-        
+
         // Metadata
         public readonly int $seed,
         public readonly array $rules_applied,
         public readonly array $messages,
+
+        // Rotation metadata (used by regenerate flow)
+        public readonly int $total_candidates = 0,
+        public readonly int $selected_offset = 0,
+        public readonly bool $wrapped = false,
     ) {}
 
     public static function fromArray(array $data): self
@@ -50,6 +55,9 @@ class MatchSuggestionResponseDTO
             seed: $data['seed'] ?? 0,
             rules_applied: $data['rules_applied'] ?? [],
             messages: $data['messages'] ?? [],
+            total_candidates: $data['total_candidates'] ?? 0,
+            selected_offset: $data['selected_offset'] ?? 0,
+            wrapped: $data['wrapped'] ?? false,
         );
     }
 
@@ -64,6 +72,9 @@ class MatchSuggestionResponseDTO
             'seed' => $this->seed,
             'rules_applied' => $this->rules_applied,
             'messages' => $this->messages,
+            'total_candidates' => $this->total_candidates,
+            'selected_offset' => $this->selected_offset,
+            'wrapped' => $this->wrapped,
         ];
     }
 }
