@@ -1489,7 +1489,7 @@ class TournamentTypeController extends Controller
     {
         $tournamentId = $type->tournament_id;
         $allMatches = $type->matches()
-            ->with(['homeTeam.members', 'awayTeam.members', 'results'])
+            ->with(['homeTeam.members', 'awayTeam.members', 'results', 'referee', 'legReferee'])
             ->get();
         $totalRounds = $allMatches->max('round') ?? 1;
 
@@ -1537,6 +1537,9 @@ class TournamentTypeController extends Controller
                             'status' => $leg->status,
                             'scheduled_at' => $leg->scheduled_at,
                             'is_completed' => $leg->status === 'completed',
+                            'referee' => $leg->leg == 1
+                                ? ($leg->referee ? ['id' => $leg->referee->id, 'name' => $leg->referee->name] : null)
+                                : ($leg->legReferee ? ['id' => $leg->legReferee->id, 'name' => $leg->legReferee->name] : null),
                             // Group sets để Modal CreateMatch hiển thị đúng
                             'sets' => $leg->results->groupBy('set_number')->map(function($setGroup) use ($leg) {
                                 return $setGroup->map(fn($s) => ['team_id' => $s->team_id, 'score' => $s->score])->values();
@@ -1583,7 +1586,7 @@ class TournamentTypeController extends Controller
     {
         $tournamentId = $type->tournament_id;
         $matches = $type->matches()
-            ->with(['homeTeam.members', 'awayTeam.members', 'results'])
+            ->with(['homeTeam.members', 'awayTeam.members', 'results', 'referee', 'legReferee'])
             ->orderBy('round')
             ->orderBy('leg')
             ->get();
@@ -1677,6 +1680,9 @@ class TournamentTypeController extends Controller
                                 'status' => $leg->status,
                                 'scheduled_at' => $leg->scheduled_at,
                                 'is_completed' => $leg->status === 'completed',
+                                'referee' => $leg->leg == 1
+                                    ? ($leg->referee ? ['id' => $leg->referee->id, 'name' => $leg->referee->name] : null)
+                                    : ($leg->legReferee ? ['id' => $leg->legReferee->id, 'name' => $leg->legReferee->name] : null),
                                 'sets' => $details['sets'],
                             ];
                         })->values();
@@ -1772,6 +1778,9 @@ class TournamentTypeController extends Controller
                             'status' => $leg->status,
                             'scheduled_at' => $leg->scheduled_at,
                             'is_completed' => $leg->status === 'completed',
+                            'referee' => $leg->leg == 1
+                                ? ($leg->referee ? ['id' => $leg->referee->id, 'name' => $leg->referee->name] : null)
+                                : ($leg->legReferee ? ['id' => $leg->legReferee->id, 'name' => $leg->legReferee->name] : null),
                             'sets' => $details['sets'],
                         ];
                     })->values();
@@ -1805,7 +1814,7 @@ class TournamentTypeController extends Controller
 
         // ===== KNOCKOUT STAGE =====
         $knockoutMatches = $type->matches()
-            ->with(['homeTeam.members', 'awayTeam.members', 'results'])
+            ->with(['homeTeam.members', 'awayTeam.members', 'results', 'referee', 'legReferee'])
             ->where('round', '>=', 2)
             ->orderBy('round')
             ->orderBy('leg')
@@ -1910,6 +1919,9 @@ class TournamentTypeController extends Controller
                             'status' => $leg->status,
                             'scheduled_at' => $leg->scheduled_at,
                             'is_completed' => $leg->status === 'completed',
+                            'referee' => $leg->leg == 1
+                                ? ($leg->referee ? ['id' => $leg->referee->id, 'name' => $leg->referee->name] : null)
+                                : ($leg->legReferee ? ['id' => $leg->legReferee->id, 'name' => $leg->legReferee->name] : null),
                             'sets' => $details['sets'],
                         ];
                     })->values();
@@ -2050,7 +2062,7 @@ class TournamentTypeController extends Controller
 
         // ===== KNOCKOUT STAGE (Round >= 2) =====
         $knockoutMatches = $type->matches()
-            ->with(['homeTeam.members', 'awayTeam.members', 'results'])
+            ->with(['homeTeam.members', 'awayTeam.members', 'results', 'referee', 'legReferee'])
             ->where('round', '>=', 2)
             ->orderBy('round')
             ->orderBy('leg')
