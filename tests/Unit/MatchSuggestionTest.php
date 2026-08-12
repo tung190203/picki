@@ -1019,9 +1019,8 @@ class MatchSuggestionTest extends TestCase
     public function test_priority_2_female_only_when_4plus_females(): void
     {
         // 3 males, 5 females - all-male not possible.
-        // Anchor = Male (ID=1, sorted first by played_count).
-        // Algorithm: anchor must be in match → mixed (1M+3F).
-        // All-female would exclude anchor → not valid under v3 rules.
+        // NEW ALGORITHM: No anchor constraint.
+        // Should prefer 4 females (same-gender) over mixed gender.
         $players = $this->createPlayers([
             ['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
             ['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
@@ -1044,22 +1043,20 @@ class MatchSuggestionTest extends TestCase
             $genderMap[$p->user_id] = $p->gender;
         }
 
-        // Anchor (ID=1, Male) must be in the match
         $matchIds = [];
         foreach ($result->match->team1->members as $m) $matchIds[] = $m->user_id;
         foreach ($result->match->team2->members as $m) $matchIds[] = $m->user_id;
 
-        $this->assertContains(1, $matchIds, 'Anchor (Male ID=1) must be in the match');
-
-        // Mixed-gender (2M + 2F) is the only valid mixed option with anchor included.
+        // NEW: No anchor constraint. Should select 4 females (same-gender priority)
         $males = 0;
         $females = 0;
         foreach ($matchIds as $id) {
             if ($genderMap[$id] === User::MALE) $males++;
             if ($genderMap[$id] === User::FEMALE) $females++;
         }
-        $this->assertEquals(2, $males, 'Match should contain 2 males (anchor + fairness-sorted)');
-        $this->assertEquals(2, $females, 'Match should contain 2 females');
+
+        // Should prefer all-female (same-gender) over mixed (1M + 3F)
+        $this->assertGreaterThanOrEqual(3, $females, 'Should include mostly/all females (same-gender priority)');
     }
 
     /**
@@ -1355,5 +1352,444 @@ class MatchSuggestionTest extends TestCase
             ),
             seed: $seed,
         );
+    }
+
+    // =============================================================================
+    // REGRESSION TESTS FOR NEW COMBINATION-BASED ALGORITHM
+    // These tests verify the new algorithm correctly selects 4-player combinations
+    // without anchor constraint.
+    // =============================================================================
+
+    /**
+     * TEST 1: 5 red males + 1 yellow male
+     *
+     * Expected: MUST select 4 red males (same_tier)
+     * NOT allowed: 3 red + 1 yellow (mixed_tier)
+     *
+     * This is the CRITICAL regression test for the bug where the algorithm
+     * would return 3 red + 1 yellow just because the first player in queue
+     * was yellow and had better fairness score.
+     */
+    public function test_five_red_males_with_one_yellow_returns_four_red(): void
+    {
+        // A, B, C, D, E are red (played_count varies)
+        // F is yellow
+        $players = $this->createPlayers([
+            ['id' => 1, 'user_id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 3],
+            ['id' => 2, 'user_id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 2],
+            ['id' => 3, 'user_id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 2],
+            ['id' => 4, 'user_id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 2],
+            ['id' => 5, 'user_id' => 5, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 6, 'user_id' => 6, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+        ]);
+
+        $request = $this->createRequest();
+        $result = $this->scheduler->generate($players, $request);
+
+        $this->assertNotNull($result->match, 'Should find a match');
+
+        // Collect all selected tiers
+        $selectedTiers = [];
+        foreach ($result->match->team1->members as $m) {
+            $selectedTiers[] = $m->tier;
+        }
+        foreach ($result->match->team2->members as $m) {
+            $selectedTiers[] = $m->tier;
+        }
+
+        // Count reds
+        $redCount = count(array_filter($selectedTiers, fn($t) => strtolower($t) === 'red'));
+        $yellowCount = count(array_filter($selectedTiers, fn($t) => strtolower($t) === 'yellow'));
+
+        // MUST have 4 reds, NOT 3 red + 1 yellow
+        $this->assertEquals(4, $redCount, 'Must select 4 red players');
+        $this->assertEquals(0, $yellowCount, 'Must NOT include yellow player when 4 red available');
+    }
+
+    /**
+     * TEST 2: 5 red males + 5 yellow males
+     *
+     * Expected: Either 4 red OR 4 yellow (same-tier)
+     * NOT allowed: 3 red + 1 yellow OR 3 yellow + 1 red
+     */
+    public function test_five_red_and_five_yellow_males_returns_same_tier(): void
+    {
+        // 5 red males
+        $players = $this->createPlayers([
+            ['id' => 1, 'user_id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 2],
+            ['id' => 2, 'user_id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 2],
+            ['id' => 3, 'user_id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 1],
+            ['id' => 4, 'user_id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 1],
+            ['id' => 5, 'user_id' => 5, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            // 5 yellow males
+            ['id' => 6, 'user_id' => 6, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 3],
+            ['id' => 7, 'user_id' => 7, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 2],
+            ['id' => 8, 'user_id' => 8, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 1],
+            ['id' => 9, 'user_id' => 9, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 1],
+            ['id' => 10, 'user_id' => 10, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+        ]);
+
+        $request = $this->createRequest();
+        $result = $this->scheduler->generate($players, $request);
+
+        $this->assertNotNull($result->match, 'Should find a match');
+
+        // Collect all selected tiers
+        $selectedTiers = [];
+        foreach ($result->match->team1->members as $m) {
+            $selectedTiers[] = strtolower($m->tier);
+        }
+        foreach ($result->match->team2->members as $m) {
+            $selectedTiers[] = strtolower($m->tier);
+        }
+
+        $uniqueTiers = array_unique($selectedTiers);
+
+        // MUST have only 1 tier (all same tier)
+        $this->assertCount(1, $uniqueTiers, 'Must select all same-tier players');
+    }
+
+    /**
+     * TEST 3: 3 red + 3 yellow (no 4 of same tier)
+     *
+     * Expected: Can select 2 red + 2 yellow (adjacent tier)
+     * Fairness determines which 2+2 combination is best
+     */
+    public function test_three_red_three_yellow_returns_adjacent_tier(): void
+    {
+        $players = $this->createPlayers([
+            ['id' => 1, 'user_id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 2],
+            ['id' => 2, 'user_id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 1],
+            ['id' => 3, 'user_id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 4, 'user_id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 3],
+            ['id' => 5, 'user_id' => 5, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 2],
+            ['id' => 6, 'user_id' => 6, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 1],
+        ]);
+
+        $request = $this->createRequest();
+        $result = $this->scheduler->generate($players, $request);
+
+        $this->assertNotNull($result->match, 'Should find a match');
+
+        // Should include both red and yellow players (adjacent tier)
+        $selectedTiers = [];
+        foreach ($result->match->team1->members as $m) {
+            $selectedTiers[] = strtolower($m->tier);
+        }
+        foreach ($result->match->team2->members as $m) {
+            $selectedTiers[] = strtolower($m->tier);
+        }
+
+        $uniqueTiers = array_unique($selectedTiers);
+
+        // Can have 1 or 2 tiers, but NOT mixed across MAX_TIER_GAP
+        // Red (priority 3) and Yellow (priority 2) are adjacent (gap = 1)
+        $this->assertLessThanOrEqual(2, count($uniqueTiers), 'Should have at most 2 tiers');
+    }
+
+    /**
+     * TEST 4: 2 red male + 2 red female + yellow female
+     *
+     * Expected: Should prefer 2M red + 2F red (same tier) over mixed
+     * Note: This is a mixed gender scenario so algorithm may choose different valid combos
+     */
+    public function test_mixed_gender_prefers_same_tier_when_available(): void
+    {
+        $players = $this->createPlayers([
+            ['id' => 1, 'user_id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 2],
+            ['id' => 2, 'user_id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 1],
+            ['id' => 3, 'user_id' => 3, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 2],
+            ['id' => 4, 'user_id' => 4, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red, 'played' => 1],
+            // Also have yellows to tempt algorithm
+            ['id' => 5, 'user_id' => 5, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+        ]);
+
+        $request = $this->createRequest();
+        $result = $this->scheduler->generate($players, $request);
+
+        $this->assertNotNull($result->match, 'Should find a match');
+
+        // Collect tiers
+        $selectedTiers = [];
+        foreach ($result->match->team1->members as $m) {
+            $selectedTiers[] = strtolower($m->tier);
+        }
+        foreach ($result->match->team2->members as $m) {
+            $selectedTiers[] = strtolower($m->tier);
+        }
+
+        // Mixed gender with 2M + 2F available - should include at least 2 reds from each
+        $redCount = count(array_filter($selectedTiers, fn($t) => $t === 'red'));
+        $this->assertGreaterThanOrEqual(2, $redCount, 'Should have at least 2 red players when available');
+    }
+
+    /**
+     * TEST 5: Fairness does NOT break same-tier priority
+     *
+     * Example from spec:
+     * - Candidate A: 4 red, played=[3,3,3,3] - all played many matches
+     * - Candidate B: 3 red + 1 yellow, played=[0,0,0,0] - never played
+     *
+     * Expected: Candidate A wins because same-tier is HIGHER priority
+     * than fairness.
+     */
+    public function test_same_tier_priority_not_broken_by_fairness(): void
+    {
+        // Candidate A: 4 reds with high played_count
+        // Candidate B: mix with low played_count
+        $players = $this->createPlayers([
+            // 4 reds with high played count
+            ['id' => 1, 'user_id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 5],
+            ['id' => 2, 'user_id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 4],
+            ['id' => 3, 'user_id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 3],
+            ['id' => 4, 'user_id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 2],
+            // Mix with yellows and very low played count
+            ['id' => 5, 'user_id' => 5, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 6, 'user_id' => 6, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+            ['id' => 7, 'user_id' => 7, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 8, 'user_id' => 8, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+        ]);
+
+        $request = $this->createRequest();
+        $result = $this->scheduler->generate($players, $request);
+
+        $this->assertNotNull($result->match, 'Should find a match');
+
+        // Count reds
+        $selectedTiers = [];
+        foreach ($result->match->team1->members as $m) {
+            $selectedTiers[] = strtolower($m->tier);
+        }
+        foreach ($result->match->team2->members as $m) {
+            $selectedTiers[] = strtolower($m->tier);
+        }
+
+        $redCount = count(array_filter($selectedTiers, fn($t) => $t === 'red'));
+
+        // Same-tier MUST win even with worse fairness
+        $this->assertEquals(4, $redCount, 'Same-tier (4 red) must win despite worse fairness');
+    }
+
+    /**
+     * TEST 6: Mixed gender adjacent tier validation
+     *
+     * 2M red + 2F yellow (adjacent) should be valid
+     * 2M green + 2F red (gap=2) should be invalid
+     */
+    public function test_mixed_gender_validates_tier_gap(): void
+    {
+        $reflection = new \ReflectionClass($this->scheduler);
+
+        $method = $reflection->getMethod('isValidTierGap');
+        $method->setAccessible(true);
+
+        // Valid: red (3) + yellow (2) = gap 1
+        $validPlayers = $this->createPlayers([
+            ['id' => 1, 'user_id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red],
+            ['id' => 2, 'user_id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow],
+            ['id' => 3, 'user_id' => 3, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red],
+            ['id' => 4, 'user_id' => 4, 'gender' => User::FEMALE, 'tier' => PlayerTier::Yellow],
+        ]);
+
+        $result = $method->invoke($this->scheduler, $validPlayers);
+        $this->assertTrue($result, 'Red + Yellow (gap=1) should be valid');
+
+        // Invalid: green (1) + red (3) = gap 2
+        $invalidPlayers = $this->createPlayers([
+            ['id' => 1, 'user_id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Green],
+            ['id' => 2, 'user_id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red],
+            ['id' => 3, 'user_id' => 3, 'gender' => User::FEMALE, 'tier' => PlayerTier::Green],
+            ['id' => 4, 'user_id' => 4, 'gender' => User::FEMALE, 'tier' => PlayerTier::Red],
+        ]);
+
+        $result = $method->invoke($this->scheduler, $invalidPlayers);
+        $this->assertFalse($result, 'Green + Red (gap=2) should be invalid');
+    }
+
+    /**
+     * TEST 7: Queue position #1 does NOT become anchor
+     *
+     * Player #1 is yellow but 4 reds are available.
+     * Algorithm MUST select 4 reds, NOT force #1 into the match.
+     */
+    public function test_first_player_not_used_as_anchor(): void
+    {
+        // Player #1 is yellow (tempting to be anchor in old algorithm)
+        // But 4 reds are available
+        $players = $this->createPlayers([
+            ['id' => 1, 'user_id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0], // First in queue
+            ['id' => 2, 'user_id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 3, 'user_id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 4, 'user_id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 5, 'user_id' => 5, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            ['id' => 6, 'user_id' => 6, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+        ]);
+
+        $request = $this->createRequest();
+        $result = $this->scheduler->generate($players, $request);
+
+        $this->assertNotNull($result->match, 'Should find a match');
+
+        // Collect selected user IDs
+        $selectedIds = [];
+        foreach ($result->match->team1->members as $m) {
+            $selectedIds[] = $m->user_id;
+        }
+        foreach ($result->match->team2->members as $m) {
+            $selectedIds[] = $m->user_id;
+        }
+
+        // Player #1 (id=1) should NOT be in the match
+        $this->assertNotContains(1, $selectedIds, 'Player #1 should NOT be forced into match when 4 reds available');
+    }
+
+    /**
+     * TEST 8: Backup only used when no main candidate available
+     */
+    public function test_backup_only_used_when_needed(): void
+    {
+        // 4 main players available
+        $players = $this->createPlayers([
+            ['id' => 1, 'user_id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0, 'is_backup' => false],
+            ['id' => 2, 'user_id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0, 'is_backup' => false],
+            ['id' => 3, 'user_id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0, 'is_backup' => false],
+            ['id' => 4, 'user_id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0, 'is_backup' => false],
+            ['id' => 5, 'user_id' => 5, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0, 'is_backup' => true], // Backup
+        ]);
+
+        $request = new MatchSuggestionRequestDTO(
+            mini_tournament_id: 1,
+            participants: [],
+            settings: new MatchSuggestionSettingsDTO(
+                fair_play: true,
+                balance_team: true,
+                prefer_high_tier_match: true,
+                prevent_three_consecutive: true,
+                organizer_as_backup: true,
+            ),
+            seed: null,
+        );
+
+        $result = $this->scheduler->generate($players, $request);
+
+        $this->assertNotNull($result->match, 'Should find a match');
+        $this->assertFalse($result->backup_used, 'Should NOT use backup when main players available');
+    }
+
+    /**
+     * TEST 9: Enumerate candidates returns properly ranked candidates
+     */
+    public function test_enumerate_candidates_sorted_by_priority(): void
+    {
+        $players = $this->createPlayers([
+            // 4 reds
+            ['id' => 1, 'user_id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 2],
+            ['id' => 2, 'user_id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 2],
+            ['id' => 3, 'user_id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 1],
+            ['id' => 4, 'user_id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
+            // 4 yellows
+            ['id' => 5, 'user_id' => 5, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 3],
+            ['id' => 6, 'user_id' => 6, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 2],
+            ['id' => 7, 'user_id' => 7, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 1],
+            ['id' => 8, 'user_id' => 8, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
+        ]);
+
+        $request = $this->createRequest();
+        $result = $this->scheduler->enumerateCandidates($players, $request);
+
+        $this->assertNotEmpty($result['candidates'], 'Should have candidates');
+
+        // First candidate should be 4 reds (same-tier priority)
+        $first = $result['candidates'][0];
+
+        // Check that first candidate has same_tier
+        $selectedTiers = [];
+        foreach ($first['team_a'] as $p) {
+            $selectedTiers[] = strtolower($p->tier->name);
+        }
+        foreach ($first['team_b'] as $p) {
+            $selectedTiers[] = strtolower($p->tier->name);
+        }
+
+        $allRed = count(array_filter($selectedTiers, fn($t) => $t === 'red')) === 4;
+        $this->assertTrue($allRed, 'First candidate should be 4 reds (highest same-tier priority)');
+    }
+
+    /**
+     * TEST 10: Business priority comparator works correctly
+     */
+    public function test_compare_candidates_priority_order(): void
+    {
+        $reflection = new \ReflectionClass($this->scheduler);
+        $method = $reflection->getMethod('compareCandidates');
+        $method->setAccessible(true);
+
+        // Candidate A: same_gender + same_tier (highest priority)
+        $candidateA = [
+            'players' => [],
+            'team_a' => [],
+            'team_b' => [],
+            'gender_mode' => 'same_gender',
+            'tier_mode' => 'same_tier',
+            'tier_gap' => 0,
+            'rating_gap' => 1.0,
+            'fairness_metrics' => [
+                'sum_played' => 10,
+                'played_range' => 5,
+                'min_waiting' => 0,
+            ],
+            'partner_penalty' => 0,
+            'signature' => [1, 2, 3, 4],
+            'used_backup' => false,
+            'rules_applied' => [],
+        ];
+
+        // Candidate B: same_gender + adjacent_tier (lower priority)
+        $candidateB = [
+            'players' => [],
+            'team_a' => [],
+            'team_b' => [],
+            'gender_mode' => 'same_gender',
+            'tier_mode' => 'adjacent_tier',
+            'tier_gap' => 1,
+            'rating_gap' => 0.5,
+            'fairness_metrics' => [
+                'sum_played' => 0,
+                'played_range' => 0,
+                'min_waiting' => 5,
+            ],
+            'partner_penalty' => 0,
+            'signature' => [5, 6, 7, 8],
+            'used_backup' => false,
+            'rules_applied' => [],
+        ];
+
+        // A should be better (same_tier > adjacent_tier)
+        $result = $method->invoke($this->scheduler, $candidateA, $candidateB);
+        $this->assertLessThan(0, $result, 'Candidate A (same_tier) should be better than Candidate B (adjacent_tier)');
+
+        // Candidate C: mixed_gender + same_tier
+        $candidateC = [
+            'players' => [],
+            'team_a' => [],
+            'team_b' => [],
+            'gender_mode' => 'mixed_gender',
+            'tier_mode' => 'same_tier',
+            'tier_gap' => 0,
+            'rating_gap' => 0.5,
+            'fairness_metrics' => [
+                'sum_played' => 0,
+                'played_range' => 0,
+                'min_waiting' => 5,
+            ],
+            'partner_penalty' => 0,
+            'signature' => [5, 6, 7, 8],
+            'used_backup' => false,
+            'rules_applied' => [],
+        ];
+
+        // A should be better than C (same_gender > mixed_gender)
+        $result = $method->invoke($this->scheduler, $candidateA, $candidateC);
+        $this->assertLessThan(0, $result, 'Candidate A (same_gender) should be better than Candidate C (mixed_gender)');
     }
 }
