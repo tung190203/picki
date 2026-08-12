@@ -168,7 +168,9 @@ class SchedulerService
      */
     public function buildCandidateSignature(array $teamA, array $teamB): array
     {
-        $ids = array_merge(array_column($teamA, 'user_id'), array_column($teamB, 'user_id'));
+        // Use mini_participant_id for both guests and non-guests so signature
+        // is stable across renders (guest has null user_id).
+        $ids = array_merge(array_column($teamA, 'mini_participant_id'), array_column($teamB, 'mini_participant_id'));
         $ids = array_values(array_map('intval', array_filter($ids, fn($v) => $v !== null)));
         sort($ids);
         return $ids;
@@ -763,7 +765,16 @@ class SchedulerService
             return $fmA['played_range'] <=> $fmB['played_range'];
         }
 
-        // 5c: Min waiting rounds (higher is better)
+        // 5c: Max waiting rounds (higher is better - players who waited longest)
+        // Use MAX (not min) so that any candidate containing a long-waiting player
+        // is preferred - this prevents guest/long-waiting players from being starved.
+        $maxWaitA = max($fmA['max_waiting'] ?? 0, $fmA['min_waiting'] ?? 0);
+        $maxWaitB = max($fmB['max_waiting'] ?? 0, $fmB['min_waiting'] ?? 0);
+        if ($maxWaitA !== $maxWaitB) {
+            return $maxWaitB <=> $maxWaitA;
+        }
+
+        // 5d: Min waiting rounds (higher is better - tiebreaker)
         if ($fmA['min_waiting'] !== $fmB['min_waiting']) {
             return $fmB['min_waiting'] <=> $fmA['min_waiting'];
         }
@@ -1678,7 +1689,7 @@ class SchedulerService
         $userData = $userDataMap[$player->user_id] ?? ['visibility' => 'open', 'sports' => []];
 
         return new TeamMatchMemberDTO(
-            id: $player->mini_participant_id,
+            mini_participant_id: $player->mini_participant_id,
             user_id: $player->user_id,
             team_id: null,
             full_name: $player->full_name,

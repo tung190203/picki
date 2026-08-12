@@ -55,21 +55,9 @@ class MatchHistoryRepository
         $counts = [];
 
         foreach ($matches as $match) {
-            if ($match->team1) {
-                foreach ($match->team1->members as $member) {
-                    $counts[$member->user_id] = ($counts[$member->user_id] ?? 0) + 1;
-                }
-            }
-            if ($match->team2) {
-                foreach ($match->team2->members as $member) {
-                    $counts[$member->user_id] = ($counts[$member->user_id] ?? 0) + 1;
-                }
-            }
-            if ($match->participant1) {
-                $counts[$match->participant1->user_id] = ($counts[$match->participant1->user_id] ?? 0) + 1;
-            }
-            if ($match->participant2) {
-                $counts[$match->participant2->user_id] = ($counts[$match->participant2->user_id] ?? 0) + 1;
+            $playerIds = $this->getMatchPlayerIds($match, $miniTournamentId);
+            foreach ($playerIds as $miniParticipantId) {
+                $counts[$miniParticipantId] = ($counts[$miniParticipantId] ?? 0) + 1;
             }
         }
 
@@ -82,6 +70,7 @@ class MatchHistoryRepository
      * Players who skip a round reset their consecutive count.
      *
      * Uses round_number for proper ordering (not collection index).
+     * Keyed by mini_participant_id.
      */
     public function getConsecutiveCounts(int $miniTournamentId): array
     {
@@ -99,22 +88,19 @@ class MatchHistoryRepository
                 continue;
             }
 
-            $playerIds = $this->getMatchPlayerIds($match);
+            $playerIds = $this->getMatchPlayerIds($match, $miniTournamentId);
 
-            foreach ($playerIds as $userId) {
-                if (isset($lastRound[$userId])) {
-                    // Check if this match is immediately after the last match (consecutive round)
-                    if ($roundNumber - $lastRound[$userId] === 1) {
-                        $counts[$userId] = ($counts[$userId] ?? 0) + 1;
+            foreach ($playerIds as $miniParticipantId) {
+                if (isset($lastRound[$miniParticipantId])) {
+                    if ($roundNumber - $lastRound[$miniParticipantId] === 1) {
+                        $counts[$miniParticipantId] = ($counts[$miniParticipantId] ?? 0) + 1;
                     } else {
-                        // Gap in rounds - reset consecutive count
-                        $counts[$userId] = 1;
+                        $counts[$miniParticipantId] = 1;
                     }
                 } else {
-                    // First match for this player
-                    $counts[$userId] = 1;
+                    $counts[$miniParticipantId] = 1;
                 }
-                $lastRound[$userId] = $roundNumber;
+                $lastRound[$miniParticipantId] = $roundNumber;
             }
         }
 
@@ -124,48 +110,47 @@ class MatchHistoryRepository
     /**
      * Get waiting rounds for each player.
      * A "waiting round" is a round where the player was eligible but didn't play.
+     * Keyed by mini_participant_id.
      */
     public function getWaitingRounds(int $miniTournamentId): array
     {
         $matches = $this->getSessionMatches($miniTournamentId);
-        
+
         if ($matches->isEmpty()) {
             return [];
         }
 
         $totalRounds = $matches->max('round_number') ?? 0;
-        
+
         if ($totalRounds <= 1) {
             return [];
         }
 
-        // Track which rounds each player played
         $playedRounds = [];
         foreach ($matches as $match) {
-            $playerIds = $this->getMatchPlayerIds($match);
+            $playerIds = $this->getMatchPlayerIds($match, $miniTournamentId);
             $roundNumber = $match->round_number ?? 0;
-            
+
             if ($roundNumber <= 0) {
                 continue;
             }
 
-            foreach ($playerIds as $userId) {
-                if (!isset($playedRounds[$userId])) {
-                    $playedRounds[$userId] = [];
+            foreach ($playerIds as $miniParticipantId) {
+                if (!isset($playedRounds[$miniParticipantId])) {
+                    $playedRounds[$miniParticipantId] = [];
                 }
-                if (!in_array($roundNumber, $playedRounds[$userId])) {
-                    $playedRounds[$userId][] = $roundNumber;
+                if (!in_array($roundNumber, $playedRounds[$miniParticipantId])) {
+                    $playedRounds[$miniParticipantId][] = $roundNumber;
                 }
             }
         }
 
-        // Calculate waiting rounds for each player
         $waitingRounds = [];
         $allRounds = range(1, $totalRounds);
-        
-        foreach ($playedRounds as $userId => $rounds) {
+
+        foreach ($playedRounds as $miniParticipantId => $rounds) {
             $missed = array_diff($allRounds, $rounds);
-            $waitingRounds[$userId] = count($missed);
+            $waitingRounds[$miniParticipantId] = count($missed);
         }
 
         return $waitingRounds;
@@ -173,8 +158,9 @@ class MatchHistoryRepository
 
     /**
      * Last round number each player participated in.
+     * Keyed by mini_participant_id.
      *
-     * @return array<int, int> user_id => max(round_number)
+     * @return array<int, int> mini_participant_id => max(round_number)
      */
     public function getLastPlayedRounds(int $miniTournamentId): array
     {
@@ -187,9 +173,9 @@ class MatchHistoryRepository
                 continue;
             }
 
-            foreach ($this->getMatchPlayerIds($match) as $userId) {
-                if (!isset($lastPlayed[$userId]) || $roundNumber > $lastPlayed[$userId]) {
-                    $lastPlayed[$userId] = $roundNumber;
+            foreach ($this->getMatchPlayerIds($match, $miniTournamentId) as $miniParticipantId) {
+                if (!isset($lastPlayed[$miniParticipantId]) || $roundNumber > $lastPlayed[$miniParticipantId]) {
+                    $lastPlayed[$miniParticipantId] = $roundNumber;
                 }
             }
         }
@@ -219,25 +205,11 @@ class MatchHistoryRepository
         $partnerMap = [];
 
         foreach ($matches as $match) {
-            $teamAPartners = [];
-            $teamBPartners = [];
+            $playerIds = $this->getMatchPlayerIds($match, $miniTournamentId);
 
-            if ($match->team1) {
-                $memberIds = $match->team1->members->pluck('user_id')->toArray();
-                foreach ($memberIds as $id) {
-                    $teamAPartners = array_merge($teamAPartners, array_filter($memberIds, fn($pid) => $pid !== $id));
-                }
-            }
-            if ($match->team2) {
-                $memberIds = $match->team2->members->pluck('user_id')->toArray();
-                foreach ($memberIds as $id) {
-                    $teamBPartners = array_merge($teamBPartners, array_filter($memberIds, fn($pid) => $pid !== $id));
-                }
-            }
-
-            $allPartners = array_merge($teamAPartners, $teamBPartners);
-            foreach (array_unique($allPartners) as $partnerId) {
-                $partnerMap[$partnerId] = $partnerMap[$partnerId] ?? [];
+            foreach ($playerIds as $id) {
+                $others = array_values(array_filter($playerIds, fn($pid) => $pid !== $id));
+                $partnerMap[$id] = array_values(array_unique(array_merge($partnerMap[$id] ?? [], $others)));
             }
         }
 
@@ -254,23 +226,11 @@ class MatchHistoryRepository
             ])
             ->with(['team1.members', 'team2.members', 'participant1', 'participant2'])
             ->get()
-            ->flatMap(function ($match) {
-                $ids = [];
-                if ($match->team1) {
-                    $ids = array_merge($ids, $match->team1->members->pluck('user_id')->toArray());
-                }
-                if ($match->team2) {
-                    $ids = array_merge($ids, $match->team2->members->pluck('user_id')->toArray());
-                }
-                if ($match->participant1) {
-                    $ids[] = $match->participant1->user_id;
-                }
-                if ($match->participant2) {
-                    $ids[] = $match->participant2->user_id;
-                }
-                return $ids;
+            ->flatMap(function ($match) use ($miniTournamentId) {
+                return $this->getMatchPlayerIds($match, $miniTournamentId);
             })
             ->unique()
+            ->values()
             ->toArray();
     }
 
@@ -294,23 +254,48 @@ class MatchHistoryRepository
             ->get();
     }
 
-    private function getMatchPlayerIds(MiniMatch $match): array
+    private function getMatchPlayerIds(MiniMatch $match, ?int $miniTournamentId = null): array
     {
         $ids = [];
 
         if ($match->team1) {
-            $ids = array_merge($ids, $match->team1->members->pluck('user_id')->toArray());
+            $memberIds = $match->team1->members->pluck('user_id')->toArray();
+            $ids = array_merge($ids, $this->resolveMiniParticipantIds($memberIds, $miniTournamentId));
         }
         if ($match->team2) {
-            $ids = array_merge($ids, $match->team2->members->pluck('user_id')->toArray());
+            $memberIds = $match->team2->members->pluck('user_id')->toArray();
+            $ids = array_merge($ids, $this->resolveMiniParticipantIds($memberIds, $miniTournamentId));
         }
         if ($match->participant1) {
-            $ids[] = $match->participant1->user_id;
+            $ids[] = $match->participant1->id;
         }
         if ($match->participant2) {
-            $ids[] = $match->participant2->user_id;
+            $ids[] = $match->participant2->id;
         }
 
-        return $ids;
+        return array_values(array_filter($ids, fn($v) => $v !== null));
+    }
+
+    /**
+     * Resolve user_ids → mini_participant_ids for the current tournament.
+     * Required because MiniTeamMember only stores user_id, not mini_participant_id.
+     */
+    private function resolveMiniParticipantIds(array $userIds, ?int $miniTournamentId = null): array
+    {
+        if (empty($userIds)) {
+            return [];
+        }
+
+        // Filter out null (guests whose user_id is null) - they are matched by participant1/participant2 directly
+        $userIds = array_values(array_filter($userIds, fn($id) => $id !== null));
+        if (empty($userIds)) {
+            return [];
+        }
+
+        $query = \App\Models\MiniParticipant::whereIn('user_id', $userIds);
+        if ($miniTournamentId !== null) {
+            $query->where('mini_tournament_id', $miniTournamentId);
+        }
+        return $query->pluck('id')->toArray();
     }
 }
