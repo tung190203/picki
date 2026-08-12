@@ -87,9 +87,10 @@ class SchedulerService
         );
 
         $selectedIds = array_column(array_merge($teamA, $teamB), 'user_id');
-        $waiting = $this->buildWaitingList($pool, $selectedIds);
+        $selectedMiniParticipantIds = array_column(array_merge($teamA, $teamB), 'mini_participant_id');
+        $waiting = $this->buildWaitingList($pool, $selectedIds, $selectedMiniParticipantIds);
         $backup = $this->getBackupIfNeeded($selectedIds, $settings->organizer_as_backup);
-        $statistics = $this->calculateStatistics($bestMatch, $pool, $selectedIds);
+        $statistics = $this->calculateStatistics($bestMatch, $pool, $selectedIds, $selectedMiniParticipantIds);
 
         return new MatchSuggestionResponseDTO(
             match: $bestMatch,
@@ -898,9 +899,9 @@ class SchedulerService
     /**
      * Public wrapper around buildWaitingList.
      */
-    public function buildWaitingListPublic(array $pool, array $excludeIds): array
+    public function buildWaitingListPublic(array $pool, array $excludeUserIds, array $excludeMiniParticipantIds): array
     {
-        return $this->buildWaitingList($pool, $excludeIds);
+        return $this->buildWaitingList($pool, $excludeUserIds, $excludeMiniParticipantIds);
     }
 
     /**
@@ -914,9 +915,9 @@ class SchedulerService
     /**
      * Public wrapper around calculateStatistics.
      */
-    public function calculateStatisticsPublic(?SuggestionMatchDTO $match, array $pool, array $selectedIds): array
+    public function calculateStatisticsPublic(?SuggestionMatchDTO $match, array $pool, array $selectedIds, array $selectedMiniParticipantIds): array
     {
-        return $this->calculateStatistics($match, $pool, $selectedIds);
+        return $this->calculateStatistics($match, $pool, $selectedIds, $selectedMiniParticipantIds);
     }
 
     /**
@@ -1692,14 +1693,14 @@ class SchedulerService
     /**
      * Build waiting list (players not selected for current match).
      */
-    private function buildWaitingList(array $pool, array $excludeIds): array
+    private function buildWaitingList(array $pool, array $excludeUserIds, array $excludeMiniParticipantIds): array
     {
-        return array_values(array_filter($pool, function ($p) use ($excludeIds) {
-            // Guest has null user_id, always include them in waiting list
+        return array_values(array_filter($pool, function ($p) use ($excludeUserIds, $excludeMiniParticipantIds) {
+            // Guest has null user_id, use mini_participant_id for exclusion check
             if ($p->user_id === null) {
-                return true;
+                return !in_array($p->mini_participant_id, $excludeMiniParticipantIds);
             }
-            return !in_array($p->user_id, $excludeIds);
+            return !in_array($p->user_id, $excludeUserIds);
         }));
     }
 
@@ -1723,10 +1724,20 @@ class SchedulerService
     /**
      * Calculate statistics for the generated match.
      */
-    private function calculateStatistics(?SuggestionMatchDTO $match, array $pool, array $selectedIds): array
+    private function calculateStatistics(?SuggestionMatchDTO $match, array $pool, array $selectedIds, array $selectedMiniParticipantIds): array
     {
-        $selected = array_filter($pool, fn($p) => in_array($p->user_id, $selectedIds));
-        $waiting = array_filter($pool, fn($p) => !in_array($p->user_id, $selectedIds));
+        $selected = array_filter($pool, function ($p) use ($selectedIds, $selectedMiniParticipantIds) {
+            if ($p->user_id === null) {
+                return in_array($p->mini_participant_id, $selectedMiniParticipantIds);
+            }
+            return in_array($p->user_id, $selectedIds);
+        });
+        $waiting = array_filter($pool, function ($p) use ($selectedIds, $selectedMiniParticipantIds) {
+            if ($p->user_id === null) {
+                return !in_array($p->mini_participant_id, $selectedMiniParticipantIds);
+            }
+            return !in_array($p->user_id, $selectedIds);
+        });
 
         $playedCounts = array_column($selected, 'played_count');
 

@@ -306,10 +306,11 @@ class MatchSuggestionService
             $candidate['is_high_tier'],
         );
 
-        $selectedIds = array_column($pool, 'user_id');
-        $waiting = $this->schedulerService->buildWaitingListPublic($pool, $selectedIds);
+        $selectedIds = array_column(array_merge($candidate['team_a'], $candidate['team_b']), 'user_id');
+        $selectedMiniParticipantIds = array_column(array_merge($candidate['team_a'], $candidate['team_b']), 'mini_participant_id');
+        $waiting = $this->schedulerService->buildWaitingListPublic($pool, $selectedIds, $selectedMiniParticipantIds);
         $backup = $this->schedulerService->getBackupIfNeededPublic($selectedIds, $request->settings->organizer_as_backup);
-        $statistics = $this->schedulerService->calculateStatisticsPublic($match, $pool, $selectedIds);
+        $statistics = $this->schedulerService->calculateStatisticsPublic($match, $pool, $selectedIds, $selectedMiniParticipantIds);
 
         return new MatchSuggestionResponseDTO(
             match: $match,
