@@ -8,6 +8,40 @@ use Illuminate\Support\Collection;
 
 class MatchHistoryRepository
 {
+    /**
+     * Get signatures of all existing matches (pending, going_on, completed).
+     * Used to prevent suggesting duplicate combinations.
+     *
+     * @return array<int, array<int>> Array of signatures (sorted user_id arrays)
+     */
+    public function getExistingMatchSignatures(int $miniTournamentId): array
+    {
+        $matches = MiniMatch::where('mini_tournament_id', $miniTournamentId)
+            ->whereIn('status', [
+                MiniMatch::STATUS_PENDING,
+                MiniMatch::STATUS_GOING_ON,
+                MiniMatch::STATUS_WAITING_CONFIRM,
+                MiniMatch::STATUS_COMPLETED,
+            ])
+            ->with(['team1.members', 'team2.members', 'participant1', 'participant2'])
+            ->get();
+
+        $signatures = [];
+
+        foreach ($matches as $match) {
+            $playerIds = $this->getMatchPlayerIds($match);
+
+            if (count($playerIds) !== 4) {
+                continue;
+            }
+
+            sort($playerIds);
+            $signatures[] = $playerIds;
+        }
+
+        return $signatures;
+    }
+
     public function getSessionMatches(int $miniTournamentId): Collection
     {
         return MiniMatch::where('mini_tournament_id', $miniTournamentId)
