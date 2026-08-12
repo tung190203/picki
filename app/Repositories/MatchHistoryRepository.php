@@ -42,26 +42,45 @@ class MatchHistoryRepository
         return $counts;
     }
 
+    /**
+     * Get consecutive match count for each player.
+     * A player has consecutive_count = N if they played in N consecutive rounds.
+     * Players who skip a round reset their consecutive count.
+     *
+     * Uses round_number for proper ordering (not collection index).
+     */
     public function getConsecutiveCounts(int $miniTournamentId): array
     {
         $matches = $this->getSessionMatches($miniTournamentId);
-        $counts = [];
-        $lastMatchIndex = [];
 
-        foreach ($matches as $index => $match) {
+        // Sort by round_number to ensure proper ordering
+        $sortedMatches = $matches->sortBy(fn($m) => $m->round_number ?? 0);
+
+        $counts = [];
+        $lastRound = [];
+
+        foreach ($sortedMatches as $match) {
+            $roundNumber = (int) ($match->round_number ?? 0);
+            if ($roundNumber <= 0) {
+                continue;
+            }
+
             $playerIds = $this->getMatchPlayerIds($match);
-            
+
             foreach ($playerIds as $userId) {
-                if (isset($lastMatchIndex[$userId])) {
-                    if ($index - $lastMatchIndex[$userId] === 1) {
+                if (isset($lastRound[$userId])) {
+                    // Check if this match is immediately after the last match (consecutive round)
+                    if ($roundNumber - $lastRound[$userId] === 1) {
                         $counts[$userId] = ($counts[$userId] ?? 0) + 1;
                     } else {
+                        // Gap in rounds - reset consecutive count
                         $counts[$userId] = 1;
                     }
                 } else {
+                    // First match for this player
                     $counts[$userId] = 1;
                 }
-                $lastMatchIndex[$userId] = $index;
+                $lastRound[$userId] = $roundNumber;
             }
         }
 

@@ -15,11 +15,16 @@ use App\Models\User;
 class SchedulerService
 {
     /**
+     * Generate match suggestion using combination-based algorithm.
+     *
+     * NEW ALGORITHM: No anchor constraint. Evaluates all valid 4-player
+     * combinations and selects the best by business priority.
+     *
      * @param array $players PlayerContextDTO[]
      * @param MatchSuggestionRequestDTO $request
      * @param array $userDataMap [user_id => ['visibility' => string, 'sports' => array]]
      * @param bool $needsPaymentCheck if true, exclude participants with unpaid status
-    */
+     */
     public function generate(
         array $players,
         MatchSuggestionRequestDTO $request,
@@ -32,7 +37,7 @@ class SchedulerService
         $messages = [];
         $settings = $request->settings;
 
-        // Build eligible player pool (no shuffle — fairness is done after sort)
+        // Build eligible player pool
         $pool = $this->buildPool($players, $request, $needsPaymentCheck);
 
         if (count($pool) < 4) {
@@ -40,30 +45,36 @@ class SchedulerService
             return $this->createInsufficientPlayersResponse($seed, $pool, $rulesApplied, $messages, $userDataMap);
         }
 
-        // Determine current round for fairness sort tie-breaking
-        $currentRound = $this->resolveCurrentRound($pool);
+        // Generate candidates using combination-based algorithm
+        $candidates = $this->generateCandidates($pool, $request, $userDataMap);
 
-        // Sort by fairness priority — played_count is primary, NOT shuffled by seed
-        $sortedPool = $this->sortByFairnessPriority($pool, $currentRound, $settings->fair_play ? false : $seed);
-
-        // Expanding window with anchor constraint
-        $match = $this->expandingWindowSearch($sortedPool, $request, $userDataMap);
-
-        if ($match === null) {
+        if (empty($candidates)) {
             $messages[] = 'No valid match found';
-            return $this->createInsufficientPlayersResponse($seed, $sortedPool, $rulesApplied, $messages, $userDataMap);
+            return $this->createInsufficientPlayersResponse($seed, $pool, $rulesApplied, $messages, $userDataMap);
         }
 
-        $teamA = $match['team_a'];
-        $teamB = $match['team_b'];
-        $usedBackup = $match['used_backup'] ?? false;
+        // Select best candidate (already sorted by business priority)
+        $best = $candidates[0];
 
-        // Balance teams using VN DUPR via findOptimalPairing (keeps prefer_high_tier_match)
-        $pairing = $this->findOptimalPairing(array_merge($teamA, $teamB), $userDataMap, $settings);
-        if ($pairing) {
-            $teamA = $pairing['team_a'];
-            $teamB = $pairing['team_b'];
-            $rulesApplied = array_merge($rulesApplied, $pairing['rules_applied'] ?? []);
+        $teamA = $best['team_a'];
+        $teamB = $best['team_b'];
+
+        // Validate used_backup correctly - check if any selected player is backup
+        $usedBackup = false;
+        foreach (array_merge($teamA, $teamB) as $p) {
+            if ($p->is_backup) {
+                $usedBackup = true;
+                break;
+            }
+        }
+
+        // Add rules applied
+        $rulesApplied = $best['rules_applied'] ?? [];
+        if ($settings->fair_play) {
+            $rulesApplied[] = 'fair_play';
+        }
+        if ($usedBackup) {
+            $rulesApplied[] = 'organizer_as_backup';
         }
 
         $bestMatch = $this->buildMatchDTO(
@@ -74,9 +85,9 @@ class SchedulerService
         );
 
         $selectedIds = array_column(array_merge($teamA, $teamB), 'user_id');
-        $waiting = $this->buildWaitingList($sortedPool, $selectedIds);
+        $waiting = $this->buildWaitingList($pool, $selectedIds);
         $backup = $this->getBackupIfNeeded($selectedIds, $settings->organizer_as_backup);
-        $statistics = $this->calculateStatistics($bestMatch, $sortedPool, $selectedIds);
+        $statistics = $this->calculateStatistics($bestMatch, $pool, $selectedIds);
 
         return new MatchSuggestionResponseDTO(
             match: $bestMatch,
@@ -87,7 +98,7 @@ class SchedulerService
             seed: $seed,
             rules_applied: array_values(array_unique($rulesApplied)),
             messages: $messages,
-            total_candidates: 1,
+            total_candidates: count($candidates),
             selected_offset: 0,
             wrapped: false,
         );
@@ -96,13 +107,15 @@ class SchedulerService
     /**
      * Enumerate all valid match candidates for the given pool.
      *
-     * Returns an associative array:
-     *   - candidates: list of candidates sorted by score DESC, each entry is:
-     *       [team_a, team_b, is_high_tier, rules_applied, score, gender_priority_bonus, signature]
-     *   - total_candidates
+     * NEW ALGORITHM: Uses combination-based candidate generation.
+     * NO anchor constraint - evaluates all valid 4-player combinations.
      *
-     * `signature` is a sorted list of the 4 user_ids that participate in the
-     * candidate (used by regenerate() to skip already-tried combos).
+     * Returns an associative array:
+     *   - candidates: list of candidates sorted by business priority
+     *   - total_candidates: total unique candidates
+     *
+     * `signature` is a sorted list of the 4 user_ids (used by regenerate()
+     * to skip already-tried combos).
      *
      * @return array{candidates: array<int, array>, total_candidates: int}
      */
@@ -111,94 +124,31 @@ class SchedulerService
         MatchSuggestionRequestDTO $request,
         array $userDataMap = [],
     ): array {
-        $settings = $request->settings;
-        $currentRound = $this->resolveCurrentRound($pool);
+        // Generate all valid candidates using the new combination-based algorithm
+        $candidates = $this->generateCandidates($pool, $request, $userDataMap);
 
-        [$mainPool, $backupPool] = $this->splitMainAndBackupPool($pool);
+        // Add is_high_tier and rules_applied to each candidate for backward compatibility
+        foreach ($candidates as &$candidate) {
+            $candidate['is_high_tier'] = $this->isHighTierMatch($candidate['team_a'], $candidate['team_b']);
 
-        $queuesToTry = [];
-        $mainQueue = $settings->fair_play
-            ? $this->sortByFairnessPriority($mainPool, $currentRound, false)
-            : $this->shuffleWithSeed($mainPool, $request->seed);
-        $queuesToTry[] = ['queue' => $mainQueue, 'backupStartsAt' => PHP_INT_MAX];
-
-        if ($settings->organizer_as_backup && count($backupPool) > 0) {
-            $backupQueue = $settings->fair_play
-                ? $this->sortByFairnessPriority($backupPool, $currentRound, false)
-                : $this->shuffleWithSeed($backupPool, $request->seed);
-            $queuesToTry[] = [
-                'queue' => array_merge($mainQueue, $backupQueue),
-                'backupStartsAt' => count($mainQueue),
-            ];
-        }
-
-        $candidates = [];
-        $seenSignatures = [];
-
-        foreach ($queuesToTry as $queueSpec) {
-            $queue = $queueSpec['queue'];
-            $backupStartsAt = $queueSpec['backupStartsAt'];
-            $n = count($queue);
-
-            for ($anchorIdx = 0; $anchorIdx < $n; $anchorIdx++) {
-                $queueSlice = array_slice($queue, $anchorIdx);
-                $adjustedBackupStarts = $backupStartsAt <= $anchorIdx
-                    ? PHP_INT_MAX
-                    : $backupStartsAt - $anchorIdx;
-
-                $selection = $this->expandingWindowSearch(
-                    $queueSlice,
-                    $request,
-                    $userDataMap,
-                    $adjustedBackupStarts,
-                );
-
-                if (!$selection) {
-                    continue;
-                }
-
-                $pairing = $this->findOptimalPairing(array_merge($selection['team_a'], $selection['team_b']), $userDataMap, $settings);
-                if (!$pairing) {
-                    continue;
-                }
-
-                $signature = $this->buildCandidateSignature($pairing['team_a'], $pairing['team_b']);
-                $signatureKey = implode(',', $signature);
-                if (isset($seenSignatures[$signatureKey])) {
-                    continue;
-                }
-                $seenSignatures[$signatureKey] = true;
-
-                $score = $this->calculateMatchScore($pairing['team_a'], $pairing['team_b'], $settings, $userDataMap);
-                $anchorBonus = ($n - $anchorIdx) * 1000;
-
-                $rulesApplied = $pairing['rules_applied'] ?? [];
-                if ($settings->fair_play) {
-                    $rulesApplied[] = 'fair_play';
-                }
-                if ($selection['used_backup']) {
-                    $rulesApplied[] = 'organizer_as_backup';
-                }
-
-                $candidates[] = [
-                    'team_a' => $pairing['team_a'],
-                    'team_b' => $pairing['team_b'],
-                    'is_high_tier' => $pairing['is_high_tier'],
-                    'rules_applied' => array_values(array_unique($rulesApplied)),
-                    'score' => $score,
-                    'gender_priority_bonus' => $anchorBonus,
-                    'adjusted_score' => $score + $anchorBonus,
-                    'signature' => $signature,
-                ];
+            $rulesApplied = $candidate['rules_applied'] ?? [];
+            if ($request->settings->fair_play) {
+                $rulesApplied[] = 'fair_play';
             }
-        }
-
-        usort($candidates, function ($a, $b) {
-            if ($a['adjusted_score'] !== $b['adjusted_score']) {
-                return $b['adjusted_score'] <=> $a['adjusted_score'];
+            if ($candidate['used_backup']) {
+                $rulesApplied[] = 'organizer_as_backup';
             }
-            return $a['signature'] <=> $b['signature'];
-        });
+            $candidate['rules_applied'] = array_values(array_unique($rulesApplied));
+
+            // Add legacy fields for backward compatibility
+            $candidate['score'] = $this->calculateMatchScore(
+                $candidate['team_a'],
+                $candidate['team_b'],
+                $request->settings,
+                $userDataMap
+            );
+            $candidate['adjusted_score'] = $candidate['score'];
+        }
 
         return [
             'candidates' => $candidates,
@@ -217,6 +167,653 @@ class SchedulerService
         $ids = array_values(array_map('intval', array_filter($ids, fn($v) => $v !== null)));
         sort($ids);
         return $ids;
+    }
+
+    /**
+     * Generate all valid 4-player combinations sorted by business priority.
+     *
+     * THIS IS THE NEW CORE ALGORITHM - NO ANCHOR CONSTRAINT.
+     *
+     * Flow:
+     * 1. Generate same-gender candidates (priority)
+     * 2. If none exist, generate mixed-gender candidates
+     * 3. If still none, try with backup players
+     * 4. Return all candidates sorted by business priority
+     *
+     * @return array Candidates with full metadata
+     */
+    public function generateCandidates(
+        array $pool,
+        MatchSuggestionRequestDTO $request,
+        array $userDataMap,
+    ): array {
+        $settings = $request->settings;
+
+        // Split main and backup pools
+        [$mainPool, $backupPool] = $this->splitMainAndBackupPool($pool);
+
+        $candidates = [];
+
+        // STEP 1: Generate same-gender candidates from main pool
+        $sameGenderCandidates = $this->generateSameGenderCandidates($mainPool, $request, $userDataMap);
+        $candidates = array_merge($candidates, $sameGenderCandidates);
+
+        // STEP 2: If no same-gender, try mixed-gender from main pool
+        $hasSameGender = !empty($sameGenderCandidates);
+        if (!$hasSameGender) {
+            $mixedCandidates = $this->generateMixedGenderCandidates($mainPool, $request, $userDataMap);
+            $candidates = array_merge($candidates, $mixedCandidates);
+        }
+
+        // STEP 3: If still no candidates, try with backup
+        if (empty($candidates) && $settings->organizer_as_backup && !empty($backupPool)) {
+            $extendedPool = array_merge($mainPool, $backupPool);
+
+            $sameGenderCandidates = $this->generateSameGenderCandidates($extendedPool, $request, $userDataMap);
+            $candidates = array_merge($candidates, $sameGenderCandidates);
+
+            if (empty($candidates)) {
+                $mixedCandidates = $this->generateMixedGenderCandidates($extendedPool, $request, $userDataMap);
+                $candidates = array_merge($candidates, $mixedCandidates);
+            }
+        }
+
+        // STEP 4: Sort by business priority
+        usort($candidates, fn($a, $b) => $this->compareCandidates($a, $b));
+
+        // STEP 5: Deduplicate by signature
+        $seen = [];
+        $unique = [];
+        foreach ($candidates as $c) {
+            $key = implode(',', $c['signature']);
+            if (!isset($seen[$key])) {
+                $seen[$key] = true;
+                $unique[] = $c;
+            }
+        }
+
+        return $unique;
+    }
+
+    /**
+     * Generate same-gender candidate combinations.
+     * Priority: 4 same tier > 4 from adjacent tiers > mixed tiers
+     */
+    private function generateSameGenderCandidates(
+        array $pool,
+        MatchSuggestionRequestDTO $request,
+        array $userDataMap,
+    ): array {
+        $candidates = [];
+
+        // Separate by gender
+        $males = array_values(array_filter($pool, fn($p) => $p->gender === User::MALE));
+        $females = array_values(array_filter($pool, fn($p) => $p->gender === User::FEMALE));
+
+        // Try males first (higher priority), then females
+        foreach ([$males, $females] as $genderPool) {
+            if (count($genderPool) < 4) {
+                continue;
+            }
+
+            // Generate same-tier combinations (highest priority)
+            $sameTier = $this->generateSameTierCombinations($genderPool, $request, $userDataMap);
+            $candidates = array_merge($candidates, $sameTier);
+
+            // If no same-tier, generate adjacent-tier combinations
+            if (empty($sameTier)) {
+                $adjacentTier = $this->generateAdjacentTierCombinations($genderPool, $request, $userDataMap);
+                $candidates = array_merge($candidates, $adjacentTier);
+            }
+
+            // If still nothing, generate any 4-player combinations (lowest priority)
+            if (empty($sameTier) && empty($adjacentTier)) {
+                $anyTier = $this->generateAnyTierCombinations($genderPool, $request, $userDataMap);
+                $candidates = array_merge($candidates, $anyTier);
+            }
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * Generate mixed-gender candidate combinations.
+     * Requires exactly 2M + 2F.
+     */
+    private function generateMixedGenderCandidates(
+        array $pool,
+        MatchSuggestionRequestDTO $request,
+        array $userDataMap,
+    ): array {
+        $candidates = [];
+
+        // Separate by gender
+        $males = array_values(array_filter($pool, fn($p) => $p->gender === User::MALE));
+        $females = array_values(array_filter($pool, fn($p) => $p->gender === User::FEMALE));
+
+        // Need at least 2 of each
+        if (count($males) < 2 || count($females) < 2) {
+            return $candidates;
+        }
+
+        // Generate combinations: pick 2 males and 2 females, then pair teams
+        $maleCombos = $this->generateCombinations($males, 2);
+        $femaleCombos = $this->generateCombinations($females, 2);
+
+        foreach ($maleCombos as $malePair) {
+            foreach ($femaleCombos as $femalePair) {
+                $players = array_merge($malePair, $femalePair);
+
+                // Validate mixed-gender requirements
+                if (!$this->isValidMixedGenderCandidate($players)) {
+                    continue;
+                }
+
+                // Validate tier gap
+                if (!$this->isValidTierGap($players)) {
+                    continue;
+                }
+
+                // Find best team pairing
+                $pairing = $this->findOptimalPairing($players, $userDataMap, $request->settings);
+                if (!$pairing) {
+                    continue;
+                }
+
+                // Build candidate with metadata
+                $tierGap = $this->calculateMaxTierGap($players);
+                $tierMode = $this->hasSameTierCombination($players) ? 'same_tier' :
+                             ($this->hasAdjacentTierCombination($players) ? 'adjacent_tier' : 'mixed_tier');
+                $candidate = $this->buildCandidateMetadata(
+                    $players,
+                    $pairing['team_a'],
+                    $pairing['team_b'],
+                    $request,
+                    $userDataMap,
+                    $tierMode,
+                    $tierGap,
+                );
+                $candidates[] = $candidate;
+            }
+        }
+
+        // Sort by business priority
+        usort($candidates, fn($a, $b) => $this->compareCandidates($a, $b));
+
+        return $candidates;
+    }
+
+    /**
+     * Generate all C(n, k) combinations from array.
+     */
+    private function generateCombinations(array $array, int $k): array
+    {
+        $results = [];
+        $n = count($array);
+
+        if ($k <= 0 || $k > $n) {
+            return $results;
+        }
+
+        // For small arrays, generate all combinations
+        if ($n <= 10) {
+            $this->combinationsRecursive($array, $k, 0, [], $results);
+            return $results;
+        }
+
+        // For larger arrays, limit by tier grouping first
+        // Group by tier to reduce combinations
+        $byTier = [];
+        foreach ($array as $item) {
+            $key = strtolower($item->tier->name);
+            $byTier[$key][] = $item;
+        }
+
+        // For each tier with enough players, generate combinations within that tier
+        foreach ($byTier as $tierKey => $tierItems) {
+            if (count($tierItems) >= $k) {
+                $this->combinationsRecursive($tierItems, $k, 0, [], $results);
+            }
+        }
+
+        // Also try combinations across adjacent tiers
+        $tierKeys = array_keys($byTier);
+        foreach ($tierKeys as $i => $key1) {
+            foreach (array_slice($tierKeys, $i + 1) as $key2) {
+                $combined = array_merge($byTier[$key1], $byTier[$key2]);
+                if (count($combined) >= $k) {
+                    $this->combinationsRecursive($combined, $k, 0, [], $results);
+                }
+            }
+        }
+
+        return $results;
+    }
+
+    private function combinationsRecursive(array $array, int $k, int $start, array $current, array &$results): void
+    {
+        if (count($current) === $k) {
+            $results[] = $current;
+            return;
+        }
+
+        for ($i = $start; $i < count($array); $i++) {
+            $remaining = $k - count($current) - 1;
+            if ($remaining > count($array) - $i - 1) {
+                return;
+            }
+            $current[] = $array[$i];
+            $this->combinationsRecursive($array, $k, $i + 1, $current, $results);
+            array_pop($current);
+        }
+    }
+
+    /**
+     * Generate same-tier 4-player combinations.
+     * E.g., 4 red males.
+     */
+    private function generateSameTierCombinations(
+        array $pool,
+        MatchSuggestionRequestDTO $request,
+        array $userDataMap,
+    ): array {
+        $candidates = [];
+
+        // Group by tier
+        $byTier = [];
+        foreach ($pool as $p) {
+            $key = strtolower($p->tier->name);
+            $byTier[$key][] = $p;
+        }
+
+        // Sort tiers by priority (highest first)
+        uksort($byTier, fn($a, $b) => PlayerTier::from($b)->priority() - PlayerTier::from($a)->priority());
+
+        foreach ($byTier as $tierKey => $players) {
+            if (count($players) < 4) {
+                continue;
+            }
+
+            // Generate C(n, 4) combinations for this tier
+            $combos = $this->generateCombinations($players, 4);
+
+            foreach ($combos as $players) {
+                // Find best team pairing
+                $pairing = $this->findOptimalPairing($players, $userDataMap, $request->settings);
+                if (!$pairing) {
+                    continue;
+                }
+
+                $candidate = $this->buildCandidateMetadata(
+                    $players,
+                    $pairing['team_a'],
+                    $pairing['team_b'],
+                    $request,
+                    $userDataMap,
+                    'same_tier',
+                    0,
+                );
+                $candidates[] = $candidate;
+            }
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * Generate 4-player combinations from adjacent tiers.
+     * E.g., 2 red + 2 yellow.
+     */
+    private function generateAdjacentTierCombinations(
+        array $pool,
+        MatchSuggestionRequestDTO $request,
+        array $userDataMap,
+    ): array {
+        $candidates = [];
+
+        // Group by tier
+        $byTier = [];
+        foreach ($pool as $p) {
+            $key = strtolower($p->tier->name);
+            $byTier[$key][] = $p;
+        }
+
+        // Sort tiers by priority
+        $tierKeys = array_keys($byTier);
+        usort($tierKeys, fn($a, $b) => PlayerTier::from($b)->priority() - PlayerTier::from($a)->priority());
+
+        // Try adjacent tier pairs
+        for ($i = 0; $i < count($tierKeys) - 1; $i++) {
+            $tier1 = $tierKeys[$i];
+            $tier2 = $tierKeys[$i + 1];
+
+            // Check if tiers are adjacent
+            $t1 = PlayerTier::from($tier1);
+            $t2 = PlayerTier::from($tier2);
+            if (!PlayerTier::isAdjacent($t1, $t2)) {
+                continue;
+            }
+
+            $players1 = $byTier[$tier1] ?? [];
+            $players2 = $byTier[$tier2] ?? [];
+
+            // Need at least 2 from each tier
+            if (count($players1) < 2 || count($players2) < 2) {
+                continue;
+            }
+
+            // Generate 2+2 combinations
+            $combos1 = $this->generateCombinations($players1, 2);
+            $combos2 = $this->generateCombinations($players2, 2);
+
+            foreach ($combos1 as $c1) {
+                foreach ($combos2 as $c2) {
+                    $players = array_merge($c1, $c2);
+
+                    // Validate tier gap
+                    if (!$this->isValidTierGap($players)) {
+                        continue;
+                    }
+
+                    $pairing = $this->findOptimalPairing($players, $userDataMap, $request->settings);
+                    if (!$pairing) {
+                        continue;
+                    }
+
+                    $candidate = $this->buildCandidateMetadata(
+                        $players,
+                        $pairing['team_a'],
+                        $pairing['team_b'],
+                        $request,
+                        $userDataMap,
+                        'adjacent_tier',
+                        PlayerTier::tierGap($t1, $t2),
+                    );
+                    $candidates[] = $candidate;
+                }
+            }
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * Generate any 4-player combinations (mixed tier, lowest priority).
+     */
+    private function generateAnyTierCombinations(
+        array $pool,
+        MatchSuggestionRequestDTO $request,
+        array $userDataMap,
+    ): array {
+        $candidates = [];
+
+        // Generate C(n, 4) combinations
+        $combos = $this->generateCombinations($pool, 4);
+
+        foreach ($combos as $players) {
+            // Skip if already covered by same-tier or adjacent-tier
+            if ($this->hasSameTierCombination($players)) {
+                continue;
+            }
+            if ($this->hasAdjacentTierCombination($players)) {
+                continue;
+            }
+
+            $pairing = $this->findOptimalPairing($players, $userDataMap, $request->settings);
+            if (!$pairing) {
+                continue;
+            }
+
+            $candidate = $this->buildCandidateMetadata(
+                $players,
+                $pairing['team_a'],
+                $pairing['team_b'],
+                $request,
+                $userDataMap,
+                'mixed_tier',
+                $this->calculateMaxTierGap($players),
+            );
+            $candidates[] = $candidate;
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * Build candidate metadata structure.
+     */
+    private function buildCandidateMetadata(
+        array $players,
+        array $teamA,
+        array $teamB,
+        MatchSuggestionRequestDTO $request,
+        array $userDataMap,
+        string $tierMode = 'mixed_tier',
+        int $tierGap = 0,
+    ): array {
+        $settings = $request->settings;
+
+        // Determine gender mode
+        $genders = array_unique(array_filter(array_column($players, 'gender'), fn($g) => $g !== null));
+        $genderMode = count($genders) === 1 ? 'same_gender' : (count($genders) === 2 ? 'mixed_gender' : 'unknown');
+
+        // Calculate fairness metrics
+        $playedCounts = array_column($players, 'played_count');
+        $waitingRounds = array_column($players, 'waiting_rounds');
+
+        $fairnessMetrics = [
+            'sum_played' => array_sum($playedCounts),
+            'max_played' => max($playedCounts),
+            'min_played' => min($playedCounts),
+            'played_range' => max($playedCounts) - min($playedCounts),
+            'max_waiting' => max($waitingRounds),
+            'min_waiting' => min($waitingRounds),
+            'sum_waiting' => array_sum($waitingRounds),
+        ];
+
+        // Calculate rating gap
+        $ratingGap = $this->calculateBalanceDiff($teamA, $teamB, $userDataMap);
+
+        // Calculate partner penalty
+        $partnerPenalty = $this->calculatePartnerPenalty($players);
+
+        // Check if backup is used
+        $usedBackup = false;
+        foreach ($players as $p) {
+            if ($p->is_backup) {
+                $usedBackup = true;
+                break;
+            }
+        }
+
+        // Build signature
+        $signature = $this->buildCandidateSignature($teamA, $teamB);
+
+        return [
+            'players' => $players,
+            'team_a' => $teamA,
+            'team_b' => $teamB,
+            'gender_mode' => $genderMode,
+            'tier_mode' => $tierMode,
+            'tier_gap' => $tierGap,
+            'rating_gap' => $ratingGap,
+            'fairness_metrics' => $fairnessMetrics,
+            'partner_penalty' => $partnerPenalty,
+            'signature' => $signature,
+            'used_backup' => $usedBackup,
+            'rules_applied' => [],
+        ];
+    }
+
+    /**
+     * Compare two candidates by business priority.
+     * Returns: -1 if a is better, 1 if b is better, 0 if equal
+     */
+    private function compareCandidates(array $a, array $b): int
+    {
+        // PRIORITY 1: Gender Mode
+        // same_gender > mixed_gender > unknown
+        // Lower value = better for sorting (so same_gender comes first)
+        $genderPriority = ['unknown' => 2, 'mixed_gender' => 1, 'same_gender' => 0];
+        $genderCompare = ($genderPriority[$a['gender_mode']] ?? 2) <=> ($genderPriority[$b['gender_mode']] ?? 2);
+        if ($genderCompare !== 0) {
+            return $genderCompare;
+        }
+
+        // PRIORITY 2: Tier Mode
+        // same_tier > adjacent_tier > mixed_tier
+        $tierModePriority = ['mixed_tier' => 2, 'adjacent_tier' => 1, 'same_tier' => 0];
+        $tierModeCompare = ($tierModePriority[$a['tier_mode']] ?? 2) <=> ($tierModePriority[$b['tier_mode']] ?? 2);
+        if ($tierModeCompare !== 0) {
+            return $tierModeCompare;
+        }
+
+        // PRIORITY 3: Tier Gap (smaller is better)
+        if ($a['tier_gap'] !== $b['tier_gap']) {
+            return $a['tier_gap'] <=> $b['tier_gap'];
+        }
+
+        // PRIORITY 4: Team Balance (smaller rating gap is better)
+        if (abs($a['rating_gap']) !== abs($b['rating_gap'])) {
+            return abs($a['rating_gap']) <=> abs($b['rating_gap']);
+        }
+
+        // PRIORITY 5: Fair Play
+        $fmA = $a['fairness_metrics'];
+        $fmB = $b['fairness_metrics'];
+
+        // 5a: Sum played (lower is better)
+        if ($fmA['sum_played'] !== $fmB['sum_played']) {
+            return $fmA['sum_played'] <=> $fmB['sum_played'];
+        }
+
+        // 5b: Played range (smaller is better)
+        if ($fmA['played_range'] !== $fmB['played_range']) {
+            return $fmA['played_range'] <=> $fmB['played_range'];
+        }
+
+        // 5c: Min waiting rounds (higher is better)
+        if ($fmA['min_waiting'] !== $fmB['min_waiting']) {
+            return $fmB['min_waiting'] <=> $fmA['min_waiting'];
+        }
+
+        // PRIORITY 6: Partner History (lower penalty is better)
+        if ($a['partner_penalty'] !== $b['partner_penalty']) {
+            return $a['partner_penalty'] <=> $b['partner_penalty'];
+        }
+
+        // PRIORITY 7: Deterministic tie-break by signature
+        return $a['signature'] <=> $b['signature'];
+    }
+
+    /**
+     * Validate mixed-gender candidate (must be 2M + 2F with symmetric pairing).
+     */
+    private function isValidMixedGenderCandidate(array $players): bool
+    {
+        $maleCount = 0;
+        $femaleCount = 0;
+
+        foreach ($players as $p) {
+            if ($p->gender === User::MALE) {
+                $maleCount++;
+            } elseif ($p->gender === User::FEMALE) {
+                $femaleCount++;
+            }
+        }
+
+        // Must be exactly 2M + 2F
+        return $maleCount === 2 && $femaleCount === 2;
+    }
+
+    /**
+     * Validate tier gap constraint.
+     * All players must be within MAX_TIER_GAP of each other.
+     */
+    private function isValidTierGap(array $players): bool
+    {
+        if (count($players) < 2) {
+            return true;
+        }
+
+        $tiers = array_column($players, 'tier');
+        $minPriority = PHP_INT_MAX;
+        $maxPriority = PHP_INT_MIN;
+
+        foreach ($tiers as $tier) {
+            $priority = $tier->priority();
+            $minPriority = min($minPriority, $priority);
+            $maxPriority = max($maxPriority, $priority);
+        }
+
+        return ($maxPriority - $minPriority) <= PlayerTier::MAX_TIER_GAP;
+    }
+
+    /**
+     * Calculate maximum tier gap in a group of players.
+     */
+    private function calculateMaxTierGap(array $players): int
+    {
+        if (count($players) < 2) {
+            return 0;
+        }
+
+        $tiers = array_column($players, 'tier');
+        $priorities = array_map(fn($t) => $t->priority(), $tiers);
+
+        return max($priorities) - min($priorities);
+    }
+
+    /**
+     * Check if players form a same-tier combination.
+     */
+    private function hasSameTierCombination(array $players): bool
+    {
+        $tiers = array_map(fn($p) => $p->tier->value, $players);
+        $uniqueTiers = array_unique($tiers);
+        return count($uniqueTiers) === 1;
+    }
+
+    /**
+     * Check if players form an adjacent-tier combination.
+     */
+    private function hasAdjacentTierCombination(array $players): bool
+    {
+        $tiers = array_map(fn($p) => $p->tier->value, $players);
+        $uniqueTierValues = array_unique($tiers);
+
+        if (count($uniqueTierValues) !== 2) {
+            return false;
+        }
+
+        $tierValues = array_values($uniqueTierValues);
+        $tier1 = PlayerTier::from($tierValues[0]);
+        $tier2 = PlayerTier::from($tierValues[1]);
+        return PlayerTier::isAdjacent($tier1, $tier2);
+    }
+
+    /**
+     * Calculate partner repeat penalty for a candidate.
+     */
+    private function calculatePartnerPenalty(array $players): int
+    {
+        $penalty = 0;
+        $userIds = array_column($players, 'user_id');
+
+        foreach ($players as $p) {
+            if (empty($p->partner_ids)) {
+                continue;
+            }
+
+            foreach ($p->partner_ids as $partnerId) {
+                if (in_array($partnerId, $userIds)) {
+                    $penalty++;
+                }
+            }
+        }
+
+        // Each partnership counted twice (once per player), so divide by 2
+        return (int) floor($penalty / 2);
     }
 
     /**
@@ -1378,6 +1975,9 @@ class SchedulerService
      * The anchor (queue[0]) MUST be in any match returned.
      * Only recursively skips anchor when they genuinely cannot pair with anyone.
      *
+     * @deprecated Use generateCandidates() instead. This method uses anchor
+     * constraint which can lead to suboptimal match selection.
+     *
      * @param array $queue Fairness-sorted players (PlayerContextDTO[])
      * @param MatchSuggestionRequestDTO $request
      * @param array $userDataMap
@@ -1481,7 +2081,10 @@ class SchedulerService
     }
 
     /**
-     * Same-gender match within window, anchor MUST be included.
+     * Same-gender match within window, anchor MUST be included — DEPRECATED.
+     *
+     * @deprecated Use generateSameGenderCandidates() instead.
+     *
      * Only picks same-gender if it doesn't violate fairness:
      * - If opposite gender has 2+ players and has players with lower played_count
      *   than the anchor's same-gender group, mixed is fairer.
@@ -1557,7 +2160,9 @@ class SchedulerService
     }
 
     /**
-     * Mixed-gender balanced match (1M+1F vs 1M+1F), anchor MUST be included.
+     * Mixed-gender balanced match (1M+1F vs 1M+1F), anchor MUST be included — DEPRECATED.
+     *
+     * @deprecated Use generateMixedGenderCandidates() instead.
      */
     private function tryMixedGenderBalancedIncluding(
         array $window,
@@ -1598,7 +2203,11 @@ class SchedulerService
     }
 
     /**
-     * Within same-gender pool, pick 4 players by color/tier.
+     * Within same-gender pool, pick 4 players by color/tier — DEPRECATED.
+     *
+     * @deprecated Use generateSameTierCombinations() or generateAdjacentTierCombinations() instead.
+     * This method uses array_slice which can miss optimal combinations.
+     *
      * Priority: 4 same tier (anchor's tier first) > top 4 by fairness order.
      * If anchor's tier doesn't have 4+, falls back to fairness-ordered top 4.
      * Delegates team split to findOptimalPairing for VN DUPR balance.
