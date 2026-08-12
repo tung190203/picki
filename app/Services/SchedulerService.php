@@ -168,7 +168,9 @@ class SchedulerService
      */
     public function buildCandidateSignature(array $teamA, array $teamB): array
     {
-        $ids = array_merge(array_column($teamA, 'user_id'), array_column($teamB, 'user_id'));
+        // Use mini_participant_id for both guests and non-guests so signature
+        // is stable across renders (guest has null user_id).
+        $ids = array_merge(array_column($teamA, 'mini_participant_id'), array_column($teamB, 'mini_participant_id'));
         $ids = array_values(array_map('intval', array_filter($ids, fn($v) => $v !== null)));
         sort($ids);
         return $ids;
@@ -763,7 +765,16 @@ class SchedulerService
             return $fmA['played_range'] <=> $fmB['played_range'];
         }
 
-        // 5c: Min waiting rounds (higher is better)
+        // 5c: Max waiting rounds (higher is better - players who waited longest)
+        // Use MAX (not min) so that any candidate containing a long-waiting player
+        // is preferred - this prevents guest/long-waiting players from being starved.
+        $maxWaitA = max($fmA['max_waiting'] ?? 0, $fmA['min_waiting'] ?? 0);
+        $maxWaitB = max($fmB['max_waiting'] ?? 0, $fmB['min_waiting'] ?? 0);
+        if ($maxWaitA !== $maxWaitB) {
+            return $maxWaitB <=> $maxWaitA;
+        }
+
+        // 5d: Min waiting rounds (higher is better - tiebreaker)
         if ($fmA['min_waiting'] !== $fmB['min_waiting']) {
             return $fmB['min_waiting'] <=> $fmA['min_waiting'];
         }
@@ -817,7 +828,20 @@ class SchedulerService
             $maxPriority = max($maxPriority, $priority);
         }
 
-        return ($maxPriority - $minPriority) <= PlayerTier::MAX_TIER_GAP;
+        $gap = $maxPriority - $minPriority;
+
+        // Standard limit. If exceeded, still allow when pool is small (<= 4 players)
+        // or when all players are guests (last-resort case at the end of a tournament).
+        if ($gap <= PlayerTier::MAX_TIER_GAP) {
+            return true;
+        }
+
+        // Relax rule: end-of-tournament fallback when only 4 players remain.
+        if (count($players) === 4) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -1353,8 +1377,13 @@ class SchedulerService
         $genderCounts = $this->countGenders($players);
         
         // Try all permutations
-        $userIds = array_column($players, 'user_id');
-        $permutations = $this->getPermutations($userIds);
+        // Use mini_participant_id so guest players (null user_id) are uniquely
+        // identifiable in the permutation space.
+        $ids = array_map(
+            fn($p) => $p->user_id ?? ('m_' . $p->mini_participant_id),
+            $players
+        );
+        $permutations = $this->getPermutations($ids);
         
         $bestPairing = null;
         $bestTierScore = -1.0;      // Tier score cao nhất tìm được
@@ -1471,22 +1500,21 @@ class SchedulerService
         $femalesInA = count(array_filter($teamA, fn($p) => $p->gender === User::FEMALE));
         $femalesInB = count(array_filter($teamB, fn($p) => $p->gender === User::FEMALE));
 
-        // If we have mixed gender (both male and female in match), require symmetric distribution
+        // If we have mixed gender (both male and female in match), require symmetric distribution.
         if ($hasMale && $hasFemale) {
-            // Mixed must be symmetric: e.g., 1M+1F vs 1M+1F
             return $malesInA === $femalesInA && $malesInB === $femalesInB;
         }
 
-        // Same-gender match: both teams must have the same gender composition
-        // Reject asymmetric pairings like all-male vs all-female
+        // When only males (with possibly unknown-gender players), require symmetric male counts.
+        // Exception: if one team has no males, the other team must have at most count(teamA)
+        // males - covers the end-of-tournament case where a single male must be placed.
         if ($hasMale && !$hasFemale) {
-            // All-male match: both teams must be all-male
-            return $malesInA === count($teamA) && $malesInB === count($teamB);
+            // Either symmetric, or one-sided is acceptable when small.
+            return $malesInA === $malesInB || ($malesInA + $malesInB) <= min(count($teamA), count($teamB));
         }
 
         if ($hasFemale && !$hasMale) {
-            // All-female match: both teams must be all-female
-            return $femalesInA === count($teamA) && $femalesInB === count($teamB);
+            return $femalesInA === $femalesInB || ($femalesInA + $femalesInB) <= min(count($teamA), count($teamB));
         }
 
         // Unknown gender only - allow
@@ -1631,15 +1659,38 @@ class SchedulerService
      */
     private function getPlayersByIds(array $userIds, array $players): array
     {
+        // Map by either user_id (for non-guests) or mini_participant_id (for guests
+        // whose user_id is null).
+        // - Keys prefix 'u_' for real user ids
+        // - Keys prefix 'g_' for mini_participant_id fallbacks (guests)
         $playerMap = [];
         foreach ($players as $p) {
-            $playerMap[$p->user_id] = $p;
+            if ($p->user_id !== null) {
+                $playerMap['u_' . $p->user_id] = $p;
+            }
+            $playerMap['g_' . $p->mini_participant_id] = $p;
         }
 
         $result = [];
-        foreach ($userIds as $userId) {
-            if (isset($playerMap[$userId])) {
-                $result[] = $playerMap[$userId];
+        $seen = [];
+        foreach ($userIds as $id) {
+            $p = null;
+            if ($id !== null && isset($playerMap['u_' . $id])) {
+                $p = $playerMap['u_' . $id];
+            } elseif ($id !== null && is_string($id) && str_starts_with($id, 'm_')) {
+                // Handle "m_{mini_pid}" strings produced by permutations when guest
+                // has no real user_id.
+                $miniPid = (int) substr($id, 2);
+                if (isset($playerMap['g_' . $miniPid])) {
+                    $p = $playerMap['g_' . $miniPid];
+                }
+            } elseif (is_int($id) && isset($playerMap['g_' . $id])) {
+                $p = $playerMap['g_' . $id];
+            }
+
+            if ($p !== null && !isset($seen[$p->mini_participant_id])) {
+                $result[] = $p;
+                $seen[$p->mini_participant_id] = true;
             }
         }
 
@@ -1678,7 +1729,7 @@ class SchedulerService
         $userData = $userDataMap[$player->user_id] ?? ['visibility' => 'open', 'sports' => []];
 
         return new TeamMatchMemberDTO(
-            id: $player->mini_participant_id,
+            mini_participant_id: $player->mini_participant_id,
             user_id: $player->user_id,
             team_id: null,
             full_name: $player->full_name,
