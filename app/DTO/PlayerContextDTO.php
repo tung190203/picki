@@ -31,6 +31,7 @@ class PlayerContextDTO
         public readonly int $played_count,
         public readonly int $consecutive_count,
         public readonly int $waiting_rounds,
+        public readonly ?int $last_played_round,
 
         // VN DUPR Score (from DB)
         public readonly ?float $vndupr_score,
@@ -72,6 +73,7 @@ class PlayerContextDTO
             played_count: $data['played_count'] ?? 0,
             consecutive_count: $data['consecutive_count'] ?? 0,
             waiting_rounds: $data['waiting_rounds'] ?? 0,
+            last_played_round: $data['last_played_round'] ?? null,
             vndupr_score: $data['vndupr_score'] ?? null,
             partner_ids: $data['partner_ids'] ?? [],
             is_checked_in: $data['is_checked_in'] ?? false,
@@ -97,6 +99,7 @@ class PlayerContextDTO
             'played_count' => $this->played_count,
             'consecutive_count' => $this->consecutive_count,
             'waiting_rounds' => $this->waiting_rounds,
+            'last_played_round' => $this->last_played_round,
             'vndupr_score' => $this->vndupr_score,
             'partner_ids' => $this->partner_ids,
             'is_checked_in' => $this->is_checked_in,

@@ -344,6 +344,7 @@ class MatchSuggestionService
         $playedCounts = $this->matchHistoryRepository->getPlayedCounts($miniTournamentId);
         $consecutiveCounts = $this->matchHistoryRepository->getConsecutiveCounts($miniTournamentId);
         $waitingRounds = $this->matchHistoryRepository->getWaitingRounds($miniTournamentId);
+        $lastPlayedRounds = $this->matchHistoryRepository->getLastPlayedRounds($miniTournamentId);
         $partnerHistory = $this->matchHistoryRepository->getPartnerHistory($miniTournamentId);
         $playingParticipants = $this->matchHistoryRepository->getPlayingParticipants($miniTournamentId);
 
@@ -391,6 +392,7 @@ class MatchSuggestionService
                 played_count: $userId ? ($playedCounts[$userId] ?? 0) : 0,
                 consecutive_count: $userId ? ($consecutiveCounts[$userId] ?? 0) : 0,
                 waiting_rounds: $userId ? ($waitingRounds[$userId] ?? 0) : 0,
+                last_played_round: $userId ? ($lastPlayedRounds[$userId] ?? null) : null,
                 vndupr_score: $vnduprScore,
                 partner_ids: $partnerIds,
                 is_checked_in: $participant->checked_in_at !== null,

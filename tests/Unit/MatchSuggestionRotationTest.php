@@ -264,6 +264,7 @@ class MatchSuggestionRotationTest extends TestCase
             played_count: $row['played'] ?? $row['played_count'] ?? 0,
             consecutive_count: 0,
             waiting_rounds: 0,
+            last_played_round: $row['last_played_round'] ?? null,
             vndupr_score: null,
             partner_ids: [],
             is_checked_in: true,
