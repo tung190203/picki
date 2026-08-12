@@ -32,7 +32,7 @@ class SchedulerService
         $messages = [];
         $settings = $request->settings;
 
-        // Build eligible player pool
+        // Build eligible player pool (no shuffle — fairness is done after sort)
         $pool = $this->buildPool($players, $request, $needsPaymentCheck);
 
         if (count($pool) < 4) {
@@ -40,39 +40,54 @@ class SchedulerService
             return $this->createInsufficientPlayersResponse($seed, $pool, $rulesApplied, $messages, $userDataMap);
         }
 
-        $evaluation = $this->enumerateCandidates($pool, $request, $userDataMap);
+        // Determine current round for fairness sort tie-breaking
+        $currentRound = $this->resolveCurrentRound($pool);
 
-        if (empty($evaluation['candidates'])) {
-            $messages[] = 'No gender-compatible groups found';
-            $messages[] = 'No valid match found after evaluating all groups';
-            return $this->createInsufficientPlayersResponse($seed, $pool, $rulesApplied, $messages, $userDataMap);
+        // Sort by fairness priority — played_count is primary, NOT shuffled by seed
+        $sortedPool = $this->sortByFairnessPriority($pool, $currentRound, $settings->fair_play ? false : $seed);
+
+        // Expanding window with anchor constraint
+        $match = $this->expandingWindowSearch($sortedPool, $request, $userDataMap);
+
+        if ($match === null) {
+            $messages[] = 'No valid match found';
+            return $this->createInsufficientPlayersResponse($seed, $sortedPool, $rulesApplied, $messages, $userDataMap);
         }
 
-        $bestCandidate = $evaluation['candidates'][0];
-        $rulesApplied = array_merge($rulesApplied, $bestCandidate['rules_applied']);
+        $teamA = $match['team_a'];
+        $teamB = $match['team_b'];
+        $usedBackup = $match['used_backup'] ?? false;
+
+        // Balance teams using VN DUPR via findOptimalPairing (keeps prefer_high_tier_match)
+        $pairing = $this->findOptimalPairing(array_merge($teamA, $teamB), $userDataMap, $settings);
+        if ($pairing) {
+            $teamA = $pairing['team_a'];
+            $teamB = $pairing['team_b'];
+            $rulesApplied = array_merge($rulesApplied, $pairing['rules_applied'] ?? []);
+        }
 
         $bestMatch = $this->buildMatchDTO(
-            $bestCandidate['team_a'],
-            $bestCandidate['team_b'],
+            $teamA,
+            $teamB,
             $userDataMap,
-            $bestCandidate['is_high_tier']
+            $this->isHighTierMatch($teamA, $teamB),
         );
 
-        $selectedIds = array_column($pool, 'user_id');
-        $waiting = $this->buildWaitingList($pool, $selectedIds);
+        $selectedIds = array_column(array_merge($teamA, $teamB), 'user_id');
+        $waiting = $this->buildWaitingList($sortedPool, $selectedIds);
         $backup = $this->getBackupIfNeeded($selectedIds, $settings->organizer_as_backup);
-        $statistics = $this->calculateStatistics($bestMatch, $pool, $selectedIds);
+        $statistics = $this->calculateStatistics($bestMatch, $sortedPool, $selectedIds);
 
         return new MatchSuggestionResponseDTO(
             match: $bestMatch,
             waiting_players: $waiting,
-            backup_used: $backup !== null,
+            backup_used: $usedBackup,
             backup_player: $backup,
             statistics: $statistics,
             seed: $seed,
             rules_applied: array_values(array_unique($rulesApplied)),
             messages: $messages,
-            total_candidates: count($evaluation['candidates']),
+            total_candidates: 1,
             selected_offset: 0,
             wrapped: false,
         );
@@ -97,58 +112,87 @@ class SchedulerService
         array $userDataMap = [],
     ): array {
         $settings = $request->settings;
+        $currentRound = $this->resolveCurrentRound($pool);
 
-        $genderGroups = $this->findGenderCompatibleGroups($pool);
+        [$mainPool, $backupPool] = $this->splitMainAndBackupPool($pool);
 
-        // Collect all valid (score-ranked) candidates across groups.
-        $candidates = [];
-        $genderGroupCount = count($genderGroups);
-        // Track signatures so that the same 4-user-id combo is never returned
-        // twice even when it would be produced by more than one gender group.
-        $seenSignatures = [];
+        $queuesToTry = [];
+        $mainQueue = $settings->fair_play
+            ? $this->sortByFairnessPriority($mainPool, $currentRound, false)
+            : $this->shuffleWithSeed($mainPool, $request->seed);
+        $queuesToTry[] = ['queue' => $mainQueue, 'backupStartsAt' => PHP_INT_MAX];
 
-        foreach ($genderGroups as $groupIdx => $group) {
-            $selected = $this->selectPlayers($group, $request);
-
-            if (count($selected) < 4) {
-                continue;
-            }
-
-            $pairing = $this->findOptimalPairing($selected, $userDataMap, $settings);
-
-            if (!$pairing) {
-                continue;
-            }
-
-            $score = $this->calculateMatchScore($pairing['team_a'], $pairing['team_b'], $settings, $userDataMap);
-
-            // Earlier groups (higher priority) get a meaningful bonus so the
-            // "best" combo overall aligns with the gender priority policy.
-            $genderPriorityBonus = ($genderGroupCount - $groupIdx) * 100;
-            $adjustedScore = $score + $genderPriorityBonus;
-
-            $signature = $this->buildCandidateSignature($pairing['team_a'], $pairing['team_b']);
-
-            // Dedupe across groups: same 4-player combo should only appear once.
-            if (isset($seenSignatures[$signatureKey = implode(',', $signature)])) {
-                continue;
-            }
-            $seenSignatures[$signatureKey] = true;
-
-            $candidates[] = [
-                'team_a' => $pairing['team_a'],
-                'team_b' => $pairing['team_b'],
-                'is_high_tier' => $pairing['is_high_tier'],
-                'rules_applied' => $pairing['rules_applied'] ?? [],
-                'score' => $score,
-                'gender_priority_bonus' => $genderPriorityBonus,
-                'adjusted_score' => $adjustedScore,
-                'signature' => $signature,
+        if ($settings->organizer_as_backup && count($backupPool) > 0) {
+            $backupQueue = $settings->fair_play
+                ? $this->sortByFairnessPriority($backupPool, $currentRound, false)
+                : $this->shuffleWithSeed($backupPool, $request->seed);
+            $queuesToTry[] = [
+                'queue' => array_merge($mainQueue, $backupQueue),
+                'backupStartsAt' => count($mainQueue),
             ];
         }
 
-        // Sort descending by adjusted score. Stable sort by score then signature
-        // for determinism when several candidates tie.
+        $candidates = [];
+        $seenSignatures = [];
+
+        foreach ($queuesToTry as $queueSpec) {
+            $queue = $queueSpec['queue'];
+            $backupStartsAt = $queueSpec['backupStartsAt'];
+            $n = count($queue);
+
+            for ($anchorIdx = 0; $anchorIdx < $n; $anchorIdx++) {
+                $queueSlice = array_slice($queue, $anchorIdx);
+                $adjustedBackupStarts = $backupStartsAt <= $anchorIdx
+                    ? PHP_INT_MAX
+                    : $backupStartsAt - $anchorIdx;
+
+                $selection = $this->expandingWindowSearch(
+                    $queueSlice,
+                    $request,
+                    $userDataMap,
+                    $adjustedBackupStarts,
+                );
+
+                if (!$selection) {
+                    continue;
+                }
+
+                $pairing = $this->findOptimalPairing(array_merge($selection['team_a'], $selection['team_b']), $userDataMap, $settings);
+                if (!$pairing) {
+                    continue;
+                }
+
+                $signature = $this->buildCandidateSignature($pairing['team_a'], $pairing['team_b']);
+                $signatureKey = implode(',', $signature);
+                if (isset($seenSignatures[$signatureKey])) {
+                    continue;
+                }
+                $seenSignatures[$signatureKey] = true;
+
+                $score = $this->calculateMatchScore($pairing['team_a'], $pairing['team_b'], $settings, $userDataMap);
+                $anchorBonus = ($n - $anchorIdx) * 1000;
+
+                $rulesApplied = $pairing['rules_applied'] ?? [];
+                if ($settings->fair_play) {
+                    $rulesApplied[] = 'fair_play';
+                }
+                if ($selection['used_backup']) {
+                    $rulesApplied[] = 'organizer_as_backup';
+                }
+
+                $candidates[] = [
+                    'team_a' => $pairing['team_a'],
+                    'team_b' => $pairing['team_b'],
+                    'is_high_tier' => $pairing['is_high_tier'],
+                    'rules_applied' => array_values(array_unique($rulesApplied)),
+                    'score' => $score,
+                    'gender_priority_bonus' => $anchorBonus,
+                    'adjusted_score' => $score + $anchorBonus,
+                    'signature' => $signature,
+                ];
+            }
+        }
+
         usort($candidates, function ($a, $b) {
             if ($a['adjusted_score'] !== $b['adjusted_score']) {
                 return $b['adjusted_score'] <=> $a['adjusted_score'];
@@ -229,9 +273,6 @@ class SchedulerService
             $pool = array_filter($pool, fn($p) => !in_array($p->user_id, $request->exclude_player_ids));
             $pool = array_values($pool);
         }
-
-        // Shuffle with seed for determinism
-        $pool = $this->shuffleWithSeed($pool, $request->seed);
 
         return $pool;
     }
@@ -1229,5 +1270,402 @@ class SchedulerService
         }
 
         return $selected;
+    }
+
+    // =========================================================================
+    // v2/v3: Helpers for expanding window
+    // =========================================================================
+
+    /**
+     * Resolve the current round number from the player pool.
+     */
+    private function resolveCurrentRound(array $pool): int
+    {
+        $currentRound = 1;
+        foreach ($pool as $p) {
+            if ($p->last_played_round !== null) {
+                $currentRound = max($currentRound, $p->last_played_round + 1);
+            }
+        }
+        return $currentRound;
+    }
+
+    /**
+     * Split pool into main players and backup (is_backup=true) players.
+     *
+     * @return array{0: PlayerContextDTO[], 1: PlayerContextDTO[]}
+     */
+    private function splitMainAndBackupPool(array $pool): array
+    {
+        $main = [];
+        $backup = [];
+        foreach ($pool as $p) {
+            if ($p->is_backup) {
+                $backup[] = $p;
+            } else {
+                $main[] = $p;
+            }
+        }
+        return [$main, $backup];
+    }
+
+    // =========================================================================
+    // v2/v3: Expanding Priority Window — Fair Match Suggester
+    // Priority: played_count > last_played_round > waiting_rounds > tier
+    // Every match found in a window MUST contain the anchor (queue[0]).
+    // Only skip anchor recursively if they truly cannot be paired with anyone.
+    // =========================================================================
+
+    /**
+     * Sort pool by fairness priority.
+     * Priority: played_count (asc) > not played prev round > rested longer
+     * When fair_play is disabled, shuffle with seed for determinism.
+     *
+     * @param array $players PlayerContextDTO[]
+     * @param int $currentRound Round being scheduled
+     * @param bool $useSeed shuffle deterministically when fair_play is off
+     * @return array PlayerContextDTO[]
+     */
+    /**
+     * Sort pool by fairness priority.
+     * Priority: played_count (asc) > not played prev round > rested longer
+     * When $useSeed is provided (int), shuffles deterministically (for fair_play=off).
+     * When $useSeed is false, sorts by fairness only (no shuffle).
+     *
+     * @param array $players PlayerContextDTO[]
+     * @param int $currentRound Round being scheduled
+     * @param int|false $useSeed shuffle deterministically when int; no shuffle when false
+     * @return array PlayerContextDTO[]
+     */
+    private function sortByFairnessPriority(array $players, int $currentRound, int|false $useSeed = false): array
+    {
+        if ($useSeed !== false && $useSeed !== null) {
+            // Deterministic shuffle — used only when fair_play is off
+            mt_srand((int) $useSeed);
+            $shuffled = $players;
+            for ($i = count($shuffled) - 1; $i > 0; $i--) {
+                $j = mt_rand(0, $i);
+                [$shuffled[$i], $shuffled[$j]] = [$shuffled[$j], $shuffled[$i]];
+            }
+            mt_srand();
+            return $shuffled;
+        }
+
+        usort($players, function ($a, $b) use ($currentRound) {
+            // 1) played_count ascending — fewer matches = higher priority
+            if ($a->played_count !== $b->played_count) {
+                return $a->played_count <=> $b->played_count;
+            }
+
+            // 2) Did NOT play the round immediately before (more rested)
+            $aRested = $a->last_played_round !== null && $a->last_played_round < $currentRound - 1;
+            $bRested = $b->last_played_round !== null && $b->last_played_round < $currentRound - 1;
+            if ($aRested !== $bRested) {
+                return $aRested ? -1 : 1;
+            }
+
+            // 3) Rested longer (played longer ago)
+            $aLast = $a->last_played_round ?? -999;
+            $bLast = $b->last_played_round ?? -999;
+            return ($currentRound - $bLast) <=> ($currentRound - $aLast);
+        });
+
+        return $players;
+    }
+
+    /**
+     * Expanding window search — v3 anchor constraint.
+     * The anchor (queue[0]) MUST be in any match returned.
+     * Only recursively skips anchor when they genuinely cannot pair with anyone.
+     *
+     * @param array $queue Fairness-sorted players (PlayerContextDTO[])
+     * @param MatchSuggestionRequestDTO $request
+     * @param array $userDataMap
+     * @param int $backupStartsAt Index in queue where backup players begin
+     * @param int $anchorOffset Starting offset for anchor (default 0)
+     * @return array|null ['team_a' => PlayerContextDTO[], 'team_b' => PlayerContextDTO[]]
+     */
+    private function expandingWindowSearch(
+        array $queue,
+        MatchSuggestionRequestDTO $request,
+        array $userDataMap,
+        int $backupStartsAt = PHP_INT_MAX,
+        int $anchorOffset = 0,
+    ): ?array {
+        if (count($queue) < 4 || $anchorOffset >= count($queue)) {
+            return null;
+        }
+
+        $anchor = $queue[$anchorOffset];
+        $remainingQueue = array_slice($queue, $anchorOffset);
+        $n = count($remainingQueue);
+
+        $mixedOptions = []; // mixed-gender matches found at each window
+        $sameOption = null; // first valid same-gender match
+        $mixedFairness = []; // fairness scores for each mixed option
+
+        for ($windowSize = 4; $windowSize <= $n; $windowSize++) {
+            $window = array_slice($remainingQueue, 0, $windowSize);
+
+            // Try same-gender first (per spec priority)
+            $sameResult = $this->tryBestSameGenderIncluding($window, $anchor, $request, $userDataMap);
+            if ($sameResult !== null && $sameOption === null) {
+                $sameOption = $sameResult;
+            }
+
+            // Try mixed-gender as fallback (for when same-gender is impossible or blocked)
+            $mixedResult = $this->tryMixedGenderBalancedIncluding($window, $anchor, $request, $userDataMap);
+            if ($mixedResult !== null) {
+                $mixedOptions[] = $mixedResult;
+                $allFour = array_merge($mixedResult['team_a'], $mixedResult['team_b']);
+                $mixedFairness[] = min(array_column($allFour, 'played_count'));
+            }
+        }
+
+        // Decision: prefer match that maximizes fairness.
+        //
+        // Strategy:
+        // 1) If same-gender is possible AND fairer than mixed → pick same-gender
+        // 2) If same-gender is possible AND equally fair → prefer larger window
+        //    (same-gender at window=7 with equal fairness beats mixed at window=5)
+        // 3) If same-gender is impossible → pick mixed (only option)
+        //
+        // Same-gender "fairer" = lower max played_count in the group.
+        $result = null;
+        $sameAll = $sameOption !== null
+            ? array_merge($sameOption['team_a'], $sameOption['team_b'])
+            : [];
+        $sameWorst = $sameOption !== null
+            ? max(array_column($sameAll, 'played_count'))
+            : PHP_INT_MAX;
+
+        $mixedWorst = PHP_INT_MAX;
+        $mixedIdx = -1;
+        foreach ($mixedFairness as $i => $worst) {
+            if ($worst < $mixedWorst) {
+                $mixedWorst = $worst;
+                $mixedIdx = $i;
+            }
+        }
+
+        $mixedOption = $mixedIdx >= 0 ? $mixedOptions[$mixedIdx] : null;
+
+        if ($sameOption !== null && $mixedOption !== null) {
+            if ($sameWorst < $mixedWorst) {
+                $result = $sameOption;
+            } elseif ($sameWorst > $mixedWorst) {
+                $result = $mixedOption;
+            } else {
+                $result = $sameOption;
+            }
+        } elseif ($sameOption !== null) {
+            $result = $sameOption;
+        } elseif ($mixedOption !== null) {
+            $result = $mixedOption;
+        }
+
+        if ($result === null) {
+            return null;
+        }
+
+        $usedBackup = false;
+        foreach (array_merge($result['team_a'], $result['team_b']) as $p) {
+            $idx = $this->indexOf($p, $queue);
+            if ($idx >= $backupStartsAt) {
+                $usedBackup = true;
+            }
+        }
+        $result['used_backup'] = $usedBackup;
+
+        return $result;
+    }
+
+    /**
+     * Same-gender match within window, anchor MUST be included.
+     * Only picks same-gender if it doesn't violate fairness:
+     * - If opposite gender has 2+ players and has players with lower played_count
+     *   than the anchor's same-gender group, mixed is fairer.
+     */
+    private function tryBestSameGenderIncluding(
+        array $window,
+        PlayerContextDTO $anchor,
+        MatchSuggestionRequestDTO $request,
+        array $userDataMap,
+    ): ?array {
+        $sameGender = array_values(array_filter(
+            $window,
+            fn($p) => $p->gender === $anchor->gender,
+        ));
+        $oppGender = array_values(array_filter(
+            $window,
+            fn($p) => $p->gender !== $anchor->gender,
+        ));
+
+        if (count($sameGender) < 4) {
+            return null;
+        }
+
+        // Same-gender fairness gate: skip same-gender if mixed would be fairer.
+        // Only block when mixed can actually be formed (opp >= 2 players) AND
+        // mixed includes more low-played players (maxSamePlayed > minOppPlayed).
+        // This is the original spec logic: same-gender blocked only when it would
+        // include higher-played players than the minimum mixed group has.
+        // Same-gender fairness gate: block same-tier when mixed would be fairer.
+        //
+        // When same-gender and mixed have EQUAL fairness (maxSamePlayed === minOppPlayed),
+        // same-gender wins the tie-break ONLY if it doesn't leave many people behind
+        // (sameGenderCount < 4 means mixed was always going to be chosen anyway, so same-gender
+        // wins naturally. sameGenderCount === 4 is a tie-break in same-gender's favor.
+        // sameGenderCount >= 5 means same-gender would exclude 1+ person → mixed fairer.)
+        //
+        // When mixed is STRICTLY fairer (maxSamePlayed > minOppPlayed), block same-gender
+        // regardless of sameGenderCount.
+        if (count($oppGender) >= 2) {
+            $anchorTierCount = 0;
+            foreach ($sameGender as $p) {
+                if (strtolower($p->tier->name) === strtolower($anchor->tier->name)) {
+                    $anchorTierCount++;
+                }
+            }
+
+            $minOppPlayed = min(array_column($oppGender, 'played_count')) ?: 0;
+            $maxSamePlayed = max(array_column($sameGender, 'played_count')) ?: 0;
+
+            $mixedIsBetter = $maxSamePlayed > $minOppPlayed;
+            $equalFair = $maxSamePlayed === $minOppPlayed;
+            $sameGenderCount = count($sameGender);
+
+            // Block same-gender when mixed is strictly fairer, OR when equal fairness
+            // but same-gender would exclude 1+ people (sameGenderCount >= 5)
+            $sameTierExcludesAnchor = $anchorTierCount === 4;
+            $mixedIsEqual = $anchor->played_count === $minOppPlayed;
+
+            if ($mixedIsBetter || ($equalFair && $sameGenderCount >= 5)) {
+                return null;
+            }
+        }
+
+        // Select 4 same-tier players with anchor validation.
+        // If anchor's tier doesn't have 4+, fall back to fairness-ordered top 4.
+        $result = $this->bestColorSplit($sameGender, $anchor, $request, $userDataMap);
+
+        if ($result !== null) {
+            return $result;
+        }
+
+        return null;
+    }
+
+    /**
+     * Mixed-gender balanced match (1M+1F vs 1M+1F), anchor MUST be included.
+     */
+    private function tryMixedGenderBalancedIncluding(
+        array $window,
+        PlayerContextDTO $anchor,
+        MatchSuggestionRequestDTO $request,
+        array $userDataMap,
+    ): ?array {
+        $sameGender = array_values(array_filter(
+            $window,
+            fn($p) => $p->gender === $anchor->gender,
+        ));
+        $oppGender = array_values(array_filter(
+            $window,
+            fn($p) => $p->gender !== $anchor->gender,
+        ));
+
+        if (count($sameGender) < 2 || count($oppGender) < 2) {
+            return null;
+        }
+
+        // anchor + same-gender partner (next in queue) + 2 opposite-gender
+        $partner = $sameGender[0]->user_id === $anchor->user_id
+            ? $sameGender[1]
+            : $sameGender[0];
+        $o1 = $oppGender[0];
+        $o2 = $oppGender[1];
+
+        // Two ways to split teams — pick the one with better VN DUPR balance
+        $optA = ['team_a' => [$anchor, $o1], 'team_b' => [$partner, $o2]];
+        $optB = ['team_a' => [$anchor, $o2], 'team_b' => [$partner, $o1]];
+
+        $gapA = abs($this->sumRating($optA['team_a'], $userDataMap)
+                    - $this->sumRating($optA['team_b'], $userDataMap));
+        $gapB = abs($this->sumRating($optB['team_a'], $userDataMap)
+                    - $this->sumRating($optB['team_b'], $userDataMap));
+
+        return $gapA <= $gapB ? $optA : $optB;
+    }
+
+    /**
+     * Within same-gender pool, pick 4 players by color/tier.
+     * Priority: 4 same tier (anchor's tier first) > top 4 by fairness order.
+     * If anchor's tier doesn't have 4+, falls back to fairness-ordered top 4.
+     * Delegates team split to findOptimalPairing for VN DUPR balance.
+     */
+    private function bestColorSplit(
+        array $genderPool,
+        PlayerContextDTO $anchor,
+        MatchSuggestionRequestDTO $request,
+        array $userDataMap,
+    ): ?array {
+        $byTier = [];
+        foreach ($genderPool as $p) {
+            $key = strtolower($p->tier->name);
+            $byTier[$key][] = $p;
+        }
+
+        $anchorTierKey = strtolower($anchor->tier->name);
+
+        // 1) Anchor's tier has 4+ → prefer same-tier group (tier gate applied)
+        if (isset($byTier[$anchorTierKey]) && count($byTier[$anchorTierKey]) >= 4) {
+            $chosen = array_slice($byTier[$anchorTierKey], 0, 4);
+            $pairing = $this->findOptimalPairing($chosen, $userDataMap, $request->settings);
+            if ($pairing) {
+                return $pairing;
+            }
+        }
+
+        // 2) Not enough same-tier (or optimal pairing failed) — fairness fallback.
+        //    genderPool is already sorted by played_count, so top 4 includes anchor.
+        if (count($genderPool) >= 4) {
+            $chosen = array_slice($genderPool, 0, 4);
+            $pairing = $this->findOptimalPairing($chosen, $userDataMap, $request->settings);
+            if ($pairing) {
+                return $pairing;
+            }
+        }
+
+        return null;
+    }
+
+    private function sumRating(array $players, array $userDataMap): float
+    {
+        $total = 0.0;
+        foreach ($players as $p) {
+            if ($p->vndupr_score !== null) {
+                $total += $p->vndupr_score;
+            } elseif ($p->user_id && isset($userDataMap[$p->user_id])) {
+                $vndupr = $userDataMap[$p->user_id]['sports'][0]['scores']['vndupr_score'] ?? null;
+                if ($vndupr !== null && is_numeric($vndupr)) {
+                    $total += (float) $vndupr;
+                } else {
+                    $total += $p->tier->score();
+                }
+            } else {
+                $total += $p->tier->score();
+            }
+        }
+        return $total;
+    }
+
+    private function indexOf(PlayerContextDTO $player, array $list): int
+    {
+        foreach ($list as $i => $p) {
+            if ($p->user_id === $player->user_id) {
+                return $i;
+            }
+        }
+        return PHP_INT_MAX;
     }
 }

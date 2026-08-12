@@ -1011,11 +1011,17 @@ class MatchSuggestionTest extends TestCase
     }
 
     /**
-     * PRIORITY 2: When <4 males but 4+ females available, prefer all-female group.
+     * PRIORITY 2 (v2/v3): When anchor is male but only 3M+5F exist,
+     * the expanding window finds mixed (anchor=1M + 3F) with equal fairness.
+     * All-female would require ignoring the anchor (anchor is male).
+     * Result: mixed match with anchor included.
      */
     public function test_priority_2_female_only_when_4plus_females(): void
     {
-        // 3 males, 5 females - all-male not possible, all-female wins
+        // 3 males, 5 females - all-male not possible.
+        // Anchor = Male (ID=1, sorted first by played_count).
+        // Algorithm: anchor must be in match → mixed (1M+3F).
+        // All-female would exclude anchor → not valid under v3 rules.
         $players = $this->createPlayers([
             ['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0],
             ['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0],
@@ -1038,17 +1044,22 @@ class MatchSuggestionTest extends TestCase
             $genderMap[$p->user_id] = $p->gender;
         }
 
-        // All 4 players should be female
-        $allFemales = true;
-        foreach ($result->match->team1->members as $m) {
-            $gender = $genderMap[$m->user_id] ?? null;
-            if ($gender !== User::FEMALE) $allFemales = false;
+        // Anchor (ID=1, Male) must be in the match
+        $matchIds = [];
+        foreach ($result->match->team1->members as $m) $matchIds[] = $m->user_id;
+        foreach ($result->match->team2->members as $m) $matchIds[] = $m->user_id;
+
+        $this->assertContains(1, $matchIds, 'Anchor (Male ID=1) must be in the match');
+
+        // Mixed-gender (2M + 2F) is the only valid mixed option with anchor included.
+        $males = 0;
+        $females = 0;
+        foreach ($matchIds as $id) {
+            if ($genderMap[$id] === User::MALE) $males++;
+            if ($genderMap[$id] === User::FEMALE) $females++;
         }
-        foreach ($result->match->team2->members as $m) {
-            $gender = $genderMap[$m->user_id] ?? null;
-            if ($gender !== User::FEMALE) $allFemales = false;
-        }
-        $this->assertTrue($allFemales, 'Should pick all-female group when <4 males and 4+ females available');
+        $this->assertEquals(2, $males, 'Match should contain 2 males (anchor + fairness-sorted)');
+        $this->assertEquals(2, $females, 'Match should contain 2 females');
     }
 
     /**
@@ -1290,6 +1301,7 @@ class MatchSuggestionTest extends TestCase
                 played_count: $c['played'] ?? 0,
                 consecutive_count: 0,
                 waiting_rounds: 0,
+                last_played_round: $c['last_played_round'] ?? null,
                 vndupr_score: null,
                 partner_ids: [],
                 is_checked_in: true,
@@ -1317,6 +1329,7 @@ class MatchSuggestionTest extends TestCase
             played_count: $config['played'] ?? 0,
             consecutive_count: $config['consecutive_count'] ?? 0,
             waiting_rounds: $config['waiting_rounds'] ?? 0,
+            last_played_round: $config['last_played_round'] ?? null,
             vndupr_score: $config['vndupr_score'] ?? null,
             partner_ids: [],
             is_checked_in: true,

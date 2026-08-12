@@ -39,7 +39,7 @@ class CleanupEmptyTournaments extends Command
                 Tournament::CANCELLED,
             ])
             ->whereNotNull('start_date')
-            ->where('start_date', '<=', now())
+            ->where('start_date', '<=', now()->subHours(24))
             ->whereNull('deleted_at')
             ->with('creator')
             ->chunkById(100, function ($tournaments) use (&$count) {
@@ -113,7 +113,7 @@ class CleanupEmptyTournaments extends Command
                 MiniTournament::STATUS_CANCELLED,
             ])
             ->whereNotNull('start_time')
-            ->where('start_time', '<=', now())
+            ->where('start_time', '<=', now()->subHours(24))
             ->whereNull('deleted_at')
             ->with('creator')
             ->chunkById(100, function ($miniTournaments) use (&$count) {
