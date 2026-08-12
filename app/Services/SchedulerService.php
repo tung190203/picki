@@ -24,6 +24,7 @@ class SchedulerService
      * @param MatchSuggestionRequestDTO $request
      * @param array $userDataMap [user_id => ['visibility' => string, 'sports' => array]]
      * @param bool $needsPaymentCheck if true, exclude participants with unpaid status
+     * @param array $excludeSignatures Signatures to exclude (existing matches)
      */
     public function generate(
         array $players,
@@ -31,6 +32,7 @@ class SchedulerService
         array $userDataMap = [],
         bool $needsPaymentCheck = false,
         bool $isRotateCall = false,
+        array $excludeSignatures = [],
     ): MatchSuggestionResponseDTO {
         $seed = $request->seed ?? random_int(1, 999999);
         $rulesApplied = [];
@@ -46,7 +48,7 @@ class SchedulerService
         }
 
         // Generate candidates using combination-based algorithm
-        $candidates = $this->generateCandidates($pool, $request, $userDataMap);
+        $candidates = $this->generateCandidates($pool, $request, $userDataMap, $excludeSignatures);
 
         if (empty($candidates)) {
             $messages[] = 'No valid match found';
@@ -117,15 +119,17 @@ class SchedulerService
      * `signature` is a sorted list of the 4 user_ids (used by regenerate()
      * to skip already-tried combos).
      *
+     * @param array $excludeSignatures Signatures to exclude (existing matches)
      * @return array{candidates: array<int, array>, total_candidates: int}
      */
     public function enumerateCandidates(
         array $pool,
         MatchSuggestionRequestDTO $request,
         array $userDataMap = [],
+        array $excludeSignatures = [],
     ): array {
         // Generate all valid candidates using the new combination-based algorithm
-        $candidates = $this->generateCandidates($pool, $request, $userDataMap);
+        $candidates = $this->generateCandidates($pool, $request, $userDataMap, $excludeSignatures);
 
         // Add is_high_tier and rules_applied to each candidate for backward compatibility
         foreach ($candidates as &$candidate) {
@@ -178,14 +182,20 @@ class SchedulerService
      * 1. Generate same-gender candidates (priority)
      * 2. If none exist, generate mixed-gender candidates
      * 3. If still none, try with backup players
-     * 4. Return all candidates sorted by business priority
+     * 4. Filter out signatures that already exist (excludeSignatures)
+     * 5. Return all candidates sorted by business priority
      *
+     * @param array $pool PlayerContextDTO[]
+     * @param MatchSuggestionRequestDTO $request
+     * @param array $userDataMap
+     * @param array $excludeSignatures Array of signatures to exclude (already played/pending matches)
      * @return array Candidates with full metadata
      */
     public function generateCandidates(
         array $pool,
         MatchSuggestionRequestDTO $request,
         array $userDataMap,
+        array $excludeSignatures = [],
     ): array {
         $settings = $request->settings;
 
@@ -221,11 +231,23 @@ class SchedulerService
         // STEP 4: Sort by business priority
         usort($candidates, fn($a, $b) => $this->compareCandidates($a, $b));
 
-        // STEP 5: Deduplicate by signature
+        // STEP 5: Filter out existing signatures AND deduplicate
+        $excludeKeys = [];
+        foreach ($excludeSignatures as $sig) {
+            $excludeKeys[implode(',', $sig)] = true;
+        }
+
         $seen = [];
         $unique = [];
         foreach ($candidates as $c) {
             $key = implode(',', $c['signature']);
+
+            // Skip if already exists in matches
+            if (isset($excludeKeys[$key])) {
+                continue;
+            }
+
+            // Skip duplicates within candidates
             if (!isset($seen[$key])) {
                 $seen[$key] = true;
                 $unique[] = $c;
@@ -238,6 +260,8 @@ class SchedulerService
     /**
      * Generate same-gender candidate combinations.
      * Priority: 4 same tier > 4 from adjacent tiers > mixed tiers
+     *
+     * Handles null gender by treating all null-gender players as one group.
      */
     private function generateSameGenderCandidates(
         array $pool,
@@ -246,16 +270,49 @@ class SchedulerService
     ): array {
         $candidates = [];
 
-        // Separate by gender
-        $males = array_values(array_filter($pool, fn($p) => $p->gender === User::MALE));
-        $females = array_values(array_filter($pool, fn($p) => $p->gender === User::FEMALE));
+        // Separate by gender - handle null gender as unknown group
+        $males = [];
+        $females = [];
+        $unknownGender = [];
 
-        // Try males first (higher priority), then females
-        foreach ([$males, $females] as $genderPool) {
-            if (count($genderPool) < 4) {
-                continue;
+        foreach ($pool as $p) {
+            if ($p->gender === User::MALE) {
+                $males[] = $p;
+            } elseif ($p->gender === User::FEMALE) {
+                $females[] = $p;
+            } else {
+                $unknownGender[] = $p;
             }
+        }
 
+        // If we have players with unknown gender, treat them as one group
+        // so we can form same-gender matches with mixed known/unknown genders
+        $genderGroups = [];
+
+        // Males with unknown gender
+        $malesWithUnknown = array_merge($males, $unknownGender);
+        if (count($malesWithUnknown) >= 4) {
+            $genderGroups[] = $malesWithUnknown;
+        } elseif (count($males) >= 4) {
+            $genderGroups[] = $males;
+        }
+
+        // Females with unknown gender
+        $femalesWithUnknown = array_merge($females, $unknownGender);
+        if (count($femalesWithUnknown) >= 4) {
+            $genderGroups[] = $femalesWithUnknown;
+        } elseif (count($females) >= 4) {
+            $genderGroups[] = $females;
+        }
+
+        // If no same-gender groups with >= 4, try all players together
+        // (useful when all have unknown gender or mixed genders)
+        if (empty($genderGroups) && count($pool) >= 4) {
+            $genderGroups[] = $pool;
+        }
+
+        // Process each gender group
+        foreach ($genderGroups as $genderPool) {
             // Generate same-tier combinations (highest priority)
             $sameTier = $this->generateSameTierCombinations($genderPool, $request, $userDataMap);
             $candidates = array_merge($candidates, $sameTier);
@@ -278,7 +335,9 @@ class SchedulerService
 
     /**
      * Generate mixed-gender candidate combinations.
-     * Requires exactly 2M + 2F.
+     * Requires exactly 2M + 2F (or 2 from each known gender).
+     *
+     * Handles null gender by treating all players as one group if no valid mixed-gender.
      */
     private function generateMixedGenderCandidates(
         array $pool,
@@ -287,53 +346,64 @@ class SchedulerService
     ): array {
         $candidates = [];
 
-        // Separate by gender
-        $males = array_values(array_filter($pool, fn($p) => $p->gender === User::MALE));
-        $females = array_values(array_filter($pool, fn($p) => $p->gender === User::FEMALE));
+        // Separate by gender - handle null gender
+        $males = [];
+        $females = [];
+        $unknownGender = [];
 
-        // Need at least 2 of each
-        if (count($males) < 2 || count($females) < 2) {
-            return $candidates;
+        foreach ($pool as $p) {
+            if ($p->gender === User::MALE) {
+                $males[] = $p;
+            } elseif ($p->gender === User::FEMALE) {
+                $females[] = $p;
+            } else {
+                $unknownGender[] = $p;
+            }
         }
 
-        // Generate combinations: pick 2 males and 2 females, then pair teams
-        $maleCombos = $this->generateCombinations($males, 2);
-        $femaleCombos = $this->generateCombinations($females, 2);
+        // Need at least 2 of each known gender for mixed gender
+        $hasMixed = count($males) >= 2 && count($females) >= 2;
 
-        foreach ($maleCombos as $malePair) {
-            foreach ($femaleCombos as $femalePair) {
-                $players = array_merge($malePair, $femalePair);
+        if ($hasMixed) {
+            // Generate combinations: pick 2 males and 2 females, then pair teams
+            $maleCombos = $this->generateCombinations($males, 2);
+            $femaleCombos = $this->generateCombinations($females, 2);
 
-                // Validate mixed-gender requirements
-                if (!$this->isValidMixedGenderCandidate($players)) {
-                    continue;
+            foreach ($maleCombos as $malePair) {
+                foreach ($femaleCombos as $femalePair) {
+                    $players = array_merge($malePair, $femalePair);
+
+                    // Validate mixed-gender requirements
+                    if (!$this->isValidMixedGenderCandidate($players)) {
+                        continue;
+                    }
+
+                    // Validate tier gap
+                    if (!$this->isValidTierGap($players)) {
+                        continue;
+                    }
+
+                    // Find best team pairing
+                    $pairing = $this->findOptimalPairing($players, $userDataMap, $request->settings);
+                    if (!$pairing) {
+                        continue;
+                    }
+
+                    // Build candidate with metadata
+                    $tierGap = $this->calculateMaxTierGap($players);
+                    $tierMode = $this->hasSameTierCombination($players) ? 'same_tier' :
+                                 ($this->hasAdjacentTierCombination($players) ? 'adjacent_tier' : 'mixed_tier');
+                    $candidate = $this->buildCandidateMetadata(
+                        $players,
+                        $pairing['team_a'],
+                        $pairing['team_b'],
+                        $request,
+                        $userDataMap,
+                        $tierMode,
+                        $tierGap,
+                    );
+                    $candidates[] = $candidate;
                 }
-
-                // Validate tier gap
-                if (!$this->isValidTierGap($players)) {
-                    continue;
-                }
-
-                // Find best team pairing
-                $pairing = $this->findOptimalPairing($players, $userDataMap, $request->settings);
-                if (!$pairing) {
-                    continue;
-                }
-
-                // Build candidate with metadata
-                $tierGap = $this->calculateMaxTierGap($players);
-                $tierMode = $this->hasSameTierCombination($players) ? 'same_tier' :
-                             ($this->hasAdjacentTierCombination($players) ? 'adjacent_tier' : 'mixed_tier');
-                $candidate = $this->buildCandidateMetadata(
-                    $players,
-                    $pairing['team_a'],
-                    $pairing['team_b'],
-                    $request,
-                    $userDataMap,
-                    $tierMode,
-                    $tierGap,
-                );
-                $candidates[] = $candidate;
             }
         }
 
@@ -866,8 +936,16 @@ class SchedulerService
         }
 
         // Exclude specified players (from regenerate)
+        // Handle null user_id (guests) - they use mini_participant_id for exclusion
         if ($request->exclude_player_ids) {
-            $pool = array_filter($pool, fn($p) => !in_array($p->user_id, $request->exclude_player_ids));
+            $excludeIds = $request->exclude_player_ids;
+            $pool = array_filter($pool, function ($p) use ($excludeIds) {
+                // Guest has null user_id, cannot be excluded by user_id
+                if ($p->user_id === null) {
+                    return true; // Never exclude guests by user_id
+                }
+                return !in_array($p->user_id, $excludeIds);
+            });
             $pool = array_values($pool);
         }
 
@@ -1616,7 +1694,13 @@ class SchedulerService
      */
     private function buildWaitingList(array $pool, array $excludeIds): array
     {
-        return array_values(array_filter($pool, fn($p) => !in_array($p->user_id, $excludeIds)));
+        return array_values(array_filter($pool, function ($p) use ($excludeIds) {
+            // Guest has null user_id, always include them in waiting list
+            if ($p->user_id === null) {
+                return true;
+            }
+            return !in_array($p->user_id, $excludeIds);
+        }));
     }
 
     /**
