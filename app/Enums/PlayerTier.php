@@ -20,6 +20,15 @@ enum PlayerTier: string
     case Green = 'green';
 
     /**
+     * Maximum allowed tier gap between players in the same match.
+     * Used to validate cross-tier match combinations.
+     *
+     * Valid: Green + Yellow (gap=1), Yellow + Red (gap=1), Red + Purple (gap=1)
+     * Invalid: Green + Red (gap=2), Yellow + Purple (gap=2), Green + Purple (gap=3)
+     */
+    public const MAX_TIER_GAP = 1;
+
+    /**
      * Get numeric priority for sorting (higher = stronger).
      */
     public function priority(): int
@@ -64,5 +73,21 @@ enum PlayerTier: string
     public static function fromString(string $value): self
     {
         return self::from(strtolower($value));
+    }
+
+    /**
+     * Check if two tiers are adjacent (within MAX_TIER_GAP).
+     */
+    public static function isAdjacent(self $a, self $b): bool
+    {
+        return abs($a->priority() - $b->priority()) <= self::MAX_TIER_GAP;
+    }
+
+    /**
+     * Calculate tier gap between two tiers.
+     */
+    public static function tierGap(self $a, self $b): int
+    {
+        return abs($a->priority() - $b->priority());
     }
 }
