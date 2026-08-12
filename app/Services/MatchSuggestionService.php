@@ -263,15 +263,16 @@ class MatchSuggestionService
     }
 
     /**
-     * Extract the sorted user_id signature from a previous suggestion response.
+     * Extract the sorted signature from a previous suggestion response.
+     * Uses mini_participant_id so guest participants are also captured.
      */
     private function extractSignatureFromResponse(MatchSuggestionResponseDTO $response): ?array
     {
         if (!$response->match) {
             return null;
         }
-        $team1Ids = array_column($response->match->team1->members, 'user_id');
-        $team2Ids = array_column($response->match->team2->members, 'user_id');
+        $team1Ids = array_column($response->match->team1->members, 'mini_participant_id');
+        $team2Ids = array_column($response->match->team2->members, 'mini_participant_id');
         $ids = array_merge($team1Ids, $team2Ids);
         $ids = array_values(array_filter($ids, fn($v) => $v !== null));
         if (count($ids) !== 4) {
@@ -412,14 +413,15 @@ class MatchSuggestionService
             // VN DUPR score
             $vnduprScore = $userId ? ($vnduprScores[$userId] ?? null) : null;
 
-            // Partner IDs
-            $partnerIds = $userId ? ($partnerHistory[$userId] ?? []) : [];
+            // Partner IDs (now keyed by mini_participant_id)
+            $miniParticipantId = $participant->id;
+            $partnerIds = $partnerHistory[$miniParticipantId] ?? [];
 
             // Use tier from Frontend (source of truth), don't recalculate
             $tier = $feP->tier;
 
             $players[] = new PlayerContextDTO(
-                mini_participant_id: $participant->id,
+                mini_participant_id: $miniParticipantId,
                 user_id: $userId,
                 full_name: $fullName,
                 avatar_url: $avatarUrl,
@@ -427,14 +429,14 @@ class MatchSuggestionService
                 is_manual_override: true,
                 gender: $gender,
                 is_guest: $participant->is_guest,
-                played_count: $userId ? ($playedCounts[$userId] ?? 0) : 0,
-                consecutive_count: $userId ? ($consecutiveCounts[$userId] ?? 0) : 0,
-                waiting_rounds: $userId ? ($waitingRounds[$userId] ?? 0) : 0,
-                last_played_round: $userId ? ($lastPlayedRounds[$userId] ?? null) : null,
+                played_count: $playedCounts[$miniParticipantId] ?? 0,
+                consecutive_count: $consecutiveCounts[$miniParticipantId] ?? 0,
+                waiting_rounds: $waitingRounds[$miniParticipantId] ?? 0,
+                last_played_round: $lastPlayedRounds[$miniParticipantId] ?? null,
                 vndupr_score: $vnduprScore,
                 partner_ids: $partnerIds,
                 is_checked_in: $participant->checked_in_at !== null,
-                is_playing: $userId ? in_array($userId, $playingParticipants) : false,
+                is_playing: in_array($miniParticipantId, $playingParticipants),
                 skip_next_round: $participant->skip_next_round ?? false,
                 is_absent: $participant->is_absent,
                 payment_status: $needsPaymentCheck ? ($participant->payment_status?->value ?? null) : null,

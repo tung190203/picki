@@ -5,7 +5,7 @@ namespace App\DTO;
 class TeamMatchMemberDTO
 {
     public function __construct(
-        public readonly int $id,
+        public readonly int $mini_participant_id,
         public readonly ?int $user_id,
         public readonly ?int $team_id,
         public readonly string $full_name,
@@ -19,7 +19,7 @@ class TeamMatchMemberDTO
     public static function fromArray(array $data): self
     {
         return new self(
-            id: $data['id'],
+            mini_participant_id: $data['mini_participant_id'] ?? $data['id'],
             user_id: $data['user_id'] ?? null,
             team_id: $data['team_id'] ?? null,
             full_name: $data['full_name'],
@@ -34,7 +34,7 @@ class TeamMatchMemberDTO
     public function toArray(): array
     {
         return [
-            'id' => $this->id,
+            'mini_participant_id' => $this->mini_participant_id,
             'user_id' => $this->user_id,
             'team_id' => $this->team_id,
             'full_name' => $this->full_name,
