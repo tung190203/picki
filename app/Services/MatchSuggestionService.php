@@ -28,6 +28,8 @@ class MatchSuggestionService
      *
      * Also seeds a MiniTournamentSession row with the first picked combo so
      * that the very first /regenerate call has a baseline to compare against.
+     *
+     * FEATURE: Excludes candidates that match existing (pending/playing/completed) matches.
      */
     public function generate(MatchSuggestionRequestDTO $request): MatchSuggestionResponseDTO
     {
@@ -49,12 +51,22 @@ class MatchSuggestionService
         // Load user data with sports for response
         $userDataMap = $this->loadUserDataMap($players);
 
+        // Get signatures of existing matches to avoid duplicates
+        $existingSignatures = $this->matchHistoryRepository->getExistingMatchSignatures($miniTournamentId);
+
         // Reset session history so the first generate call always starts fresh.
         // The picked combo is recorded afterwards, so regenerate() can rotate.
         $session = $this->loadOrCreateSession($miniTournamentId);
         $session->clearHistory();
 
-        $response = $this->schedulerService->generate($players, $request, $userDataMap, $needsPaymentCheck);
+        $response = $this->schedulerService->generate(
+            $players,
+            $request,
+            $userDataMap,
+            $needsPaymentCheck,
+            false,
+            $existingSignatures
+        );
 
         $this->rememberPickedCombo($response, $session);
 
@@ -68,6 +80,8 @@ class MatchSuggestionService
      * State is persisted in `mini_tournament_sessions`. The caller passes the
      * previous suggestion (so we know where to start from in the rotation
      * cycle); on subsequent calls the state alone is enough.
+     *
+     * FEATURE: Excludes candidates that match existing (pending/playing/completed) matches.
      */
     public function regenerate(
         MatchSuggestionRequestDTO $request,
@@ -91,6 +105,9 @@ class MatchSuggestionService
         // Load user data with sports for response
         $userDataMap = $this->loadUserDataMap($players);
 
+        // Get signatures of existing matches to avoid duplicates
+        $existingSignatures = $this->matchHistoryRepository->getExistingMatchSignatures($miniTournamentId);
+
         $session = $this->loadOrCreateSession($miniTournamentId);
 
         // Forward-compat: prepend the previous suggestion's signature to history
@@ -102,20 +119,34 @@ class MatchSuggestionService
             }
         }
 
-        // Enumerate all valid candidates (no exclusion in the scheduler itself).
+        // Enumerate all valid candidates
         $pool = $this->buildPoolForRotation($players, $request, $needsPaymentCheck);
 
         if (count($pool) < 4) {
             $messages = ['Pool has less than 4 players after filters for rotation.'];
-            return $this->schedulerService->generate($players, $request, $userDataMap, $needsPaymentCheck);
+            return $this->schedulerService->generate(
+                $players,
+                $request,
+                $userDataMap,
+                $needsPaymentCheck,
+                false,
+                $existingSignatures
+            );
         }
 
-        $evaluation = $this->schedulerService->enumerateCandidates($pool, $request, $userDataMap);
+        $evaluation = $this->schedulerService->enumerateCandidates($pool, $request, $userDataMap, $existingSignatures);
         $candidates = $evaluation['candidates'];
         $totalCandidates = (int) $evaluation['total_candidates'];
 
         if (empty($candidates)) {
-            return $this->schedulerService->generate($players, $request, $userDataMap, $needsPaymentCheck);
+            return $this->schedulerService->generate(
+                $players,
+                $request,
+                $userDataMap,
+                $needsPaymentCheck,
+                false,
+                $existingSignatures
+            );
         }
 
         // Pick the first candidate whose signature is not in the history.
@@ -196,10 +227,16 @@ class MatchSuggestionService
 
         // Skip exclude_player_ids for rotation - the rotation manager removes
         // candidates by signature, not by hard exclusion.
-        // Note: this honours the FE-supplied exclude_player_ids coming from
-        // older clients (which is empty for the rotation code path anyway).
+        // Handle null user_id (guests) - they cannot be excluded by user_id.
         if ($request->exclude_player_ids) {
-            $pool = array_filter($pool, fn($p) => !in_array($p->user_id, $request->exclude_player_ids));
+            $excludeIds = $request->exclude_player_ids;
+            $pool = array_filter($pool, function ($p) use ($excludeIds) {
+                // Guest has null user_id, cannot be excluded
+                if ($p->user_id === null) {
+                    return true;
+                }
+                return !in_array($p->user_id, $excludeIds);
+            });
             $pool = array_values($pool);
         }
 
