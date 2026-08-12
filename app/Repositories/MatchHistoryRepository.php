@@ -118,6 +118,48 @@ class MatchHistoryRepository
         return $waitingRounds;
     }
 
+    /**
+     * Last round number each player participated in.
+     *
+     * @return array<int, int> user_id => max(round_number)
+     */
+    public function getLastPlayedRounds(int $miniTournamentId): array
+    {
+        $matches = $this->getSessionMatches($miniTournamentId);
+        $lastPlayed = [];
+
+        foreach ($matches as $match) {
+            $roundNumber = (int) ($match->round_number ?? 0);
+            if ($roundNumber <= 0) {
+                continue;
+            }
+
+            foreach ($this->getMatchPlayerIds($match) as $userId) {
+                if (!isset($lastPlayed[$userId]) || $roundNumber > $lastPlayed[$userId]) {
+                    $lastPlayed[$userId] = $roundNumber;
+                }
+            }
+        }
+
+        return $lastPlayed;
+    }
+
+    /**
+     * Round number being scheduled next (max existing round + 1).
+     */
+    public function getCurrentRoundNumber(int $miniTournamentId): int
+    {
+        $matches = $this->getSessionMatches($miniTournamentId);
+
+        if ($matches->isEmpty()) {
+            return 1;
+        }
+
+        $maxRound = (int) ($matches->max('round_number') ?? 0);
+
+        return max(1, $maxRound + 1);
+    }
+
     public function getPartnerHistory(int $miniTournamentId): array
     {
         $matches = $this->getSessionMatches($miniTournamentId);
