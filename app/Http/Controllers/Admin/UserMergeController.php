@@ -6,6 +6,7 @@ use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UserMergeExecuteRequest;
 use App\Http\Requests\Admin\UserMergePreviewRequest;
+use App\Http\Resources\UserResource;
 use App\Services\Admin\UserMergeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,7 +32,7 @@ class UserMergeController extends Controller
         );
 
         return ResponseHelper::paginated(
-            $result->items(),
+            UserResource::collection($result->items())->resolve(),
             [
                 'current_page' => $result->currentPage(),
                 'per_page' => $result->perPage(),
@@ -158,9 +159,9 @@ class UserMergeController extends Controller
         );
     }
 
-    public function show(int $id): JsonResponse
+    public function show(string $id): JsonResponse
     {
-        $merge = $this->userMergeService->getMergeDetail($id);
+        $merge = $this->userMergeService->getMergeDetail((int) $id);
 
         $data = [
             'id' => $merge->id,

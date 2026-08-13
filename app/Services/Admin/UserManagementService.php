@@ -31,6 +31,8 @@ class UserManagementService
             ->select([
                 'id',
                 'full_name',
+                'email',
+                'phone',
                 'avatar_url',
                 'location_id',
                 'trust_score',
@@ -103,6 +105,9 @@ class UserManagementService
 
         // 4) Latest SPCN + DUPR score verification requests (single query)
         $this->preloadScoreVerifications($users, $userIds);
+
+        // 5) Sport stats (total_matches, win_rate, etc.)
+        User::loadSportStatsOnUsers($users, $sportId);
     }
 
     protected function preloadRanks($users, array $userIds, int $sportId): void

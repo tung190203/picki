@@ -32,18 +32,8 @@ class UserMergeService
     public function searchUsers(string $keyword, int $page = 1, int $limit = 20): LengthAwarePaginator
     {
         $query = User::query()
-            ->select([
-                'id',
-                'full_name',
-                'email',
-                'phone',
-                'avatar_url',
-                'is_banned',
-                'is_merged',
-                'created_at',
-            ])
+            ->with(['sports.scores', 'clubs', 'userBadges', 'playTimes'])
             ->where('is_guest', false)
-            ->where('is_merged', false)
             ->where('is_banned', false);
 
         if ($keyword) {
@@ -101,7 +91,8 @@ class UserMergeService
                 'phone' => $userA->phone,
                 'email' => $userA->email,
                 'avatar_url' => $userA->avatar_url,
-                'rating' => $userARating,
+                'vndupr_score' => $userARating,
+                'total_match' => $userAMatchCounts['total'],
                 'played_matches' => $userAMatchCounts['total'],
                 'match_breakdown' => $userAMatchCounts,
             ],
@@ -111,7 +102,8 @@ class UserMergeService
                 'phone' => $userB->phone,
                 'email' => $userB->email,
                 'avatar_url' => $userB->avatar_url,
-                'rating' => $userBRating,
+                'vndupr_score' => $userBRating,
+                'total_match' => $userBMatchCounts['total'],
                 'played_matches' => $userBMatchCounts['total'],
                 'match_breakdown' => $userBMatchCounts,
             ],
@@ -159,6 +151,9 @@ class UserMergeService
         $duplicates = $this->duplicateMatchDetector->detect($userAId, $userBId);
         $duplicateCount = count($duplicates);
 
+        $survivorRating = $this->getUserRating($survivor);
+        $mergedRating = $this->getUserRating($mergedUser);
+
         if ($duplicateCount > 0 && !$duplicateOverride) {
             throw new BusinessException('DUPLICATE_OVERRIDE_REQUIRED: Có trận đấu trùng lặp, cần xác nhận override', 400);
         }
@@ -178,6 +173,8 @@ class UserMergeService
                 'phone' => $survivor->phone,
                 'email' => $survivor->email,
                 'avatar_url' => $survivor->avatar_url,
+                'vndupr_score' => $survivorRating,
+                'total_match' => $survivorMatchCounts['total'],
             ],
             'merged_user' => [
                 'id' => $mergedUser->id,
@@ -185,6 +182,8 @@ class UserMergeService
                 'phone' => $mergedUser->phone,
                 'email' => $mergedUser->email,
                 'avatar_url' => $mergedUser->avatar_url,
+                'vndupr_score' => $mergedRating,
+                'total_match' => $mergedMatchCounts['total'],
             ],
             'selected_info' => $selectedInfo,
             'match_summary' => [
@@ -193,6 +192,7 @@ class UserMergeService
                 'duplicate_matches' => $duplicateCount,
                 'final_matches' => $finalMatchCount,
             ],
+            'duplicate_matches' => $duplicates,
             'estimated_rating' => $estimatedRating,
             'login_warning' => true,
         ];
