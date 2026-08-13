@@ -992,11 +992,14 @@ const loadPairingConfig = () => {
     pairingNumAdvancingTeams.value = parseInt(tournamentType.format_specific_config?.[0]?.pool_stage?.num_advancing_teams) || 2;
 
     // Load pool groups để dùng database ID thay vì index
-    const tournamentTypeGroups = tournamentType.groups || [];
+    // groups được load sẵn trong tournamentData (tournamentTypes.groups)
+    const tournamentTypeGroups = tournament.value?.tournament_types?.[0]?.groups || [];
     pairingPoolGroups.value = tournamentTypeGroups.map((g, i) => ({
         id: g.id,
         name: g.name || `Bảng ${i + 1}`
     }));
+
+    console.log('[DEBUG] poolGroups loaded:', pairingPoolGroups.value);
 };
 
 // ✅ Chọn pairing mode - auto-save khi chọn Tuần tự hoặc Đối xứng

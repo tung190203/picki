@@ -84,6 +84,8 @@ class UserMergeService
         $userARating = $this->getUserRating($userA);
         $userBRating = $this->getUserRating($userB);
 
+        $estimatedRating = $this->estimateMergedRating($userAId, $userBId);
+
         return [
             'user_a' => [
                 'id' => $userA->id,
@@ -115,6 +117,7 @@ class UserMergeService
                 'duplicate_matches' => $duplicateCount,
                 'merged_matches' => $userAMatchCounts['total'] + $userBMatchCounts['total'] - $duplicateCount,
             ],
+            'estimated_rating' => $estimatedRating,
             'can_continue' => $duplicateCount === 0,
         ];
     }

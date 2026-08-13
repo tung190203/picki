@@ -187,27 +187,22 @@ const initializeData = () => {
     const numGroups = props.numGroups;
 
     groupList.value = [];
-    if (props.poolGroups && props.poolGroups.length > 0) {
-        // Dùng dữ liệu groups thực từ BE (có database ID)
-        props.poolGroups.forEach((g, i) => {
-            groupList.value.push({
-                groupId: g.id,
-                groupName: groupNames[i] || g.name || `Bảng ${i + 1}`,
-                firstTeam: `Nhất ${groupNames[i]}`,
-                secondTeam: `Nhì ${groupNames[i]}`
-            });
-        });
-    } else {
-        // Fallback: tạo index 1, 2, 3, 4 (khi không có poolGroups - tức là app đang dùng)
-        for (let i = 0; i < numGroups; i++) {
-            groupList.value.push({
-                groupId: i + 1,
-                groupName: groupNames[i] || (i + 1),
-                firstTeam: `Nhất ${groupNames[i]}`,
-                secondTeam: `Nhì ${groupNames[i]}`
-            });
-        }
+
+    // BẮT BUỘC phải có poolGroups (database ID)
+    if (!props.poolGroups || props.poolGroups.length === 0) {
+        console.error('ManualPairingModal: poolGroups is required for manual pairing');
+        return;
     }
+
+    // Dùng database ID từ poolGroups
+    props.poolGroups.forEach((g, i) => {
+        groupList.value.push({
+            groupId: g.id,
+            groupName: groupNames[i] || g.name || `Bảng ${i + 1}`,
+            firstTeam: `Nhất ${groupNames[i]}`,
+            secondTeam: `Nhì ${groupNames[i]}`
+        });
+    });
 
     // Calculate number of slots needed (each slot = 2 teams: 1 from first place, 1 from second place)
     const numSlots = numGroups; // N teams from first place + N teams from second place = N pairs

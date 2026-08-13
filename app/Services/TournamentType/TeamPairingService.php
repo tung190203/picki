@@ -130,7 +130,7 @@ class TeamPairingService
      * Sắp xếp theo danh sách thủ công
      * $manualPairings format:
      * [
-     *   ['group_id' => 587, 'rank' => 1, 'position' => 0],  // group_id = database ID
+     *   ['group_id' => 587, 'rank' => 1, 'position' => 0],  // group_id = database ID (_from_group)
      *   ['group_id' => 588, 'rank' => 2, 'position' => 1],
      *   ...
      * ]
@@ -143,13 +143,12 @@ class TeamPairingService
 
         $advancing = collect();
 
+        // Map theo database ID (_from_group)
         $teamMap = [];
         foreach ($advancingByRank as $rank => $teamsAtRank) {
             foreach ($teamsAtRank as $team) {
-                // Ưu tiên _from_group (database ID) thay vì _group_index (frontend index)
-                $groupId = $team->_from_group ?? $team->_group_index ?? null;
-                if ($groupId !== null) {
-                    $key = "{$groupId}_{$rank}";
+                if ($team->_from_group !== null) {
+                    $key = "{$team->_from_group}_{$rank}";
                     $teamMap[$key] = $team;
                 }
             }
