@@ -28,6 +28,12 @@ class TournamentTypeResource extends JsonResource
             'total_matches' => $this->total_matches,
             'total_teams' => $this->total_teams,
             'total_matches_per_team' => $this->total_matches_per_team,
+            'groups' => $this->whenLoaded('groups', function () {
+                return $this->groups->map(fn($g) => [
+                    'id' => $g->id,
+                    'name' => $g->name,
+                ]);
+            }),
         ];
     }
 

@@ -7,7 +7,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UserMergeExecuteRequest;
 use App\Http\Requests\Admin\UserMergePreviewRequest;
 use App\Http\Resources\UserResource;
+use App\Models\User;
+use App\Services\Admin\UserManagementService;
 use App\Services\Admin\UserMergeService;
+use App\Services\BadgeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -125,17 +128,20 @@ class UserMergeController extends Controller
             $filters
         );
 
-        $items = collect($result->items())->map(function ($merge) {
+        $merges = collect($result->items());
+        $users = $merges->pluck('survivor')->filter()->merge($merges->pluck('mergedUser')->filter())->unique('id');
+
+        if ($users->isNotEmpty()) {
+            app(UserManagementService::class)->preloadUserListData($users);
+            $badges = app(BadgeService::class)->getBatchUserBadges($users->pluck('id')->all());
+            request()->attributes->set('batch_badges', $badges);
+        }
+
+        $items = $merges->map(function ($merge) {
             return [
                 'id' => $merge->id,
-                'survivor' => [
-                    'id' => $merge->survivor_user_id,
-                    'name' => $merge->survivor?->full_name ?? $merge->metadata['survivor_snapshot']['full_name'] ?? 'N/A',
-                ],
-                'merged_user' => [
-                    'id' => $merge->merged_user_id,
-                    'name' => $merge->mergedUser?->full_name ?? $merge->metadata['merged_snapshot']['full_name'] ?? 'N/A',
-                ],
+                'survivor' => $merge->survivor ? (new UserResource($merge->survivor))->resolve() : null,
+                'merged_user' => $merge->mergedUser ? (new UserResource($merge->mergedUser))->resolve() : null,
                 'matches_after_merge' => $merge->matches_after_merge,
                 'duplicate_count' => $merge->duplicate_count,
                 'duplicate_override' => $merge->duplicate_override,
