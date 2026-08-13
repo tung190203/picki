@@ -452,8 +452,15 @@ class UserMergeService
 
     public function getMergeHistory(int $page = 1, int $limit = 20, ?array $filters = []): LengthAwarePaginator
     {
-        $query = UserMerge::with(['survivor:id,full_name', 'mergedUser:id,full_name', 'performer:id,full_name'])
-            ->orderBy('created_at', 'desc');
+        $query = UserMerge::with([
+            'survivor' => function ($q) {
+                $q->with(['sports.sport', 'sports.scores', 'deviceTokens']);
+            },
+            'mergedUser' => function ($q) {
+                $q->with(['sports.sport', 'sports.scores', 'deviceTokens']);
+            },
+            'performer:id,full_name',
+        ])->orderBy('created_at', 'desc');
 
         if (!empty($filters['search'])) {
             $search = $filters['search'];
