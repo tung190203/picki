@@ -841,6 +841,7 @@
     <ManualPairingModal
       v-model="showManualPairingModal"
       :num-groups="pairingNumGroups"
+      :num-advancing-teams="pairingNumAdvancingTeams"
       :existing-pairings="manualPairings"
       @apply="handleManualPairingApply"
     />
@@ -954,6 +955,7 @@ const pairingMode = ref('sequential');  // Mặc định là sequential
 const manualPairings = ref([]);
 const showManualPairingModal = ref(false);
 const pairingNumGroups = ref(0);  // Số bảng đấu
+const pairingNumAdvancingTeams = ref(2);  // Số đội đi tiếp từ mỗi bảng
 
 const PAIRING_MODE_OPTIONS = [
     { id: 'sequential', label: 'Tuần tự', subtitle: 'A-B, B-A, C-D, D-C...' },
@@ -983,6 +985,9 @@ const loadPairingConfig = () => {
 
     // Load số bảng đấu từ pool_stage
     pairingNumGroups.value = parseInt(tournamentType.format_specific_config?.[0]?.pool_stage?.number_competing_teams) || 0;
+
+    // Load số đội đi tiếp từ mỗi bảng
+    pairingNumAdvancingTeams.value = parseInt(tournamentType.format_specific_config?.[0]?.pool_stage?.num_advancing_teams) || 2;
 };
 
 // ✅ Chọn pairing mode - auto-save khi chọn Tuần tự hoặc Đối xứng
@@ -1026,8 +1031,10 @@ const savePairingConfig = async () => {
             knockoutStageData.manual_pairings = manualPairings.value;
         }
 
-        // Build format_specific_config as array: [{ knockout_stage: {...} }]
+        // Preserve existing config (pool_stage, etc.) and only update knockout_stage
+        const existingConfig = tournamentType.format_specific_config?.[0] || {};
         const formatSpecificConfig = [{
+            ...existingConfig,
             knockout_stage: knockoutStageData
         }];
 
