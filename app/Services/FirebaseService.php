@@ -200,4 +200,107 @@ class FirebaseService
             return false;
         }
     }
+
+    /**
+     * Gửi FCM multicast đến nhiều device tokens (max 500 tokens/request theo FCM v1 API).
+     * Trả về array kết quả để caller xử lý invalid tokens.
+     *
+     * @param  array<int, string>  $tokens
+     * @param  array<string, mixed>  $data
+     * @return array{success:int, failed:int, invalid_tokens: array<int, string>}
+     */
+    public function sendMulticast(
+        array $tokens,
+        string $title,
+        string $body,
+        array $data = [],
+        ?string $imageUrl = null
+    ): array {
+        $result = ['success' => 0, 'failed' => 0, 'invalid_tokens' => []];
+
+        if (!$this->isConfigured()) {
+            $result['failed'] = count($tokens);
+            return $result;
+        }
+
+        if (empty($tokens)) {
+            return $result;
+        }
+
+        // FCM v1 API giới hạn 500 tokens/request
+        foreach (array_chunk($tokens, 500) as $chunk) {
+            $url = "https://fcm.googleapis.com/v1/projects/{$this->projectId}/messages:send";
+
+            $payload = [
+                'message' => [
+                    'tokens' => array_values($chunk),
+                    'notification' => [
+                        'title' => $title,
+                        'body' => $body,
+                    ],
+                    'data' => array_map('strval', $data),
+
+                    'android' => [
+                        'notification' => [
+                            'sound' => 'noti_sound',
+                            'channel_id' => 'picki',
+                        ],
+                    ],
+
+                    'apns' => [
+                        'payload' => [
+                            'aps' => [
+                                'sound' => 'noti_sound.aif',
+                                'badge' => 1,
+                            ],
+                        ],
+                    ],
+                ],
+            ];
+
+            if (!empty($imageUrl)) {
+                $payload['message']['notification']['image'] = $imageUrl;
+                $payload['message']['android']['notification']['image'] = $imageUrl;
+            }
+
+            try {
+                (new Client())->post($url, [
+                    'headers' => [
+                        'Authorization' => 'Bearer ' . $this->getAccessToken(),
+                        'Content-Type' => 'application/json',
+                    ],
+                    'json' => $payload,
+                    'timeout' => 10,
+                ]);
+
+                $result['success'] += count($chunk);
+            } catch (ClientException $e) {
+                $body = json_decode($e->getResponse()->getBody(), true);
+                $errorCode = data_get($body, 'error.details.0.errorCode');
+                $errorStatus = data_get($body, 'error.status');
+
+                // Ghi nhận toàn bộ chunk là failed
+                $result['failed'] += count($chunk);
+
+                if ($errorCode === 'UNREGISTERED' || $errorStatus === 'INVALID_ARGUMENT' || $errorStatus === 'NOT_FOUND') {
+                    $result['invalid_tokens'] = array_merge($result['invalid_tokens'], $chunk);
+                }
+
+                Log::error('FCM multicast error', [
+                    'chunk_size' => count($chunk),
+                    'error_code' => $errorCode,
+                    'error_status' => $errorStatus,
+                    'error' => $body,
+                ]);
+            } catch (\Throwable $e) {
+                $result['failed'] += count($chunk);
+                Log::error('FCM multicast unexpected error', [
+                    'chunk_size' => count($chunk),
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $result;
+    }
 }

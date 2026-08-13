@@ -75,6 +75,8 @@ use App\Http\Controllers\Admin\AdminClubManagementController;
 use App\Http\Controllers\Admin\AdminCompetitionLocationManagementController;
 use App\Http\Controllers\Admin\ScoreVerificationManagementController;
 use App\Http\Controllers\Admin\UserMergeController;
+use App\Http\Controllers\Admin\AdminPushNotificationController;
+use App\Http\Controllers\Admin\AdminPushNotificationLookupController;
 use App\Http\Controllers\ScoreVerificationController;
 use App\Http\Controllers\QuickMatchController;
 use App\Http\Controllers\MatchSuggestionController;
@@ -408,6 +410,18 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
     Route::post('/user-merges', [UserMergeController::class, 'store']);
     Route::get('/user-merges', [UserMergeController::class, 'index']);
     Route::get('/user-merges/{id}', [UserMergeController::class, 'show']);
+
+    Route::prefix('push-notifications')->group(function () {
+        Route::post('/estimate-recipients', [AdminPushNotificationController::class, 'estimateRecipients']);
+        Route::post('/preview', [AdminPushNotificationController::class, 'preview']);
+        Route::post('/test', [AdminPushNotificationController::class, 'sendTest']);
+        Route::get('/', [AdminPushNotificationController::class, 'index']);
+        Route::post('/', [AdminPushNotificationController::class, 'store']);
+        Route::get('/{id}', [AdminPushNotificationController::class, 'show'])->where('id', '[0-9]+');
+
+        Route::get('/lookup/clubs', [AdminPushNotificationLookupController::class, 'lookupClubs']);
+        Route::get('/lookup/users', [AdminPushNotificationLookupController::class, 'lookupUsers']);
+    });
 });
 
 Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(function () {

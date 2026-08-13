@@ -38,6 +38,9 @@ class Kernel extends ConsoleKernel
                 \Illuminate\Support\Facades\Log::info('ranks:snapshot-weekly OK at ' . now());
             });
         $schedule->command('tournaments:backfill-end-date')->dailyAt('00:05');
+        $schedule->command('admin-push-notifications:process-scheduled')
+            ->everyMinute()
+            ->withoutOverlapping(60);
     }
 
     protected function commands(): void
