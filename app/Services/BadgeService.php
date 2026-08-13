@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Enums\BadgeType;
 use App\Models\User;
 use App\Models\UserBadge;
+use App\Notifications\BadgeGrantedNotification;
+use App\Notifications\BadgeRevokedNotification;
 use Illuminate\Support\Facades\DB;
 
 class BadgeService
@@ -151,10 +153,27 @@ class BadgeService
      */
     private function _create_badge(int $userId, BadgeType $type, ?int $createdBy = null): ?UserBadge
     {
-        return UserBadge::firstOrCreate(
-            ['user_id' => $userId, 'badge_type' => $type->value],
-            ['created_by' => $createdBy, 'created_at' => now()]
-        );
+        $existingBadge = UserBadge::where('user_id', $userId)
+            ->where('badge_type', $type->value)
+            ->first();
+
+        if ($existingBadge) {
+            return null;
+        }
+
+        $userBadge = UserBadge::create([
+            'user_id' => $userId,
+            'badge_type' => $type->value,
+            'created_by' => $createdBy,
+            'created_at' => now(),
+        ]);
+
+        $user = User::find($userId);
+        if ($user) {
+            $user->notify(new BadgeGrantedNotification($type, $createdBy));
+        }
+
+        return $userBadge;
     }
 
     /**
@@ -205,9 +224,17 @@ class BadgeService
      */
     public function revokeBadge(int $userId, BadgeType $type): bool
     {
-        return UserBadge::where('user_id', $userId)
+        $user = User::find($userId);
+
+        $deleted = UserBadge::where('user_id', $userId)
             ->where('badge_type', $type->value)
             ->delete() > 0;
+
+        if ($deleted && $user) {
+            $user->notify(new BadgeRevokedNotification($type));
+        }
+
+        return $deleted;
     }
 
     /**
