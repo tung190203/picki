@@ -369,8 +369,12 @@ class TournamentTypeController extends Controller
             $savedPoolConfig = $savedMainConfig['pool_stage'] ?? [];
             $newNumGroups = max(1, (int)($savedPoolConfig['number_competing_teams'] ?? 2));
 
-            // ✅ Phát hiện thay đổi pairing_mode — bắt cả trường hợp null → new (lần đầu set)
+            // ✅ Kiểm tra thay đổi pairing_mode HOẶC manual_pairings
+            $savedKnockoutConfig = $savedMainConfig['knockout_stage'] ?? [];
+            $oldManualPairings = $oldKnockoutConfig['manual_pairings'] ?? null;
+            $newManualPairings = $savedKnockoutConfig['manual_pairings'] ?? null;
             $isChangingPairingMode = $newPairingMode !== null && ($oldPairingMode === null || $oldPairingMode !== $newPairingMode);
+            $isChangingManualPairings = $newPairingMode === 'manual' && ($oldManualPairings !== $newManualPairings);
 
             if ($tournamentType->format === TournamentType::FORMAT_MIXED && $newNumGroups !== $oldNumGroups) {
                 // Số bảng thay đổi thật sự → detach, xóa matches, tạo lại groups rỗng
@@ -382,8 +386,8 @@ class TournamentTypeController extends Controller
                     $match->delete();
                 });
                 $this->createEmptyGroups($tournamentType);
-            } elseif ($isChangingPairingMode) {
-                // Chỉ đổi pairing_mode → giữ nguyên groups & pool matches, regenerate knockout
+            } elseif ($isChangingPairingMode || $isChangingManualPairings) {
+                // Chỉ đổi pairing_mode HOẶC manual_pairings → giữ nguyên groups & pool matches, regenerate knockout
                 $this->regenerateKnockoutOnly($tournamentType);
             } else {
                 // Các thay đổi config khác → chỉ regenerate pool stage, giữ knockout
@@ -396,7 +400,11 @@ class TournamentTypeController extends Controller
             return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Throwable $e) {
             DB::rollBack();
-            return ResponseHelper::error('Có lỗi xảy ra khi cập nhật thể thức giải đấu', 500);
+            \Log::error('Update tournament type error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return ResponseHelper::error('Có lỗi xảy ra khi cập nhật thể thức giải đấu: ' . $e->getMessage(), 500);
         }
     }
 
@@ -779,12 +787,26 @@ class TournamentTypeController extends Controller
     }
     private function generateMixed(TournamentType $type, $teams, $config, $numLegs, bool $preserveKnockout = false)
     {
+        // DEBUG LOG
+        \Log::info('generateMixed START', [
+            'typeId' => $type->id,
+            'preserveKnockout' => $preserveKnockout,
+            'teamsCount' => $teams->count(),
+        ]);
+        
         // Kiểm tra knockout stage đã tồn tại chưa
         $existingKnockoutMatches = $type->matches()->where('round', '>', 1)->exists();
 
         // ✅ KIỂM TRA: Có groups với teams assigned không?
         $groups = $type->groups()->with('teams.members')->get();
         $hasAssignedTeams = $groups->isNotEmpty() && $groups->some(fn($g) => $g->teams->isNotEmpty());
+
+        // DEBUG LOG
+        \Log::info('generateMixed - existing conditions', [
+            'existingKnockoutMatches' => $existingKnockoutMatches,
+            'hasAssignedTeams' => $hasAssignedTeams,
+            'groupCount' => $groups->count(),
+        ]);
 
         // Nếu đã có knockout, flag preserveKnockout = true, VÀ không có teams mới được assign → chỉ tạo pool matches mới, giữ nguyên knockout
         if ($existingKnockoutMatches && $preserveKnockout && !$hasAssignedTeams) {
@@ -806,7 +828,7 @@ class TournamentTypeController extends Controller
         // ✅ LẤY PAIRING MODE TỪ CONFIG (MẶC ĐỊNH: SEQUENTIAL)
         $pairingMode = $knockoutConfig['pairing_mode'] ?? null;  // Không set default ở đây
         $manualPairings = $knockoutConfig['manual_pairings'] ?? null;
-
+        
         // ✅ KIỂM TRA: Có groups với teams assigned không? (Đã kiểm tra ở trên)
         if ($hasAssignedTeams) {
             // ✅ TRƯỜNG HỢP 1: ĐÃ ASSIGN TEAMS VÀO BẢNG
@@ -877,7 +899,7 @@ class TournamentTypeController extends Controller
                     'team_id' => $chunk[0]->id,
                     '_bye_match' => $byeMatch,
                     '_group_id' => null,
-                    '_group_index' => $index,
+                    '_group_index' => $index + 1,
                     '_rank' => 1,
                 ]);
                 continue;
@@ -1124,6 +1146,18 @@ class TournamentTypeController extends Controller
     private function generateKnockoutStage(TournamentType $type, $teams, $hasThirdPlace, $advancedToNext = false, $numLegs = 1, &$matchNumber = 0)
     {
         $teamList = is_array($teams) ? collect($teams) : $teams->values();
+        
+        // DEBUG LOG
+        \Log::info('generateKnockoutStage called', [
+            'teamCount' => $teamList->count(),
+            'hasThirdPlace' => $hasThirdPlace,
+            'advancedToNext' => $advancedToNext,
+            'teams' => $teamList->map(fn($t) => [
+                'team_id' => $t->team_id ?? null,
+                'placeholder' => $t->_placeholder ?? false,
+            ])->toArray(),
+        ]);
+        
         $roundIndex = 2;
         $rounds = collect();
 
@@ -1370,9 +1404,16 @@ class TournamentTypeController extends Controller
                 continue;
             }
             if (property_exists($placeholder, '_from_group') && $placeholder->_from_group !== null) {
-                // Use _group_index (frontend position: 1=A, 2=B...) with _from_group (DB ID) as fallback
-                $groupId = $placeholder->_group_index ?? $placeholder->_from_group;
                 $rank = $placeholder->_rank ?? 1;
+                // Priority: _group_index (1-based position, A=1, B=2...) → _from_group (DB ID)
+                // If _group_index is available, use it to lookup real DB ID from $groupObjects
+                if (property_exists($placeholder, '_group_index') && $placeholder->_group_index !== null) {
+                    $groupIndex = (int) $placeholder->_group_index - 1; // Convert to 0-based
+                    $groupRecord = $groupObjects->get($groupIndex);
+                    $groupId = $groupRecord ? $groupRecord->id : $placeholder->_from_group;
+                } else {
+                    $groupId = $placeholder->_from_group;
+                }
 
                 foreach ($matchPair as $legMatch) {
                     $isReturnLeg = ($legMatch->leg % 2 === 0);
@@ -1820,6 +1861,15 @@ class TournamentTypeController extends Controller
             ->orderBy('round')
             ->orderBy('leg')
             ->get();
+        
+        // DEBUG LOG
+        \Log::info('getMixedBracket - knockout matches query', [
+            'typeId' => $type->id,
+            'knockoutMatchCount' => $knockoutMatches->count(),
+            'roundRange' => $knockoutMatches->count() > 0 
+                ? [$knockoutMatches->min('round'), $knockoutMatches->max('round')]
+                : 'no matches',
+        ]);
 
         // Preload all next_match records to avoid N+1 queries
         $knockoutNextMatchIds = $knockoutMatches->pluck('next_match_id')->filter()->unique()->toArray();
@@ -2917,7 +2967,7 @@ class TournamentTypeController extends Controller
                     'team_id' => $chunk[0]->id,
                     '_bye_match' => $byeMatch,
                     '_group_id' => null,
-                    '_group_index' => $groups->search($group),
+                    '_group_index' => $groups->search($group) + 1,
                     '_rank' => 1,
                 ]);
                 continue;
@@ -2981,7 +3031,7 @@ class TournamentTypeController extends Controller
                 $advancingByRank[$k]->push((object)[
                     'team_id' => null,
                     '_from_group' => $group->id,
-                    '_group_index' => $groups->search($group),
+                    '_group_index' => $groups->search($group) + 1,
                     '_rank' => $k + 1,
                 ]);
             }
