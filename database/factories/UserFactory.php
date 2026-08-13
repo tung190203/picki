@@ -30,14 +30,16 @@ class UserFactory extends Factory
             'password' => Hash::make('password123'),
             'avatar_url' => $this->faker->imageUrl(200, 200, 'people'),
             'google_id' => null,
-            // 'vndupr_score' => $this->faker->randomFloat(1, 1, 5),
-            // 'tier' => $this->faker->randomElement(['Bronze', 'Silver', 'Gold', 'Platinum']),
             'role' => $this->faker->randomElement(['player', 'referee', 'admin']),
             'email_verified_at' => now(),
             'is_profile_completed' => $this->faker->boolean(80),
             'location_id' => Location::inRandomOrder()->first()?->id,
             'about' => $this->faker->sentence(),
             'remember_token' => Str::random(10),
+            'is_guest' => false,
+            'is_banned' => false,
+            'is_merged' => false,
+            'merged_into_user_id' => null,
         ];
     }
 
@@ -48,6 +50,28 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'email_verified_at' => null,
+        ]);
+    }
+
+    public function merged(int $survivorId): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_merged' => true,
+            'merged_into_user_id' => $survivorId,
+        ]);
+    }
+
+    public function banned(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_banned' => true,
+        ]);
+    }
+
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'admin',
         ]);
     }
 }
