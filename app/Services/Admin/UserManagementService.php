@@ -84,7 +84,7 @@ class UserManagementService
      * Loads in bulk: badges, vn_rank + weekly_change, advanced mini tournament flag,
      * and the latest SPCN/DUPR score verification requests.
      */
-    protected function preloadUserListData($users): void
+    public function preloadUserListData($users): void
     {
         $userIds = $users->pluck('id')->all();
         if (empty($userIds)) {
