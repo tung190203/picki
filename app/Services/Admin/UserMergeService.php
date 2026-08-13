@@ -3,7 +3,7 @@
 namespace App\Services\Admin;
 
 use App\Exceptions\BusinessException;
-use App\Models\ClubMember;
+use App\Models\Club\ClubMember;
 use App\Models\MatchHistory;
 use App\Models\Matches;
 use App\Models\MiniMatch;
@@ -293,6 +293,8 @@ class UserMergeService
 
             $this->transferUserReferences($mergedUserId, $survivorUserId);
 
+            $this->recalculateSurvivorScores($survivorUserId);
+
             $this->removeDuplicateRecords($mergedUserId, $survivorUserId);
 
             $mergedUser->update([
@@ -300,12 +302,14 @@ class UserMergeService
                 'merged_into_user_id' => $survivorUserId,
             ]);
 
+            $mergedUser->delete();
+
             $this->invalidateUserCaches($survivorUserId);
 
             $userMerge->update([
                 'status' => 'completed',
                 'completed_at' => now(),
-                'final_rating' => $this->getUserRating($survivor),
+                'final_rating' => $estimatedRating,
             ]);
 
             $this->auditLogService->log(
@@ -363,6 +367,9 @@ class UserMergeService
                     ->where('user_id', $toUserId);
             })
             ->update(['user_id' => $toUserId]);
+
+        VnduprHistory::where('user_id', $fromUserId)
+            ->update(['user_id' => $toUserId]);
     }
 
     protected function removeDuplicateRecords(int $mergedUserId, int $survivorUserId): void
@@ -370,14 +377,14 @@ class UserMergeService
         UserSport::where('user_id', $mergedUserId)
             ->whereIn('sport_id', function ($query) use ($survivorUserId) {
                 $query->select('sport_id')
-                    ->from('user_sports')
+                    ->from('user_sport')
                     ->where('user_id', $survivorUserId);
             })
             ->delete();
 
         UserBadge::where('user_id', $mergedUserId)
-            ->whereIn('badge_id', function ($query) use ($survivorUserId) {
-                $query->select('badge_id')
+            ->whereIn('badge_type', function ($query) use ($survivorUserId) {
+                $query->select('badge_type')
                     ->from('user_badges')
                     ->where('user_id', $survivorUserId);
             })
@@ -445,6 +452,26 @@ class UserMergeService
             'email' => $survivor->email,
             'avatar_url' => $survivor->avatar_url,
         ];
+    }
+
+    protected function recalculateSurvivorScores(int $survivorUserId): void
+    {
+        $userSports = DB::table('user_sport')
+            ->where('user_id', $survivorUserId)
+            ->get();
+
+        $lastHistory = VnduprHistory::where('user_id', $survivorUserId)
+            ->orderBy('updated_at', 'desc')
+            ->first();
+
+        $newScore = $lastHistory ? (float) $lastHistory->score_after : 0;
+
+        foreach ($userSports as $userSport) {
+            DB::table('user_sport_scores')
+                ->where('user_sport_id', $userSport->id)
+                ->where('score_type', 'vndupr_score')
+                ->update(['score_value' => $newScore]);
+        }
     }
 
     protected function invalidateUserCaches(int $userId): void
