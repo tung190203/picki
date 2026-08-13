@@ -304,7 +304,7 @@ class TournamentTypeController extends Controller
             $oldKnockoutConfig = $oldMainConfig['knockout_stage'] ?? [];
             $oldPairingMode = $oldKnockoutConfig['pairing_mode'] ?? null;
 
-            if ($newPairingMode && $oldPairingMode && $oldPairingMode !== $newPairingMode) {
+            if ($newPairingMode !== null && ($oldPairingMode === null || $oldPairingMode !== $newPairingMode)) {
                 if ($this->hasLockedMatches($tournamentType)) {
                     return ResponseHelper::error(
                         'Không thể thay đổi pairing mode. Đã có trận đấu hoàn thành và có kết quả được xác nhận.',
@@ -369,8 +369,8 @@ class TournamentTypeController extends Controller
             $savedPoolConfig = $savedMainConfig['pool_stage'] ?? [];
             $newNumGroups = max(1, (int)($savedPoolConfig['number_competing_teams'] ?? 2));
 
-            // ✅ Phát hiện thay đổi pairing_mode
-            $isChangingPairingMode = $oldPairingMode && $newPairingMode && $oldPairingMode !== $newPairingMode;
+            // ✅ Phát hiện thay đổi pairing_mode — bắt cả trường hợp null → new (lần đầu set)
+            $isChangingPairingMode = $newPairingMode !== null && ($oldPairingMode === null || $oldPairingMode !== $newPairingMode);
 
             if ($tournamentType->format === TournamentType::FORMAT_MIXED && $newNumGroups !== $oldNumGroups) {
                 // Số bảng thay đổi thật sự → detach, xóa matches, tạo lại groups rỗng
@@ -1370,7 +1370,8 @@ class TournamentTypeController extends Controller
                 continue;
             }
             if (property_exists($placeholder, '_from_group') && $placeholder->_from_group !== null) {
-                $groupId = $placeholder->_from_group;
+                // Use _group_index (frontend position: 1=A, 2=B...) with _from_group (DB ID) as fallback
+                $groupId = $placeholder->_group_index ?? $placeholder->_from_group;
                 $rank = $placeholder->_rank ?? 1;
 
                 foreach ($matchPair as $legMatch) {
@@ -3276,11 +3277,7 @@ class TournamentTypeController extends Controller
         $oldConfig = $type->format_specific_config ?? [];
         $oldMainConfig = is_array($oldConfig) && isset($oldConfig[0]) ? $oldConfig[0] : $oldConfig;
         
-        $mergedConfig = $oldMainConfig;
-        $mergedConfig['knockout_stage'] = array_merge(
-            $oldMainConfig['knockout_stage'] ?? [],
-            $knockoutConfig
-        );
+        $mergedConfig = $this->deepMergeRecursive($oldMainConfig, ['knockout_stage' => $knockoutConfig]);
         
         $type->format_specific_config = [$mergedConfig];
         $type->save();

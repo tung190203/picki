@@ -216,10 +216,13 @@ const loadExistingPairings = (pairings) => {
     });
 
     // Fill slots based on pairings
+    // Position maps to slot×2 (home) or slot×2+1 (away); max position = numGroups * 2 - 1
     pairings.forEach(pairing => {
         const position = pairing.position ?? pairing.rank;
         const team = teamMap[`${pairing.group_id}_${pairing.rank}`];
-        if (team && position >= 0 && position < pairingSlots.value.length) {
+        // Allow positions up to numGroups*2 - 1 (not just numGroups-1)
+        const maxPosition = pairingSlots.value.length * 2;
+        if (team && position >= 0 && position < maxPosition) {
             const slotIndex = Math.floor(position / 2);
             const isFirstSlot = position % 2 === 0;
             if (isFirstSlot) {
@@ -238,9 +241,9 @@ watch(() => props.modelValue, (newVal) => {
     }
 }, { immediate: true });
 
-// Add team to next empty slot
+// Add team to next empty slot — enforces rank-slot binding:
+// rank 1 (Nhất) can ONLY go to slot[n][0], rank 2 (Nhì) can ONLY go to slot[n][1]
 const addTeamToSlot = (groupId, rank) => {
-    // rank: 1 = first place (Nhất), 2 = second place (Nhì)
     const teamInfo = groupList.value.find(g => g.groupId === groupId);
     if (!teamInfo) return;
 
@@ -251,17 +254,11 @@ const addTeamToSlot = (groupId, rank) => {
         rank
     };
 
-    // Find next empty slot for this rank type
-    // Even positions (0, 2, 4...) = first place teams
-    // Odd positions (1, 3, 5...) = second place teams
+    // Find next empty slot by rank position: rank1 → slot[n][0], rank2 → slot[n][1]
+    const slotSubIndex = rank === 1 ? 0 : 1;
     for (let i = 0; i < pairingSlots.value.length; i++) {
-        const slot = pairingSlots.value[i];
-        if (rank === 1 && slot[0] === null) {
-            slot[0] = team;
-            return;
-        }
-        if (rank === 2 && slot[1] === null) {
-            slot[1] = team;
+        if (pairingSlots.value[i][slotSubIndex] === null) {
+            pairingSlots.value[i][slotSubIndex] = team;
             return;
         }
     }
@@ -272,11 +269,13 @@ const removeFromSlot = (slotIndex, subIndex) => {
     pairingSlots.value[slotIndex][subIndex] = null;
 };
 
-// Check if team is already used
+// Check if a specific team (groupId + rank) is already placed in the correct slot position
 const isTeamUsed = (groupId, rank) => {
+    const slotSubIndex = rank === 1 ? 0 : 1;
     for (const slot of pairingSlots.value) {
-        if (slot[0] && slot[0].groupId === groupId && slot[0].rank === rank) return true;
-        if (slot[1] && slot[1].groupId === groupId && slot[1].rank === rank) return true;
+        if (slot[slotSubIndex] && slot[slotSubIndex].groupId === groupId && slot[slotSubIndex].rank === rank) {
+            return true;
+        }
     }
     return false;
 };
