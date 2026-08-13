@@ -79,32 +79,43 @@ class TeamPairingService
     /**
      * Pattern: Nhất A vs Nhì H, Nhất B vs Nhì G, Nhất C vs Nhì F, Nhất D vs Nhì E
      * Ví dụ 8 bảng: A-H, B-G, C-F, D-E, E-D, F-C, G-B, H-A
+     * Khi chỉ có 1 đội/bảng (numAdvancing=1): symmetric pair đầu vs cuối → A-D, B-C (4 bảng)
      */
     private function arrangeSymmetric($advancingByRank): Collection
     {
-        $advancing = collect();
-
         $firstPlaceTeams = $advancingByRank->get(0, collect());
         $secondPlaceTeams = $advancingByRank->get(1, collect());
 
         $numFirstPlace = $firstPlaceTeams->count();
         $numSecondPlace = $secondPlaceTeams->count();
 
-        // Pattern đối xứng: lấy từ 2 đầu mảng
+        // === KHI CHỈ CÓ 1 ĐỘI/BẢNG (numSecondPlace === 0) ===
+        // Symmetric pair đầu vs cuối: [A1, B1, C1, D1] → [A1, D1, B1, C1] → (A-D), (B-C)
+        if ($numSecondPlace === 0 && $numFirstPlace > 0) {
+            $reordered = collect();
+            $numPairs = intdiv($numFirstPlace, 2);
+            for ($i = 0; $i < $numPairs; $i++) {
+                $reordered->push($firstPlaceTeams->get($i));
+                $reordered->push($firstPlaceTeams->get($numFirstPlace - 1 - $i));
+            }
+            if ($numFirstPlace % 2 === 1) {
+                $reordered->push($firstPlaceTeams->get($numPairs));
+            }
+            return $reordered;
+        }
+
+        // === EXISTING LOGIC: Nhất vs Nhì theo pattern đối xứng ===
+        $advancing = collect();
         for ($i = 0; $i < max($numFirstPlace, $numSecondPlace); $i++) {
-            // Thêm nhất bảng thứ i (A, B, C, D...)
             if ($i < $numFirstPlace) {
                 $advancing->push($firstPlaceTeams->get($i));
             }
-
-            // Thêm nhì bảng đối xứng từ cuối lên (H, G, F, E...)
             $oppositeIndex = $numSecondPlace - 1 - $i;
             if ($oppositeIndex >= 0 && $oppositeIndex < $numSecondPlace) {
                 $advancing->push($secondPlaceTeams->get($oppositeIndex));
             }
         }
 
-        // Xử lý các hạng còn lại
         foreach ($advancingByRank as $rank => $teamsAtRank) {
             if ($rank < 2) continue;
             foreach ($teamsAtRank as $team) {
@@ -127,19 +138,14 @@ class TeamPairingService
     private function arrangeManual($advancingByRank, ?array $manualPairings): Collection
     {
         if (empty($manualPairings)) {
-            // Fallback về sequential nếu không có manual config
             return $this->arrangeSequential($advancingByRank);
         }
 
         $advancing = collect();
 
-        // Tạo map để tra cứu nhanh: "groupId_rank" => team object
-        // Ưu tiên dùng _group_index (frontend index 1,2,3,4) thay vì _from_group (database ID)
-        // vì frontend gửi group_id là index, không phải database ID
         $teamMap = [];
         foreach ($advancingByRank as $rank => $teamsAtRank) {
             foreach ($teamsAtRank as $team) {
-                // Ưu tiên _group_index (frontend index), fallback về _from_group (database ID)
                 $groupId = $team->_group_index ?? $team->_from_group ?? null;
                 if ($groupId !== null) {
                     $key = "{$groupId}_{$rank}";
@@ -148,12 +154,11 @@ class TeamPairingService
             }
         }
 
-        // Sắp xếp theo thứ tự manual
         usort($manualPairings, fn($a, $b) => ($a['position'] ?? 0) <=> ($b['position'] ?? 0));
 
         foreach ($manualPairings as $pairing) {
             $groupId = $pairing['group_id'] ?? $pairing['_from_group'] ?? null;
-            $rank = $pairing['rank'] ?? 1;
+            $rank = (int)($pairing['rank'] ?? 1) - 1;
             $key = "{$groupId}_{$rank}";
 
             if (isset($teamMap[$key])) {

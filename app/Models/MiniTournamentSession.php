@@ -74,13 +74,15 @@ class MiniTournamentSession extends Model
     }
 
     /**
-     * Build a canonical signature (sorted user_ids) for a 4-player match.
+     * Build a canonical signature (sorted mini_participant_ids) for a 4-player match.
+     * NOTE: This is used by tests. Production code uses mini_participant_id via
+     * SchedulerService::buildCandidateSignature() and extractSignatureFromResponse().
      *
-     * @param array<int> $userIds
+     * @param array<int> $ids Array of mini_participant_ids
      */
-    public static function signature(array $userIds): array
+    public static function signature(array $ids): array
     {
-        $ids = array_values(array_map('intval', array_filter($userIds, fn($v) => $v !== null)));
+        $ids = array_values(array_map('intval', array_filter($ids, fn($v) => $v !== null)));
         sort($ids);
         return $ids;
     }

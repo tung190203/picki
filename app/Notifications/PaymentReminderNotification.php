@@ -47,4 +47,18 @@ class PaymentReminderNotification extends Notification implements ShouldQueue
             'created_at' => now()->toDateTimeString(),
         ]);
     }
+
+    public function toFcm(object $notifiable): array
+    {
+        return [
+            'title' => 'Nhắc nhở thanh toán phí tham gia',
+            'body' => "Bạn chưa thanh toán phí tham gia kèo '{$this->tournament->name}'. Vui lòng thanh toán sớm nhất có thể.",
+            'data' => [
+                'type' => 'PAYMENT_REMINDER',
+                'mini_tournament_id' => (string) $this->tournament->id,
+                'participant_id' => (string) $this->participant->id,
+                'action' => 'open_payment',
+            ],
+        ];
+    }
 }

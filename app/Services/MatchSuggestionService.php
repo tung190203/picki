@@ -54,10 +54,10 @@ class MatchSuggestionService
         // Get signatures of existing matches to avoid duplicates
         $existingSignatures = $this->matchHistoryRepository->getExistingMatchSignatures($miniTournamentId);
 
-        // Reset session history so the first generate call always starts fresh.
-        // The picked combo is recorded afterwards, so regenerate() can rotate.
+        // Load session to track tried suggestions (for rotation)
         $session = $this->loadOrCreateSession($miniTournamentId);
-        $session->clearHistory();
+        // NOTE: Do NOT clearHistory() here - we want to avoid repeating suggestions
+        // from previous rounds. The history is only cleared when rotation wraps around.
 
         $response = $this->schedulerService->generate(
             $players,
