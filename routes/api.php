@@ -403,7 +403,6 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
 
     Route::get('/logs', [AuditLogController::class, 'index']);
 
-    Route::get('/users/search', [UserMergeController::class, 'search']);
     Route::post('/user-merges/preview', [UserMergeController::class, 'preview']);
     Route::post('/user-merges/preview-final', [UserMergeController::class, 'previewFinal']);
     Route::post('/user-merges', [UserMergeController::class, 'store']);

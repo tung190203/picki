@@ -108,6 +108,25 @@ class UserManagementService
 
         // 5) Sport stats (total_matches, win_rate, etc.)
         User::loadSportStatsOnUsers($users, $sportId);
+
+        // 6) vndupr_score per user
+        $this->preloadVnduprScores($users, $userIds);
+    }
+
+    protected function preloadVnduprScores($users, array $userIds): void
+    {
+        $scores = DB::table('user_sport_scores')
+            ->join('user_sport', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
+            ->whereIn('user_sport.user_id', $userIds)
+            ->where('user_sport.sport_id', 1) // pickleball
+            ->where('user_sport_scores.score_type', 'vndupr_score')
+            ->groupBy('user_sport.user_id')
+            ->select('user_sport.user_id', DB::raw('MAX(user_sport_scores.score_value) as vndupr_score'))
+            ->pluck('vndupr_score', 'user_id');
+
+        foreach ($users as $user) {
+            $user->setAttribute('vndupr_score', isset($scores[$user->id]) ? (float) $scores[$user->id] : null);
+        }
     }
 
     protected function preloadRanks($users, array $userIds, int $sportId): void
