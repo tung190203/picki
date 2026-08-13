@@ -159,6 +159,10 @@ const props = defineProps({
     existingPairings: {
         type: Array,
         default: () => []
+    },
+    poolGroups: {
+        type: Array,
+        default: () => []
     }
 });
 
@@ -183,13 +187,26 @@ const initializeData = () => {
     const numGroups = props.numGroups;
 
     groupList.value = [];
-    for (let i = 0; i < numGroups; i++) {
-        groupList.value.push({
-            groupId: i + 1,
-            groupName: groupNames[i] || (i + 1),
-            firstTeam: `Nhất ${groupNames[i]}`,
-            secondTeam: `Nhì ${groupNames[i]}`
+    if (props.poolGroups && props.poolGroups.length > 0) {
+        // Dùng dữ liệu groups thực từ BE (có database ID)
+        props.poolGroups.forEach((g, i) => {
+            groupList.value.push({
+                groupId: g.id,
+                groupName: groupNames[i] || g.name || `Bảng ${i + 1}`,
+                firstTeam: `Nhất ${groupNames[i]}`,
+                secondTeam: `Nhì ${groupNames[i]}`
+            });
         });
+    } else {
+        // Fallback: tạo index 1, 2, 3, 4 (khi không có poolGroups - tức là app đang dùng)
+        for (let i = 0; i < numGroups; i++) {
+            groupList.value.push({
+                groupId: i + 1,
+                groupName: groupNames[i] || (i + 1),
+                firstTeam: `Nhất ${groupNames[i]}`,
+                secondTeam: `Nhì ${groupNames[i]}`
+            });
+        }
     }
 
     // Calculate number of slots needed (each slot = 2 teams: 1 from first place, 1 from second place)

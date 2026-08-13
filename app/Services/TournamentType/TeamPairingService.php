@@ -130,8 +130,8 @@ class TeamPairingService
      * Sắp xếp theo danh sách thủ công
      * $manualPairings format:
      * [
-     *   ['group_id' => 1, 'rank' => 1, 'position' => 0],
-     *   ['group_id' => 3, 'rank' => 2, 'position' => 1],
+     *   ['group_id' => 587, 'rank' => 1, 'position' => 0],  // group_id = database ID
+     *   ['group_id' => 588, 'rank' => 2, 'position' => 1],
      *   ...
      * ]
      */
@@ -146,7 +146,8 @@ class TeamPairingService
         $teamMap = [];
         foreach ($advancingByRank as $rank => $teamsAtRank) {
             foreach ($teamsAtRank as $team) {
-                $groupId = $team->_group_index ?? $team->_from_group ?? null;
+                // Ưu tiên _from_group (database ID) thay vì _group_index (frontend index)
+                $groupId = $team->_from_group ?? $team->_group_index ?? null;
                 if ($groupId !== null) {
                     $key = "{$groupId}_{$rank}";
                     $teamMap[$key] = $team;
@@ -157,8 +158,8 @@ class TeamPairingService
         usort($manualPairings, fn($a, $b) => ($a['position'] ?? 0) <=> ($b['position'] ?? 0));
 
         foreach ($manualPairings as $pairing) {
-            $groupId = $pairing['group_id'] ?? $pairing['_from_group'] ?? null;
-            $rank = (int)($pairing['rank'] ?? 1) - 1;
+            $groupId = $pairing['group_id'] ?? null;
+            $rank = (int)($pairing['rank'] ?? 1) - 1;  // Convert 1-based (frontend) sang 0-based
             $key = "{$groupId}_{$rank}";
 
             if (isset($teamMap[$key])) {
