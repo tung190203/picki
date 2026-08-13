@@ -159,6 +159,10 @@ const props = defineProps({
     existingPairings: {
         type: Array,
         default: () => []
+    },
+    poolGroups: {
+        type: Array,
+        default: () => []
     }
 });
 
@@ -183,14 +187,22 @@ const initializeData = () => {
     const numGroups = props.numGroups;
 
     groupList.value = [];
-    for (let i = 0; i < numGroups; i++) {
+
+    // BẮT BUỘC phải có poolGroups (database ID)
+    if (!props.poolGroups || props.poolGroups.length === 0) {
+        console.error('ManualPairingModal: poolGroups is required for manual pairing');
+        return;
+    }
+
+    // Dùng database ID từ poolGroups
+    props.poolGroups.forEach((g, i) => {
         groupList.value.push({
-            groupId: i + 1,
-            groupName: groupNames[i] || (i + 1),
+            groupId: g.id,
+            groupName: groupNames[i] || g.name || `Bảng ${i + 1}`,
             firstTeam: `Nhất ${groupNames[i]}`,
             secondTeam: `Nhì ${groupNames[i]}`
         });
-    }
+    });
 
     // Calculate number of slots needed (each slot = 2 teams: 1 from first place, 1 from second place)
     const numSlots = numGroups; // N teams from first place + N teams from second place = N pairs

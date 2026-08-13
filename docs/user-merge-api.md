@@ -79,7 +79,8 @@ Xem trước việc gộp giữa hai người dùng, phát hiện các trận đ
             "phone": "0987654321",
             "email": "nguyenvana@example.com",
             "avatar_url": "https://...",
-            "rating": 0.58,
+            "vndupr_score": 0.58,
+            "total_match": 12,
             "played_matches": 12,
             "match_breakdown": {
                 "tournament": 8,
@@ -94,7 +95,8 @@ Xem trước việc gộp giữa hai người dùng, phát hiện các trận đ
             "phone": "0987654322",
             "email": "tranvanb@example.com",
             "avatar_url": "https://...",
-            "rating": 0.42,
+            "vndupr_score": 0.42,
+            "total_match": 5,
             "played_matches": 5,
             "match_breakdown": {
                 "tournament": 3,
@@ -121,6 +123,7 @@ Xem trước việc gộp giữa hai người dùng, phát hiện các trận đ
             "duplicate_matches": 1,
             "merged_matches": 16
         },
+        "estimated_rating": 0.527,
         "can_continue": false
     }
 }
@@ -140,6 +143,32 @@ Xem trước việc gộp giữa hai người dùng, phát hiện các trận đ
 |--------|------|-------|
 | 404 | - | Không tìm thấy user |
 | 400 | - | Hai user phải khác nhau |
+
+### Công thức tính toán
+
+#### Rating tạm tính (`estimated_rating`)
+
+Lấy rating từ bảng `user_sports` → `scores` với `score_type = 'vndupr_score'`
+
+| Trường hợp | Công thức |
+|------------|-----------|
+| Cả hai đều không có rating | `null` |
+| Một trong hai không có rating | Lấy rating của người còn lại |
+| Cả hai đều có rating | Weighted average theo số bản ghi vndupr_history |
+
+**Công thức weighted average:**
+```
+estimated_rating = user_a_rating * (user_a_history_count / total_history_count)
+                + user_b_rating * (user_b_history_count / total_history_count)
+```
+
+Nếu `total_history_count = 0`: `estimated_rating = (user_a_rating + user_b_rating) / 2`
+
+#### Tổng số trận sau merge (`merged_matches`)
+
+```
+merged_matches = user_a_matches + user_b_matches - duplicate_matches
+```
 
 ---
 
@@ -179,14 +208,18 @@ Xem trước kết quả gộp cuối cùng sau khi chọn người dùng sống
             "full_name": "Nguyễn Văn A",
             "phone": "0987654321",
             "email": "nguyenvana@example.com",
-            "avatar_url": "https://..."
+            "avatar_url": "https://...",
+            "vndupr_score": 0.58,
+            "total_match": 12
         },
         "merged_user": {
             "id": 2,
             "full_name": "Trần Văn B",
             "phone": "0987654322",
             "email": "tranvanb@example.com",
-            "avatar_url": "https://..."
+            "avatar_url": "https://...",
+            "vndupr_score": 0.42,
+            "total_match": 5
         },
         "selected_info": {
             "name": "Nguyễn Văn A",
@@ -200,17 +233,41 @@ Xem trước kết quả gộp cuối cùng sau khi chọn người dùng sống
             "duplicate_matches": 1,
             "final_matches": 16
         },
-        "estimated_rating": 0.54,
+        "estimated_rating": 0.527,
         "login_warning": true
     }
 }
 ```
 
-### Tính toán rating ước tính
+### Công thức tính toán
 
-Rating ước tính được tính theo số lượng bản ghi lịch sử thi đấu của mỗi người dùng:
-- Công thức: `(survivor_rating * survivor_weight) + (merged_rating * merged_weight)`
-- Trọng số tỷ lệ với số bản ghi vndupr_history
+#### Rating tạm tính (`estimated_rating`)
+
+Lấy rating từ bảng `user_sports` → `scores` với `score_type = 'vndupr_score'`
+
+| Trường hợp | Công thức |
+|------------|-----------|
+| Cả hai đều không có rating | `null` |
+| Một trong hai không có rating | Lấy rating của người còn lại |
+| Cả hai đều có rating | Weighted average theo số bản ghi vndupr_history |
+
+**Công thức weighted average:**
+```
+estimated_rating = survivor_rating * (survivor_history_count / total_history_count)
+                + merged_rating * (merged_history_count / total_history_count)
+```
+
+Nếu `total_history_count = 0`: `estimated_rating = (survivor_rating + merged_rating) / 2`
+
+#### Tổng số trận sau merge (`final_matches`)
+
+```
+final_matches = survivor_matches + merged_user_matches - duplicate_matches
+```
+
+#### Rating cuối cùng sau khi merge (`final_rating`)
+
+Sau khi thực hiện merge thành công, rating cuối cùng được lấy từ rating hiện tại của survivor sau khi đã chuyển toàn bộ dữ liệu.
 
 ### Response lỗi
 
@@ -325,11 +382,27 @@ Lấy danh sách phân trang các thao tác gộp.
             "id": 1001,
             "survivor": {
                 "id": 1,
-                "name": "Nguyễn Văn A"
+                "full_name": "Nguyễn Văn A",
+                "phone": "0987654321",
+                "email": "nguyenvana@example.com",
+                "avatar_url": "https://...",
+                "vndupr_score": 0.58,
+                "total_matches": 12,
+                "is_banned": false,
+                "primary_badge": null,
+                "created_at": "2026-01-15T10:30:00+07:00"
             },
             "merged_user": {
                 "id": 2,
-                "name": "Trần Văn B"
+                "full_name": "Trần Văn B",
+                "phone": "0987654322",
+                "email": "tranvanb@example.com",
+                "avatar_url": "https://...",
+                "vndupr_score": 0.42,
+                "total_matches": 5,
+                "is_banned": false,
+                "primary_badge": null,
+                "created_at": "2026-02-20T14:00:00+07:00"
             },
             "matches_after_merge": 16,
             "duplicate_count": 1,

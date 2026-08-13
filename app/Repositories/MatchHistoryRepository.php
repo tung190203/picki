@@ -122,7 +122,7 @@ class MatchHistoryRepository
 
         $totalRounds = $matches->max('round_number') ?? 0;
 
-        if ($totalRounds <= 1) {
+        if ($totalRounds < 1) {
             return [];
         }
 
