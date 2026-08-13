@@ -49,9 +49,9 @@ class UserManagementController extends Controller
         );
     }
 
-    public function show(int $id)
+    public function show(string $id)
     {
-        $user = $this->userManagementService->getDetail($id);
+        $user = $this->userManagementService->getDetail((int) $id);
         return ResponseHelper::single($user, 'Lấy chi tiết user thành công');
     }
 

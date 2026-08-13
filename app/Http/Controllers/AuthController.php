@@ -55,6 +55,12 @@ class AuthController extends Controller
                 'ban_reason' => $exits->ban_reason,
             ]);
         }
+        if ($exits->is_merged) {
+            return ResponseHelper::error('Tài khoản của bạn đã được gộp vào tài khoản khác', 403, [
+                'status_code' => 'USER_MERGED',
+                'merged_into_user_id' => $exits->merged_into_user_id,
+            ]);
+        }
         if (!$exits->email_verified_at) {
             $exits->notify(new VerifyEmailNotification($loginField, $request->login));
             return ResponseHelper::error('Vui lòng xác minh email trước khi đăng nhập', 403, [
@@ -251,6 +257,12 @@ class AuthController extends Controller
                     'ban_reason' => $user->ban_reason,
                 ]);
             }
+            if ($user->is_merged) {
+                return ResponseHelper::error('Tài khoản của bạn đã được gộp vào tài khoản khác', 403, [
+                    'status_code' => 'USER_MERGED',
+                    'merged_into_user_id' => $user->merged_into_user_id,
+                ]);
+            }
 
             $user->update(['last_login' => now(), 'last_active_at' => now()]);
 
@@ -413,6 +425,12 @@ class AuthController extends Controller
                 'ban_reason' => $user->ban_reason,
             ]);
         }
+        if ($user->is_merged) {
+            return ResponseHelper::error('Tài khoản của bạn đã được gộp vào tài khoản khác', 403, [
+                'status_code' => 'USER_MERGED',
+                'merged_into_user_id' => $user->merged_into_user_id,
+            ]);
+        }
         $accessToken = JWTAuth::claims(['type' => 'access'])->fromUser($user);
         $refreshToken = JWTAuth::claims(['type' => 'refresh', 'exp' => now()->addDays(30)->timestamp])->fromUser($user);
         $user->last_login = now();
@@ -502,6 +520,13 @@ class AuthController extends Controller
                 return ResponseHelper::error('Tài khoản của bạn đã bị khóa: ' . ($user->ban_reason ?? 'Vui lòng liên hệ hỗ trợ'), 403, [
                     'status_code' => 'USER_BANNED',
                     'ban_reason' => $user->ban_reason,
+                ]);
+            }
+
+            if ($user->is_merged) {
+                return ResponseHelper::error('Tài khoản của bạn đã được gộp vào tài khoản khác', 403, [
+                    'status_code' => 'USER_MERGED',
+                    'merged_into_user_id' => $user->merged_into_user_id,
                 ]);
             }
 
@@ -760,6 +785,12 @@ class AuthController extends Controller
             return ResponseHelper::error('Tài khoản của bạn đã bị khóa: ' . ($user->ban_reason ?? 'Vui lòng liên hệ hỗ trợ'), 403, [
                 'status_code' => 'USER_BANNED',
                 'ban_reason' => $user->ban_reason,
+            ]);
+        }
+        if ($user->is_merged) {
+            return ResponseHelper::error('Tài khoản của bạn đã được gộp vào tài khoản khác', 403, [
+                'status_code' => 'USER_MERGED',
+                'merged_into_user_id' => $user->merged_into_user_id,
             ]);
         }
 
