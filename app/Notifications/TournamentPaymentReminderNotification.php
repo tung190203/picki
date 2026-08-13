@@ -29,4 +29,23 @@ class TournamentPaymentReminderNotification extends ClubNotificationBase
             'amount_due' => $this->amountDue,
         ]);
     }
+
+    public function toFcm(object $notifiable): array
+    {
+        $body = "Bạn được nhắc nhở đóng phí tham gia giải đấu \"{$this->tournament->name}\".";
+        if ($this->amountDue) {
+            $body .= " Số tiền: " . number_format($this->amountDue) . " VNĐ.";
+        }
+
+        return [
+            'title' => 'Nhắc nhở đóng phí giải đấu',
+            'body' => $body,
+            'data' => [
+                'type' => 'TOURNAMENT_PAYMENT_REMINDER',
+                'tournament_id' => (string) $this->tournament->id,
+                'amount_due' => $this->amountDue ? (string) $this->amountDue : null,
+                'action' => 'open_tournament_payment',
+            ],
+        ];
+    }
 }

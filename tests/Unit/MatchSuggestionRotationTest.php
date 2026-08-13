@@ -102,8 +102,9 @@ class MatchSuggestionRotationTest extends TestCase
             $this->createPlayerContext(['id' => 4, 'gender' => User::MALE, 'user_id' => 9]),
         ];
 
+        // Signature uses mini_participant_id (id), not user_id
         $sig = $this->scheduler->buildCandidateSignature($teamA, $teamB);
-        $this->assertEquals([1, 3, 5, 9], $sig);
+        $this->assertEquals([1, 2, 3, 4], $sig);
     }
 
     /**

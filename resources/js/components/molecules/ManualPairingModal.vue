@@ -51,7 +51,7 @@
                                             :disabled="isTeamUsed(group.groupId, 1)">
                                             1. {{ group.firstTeam || 'Chưa có' }}
                                         </button>
-                                        <button @click="addTeamToSlot(group.groupId, 2)"
+                                        <button v-if="numAdvancingTeams >= 2" @click="addTeamToSlot(group.groupId, 2)"
                                             class="text-xs px-2 py-1 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded border border-orange-200 transition-colors font-medium"
                                             :disabled="isTeamUsed(group.groupId, 2)">
                                             2. {{ group.secondTeam || 'Chưa có' }}
@@ -88,10 +88,10 @@
                                         </div>
                                     </div>
 
-                                    <span class="text-gray-400 font-bold">VS</span>
+                                    <span v-if="numAdvancingTeams >= 2" class="text-gray-400 font-bold">VS</span>
 
                                     <!-- Slot 2 (odd position) -->
-                                    <div class="flex-1">
+                                    <div v-if="numAdvancingTeams >= 2" class="flex-1">
                                         <div v-if="slot[1]"
                                             @click="removeFromSlot(idx, 1)"
                                             class="flex items-center justify-between px-3 py-2 bg-orange-50 border border-orange-300 rounded-lg cursor-pointer hover:bg-orange-100 transition-colors">
@@ -106,6 +106,7 @@
                                             Chọn đội nhì bảng...
                                         </div>
                                     </div>
+                                    <div v-else class="flex-1"></div>
                                 </div>
                             </div>
                         </div>
@@ -150,6 +151,10 @@ const props = defineProps({
     numGroups: {
         type: Number,
         default: 8
+    },
+    numAdvancingTeams: {
+        type: Number,
+        default: 2
     },
     existingPairings: {
         type: Array,
@@ -216,10 +221,13 @@ const loadExistingPairings = (pairings) => {
     });
 
     // Fill slots based on pairings
+    // Position maps to slot×2 (home) or slot×2+1 (away); max position = numGroups * 2 - 1
     pairings.forEach(pairing => {
         const position = pairing.position ?? pairing.rank;
         const team = teamMap[`${pairing.group_id}_${pairing.rank}`];
-        if (team && position >= 0 && position < pairingSlots.value.length) {
+        // Allow positions up to numGroups*2 - 1 (not just numGroups-1)
+        const maxPosition = pairingSlots.value.length * 2;
+        if (team && position >= 0 && position < maxPosition) {
             const slotIndex = Math.floor(position / 2);
             const isFirstSlot = position % 2 === 0;
             if (isFirstSlot) {
@@ -238,9 +246,9 @@ watch(() => props.modelValue, (newVal) => {
     }
 }, { immediate: true });
 
-// Add team to next empty slot
+// Add team to next empty slot — enforces rank-slot binding:
+// rank 1 (Nhất) can ONLY go to slot[n][0], rank 2 (Nhì) can ONLY go to slot[n][1]
 const addTeamToSlot = (groupId, rank) => {
-    // rank: 1 = first place (Nhất), 2 = second place (Nhì)
     const teamInfo = groupList.value.find(g => g.groupId === groupId);
     if (!teamInfo) return;
 
@@ -251,17 +259,11 @@ const addTeamToSlot = (groupId, rank) => {
         rank
     };
 
-    // Find next empty slot for this rank type
-    // Even positions (0, 2, 4...) = first place teams
-    // Odd positions (1, 3, 5...) = second place teams
+    // Find next empty slot by rank position: rank1 → slot[n][0], rank2 → slot[n][1]
+    const slotSubIndex = rank === 1 ? 0 : 1;
     for (let i = 0; i < pairingSlots.value.length; i++) {
-        const slot = pairingSlots.value[i];
-        if (rank === 1 && slot[0] === null) {
-            slot[0] = team;
-            return;
-        }
-        if (rank === 2 && slot[1] === null) {
-            slot[1] = team;
+        if (pairingSlots.value[i][slotSubIndex] === null) {
+            pairingSlots.value[i][slotSubIndex] = team;
             return;
         }
     }
@@ -272,11 +274,14 @@ const removeFromSlot = (slotIndex, subIndex) => {
     pairingSlots.value[slotIndex][subIndex] = null;
 };
 
-// Check if team is already used
+// Check if a specific team (groupId + rank) is already placed in the correct slot position
 const isTeamUsed = (groupId, rank) => {
+    if (rank === 2 && props.numAdvancingTeams < 2) return true;
+    const slotSubIndex = rank === 1 ? 0 : 1;
     for (const slot of pairingSlots.value) {
-        if (slot[0] && slot[0].groupId === groupId && slot[0].rank === rank) return true;
-        if (slot[1] && slot[1].groupId === groupId && slot[1].rank === rank) return true;
+        if (slot[slotSubIndex] && slot[slotSubIndex].groupId === groupId && slot[slotSubIndex].rank === rank) {
+            return true;
+        }
     }
     return false;
 };
@@ -285,7 +290,9 @@ const isTeamUsed = (groupId, rank) => {
 const validationError = computed(() => {
     for (let i = 0; i < pairingSlots.value.length; i++) {
         const slot = pairingSlots.value[i];
-        if (!slot[0] || !slot[1]) {
+        // Khi numAdvancingTeams=1: chỉ require slot[0]; khi >=2: require cả 2
+        const requireSecond = props.numAdvancingTeams >= 2;
+        if (!slot[0] || (requireSecond && !slot[1])) {
             return `Cặp đấu ${i + 1} chưa hoàn tất.`;
         }
     }
@@ -360,11 +367,14 @@ const applyPairing = () => {
             rank: slot[0].rank,
             position: slotIndex * 2
         });
-        manualPairings.push({
-            group_id: slot[1].groupId,
-            rank: slot[1].rank,
-            position: slotIndex * 2 + 1
-        });
+        // Chỉ push slot[1] khi numAdvancingTeams >= 2
+        if (props.numAdvancingTeams >= 2 && slot[1]) {
+            manualPairings.push({
+                group_id: slot[1].groupId,
+                rank: slot[1].rank,
+                position: slotIndex * 2 + 1
+            });
+        }
     });
 
     emit('apply', manualPairings);
