@@ -74,6 +74,7 @@ use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\AdminClubManagementController;
 use App\Http\Controllers\Admin\AdminCompetitionLocationManagementController;
 use App\Http\Controllers\Admin\ScoreVerificationManagementController;
+use App\Http\Controllers\Admin\UserMergeController;
 use App\Http\Controllers\ScoreVerificationController;
 use App\Http\Controllers\QuickMatchController;
 use App\Http\Controllers\MatchSuggestionController;
@@ -401,6 +402,12 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
     Route::get('/notifications', [AdminNotificationController::class, 'index']);
 
     Route::get('/logs', [AuditLogController::class, 'index']);
+
+    Route::post('/user-merges/preview', [UserMergeController::class, 'preview']);
+    Route::post('/user-merges/preview-final', [UserMergeController::class, 'previewFinal']);
+    Route::post('/user-merges', [UserMergeController::class, 'store']);
+    Route::get('/user-merges', [UserMergeController::class, 'index']);
+    Route::get('/user-merges/{id}', [UserMergeController::class, 'show']);
 });
 
 Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(function () {
