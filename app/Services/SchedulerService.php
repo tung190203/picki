@@ -724,6 +724,19 @@ class SchedulerService
      */
     private function compareCandidates(array $a, array $b): int
     {
+        // PRIORITY 0: GLOBAL FAIRNESS CHECK (MOST IMPORTANT)
+        // Ưu tiên tuyệt đối cho người có waiting_rounds cao nhất trong pool.
+        // Người chưa đấu phải được ghép TRƯỚC bất kể tier/gender/balance.
+        $fmA = $a['fairness_metrics'];
+        $fmB = $b['fairness_metrics'];
+        $maxWaitA = max($fmA['max_waiting'] ?? 0, $fmA['min_waiting'] ?? 0);
+        $maxWaitB = max($fmB['max_waiting'] ?? 0, $fmB['min_waiting'] ?? 0);
+
+        if ($maxWaitA !== $maxWaitB) {
+            // Candidate có max_waiting cao hơn phải thắng - ưu tiên người chưa đấu
+            return $maxWaitB <=> $maxWaitA; // B > A nếu maxWaitB > maxWaitA
+        }
+
         // PRIORITY 1: Gender Mode
         // same_gender > mixed_gender > unknown
         // Lower value = better for sorting (so same_gender comes first)
@@ -751,10 +764,7 @@ class SchedulerService
             return abs($a['rating_gap']) <=> abs($b['rating_gap']);
         }
 
-        // PRIORITY 5: Fair Play
-        $fmA = $a['fairness_metrics'];
-        $fmB = $b['fairness_metrics'];
-
+        // PRIORITY 5: Fair Play (other metrics)
         // 5a: Sum played (lower is better)
         if ($fmA['sum_played'] !== $fmB['sum_played']) {
             return $fmA['sum_played'] <=> $fmB['sum_played'];
@@ -765,16 +775,7 @@ class SchedulerService
             return $fmA['played_range'] <=> $fmB['played_range'];
         }
 
-        // 5c: Max waiting rounds (higher is better - players who waited longest)
-        // Use MAX (not min) so that any candidate containing a long-waiting player
-        // is preferred - this prevents guest/long-waiting players from being starved.
-        $maxWaitA = max($fmA['max_waiting'] ?? 0, $fmA['min_waiting'] ?? 0);
-        $maxWaitB = max($fmB['max_waiting'] ?? 0, $fmB['min_waiting'] ?? 0);
-        if ($maxWaitA !== $maxWaitB) {
-            return $maxWaitB <=> $maxWaitA;
-        }
-
-        // 5d: Min waiting rounds (higher is better - tiebreaker)
+        // 5c: Min waiting rounds (higher is better - tiebreaker)
         if ($fmA['min_waiting'] !== $fmB['min_waiting']) {
             return $fmB['min_waiting'] <=> $fmA['min_waiting'];
         }
@@ -837,6 +838,8 @@ class SchedulerService
         }
 
         // Relax rule: end-of-tournament fallback when only 4 players remain.
+        // With 4 players, if they don't play now they never will - so allow the match
+        // even with larger tier gaps as a last resort.
         if (count($players) === 4) {
             return true;
         }
