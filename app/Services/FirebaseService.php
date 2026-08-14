@@ -103,6 +103,7 @@ class FirebaseService
         if ($imageUrl) {
             $payload['message']['notification']['image'] = $imageUrl;
             $payload['message']['android']['notification']['image'] = $imageUrl;
+            $payload['message']['android']['notification']['style'] = 'big_picture';
             $payload['message']['apns']['payload']['aps']['mutable-content'] = 1;
             $payload['message']['apns']['fcm_options']['image'] = $imageUrl;
         }
@@ -274,6 +275,7 @@ class FirebaseService
             if (!empty($imageUrl)) {
                 $payload['message']['notification']['image'] = $imageUrl;
                 $payload['message']['android']['notification']['image'] = $imageUrl;
+                $payload['message']['android']['notification']['style'] = 'big_picture';
                 $payload['message']['apns']['payload']['aps']['mutable-content'] = 1;
                 $payload['message']['apns']['fcm_options']['image'] = $imageUrl;
             }
