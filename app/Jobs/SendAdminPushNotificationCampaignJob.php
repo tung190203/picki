@@ -39,11 +39,11 @@ class SendAdminPushNotificationCampaignJob implements ShouldQueue
         // Idempotency: atomic update status PROCESSING nếu đang SCHEDULED/PROCESSING/DRAFT
         $claimed = AdminPushNotificationCampaign::where('id', $campaign->id)
             ->whereIn('status', [
-                CampaignStatus::Scheduled->value,
-                CampaignStatus::Draft->value,
-                CampaignStatus::Processing->value,
+                CampaignStatus::SCHEDULED->value,
+                CampaignStatus::DRAFT->value,
+                CampaignStatus::PROCESSING->value,
             ])
-            ->update(['status' => CampaignStatus::Processing->value]);
+            ->update(['status' => CampaignStatus::PROCESSING->value]);
 
         if ($claimed === 0) {
             Log::info('SendAdminPushNotificationCampaignJob: already processed', [
@@ -62,7 +62,7 @@ class SendAdminPushNotificationCampaignJob implements ShouldQueue
 
         $resolverData = CampaignRecipientResolverFactory::makeWithConfig($campaign);
         $query = $resolverData['resolver']->buildQuery($resolverData['config']);
-        $query->select('users.id');
+        $query->select('users.id')->distinct();
 
         $totalSuccess = 0;
         $totalFailed = 0;
@@ -120,14 +120,14 @@ class SendAdminPushNotificationCampaignJob implements ShouldQueue
             if (!empty($result['invalid_tokens'])) {
                 DeviceToken::whereIn('token', $result['invalid_tokens'])->delete();
             }
-        }, 'users.id');
+        });
 
         // Xác định final status
         $finalStatus = match (true) {
-            $actualRecipientCount === 0 => CampaignStatus::Failed,
-            $totalFailed === 0 => CampaignStatus::Sent,
-            $totalSuccess === 0 => CampaignStatus::Failed,
-            default => CampaignStatus::Partial,
+            $actualRecipientCount === 0 => CampaignStatus::FAILED,
+            $totalFailed === 0 => CampaignStatus::SENT,
+            $totalSuccess === 0 => CampaignStatus::FAILED,
+            default => CampaignStatus::PARTIAL,
         };
 
         $campaign->update([
@@ -164,7 +164,7 @@ class SendAdminPushNotificationCampaignJob implements ShouldQueue
         $campaign = AdminPushNotificationCampaign::find($this->campaignId);
         if ($campaign) {
             $campaign->update([
-                'status' => CampaignStatus::Failed->value,
+                'status' => CampaignStatus::FAILED->value,
                 'error_message' => $exception->getMessage(),
             ]);
         }
