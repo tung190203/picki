@@ -11,16 +11,17 @@ use App\Models\DeviceToken;
 use App\Models\User;
 use App\Services\Admin\AdminPushNotification\PushNotificationRecipientResolver;
 use App\Services\Admin\AuditLogService;
+use App\Services\ImageOptimizationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class AdminPushNotificationService
 {
     public function __construct(
-        protected AuditLogService $auditLogService
+        protected AuditLogService $auditLogService,
+        protected ImageOptimizationService $imageService
     ) {}
 
     /**
@@ -175,13 +176,20 @@ class AdminPushNotificationService
     }
 
     /**
-     * Upload image lên Storage::disk('public'), trả về public URL.
+     * Upload image lên Storage::disk('public') sau khi resize/optimize về JPEG ≤ 1024px,
+     * đảm bảo dung lượng ≤ 500KB để tương thích FCM iOS/Android.
      */
     public function uploadImage(UploadedFile $image): string
     {
-        $filename = 'admin-push-notifications/' . Str::uuid() . '.' . $image->getClientOriginalExtension();
-        Storage::disk('public')->put($filename, file_get_contents($image));
-        return asset('storage/' . $filename);
+        $relativePath = $this->imageService->processAndSaveImage(
+            file: $image,
+            folder: 'admin-push-notifications',
+            prefix: '',
+            maxWidth: 1024,
+            quality: 75
+        );
+
+        return asset('storage/' . $relativePath);
     }
 
     /**

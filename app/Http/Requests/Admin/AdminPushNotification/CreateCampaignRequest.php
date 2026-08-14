@@ -32,7 +32,7 @@ class CreateCampaignRequest extends FormRequest
         return [
             'title' => ['required', 'string', 'max:50'],
             'content' => ['required', 'string', 'max:150'],
-            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:1024'],
 
             'action_type' => ['required', 'string', 'in:' . ActionType::pattern()],
             'action_id' => ['nullable', 'integer'],
@@ -53,7 +53,7 @@ class CreateCampaignRequest extends FormRequest
             'content.required' => 'Vui lòng nhập nội dung',
             'content.max' => 'Nội dung không được vượt quá 150 ký tự',
             'image.image' => 'File phải là hình ảnh',
-            'image.max' => 'Kích thước ảnh không được vượt quá 5MB',
+            'image.max' => 'Kích thước ảnh không được vượt quá 1MB',
             'action_type.required' => 'Vui lòng chọn loại hành động',
             'action_type.in' => 'Loại hành động không hợp lệ',
             'recipient_type.required' => 'Vui lòng chọn loại người nhận',
