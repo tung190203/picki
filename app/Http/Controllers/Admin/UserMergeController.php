@@ -95,6 +95,7 @@ class UserMergeController extends Controller
         return ResponseHelper::success([
             'id' => $userMerge->id,
             'survivor_user_id' => $userMerge->survivor_user_id,
+            'avatar_url' => $userMerge->survivor?->avatar_url,
             'merged_user_id' => $userMerge->merged_user_id,
             'status' => $userMerge->status,
             'matches_after_merge' => $userMerge->matches_after_merge,

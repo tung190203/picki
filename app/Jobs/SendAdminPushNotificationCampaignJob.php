@@ -12,7 +12,6 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class SendAdminPushNotificationCampaignJob implements ShouldQueue
@@ -57,17 +56,16 @@ class SendAdminPushNotificationCampaignJob implements ShouldQueue
         Log::info('Starting push notification campaign', [
             'campaign_id' => $campaign->id,
             'recipient_type' => $campaign->recipient_type->value,
+            'recipient_config' => $campaign->recipient_config,
             'estimated_count' => $campaign->estimated_recipient_count,
         ]);
 
+        // Validate recipient_config trước khi xử lý
+        $config = $campaign->recipient_config ?? [];
+        $this->validateRecipientConfig($campaign->recipient_type, $config);
+
         $resolverData = CampaignRecipientResolverFactory::makeWithConfig($campaign);
         $query = $resolverData['resolver']->buildQuery($resolverData['config']);
-        $query->select('users.id')->distinct();
-
-        $totalSuccess = 0;
-        $totalFailed = 0;
-        $totalInvalidTokens = [];
-        $actualRecipientCount = 0;
 
         $data = [
             'type' => 'ADMIN_PUSH_NOTIFICATION',
@@ -79,48 +77,47 @@ class SendAdminPushNotificationCampaignJob implements ShouldQueue
             $data['action_id'] = (string) $campaign->action_id;
         }
 
-        // Process users theo chunk 5000 user mỗi lần
-        $query->chunkById(5000, function ($users) use (
-            $firebase, $campaign, $data, &$totalSuccess, &$totalFailed, &$totalInvalidTokens, &$actualRecipientCount
-        ) {
-            $userIds = $users->pluck('id')->toArray();
-            if (empty($userIds)) return;
+        // Lấy danh sách user IDs đủ điều kiện
+        $userIds = $query->pluck('users.id')->toArray();
 
+        $totalSuccess = 0;
+        $totalFailed = 0;
+        $actualRecipientCount = 0;
+
+        if (empty($userIds)) {
+            Log::info('No users found for campaign', ['campaign_id' => $campaign->id]);
+        } else {
+            // Dùng cursor để iterate qua devices (tiết kiệm memory)
             $devices = DeviceToken::whereIn('user_id', $userIds)
                 ->where('is_enabled', true)
                 ->cursor();
 
-            $tokensBatch = [];
             foreach ($devices as $device) {
-                $tokensBatch[] = $device->token;
+                $actualRecipientCount++;
+
+                try {
+                    $sent = $firebase->sendToDevice(
+                        $device,
+                        $campaign->title,
+                        $campaign->content,
+                        $data
+                    );
+
+                    if ($sent) {
+                        $totalSuccess++;
+                    } else {
+                        $totalFailed++;
+                    }
+                } catch (\Throwable $e) {
+                    $totalFailed++;
+                    Log::error('Failed to send admin push to device', [
+                        'device_id' => $device->id,
+                        'campaign_id' => $campaign->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
-
-            if (empty($tokensBatch)) {
-                Log::info('No device tokens for chunk', [
-                    'campaign_id' => $campaign->id,
-                    'user_count' => count($userIds),
-                ]);
-                return;
-            }
-
-            $result = $firebase->sendMulticast(
-                $tokensBatch,
-                $campaign->title,
-                $campaign->content,
-                $data,
-                $campaign->image_url
-            );
-
-            $totalSuccess += $result['success'];
-            $totalFailed += $result['failed'];
-            $totalInvalidTokens = array_merge($totalInvalidTokens, $result['invalid_tokens']);
-            $actualRecipientCount += count($tokensBatch);
-
-            // Cleanup invalid tokens
-            if (!empty($result['invalid_tokens'])) {
-                DeviceToken::whereIn('token', $result['invalid_tokens'])->delete();
-            }
-        });
+        }
 
         // Xác định final status
         $finalStatus = match (true) {
@@ -141,7 +138,6 @@ class SendAdminPushNotificationCampaignJob implements ShouldQueue
                 : null,
             'metadata' => array_merge($campaign->metadata ?? [], [
                 'completed_at' => now()->toIsoString(),
-                'invalid_tokens_cleaned' => count($totalInvalidTokens),
             ]),
         ]);
 
@@ -152,6 +148,29 @@ class SendAdminPushNotificationCampaignJob implements ShouldQueue
             'success' => $totalSuccess,
             'failed' => $totalFailed,
         ]);
+    }
+
+    protected function validateRecipientConfig(\App\Enums\AdminPushNotification\RecipientType $recipientType, array $config): void
+    {
+        $requiredFields = match ($recipientType) {
+            \App\Enums\AdminPushNotification\RecipientType::CLUB => ['club_id'],
+            \App\Enums\AdminPushNotification\RecipientType::USERS => ['user_ids'],
+            \App\Enums\AdminPushNotification\RecipientType::ACTIVITY => ['level'],
+            default => [],
+        };
+
+        $missingFields = [];
+        foreach ($requiredFields as $field) {
+            if (!isset($config[$field]) || (is_array($config[$field]) && empty($config[$field]))) {
+                $missingFields[] = $field;
+            }
+        }
+
+        if (!empty($missingFields)) {
+            throw new \InvalidArgumentException(
+                "Campaign config missing required fields for recipient_type {$recipientType->value}: " . implode(', ', $missingFields)
+            );
+        }
     }
 
     public function failed(\Throwable $exception): void
