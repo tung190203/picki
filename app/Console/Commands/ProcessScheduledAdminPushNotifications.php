@@ -17,7 +17,7 @@ class ProcessScheduledAdminPushNotifications extends Command
         $dispatched = 0;
 
         AdminPushNotificationCampaign::query()
-            ->where('status', CampaignStatus::Scheduled->value)
+            ->where('status', CampaignStatus::SCHEDULED->value)
             ->whereNotNull('scheduled_at')
             ->where('scheduled_at', '<=', now())
             ->orderBy('id')

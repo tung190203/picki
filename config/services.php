@@ -4,45 +4,47 @@
  * Get the path to the CA certificate bundle for SSL verification.
  * This is needed on Windows where PHP often lacks the CA certificates.
  */
-function getCaCertPath()
-{
-    static $path = null;
+if (!function_exists('getCaCertPath')) {
+    function getCaCertPath()
+    {
+        static $path = null;
 
-    if ($path !== null) {
-        return $path;
-    }
-
-    // Check environment variable first
-    $envPath = env('CURL_CERT_PATH');
-    if ($envPath && file_exists($envPath)) {
-        $path = $envPath;
-        return $path;
-    }
-
-    // Check common Windows paths
-    $commonPaths = [
-        'C:\Users\Admin\cacert.pem',
-        base_path('cacert.pem'),
-        base_path('extras/cacert.pem'),
-        'C:\Program Files\PHP\extras\ssl\cacert.pem',
-    ];
-
-    foreach ($commonPaths as $p) {
-        if (file_exists($p)) {
-            $path = $p;
+        if ($path !== null) {
             return $path;
         }
-    }
 
-    // If curl.cainfo is set in php.ini, use it
-    $curlCainfo = ini_get('curl.cainfo');
-    if ($curlCainfo && file_exists($curlCainfo)) {
-        $path = $curlCainfo;
+        // Check environment variable first
+        $envPath = env('CURL_CERT_PATH');
+        if ($envPath && file_exists($envPath)) {
+            $path = $envPath;
+            return $path;
+        }
+
+        // Check common Windows paths
+        $commonPaths = [
+            'C:\Users\Admin\cacert.pem',
+            base_path('cacert.pem'),
+            base_path('extras/cacert.pem'),
+            'C:\Program Files\PHP\extras\ssl\cacert.pem',
+        ];
+
+        foreach ($commonPaths as $p) {
+            if (file_exists($p)) {
+                $path = $p;
+                return $path;
+            }
+        }
+
+        // If curl.cainfo is set in php.ini, use it
+        $curlCainfo = ini_get('curl.cainfo');
+        if ($curlCainfo && file_exists($curlCainfo)) {
+            $path = $curlCainfo;
+            return $path;
+        }
+
+        $path = false;
         return $path;
     }
-
-    $path = false;
-    return $path;
 }
 
 return [

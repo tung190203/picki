@@ -2,10 +2,6 @@
 
 namespace App\Services\Admin\UserMerge;
 
-use App\Models\Matches;
-use App\Models\MatchHistory;
-use App\Models\MiniMatch;
-use App\Models\MiniTournament;
 use Illuminate\Support\Facades\DB;
 
 class DuplicateMatchDetector
@@ -339,51 +335,63 @@ class DuplicateMatchDetector
 
     public function getMatchCounts(int $userId): array
     {
-        $tournamentMatches = $this->countTournamentMatches($userId);
-        $quickMatches = $this->countQuickMatches($userId);
-        $miniMatches = $this->countMiniTournamentMatches($userId);
+        // Live query with correct filters, matching Sport API's getBatchSportStats logic.
+        // Always run live query to get accurate breakdown by match type.
+        $tournamentMatches = DB::table('matches as m')
+            ->join('team_members as tm', function ($join) {
+                $join->on('tm.team_id', '=', 'm.home_team_id')
+                    ->orOn('tm.team_id', '=', 'm.away_team_id');
+            })
+            ->where('tm.user_id', $userId)
+            ->where('m.status', 'completed')
+            ->where('m.is_bye', 0)
+            ->distinct()
+            ->count('m.id');
+
+        $miniTeamIds = DB::table('mini_team_members')
+            ->where('user_id', $userId)
+            ->pluck('mini_team_id');
+
+        $miniTournamentMatches = 0;
+        if ($miniTeamIds->isNotEmpty()) {
+            $miniTournamentMatches = DB::table('mini_matches')
+                ->where(function ($q) use ($miniTeamIds) {
+                    $q->whereIn('team1_id', $miniTeamIds)
+                        ->orWhereIn('team2_id', $miniTeamIds);
+                })
+                ->where('status', 'completed')
+                ->distinct()
+                ->count('id');
+        }
+
+        $soloParticipantIds = DB::table('mini_participants')
+            ->where('user_id', $userId)
+            ->pluck('id');
+
+        if ($soloParticipantIds->isNotEmpty()) {
+            $miniTournamentMatches += DB::table('mini_matches')
+                ->where(function ($q) use ($soloParticipantIds) {
+                    $q->whereIn('participant1_id', $soloParticipantIds)
+                        ->orWhereIn('participant2_id', $soloParticipantIds);
+                })
+                ->whereNull('team1_id')
+                ->where('status', 'completed')
+                ->distinct()
+                ->count('id');
+        }
+
+        $quickMatches = DB::table('match_histories as mh')
+            ->join('quick_matches as qm', 'qm.id', '=', 'mh.quick_match_id')
+            ->where('mh.user_id', $userId)
+            ->where('qm.status', 'completed')
+            ->distinct('qm.id')
+            ->count('qm.id');
 
         return [
             'tournament' => $tournamentMatches,
             'quick_match' => $quickMatches,
-            'mini_tournament' => $miniMatches,
-            'total' => $tournamentMatches + $quickMatches + $miniMatches,
+            'mini_tournament' => $miniTournamentMatches,
+            'total' => $tournamentMatches + $quickMatches + $miniTournamentMatches,
         ];
-    }
-
-    protected function countTournamentMatches(int $userId): int
-    {
-        return DB::table('matches as m')
-            ->join('team_members as tm', function ($join) use ($userId) {
-                $join->on(function ($q) use ($userId) {
-                    $q->where('tm.team_id', '=', 'm.home_team_id')
-                        ->orWhere('tm.team_id', '=', 'm.away_team_id');
-                })
-                    ->where('tm.user_id', '=', $userId);
-            })
-            ->distinct('m.id')
-            ->count('m.id');
-    }
-
-    protected function countQuickMatches(int $userId): int
-    {
-        return DB::table('match_histories')
-            ->where('user_id', $userId)
-            ->distinct('quick_match_id')
-            ->count('quick_match_id');
-    }
-
-    protected function countMiniTournamentMatches(int $userId): int
-    {
-        return DB::table('mini_matches as mm')
-            ->join('mini_team_members as mtm', function ($join) use ($userId) {
-                $join->on(function ($q) use ($userId) {
-                    $q->where('mtm.mini_team_id', '=', 'mm.team1_id')
-                        ->orWhere('mtm.mini_team_id', '=', 'mm.team2_id');
-                })
-                    ->where('mtm.user_id', '=', $userId);
-            })
-            ->distinct('mm.id')
-            ->count('mm.id');
     }
 }
