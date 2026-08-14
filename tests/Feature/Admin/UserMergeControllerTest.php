@@ -2,6 +2,12 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Models\MiniMatch;
+use App\Models\MiniParticipant;
+use App\Models\MiniTeam;
+use App\Models\MiniTeamMember;
+use App\Models\MiniTournament;
+use App\Models\Sport;
 use App\Models\User;
 use App\Models\UserMerge;
 use App\Models\VnduprHistory;
@@ -412,5 +418,99 @@ class UserMergeControllerTest extends TestCase
 
         $response = $this->getJson('/api/admin/users/search?q=test');
         $response->assertStatus(403);
+    }
+
+    public function test_preview_merge_counts_mini_double_matches(): void
+    {
+        $this->authenticateAsAdmin();
+
+        $sport = Sport::create(['name' => 'Pickleball', 'slug' => 'pickleball-test-' . uniqid()]);
+
+        $tournament = MiniTournament::create([
+            'sport_id' => $sport->id,
+            'created_by' => $this->admin->id,
+            'name' => 'Test Mini Double',
+            'format' => MiniTournament::FORMAT_DOUBLE,
+            'play_mode' => MiniTournament::PLAY_MODE_CASUAL,
+            'start_time' => now(),
+            'status' => MiniTournament::STATUS_OPEN,
+        ]);
+
+        $teamA = MiniTeam::create([
+            'name' => 'Team A',
+            'mini_tournament_id' => $tournament->id,
+        ]);
+        $teamB = MiniTeam::create([
+            'name' => 'Team B',
+            'mini_tournament_id' => $tournament->id,
+        ]);
+        $teamC = MiniTeam::create([
+            'name' => 'Team C',
+            'mini_tournament_id' => $tournament->id,
+        ]);
+        $teamD = MiniTeam::create([
+            'name' => 'Team D',
+            'mini_tournament_id' => $tournament->id,
+        ]);
+
+        MiniTeamMember::create([
+            'mini_team_id' => $teamA->id,
+            'user_id' => $this->userA->id,
+        ]);
+        MiniTeamMember::create([
+            'mini_team_id' => $teamB->id,
+            'user_id' => $this->userA->id,
+        ]);
+        MiniTeamMember::create([
+            'mini_team_id' => $teamC->id,
+            'user_id' => $this->userB->id,
+        ]);
+        MiniTeamMember::create([
+            'mini_team_id' => $teamD->id,
+            'user_id' => $this->userB->id,
+        ]);
+
+        for ($i = 1; $i <= 6; $i++) {
+            // UserA is in teamA and teamB; UserB is in teamC and teamD.
+            // Alternate which user's team plays against UserB's teams.
+            $userATeam = ($i % 2 === 0) ? $teamA->id : $teamB->id;
+            $userBTeam = ($i % 2 === 0) ? $teamC->id : $teamD->id;
+
+            MiniMatch::create([
+                'mini_tournament_id' => $tournament->id,
+                'team1_id' => $userATeam,
+                'team2_id' => $userBTeam,
+                'participant1_id' => null,
+                'participant2_id' => null,
+                'round_number' => $i,
+                'status' => MiniMatch::STATUS_COMPLETED,
+            ]);
+        }
+
+        $response = $this->postJson('/api/admin/user-merges/preview', [
+            'user_a_id' => $this->userA->id,
+            'user_b_id' => $this->userB->id,
+        ]);
+
+        $response->assertStatus(200);
+
+        $this->assertGreaterThanOrEqual(
+            6,
+            $response->json('data.user_a.played_matches'),
+            'user_a should have counted at least 6 mini double matches'
+        );
+        $this->assertGreaterThanOrEqual(
+            6,
+            $response->json('data.user_b.played_matches'),
+            'user_b should have counted at least 6 mini double matches'
+        );
+        // merged_matches = user_a_total + user_b_total - duplicate_count
+        // If all 6 matches are duplicates between userA's team and userB's team:
+        // user_a=6, user_b=6, duplicates=6, merged=6
+        $this->assertGreaterThanOrEqual(
+            6,
+            $response->json('data.match_summary.merged_matches'),
+            'merged_matches should be at least 6 (6+6-6 duplicates)'
+        );
     }
 }
