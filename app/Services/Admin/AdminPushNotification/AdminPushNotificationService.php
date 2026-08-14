@@ -139,6 +139,12 @@ class AdminPushNotificationService
         if ($actionType && $actionType !== 'NONE' && $actionId) {
             $data['action_type'] = $actionType;
             $data['action_id'] = (string) $actionId;
+            $data['action_url'] = match ($actionType) {
+                'TOURNAMENT' => "tournament-detail/{$actionId}",
+                'MINI_TOURNAMENT' => "mini-tournament-detail/{$actionId}",
+                'CLUB' => "club-detail/{$actionId}",
+                default => null,
+            };
         }
 
         $firebase = app(\App\Services\FirebaseService::class);

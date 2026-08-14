@@ -77,6 +77,12 @@ class SendAdminPushNotificationCampaignJob implements ShouldQueue
         if ($campaign->action_type && $campaign->action_type !== \App\Enums\AdminPushNotification\ActionType::NONE && $campaign->action_id) {
             $data['action_type'] = $campaign->action_type->value;
             $data['action_id'] = (string) $campaign->action_id;
+            $data['action_url'] = match ($campaign->action_type->value) {
+                'TOURNAMENT' => "tournament-detail/{$campaign->action_id}",
+                'MINI_TOURNAMENT' => "mini-tournament-detail/{$campaign->action_id}",
+                'CLUB' => "club-detail/{$campaign->action_id}",
+                default => null,
+            };
         }
 
         // Lấy danh sách user IDs đủ điều kiện
