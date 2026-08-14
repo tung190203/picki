@@ -29,7 +29,7 @@ class EstimateRecipientsRequest extends FormRequest
     {
         return [
             'recipient_type' => ['required', 'string', 'in:' . RecipientType::pattern()],
-            'recipient_config' => ['required', 'array'],
+            'recipient_config' => ['present', 'array'], // present = có thể là array rỗng
         ];
     }
 }
