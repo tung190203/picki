@@ -1,0 +1,172 @@
+<?php
+
+namespace App\Jobs;
+
+use App\Enums\AdminPushNotification\CampaignStatus;
+use App\Models\AdminPushNotificationCampaign;
+use App\Models\DeviceToken;
+use App\Services\Admin\AdminPushNotification\CampaignRecipientResolverFactory;
+use App\Services\FirebaseService;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+class SendAdminPushNotificationCampaignJob implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public int $timeout = 1800; // 30 minutes for large campaigns
+    public int $tries = 3;
+    public int $backoff = 60;
+
+    public function __construct(public int $campaignId) {}
+
+    public function handle(FirebaseService $firebase): void
+    {
+        $campaign = AdminPushNotificationCampaign::find($this->campaignId);
+
+        if (!$campaign) {
+            Log::warning('SendAdminPushNotificationCampaignJob: campaign not found', [
+                'campaign_id' => $this->campaignId,
+            ]);
+            return;
+        }
+
+        // Idempotency: atomic update status PROCESSING nếu đang SCHEDULED/PROCESSING/DRAFT
+        $claimed = AdminPushNotificationCampaign::where('id', $campaign->id)
+            ->whereIn('status', [
+                CampaignStatus::Scheduled->value,
+                CampaignStatus::Draft->value,
+                CampaignStatus::Processing->value,
+            ])
+            ->update(['status' => CampaignStatus::Processing->value]);
+
+        if ($claimed === 0) {
+            Log::info('SendAdminPushNotificationCampaignJob: already processed', [
+                'campaign_id' => $this->campaignId,
+                'status' => $campaign->status->value,
+            ]);
+            return;
+        }
+
+        $campaign->refresh();
+        Log::info('Starting push notification campaign', [
+            'campaign_id' => $campaign->id,
+            'recipient_type' => $campaign->recipient_type->value,
+            'estimated_count' => $campaign->estimated_recipient_count,
+        ]);
+
+        $resolverData = CampaignRecipientResolverFactory::makeWithConfig($campaign);
+        $query = $resolverData['resolver']->buildQuery($resolverData['config']);
+        $query->select('users.id');
+
+        $totalSuccess = 0;
+        $totalFailed = 0;
+        $totalInvalidTokens = [];
+        $actualRecipientCount = 0;
+
+        $data = [
+            'type' => 'ADMIN_PUSH_NOTIFICATION',
+            'campaign_id' => (string) $campaign->id,
+        ];
+
+        if ($campaign->action_type && $campaign->action_type !== \App\Enums\AdminPushNotification\ActionType::NONE && $campaign->action_id) {
+            $data['action_type'] = $campaign->action_type->value;
+            $data['action_id'] = (string) $campaign->action_id;
+        }
+
+        // Process users theo chunk 5000 user mỗi lần
+        $query->chunkById(5000, function ($users) use (
+            $firebase, $campaign, $data, &$totalSuccess, &$totalFailed, &$totalInvalidTokens, &$actualRecipientCount
+        ) {
+            $userIds = $users->pluck('id')->toArray();
+            if (empty($userIds)) return;
+
+            $devices = DeviceToken::whereIn('user_id', $userIds)
+                ->where('is_enabled', true)
+                ->cursor();
+
+            $tokensBatch = [];
+            foreach ($devices as $device) {
+                $tokensBatch[] = $device->token;
+            }
+
+            if (empty($tokensBatch)) {
+                Log::info('No device tokens for chunk', [
+                    'campaign_id' => $campaign->id,
+                    'user_count' => count($userIds),
+                ]);
+                return;
+            }
+
+            $result = $firebase->sendMulticast(
+                $tokensBatch,
+                $campaign->title,
+                $campaign->content,
+                $data,
+                $campaign->image_url
+            );
+
+            $totalSuccess += $result['success'];
+            $totalFailed += $result['failed'];
+            $totalInvalidTokens = array_merge($totalInvalidTokens, $result['invalid_tokens']);
+            $actualRecipientCount += count($tokensBatch);
+
+            // Cleanup invalid tokens
+            if (!empty($result['invalid_tokens'])) {
+                DeviceToken::whereIn('token', $result['invalid_tokens'])->delete();
+            }
+        }, 'users.id');
+
+        // Xác định final status
+        $finalStatus = match (true) {
+            $actualRecipientCount === 0 => CampaignStatus::Failed,
+            $totalFailed === 0 => CampaignStatus::Sent,
+            $totalSuccess === 0 => CampaignStatus::Failed,
+            default => CampaignStatus::Partial,
+        };
+
+        $campaign->update([
+            'status' => $finalStatus->value,
+            'sent_at' => now(),
+            'actual_recipient_count' => $actualRecipientCount,
+            'success_count' => $totalSuccess,
+            'failure_count' => $totalFailed,
+            'error_message' => $actualRecipientCount === 0
+                ? 'Không tìm thấy thiết bị enabled nào cho các user đủ điều kiện.'
+                : null,
+            'metadata' => array_merge($campaign->metadata ?? [], [
+                'completed_at' => now()->toIsoString(),
+                'invalid_tokens_cleaned' => count($totalInvalidTokens),
+            ]),
+        ]);
+
+        Log::info('Push notification campaign completed', [
+            'campaign_id' => $campaign->id,
+            'status' => $finalStatus->value,
+            'actual_recipient_count' => $actualRecipientCount,
+            'success' => $totalSuccess,
+            'failed' => $totalFailed,
+        ]);
+    }
+
+    public function failed(\Throwable $exception): void
+    {
+        Log::error('SendAdminPushNotificationCampaignJob failed', [
+            'campaign_id' => $this->campaignId,
+            'error' => $exception->getMessage(),
+        ]);
+
+        $campaign = AdminPushNotificationCampaign::find($this->campaignId);
+        if ($campaign) {
+            $campaign->update([
+                'status' => CampaignStatus::Failed->value,
+                'error_message' => $exception->getMessage(),
+            ]);
+        }
+    }
+}

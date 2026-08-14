@@ -209,14 +209,9 @@ class UpdateMiniTournamentRequest extends FormRequest
                 $validator->errors()->add('min_rating', 'Trình độ tối thiểu không được lớn hơn trình độ tối đa.');
             }
 
-            // qr_code_url validation for paid tournaments:
-            // - pass if: file uploaded OR string URL sent OR club already has QR wallet
-            // - pass if: tournament already has qr_code_url in DB AND nothing new sent (keep old)
-            // - fail if: no QR at all and no payment account and no club wallet
-            // Only validate QR when user explicitly chose has_fee=true AND use_club_fund=false.
-            // If use_club_fund was not sent, skip — the club may have a shared QR wallet.
-            // If use_club_fund=true, QR is not needed (club fund handles it).
-            // If use_cached_qr=true, skip — the controller will use latest_used_qr.
+            // QR validation: only applies when has_fee=true, use_club_fund=false, and tournament doesn't already have a QR.
+            // For independent tournaments (no club): QR is always required.
+            // For club tournaments: QR is required unless the club has a shared QR wallet.
             if ($this->boolean('has_fee') && $this->has('use_club_fund') && !$this->boolean('use_club_fund') && !$this->boolean('use_cached_qr') && !$this->getClubHasQrWallet()) {
                 $qrValue = $this->input('qr_code_url');
                 $qrFile = $this->file('qr_code_url');
@@ -226,7 +221,11 @@ class UpdateMiniTournamentRequest extends FormRequest
                     $miniTournament = $miniTournamentId ? \App\Models\MiniTournament::find($miniTournamentId) : null;
                     $existingQr = $miniTournament?->qr_code_url;
                     if (!$existingQr) {
-                        $validator->errors()->add('qr_code_url', 'Kèo thu phí cần tải ảnh QR thanh toán. Nếu dùng quỹ CLB, vui lòng chọn CLB có ví với mã QR chung.');
+                        $clubId = $this->input('club_id') ?? $miniTournament?->club_id;
+                        $errorMsg = $clubId
+                            ? 'Kèo thu phí cần tải ảnh QR thanh toán. Nếu dùng quỹ CLB, vui lòng chọn CLB có ví với mã QR chung.'
+                            : 'Kèo thu phí cần tải ảnh QR thanh toán. Vui lòng tải lên ảnh QR hoặc chọn "Dùng mã QR đã lưu trước đó".';
+                        $validator->errors()->add('qr_code_url', $errorMsg);
                     }
                 }
             }
