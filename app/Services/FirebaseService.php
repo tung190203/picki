@@ -107,6 +107,11 @@ class FirebaseService
             $payload['message']['apns']['fcm_options']['image'] = $imageUrl;
         }
 
+        Log::info('FCM push payload', [
+            'device_id' => $device->id,
+            'payload' => $payload,
+        ]);
+
         try {
             (new Client())->post($url, [
                 'headers' => [
@@ -272,6 +277,11 @@ class FirebaseService
                 $payload['message']['apns']['payload']['aps']['mutable-content'] = 1;
                 $payload['message']['apns']['fcm_options']['image'] = $imageUrl;
             }
+
+            Log::info('FCM multicast payload', [
+                'chunk_size' => count($chunk),
+                'payload' => $payload,
+            ]);
 
             try {
                 (new Client())->post($url, [
