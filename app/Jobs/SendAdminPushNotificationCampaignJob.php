@@ -5,6 +5,8 @@ namespace App\Jobs;
 use App\Enums\AdminPushNotification\CampaignStatus;
 use App\Models\AdminPushNotificationCampaign;
 use App\Models\DeviceToken;
+use App\Models\User;
+use App\Notifications\AdminPushCampaignNotification;
 use App\Services\Admin\AdminPushNotification\CampaignRecipientResolverFactory;
 use App\Services\FirebaseService;
 use Illuminate\Bus\Queueable;
@@ -84,6 +86,9 @@ class SendAdminPushNotificationCampaignJob implements ShouldQueue
         $totalFailed = 0;
         $actualRecipientCount = 0;
 
+        // Track users đã notify (mỗi user chỉ notify 1 lần)
+        $notifiedUserIds = [];
+
         if (empty($userIds)) {
             Log::info('No users found for campaign', ['campaign_id' => $campaign->id]);
         } else {
@@ -105,6 +110,8 @@ class SendAdminPushNotificationCampaignJob implements ShouldQueue
 
                     if ($sent) {
                         $totalSuccess++;
+                        // Track user để notify (chỉ notify 1 lần cho mỗi user)
+                        $notifiedUserIds[$device->user_id] = true;
                     } else {
                         $totalFailed++;
                     }
@@ -118,6 +125,17 @@ class SendAdminPushNotificationCampaignJob implements ShouldQueue
                 }
             }
         }
+
+        // Notify users để lưu vào bảng notifications (chỉ users có ít nhất 1 device gửi thành công)
+        $usersToNotify = User::whereIn('id', array_keys($notifiedUserIds))->get();
+        foreach ($usersToNotify as $user) {
+            $user->notify(new AdminPushCampaignNotification($campaign));
+        }
+
+        Log::info('Users notified for campaign', [
+            'campaign_id' => $campaign->id,
+            'notified_count' => $usersToNotify->count(),
+        ]);
 
         // Xác định final status
         $finalStatus = match (true) {
