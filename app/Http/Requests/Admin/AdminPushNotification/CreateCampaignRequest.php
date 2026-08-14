@@ -106,6 +106,10 @@ class CreateCampaignRequest extends FormRequest
 
         switch ($type) {
             case RecipientType::CLUB->value:
+                if (empty($config) || !is_array($config)) {
+                    $validator->errors()->add('recipient_config', 'Cấu hình người nhận không hợp lệ');
+                    return;
+                }
                 if (empty($config['club_id'])) {
                     $validator->errors()->add('recipient_config.club_id', 'Vui lòng chọn câu lạc bộ');
                     return;
@@ -116,6 +120,10 @@ class CreateCampaignRequest extends FormRequest
                 break;
 
             case RecipientType::ACTIVITY->value:
+                if (empty($config) || !is_array($config)) {
+                    $validator->errors()->add('recipient_config', 'Cấu hình người nhận không hợp lệ');
+                    return;
+                }
                 if (empty($config['level'])) {
                     $validator->errors()->add('recipient_config.level', 'Vui lòng chọn mức độ hoạt động');
                     return;

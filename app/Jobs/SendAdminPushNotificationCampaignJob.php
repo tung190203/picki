@@ -56,8 +56,13 @@ class SendAdminPushNotificationCampaignJob implements ShouldQueue
         Log::info('Starting push notification campaign', [
             'campaign_id' => $campaign->id,
             'recipient_type' => $campaign->recipient_type->value,
+            'recipient_config' => $campaign->recipient_config,
             'estimated_count' => $campaign->estimated_recipient_count,
         ]);
+
+        // Validate recipient_config trước khi xử lý
+        $config = $campaign->recipient_config ?? [];
+        $this->validateRecipientConfig($campaign->recipient_type, $config);
 
         $resolverData = CampaignRecipientResolverFactory::makeWithConfig($campaign);
         $query = $resolverData['resolver']->buildQuery($resolverData['config']);
@@ -143,6 +148,29 @@ class SendAdminPushNotificationCampaignJob implements ShouldQueue
             'success' => $totalSuccess,
             'failed' => $totalFailed,
         ]);
+    }
+
+    protected function validateRecipientConfig(\App\Enums\AdminPushNotification\RecipientType $recipientType, array $config): void
+    {
+        $requiredFields = match ($recipientType) {
+            \App\Enums\AdminPushNotification\RecipientType::CLUB => ['club_id'],
+            \App\Enums\AdminPushNotification\RecipientType::USERS => ['user_ids'],
+            \App\Enums\AdminPushNotification\RecipientType::ACTIVITY => ['level'],
+            default => [],
+        };
+
+        $missingFields = [];
+        foreach ($requiredFields as $field) {
+            if (!isset($config[$field]) || (is_array($config[$field]) && empty($config[$field]))) {
+                $missingFields[] = $field;
+            }
+        }
+
+        if (!empty($missingFields)) {
+            throw new \InvalidArgumentException(
+                "Campaign config missing required fields for recipient_type {$recipientType->value}: " . implode(', ', $missingFields)
+            );
+        }
     }
 
     public function failed(\Throwable $exception): void
