@@ -59,7 +59,8 @@ class FirebaseService
         DeviceToken $device,
         string $title,
         string $body,
-        array $data = []
+        array $data = [],
+        ?string $imageUrl = null
     ): bool {
         if (!$this->isConfigured()) {
             return false;
@@ -98,6 +99,13 @@ class FirebaseService
                 ],
             ],
         ];
+
+        if ($imageUrl) {
+            $payload['message']['notification']['image'] = $imageUrl;
+            $payload['message']['android']['notification']['image'] = $imageUrl;
+            $payload['message']['apns']['payload']['aps']['mutable-content'] = 1;
+            $payload['message']['apns']['payload']['aps']['attachment-url'] = $imageUrl;
+        }
 
         try {
             (new Client())->post($url, [

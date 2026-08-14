@@ -105,7 +105,8 @@ class SendAdminPushNotificationCampaignJob implements ShouldQueue
                         $device,
                         $campaign->title,
                         $campaign->content,
-                        $data
+                        $data,
+                        $campaign->image_url
                     );
 
                     if ($sent) {

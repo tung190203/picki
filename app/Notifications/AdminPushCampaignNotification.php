@@ -13,12 +13,18 @@ class AdminPushCampaignNotification extends BaseNotification
 
     public function toDatabase(object $notifiable): array
     {
-        return self::payload($this->campaign->title, $this->campaign->content, [
+        $payload = [
             'type' => 'ADMIN_PUSH_NOTIFICATION',
             'campaign_id' => $this->campaign->id,
             'action_type' => $this->campaign->action_type?->value,
             'action_id' => $this->campaign->action_id,
-        ]);
+        ];
+
+        if ($this->campaign->image_url) {
+            $payload['image_url'] = $this->campaign->image_url;
+        }
+
+        return self::payload($this->campaign->title, $this->campaign->content, $payload);
     }
 
     public function toFcm(object $notifiable): array
@@ -33,11 +39,17 @@ class AdminPushCampaignNotification extends BaseNotification
             $data['action_id'] = (string) $this->campaign->action_id;
         }
 
-        return [
+        $result = [
             'title' => $this->campaign->title,
             'body' => $this->campaign->content,
             'data' => $data,
         ];
+
+        if ($this->campaign->image_url) {
+            $result['image'] = $this->campaign->image_url;
+        }
+
+        return $result;
     }
 
     protected static function payload(string $title, string $message, array $redirect = []): array
