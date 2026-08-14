@@ -20,6 +20,15 @@ class AdminPushCampaignNotification extends BaseNotification
             'action_id' => $this->campaign->action_id,
         ];
 
+        if ($this->campaign->action_type && $this->campaign->action_id) {
+            $payload['action_url'] = match ($this->campaign->action_type->value) {
+                'TOURNAMENT' => "tournament-detail/{$this->campaign->action_id}",
+                'MINI_TOURNAMENT' => "mini-tournament-detail/{$this->campaign->action_id}",
+                'CLUB' => "club-detail/{$this->campaign->action_id}",
+                default => null,
+            };
+        }
+
         if ($this->campaign->image_url) {
             $payload['image_url'] = $this->campaign->image_url;
         }
@@ -37,6 +46,12 @@ class AdminPushCampaignNotification extends BaseNotification
         if ($this->campaign->action_type && $this->campaign->action_id) {
             $data['action_type'] = $this->campaign->action_type->value;
             $data['action_id'] = (string) $this->campaign->action_id;
+            $data['action_url'] = match ($this->campaign->action_type->value) {
+                'TOURNAMENT' => "tournament-detail/{$this->campaign->action_id}",
+                'MINI_TOURNAMENT' => "mini-tournament-detail/{$this->campaign->action_id}",
+                'CLUB' => "club-detail/{$this->campaign->action_id}",
+                default => null,
+            };
         }
 
         $result = [
