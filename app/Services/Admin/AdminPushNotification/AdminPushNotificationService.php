@@ -75,7 +75,7 @@ class AdminPushNotificationService
                 'action_type' => $data['action_type'],
                 'action_id' => $data['action_id'] ?? null,
                 'recipient_type' => $data['recipient_type'],
-                'recipient_config' => $data['recipient_config'],
+                'recipient_config' => $data['recipient_config'] ?? [],
                 'estimated_recipient_count' => 0,
                 'send_type' => $sendType->value,
                 'scheduled_at' => isset($data['scheduled_at']) ? \Carbon\Carbon::parse($data['scheduled_at']) : null,

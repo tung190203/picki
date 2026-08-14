@@ -38,7 +38,7 @@ class CreateCampaignRequest extends FormRequest
             'action_id' => ['nullable', 'integer'],
 
             'recipient_type' => ['required', 'string', 'in:' . RecipientType::pattern()],
-            'recipient_config' => ['required', 'array'],
+            'recipient_config' => ['nullable', 'array'],
 
             'send_type' => ['required', 'string', 'in:' . SendType::pattern()],
             'scheduled_at' => ['nullable', 'date', 'after:now'],
@@ -105,6 +105,10 @@ class CreateCampaignRequest extends FormRequest
         $type = $data['recipient_type'] ?? null;
 
         switch ($type) {
+            case RecipientType::ALL->value:
+                // ALL: recipient_config không cần thiết, bỏ qua validation
+                break;
+
             case RecipientType::CLUB->value:
                 if (empty($config) || !is_array($config)) {
                     $validator->errors()->add('recipient_config', 'Cấu hình người nhận không hợp lệ');
