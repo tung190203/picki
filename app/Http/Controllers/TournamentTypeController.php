@@ -1559,21 +1559,26 @@ class TournamentTypeController extends Controller
      /**
      * Lấy toàn bộ bracket cho tournament type
      * Trả về cấu trúc phân theo round để hiển thị bracket chart
+     *
+     * @param Request $request
+     * @param TournamentType $tournamentType
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function getBracket(TournamentType $tournamentType)
+    public function getBracket(Request $request, TournamentType $tournamentType)
     {
         try {
+            $refereeId = $request->query('referee_id');
             $format = $tournamentType->format;
 
             switch ($format) {
                 case TournamentType::FORMAT_ROUND_ROBIN:
-                    return $this->getRoundRobinSchedule($tournamentType);
+                    return $this->getRoundRobinSchedule($tournamentType, $refereeId);
 
                 case TournamentType::FORMAT_ELIMINATION:
-                    return $this->getEliminationBracket($tournamentType);
+                    return $this->getEliminationBracket($tournamentType, $refereeId);
 
                 case TournamentType::FORMAT_MIXED:
-                    return $this->getMixedBracket($tournamentType);
+                    return $this->getMixedBracket($tournamentType, $refereeId);
 
                 default:
                     return ResponseHelper::error('Format không hợp lệ', 400);
@@ -1588,12 +1593,20 @@ class TournamentTypeController extends Controller
     /**
      * Round Robin - trả về danh sách trận theo thứ tự
      */
-    private function getRoundRobinSchedule(TournamentType $type)
+    private function getRoundRobinSchedule(TournamentType $type, ?int $refereeId = null)
     {
         $tournamentId = $type->tournament_id;
-        $allMatches = $type->matches()
-            ->with(['homeTeam.members', 'awayTeam.members', 'results', 'referee', 'legReferee'])
-            ->get();
+        $query = $type->matches()
+            ->with(['homeTeam.members', 'awayTeam.members', 'results', 'referee', 'legReferee']);
+
+        if ($refereeId) {
+            $query->where(function ($q) use ($refereeId) {
+                $q->where('referee_id', $refereeId)
+                  ->orWhere('leg_referee_id', $refereeId);
+            });
+        }
+
+        $allMatches = $query->get();
         $totalRounds = $allMatches->max('round') ?? 1;
 
         // 1. Nhóm theo Round trước để tạo cấu trúc giống Bracket của Elimination
@@ -1685,14 +1698,22 @@ class TournamentTypeController extends Controller
     /**
      * Elimination - trả về bracket theo round
      */
-    private function getEliminationBracket(TournamentType $type)
+    private function getEliminationBracket(TournamentType $type, ?int $refereeId = null)
     {
         $tournamentId = $type->tournament_id;
-        $matches = $type->matches()
+        $query = $type->matches()
             ->with(['homeTeam.members', 'awayTeam.members', 'results', 'referee', 'legReferee'])
             ->orderBy('round')
-            ->orderBy('leg')
-            ->get();
+            ->orderBy('leg');
+
+        if ($refereeId) {
+            $query->where(function ($q) use ($refereeId) {
+                $q->where('referee_id', $refereeId)
+                  ->orWhere('leg_referee_id', $refereeId);
+            });
+        }
+
+        $matches = $query->get();
 
         // Preload all next_match records to avoid N+1 queries
         $nextMatchIds = $matches->pluck('next_match_id')->filter()->unique()->toArray();
@@ -1822,14 +1843,23 @@ class TournamentTypeController extends Controller
         ]);
     }
 
-    private function getMixedBracket(TournamentType $type)
+    private function getMixedBracket(TournamentType $type, ?int $refereeId = null)
     {
         $tournamentId = $type->tournament_id;
 
-        // ===== POOL STAGE =====
-        $poolMatches = $type->matches()
+        // Referee filter for pool stage
+        $poolQuery = $type->matches()
             ->with(['homeTeam.members', 'awayTeam.members', 'group', 'results'])
-            ->where('round', 1)
+            ->where('round', 1);
+
+        if ($refereeId) {
+            $poolQuery->where(function ($q) use ($refereeId) {
+                $q->where('referee_id', $refereeId)
+                  ->orWhere('leg_referee_id', $refereeId);
+            });
+        }
+
+        $poolMatches = $poolQuery
             ->orderBy('group_id')
             ->orderBy('leg')
             ->get();
@@ -1916,12 +1946,20 @@ class TournamentTypeController extends Controller
             ->groupBy('next_match_id');
 
         // ===== KNOCKOUT STAGE =====
-        $knockoutMatches = $type->matches()
+        $knockoutQuery = $type->matches()
             ->with(['homeTeam.members', 'awayTeam.members', 'results', 'referee', 'legReferee'])
             ->where('round', '>=', 2)
             ->orderBy('round')
-            ->orderBy('leg')
-            ->get();
+            ->orderBy('leg');
+
+        if ($refereeId) {
+            $knockoutQuery->where(function ($q) use ($refereeId) {
+                $q->where('referee_id', $refereeId)
+                  ->orWhere('leg_referee_id', $refereeId);
+            });
+        }
+
+        $knockoutMatches = $knockoutQuery->get();
         
         // DEBUG LOG
         \Log::info('getMixedBracket - knockout matches query', [
