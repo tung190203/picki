@@ -44,7 +44,10 @@ class SchedulerService
 
         if (count($pool) < 4) {
             $messages[] = 'Pool has less than 4 players after filters: ' . count($pool);
-            return $this->createInsufficientPlayersResponse($seed, $pool, $rulesApplied, $messages, $userDataMap);
+            return $this->createInsufficientPlayersResponse(
+                $seed, $pool, $rulesApplied, $messages, $userDataMap,
+                'Không đủ người chơi (cần ít nhất 4 người)',
+            );
         }
 
         // Generate candidates using combination-based algorithm
@@ -52,7 +55,10 @@ class SchedulerService
 
         if (empty($candidates)) {
             $messages[] = 'No valid match found';
-            return $this->createInsufficientPlayersResponse($seed, $pool, $rulesApplied, $messages, $userDataMap);
+            return $this->createInsufficientPlayersResponse(
+                $seed, $pool, $rulesApplied, $messages, $userDataMap,
+                'Không tìm thấy trận gợi ý phù hợp',
+            );
         }
 
         // Select best candidate (already sorted by business priority)
@@ -1939,9 +1945,10 @@ class SchedulerService
         array $pool,
         array $rulesApplied,
         array $messages,
-        array $userDataMap = []
+        array $userDataMap = [],
+        ?string $errorMessage = null,
     ): MatchSuggestionResponseDTO {
-        $messages[] = 'Không đủ người chơi (cần ít nhất 4 người)';
+        $finalErrorMessage = $errorMessage ?? 'Không đủ người chơi (cần ít nhất 4 người)';
 
         return new MatchSuggestionResponseDTO(
             match: null,
@@ -1958,6 +1965,7 @@ class SchedulerService
             seed: $seed,
             rules_applied: $rulesApplied,
             messages: $messages,
+            error_message: $finalErrorMessage,
         );
     }
 

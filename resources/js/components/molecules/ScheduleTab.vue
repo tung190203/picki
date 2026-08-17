@@ -431,7 +431,7 @@
 import CreateMatch from "@/components/molecules/CreateMatch.vue";
 import BracketMixedPreview from "@/components/molecules/BracketMixedPreview.vue";
 import PoolStageMatchCard from "@/components/molecules/PoolStageMatchCard.vue";
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, onMounted } from "vue";
 import { SCHEDULE_TABS } from "@/data/tournament/index.js";
 import { toast } from "vue3-toastify";
 import * as TournamentTypeService from "@/service/tournamentType.js";
@@ -926,6 +926,12 @@ const normalizeMatchForCard = (match) => {
     };
 };
 
+onMounted(async () => {
+    if (props.data?.id) {
+        await getMatches(props.data.id);
+    }
+});
+
 watch(
     () => props.activeTab,
     async (tab) => {
@@ -933,6 +939,7 @@ watch(
             await getMatches(props.data.id);
         }
     },
+    { immediate: true },
 );
 
 watch(
@@ -942,6 +949,7 @@ watch(
             await getMatches(newTournamentId);
         }
     },
+    { immediate: true },
 );
 
 watch(
@@ -951,7 +959,7 @@ watch(
             await getMatches(props.data.id);
         }
     },
-    { deep: true },
+    { deep: true, immediate: true },
 );
 </script>
 
