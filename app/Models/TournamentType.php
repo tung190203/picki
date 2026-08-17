@@ -13,6 +13,9 @@ class TournamentType extends Model
     protected $fillable = [
         'tournament_id',
         'format',
+        'has_resurrection_bracket',
+        'main_bracket_name',
+        'sub_bracket_name',
         'num_legs',          // ✅ ĐÃ THÊM
         'match_rules',
         'rules',             // ✅ ĐÃ THÊM
@@ -21,6 +24,7 @@ class TournamentType extends Model
     ];
 
     protected $casts = [
+        'has_resurrection_bracket' => 'boolean',
         'match_rules' => 'array',
         'format_specific_config' => 'array',
         'num_legs' => 'integer',  // ✅ ĐÃ THÊM cast
@@ -118,8 +122,18 @@ class TournamentType extends Model
             throw new \InvalidArgumentException("Invalid format: {$format}");
         }
 
+        $specConfig = $customConfig['format_specific_config'] ?? [];
+        $firstSpec = is_array($specConfig) && isset($specConfig[0]) ? $specConfig[0] : (is_array($specConfig) ? $specConfig : []);
+
+        $hasResurrection = $customConfig['has_resurrection_bracket'] ?? ($firstSpec['has_resurrection_bracket'] ?? false);
+        $mainName = $customConfig['main_bracket_name'] ?? ($firstSpec['main_bracket_name'] ?? 'Giải chính');
+        $subName = $customConfig['sub_bracket_name'] ?? ($firstSpec['sub_bracket_name'] ?? 'Giải Tái sinh');
+
         $config = [
             'num_legs' => $customConfig['num_legs'] ?? 1,  // ✅ ĐÃ THÊM
+            'has_resurrection_bracket' => filter_var($hasResurrection, FILTER_VALIDATE_BOOLEAN),
+            'main_bracket_name' => $mainName,
+            'sub_bracket_name' => $subName,
             'match_rules' => $customConfig['match_rules'] ?? [],
             'rules' => $customConfig['rules'] ?? null,  // ✅ ĐÃ THÊM
             'rules_file_path' => $customConfig['rules_file_path'] ?? null,
@@ -129,6 +143,9 @@ class TournamentType extends Model
         return self::create([
             'tournament_id' => $tournamentId,
             'format' => $format,
+            'has_resurrection_bracket' => $config['has_resurrection_bracket'],
+            'main_bracket_name' => $config['main_bracket_name'],
+            'sub_bracket_name' => $config['sub_bracket_name'],
             'num_legs' => $config['num_legs'],  // ✅ ĐÃ THÊM
             'match_rules' => $config['match_rules'],
             'rules' => $config['rules'],  // ✅ ĐÃ THÊM
@@ -168,7 +185,10 @@ class TournamentType extends Model
                         'num_advancing_teams' => 2,
                     ],
                     'has_third_place_match' => false,
-                    'advanced_to_next_round' => false
+                    'advanced_to_next_round' => false,
+                    'has_resurrection_bracket' => false,
+                    'main_bracket_name' => 'Giải chính',
+                    'sub_bracket_name' => 'Giải Tái sinh',
                 ];
                 break;
 

@@ -27,6 +27,7 @@ class Matches extends Model
         'is_bye',
         'is_loser_bracket',
         'is_third_place',
+        'bracket_type',
         'scheduled_at',
         'court',
         'winner_id',
@@ -131,6 +132,16 @@ class Matches extends Model
             $match->poolAdvancementRules()->delete();
             $match->vnduprHistory()->delete();
         });
+    }
+
+    public function scopeMainBracket($query)
+    {
+        return $query->where('bracket_type', 'main');
+    }
+
+    public function scopeSubBracket($query)
+    {
+        return $query->where('bracket_type', 'sub');
     }
 
     public function scopeWithFullRelations($query)

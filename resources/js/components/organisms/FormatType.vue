@@ -99,6 +99,33 @@
 
                 <Section title="Vòng loại trực tiếp">
                     <div class="space-y-3">
+                        <Toggle label="Vòng Tái sinh"
+                            description="Các đội không vào vòng trong (hạng 3, 4...) sẽ đấu loại trực tiếp với nhau ở 1 nhánh riêng"
+                            :value="hasResurrectionBracket" @update="hasResurrectionBracket = $event" />
+
+                        <div v-if="hasResurrectionBracket" class="mt-3 p-3 bg-red-50/50 border border-red-100 rounded-xl space-y-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Tên nhánh chính</label>
+                                <input type="text" v-model="mainBracketName" placeholder="VD: Giải chính"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#D72D36]" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Tên nhánh Tái sinh</label>
+                                <input type="text" v-model="subBracketName" placeholder="VD: Giải Tái sinh"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#D72D36]" />
+                            </div>
+                            <div class="flex gap-2 flex-wrap pt-1">
+                                <button type="button" @click="setQuickBranchNames('Giải chính', 'Giải Tái sinh')"
+                                    class="px-2.5 py-1 text-xs font-medium text-[#D72D36] bg-red-100/60 border border-red-200 rounded-full hover:bg-red-100 transition-colors">
+                                    Giải chính / Giải Tái sinh
+                                </button>
+                                <button type="button" @click="setQuickBranchNames('Giải A', 'Giải B')"
+                                    class="px-2.5 py-1 text-xs font-medium text-[#D72D36] bg-red-100/60 border border-red-200 rounded-full hover:bg-red-100 transition-colors">
+                                    Giải A / Giải B
+                                </button>
+                            </div>
+                        </div>
+
                         <Toggle label="Tranh hạng ba"
                             description="Thêm trận tranh hạng ba cho đội chơi thua vòng bán kết"
                             :value="thirdPlaceMatch" @update="thirdPlaceMatch = $event" />
@@ -531,6 +558,21 @@ const tables = ref(2);
 const teamsToKnockout = ref(1);
 const thirdPlaceMatch = ref(true);
 const selectBestLosers = ref(true);
+const hasResurrectionBracket = ref(false);
+const mainBracketName = ref('Giải chính');
+const subBracketName = ref('Giải Tái sinh');
+
+const setQuickBranchNames = (mainName, subName) => {
+    mainBracketName.value = mainName;
+    subBracketName.value = subName;
+};
+
+watch(hasResurrectionBracket, (val) => {
+    if (val && !mainBracketName.value) {
+        mainBracketName.value = 'Giải chính';
+        subBracketName.value = 'Giải Tái sinh';
+    }
+});
 const matchNotes = ref('');
 const setsPerMatch = ref(1);
 const pointsToWinSet = ref(11);
@@ -538,7 +580,7 @@ const winningRule = ref(1);
 const maxPoints = ref(11);
 const serveChangeInterval = ref(0);
 const seedingRules = ref([1, 2, 3]);
-const calculationMethods = ref([1, 2, 3]);
+const calculationMethods = ref([1, 4, 5, 2, 3]);
 
 // Pairing mode được quản lý ở TournamentDetail.vue (tab Thể thức), không gửi khi tạo mới thể thức
 // Chỉ gửi PUT riêng qua API PUT tournament-types/{id} để cập nhật pairing_mode
@@ -730,8 +772,9 @@ const tournamentConfigJson = computed(() => {
                 number_competing_teams: tables.value,
                 num_advancing_teams: teamsToKnockout.value
             };
-            // ✅ KHÔNG gửi knockout_stage khi tạo mới - pairing_mode sẽ được cập nhật riêng qua API PUT
-            // sau khi giải đấu đã có thể thức và bảng đấu hoàn chỉnh
+            specificConfig.has_resurrection_bracket = hasResurrectionBracket.value;
+            specificConfig.main_bracket_name = mainBracketName.value || 'Giải chính';
+            specificConfig.sub_bracket_name = subBracketName.value || 'Giải Tái sinh';
         }
     } else if (activeTab.value === 'roundRobin') {
         specificConfig = {

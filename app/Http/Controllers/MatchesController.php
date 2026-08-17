@@ -299,11 +299,7 @@ class MatchesController extends Controller
             ->unique()
             ->filter();
 
-        $standings = TeamRanking::where('tournament_type_id', $tournamentTypeId)
-            ->whereIn('team_id', $teamIdsInGroup)
-            ->orderBy('rank', 'asc') // Đội rank 1 (tổng) sẽ đứng đầu trong nhóm này
-            ->get()
-            ->values();
+        $groupStandings = TournamentService::calculateGroupStandings($allGroupMatches);
 
         // 4. Lấy luật tiến cử (Advancement Rules)
         $rules = PoolAdvancementRule::where('group_id', $groupId)
@@ -327,10 +323,13 @@ class MatchesController extends Controller
 
             // Apply all position assignments from rules targeting this match
             foreach ($rulesForMatch as $rule) {
+                $standing = $groupStandings->get($rule->rank - 1);
+                $teamId = $standing ? ($standing['team']['id'] ?? null) : null;
+
                 if ($rule->next_position === 'home') {
-                    $updateData['home_team_id'] = $standings->get($rule->rank - 1)?->team_id;
+                    $updateData['home_team_id'] = $teamId;
                 } else {
-                    $updateData['away_team_id'] = $standings->get($rule->rank - 1)?->team_id;
+                    $updateData['away_team_id'] = $teamId;
                 }
             }
 
