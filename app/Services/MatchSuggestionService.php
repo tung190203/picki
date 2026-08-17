@@ -390,6 +390,13 @@ class MatchSuggestionService
         // Get VN DUPR scores
         $vnduprScores = $this->getVnduprScores($miniTournamentId);
 
+        // Get organizer/staff user IDs for backup flag
+        $staffUserIds = \App\Models\MiniTournamentStaff::where('mini_tournament_id', $miniTournamentId)
+            ->whereIn('role', [\App\Models\MiniTournamentStaff::ROLE_ORGANIZER, \App\Models\MiniTournamentStaff::ROLE_REFEREE])
+            ->whereNotNull('user_id')
+            ->pluck('user_id')
+            ->toArray();
+
         $players = [];
 
         foreach ($feParticipants as $feP) {
@@ -403,7 +410,7 @@ class MatchSuggestionService
             $fullName = $user?->full_name
                 ?? $participant->guest_name
                 ?? 'Guest';
-            
+
             $avatarUrl = $user?->avatar_url
                 ?? $participant->guest_avatar;
 
@@ -440,7 +447,7 @@ class MatchSuggestionService
                 skip_next_round: $participant->skip_next_round ?? false,
                 is_absent: $participant->is_absent,
                 payment_status: $needsPaymentCheck ? ($participant->payment_status?->value ?? null) : null,
-                is_backup: false,
+                is_backup: in_array($userId, $staffUserIds),
             );
         }
 
