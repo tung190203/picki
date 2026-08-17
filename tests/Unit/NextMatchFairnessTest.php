@@ -51,7 +51,7 @@ class NextMatchFairnessTest extends TestCase
         );
     }
 
-    private function createRequest(?int $seed = null): MatchSuggestionRequestDTO
+    private function createRequest(?int $seed = null, ?int $anchorUserId = null): MatchSuggestionRequestDTO
     {
         return new MatchSuggestionRequestDTO(
             mini_tournament_id: 1,
@@ -64,6 +64,22 @@ class NextMatchFairnessTest extends TestCase
                 organizer_as_backup: false,
             ),
             seed: $seed,
+            exclude_player_ids: null,
+            anchor_participant_id: null,
+            anchor_user_id: $anchorUserId,
+        );
+    }
+
+    private function createRequestWithSettings(MatchSuggestionSettingsDTO $settings, ?int $seed = null): MatchSuggestionRequestDTO
+    {
+        return new MatchSuggestionRequestDTO(
+            mini_tournament_id: 1,
+            participants: [],
+            settings: $settings,
+            seed: $seed,
+            exclude_player_ids: null,
+            anchor_participant_id: null,
+            anchor_user_id: null,
         );
     }
 
@@ -102,8 +118,8 @@ class NextMatchFairnessTest extends TestCase
         $this->assertNotNull($response->match, 'Must return a match');
 
         $selectedIds = [];
-        foreach ($response->match->team1->members as $m) $selectedIds[] = $m->id;
-        foreach ($response->match->team2->members as $m) $selectedIds[] = $m->id;
+        foreach ($response->match->team1->members as $m) $selectedIds[] = $m->mini_participant_id;
+        foreach ($response->match->team2->members as $m) $selectedIds[] = $m->mini_participant_id;
 
         // ID 10 (F-Red-Lone, 0 trận) phải được chọn — công bằng số trận
         $this->assertContains(10, $selectedIds,
@@ -134,14 +150,14 @@ class NextMatchFairnessTest extends TestCase
             $this->createPlayer(['id' => 8, 'gender' => User::MALE,   'tier' => PlayerTier::Green,  'played' => 1, 'name' => 'M-Green-E']),
         ];
 
-        $request = $this->createRequest();
+        $request = $this->createRequest(anchorUserId: 1);
         $response = $this->scheduler->generate($players, $request, []);
 
         $this->assertNotNull($response->match, 'Must return a match');
 
         $selectedIds = [];
-        foreach ($response->match->team1->members as $m) $selectedIds[] = $m->id;
-        foreach ($response->match->team2->members as $m) $selectedIds[] = $m->id;
+        foreach ($response->match->team1->members as $m) $selectedIds[] = $m->mini_participant_id;
+        foreach ($response->match->team2->members as $m) $selectedIds[] = $m->mini_participant_id;
 
         // Anchor (ID=1, F-Green-A, 0 matches) phải trong trận
         $this->assertContains(1, $selectedIds,
@@ -174,8 +190,8 @@ class NextMatchFairnessTest extends TestCase
         $this->assertNotNull($response->match);
 
         $selectedIds = [];
-        foreach ($response->match->team1->members as $m) $selectedIds[] = $m->id;
-        foreach ($response->match->team2->members as $m) $selectedIds[] = $m->id;
+        foreach ($response->match->team1->members as $m) $selectedIds[] = $m->mini_participant_id;
+        foreach ($response->match->team2->members as $m) $selectedIds[] = $m->mini_participant_id;
 
         // Người 0 trận (ID 2, 5, 6) phải được chọn trước người 5 trận
         $zeroMatchSelected = array_intersect([2, 5, 6], $selectedIds);
@@ -208,8 +224,8 @@ class NextMatchFairnessTest extends TestCase
         $this->assertNotNull($response->match);
 
         $selectedIds = [];
-        foreach ($response->match->team1->members as $m) $selectedIds[] = $m->id;
-        foreach ($response->match->team2->members as $m) $selectedIds[] = $m->id;
+        foreach ($response->match->team1->members as $m) $selectedIds[] = $m->mini_participant_id;
+        foreach ($response->match->team2->members as $m) $selectedIds[] = $m->mini_participant_id;
 
         // IDs 1-4 có consecutive=2 phải bị loại
         $blockedSelected = array_intersect([1, 2, 3, 4], $selectedIds);
@@ -284,5 +300,79 @@ class NextMatchFairnessTest extends TestCase
         // Anchor (ID=1) phải trong candidate đầu tiên
         $this->assertContains(1, $candidateIds,
             'First candidate must include anchor (ID=1)');
+    }
+
+    // -------------------------------------------------------------------------
+    // Test: played_count là tiêu chí công bằng TUYỆT ĐỐI
+    //
+    // Mọi người đều được chơi bằng nhau → candidate chứa người ít trận nhất thắng
+    // -------------------------------------------------------------------------
+    public function test_fairness_played_count_is_absolute_priority(): void
+    {
+        $players = [
+            // Purple đã đấu 5 trận, Green 0 trận
+            $this->createPlayer(['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Purple, 'played' => 5]),
+            $this->createPlayer(['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Purple, 'played' => 5]),
+            $this->createPlayer(['id' => 3, 'gender' => User::FEMALE, 'tier' => PlayerTier::Green, 'played' => 0]),
+            $this->createPlayer(['id' => 4, 'gender' => User::FEMALE, 'tier' => PlayerTier::Green, 'played' => 0]),
+        ];
+        $request = $this->createRequest();
+        $response = $this->scheduler->generate($players, $request, []);
+        $this->assertNotNull($response->match);
+        $selectedIds = [];
+        foreach ($response->match->team1->members as $m) $selectedIds[] = $m->mini_participant_id;
+        foreach ($response->match->team2->members as $m) $selectedIds[] = $m->mini_participant_id;
+        $this->assertContains(3, $selectedIds);
+        $this->assertContains(4, $selectedIds);
+    }
+
+    // -------------------------------------------------------------------------
+    // Test: Last-resort bắt buộc ghép trận khi còn đủ 4 người nhưng không thỏa
+    // luật giới tính hoặc còng màu
+    // -------------------------------------------------------------------------
+    public function test_mixed_gender_last_resort_always_matches_when_pool_ge_4(): void
+    {
+        // 3M + 1F: không thỏa luật 2+2, nhưng vẫn phải ghép được trận
+        $players = [
+            $this->createPlayer(['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0]),
+            $this->createPlayer(['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0]),
+            $this->createPlayer(['id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Yellow, 'played' => 0]),
+            $this->createPlayer(['id' => 4, 'gender' => User::FEMALE, 'tier' => PlayerTier::Green, 'played' => 0]),
+        ];
+        $request = $this->createRequest();
+        $response = $this->scheduler->generate($players, $request, []);
+        $this->assertNotNull($response->match, 'Must match 3M+1F as last resort');
+    }
+
+    // -------------------------------------------------------------------------
+    // Test: Organizer bị loại khi organizer_as_backup = false
+    // -------------------------------------------------------------------------
+    public function test_organizer_excluded_when_organizer_as_backup_false(): void
+    {
+        $players = [
+            // Organizers (should be excluded when organizer_as_backup=false)
+            $this->createPlayer(['id' => 1, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0, 'backup' => true]),
+            $this->createPlayer(['id' => 2, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0, 'backup' => true]),
+            // Non-organizers (enough for a full match after organizers are filtered)
+            $this->createPlayer(['id' => 3, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0, 'backup' => false]),
+            $this->createPlayer(['id' => 4, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0, 'backup' => false]),
+            $this->createPlayer(['id' => 5, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0, 'backup' => false]),
+            $this->createPlayer(['id' => 6, 'gender' => User::MALE, 'tier' => PlayerTier::Red, 'played' => 0, 'backup' => false]),
+        ];
+        $settings = new \App\DTO\MatchSuggestionSettingsDTO(
+            fair_play: true,
+            balance_team: true,
+            prefer_high_tier_match: false,
+            prevent_three_consecutive: true,
+            organizer_as_backup: false,
+        );
+        $request = $this->createRequestWithSettings($settings);
+        $response = $this->scheduler->generate($players, $request, []);
+        $this->assertNotNull($response->match, 'Must return match from non-organizers');
+        $selectedIds = [];
+        foreach ($response->match->team1->members as $m) $selectedIds[] = $m->mini_participant_id;
+        foreach ($response->match->team2->members as $m) $selectedIds[] = $m->mini_participant_id;
+        $this->assertNotContains(1, $selectedIds, 'Organizer #1 should not be selected');
+        $this->assertNotContains(2, $selectedIds, 'Organizer #2 should not be selected');
     }
 }

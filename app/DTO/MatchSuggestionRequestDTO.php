@@ -77,6 +77,10 @@ class MatchSuggestionRequestDTO
         public readonly MatchSuggestionSettingsDTO $settings,
         public readonly ?int $seed = null,
         public readonly ?array $exclude_player_ids = null,
+        /** @deprecated Use anchor_user_id instead */
+        public readonly ?int $anchor_participant_id = null,
+        /** ID of the player who must be in the selected match (user_id or mini_participant_id for guests) */
+        public readonly ?int $anchor_user_id = null,
     ) {}
 
     public static function fromArray(array $data): self
@@ -96,6 +100,8 @@ class MatchSuggestionRequestDTO
             settings: MatchSuggestionSettingsDTO::fromArray($data['settings'] ?? []),
             seed: $data['seed'] ?? null,
             exclude_player_ids: $data['exclude_player_ids'] ?? null,
+            anchor_participant_id: $data['anchor_participant_id'] ?? null,
+            anchor_user_id: $data['anchor_user_id'] ?? null,
         );
     }
 
@@ -107,6 +113,8 @@ class MatchSuggestionRequestDTO
             'settings' => $this->settings->toArray(),
             'seed' => $this->seed,
             'exclude_player_ids' => $this->exclude_player_ids,
+            'anchor_participant_id' => $this->anchor_participant_id,
+            'anchor_user_id' => $this->anchor_user_id,
         ];
     }
 }
