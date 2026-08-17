@@ -194,6 +194,9 @@ class SchedulerService
      * @param array $excludeSignatures Array of signatures to exclude (already played/pending matches)
      * @return array Candidates with full metadata
      */
+    private int $currentPoolMaxPlayed = 0;
+    private ?int $currentAnchorId = null;
+
     public function generateCandidates(
         array $pool,
         MatchSuggestionRequestDTO $request,
@@ -205,36 +208,59 @@ class SchedulerService
         // Split main and backup pools
         [$mainPool, $backupPool] = $this->splitMainAndBackupPool($pool);
 
+        // Compute pool-wide max_played for starvation-aware fairness comparison
+        $this->currentPoolMaxPlayed = $mainPool
+            ? max(array_column($mainPool, 'played_count'))
+            : 0;
+
+        // Store anchor for compareCandidates tiebreaker
+        $this->currentAnchorId = $request->anchor_user_id;
+
         $candidates = [];
 
         // STEP 1: Generate same-gender candidates from main pool
         $sameGenderCandidates = $this->generateSameGenderCandidates($mainPool, $request, $userDataMap);
         $candidates = array_merge($candidates, $sameGenderCandidates);
 
-        // STEP 2: If no same-gender, try mixed-gender from main pool
-        $hasSameGender = !empty($sameGenderCandidates);
-        if (!$hasSameGender) {
-            $mixedCandidates = $this->generateMixedGenderCandidates($mainPool, $request, $userDataMap);
-            $candidates = array_merge($candidates, $mixedCandidates);
-        }
+        // STEP 2: Generate mixed-gender candidates from main pool
+        // (always run — even if same-gender succeeded, mixed-gender may be better by fairness)
+        $mixedCandidates = $this->generateMixedGenderCandidates($mainPool, $request, $userDataMap);
+        $candidates = array_merge($candidates, $mixedCandidates);
 
-        // STEP 3: If still no candidates, try with backup
-        if (empty($candidates) && $settings->organizer_as_backup && !empty($backupPool)) {
+        // STEP 3: Last resort — any 4 players from main pool, no gender/tier restrictions.
+        // Guarantees a match when at least 4 eligible players remain but gender rules block both.
+        $anyCandidates = $this->generateAnyTierCombinations($mainPool, $request, $userDataMap, true);
+        foreach ($anyCandidates as &$c) {
+            $c['is_high_tier'] = $this->isHighTierMatch($c['team_a'], $c['team_b']);
+            $c['score'] = $this->calculateMatchScore($c['team_a'], $c['team_b'], $request->settings, $userDataMap);
+            $c['adjusted_score'] = $c['score'];
+        }
+        $candidates = array_merge($candidates, $anyCandidates);
+
+        // STEP 4: If organizer_as_backup is enabled, also try with backup pool
+        if ($settings->organizer_as_backup && !empty($backupPool)) {
             $extendedPool = array_merge($mainPool, $backupPool);
+            $this->currentPoolMaxPlayed = max(array_column($extendedPool, 'played_count'));
 
-            $sameGenderCandidates = $this->generateSameGenderCandidates($extendedPool, $request, $userDataMap);
-            $candidates = array_merge($candidates, $sameGenderCandidates);
+            $extSameGender = $this->generateSameGenderCandidates($extendedPool, $request, $userDataMap);
+            $candidates = array_merge($candidates, $extSameGender);
 
-            if (empty($candidates)) {
-                $mixedCandidates = $this->generateMixedGenderCandidates($extendedPool, $request, $userDataMap);
-                $candidates = array_merge($candidates, $mixedCandidates);
+            $extMixed = $this->generateMixedGenderCandidates($extendedPool, $request, $userDataMap);
+            $candidates = array_merge($candidates, $extMixed);
+
+            $extAny = $this->generateAnyTierCombinations($extendedPool, $request, $userDataMap, true);
+            foreach ($extAny as &$c) {
+                $c['is_high_tier'] = $this->isHighTierMatch($c['team_a'], $c['team_b']);
+                $c['score'] = $this->calculateMatchScore($c['team_a'], $c['team_b'], $request->settings, $userDataMap);
+                $c['adjusted_score'] = $c['score'];
             }
+            $candidates = array_merge($candidates, $extAny);
         }
 
-        // STEP 4: Sort by business priority
+        // STEP 5: Sort by business priority
         usort($candidates, fn($a, $b) => $this->compareCandidates($a, $b));
 
-        // STEP 5: Filter out existing signatures AND deduplicate
+        // STEP 6: Filter out existing signatures AND deduplicate
         $excludeKeys = [];
         foreach ($excludeSignatures as $sig) {
             $excludeKeys[implode(',', $sig)] = true;
@@ -314,23 +340,17 @@ class SchedulerService
             $genderGroups[] = $pool;
         }
 
-        // Process each gender group
+        // Process each gender group — always generate all tier levels so compareCandidates
+        // can pick the best one by fairness/starvation (not just the highest-tier one).
         foreach ($genderGroups as $genderPool) {
-            // Generate same-tier combinations (highest priority)
             $sameTier = $this->generateSameTierCombinations($genderPool, $request, $userDataMap);
             $candidates = array_merge($candidates, $sameTier);
 
-            // If no same-tier, generate adjacent-tier combinations
-            if (empty($sameTier)) {
-                $adjacentTier = $this->generateAdjacentTierCombinations($genderPool, $request, $userDataMap);
-                $candidates = array_merge($candidates, $adjacentTier);
-            }
+            $adjacentTier = $this->generateAdjacentTierCombinations($genderPool, $request, $userDataMap);
+            $candidates = array_merge($candidates, $adjacentTier);
 
-            // If still nothing, generate any 4-player combinations (lowest priority)
-            if (empty($sameTier) && empty($adjacentTier)) {
-                $anyTier = $this->generateAnyTierCombinations($genderPool, $request, $userDataMap);
-                $candidates = array_merge($candidates, $anyTier);
-            }
+            $anyTier = $this->generateAnyTierCombinations($genderPool, $request, $userDataMap);
+            $candidates = array_merge($candidates, $anyTier);
         }
 
         return $candidates;
@@ -611,28 +631,24 @@ class SchedulerService
     }
 
     /**
-     * Generate any 4-player combinations (mixed tier, lowest priority).
+     * Generate any 4-player combinations (last-resort: no gender/tier restrictions).
+     *
+     * @param bool $skipGenderValidation When true, accepts any gender composition (e.g. 3M+1F).
+     *                                   This is the "must form a match" fallback when gender rules block.
      */
     private function generateAnyTierCombinations(
         array $pool,
         MatchSuggestionRequestDTO $request,
         array $userDataMap,
+        bool $skipGenderValidation = false,
     ): array {
         $candidates = [];
 
-        // Generate C(n, 4) combinations
+        // Generate C(n, 4) combinations — no tier restrictions
         $combos = $this->generateCombinations($pool, 4);
 
         foreach ($combos as $players) {
-            // Skip if already covered by same-tier or adjacent-tier
-            if ($this->hasSameTierCombination($players)) {
-                continue;
-            }
-            if ($this->hasAdjacentTierCombination($players)) {
-                continue;
-            }
-
-            $pairing = $this->findOptimalPairing($players, $userDataMap, $request->settings);
+            $pairing = $this->findOptimalPairing($players, $userDataMap, $request->settings, $skipGenderValidation);
             if (!$pairing) {
                 continue;
             }
@@ -674,11 +690,21 @@ class SchedulerService
         $playedCounts = array_column($players, 'played_count');
         $waitingRounds = array_column($players, 'waiting_rounds');
 
+        // Starvation: how many rounds behind the most-played player in the pool each player is.
+        // Players with higher starvation should be prioritized (mọi người đều được chơi bằng nhau).
+        $starvations = array_map(
+            fn($played) => $this->currentPoolMaxPlayed - $played,
+            $playedCounts,
+        );
+
         $fairnessMetrics = [
             'sum_played' => array_sum($playedCounts),
             'max_played' => max($playedCounts),
             'min_played' => min($playedCounts),
             'played_range' => max($playedCounts) - min($playedCounts),
+            'max_starvation' => max($starvations),
+            'min_starvation' => min($starvations),
+            'sum_starvation' => array_sum($starvations),
             'max_waiting' => max($waitingRounds),
             'min_waiting' => min($waitingRounds),
             'sum_waiting' => array_sum($waitingRounds),
@@ -704,6 +730,10 @@ class SchedulerService
 
         return [
             'players' => $players,
+            'player_ids' => array_values(array_unique(array_map(
+                fn($p) => $p->user_id ?? ('m_' . $p->mini_participant_id),
+                $players,
+            ))),
             'team_a' => $teamA,
             'team_b' => $teamB,
             'gender_mode' => $genderMode,
@@ -724,17 +754,41 @@ class SchedulerService
      */
     private function compareCandidates(array $a, array $b): int
     {
-        // PRIORITY 0: GLOBAL FAIRNESS CHECK (MOST IMPORTANT)
-        // Ưu tiên tuyệt đối cho người có waiting_rounds cao nhất trong pool.
-        // Người chưa đấu phải được ghép TRƯỚC bất kể tier/gender/balance.
+        // PRIORITY 0: FAIRNESS — starvation (pool_max_played - player_played) is absolute
+        // Người chơi "đói" nhất (ít trận nhất so với pool) phải được ghép TRƯỚC.
+        // "Mọi người đều được chơi bằng nhau" = pick the candidate that helps the most-starved player.
         $fmA = $a['fairness_metrics'];
         $fmB = $b['fairness_metrics'];
+        $maxStarvA = $fmA['max_starvation'] ?? 0;
+        $maxStarvB = $fmB['max_starvation'] ?? 0;
+
+        if ($maxStarvA !== $maxStarvB) {
+            // Candidate có người "đói" nhất → thắng
+            return $maxStarvB <=> $maxStarvA;
+        }
+
+        // Tiebreaker 0a: sum of starvations — candidate that helps more players overall
+        $sumStarvA = $fmA['sum_starvation'] ?? 0;
+        $sumStarvB = $fmB['sum_starvation'] ?? 0;
+        if ($sumStarvA !== $sumStarvB) {
+            return $sumStarvB <=> $sumStarvA;
+        }
+
+        // Tiebreaker 0b: max_waiting (người chờ lâu nhất)
         $maxWaitA = max($fmA['max_waiting'] ?? 0, $fmA['min_waiting'] ?? 0);
         $maxWaitB = max($fmB['max_waiting'] ?? 0, $fmB['min_waiting'] ?? 0);
-
         if ($maxWaitA !== $maxWaitB) {
-            // Candidate có max_waiting cao hơn phải thắng - ưu tiên người chưa đấu
-            return $maxWaitB <=> $maxWaitA; // B > A nếu maxWaitB > maxWaitA
+            return $maxWaitB <=> $maxWaitA;
+        }
+
+        // Tiebreaker 0c: Anchor inclusion — candidate containing the anchor player must win
+        if ($this->currentAnchorId !== null) {
+            $aHasAnchor = in_array($this->currentAnchorId, $a['player_ids'] ?? []);
+            $bHasAnchor = in_array($this->currentAnchorId, $b['player_ids'] ?? []);
+            if ($aHasAnchor !== $bHasAnchor) {
+                // 1 = a wins (has anchor), -1 = b wins (has anchor)
+                return $aHasAnchor ? 1 : -1;
+            }
         }
 
         // PRIORITY 1: Gender Mode
@@ -975,6 +1029,11 @@ class SchedulerService
                 return !in_array($p->user_id, $excludeIds);
             });
             $pool = array_values($pool);
+        }
+
+        // Exclude organizers/staff from pool when organizer_as_backup is disabled
+        if (!$request->settings->organizer_as_backup) {
+            $pool = array_values(array_filter($pool, fn($p) => !$p->is_backup));
         }
 
         return $pool;
@@ -1370,7 +1429,7 @@ class SchedulerService
      * 
      * @return array|null ['team_a' => PlayerContextDTO[], 'team_b' => PlayerContextDTO[], 'is_high_tier' => bool, 'rules_applied' => string[]]
      */
-    private function findOptimalPairing(array $players, array $userDataMap, $settings): ?array
+    private function findOptimalPairing(array $players, array $userDataMap, $settings, bool $skipGenderValidation = false): ?array
     {
         if (count($players) < 4) {
             return null;
@@ -1400,8 +1459,8 @@ class SchedulerService
             $playersA = $this->getPlayersByIds($teamAIds, $players);
             $playersB = $this->getPlayersByIds($teamBIds, $players);
 
-            // Validate gender compatibility
-            if (!$this->isValidGenderPairing($playersA, $playersB, $genderCounts)) {
+            // Validate gender compatibility (skip in last-resort mode)
+            if (!$skipGenderValidation && !$this->isValidGenderPairing($playersA, $playersB, $genderCounts)) {
                 continue;
             }
 
