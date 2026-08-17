@@ -31,6 +31,19 @@
         </button>
     </div>
 
+    <!-- Branch Switcher cho Vòng Tái sinh -->
+    <div v-if="hasResurrectionBracket && scheduleActiveTab === 'matches' && currentMixedStage === 'knockout'"
+        class="flex gap-2 mb-4 bg-gray-100 p-1 rounded-xl border border-gray-200">
+        <button @click="switchBranch('main')"
+            :class="['flex-1 py-2 text-center rounded-lg font-bold text-xs transition-all cursor-pointer', activeBranch === 'main' ? 'bg-white text-[#D72D36] shadow-sm' : 'text-gray-600 hover:text-gray-900']">
+            {{ mainBracketName }}
+        </button>
+        <button @click="switchBranch('sub')"
+            :class="['flex-1 py-2 text-center rounded-lg font-bold text-xs transition-all cursor-pointer', activeBranch === 'sub' ? 'bg-white text-[#D72D36] shadow-sm' : 'text-gray-600 hover:text-gray-900']">
+            {{ subBracketName }}
+        </button>
+    </div>
+
     <template v-if="scheduleActiveTab === 'ranking'">
         <template v-if="
             data.tournament_types?.[0]?.format === 2 ||
@@ -629,14 +642,54 @@ const allKnockoutRounds = computed(() => {
     return Array.from(roundsMap.values()).sort((a, b) => (a.round || 0) - (b.round || 0));
 });
 
+const activeBranch = ref('main');
+
+const hasResurrectionBracket = computed(() => {
+    const tt = props.data?.tournament_types?.[0];
+    if (!tt) return false;
+    return Boolean(tt.has_resurrection_bracket || tt.format_specific_config?.[0]?.has_resurrection_bracket);
+});
+
+const mainBracketName = computed(() => {
+    const tt = props.data?.tournament_types?.[0];
+    return tt?.main_bracket_name || tt?.format_specific_config?.[0]?.main_bracket_name || 'Giải chính';
+});
+
+const subBracketName = computed(() => {
+    const tt = props.data?.tournament_types?.[0];
+    return tt?.sub_bracket_name || tt?.format_specific_config?.[0]?.sub_bracket_name || 'Giải Tái sinh';
+});
+
+const displayKnockoutRounds = computed(() => {
+    if (!hasResurrectionBracket.value) {
+        return allKnockoutRounds.value;
+    }
+
+    return allKnockoutRounds.value.map(round => {
+        const filteredMatches = (round.matches || []).filter(m => {
+            const bType = m.bracket_type || 'main';
+            return bType === activeBranch.value;
+        });
+        return {
+            ...round,
+            matches: filteredMatches
+        };
+    }).filter(round => round.matches.length > 0);
+});
+
+const switchBranch = (branch) => {
+    activeBranch.value = branch;
+    currentKnockoutRoundIndex.value = 0;
+};
+
 const currentKnockoutRound = computed(
-    () => allKnockoutRounds.value[currentKnockoutRoundIndex.value] || null,
+    () => displayKnockoutRounds.value[currentKnockoutRoundIndex.value] || null,
 );
 const hasPreviousKnockoutRound = computed(
     () => currentKnockoutRoundIndex.value > 0,
 );
 const hasNextKnockoutRound = computed(
-    () => currentKnockoutRoundIndex.value < allKnockoutRounds.value.length - 1,
+    () => currentKnockoutRoundIndex.value < displayKnockoutRounds.value.length - 1,
 );
 const previousKnockoutRound = () => {
     if (hasPreviousKnockoutRound.value) currentKnockoutRoundIndex.value--;

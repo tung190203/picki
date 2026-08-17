@@ -120,14 +120,25 @@ class TournamentService
             }
         }
 
-        // Tính set difference và sắp xếp
+        // Tính set difference & point difference và sắp xếp chuẩn
         $standings = collect($standings)->map(function ($team) {
             $team['set_difference'] = $team['sets_won'] - $team['sets_lost'];
+            $team['point_difference'] = $team['points_for'] - $team['points_against'];
             return $team;
-        })->sortByDesc('points')
-          ->sortByDesc('set_difference')
-          ->sortByDesc('sets_won')
-          ->values();
+        })->sort(function ($a, $b) {
+            if ($a['points'] !== $b['points']) {
+                return $b['points'] <=> $a['points'];
+            }
+            $diffA = $a['point_difference'] ?? 0;
+            $diffB = $b['point_difference'] ?? 0;
+            if ($diffA !== $diffB) {
+                return $diffB <=> $diffA;
+            }
+            if ($a['set_difference'] !== $b['set_difference']) {
+                return $b['set_difference'] <=> $a['set_difference'];
+            }
+            return $b['sets_won'] <=> $a['sets_won'];
+        })->values();
 
         // Thêm rank
         $rank = 1;
