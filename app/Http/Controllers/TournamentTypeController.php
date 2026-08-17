@@ -340,6 +340,16 @@ class TournamentTypeController extends Controller
                 $mergedConfig = $this->deepMergeRecursive($oldMainConfig, $newMainConfig);
                 $tournamentType->format_specific_config = [$mergedConfig];
 
+                if (array_key_exists('has_resurrection_bracket', $mergedConfig)) {
+                    $tournamentType->has_resurrection_bracket = filter_var($mergedConfig['has_resurrection_bracket'], FILTER_VALIDATE_BOOLEAN);
+                }
+                if (array_key_exists('main_bracket_name', $mergedConfig) && !empty($mergedConfig['main_bracket_name'])) {
+                    $tournamentType->main_bracket_name = $mergedConfig['main_bracket_name'];
+                }
+                if (array_key_exists('sub_bracket_name', $mergedConfig) && !empty($mergedConfig['sub_bracket_name'])) {
+                    $tournamentType->sub_bracket_name = $mergedConfig['sub_bracket_name'];
+                }
+
                 // DEBUG: Log after merge
                 \Log::info('UPDATE DEBUG - mergedConfig:', $mergedConfig);
             }
@@ -866,6 +876,7 @@ class TournamentTypeController extends Controller
             $chunks = $chunks->filter(fn($chunk) => $chunk->count() > 0)->values();
         }
         $advancingByRank = collect();
+        $resurrectionByRank = collect();
         $groupObjects = collect();
 
         // ===== PHASE 2: TẠO VÒNG BẢNG (ROUND ROBIN) =====
@@ -965,7 +976,7 @@ class TournamentTypeController extends Controller
                 }
             }
 
-            // Thu thập placeholder theo hạng cho knockout
+            // Thu thập placeholder theo hạng cho Main Bracket (Hạng 1..numAdvancing)
             for ($k = 0; $k < min($numAdvancing, $chunk->count()); $k++) {
                 if (!isset($advancingByRank[$k])) {
                     $advancingByRank[$k] = collect();
@@ -978,9 +989,27 @@ class TournamentTypeController extends Controller
                     '_rank' => $k + 1,
                 ]);
             }
+
+            // Thu thập placeholder theo hạng cho Resurrection Bracket (Hạng numAdvancing+1..End)
+            $hasResurrection = filter_var($mainConfig['has_resurrection_bracket'] ?? ($type->has_resurrection_bracket ?? false), FILTER_VALIDATE_BOOLEAN);
+            if ($hasResurrection) {
+                for ($k = $numAdvancing; $k < $chunk->count(); $k++) {
+                    $resRank = $k - $numAdvancing;
+                    if (!isset($resurrectionByRank[$resRank])) {
+                        $resurrectionByRank[$resRank] = collect();
+                    }
+
+                    $resurrectionByRank[$resRank]->push((object)[
+                        'team_id' => null,
+                        '_from_group' => $group->id,
+                        '_group_index' => $index + 1,
+                        '_rank' => $k + 1,
+                    ]);
+                }
+            }
         }
 
-        // ✅ SẮP XẾP ĐỘI ADVANCING THEO MODE ĐÃ CHỌN
+        // ✅ SẮP XẾP ĐỘI ADVANCING THEO MODE ĐÃ CHỌN (MAIN BRACKET)
         $advancing = $this->teamPairingService->arrangeAdvancingTeams($advancingByRank, $pairingMode, $manualPairings);
 
         // ✅ KIỂM TRA SỐ ĐỘI ADVANCING
@@ -996,18 +1025,43 @@ class TournamentTypeController extends Controller
             ]);
         }
 
-        // ===== PHASE 4: TẠO KNOCKOUT STAGE =====
+        // ===== PHASE 4: TẠO KNOCKOUT STAGE (MAIN BRACKET) =====
         $knockoutRounds = $this->generateKnockoutStage(
             $type,
             $advancing,
             $hasThirdPlace,
             $advancedToNext,
             $numLegs,
-            $matchNumber
+            $matchNumber,
+            'main'
         );
 
-        // ===== PHASE 5: TẠO POOL ADVANCEMENT RULES =====
-        $this->createPoolAdvancementRules($type, $knockoutRounds, $advancing, $groupObjects);
+        // ===== PHASE 5: TẠO POOL ADVANCEMENT RULES (MAIN BRACKET) =====
+        $this->createPoolAdvancementRules($type, $knockoutRounds, $advancing, $groupObjects, 'main');
+
+        // ===== PHASE 6: TẠO KNOCKOUT STAGE & RULES (RESURRECTION BRACKET) =====
+        $hasResurrection = filter_var($mainConfig['has_resurrection_bracket'] ?? ($type->has_resurrection_bracket ?? false), FILTER_VALIDATE_BOOLEAN);
+        if ($hasResurrection && $resurrectionByRank->isNotEmpty()) {
+            $resAdvancing = $this->teamPairingService->arrangeAdvancingTeams($resurrectionByRank, $pairingMode, null);
+            if (($resAdvancing->count() % 2 !== 0) && !$advancedToNext) {
+                $resAdvancing->push((object)[
+                    'team_id' => null,
+                    '_placeholder' => true,
+                ]);
+            }
+
+            $resKnockoutRounds = $this->generateKnockoutStage(
+                $type,
+                $resAdvancing,
+                $hasThirdPlace, // Tương tự Nhánh chính, Nhánh Tái sinh cũng có trận tranh Hạng 3
+                $advancedToNext,
+                $numLegs,
+                $matchNumber,
+                'sub'
+            );
+
+            $this->createPoolAdvancementRules($type, $resKnockoutRounds, $resAdvancing, $groupObjects, 'sub');
+        }
     }
 
     /**
@@ -1143,7 +1197,7 @@ class TournamentTypeController extends Controller
         }
     }
 
-    private function generateKnockoutStage(TournamentType $type, $teams, $hasThirdPlace, $advancedToNext = false, $numLegs = 1, &$matchNumber = 0)
+    private function generateKnockoutStage(TournamentType $type, $teams, $hasThirdPlace, $advancedToNext = false, $numLegs = 1, &$matchNumber = 0, string $bracketType = 'main')
     {
         $teamList = is_array($teams) ? collect($teams) : $teams->values();
         
@@ -1152,6 +1206,7 @@ class TournamentTypeController extends Controller
             'teamCount' => $teamList->count(),
             'hasThirdPlace' => $hasThirdPlace,
             'advancedToNext' => $advancedToNext,
+            'bracketType' => $bracketType,
             'teams' => $teamList->map(fn($t) => [
                 'team_id' => $t->team_id ?? null,
                 'placeholder' => $t->_placeholder ?? false,
@@ -1189,6 +1244,7 @@ class TournamentTypeController extends Controller
                         'leg' => $leg,
                         'status' => 'pending',
                         'is_bye' => false,
+                        'bracket_type' => $bracketType,
                         'name_of_match' => "Trận đấu số {$matchNumber}",
                     ]);
 
@@ -1223,6 +1279,7 @@ class TournamentTypeController extends Controller
                             'leg' => $leg,
                             'status' => 'pending',
                             'is_bye' => true,
+                            'bracket_type' => $bracketType,
                             'best_loser_source_round' => $roundIndex - 1,
                             'name_of_match' => "Trận đấu số {$matchNumber}",
                         ]);
@@ -1250,6 +1307,7 @@ class TournamentTypeController extends Controller
                         'leg' => 1,
                         'status' => 'pending',
                         'is_bye' => true,
+                        'bracket_type' => $bracketType,
                         'name_of_match' => "Trận đấu số {$matchNumber}",
                     ]);
 
@@ -1265,6 +1323,7 @@ class TournamentTypeController extends Controller
                         'leg' => 1,
                         'status' => 'pending',
                         'is_bye' => false,
+                        'bracket_type' => $bracketType,
                         'name_of_match' => "Trận đấu số {$nextMatchNumber}",
                     ]);
 
@@ -1338,6 +1397,7 @@ class TournamentTypeController extends Controller
                         'round' => $finalRound + 1,
                         'leg' => $leg,
                         'is_third_place' => true,
+                        'bracket_type' => $bracketType,
                         'status' => 'pending',
                         'name_of_match' => "Trận đấu số {$matchNumber}",
                     ]);
@@ -1365,7 +1425,7 @@ class TournamentTypeController extends Controller
         return $rounds;
     }
 
-    private function createPoolAdvancementRules(TournamentType $type, $knockoutRounds, $advancing, $groupObjects)
+    private function createPoolAdvancementRules(TournamentType $type, $knockoutRounds, $advancing, $groupObjects, string $bracketType = 'main')
     {
         if (!($knockoutRounds instanceof Collection)) {
             $knockoutRounds = collect($knockoutRounds);
@@ -1380,6 +1440,7 @@ class TournamentTypeController extends Controller
 
         $allRound2Matches = Matches::where('tournament_type_id', $type->id)
             ->where('round', 2)
+            ->where('bracket_type', $bracketType)
             ->orderBy('id', 'asc')
             ->get();
 
@@ -1983,6 +2044,7 @@ class TournamentTypeController extends Controller
                         'away_team' => $this->bracketService->formatTeamLightweight($first->awayTeam, $awayPlaceholder),
                         'is_bye' => $first->is_bye,
                         'is_third_place' => $first->is_third_place ?? false,
+                        'bracket_type' => $first->bracket_type ?? 'main',
                         'is_final' => $isFinal, // ✅ FIXED
                         'legs' => $legs,
                         'aggregate_score' => [
@@ -1999,6 +2061,9 @@ class TournamentTypeController extends Controller
         return ResponseHelper::success([
             'format' => TournamentType::FORMAT_MIXED,
             'format_type_text' => 'mixed',
+            'has_resurrection_bracket' => (bool)($type->has_resurrection_bracket ?? ($type->format_specific_config[0]['has_resurrection_bracket'] ?? false)),
+            'main_bracket_name' => $type->main_bracket_name ?? ($type->format_specific_config[0]['main_bracket_name'] ?? 'Giải chính'),
+            'sub_bracket_name' => $type->sub_bracket_name ?? ($type->format_specific_config[0]['sub_bracket_name'] ?? 'Giải Tái sinh'),
             'pool_stage' => $poolStage,
             'knockout_stage' => $knockoutStage,
             'is_completed' => $type->tournament->is_completed,
@@ -2347,7 +2412,10 @@ class TournamentTypeController extends Controller
             ->map(fn($id) => (int)$id)
             ->toArray();
 
-        // ✅ Fallback: Tự động thêm HEAD_TO_HEAD nếu user không chọn
+        // ✅ Fallback: Tự động thêm Hiệu số điểm (4) và Đối đầu (5) nếu user không chọn
+        if (!in_array(TournamentType::RANKING_POINTS_WON, $rankingRules)) {
+            $rankingRules[] = TournamentType::RANKING_POINTS_WON;
+        }
         if (!in_array(TournamentType::RANKING_HEAD_TO_HEAD, $rankingRules)) {
             $rankingRules[] = TournamentType::RANKING_HEAD_TO_HEAD;
         }

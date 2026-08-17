@@ -258,6 +258,18 @@
 
         <!-- Cột bracket - Chiếm phần còn lại -->
         <div class="p-4 pt-0">
+            <!-- Branch Switcher cho Vòng Tái sinh -->
+            <div v-if="hasResurrectionBracket" class="flex gap-2 mb-4 bg-gray-100 p-1.5 rounded-xl border border-gray-200 w-fit">
+                <button @click="activeBranch = 'main'"
+                    :class="['px-4 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer', activeBranch === 'main' ? 'bg-white text-[#D72D36] shadow-sm' : 'text-gray-600 hover:text-gray-900']">
+                    {{ mainBracketName }}
+                </button>
+                <button @click="activeBranch = 'sub'"
+                    :class="['px-4 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer', activeBranch === 'sub' ? 'bg-white text-[#D72D36] shadow-sm' : 'text-gray-600 hover:text-gray-900']">
+                    {{ subBracketName }}
+                </button>
+            </div>
+
             <div class="overflow-x-auto h-full custom-scrollbar-hide">
                 <div class="flex w-max min-h-full pb-4">
                     <!-- POOL STAGE -->
@@ -311,7 +323,7 @@
 
                     <!-- KNOCKOUT STAGE -->
                     <div
-                        v-for="roundData in bracket.knockout_stage"
+                        v-for="roundData in filteredKnockoutStage"
                         :key="roundData.round"
                         class="round-column flex flex-col items-center pt-4 min-w-[280px]"
                     >
@@ -401,6 +413,44 @@ const draggedTeam = ref(null);
 const dropTargetMatch = ref(null);
 const dropTargetPosition = ref(null);
 const showRankingModal = ref(false);
+
+const activeBranch = ref('main');
+
+const hasResurrectionBracket = computed(() => {
+    const tt = props.tournament?.tournament_types?.[0];
+    if (tt) {
+        if (tt.has_resurrection_bracket || tt.format_specific_config?.[0]?.has_resurrection_bracket) {
+            return true;
+        }
+    }
+    return Boolean(props.bracket?.has_resurrection_bracket);
+});
+
+const mainBracketName = computed(() => {
+    const tt = props.tournament?.tournament_types?.[0];
+    return tt?.main_bracket_name || tt?.format_specific_config?.[0]?.main_bracket_name || props.bracket?.main_bracket_name || 'Giải chính';
+});
+
+const subBracketName = computed(() => {
+    const tt = props.tournament?.tournament_types?.[0];
+    return tt?.sub_bracket_name || tt?.format_specific_config?.[0]?.sub_bracket_name || props.bracket?.sub_bracket_name || 'Giải Tái sinh';
+});
+
+const filteredKnockoutStage = computed(() => {
+    if (!props.bracket?.knockout_stage) return [];
+    if (!hasResurrectionBracket.value) return props.bracket.knockout_stage;
+
+    return props.bracket.knockout_stage.map(roundData => {
+        const filteredMatches = (roundData.matches || []).filter(m => {
+            const bType = m.bracket_type || 'main';
+            return bType === activeBranch.value;
+        });
+        return {
+            ...roundData,
+            matches: filteredMatches
+        };
+    }).filter(roundData => roundData.matches.length > 0);
+});
 
 /* ===========================
    DRAG & DROP HANDLERS

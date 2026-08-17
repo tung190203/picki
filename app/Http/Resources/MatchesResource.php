@@ -55,6 +55,7 @@ class MatchesResource extends JsonResource
             'is_bye' => $this->is_bye,
             'is_loser_bracket' => $this->is_loser_bracket,
             'is_third_place' => $this->is_third_place,
+            'bracket_type' => $this->bracket_type ?? 'main',
             'court' => $this->court,
             'winner_id' => $this->winner_id,
 
