@@ -64,7 +64,16 @@ class MatchSuggestionController extends Controller
 
         try {
             $suggestion = $this->matchSuggestionService->generate($dto);
-            return new MatchSuggestionResource($suggestion);
+
+            if ($suggestion->match === null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $suggestion->error_message ?? 'Không tạo được trận gợi ý.',
+                    'data' => (new \App\Http\Resources\MatchSuggestionResource($suggestion))->resolve(),
+                ], 422);
+            }
+
+            return new \App\Http\Resources\MatchSuggestionResource($suggestion);
         } catch (\InvalidArgumentException $e) {
             return response()->json([
                 'success' => false,
@@ -112,7 +121,16 @@ class MatchSuggestionController extends Controller
 
         try {
             $suggestion = $this->matchSuggestionService->regenerate($dto, $previousSuggestion);
-            return new MatchSuggestionResource($suggestion);
+
+            if ($suggestion->match === null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $suggestion->error_message ?? 'Không tạo được trận gợi ý.',
+                    'data' => (new \App\Http\Resources\MatchSuggestionResource($suggestion))->resolve(),
+                ], 422);
+            }
+
+            return new \App\Http\Resources\MatchSuggestionResource($suggestion);
         } catch (\InvalidArgumentException $e) {
             return response()->json([
                 'success' => false,
