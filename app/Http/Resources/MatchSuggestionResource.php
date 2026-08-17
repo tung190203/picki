@@ -33,6 +33,7 @@ class MatchSuggestionResource extends JsonResource
             'total_candidates' => $dto->total_candidates,
             'selected_offset' => $dto->selected_offset,
             'wrapped' => $dto->wrapped,
+            'error_message' => $dto->error_message,
         ];
     }
 

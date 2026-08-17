@@ -27,6 +27,9 @@ class MatchSuggestionResponseDTO
         public readonly int $total_candidates = 0,
         public readonly int $selected_offset = 0,
         public readonly bool $wrapped = false,
+
+        // Error message (top-level, used when match could not be generated)
+        public readonly ?string $error_message = null,
     ) {}
 
     public static function fromArray(array $data): self
@@ -58,6 +61,7 @@ class MatchSuggestionResponseDTO
             total_candidates: $data['total_candidates'] ?? 0,
             selected_offset: $data['selected_offset'] ?? 0,
             wrapped: $data['wrapped'] ?? false,
+            error_message: $data['error_message'] ?? null,
         );
     }
 
@@ -75,6 +79,7 @@ class MatchSuggestionResponseDTO
             'total_candidates' => $this->total_candidates,
             'selected_offset' => $this->selected_offset,
             'wrapped' => $this->wrapped,
+            'error_message' => $this->error_message,
         ];
     }
 }
