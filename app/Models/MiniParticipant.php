@@ -38,6 +38,7 @@ class MiniParticipant extends Model
         'self_confirmed',
         'player_group',
         'modified_score',
+        'modify_gender',
         'match_tier',
         'skip_next_round',
     ];
@@ -57,6 +58,7 @@ class MiniParticipant extends Model
         'is_pending_confirmation' => 'boolean',
         'self_confirmed' => 'boolean',
         'modified_score' => 'decimal:2',
+        'modify_gender' => 'integer',
         'match_tier' => 'string',
         'skip_next_round' => 'boolean',
     ];
