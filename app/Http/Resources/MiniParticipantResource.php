@@ -54,6 +54,7 @@ class MiniParticipantResource extends JsonResource
             'is_declined' => $this->declined_at !== null,
             'player_group' => $this->player_group,
             'modified_score' => $this->modified_score,
+            'modify_gender' => $this->modify_gender,
             'effective_score' => $this->effective_score,
             'played_matches' => $this->played_matches,
         ];
