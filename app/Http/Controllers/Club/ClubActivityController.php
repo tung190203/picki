@@ -186,8 +186,8 @@ class ClubActivityController extends Controller
         $isHistoryOnly = !empty($statuses)
             && empty(array_diff($statuses, ['completed', 'cancelled']));
 
-        $query->where(function ($outer) use ($dateFrom, $dateTo, $statuses, $hasAll) {
-            $outer->where(function ($main) use ($dateFrom, $dateTo, $statuses, $hasAll) {
+        $query->where(function ($outer) use ($dateFrom, $dateTo, $statuses, $hasAll, $userId) {
+            $outer->where(function ($main) use ($dateFrom, $dateTo, $statuses, $hasAll, $userId) {
                 if (! empty($dateFrom)) {
                     $main->whereDate('start_time', '>=', $dateFrom);
                 }
@@ -207,12 +207,43 @@ class ClubActivityController extends Controller
                     }
                     $mappedStatuses = array_filter($mappedStatuses);
 
+                    // Người tạo được xem kèo DRAFT của mình cùng với các status khác
                     if (! empty($mappedStatuses)) {
-                        $main->whereIn('status', $mappedStatuses);
+                        if ($userId) {
+                            $main->where(function ($q) use ($mappedStatuses, $userId) {
+                                $q->whereIn('status', $mappedStatuses)
+                                  ->orWhere(function ($sub) use ($userId) {
+                                      $sub->where('status', MiniTournament::STATUS_DRAFT)
+                                          ->where('created_by', $userId);
+                                  });
+                            });
+                        } else {
+                            $main->whereIn('status', $mappedStatuses);
+                        }
                     }
                 } elseif (empty($dateFrom) && empty($dateTo)) {
                     $main->where('status', MiniTournament::STATUS_OPEN)
                         ->where(fn($q) => $q->whereNull('end_time')->orWhere('end_time', '>=', now()));
+                } else {
+                    // Khi có date range nhưng không có status filter
+                    if ($userId) {
+                        $main->where(function ($q) use ($userId) {
+                            $q->whereIn('status', [
+                                MiniTournament::STATUS_OPEN,
+                                MiniTournament::STATUS_CLOSED,
+                                MiniTournament::STATUS_CANCELLED,
+                            ])->orWhere(function ($sub) use ($userId) {
+                                $sub->where('status', MiniTournament::STATUS_DRAFT)
+                                    ->where('created_by', $userId);
+                            });
+                        });
+                    } else {
+                        $main->whereIn('status', [
+                            MiniTournament::STATUS_OPEN,
+                            MiniTournament::STATUS_CLOSED,
+                            MiniTournament::STATUS_CANCELLED,
+                        ]);
+                    }
                 }
 
                 $main->where(fn($q) => $q->whereNull('end_time')->orWhere('end_time', '>=', now()));
@@ -240,8 +271,8 @@ class ClubActivityController extends Controller
         $isHistoryOnly = !empty($statuses)
             && empty(array_diff($statuses, ['completed', 'cancelled']));
 
-        $query->where(function ($outer) use ($dateFrom, $dateTo, $statuses, $hasAll) {
-            $outer->where(function ($main) use ($dateFrom, $dateTo, $statuses, $hasAll) {
+        $query->where(function ($outer) use ($dateFrom, $dateTo, $statuses, $hasAll, $userId) {
+            $outer->where(function ($main) use ($dateFrom, $dateTo, $statuses, $hasAll, $userId) {
                 if (! empty($dateFrom)) {
                     $main->whereDate('start_date', '>=', $dateFrom);
                 }
@@ -261,12 +292,43 @@ class ClubActivityController extends Controller
                     }
                     $mappedStatuses = array_filter($mappedStatuses);
 
+                    // Người tạo được xem giải DRAFT của mình cùng với các status khác
                     if (! empty($mappedStatuses)) {
-                        $main->whereIn('status', $mappedStatuses);
+                        if ($userId) {
+                            $main->where(function ($q) use ($mappedStatuses, $userId) {
+                                $q->whereIn('status', $mappedStatuses)
+                                  ->orWhere(function ($sub) use ($userId) {
+                                      $sub->where('status', Tournament::DRAFT)
+                                          ->where('created_by', $userId);
+                                  });
+                            });
+                        } else {
+                            $main->whereIn('status', $mappedStatuses);
+                        }
                     }
                 } elseif (empty($dateFrom) && empty($dateTo)) {
                     $main->where('status', Tournament::OPEN)
                         ->where(fn($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', now()));
+                } else {
+                    // Khi có date range nhưng không có status filter
+                    if ($userId) {
+                        $main->where(function ($q) use ($userId) {
+                            $q->whereIn('status', [
+                                Tournament::OPEN,
+                                Tournament::CLOSED,
+                                Tournament::CANCELLED,
+                            ])->orWhere(function ($sub) use ($userId) {
+                                $sub->where('status', Tournament::DRAFT)
+                                    ->where('created_by', $userId);
+                            });
+                        });
+                    } else {
+                        $main->whereIn('status', [
+                            Tournament::OPEN,
+                            Tournament::CLOSED,
+                            Tournament::CANCELLED,
+                        ]);
+                    }
                 }
 
                 $main->where(fn($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', now()));
