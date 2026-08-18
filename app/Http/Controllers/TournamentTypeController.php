@@ -1568,17 +1568,18 @@ class TournamentTypeController extends Controller
     {
         try {
             $refereeId = $request->query('referee_id');
+            $court = $request->query('court');
             $format = $tournamentType->format;
 
             switch ($format) {
                 case TournamentType::FORMAT_ROUND_ROBIN:
-                    return $this->getRoundRobinSchedule($tournamentType, $refereeId);
+                    return $this->getRoundRobinSchedule($tournamentType, $refereeId, $court);
 
                 case TournamentType::FORMAT_ELIMINATION:
-                    return $this->getEliminationBracket($tournamentType, $refereeId);
+                    return $this->getEliminationBracket($tournamentType, $refereeId, $court);
 
                 case TournamentType::FORMAT_MIXED:
-                    return $this->getMixedBracket($tournamentType, $refereeId);
+                    return $this->getMixedBracket($tournamentType, $refereeId, $court);
 
                 default:
                     return ResponseHelper::error('Format không hợp lệ', 400);
@@ -1593,7 +1594,7 @@ class TournamentTypeController extends Controller
     /**
      * Round Robin - trả về danh sách trận theo thứ tự
      */
-    private function getRoundRobinSchedule(TournamentType $type, ?int $refereeId = null)
+    private function getRoundRobinSchedule(TournamentType $type, ?int $refereeId = null, ?string $court = null)
     {
         $tournamentId = $type->tournament_id;
         $query = $type->matches()
@@ -1604,6 +1605,10 @@ class TournamentTypeController extends Controller
                 $q->where('referee_id', $refereeId)
                   ->orWhere('leg_referee_id', $refereeId);
             });
+        }
+
+        if ($court !== null && $court !== '') {
+            $query->where('court', $court);
         }
 
         $allMatches = $query->get();
@@ -1698,7 +1703,7 @@ class TournamentTypeController extends Controller
     /**
      * Elimination - trả về bracket theo round
      */
-    private function getEliminationBracket(TournamentType $type, ?int $refereeId = null)
+    private function getEliminationBracket(TournamentType $type, ?int $refereeId = null, ?string $court = null)
     {
         $tournamentId = $type->tournament_id;
         $query = $type->matches()
@@ -1711,6 +1716,10 @@ class TournamentTypeController extends Controller
                 $q->where('referee_id', $refereeId)
                   ->orWhere('leg_referee_id', $refereeId);
             });
+        }
+
+        if ($court !== null && $court !== '') {
+            $query->where('court', $court);
         }
 
         $matches = $query->get();
@@ -1843,7 +1852,7 @@ class TournamentTypeController extends Controller
         ]);
     }
 
-    private function getMixedBracket(TournamentType $type, ?int $refereeId = null)
+    private function getMixedBracket(TournamentType $type, ?int $refereeId = null, ?string $court = null)
     {
         $tournamentId = $type->tournament_id;
 
@@ -1857,6 +1866,10 @@ class TournamentTypeController extends Controller
                 $q->where('referee_id', $refereeId)
                   ->orWhere('leg_referee_id', $refereeId);
             });
+        }
+
+        if ($court !== null && $court !== '') {
+            $poolQuery->where('court', $court);
         }
 
         $poolMatches = $poolQuery
@@ -1957,6 +1970,10 @@ class TournamentTypeController extends Controller
                 $q->where('referee_id', $refereeId)
                   ->orWhere('leg_referee_id', $refereeId);
             });
+        }
+
+        if ($court !== null && $court !== '') {
+            $knockoutQuery->where('court', $court);
         }
 
         $knockoutMatches = $knockoutQuery->get();
