@@ -6,6 +6,7 @@ use App\Enums\PaymentStatusEnum;
 use App\Events\SuperAdmin\MiniTournamentMemberAdded;
 use App\Helpers\ResponseHelper;
 use App\Http\Requests\ModifyParticipantScoreRequest;
+use App\Http\Requests\ModifyParticipantGenderRequest;
 use App\Services\ParticipantScoreService;
 use App\Enums\ClubMemberRole;
 use App\Models\MiniParticipant;
@@ -1498,6 +1499,40 @@ class MiniParticipantController extends Controller
             'participant_id' => $participant->id,
             'modified_score' => $participant->modified_score,
         ], 'Score đã được cập nhật', 200);
+    }
+
+    /**
+     * Modify gender cho participant (organizer/admin)
+     *
+     * @param ModifyParticipantGenderRequest $request
+     * @param int $miniTournamentId
+     * @param int $participantId
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function modifyGender(ModifyParticipantGenderRequest $request, int $miniTournamentId, int $participantId)
+    {
+        $userId = Auth::id();
+        $miniTournament = MiniTournament::with('staff')->findOrFail($miniTournamentId);
+
+        if ($error = $this->authorizeMiniTournamentAdmin($miniTournament, $userId)) {
+            return $error;
+        }
+
+        $participant = MiniParticipant::where('id', $participantId)
+            ->where('mini_tournament_id', $miniTournamentId)
+            ->first();
+
+        if (!$participant) {
+            return ResponseHelper::error('Participant không tồn tại trong giải đấu này', 404);
+        }
+
+        $gender = $request->validated()['gender'];
+        $participant->update(['modify_gender' => $gender]);
+
+        return ResponseHelper::success([
+            'participant_id' => $participant->id,
+            'modify_gender' => $participant->modify_gender,
+        ], 'Giới tính đã được cập nhật', 200);
     }
 
     private function authorizeMiniTournamentAdmin(MiniTournament $miniTournament, int $userId): ?\Illuminate\Http\JsonResponse

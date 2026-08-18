@@ -19,7 +19,7 @@ use Illuminate\Http\JsonResponse;
  * - Frontend (mobile app) is the source of truth for participant list and tier (purple/red/yellow/green).
  * - Only participants that are available for matching should be sent.
  * - Backend uses tier from Frontend and merges with DB stats (played_count, consecutive, gender, vndupr, etc.)
- * - Gender is read from Database, NOT from Frontend.
+ * - Gender is read from mini_participants.modify_gender if set, otherwise from users table.
  * - Guests are included in the pool and treated as normal participants.
  */
 class MatchSuggestionController extends Controller

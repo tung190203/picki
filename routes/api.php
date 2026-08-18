@@ -862,6 +862,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
 
     Route::prefix('mini-tournaments')->group(function () {
         Route::post('/{miniTournamentId}/participants/{participantId}/modify-score', [MiniParticipantController::class, 'modifyScore']);
+        Route::post('/{miniTournamentId}/participants/{participantId}/modify-gender', [MiniParticipantController::class, 'modifyGender']);
     });
 
     Route::prefix('match-suggestions')->group(function () {
