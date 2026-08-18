@@ -210,52 +210,114 @@ class ClubActivityController extends Controller
             'isHistoryOnly' => $isHistoryOnly,
         ]);
 
-        // Điều kiện status cho kèo thường (không phải DRAFT)
-        $normalStatusCondition = function ($q) use ($mappedStatuses, $hasAll) {
-            if ($hasAll || empty($mappedStatuses)) {
-                $q->whereIn('status', [
-                    MiniTournament::STATUS_OPEN,
-                    MiniTournament::STATUS_CLOSED,
-                    MiniTournament::STATUS_CANCELLED,
-                ]);
-            } else {
-                $q->whereIn('status', $mappedStatuses);
+        // Xây dựng conditions riêng biệt
+        $draftCondition = $userId
+            ? [['status' => MiniTournament::STATUS_DRAFT, 'created_by' => $userId]]
+            : [];
+
+        $normalStatuses = [
+            MiniTournament::STATUS_OPEN,
+            MiniTournament::STATUS_CLOSED,
+            MiniTournament::STATUS_CANCELLED,
+        ];
+
+        // Filter status cho kèo thường
+        $filterStatuses = (! $hasAll && ! empty($mappedStatuses))
+            ? $mappedStatuses
+            : $normalStatuses;
+
+        // Điều kiện date
+        $dateCondition = [];
+        if (! empty($dateFrom)) {
+            $dateCondition[] = ['operator' => '>=', 'value' => $dateFrom, 'column' => 'start_time'];
+        }
+        if (! empty($dateTo)) {
+            $dateCondition[] = ['operator' => '<=', 'value' => $dateTo, 'column' => 'start_time'];
+        }
+
+        // Điều kiện end_time cho history
+        $endTimeCondition = $isHistoryOnly
+            ? [['operator' => '>=', 'value' => now(), 'column' => 'end_time', 'orNull' => true]]
+            : [];
+
+        // Build query với OR groups
+        $query->where(function ($q) use ($userId, $draftCondition, $filterStatuses, $dateCondition, $endTimeCondition) {
+            // Lựa chọn 1: Kèo DRAFT của người tạo (luôn thấy)
+            foreach ($draftCondition as $cond) {
+                $q->orWhere(function ($sub) use ($cond) {
+                    $sub->where('status', $cond['status'])
+                        ->where('created_by', $cond['created_by']);
+                });
             }
-        };
 
-        // Build điều kiện chính: Kèo thường (có date filter) HOẶC Kèo DRAFT của người tạo (không có date filter)
-        $query->where(function ($q) use ($normalStatusCondition, $userId, $dateFrom, $dateTo, $isHistoryOnly) {
-            // Kèo thường: phải thỏa mãn date filter và status filter
-            $q->where(function ($normalQuery) use ($normalStatusCondition, $dateFrom, $dateTo, $isHistoryOnly) {
-                $normalStatusCondition($normalQuery);
-
-                // Áp dụng date filter cho kèo thường
-                if (! empty($dateFrom)) {
-                    $normalQuery->whereDate('start_time', '>=', $dateFrom);
-                }
-                if (! empty($dateTo)) {
-                    $normalQuery->whereDate('start_time', '<=', $dateTo);
-                }
-
-                // Áp dụng end_time filter cho kèo thường
-                if ($isHistoryOnly) {
-                    $normalQuery->where(function ($timeQuery) {
-                        $timeQuery->whereNull('end_time')->orWhere('end_time', '>=', now());
-                    });
-                }
-            });
-
-            // Kèo DRAFT của người tạo: không bị giới hạn bởi date filter
+            // Lựa chọn 2: Kèo OPEN của người tạo (luôn thấy, không bị date filter)
             if ($userId) {
-                $q->orWhere(function ($draftQuery) use ($userId) {
-                    $draftQuery->where('status', MiniTournament::STATUS_DRAFT)
+                $q->orWhere(function ($sub) use ($userId) {
+                    $sub->where('status', MiniTournament::STATUS_OPEN)
                         ->where('created_by', $userId);
                 });
             }
+
+            // Lựa chọn 3: Kèo đã công bố (CLOSED/CANCELLED) thỏa mãn filter + date filter
+            $closedCancelledStatuses = array_filter($filterStatuses, fn($s) => $s !== MiniTournament::STATUS_OPEN);
+            if (! empty($closedCancelledStatuses) || empty($filterStatuses)) {
+                $q->orWhere(function ($sub) use ($filterStatuses, $dateCondition, $endTimeCondition) {
+                    // Chỉ CLOSED và CANCELLED
+                    $sub->whereIn('status', array_filter($filterStatuses, fn($s) => $s !== MiniTournament::STATUS_OPEN));
+
+                    // Áp dụng date filter
+                    foreach ($dateCondition as $cond) {
+                        $sub->whereDate($cond['column'], $cond['operator'], $cond['value']);
+                    }
+
+                    // Áp dụng end_time filter cho history
+                    foreach ($endTimeCondition as $cond) {
+                        if (isset($cond['orNull']) && $cond['orNull']) {
+                            $sub->where(function ($timeQuery) use ($cond) {
+                                $timeQuery->whereNull($cond['column'])
+                                    ->orWhere($cond['column'], $cond['operator'], $cond['value']);
+                            });
+                        } else {
+                            $sub->where($cond['column'], $cond['operator'], $cond['value']);
+                        }
+                    }
+                });
+            }
+
+            // Lựa chọn 4: Kèo OPEN của người khác (bị date filter)
+            $q->orWhere(function ($sub) use ($userId, $dateCondition, $endTimeCondition) {
+                $sub->where('status', MiniTournament::STATUS_OPEN);
+                if ($userId) {
+                    $sub->where('created_by', '!=', $userId);
+                }
+
+                // Áp dụng date filter
+                foreach ($dateCondition as $cond) {
+                    $sub->whereDate($cond['column'], $cond['operator'], $cond['value']);
+                }
+
+                // Áp dụng end_time filter cho history
+                foreach ($endTimeCondition as $cond) {
+                    if (isset($cond['orNull']) && $cond['orNull']) {
+                        $sub->where(function ($timeQuery) use ($cond) {
+                            $timeQuery->whereNull($cond['column'])
+                                ->orWhere($cond['column'], $cond['operator'], $cond['value']);
+                        });
+                    } else {
+                        $sub->where($cond['column'], $cond['operator'], $cond['value']);
+                    }
+                }
+            });
         });
 
         $orderDirection = $isHistoryOnly ? 'desc' : 'asc';
         $query->orderBy('start_time', $orderDirection);
+
+        // DEBUG: Log SQL query
+        \Log::info('getMiniTournaments SQL', [
+            'sql' => $query->toSql(),
+            'bindings' => $query->getBindings(),
+        ]);
 
         $results = $query->limit($filters['per_page'] ?? 50)->get();
 
@@ -298,48 +360,104 @@ class ClubActivityController extends Controller
         }
         $mappedStatuses = array_filter($mappedStatuses);
 
-        // Điều kiện status cho giải thường (không phải DRAFT)
-        $normalStatusCondition = function ($q) use ($mappedStatuses, $hasAll) {
-            if ($hasAll || empty($mappedStatuses)) {
-                $q->whereIn('status', [
-                    Tournament::OPEN,
-                    Tournament::CLOSED,
-                    Tournament::CANCELLED,
-                ]);
-            } else {
-                $q->whereIn('status', $mappedStatuses);
+        // Xây dựng conditions riêng biệt
+        $draftCondition = $userId
+            ? [['status' => Tournament::DRAFT, 'created_by' => $userId]]
+            : [];
+
+        $normalStatuses = [
+            Tournament::OPEN,
+            Tournament::CLOSED,
+            Tournament::CANCELLED,
+        ];
+
+        // Filter status cho giải thường
+        $filterStatuses = (! $hasAll && ! empty($mappedStatuses))
+            ? $mappedStatuses
+            : $normalStatuses;
+
+        // Điều kiện date
+        $dateCondition = [];
+        if (! empty($dateFrom)) {
+            $dateCondition[] = ['operator' => '>=', 'value' => $dateFrom, 'column' => 'start_date'];
+        }
+        if (! empty($dateTo)) {
+            $dateCondition[] = ['operator' => '<=', 'value' => $dateTo, 'column' => 'start_date'];
+        }
+
+        // Điều kiện end_date cho history
+        $endDateCondition = $isHistoryOnly
+            ? [['operator' => '>=', 'value' => now(), 'column' => 'end_date', 'orNull' => true]]
+            : [];
+
+        // Build query với OR groups
+        $query->where(function ($q) use ($userId, $draftCondition, $filterStatuses, $dateCondition, $endDateCondition) {
+            // Lựa chọn 1: Giải DRAFT của người tạo (luôn thấy)
+            foreach ($draftCondition as $cond) {
+                $q->orWhere(function ($sub) use ($cond) {
+                    $sub->where('status', $cond['status'])
+                        ->where('created_by', $cond['created_by']);
+                });
             }
-        };
 
-        // Build điều kiện chính: Giải thường (có date filter) HOẶC Giải DRAFT của người tạo (không có date filter)
-        $query->where(function ($q) use ($normalStatusCondition, $userId, $dateFrom, $dateTo, $isHistoryOnly) {
-            // Giải thường: phải thỏa mãn date filter và status filter
-            $q->where(function ($normalQuery) use ($normalStatusCondition, $dateFrom, $dateTo, $isHistoryOnly) {
-                $normalStatusCondition($normalQuery);
-
-                // Áp dụng date filter cho giải thường
-                if (! empty($dateFrom)) {
-                    $normalQuery->whereDate('start_date', '>=', $dateFrom);
-                }
-                if (! empty($dateTo)) {
-                    $normalQuery->whereDate('start_date', '<=', $dateTo);
-                }
-
-                // Áp dụng end_date filter cho giải thường
-                if ($isHistoryOnly) {
-                    $normalQuery->where(function ($dateQuery) {
-                        $dateQuery->whereNull('end_date')->orWhereDate('end_date', '>=', now());
-                    });
-                }
-            });
-
-            // Giải DRAFT của người tạo: không bị giới hạn bởi date filter
+            // Lựa chọn 2: Giải OPEN của người tạo (luôn thấy, không bị date filter)
             if ($userId) {
-                $q->orWhere(function ($draftQuery) use ($userId) {
-                    $draftQuery->where('status', Tournament::DRAFT)
+                $q->orWhere(function ($sub) use ($userId) {
+                    $sub->where('status', Tournament::OPEN)
                         ->where('created_by', $userId);
                 });
             }
+
+            // Lựa chọn 3: Giải đã công bố (CLOSED/CANCELLED) thỏa mãn filter + date filter
+            $closedCancelledStatuses = array_filter($filterStatuses, fn($s) => $s !== Tournament::OPEN);
+            if (! empty($closedCancelledStatuses) || empty($filterStatuses)) {
+                $q->orWhere(function ($sub) use ($filterStatuses, $dateCondition, $endDateCondition) {
+                    // Chỉ CLOSED và CANCELLED
+                    $sub->whereIn('status', array_filter($filterStatuses, fn($s) => $s !== Tournament::OPEN));
+
+                    // Áp dụng date filter
+                    foreach ($dateCondition as $cond) {
+                        $sub->whereDate($cond['column'], $cond['operator'], $cond['value']);
+                    }
+
+                    // Áp dụng end_date filter cho history
+                    foreach ($endDateCondition as $cond) {
+                        if (isset($cond['orNull']) && $cond['orNull']) {
+                            $sub->where(function ($dateQuery) use ($cond) {
+                                $dateQuery->whereNull($cond['column'])
+                                    ->orWhere($cond['column'], $cond['operator'], $cond['value']);
+                            });
+                        } else {
+                            $sub->where($cond['column'], $cond['operator'], $cond['value']);
+                        }
+                    }
+                });
+            }
+
+            // Lựa chọn 4: Giải OPEN của người khác (bị date filter)
+            $q->orWhere(function ($sub) use ($userId, $dateCondition, $endDateCondition) {
+                $sub->where('status', Tournament::OPEN);
+                if ($userId) {
+                    $sub->where('created_by', '!=', $userId);
+                }
+
+                // Áp dụng date filter
+                foreach ($dateCondition as $cond) {
+                    $sub->whereDate($cond['column'], $cond['operator'], $cond['value']);
+                }
+
+                // Áp dụng end_date filter cho history
+                foreach ($endDateCondition as $cond) {
+                    if (isset($cond['orNull']) && $cond['orNull']) {
+                        $sub->where(function ($dateQuery) use ($cond) {
+                            $dateQuery->whereNull($cond['column'])
+                                ->orWhere($cond['column'], $cond['operator'], $cond['value']);
+                        });
+                    } else {
+                        $sub->where($cond['column'], $cond['operator'], $cond['value']);
+                    }
+                }
+            });
         });
 
         $orderDirection = $isHistoryOnly ? 'desc' : 'asc';
