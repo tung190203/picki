@@ -295,13 +295,22 @@ class ClubMiniTournamentController extends Controller
             return ResponseHelper::error('Bạn cần đăng nhập', 401);
         }
 
-        if ((int) $miniTournament->club_id !== $club->id) {
-            return ResponseHelper::error('Kèo đấu không thuộc CLB này', 404);
+        $isTransfer = (int) $miniTournament->club_id !== $club->id;
+
+        $requestedMember = $club->activeMembers()->where('user_id', $userId)->first();
+        if (!$requestedMember || !in_array($requestedMember->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary], true)) {
+            return ResponseHelper::error('Chỉ admin/manager/secretary mới có quyền cập nhật kèo của CLB', 403);
         }
 
-        $member = $club->activeMembers()->where('user_id', $userId)->first();
-        if (!$member || !in_array($member->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary], true)) {
-            return ResponseHelper::error('Chỉ admin/manager/secretary mới có quyền cập nhật kèo của CLB', 403);
+        // Nếu đang transfer (đổi CLB), cần check user cũng là admin/manager/secretary của CLB hiện tại
+        if ($isTransfer && $miniTournament->club_id) {
+            $currentClub = Club::find($miniTournament->club_id);
+            if ($currentClub) {
+                $currentMember = $currentClub->activeMembers()->where('user_id', $userId)->first();
+                if (!$currentMember || !in_array($currentMember->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary], true)) {
+                    return ResponseHelper::error('Bạn cần có quyền admin ở cả CLB hiện tại và CLB mới để chuyển kèo đấu', 403);
+                }
+            }
         }
 
         $editScope = $request->input('edit_scope', 'this_occurrence');
@@ -402,11 +411,20 @@ class ClubMiniTournamentController extends Controller
             return ResponseHelper::error('Bạn cần đăng nhập', 401);
         }
 
-        if ((int) $miniTournament->club_id !== $club->id) {
-            return ResponseHelper::error('Kèo đấu không thuộc CLB này', 404);
-        }
+        $isTransfer = (int) $miniTournament->club_id !== $club->id;
 
         // Check permission: chỉ admin, manager, secretary của CLB HOẶC organizer của kèo mới được check-in hộ
+        // Nếu đang transfer (đổi CLB), cần check user cũng là admin/manager/secretary của CLB hiện tại
+        if ($isTransfer && $miniTournament->club_id) {
+            $currentClub = Club::find($miniTournament->club_id);
+            if ($currentClub) {
+                $currentMember = $currentClub->activeMembers()->where('user_id', $userId)->first();
+                if (!$currentMember || !in_array($currentMember->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary], true)) {
+                    return ResponseHelper::error('Bạn cần có quyền admin ở cả CLB hiện tại và CLB mới để đánh dấu check-in', 403);
+                }
+            }
+        }
+
         $clubMember = $club->activeMembers()->where('user_id', $userId)->first();
         $isClubStaff = $clubMember && in_array($clubMember->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary], true);
         $isTournamentOrganizer = $miniTournament->staff->contains(fn($staff) => (int) $staff->pivot->user_id === $userId && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ORGANIZER);
@@ -452,8 +470,17 @@ class ClubMiniTournamentController extends Controller
             return ResponseHelper::error('Bạn cần đăng nhập', 401);
         }
 
-        if ((int) $miniTournament->club_id !== $club->id) {
-            return ResponseHelper::error('Kèo đấu không thuộc CLB này', 404);
+        $isTransfer = (int) $miniTournament->club_id !== $club->id;
+
+        // Nếu đang transfer (đổi CLB), cần check user cũng là admin/manager/secretary của CLB hiện tại
+        if ($isTransfer && $miniTournament->club_id) {
+            $currentClub = Club::find($miniTournament->club_id);
+            if ($currentClub) {
+                $currentMember = $currentClub->activeMembers()->where('user_id', $userId)->first();
+                if (!$currentMember || !in_array($currentMember->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary], true)) {
+                    return ResponseHelper::error('Bạn cần có quyền admin ở cả CLB hiện tại và CLB mới để đánh dấu vắng mặt', 403);
+                }
+            }
         }
 
         $clubMember = $club->activeMembers()->where('user_id', $userId)->first();
@@ -528,8 +555,19 @@ class ClubMiniTournamentController extends Controller
         }
 
         $miniTournament = MiniTournament::find($miniTournamentId);
-        if (!$miniTournament || (int) $miniTournament->club_id !== $club->id) {
-            return ResponseHelper::error('Kèo đấu không tồn tại hoặc không thuộc CLB này', 404);
+        if (!$miniTournament) {
+            return ResponseHelper::error('Kèo đấu không tồn tại', 404);
+        }
+
+        $isTransfer = $miniTournament->club_id && (int) $miniTournament->club_id !== $club->id;
+        if ($isTransfer) {
+            $currentClub = Club::find($miniTournament->club_id);
+            if ($currentClub) {
+                $currentMember = $currentClub->activeMembers()->where('user_id', $userId)->first();
+                if (!$currentMember || !in_array($currentMember->role, [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary], true)) {
+                    return ResponseHelper::error('Bạn cần có quyền admin ở cả CLB hiện tại và CLB mới để hủy chuỗi kèo đấu', 403);
+                }
+            }
         }
 
         try {

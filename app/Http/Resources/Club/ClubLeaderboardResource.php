@@ -25,8 +25,7 @@ class ClubLeaderboardResource extends JsonResource
                 'full_name' => $data['user']->full_name,
                 'avatar_url' => $data['user']->avatar_url,
                 'visibility' => $data['user']->visibility,
-                'is_verify' => (bool) (($data['user']->total_matches_has_anchor ?? 0) >= 10),
-                'is_anchor' => (bool) ($data['user']->is_anchor ?? false),
+                'primary_badge' => $data['user']->primary_badge,
             ],
             'vndupr_score' => round($data['vndupr_score'], 3),
             'all_time_stats' => [
