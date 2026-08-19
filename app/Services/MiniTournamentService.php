@@ -673,8 +673,19 @@ class MiniTournamentService
         }
 
         $tournament = MiniTournament::find($tournamentId);
-        if (!$tournament || (int) $tournament->club_id !== $club->id) {
-            throw new BusinessException('Kèo đấu không tồn tại hoặc không thuộc CLB này');
+        if (!$tournament) {
+            throw new BusinessException('Kèo đấu không tồn tại');
+        }
+
+        $isTransfer = $tournament->club_id && (int) $tournament->club_id !== $club->id;
+        if ($isTransfer) {
+            $currentClub = \App\Models\Club\Club::find($tournament->club_id);
+            if ($currentClub) {
+                $currentMember = $currentClub->activeMembers()->where('user_id', $userId)->first();
+                if (!$currentMember || !in_array($currentMember->role, [\App\Enums\ClubMemberRole::Admin, \App\Enums\ClubMemberRole::Manager, \App\Enums\ClubMemberRole::Secretary], true)) {
+                    throw new BusinessException('Bạn cần có quyền admin ở cả CLB hiện tại và CLB mới để hủy chuỗi kèo đấu');
+                }
+            }
         }
 
         $seriesId = $tournament->recurrence_series_id;
