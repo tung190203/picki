@@ -251,17 +251,21 @@ class ClubController extends Controller
     {
         $userId = auth()->id();
 
+        $staffRoles = [
+            ClubMemberRole::Admin,
+            ClubMemberRole::Manager,
+            ClubMemberRole::Treasurer,
+            ClubMemberRole::Secretary,
+        ];
+
         $query = Club::select([
             'id', 'name', 'address', 'latitude', 'longitude', 'logo_url',
             'status', 'is_public', 'is_verified', 'is_banned', 'created_by', 'created_at'
-        ])->where(function ($q) use ($userId) {
-            $q->where('created_by', $userId)
-              ->orWhereHas('members', function ($q2) use ($userId) {
-                  $q2->where('user_id', $userId)
-                     ->where('membership_status', ClubMembershipStatus::Joined)
-                     ->where('status', \App\Enums\ClubMemberStatus::Active)
-                     ->where('role', ClubMemberRole::Admin);
-              });
+        ])->whereHas('members', function ($q) use ($userId, $staffRoles) {
+            $q->where('user_id', $userId)
+              ->where('membership_status', ClubMembershipStatus::Joined)
+              ->where('status', \App\Enums\ClubMemberStatus::Active)
+              ->whereIn('role', $staffRoles);
         });
 
         $clubs = $query
