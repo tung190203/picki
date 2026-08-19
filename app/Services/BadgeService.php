@@ -250,9 +250,9 @@ class BadgeService
             BadgeType::PICKI->value => 4,
         ]);
 
-        arsort($priority);
+        asort($priority);
 
-        return array_keys($priority);
+        return array_reverse(array_keys($priority));
     }
 
     /**

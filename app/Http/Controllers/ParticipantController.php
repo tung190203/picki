@@ -655,7 +655,10 @@ class ParticipantController extends Controller
         $newUserIds = array_diff($validated['user_ids'], $existingMemberIds);
 
         if (empty($newUserIds)) {
-            return ResponseHelper::error('Tất cả người chơi đã được mời hoặc đã tham gia.', 422);
+            $message = count($validated['user_ids']) === 1
+                ? 'Người chơi đã được mời hoặc đã tham gia.'
+                : 'Tất cả người chơi đã được mời hoặc đã tham gia.';
+            return ResponseHelper::error($message, 422);
         }
 
         // Xác định payment_status cho invited user
