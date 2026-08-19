@@ -839,6 +839,9 @@ class MiniTournament extends Model
         return match ($timeFilter) {
             'mine' => $query->where(function ($q) use ($userId) {
                 $q->where('created_by', $userId)
+                    ->orWhereHas('miniTournamentStaffs', fn($s) => $s
+                        ->where('user_id', $userId)
+                        ->where('role', MiniTournamentStaff::ROLE_ORGANIZER))
                     ->orWhereHas('participants', fn($p) => $p->where('user_id', $userId)->whereNull('declined_at'));
             }),
             'today' => $query->whereDate('start_time', now()->toDateString()),

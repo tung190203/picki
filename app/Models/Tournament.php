@@ -291,6 +291,9 @@ class Tournament extends Model
         return match ($timeFilter) {
             'mine' => $query->where(function ($q) use ($userId) {
                 $q->where('created_by', $userId)
+                    ->orWhereHas('tournamentStaffs', fn($s) => $s
+                        ->where('user_id', $userId)
+                        ->where('role', TournamentStaff::ROLE_ORGANIZER))
                     ->orWhereHas('participants', fn($p) => $p->where('user_id', $userId));
             }),
             'today' => $query->whereDate('start_date', now()->toDateString()),
