@@ -152,16 +152,17 @@ class ClubLeaderboardService
             ->groupBy('user_id');
 
         // Pre-load sports and scores for all users
+        // Keyed by user_sport.id (PK of user_sport table), NOT sport_id — must match $sportScores key.
         $userSports = DB::table('user_sport')
             ->whereIn('user_id', $memberUserIds)
-            ->pluck('sport_id', 'user_id');
+            ->select('id', 'user_id', 'sport_id')
+            ->get();
 
         $sportScores = [];
         if ($userSports->isNotEmpty()) {
+            $userSportIds = $userSports->pluck('id')->toArray();
             $scores = DB::table('user_sport_scores')
-                ->whereIn('user_sport_id', function ($q) use ($memberUserIds) {
-                    $q->select('id')->from('user_sport')->whereIn('user_id', $memberUserIds);
-                })
+                ->whereIn('user_sport_id', $userSportIds)
                 ->where('score_type', 'vndupr_score')
                 ->get()
                 ->groupBy('user_sport_id');
@@ -369,16 +370,14 @@ class ClubLeaderboardService
         $scoreAfter = $lastHistory ? (float) $lastHistory->score_after : 0;
         $stats['score_change'] = round($scoreAfter - $scoreBefore, 3);
 
-        // Compute VNDRUP score
-        $userHistories = $allHistories->get($userId, collect());
+        // Compute VNDRUP score.
+        // Source of truth: latest user_sport_scores row with score_type='vndupr_score'
+        // (matches the system's leaderboard source — see User model score subqueries).
+        // Keyed by user_sport.id (NOT sport_id), so lookup must use user_sport.id.
         $finalScore = 0;
-        if ($userHistories->isNotEmpty()) {
-            $finalScore = $userHistories->last()->score_after;
-        } else {
-            $userSportId = $userSports->get($userId);
-            if ($userSportId && isset($sportScores[$userSportId])) {
-                $finalScore = $sportScores[$userSportId]->score_value;
-            }
+        $userSportRow = $userSports->firstWhere('user_id', $userId);
+        if ($userSportRow && isset($sportScores[$userSportRow->id])) {
+            $finalScore = (float) $sportScores[$userSportRow->id]->score_value;
         }
 
         return [
