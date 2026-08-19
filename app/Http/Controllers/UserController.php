@@ -236,8 +236,9 @@ class UserController extends Controller
     public function update(Request $request)
     {
         $validated = $request->validate([
+            'user_id' => 'nullable|exists:users,id',
             'full_name' => 'required|string|max:255',
-            'phone' => ['nullable', 'string', 'max:10', Rule::unique('users', 'phone')->ignore($request->user()?->id)],
+            'phone' => ['nullable', 'string', 'max:10', Rule::unique('users', 'phone')->ignore($targetUserId)],
             'avatar_url' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
             'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
             'location_id' => 'nullable|exists:locations,id',
@@ -256,7 +257,15 @@ class UserController extends Controller
             'visibility' => 'nullable|in:open,friend-only,private',
             'self_score' => 'nullable|string|max:255',
         ]);
-        $user = User::findOrFail(auth()->id());
+
+        $authUser = $request->user();
+        $targetUserId = $validated['user_id'] ?? $authUser->id;
+
+        if ($targetUserId !== $authUser->id && !$authUser->is_super_admin) {
+            return ResponseHelper::error('Bạn không có quyền cập nhật thông tin người dùng khác', 403);
+        }
+
+        $user = User::findOrFail($targetUserId);
         $data = collect($validated)->except(['avatar_url', 'password', 'is_profile_completed', 'score_value', 'sport_ids'])->toArray();
 
         if (!empty($validated['password'])) {
