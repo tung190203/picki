@@ -253,6 +253,12 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             'primary_badge' => app(\App\Services\BadgeService::class)->getPrimaryBadge($this->id),
         ];
     }
+
+    public function getPrimaryBadgeAttribute(): ?string
+    {
+        return app(\App\Services\BadgeService::class)->getPrimaryBadge($this->id);
+    }
+
     public function referee()
     {
         return $this->hasOne(Referee::class);
