@@ -11,8 +11,9 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Clears the /me endpoint cache when any match is completed.
- * Also increments total_matches on user_sport for all participating users.
+ * Clears the /me endpoint cache when any match result is confirmed.
+ * Also increments total_matches on user_sport when winner_id is set.
+ * Only counts matches that have confirmed results (winner_id/team_win_id/participant_win_id is set).
  */
 class MatchCacheObserver
 {
@@ -22,28 +23,92 @@ class MatchCacheObserver
 
     public function updated($match): void
     {
-        if ($this->statusChangedToCompleted($match)) {
-            Log::info('[MatchCacheObserver] Match completed', [
+        // Trigger khi winner_id được set (kết quả được xác nhận)
+        if ($this->winnerIdSet($match)) {
+            Log::info('[MatchCacheObserver] Result confirmed (winner_id set)', [
                 'class' => get_class($match),
                 'id' => $match->id,
-                'status' => $match->status,
+                'winner_id' => $match->winner_id ?? $match->team_win_id ?? $match->participant_win_id,
             ]);
-            $this->handleCompleted($match);
-        } elseif ($this->statusRevertedFromCompleted($match)) {
-            Log::info('[MatchCacheObserver] Match reverted from completed', [
+            $this->handleResultConfirmed($match);
+        // Trigger khi winner_id bị xóa (kết quả bị hủy xác nhận)
+        } elseif ($this->winnerIdRemoved($match)) {
+            Log::info('[MatchCacheObserver] Result un-confirmed (winner_id removed)', [
                 'class' => get_class($match),
                 'id' => $match->id,
             ]);
-            $this->handleReverted($match);
+            $this->handleResultRemoved($match);
+        }
+
+        // Auto-complete tournament khi tất cả trận có kết quả
+        if ($this->winnerIdSet($match)) {
+            $this->checkAndCompleteTournament($match);
+        }
+
+        // Revert tournament nếu kết quả bị hủy
+        if ($this->winnerIdRemoved($match)) {
+            $this->revertTournamentCompletion($match);
         }
     }
 
-    protected function handleCompleted($match): void
+    /**
+     * Kiểm tra winner_id được set (từ null -> not null)
+     */
+    protected function winnerIdSet($model): bool
+    {
+        if ($model instanceof MiniMatch) {
+            $original = $model->getOriginal('team_win_id');
+            $current = $model->getAttribute('team_win_id');
+            if ($original === null && $current !== null) return true;
+            $origParticipant = $model->getOriginal('participant_win_id');
+            $currParticipant = $model->getAttribute('participant_win_id');
+            return $origParticipant === null && $currParticipant !== null;
+        }
+        if ($model instanceof Matches) {
+            $original = $model->getOriginal('winner_id');
+            $current = $model->getAttribute('winner_id');
+            return $original === null && $current !== null;
+        }
+        if ($model instanceof QuickMatch) {
+            $original = $model->getOriginal('winner');
+            $current = $model->getAttribute('winner');
+            return $original === null && $current !== null;
+        }
+        return false;
+    }
+
+    /**
+     * Kiểm tra winner_id bị xóa (từ not null -> null)
+     */
+    protected function winnerIdRemoved($model): bool
+    {
+        if ($model instanceof MiniMatch) {
+            $original = $model->getOriginal('team_win_id');
+            $current = $model->getAttribute('team_win_id');
+            if ($original !== null && $current === null) return true;
+            $origParticipant = $model->getOriginal('participant_win_id');
+            $currParticipant = $model->getAttribute('participant_win_id');
+            return $origParticipant !== null && $currParticipant === null;
+        }
+        if ($model instanceof Matches) {
+            $original = $model->getOriginal('winner_id');
+            $current = $model->getAttribute('winner_id');
+            return $original !== null && $current === null;
+        }
+        if ($model instanceof QuickMatch) {
+            $original = $model->getOriginal('winner');
+            $current = $model->getAttribute('winner');
+            return $original !== null && $current === null;
+        }
+        return false;
+    }
+
+    protected function handleResultConfirmed($match): void
     {
         $userIds = $this->extractUserIds($match);
         $sportId = $this->getSportId($match);
 
-        Log::info('[MatchCacheObserver] handleCompleted', [
+        Log::info('[MatchCacheObserver] handleResultConfirmed', [
             'match_id' => $match->id,
             'sport_id' => $sportId,
             'user_ids' => $userIds,
@@ -62,12 +127,9 @@ class MatchCacheObserver
                 'class' => get_class($match),
             ]);
         }
-
-        // Auto-complete tournament when all matches are completed
-        $this->checkAndCompleteTournament($match);
     }
 
-    protected function handleReverted($match): void
+    protected function handleResultRemoved($match): void
     {
         $userIds = $this->extractUserIds($match);
         $sportId = $this->getSportId($match);
@@ -79,9 +141,6 @@ class MatchCacheObserver
         if ($sportId) {
             $this->decrementCounter($match, $sportId);
         }
-
-        // Revert tournament completion status
-        $this->revertTournamentCompletion($match);
     }
 
     protected function checkAndCompleteTournament($match): void
@@ -114,9 +173,9 @@ class MatchCacheObserver
             return;
         }
 
-        $allCompleted = $allMatches->every(fn($m) => $m->status === 'completed');
-        if ($allCompleted) {
-            Log::info('[MatchCacheObserver] All matches completed, auto-completing tournament', [
+        $allHasResult = $allMatches->every(fn($m) => $m->winner_id !== null);
+        if ($allHasResult) {
+            Log::info('[MatchCacheObserver] All matches have results, auto-completing tournament', [
                 'tournament_id' => $tournament->id,
                 'match_id' => $match->id,
             ]);
@@ -140,9 +199,9 @@ class MatchCacheObserver
             return;
         }
 
-        $allCompleted = $allMatches->every(fn($m) => $m->status === 'completed');
-        if ($allCompleted) {
-            Log::info('[MatchCacheObserver] All mini matches completed, auto-completing mini tournament', [
+        $allHasResult = $allMatches->every(fn($m) => $m->winner_id !== null || $m->team_win_id !== null || $m->participant_win_id !== null);
+        if ($allHasResult) {
+            Log::info('[MatchCacheObserver] All mini matches have results, auto-completing mini tournament', [
                 'mini_tournament_id' => $miniTournament->id,
                 'match_id' => $match->id,
             ]);
@@ -176,11 +235,11 @@ class MatchCacheObserver
         }
 
         $hasIncomplete = $tournamentType->matches()
-            ->where('status', '!=', 'completed')
+            ->whereNull('winner_id')
             ->exists();
 
         if ($hasIncomplete) {
-            Log::info('[MatchCacheObserver] Match reverted, reverting tournament status', [
+            Log::info('[MatchCacheObserver] Result removed, reverting tournament status', [
                 'tournament_id' => $tournament->id,
                 'match_id' => $match->id,
             ]);
@@ -200,11 +259,14 @@ class MatchCacheObserver
         }
 
         $hasIncomplete = $miniTournament->matches()
-            ->where('status', '!=', 'completed')
+            ->where(function ($q) {
+                $q->whereNull('team_win_id')
+                  ->whereNull('participant_win_id');
+            })
             ->exists();
 
         if ($hasIncomplete) {
-            Log::info('[MatchCacheObserver] Mini match reverted, reverting mini tournament status', [
+            Log::info('[MatchCacheObserver] Result removed, reverting mini tournament status', [
                 'mini_tournament_id' => $miniTournament->id,
                 'match_id' => $match->id,
             ]);
@@ -214,7 +276,7 @@ class MatchCacheObserver
 
     public function deleted($match): void
     {
-        if (! $this->wasCompleted($match)) {
+        if (! $this->hadWinner($match)) {
             return;
         }
 
@@ -230,61 +292,21 @@ class MatchCacheObserver
         }
     }
 
-    protected function wasCompleted($model): bool
+    /**
+     * Kiểm tra match có winner trước khi bị xóa
+     */
+    protected function hadWinner($model): bool
     {
         if ($model instanceof MiniMatch) {
-            return $model->getOriginal('status') === MiniMatch::STATUS_COMPLETED;
+            return $model->getOriginal('team_win_id') !== null || $model->getOriginal('participant_win_id') !== null;
         }
         if ($model instanceof QuickMatch) {
-            return $model->getOriginal('status') === QuickMatch::STATUS_COMPLETED;
+            return $model->getOriginal('winner') !== null;
         }
         if ($model instanceof Matches) {
-            return $model->getOriginal('status') === Matches::STATUS_COMPLETED;
+            return $model->getOriginal('winner_id') !== null;
         }
-        return $model->getOriginal('status') === 'completed';
-    }
-
-    protected function statusChangedToCompleted($model): bool
-    {
-        if (! $model->isDirty('status')) {
-            return false;
-        }
-
-        $status = $model->getAttribute('status');
-
-        if ($model instanceof MiniMatch) {
-            return $status === MiniMatch::STATUS_COMPLETED;
-        }
-        if ($model instanceof QuickMatch) {
-            return $status === QuickMatch::STATUS_COMPLETED;
-        }
-        if ($model instanceof Matches) {
-            return $status === Matches::STATUS_COMPLETED;
-        }
-
-        return $status === 'completed';
-    }
-
-    protected function statusRevertedFromCompleted($model): bool
-    {
-        if (! $model->isDirty('status')) {
-            return false;
-        }
-
-        $original = $model->getOriginal('status');
-        $current = $model->getAttribute('status');
-
-        if ($model instanceof MiniMatch) {
-            return $original === MiniMatch::STATUS_COMPLETED && $current !== MiniMatch::STATUS_COMPLETED;
-        }
-        if ($model instanceof QuickMatch) {
-            return $original === QuickMatch::STATUS_COMPLETED && $current !== QuickMatch::STATUS_COMPLETED;
-        }
-        if ($model instanceof Matches) {
-            return $original === Matches::STATUS_COMPLETED && $current !== Matches::STATUS_COMPLETED;
-        }
-
-        return $original === 'completed' && $current !== 'completed';
+        return false;
     }
 
     protected function getSportId($match): ?int

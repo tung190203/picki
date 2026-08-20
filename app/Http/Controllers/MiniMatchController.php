@@ -1037,10 +1037,12 @@ class MiniMatchController extends Controller
                 return "Set {$sNum}: Tỉ số hòa ({$scoreA}-{$scoreB}) không hợp lệ";
             }
 
+            // Điểm thắng tối thiểu: luôn kiểm tra khi base_points được set (> 0)
+            if ($basePoints > 0 && $winningScore < $basePoints) {
+                return "Set {$sNum}: Điểm thắng phải đạt tối thiểu {$basePoints} điểm (hiện tại: {$winningScore})";
+            }
+
             if ($applyRule) {
-                if ($winningScore < $basePoints) {
-                    return "Set {$sNum}: Điểm thắng phải đạt tối thiểu {$basePoints} điểm (hiện tại: {$winningScore})";
-                }
                 // Khi đạt max_points: được phép thắng cách 1 điểm (luật deuce)
                 if ($maxPoints > 0 && $winningScore == $maxPoints) {
                     if ($actualDiff < 1) {

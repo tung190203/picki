@@ -5,6 +5,7 @@ use App\Http\Controllers\MiniTournamentStaffController;
 use App\Http\Controllers\UserMatchStatsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BannerController;
+use App\Http\Controllers\Admin\AdminBannerController;
 use App\Http\Controllers\CompetitionLocationController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\MatchesController;
@@ -421,6 +422,16 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
 
         Route::get('/lookup/clubs', [AdminPushNotificationLookupController::class, 'lookupClubs']);
         Route::get('/lookup/users', [AdminPushNotificationLookupController::class, 'lookupUsers']);
+    });
+
+    Route::prefix('banners')->group(function () {
+        Route::get('/', [AdminBannerController::class, 'index']);
+        Route::post('/', [AdminBannerController::class, 'store']);
+        Route::post('/reorder', [AdminBannerController::class, 'reorder']);
+        Route::get('/{banner}', [AdminBannerController::class, 'show']);
+        Route::post('/{banner}', [AdminBannerController::class, 'update']);
+        Route::put('/{banner}', [AdminBannerController::class, 'update']);
+        Route::delete('/{banner}', [AdminBannerController::class, 'destroy']);
     });
 });
 

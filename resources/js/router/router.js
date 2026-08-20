@@ -414,6 +414,14 @@ export const route = [
       requiresAdmin: true,
     }
   },
+  {
+    path: '/admin/banners',
+    name: 'admin.banners',
+    component: () => import('@/components/pages/admin/AdminBannersPage.vue'),
+    meta: {
+      requiresAdmin: true,
+    }
+  },
 
   // --- GENERAL & ERROR ROUTES ---
   {

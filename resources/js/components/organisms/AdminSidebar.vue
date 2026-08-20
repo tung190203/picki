@@ -47,6 +47,7 @@ const route = useRoute()
 const navItems = [
   { label: 'Tổng quan', routeName: 'admin.dashboard', icon: 'dashboard' },
   { label: 'Quản lý', routeName: 'admin.moderation', icon: 'gavel' },
+  { label: 'Banner Carousel', routeName: 'admin.banners', icon: 'view_carousel' },
   { label: 'Cấu hình', routeName: 'admin.config', icon: 'settings' }
 ]
 
