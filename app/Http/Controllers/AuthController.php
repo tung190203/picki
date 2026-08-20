@@ -799,6 +799,7 @@ class AuthController extends Controller
         User::loadSportStatsOnUsers(collect([$user]), 1);
 
         $user->vn_rank = User::getBatchVNRanks([$user->id], 1)[$user->id] ?? null;
+        $user->weekly_change = User::getBatchWeeklyChanges([$user->id], 1)[$user->id] ?? null;
 
         $clubs = $user->clubs;
         if ($clubs->isNotEmpty()) {
@@ -813,6 +814,9 @@ class AuthController extends Controller
         $user->loadFullRelations();
 
         User::loadSportStatsOnUsers(collect([$user]), 1);
+
+        $user->vn_rank = User::getBatchVNRanks([$user->id], 1)[$user->id] ?? null;
+        $user->weekly_change = User::getBatchWeeklyChanges([$user->id], 1)[$user->id] ?? null;
 
         $resource = new UserResource($user);
 
