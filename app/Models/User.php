@@ -1260,6 +1260,10 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         $tFilters = $tPrivateFilter . $ongoingT;
         $mntFilters = $mntPrivateFilter . $ongoingMnt;
 
+        // Chỉ đếm trận có kết quả (winner_id/team_win_id NOT NULL)
+        $tHasResult = ' AND m.winner_id IS NOT NULL';
+        $mntHasResult = ' AND mm.team_win_id IS NOT NULL';
+
         // Use single optimized query with UNION ALL to get all stats at once
         // This replaces the N+1 pattern where getTeamMemberIds was called in loops
         $statsResult = DB::selectOne("
@@ -1282,7 +1286,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                 JOIN tournaments t ON tt.tournament_id = t.id
                 JOIN team_members tm ON tm.team_id = m.home_team_id
                 WHERE tm.user_id = ? AND t.sport_id = ? AND m.status = 'completed' AND m.is_bye = 0
-                {$tFilters}
+                {$tFilters} {$tHasResult}
 
                 UNION ALL
 
@@ -1296,7 +1300,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                 JOIN tournaments t ON tt.tournament_id = t.id
                 JOIN team_members tm ON tm.team_id = m.away_team_id
                 WHERE tm.user_id = ? AND t.sport_id = ? AND m.status = 'completed' AND m.is_bye = 0
-                {$tFilters}
+                {$tFilters} {$tHasResult}
 
                 UNION ALL
 
@@ -1310,7 +1314,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                 JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
                 JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id
                 WHERE mtm.user_id = ? AND mnt.sport_id = ? AND mm.status = 'completed'
-                {$mntFilters}
+                {$mntFilters} {$mntHasResult}
 
                 UNION ALL
 
@@ -1324,7 +1328,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                 JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
                 JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id
                 WHERE mtm.user_id = ? AND mnt.sport_id = ? AND mm.status = 'completed'
-                {$mntFilters}
+                {$mntFilters} {$mntHasResult}
 
                 UNION ALL
 
@@ -1368,6 +1372,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                     JOIN tournaments t ON tt.tournament_id = t.id
                     JOIN team_members tm ON tm.team_id = m.home_team_id
                     WHERE tm.user_id = ? AND t.sport_id = ? AND m.status = 'completed' AND m.is_bye = 0
+                    {$tFilters} {$tHasResult}
                     ORDER BY m.scheduled_at DESC LIMIT 10
                 ) as home_recent
 
@@ -1381,6 +1386,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                     JOIN tournaments t ON tt.tournament_id = t.id
                     JOIN team_members tm ON tm.team_id = m.away_team_id
                     WHERE tm.user_id = ? AND t.sport_id = ? AND m.status = 'completed' AND m.is_bye = 0
+                    {$tFilters} {$tHasResult}
                     ORDER BY m.scheduled_at DESC LIMIT 10
                 ) as away_recent
 
@@ -1393,6 +1399,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                     JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
                     JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id
                     WHERE mtm.user_id = ? AND mnt.sport_id = ? AND mm.status = 'completed'
+                    {$mntFilters} {$mntHasResult}
                     ORDER BY mm.created_at DESC LIMIT 10
                 ) as mini_team1_recent
 
@@ -1405,6 +1412,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                     JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
                     JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id
                     WHERE mtm.user_id = ? AND mnt.sport_id = ? AND mm.status = 'completed'
+                    {$mntFilters} {$mntHasResult}
                     ORDER BY mm.created_at DESC LIMIT 10
                 ) as mini_team2_recent
             ) as recent_matches
@@ -1507,6 +1515,11 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         $tPrivateAndOngoing = $tPrivateFilter . $ongoingT;
         $mntPrivateAndOngoing = $mntPrivateFilter . $ongoingMnt;
 
+        // Chỉ đếm trận có kết quả (winner_id/team_win_id/participant_win_id NOT NULL)
+        $tHasResult = ' AND m.winner_id IS NOT NULL';
+        $mntHasResult = ' AND mm.team_win_id IS NOT NULL';
+        $mntSoloHasResult = ' AND mm.participant_win_id IS NOT NULL';
+
         // Main stats query — SUM aggregates grouped by user
         $statsRowsSql = "
             SELECT
@@ -1536,7 +1549,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                     JOIN tournaments t ON tt.tournament_id = t.id
                     JOIN team_members tm ON tm.team_id = m.home_team_id
                     WHERE tm.user_id IN ({$userIdsCsv}) AND t.sport_id = ? AND m.status = 'completed' AND m.is_bye = 0
-                    " . $tPrivateAndOngoing . "
+                    " . $tPrivateAndOngoing . $tHasResult . "
 
                     UNION ALL
 
@@ -1549,7 +1562,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                     JOIN tournaments t ON tt.tournament_id = t.id
                     JOIN team_members tm ON tm.team_id = m.away_team_id
                     WHERE tm.user_id IN ({$userIdsCsv}) AND t.sport_id = ? AND m.status = 'completed' AND m.is_bye = 0
-                    " . $tPrivateAndOngoing . "
+                    " . $tPrivateAndOngoing . $tHasResult . "
 
                     UNION ALL
 
@@ -1561,7 +1574,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                     JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
                     JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id
                     WHERE mtm.user_id IN ({$userIdsCsv}) AND mnt.sport_id = ? AND mm.status = 'completed'
-                    " . $mntPrivateAndOngoing . "
+                    " . $mntPrivateAndOngoing . $mntHasResult . "
 
                     UNION ALL
 
@@ -1573,7 +1586,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                     JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
                     JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id
                     WHERE mtm.user_id IN ({$userIdsCsv}) AND mnt.sport_id = ? AND mm.status = 'completed'
-                    " . $mntPrivateAndOngoing . "
+                    " . $mntPrivateAndOngoing . $mntHasResult . "
 
                     UNION ALL
 
@@ -1588,7 +1601,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                       AND (mm.participant1_id = mp.id OR mm.participant2_id = mp.id)
                       AND mnt.sport_id = ? AND mm.status = 'completed'
                       AND mm.team1_id IS NULL AND mm.team2_id IS NULL
-                    " . $mntPrivateAndOngoing . "
+                    " . $mntPrivateAndOngoing . $mntSoloHasResult . "
 
                     UNION ALL
 
@@ -1792,18 +1805,6 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
             $result[$uid]['total_matches'] = $totalMatches;
             $result[$uid]['win_rate'] = $winRate;
-        }
-
-        // Read total_matches directly from user_sport column (maintained by MatchCacheObserver).
-        // This avoids expensive live COUNT queries on every request.
-        foreach ($userIds as $uid) {
-            $total = (int) DB::table('user_sport')
-                ->where('user_id', $uid)
-                ->where('sport_id', $sportId)
-                ->value('total_matches');
-            if (isset($result[$uid])) {
-                $result[$uid]['total_matches'] = $total;
-            }
         }
 
         return $result;

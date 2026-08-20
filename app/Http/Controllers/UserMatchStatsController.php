@@ -20,7 +20,6 @@ use App\Models\QuickMatch;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Models\User;
-use App\Models\UserSport;
 
 class UserMatchStatsController extends Controller
 {
@@ -677,7 +676,7 @@ class UserMatchStatsController extends Controller
 
             // Tính điểm số theo set
             $scores = [];
-            $is_win = false;
+            $is_win = null; // null = chưa có kết quả
 
             if ($matchResults->has($match->id)) {
                 $resultsBySet = $matchResults[$match->id]->groupBy('set_number');
@@ -703,7 +702,7 @@ class UserMatchStatsController extends Controller
                     ];
                 }
 
-                // ✅ is_win dựa vào myTeamId (đã swap)
+                // is_win dựa vào myTeamId (đã swap)
                 $is_win = ($match->winner_id == $myTeamId);
             }
 
@@ -780,7 +779,7 @@ class UserMatchStatsController extends Controller
                 $oppParticipantId = $mini->participant2_id;
 
                 $scores = [];
-                $is_win = false;
+                $is_win = null;
 
                 if ($miniResults->has($mini->id)) {
                     $resultsBySet = $miniResults[$mini->id]->groupBy('set_number');
@@ -867,7 +866,7 @@ class UserMatchStatsController extends Controller
 
             // Tính điểm số theo set
             $scores = [];
-            $is_win = false;
+            $is_win = null;
 
             if ($miniResults->has($mini->id)) {
                 $resultsBySet = $miniResults[$mini->id]->groupBy('set_number');
@@ -1053,15 +1052,11 @@ class UserMatchStatsController extends Controller
             $allMatches = $allMatches->sortByDesc('created_at')->values();
         }
 
-        // Phân trang thủ công
-        // Dùng user_sport.total_matches để đảm bảo nhất quán với /me
-        $userSport = UserSport::where('user_id', $userId)
-            ->where('sport_id', $sportId)
-            ->first();
-        $total = $userSport->total_matches ?? $allMatches->count();
-
+        // Calculate overview
+        // total_matches chỉ tính những trận có kết quả (is_win không phải null)
         $totalWin = $allMatches->filter(fn($m) => $m['is_win'] === true)->count();
         $totalLose = $allMatches->filter(fn($m) => $m['is_win'] === false)->count();
+        $total = $totalWin + $totalLose;
         $winRate = $total > 0 ? round(($totalWin / $total) * 100, 2) : 0;
 
         $lastPage = ceil($total / $perPage);
