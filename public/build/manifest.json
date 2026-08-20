@@ -17,7 +17,7 @@
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-Blw-fP6x.js",
+    "file": "assets/app-BlpNhNbR.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -26,7 +26,7 @@
       "resources/js/components/pages/admin/AdminConfig.vue"
     ],
     "css": [
-      "assets/app-CilNgxFy.css"
+      "assets/app-DeprDV0t.css"
     ],
     "assets": [
       "assets/dashboard-bg-j02aDZD4.svg",
@@ -80,7 +80,7 @@
     "src": "resources/js/assets/images/splash-bg.png"
   },
   "resources/js/components/pages/admin/AdminConfig.vue": {
-    "file": "assets/AdminConfig-B_QVVdfz.js",
+    "file": "assets/AdminConfig-CCX5cIkJ.js",
     "name": "AdminConfig",
     "src": "resources/js/components/pages/admin/AdminConfig.vue",
     "isDynamicEntry": true,
@@ -92,7 +92,7 @@
     ]
   },
   "resources/js/components/pages/admin/AdminModeration.vue": {
-    "file": "assets/AdminModeration-DXoJf3rr.js",
+    "file": "assets/AdminModeration-B94FDw6S.js",
     "name": "AdminModeration",
     "src": "resources/js/components/pages/admin/AdminModeration.vue",
     "isDynamicEntry": true,
