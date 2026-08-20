@@ -798,8 +798,10 @@ class AuthController extends Controller
         // mà UserSportResource đọc). Vì clubs.members không load nữa nên chỉ truyền 1 user — rất nhẹ.
         User::loadSportStatsOnUsers(collect([$user]), 1);
 
-        $user->vn_rank = User::getBatchVNRanks([$user->id], 1)[$user->id] ?? null;
-        $user->weekly_change = User::getBatchWeeklyChanges([$user->id], 1)[$user->id] ?? null;
+        // Preload rank data once and reuse to avoid duplicate queries
+        $ranks = User::getBatchVNRanks([$user->id], 1);
+        $user->vn_rank = $ranks[$user->id] ?? null;
+        $user->weekly_change = User::getBatchWeeklyChanges([$user->id], 1, $ranks)[$user->id] ?? null;
 
         $clubs = $user->clubs;
         if ($clubs->isNotEmpty()) {
@@ -815,8 +817,10 @@ class AuthController extends Controller
 
         User::loadSportStatsOnUsers(collect([$user]), 1);
 
-        $user->vn_rank = User::getBatchVNRanks([$user->id], 1)[$user->id] ?? null;
-        $user->weekly_change = User::getBatchWeeklyChanges([$user->id], 1)[$user->id] ?? null;
+        // Preload rank data once and reuse to avoid duplicate queries
+        $ranks = User::getBatchVNRanks([$user->id], 1);
+        $user->vn_rank = $ranks[$user->id] ?? null;
+        $user->weekly_change = User::getBatchWeeklyChanges([$user->id], 1, $ranks)[$user->id] ?? null;
 
         $resource = new UserResource($user);
 

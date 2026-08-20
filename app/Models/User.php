@@ -2046,13 +2046,22 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         return $lastSundayRank - $currentRank;
     }
 
-    public static function getBatchWeeklyChanges(array $userIds, int $sportId): array
+    /**
+     * @param array $userIds
+     * @param int $sportId
+     * @param array|null $currentRanks Optional - pass from getBatchVNRanks to avoid duplicate query
+     * @return array
+     */
+    public static function getBatchWeeklyChanges(array $userIds, int $sportId, ?array $currentRanks = null): array
     {
         if (empty($userIds)) {
             return [];
         }
 
-        $currentRanks = self::getBatchVNRanks($userIds, $sportId);
+        // Use provided ranks or fetch if not passed
+        if ($currentRanks === null) {
+            $currentRanks = self::getBatchVNRanks($userIds, $sportId);
+        }
 
         // Only accept snapshots from the last Sunday (not the current week)
         // This ensures we're comparing against the correct previous week's data
