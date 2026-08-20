@@ -18,6 +18,7 @@ use App\Models\UserSport;
 use App\Models\UserSportScore;
 use App\Services\Club\ClubService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -93,10 +94,46 @@ class HomeController extends Controller
             ->get();
     
         // Banners
-        $banners = Banner::where('is_active', true)
-            ->orderBy('order', 'asc')
-            ->take($validated['banner_per_page'] ?? Banner::PER_PAGE)
+        $todayStr = Carbon::today()->toDateString();
+        $userObj = Auth::user();
+        $rawBanners = Banner::where(function ($q) {
+                $q->where('is_enabled', true)
+                  ->orWhere(function ($q2) {
+                      $q2->whereNull('is_enabled')->where('is_active', true);
+                  });
+            })
+            ->where(function ($q) use ($todayStr) {
+                $q->whereNull('start_date')
+                  ->orWhere('start_date', '<=', $todayStr);
+            })
+            ->where(function ($q) use ($todayStr) {
+                $q->whereNull('end_date')
+                  ->orWhere('end_date', '>=', $todayStr);
+            })
+            ->orderByRaw('COALESCE(display_order, `order`, 0) ASC')
             ->get();
+
+        $banners = $rawBanners->filter(function ($b) use ($userObj) {
+            $segments = $b->audience_segment_ids;
+            if (empty($segments) || in_array('ALL', $segments)) {
+                return true;
+            }
+            if (!$userObj) {
+                return false;
+            }
+            if (in_array('NEW_USERS', $segments) && $userObj->created_at && $userObj->created_at->gte(Carbon::now()->subDays(30))) {
+                return true;
+            }
+            if (in_array('TOURNAMENT_USERS', $segments) && $userObj->participants()->exists()) {
+                return true;
+            }
+            if (in_array('INACTIVE_USERS', $segments) && ($userObj->last_login && $userObj->last_login->lte(Carbon::now()->subDays(14)))) {
+                return true;
+            }
+            return false;
+        })
+        ->take($validated['banner_per_page'] ?? Banner::PER_PAGE)
+        ->values();
     
         // My club
         $myClub = Club::with(['members.user.vnduprScores'])
