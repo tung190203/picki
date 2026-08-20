@@ -1730,44 +1730,59 @@ class TournamentTypeController extends Controller
             ? Matches::whereIn('id', $nextMatchIds)->get()->keyBy('id')
             : collect();
 
-        // ✅ FIX: Tìm round chung kết (round cao nhất KHÔNG PHẢI tranh hạng 3)
+        // ✅ FIX: Tìm round chung kết knockout theo từng branch (round cao nhất KHÔNG PHẢI tranh hạng 3)
         $finalRound = $matches
             ->filter(fn($m) => !($m->is_third_place ?? false))
             ->max('round') ?? 1;
 
+        $finalRoundsByBranch = $matches
+            ->filter(fn($m) => !($m->is_third_place ?? false))
+            ->groupBy(fn($m) => $m->bracket_type ?? 'main')
+            ->map(fn($branchMatches) => $branchMatches->max('round') ?? 1);
+
         $bracket = $matches
             ->groupBy('round')
-            ->map(function ($roundMatches, $round) use ($type, $finalRound, $tournamentId, $nextMatchesById) {
+            ->map(function ($roundMatches, $round) use ($type, $finalRound, $finalRoundsByBranch, $tournamentId, $nextMatchesById) {
 
-                // ✅ SỬA: Group 2 leg thành 1 match - Dùng match_pair_id hoặc logic ổn định
+                // ✅ SỬA: Group 2 leg thành 1 match - Dùng match_pair_id hoặc logic ổn định + phân biệt bracket_type
                 $grouped = $roundMatches->groupBy(function ($match) {
+                    $bType = $match->bracket_type ?? 'main';
+
                     // Nếu có match_pair_id (nên thêm vào DB)
                     if (isset($match->match_pair_id)) {
-                        return 'pair_' . $match->match_pair_id;
+                        return $bType . '_pair_' . $match->match_pair_id;
                     }
 
                     // TH1: Dùng next_match_id + next_position (ổn định nhất)
                     if ($match->next_match_id && $match->next_position) {
-                        return 'to_' . $match->next_match_id . '_' . $match->next_position;
+                        return $bType . '_to_' . $match->next_match_id . '_' . $match->next_position;
                     }
 
                     // TH2: Trận cuối (Final/Third Place) - không có next
                     if ($match->is_third_place) {
-                        return 'third_place_' . $match->round;
+                        return $bType . '_third_place_' . $match->round;
                     }
 
                     if (!$match->next_match_id) {
-                        return 'final_' . $match->round;
+                        return $bType . '_final_' . $match->round;
                     }
 
                     // TH3: Fallback - gom theo min ID của 2 leg
                     // Leg 1 & 2 thường có ID liên tiếp
                     $baseId = floor($match->id / 2) * 2;
-                    return 'match_' . $baseId;
+                    return $bType . '_match_' . $baseId;
                 })->values();
 
-                // ✅ XỬ LÝ TÊN ROUND
-                $roundName = $this->getRoundName($round, $grouped->count(), $type->format);
+                // ✅ XỬ LÝ TÊN ROUND: Lấy số cặp đấu tối đa của 1 branch để tính round_name chuẩn (tránh bị nhân đôi khi có resurrection bracket)
+                $maxPairsInSingleBranch = $grouped
+                    ->groupBy(function ($matchGroup) {
+                        $first = $matchGroup->first();
+                        return $first->bracket_type ?? 'main';
+                    })
+                    ->map(fn($branchGroups) => $branchGroups->count())
+                    ->max() ?? $grouped->count();
+
+                $roundName = $this->getRoundName($round, $maxPairsInSingleBranch, $type->format);
 
                 // ✅ NẾU TẤT CẢ MATCHES TRONG ROUND LÀ THIRD PLACE
                 if ($roundMatches->every(fn($m) => $m->is_third_place ?? false)) {
@@ -1777,7 +1792,7 @@ class TournamentTypeController extends Controller
                 return [
                     'round' => $round,
                     'round_name' => $roundName,
-                    'matches' => $grouped->map(function ($matchGroup) use ($round, $finalRound, $tournamentId, $nextMatchesById) {
+                    'matches' => $grouped->map(function ($matchGroup) use ($round, $finalRound, $finalRoundsByBranch, $tournamentId, $nextMatchesById) {
 
                         $first = $matchGroup->first();
                         $homeTeamId = $first->home_team_id;
@@ -1786,8 +1801,11 @@ class TournamentTypeController extends Controller
                         $homeTotal = 0;
                         $awayTotal = 0;
 
-                        // ✅ FIX: Dùng $finalRound thay vì $maxRound
-                        $isFinal = ($round == $finalRound) && !($first->is_third_place ?? false);
+                        $bType = $first->bracket_type ?? 'main';
+                        $branchFinalRound = $finalRoundsByBranch->get($bType) ?? $finalRound;
+
+                        // ✅ FIX: Dùng $branchFinalRound thay vì $finalRound chung
+                        $isFinal = ($round == $branchFinalRound) && !($first->is_third_place ?? false);
 
                         $legs = $matchGroup->map(function ($leg) use (
                             &$homeTotal,
@@ -1993,15 +2011,21 @@ class TournamentTypeController extends Controller
             ? Matches::whereIn('id', $knockoutNextMatchIds)->get()->keyBy('id')
             : collect();
 
-        // ✅ FIX: Tìm round chung kết knockout (round cao nhất KHÔNG PHẢI tranh hạng 3)
+        // ✅ FIX: Tìm round chung kết knockout theo từng branch (round cao nhất KHÔNG PHẢI tranh hạng 3)
         $finalKnockoutRound = $knockoutMatches
             ->filter(fn($m) => !($m->is_third_place ?? false))
             ->max('round') ?? 2;
+
+        $finalKnockoutRoundsByBranch = $knockoutMatches
+            ->filter(fn($m) => !($m->is_third_place ?? false))
+            ->groupBy(fn($m) => $m->bracket_type ?? 'main')
+            ->map(fn($branchMatches) => $branchMatches->max('round') ?? 2);
 
         $knockoutStage = $knockoutMatches->groupBy('round')->map(function ($roundMatches, $round) use (
             $type,
             $advancementRules,
             $finalKnockoutRound,
+            $finalKnockoutRoundsByBranch,
             $tournamentId,
             $knockoutNextMatchesById
         ) {
@@ -2009,7 +2033,13 @@ class TournamentTypeController extends Controller
             $sortedMatches = $roundMatches->sortBy('id')->values();
             $matchGroups = $sortedMatches->chunk($numLegs);
 
-            $roundName = $this->getRoundName($round, $matchGroups->count(), $type->format);
+            // Tính max pairs trong 1 branch (main hoặc sub) để xác định tên round chính xác khi có resurrection bracket
+            $maxPairsInSingleBranch = $sortedMatches
+                ->groupBy(fn($m) => $m->bracket_type ?? 'main')
+                ->map(fn($branchMatches) => $branchMatches->chunk($numLegs)->count())
+                ->max() ?? $matchGroups->count();
+
+            $roundName = $this->getRoundName($round, $maxPairsInSingleBranch, $type->format);
 
             if ($roundMatches->every(fn($m) => $m->is_third_place ?? false)) {
                 $roundName = 'Tranh hạng Ba';
@@ -2022,6 +2052,7 @@ class TournamentTypeController extends Controller
                     $advancementRules,
                     $round,
                     $finalKnockoutRound,
+                    $finalKnockoutRoundsByBranch,
                     $tournamentId,
                     $knockoutNextMatchesById
                 ) {
@@ -2061,8 +2092,11 @@ class TournamentTypeController extends Controller
                     $homeTotal = 0;
                     $awayTotal = 0;
 
-                    // ✅ FIX: Dùng $finalKnockoutRound thay vì $maxKnockoutRound
-                    $isFinal = ($round == $finalKnockoutRound) && !($first->is_third_place ?? false);
+                    $bType = $first->bracket_type ?? 'main';
+                    $branchFinalRound = $finalKnockoutRoundsByBranch->get($bType) ?? $finalKnockoutRound;
+
+                    // ✅ FIX: Dùng $branchFinalRound thay vì $finalKnockoutRound chung
+                    $isFinal = ($round == $branchFinalRound) && !($first->is_third_place ?? false);
 
                     $legs = $matchGroup->map(function ($leg) use (
                         &$homeTotal,
@@ -2231,6 +2265,12 @@ class TournamentTypeController extends Controller
             ];
         })->values();
 
+        // ===== ADVANCEMENT RULES =====
+        $advancementRules = PoolAdvancementRule::where('tournament_type_id', $type->id)
+            ->with('group')
+            ->get()
+            ->groupBy('next_match_id');
+
         // ===== KNOCKOUT STAGE (Round >= 2) =====
         $knockoutMatches = $type->matches()
             ->with(['homeTeam.members', 'awayTeam.members', 'results', 'referee', 'legReferee'])
@@ -2249,20 +2289,50 @@ class TournamentTypeController extends Controller
             ->filter(fn($m) => !($m->is_third_place ?? false))
             ->max('round') ?? 2;
 
-        $allKnockoutRounds = $knockoutMatches->groupBy('round')->map(function ($roundMatches, $round) use ($type, $finalKnockoutRound, $tournamentId, $knockoutNextMatchesById) {
+        $allKnockoutRounds = $knockoutMatches->groupBy('round')->map(function ($roundMatches, $round) use ($type, $advancementRules, $finalKnockoutRound, $tournamentId, $knockoutNextMatchesById) {
             $numLegs = (int) ($type->num_legs ?? 1);
             $sortedMatches = $roundMatches->sortBy('id')->values();
             $matchGroups = $sortedMatches->chunk($numLegs);
 
-            $roundName = $this->getRoundName($round, $matchGroups->count(), $type->format);
+            $maxPairsInSingleBranch = $sortedMatches
+                ->groupBy(fn($m) => $m->bracket_type ?? 'main')
+                ->map(fn($branchMatches) => $branchMatches->chunk($numLegs)->count())
+                ->max() ?? $matchGroups->count();
+
+            $roundName = $this->getRoundName($round, $maxPairsInSingleBranch, $type->format);
             if ($roundMatches->every(fn($m) => $m->is_third_place ?? false)) {
                 $roundName = 'Tranh hạng Ba';
             }
 
-            $matchesData = $matchGroups->map(function ($matchGroup) use ($round, $finalKnockoutRound, $tournamentId, $knockoutNextMatchesById) {
+            $matchesData = $matchGroups->map(function ($matchGroup) use ($advancementRules, $round, $finalKnockoutRound, $tournamentId, $knockoutNextMatchesById) {
                 $first = $matchGroup->first();
                 $homeTeamId = $first->home_team_id;
                 $awayTeamId = $first->away_team_id;
+
+                $rulesForThisMatch = $advancementRules->get($first->id, collect());
+                $homePlaceholder = null;
+                $awayPlaceholder = null;
+
+                foreach ($rulesForThisMatch as $rule) {
+                    $text = trim(
+                        $this->getRankText($rule->rank) . ' ' . ($rule->group?->name ?? '')
+                    );
+
+                    if ($rule->next_position === 'home') $homePlaceholder = $text;
+                    if ($rule->next_position === 'away') $awayPlaceholder = $text;
+                }
+
+                if ($rulesForThisMatch->count() === 1) {
+                    $onlyRule = $rulesForThisMatch->first();
+
+                    if ($onlyRule->next_position === 'home' && !$awayPlaceholder) {
+                        $awayPlaceholder = 'Nhì tốt nhất';
+                    }
+
+                    if ($onlyRule->next_position === 'away' && !$homePlaceholder) {
+                        $homePlaceholder = 'Nhì tốt nhất';
+                    }
+                }
 
                 $homeTotal = 0;
                 $awayTotal = 0;
@@ -2281,13 +2351,14 @@ class TournamentTypeController extends Controller
 
                 return [
                     'match_id' => $first->id,
-                    'home_team' => $this->bracketService->formatTeamLightweight($first->homeTeam),
-                    'away_team' => $this->bracketService->formatTeamLightweight($first->awayTeam),
+                    'home_team' => $this->bracketService->formatTeamLightweight($first->homeTeam, $homePlaceholder),
+                    'away_team' => $this->bracketService->formatTeamLightweight($first->awayTeam, $awayPlaceholder),
                     'home_score' => $homeTotal,
                     'away_score' => $awayTotal,
                     'status' => $status,
                     'is_bye' => $first->is_bye,
                     'is_third_place' => $first->is_third_place ?? false,
+                    'bracket_type' => $first->bracket_type ?? 'main',
                     'scheduled_at' => $firstLeg->scheduled_at,
                     'court' => $firstLeg->court,
                     'winner_team_id' => $this->determineWinner($homeTotal, $awayTotal, $homeTeamId, $awayTeamId, $first, $matchGroup, $knockoutNextMatchesById),
@@ -2400,9 +2471,14 @@ class TournamentTypeController extends Controller
         return ResponseHelper::success([
             'format' => TournamentType::FORMAT_MIXED,
             'format_type_text' => 'mixed',
+            'has_resurrection_bracket' => (bool)($type->has_resurrection_bracket ?? ($type->format_specific_config[0]['has_resurrection_bracket'] ?? false)),
+            'main_bracket_name' => $type->main_bracket_name ?? ($type->format_specific_config[0]['main_bracket_name'] ?? 'Giải chính'),
+            'sub_bracket_name' => $type->sub_bracket_name ?? ($type->format_specific_config[0]['sub_bracket_name'] ?? 'Giải Tái sinh'),
             'poolStage' => $poolStage->values()->all(),
+            'pool_stage' => $poolStage->values()->all(),
             'leftSide' => $leftSide->values()->all(),
             'rightSide' => $rightSide->values()->all(),
+            'knockout_stage' => $allKnockoutRounds,
             'finalMatch' => $finalMatch,
             'thirdPlaceMatch' => $thirdPlaceMatch,
             'is_completed' => $type->tournament->is_completed,
@@ -3060,6 +3136,7 @@ class TournamentTypeController extends Controller
 
         $groups = $type->groups()->with('teams.members')->get();
         $advancingByRank = collect();
+        $resurrectionByRank = collect();
         $groupObjects = collect();
 
         // ===== PHASE 2: TẠO VÒNG BẢNG =====
@@ -3145,7 +3222,7 @@ class TournamentTypeController extends Controller
                 }
             }
 
-            // Thu thập placeholder
+            // Thu thập placeholder cho Main Bracket
             for ($k = 0; $k < min($numAdvancing, $chunk->count()); $k++) {
                 if (!isset($advancingByRank[$k])) {
                     $advancingByRank[$k] = collect();
@@ -3158,9 +3235,27 @@ class TournamentTypeController extends Controller
                     '_rank' => $k + 1,
                 ]);
             }
+
+            // Thu thập placeholder theo hạng cho Resurrection Bracket (Hạng numAdvancing+1..End)
+            $hasResurrection = filter_var($mainConfig['has_resurrection_bracket'] ?? ($type->has_resurrection_bracket ?? false), FILTER_VALIDATE_BOOLEAN);
+            if ($hasResurrection) {
+                for ($k = $numAdvancing; $k < $chunk->count(); $k++) {
+                    $resRank = $k - $numAdvancing;
+                    if (!isset($resurrectionByRank[$resRank])) {
+                        $resurrectionByRank[$resRank] = collect();
+                    }
+
+                    $resurrectionByRank[$resRank]->push((object)[
+                        'team_id' => null,
+                        '_from_group' => $group->id,
+                        '_group_index' => $groups->search($group) + 1,
+                        '_rank' => $k + 1,
+                    ]);
+                }
+            }
         }
 
-        // ✅ SẮP XẾP ĐỘI ADVANCING THEO MODE ĐÃ CHỌN
+        // ✅ SẮP XẾP ĐỘI ADVANCING THEO MODE ĐÃ CHỌN (MAIN BRACKET)
         $advancing = $this->teamPairingService->arrangeAdvancingTeams($advancingByRank, $pairingMode, $manualPairings);
 
         $totalAdvancing = $advancing->count();
@@ -3179,10 +3274,35 @@ class TournamentTypeController extends Controller
             $hasThirdPlace,
             $advancedToNext,
             $numLegs,
-            $matchNumber
+            $matchNumber,
+            'main'
         );
 
-        $this->createPoolAdvancementRules($type, $knockoutRounds, $advancing, $groupObjects);
+        $this->createPoolAdvancementRules($type, $knockoutRounds, $advancing, $groupObjects, 'main');
+
+        // ===== PHASE 6: TẠO KNOCKOUT STAGE & RULES (RESURRECTION BRACKET) =====
+        $hasResurrection = filter_var($mainConfig['has_resurrection_bracket'] ?? ($type->has_resurrection_bracket ?? false), FILTER_VALIDATE_BOOLEAN);
+        if ($hasResurrection && $resurrectionByRank->isNotEmpty()) {
+            $resAdvancing = $this->teamPairingService->arrangeAdvancingTeams($resurrectionByRank, $pairingMode, null);
+            if (($resAdvancing->count() % 2 !== 0) && !$advancedToNext) {
+                $resAdvancing->push((object)[
+                    'team_id' => null,
+                    '_placeholder' => true,
+                ]);
+            }
+
+            $resKnockoutRounds = $this->generateKnockoutStage(
+                $type,
+                $resAdvancing,
+                $hasThirdPlace,
+                $advancedToNext,
+                $numLegs,
+                $matchNumber,
+                'sub'
+            );
+
+            $this->createPoolAdvancementRules($type, $resKnockoutRounds, $resAdvancing, $groupObjects, 'sub');
+        }
     }
 
     /**
