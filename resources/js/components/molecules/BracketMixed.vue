@@ -272,54 +272,56 @@
 
             <div class="overflow-x-auto h-full custom-scrollbar-hide">
                 <div class="flex w-max min-h-full pb-4">
-                    <!-- POOL STAGE -->
-                    <div
-                        v-for="group in bracket.pool_stage"
-                        :key="group.group_id"
-                        class="round-column flex flex-col items-center pt-4 min-w-[280px]"
-                    >
+                    <!-- POOL STAGE (Chỉ hiển thị ở Nhánh chính) -->
+                    <template v-if="activeBranch === 'main'">
                         <div
-                            :class="roundHeaderClass(group.group_name, true)"
-                            class="flex justify-between items-center w-full mb-4 bg-[#EDEEF2] p-4"
+                            v-for="group in bracket.pool_stage"
+                            :key="group.group_id"
+                            class="round-column flex flex-col items-center pt-4 min-w-[280px]"
                         >
-                            <h2
-                                class="font-bold text-[#3E414C] whitespace-nowrap"
+                            <div
+                                :class="roundHeaderClass(group.group_name, true)"
+                                class="flex justify-between items-center w-full mb-4 bg-[#EDEEF2] p-4"
                             >
-                                {{ group.group_name }}
-                            </h2>
-                            <div class="flex items-center gap-2">
-                                <span class="text-sm text-[#838799]"
-                                    >Chưa xác định</span
+                                <h2
+                                    class="font-bold text-[#3E414C] whitespace-nowrap"
                                 >
-                                <button
-                                    class="w-9 h-9 rounded-full flex items-center justify-center border border-[#BBBFCC] transition-colors duration-200 hover:bg-gray-100 hover:border-[#838799]"
-                                >
-                                    <PencilIcon
-                                        class="w-5 h-5 text-[#838799] transition-colors duration-200 hover:text-black"
-                                    />
-                                </button>
+                                    {{ group.group_name }}
+                                </h2>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm text-[#838799]"
+                                        >Chưa xác định</span
+                                    >
+                                    <button
+                                        class="w-9 h-9 rounded-full flex items-center justify-center border border-[#BBBFCC] transition-colors duration-200 hover:bg-gray-100 hover:border-[#838799]"
+                                    >
+                                        <PencilIcon
+                                            class="w-5 h-5 text-[#838799] transition-colors duration-200 hover:text-black"
+                                        />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- GỘP LEGS THÀNH 1 CARD -->
+                            <div class="flex flex-col w-full items-center">
+                                <PoolStageMatchCard
+                                    v-for="match in group.matches"
+                                    :key="match.match_id"
+                                    :match="match"
+                                    :is-dragging="isDragging"
+                                    :dragged-team="draggedTeam"
+                                    :drop-target-match="dropTargetMatch"
+                                    :drop-target-position="dropTargetPosition"
+                                    @match-click="handleMatchClick"
+                                    @drag-start="handleDragStart"
+                                    @drag-end="handleDragEnd"
+                                    @drag-over="handleDragOver"
+                                    @drag-leave="handleDragLeave"
+                                    @drop="handleDrop"
+                                />
                             </div>
                         </div>
-
-                        <!-- GỘP LEGS THÀNH 1 CARD -->
-                        <div class="flex flex-col w-full items-center">
-                            <PoolStageMatchCard
-                                v-for="match in group.matches"
-                                :key="match.match_id"
-                                :match="match"
-                                :is-dragging="isDragging"
-                                :dragged-team="draggedTeam"
-                                :drop-target-match="dropTargetMatch"
-                                :drop-target-position="dropTargetPosition"
-                                @match-click="handleMatchClick"
-                                @drag-start="handleDragStart"
-                                @drag-end="handleDragEnd"
-                                @drag-over="handleDragOver"
-                                @drag-leave="handleDragLeave"
-                                @drop="handleDrop"
-                            />
-                        </div>
-                    </div>
+                    </template>
 
                     <!-- KNOCKOUT STAGE -->
                     <div
