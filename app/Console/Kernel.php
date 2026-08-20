@@ -12,8 +12,12 @@ class Kernel extends ConsoleKernel
 {
     protected function schedule(Schedule $schedule): void
     {
-        $schedule->job(new SendMiniTournamentRemindersJob())->everyMinute();
-        $schedule->job(new SendMiniTournamentDraftRemindersJob())->everyMinute();
+        $schedule->job(new SendMiniTournamentRemindersJob())
+            ->everyMinute()
+            ->withoutOverlapping(60);
+        $schedule->job(new SendMiniTournamentDraftRemindersJob())
+            ->everyMinute()
+            ->withoutOverlapping(60);
         $schedule->command('system:send-notifications')->everyMinute();
         $schedule->command('clubs:send-scheduled-notifications')->everyMinute();
         $schedule->call(function () {
