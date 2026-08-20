@@ -13,8 +13,14 @@ return new class extends Migration
     {
         Schema::create('mini_tournament_draft_reminders', function (Blueprint $table) {
             $table->id();
+            // CASCADE on mini_tournament_id: if a tournament is hard-deleted,
+            // its reminder log goes with it. NOTE: this model uses SoftDeletes,
+            // so soft-delete on MiniTournament does NOT trigger cascade here.
             $table->foreignId('mini_tournament_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            // RESTRICT (not cascade) on user_id: preserving reminder history
+            // when a user account is deleted prevents re-spamming a recreated
+            // account with the same id, and keeps an audit trail.
+            $table->foreignId('user_id')->constrained()->restrictOnDelete();
             $table->timestamp('sent_at');
             $table->timestamps();
 

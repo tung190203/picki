@@ -12,32 +12,55 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class SendMiniTournamentDraftRemindersJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    /**
+     * Maximum reminders per (tournament, organizer) pair across the lifetime
+     * of the draft. Prevents indefinite notification loops for forgotten
+     * drafts that organizers have not published or deleted.
+     */
+    private const MAX_REMINDERS_PER_DRAFT = 3;
 
     public function handle(): void
     {
         $now = Carbon::now();
         $cutoffTime = $now->copy()->subHours(24);
 
-        // Find tournaments that are DRAFT and were created more than 24 hours ago
+        // SoftDeletes global scope already filters deleted rows.
         $tournaments = MiniTournament::where('status', MiniTournament::STATUS_DRAFT)
             ->where('created_at', '<=', $cutoffTime)
             ->get();
 
         foreach ($tournaments as $tournament) {
-            // Get organizers who haven't been reminded in the last 24 hours
+            // Re-check status inside the loop: tournament may have been
+            // published (status -> OPEN) or deleted between the query above
+            // and processing this row.
+            $tournament->refresh();
+            if ($tournament->trashed()
+                || $tournament->status !== MiniTournament::STATUS_DRAFT
+                || $tournament->created_at->gt($cutoffTime)) {
+                continue;
+            }
+
             $staffMembers = MiniTournamentStaff::where('mini_tournament_id', $tournament->id)
                 ->where('role', MiniTournamentStaff::ROLE_ORGANIZER)
                 ->with('user')
                 ->get();
 
             foreach ($staffMembers as $staff) {
-                // Check if this organizer was already reminded in the last 24 hours
+                $user = $staff->user;
+                if (!$user) {
+                    // Organizer account was deleted; nothing to notify.
+                    continue;
+                }
+
                 $recentReminder = MiniTournamentDraftReminder::where('mini_tournament_id', $tournament->id)
-                    ->where('user_id', $staff->user_id)
+                    ->where('user_id', $user->id)
                     ->where('sent_at', '>=', $cutoffTime)
                     ->exists();
 
@@ -45,15 +68,37 @@ class SendMiniTournamentDraftRemindersJob implements ShouldQueue
                     continue;
                 }
 
-                // Send notification to organizer
-                $staff->user->notify(new MiniTournamentDraftReminderNotification($tournament));
+                $totalSent = MiniTournamentDraftReminder::where('mini_tournament_id', $tournament->id)
+                    ->where('user_id', $user->id)
+                    ->count();
 
-                // Record the reminder
-                MiniTournamentDraftReminder::create([
-                    'mini_tournament_id' => $tournament->id,
-                    'user_id' => $staff->user_id,
-                    'sent_at' => now(),
-                ]);
+                if ($totalSent >= self::MAX_REMINDERS_PER_DRAFT) {
+                    continue;
+                }
+
+                // Record FIRST, then notify. If notify fails we have already
+                // persisted the attempt; subsequent runs will see the record
+                // and skip instead of re-firing the notification.
+                try {
+                    DB::transaction(function () use ($tournament, $user) {
+                        MiniTournamentDraftReminder::create([
+                            'mini_tournament_id' => $tournament->id,
+                            'user_id' => $user->id,
+                            'sent_at' => now(),
+                        ]);
+                    });
+                } catch (\Throwable $e) {
+                    // Unique constraint or other DB error: another worker
+                    // already recorded the reminder. Safe to skip.
+                    Log::warning('MiniTournamentDraftReminder record failed', [
+                        'mini_tournament_id' => $tournament->id,
+                        'user_id' => $user->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                    continue;
+                }
+
+                $user->notify(new MiniTournamentDraftReminderNotification($tournament));
             }
         }
     }
