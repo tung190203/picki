@@ -32,9 +32,13 @@ router.beforeEach((to, from, next) => {
     }
   
     if (!publicPages.includes(to.name)) {
+      // Special handling: redirect tournament-detail to tournament-landing instead of login
+      if (to.name === 'tournament-detail' && to.params.id) {
+        return next({ name: "tournament-landing", params: { id: to.params.id } });
+      }
       return next({ name: "login", query: { redirect: to.fullPath } });
     }
-  }  
+  }
 
   if (loginToken && publicPages.includes(to.name) && !["privacy-policy", "tournament-landing", "pairing-wheel", "group-draw-wheel", "public-live-score"].includes(to.name)) {
     switch (userRole) {

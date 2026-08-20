@@ -20,6 +20,7 @@ use App\Models\QuickMatch;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Models\User;
+use App\Models\UserSport;
 
 class UserMatchStatsController extends Controller
 {
@@ -1053,10 +1054,11 @@ class UserMatchStatsController extends Controller
         }
 
         // Phân trang thủ công
-        // Phân trang thủ công
-        // Dùng chung SQL đếm với User::countMatchesForBatch để đảm bảo con số nhất quán
-        $matchCounts = User::countMatchesForBatch([$userId], $sportId, true);
-        $total = $matchCounts[$userId]['total'] ?? $allMatches->count();
+        // Dùng user_sport.total_matches để đảm bảo nhất quán với /me
+        $userSport = UserSport::where('user_id', $userId)
+            ->where('sport_id', $sportId)
+            ->first();
+        $total = $userSport->total_matches ?? $allMatches->count();
 
         $totalWin = $allMatches->filter(fn($m) => $m['is_win'] === true)->count();
         $totalLose = $allMatches->filter(fn($m) => $m['is_win'] === false)->count();
