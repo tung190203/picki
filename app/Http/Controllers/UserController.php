@@ -235,9 +235,22 @@ class UserController extends Controller
     }
     public function update(Request $request)
     {
+        $authUser = $request->user();
+
+        // Xác định target user trước validation để phone unique check đúng user
+        $targetUserId = $request->input('user_id');
+        if ($targetUserId && (int)$targetUserId !== $authUser->id && !$authUser->is_super_admin) {
+            return ResponseHelper::error('Bạn không có quyền cập nhật thông tin người dùng khác', 403);
+        }
+        // Nếu là superadmin update user khác, dùng user_id từ request
+        // Nếu không có user_id hoặc là chính mình, dùng authUser->id
+        if (!$targetUserId || (int)$targetUserId === $authUser->id) {
+            $targetUserId = $authUser->id;
+        }
+
         $validated = $request->validate([
             'user_id' => 'nullable|exists:users,id',
-            'full_name' => 'required|string|max:255',
+            'full_name' => 'sometimes|string|max:255',
             'phone' => ['nullable', 'string', 'max:10', Rule::unique('users', 'phone')->ignore($targetUserId)],
             'avatar_url' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
             'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
@@ -258,15 +271,20 @@ class UserController extends Controller
             'self_score' => 'nullable|string|max:255',
         ]);
 
-        $authUser = $request->user();
-        $targetUserId = $validated['user_id'] ?? $authUser->id;
-
-        if ($targetUserId !== $authUser->id && !$authUser->is_super_admin) {
-            return ResponseHelper::error('Bạn không có quyền cập nhật thông tin người dùng khác', 403);
-        }
-
         $user = User::findOrFail($targetUserId);
         $data = collect($validated)->except(['avatar_url', 'password', 'is_profile_completed', 'score_value', 'sport_ids'])->toArray();
+
+        // Check if there's anything to update (fields, files, or sport_ids)
+        $hasFileUploads = $request->hasFile('avatar_url') || $request->hasFile('thumbnail');
+        $hasSportUpdate = isset($validated['sport_ids']);
+
+        if (empty($data) && !$hasFileUploads && !$hasSportUpdate) {
+            $user->refresh();
+            return ResponseHelper::success(
+                new UserResource($user->load('sports', 'clubs')),
+                'Cập nhật thông tin thành công'
+            );
+        }
 
         if (!empty($validated['password'])) {
             $data['password'] = $validated['password'];
