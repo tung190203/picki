@@ -314,9 +314,21 @@ class ClubMiniTournamentController extends Controller
         }
 
         $editScope = $request->input('edit_scope', 'this_occurrence');
-        $data = $request->safe()->except(['invite_user', 'poster', 'qr_code_url']);
+        $data = $request->safe()->except(['invite_user', 'poster', 'qr_code_url', 'remove_poster']);
 
         if ($editScope === 'entire_series' && !empty($miniTournament->recurrence_series_id)) {
+            // Xử lý poster cho entire_series: đưa poster mới vào data để updateTournamentAsNewSeries áp dụng cho tất cả kèo
+            $imageService = app(ImageOptimizationService::class);
+            if ($request->hasFile('poster')) {
+                $oldPoster = $miniTournament->poster;
+                $savedPath = $imageService->processAndSaveImage($request->file('poster'), 'posters', 'poster_', 720, 65);
+                $imageService->deleteOldImage($oldPoster);
+                $data['poster'] = asset('storage/' . $savedPath);
+            } elseif ($request->has('remove_poster') && $request->input('remove_poster')) {
+                $imageService->deleteOldImage($miniTournament->poster);
+                $data['poster'] = null;
+            }
+
             try {
                 $updated = $this->tournamentService->updateTournamentAsNewSeries($miniTournament, $data, $userId);
             return ResponseHelper::success(
@@ -375,6 +387,9 @@ class ClubMiniTournamentController extends Controller
             $savedPath = $imageService->processAndSaveImage($posterFile, 'posters', 'poster_', 720, 65);
             $imageService->deleteOldImage($oldPoster);
             $miniTournament->update(['poster' => asset('storage/' . $savedPath)]);
+        } elseif ($request->has('remove_poster') && $request->input('remove_poster')) {
+            $imageService->deleteOldImage($miniTournament->poster);
+            $miniTournament->update(['poster' => null]);
         } elseif ($request->filled('poster') && is_string($request->input('poster'))) {
             $posterStr = trim((string) $request->input('poster'));
             if ($posterStr !== '' && filter_var($posterStr, FILTER_VALIDATE_URL)) {

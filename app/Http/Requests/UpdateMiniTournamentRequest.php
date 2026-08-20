@@ -19,6 +19,7 @@ class UpdateMiniTournamentRequest extends FormRequest
     public function rules(): array
     {
         $rules = [
+            'remove_poster' => 'nullable|boolean',
             // File upload HOẶC URL string (app gửi lại poster hiện có khi update multipart)
             'poster' => [
                 'nullable',
@@ -366,7 +367,7 @@ class UpdateMiniTournamentRequest extends FormRequest
             'apply_rule', 'allow_cancellation', 'auto_approve',
             'allow_participant_add_friends',
             'use_club_fund', 'included_in_club_fund', 'use_cached_qr',
-            'creator_join',
+            'creator_join', 'remove_poster',
         ];
         $boolNormalized = [];
         foreach ($boolKeys as $key) {
