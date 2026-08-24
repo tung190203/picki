@@ -67,6 +67,8 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'banned_by',
         'ban_note',
         'trust_score',
+        'is_merged',
+        'merged_into_user_id',
     ];
 
     const PER_PAGE = 15;

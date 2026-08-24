@@ -294,11 +294,12 @@ class UserMergeService
 
             $this->transferUserReferences($mergedUserId, $survivorUserId);
 
+            // Transfer badges, clubs, and user_sport from merged user to survivor
+            $this->transferSurvivorRecords($mergedUserId, $survivorUserId);
+
+            // Recalculate after all records are transferred
             $this->recalculateSurvivorTotalMatches($survivorUserId);
-
             $this->recalculateSurvivorScores($survivorUserId, $estimatedRating);
-
-            $this->removeDuplicateRecords($mergedUserId, $survivorUserId);
 
             $mergedUser->update([
                 'is_merged' => true,
@@ -375,16 +376,25 @@ class UserMergeService
             ->update(['user_id' => $toUserId]);
     }
 
-    protected function removeDuplicateRecords(int $mergedUserId, int $survivorUserId): void
+    /**
+     * Transfer badges, clubs, and user_sport from merged user to survivor.
+     * - Non-duplicate records are transferred to survivor
+     * - Duplicate records are removed (survivor's records take precedence)
+     */
+    protected function transferSurvivorRecords(int $mergedUserId, int $survivorUserId): void
     {
-        UserSport::where('user_id', $mergedUserId)
-            ->whereIn('sport_id', function ($query) use ($survivorUserId) {
-                $query->select('sport_id')
-                    ->from('user_sport')
-                    ->where('user_id', $survivorUserId);
-            })
-            ->delete();
+        // 1. Transfer non-duplicate badges from merged user to survivor
+        $survivorBadgeTypes = DB::table('user_badges')
+            ->where('user_id', $survivorUserId)
+            ->pluck('badge_type')
+            ->toArray();
 
+        DB::table('user_badges')
+            ->where('user_id', $mergedUserId)
+            ->whereNotIn('badge_type', $survivorBadgeTypes)
+            ->update(['user_id' => $survivorUserId]);
+
+        // 2. Remove duplicate badges from merged user
         UserBadge::where('user_id', $mergedUserId)
             ->whereIn('badge_type', function ($query) use ($survivorUserId) {
                 $query->select('badge_type')
@@ -393,12 +403,41 @@ class UserMergeService
             })
             ->delete();
 
+        // 3. Transfer non-duplicate club memberships from merged user to survivor
+        $survivorClubIds = DB::table('club_members')
+            ->where('user_id', $survivorUserId)
+            ->pluck('club_id')
+            ->toArray();
+
+        DB::table('club_members')
+            ->where('user_id', $mergedUserId)
+            ->whereNotIn('club_id', $survivorClubIds)
+            ->update(['user_id' => $survivorUserId]);
+
+        // 4. Remove duplicate club memberships from merged user
         ClubMember::where('user_id', $mergedUserId)
             ->whereIn('club_id', function ($query) use ($survivorUserId) {
                 $query->select('club_id')
                     ->from('club_members')
                     ->where('user_id', $survivorUserId);
             })
+            ->delete();
+
+        // 5. Handle user_sport for merged user
+        // If survivor doesn't have user_sport for a sport, transfer it
+        $survivorSportIds = DB::table('user_sport')
+            ->where('user_id', $survivorUserId)
+            ->pluck('sport_id')
+            ->toArray();
+
+        // Transfer non-duplicate user_sport records
+        UserSport::where('user_id', $mergedUserId)
+            ->whereNotIn('sport_id', $survivorSportIds)
+            ->update(['user_id' => $survivorUserId]);
+
+        // Remove duplicate user_sport records (survivor's records take precedence)
+        UserSport::where('user_id', $mergedUserId)
+            ->whereIn('sport_id', $survivorSportIds)
             ->delete();
     }
 
