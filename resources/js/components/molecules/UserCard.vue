@@ -12,7 +12,7 @@
       <div v-else :class="`w-${computedSize} h-${computedSize} rounded-full overflow-hidden`">
         <img :src="computedSrc" :alt="name" @error="$event.target.src=computedFallbackSrc"
           class="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform duration-300"
-          @click.stop="$emit('click', { ...props, checked_in_at: props.checkedInAt, is_absent: props.isAbsent })" />
+          @click.stop="$emit('click', { ...props, checked_in_at: props.checkedInAt, is_absent: props.isAbsent, is_guest: props.isGuest, is_virtual: props.isVirtual, userId: props.userId })" />
       </div>
 
       <button
@@ -162,6 +162,14 @@ const props = defineProps({
         default: null,
     },
     isAbsent: {
+        type: Boolean,
+        default: false,
+    },
+    isGuest: {
+        type: Boolean,
+        default: false,
+    },
+    isVirtual: {
         type: Boolean,
         default: false,
     },

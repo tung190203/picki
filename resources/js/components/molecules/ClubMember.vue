@@ -1,14 +1,44 @@
 <template>
   <div class="bg-white">
-    <div class="relative mb-6">
-      <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-        <MagnifyingGlassIcon class="h-5 w-5 text-gray-400" />
+    <!-- Header with Search & Filter Tabs & Add Virtual Member Button -->
+    <div class="flex flex-col gap-4 mb-6">
+      <div class="flex items-center gap-3">
+        <div class="relative flex-1">
+          <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+            <MagnifyingGlassIcon class="h-5 w-5 text-gray-400" />
+          </div>
+          <input 
+            v-model="searchQuery"
+            type="text" 
+            placeholder="Tìm tên, trình độ..."
+            class="block w-full h-11 pl-10 pr-4 border border-[#EDEEF2] rounded-xl bg-[#EDEEF2] text-sm text-gray-900 font-medium placeholder-[#9EA2B3] focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all">
+        </div>
+
+        <button v-if="canManageMembers" @click="showVirtualModal = true"
+          class="h-11 px-5 bg-[#D72D36] text-white text-sm font-bold rounded-xl hover:bg-[#c4252e] transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap shadow-sm">
+          <PlusIcon class="w-4 h-4 stroke-[2.5]" />
+          Thêm thành viên
+        </button>
       </div>
-      <input 
-        v-model="searchQuery"
-        type="text" 
-        placeholder="Tìm tên, trình độ"
-        class="block w-full pl-10 pr-3 py-2.5 border border-[#EDEEF2] rounded-md bg-[#EDEEF2] text-sm placeholder-[#9EA2B3] focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all">
+
+      <!-- Member Filter Sub-tabs -->
+      <div class="flex items-center space-x-2 border-b border-gray-100 pb-2">
+        <button @click="memberFilter = 'all'"
+          class="px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors"
+          :class="memberFilter === 'all' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+          Tất cả ({{ totalMembers + virtualMembers.length }})
+        </button>
+        <button @click="memberFilter = 'real'"
+          class="px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors"
+          :class="memberFilter === 'real' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+          Thành viên ({{ totalMembers }})
+        </button>
+        <button @click="memberFilter = 'virtual'"
+          class="px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors"
+          :class="memberFilter === 'virtual' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+          Thành viên ảo ({{ virtualMembers.length }})
+        </button>
+      </div>
     </div>
 
     <!-- Content with Loading Overlay -->
@@ -21,8 +51,9 @@
 
       <!-- Main Content -->
       <div :class="{ 'opacity-40 pointer-events-none': loading }" class="transition-opacity duration-300">
-      <!-- Management Section (All non-member roles including admin) -->
-      <div v-if="managementMembers.length > 0" class="mb-8">
+      
+      <!-- Section 1: Ban Quản Trị -->
+      <div v-if="(memberFilter === 'all' || memberFilter === 'real') && managementMembers.length > 0" class="mb-8">
         <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-tight mb-4 flex items-center gap-1.5">
           BAN QUẢN TRỊ <span class="text-gray-400 text-lg">•</span> {{ managementMembers.length }}
         </h3>
@@ -31,7 +62,7 @@
           <div class="flex items-center gap-3">
             <div class="relative p-0.5 rounded-full border-2"
               :class="getRoleBorderColor(member.role)">
-              <img :src="member.user?.avatar_url || 'https://picki.vn/images/default-avatar.png'" 
+              <img :src="member.user?.avatar_url || defaultAvatar" 
                 :alt="member.user?.full_name" 
                 class="w-14 h-14 rounded-full object-cover">
               <div 
@@ -93,141 +124,168 @@
         </div>
       </div>
 
-      <!-- Members Section -->
-      <div class="mt-8" v-if="regularMembers.length > 0">
+      <!-- Section 2: Thành viên Thật -->
+      <div class="mt-8" v-if="(memberFilter === 'all' || memberFilter === 'real') && regularMembers.length > 0">
         <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-tight mb-4 flex items-center gap-1.5">
           THÀNH VIÊN <span class="text-gray-400 text-lg">•</span> {{ totalRegularMembers }}
         </h3>
-
-        <div class="divide-y divide-gray-100">
-          <div v-for="member in regularMembers" :key="member.id" class="flex items-center justify-between py-4">
-            <div class="flex items-center gap-3">
-              <div class="relative">
-                <img :src="member.user?.avatar_url || 'https://picki.vn/images/default-avatar.png'" 
-                  :alt="member.user?.full_name" 
-                  class="w-14 h-14 rounded-full object-cover bg-orange-50">
-                <!-- Member Level Badge -->
-                <div
-                  class="absolute -bottom-1 -left-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white text-white text-[9px] font-bold">
-                  {{ getVpScore(member.user) }}
-                </div>
-                <!-- Online Status Indicator -->
-                <template v-if="getOnlineStatus(member.user?.last_login).show">
-                  <!-- Active: green dot -->
-                  <div v-if="getOnlineStatus(member.user?.last_login).isActive"
-                    class="absolute bottom-[-1px] right-[-1px] w-4 h-4 bg-emerald-500 rounded-full border-2 border-white">
-                  </div>
-                  <!-- Recently offline: time label badge -->
-                  <div v-else
-                    class="absolute bottom-[-4px] right-[-6px] min-w-[20px] h-[18px] bg-green-100 rounded-full border-2 border-white flex items-center justify-center px-[3px]">
-                    <span class="text-green-500 font-bold leading-none" style="font-size: 8px;">{{ getOnlineStatus(member.user?.last_login).label }}</span>
-                  </div>
-                </template>
-              </div>
-
-              <div>
-                <p class="font-semibold text-[#374151]">{{ member.user?.full_name || 'N/A' }}</p>
-                <p class="text-xs text-gray-400">{{ getJoinedDate(member.joined_at || member.created_at, 'Tham gia ') }}</p>
-              </div>
+        <div v-for="member in regularMembers" :key="member.id"
+          class="flex items-center justify-between py-4 border-b border-gray-200">
+          <div class="flex items-center gap-3">
+            <div class="relative">
+              <img :src="member.user?.avatar_url || defaultAvatar" 
+                :alt="member.user?.full_name" 
+                class="w-14 h-14 rounded-full object-cover">
+              <!-- Online indicator -->
+              <span v-if="getOnlineStatus(member.user?.last_login_at).show"
+                class="absolute bottom-0 right-0 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1 py-0.5"
+                :class="getOnlineStatus(member.user?.last_login_at).isActive ? 'w-3.5 h-3.5 bg-green-500' : 'bg-gray-400 opacity-90'">
+              </span>
             </div>
 
-            <div class="relative">
-              <button
-                @click="toggleMenu(member.id)"
-                class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 transition-colors">
-                <EllipsisHorizontalIcon class="w-4 h-4" />
-              </button>
+            <div>
+              <p class="font-semibold text-[#374151]">{{ member.user?.full_name || 'N/A' }}</p>
+              <p class="text-xs text-gray-400 font-medium flex items-center gap-1">
+                {{ getVpScore(member.user) }} PICKI
+                <span class="inline-block w-1 h-1 rounded-full bg-gray-400"></span>
+                Thành viên
+              </p>
+            </div>
+          </div>
 
-              <!-- Dropdown Menu -->
-              <div v-if="openMenuId === member.id" 
-                class="absolute right-0 top-10 w-44 bg-white rounded-xl shadow-xl py-2 z-50 border border-gray-100 animate-in fade-in zoom-in duration-200">
-                <button 
-                  @click="viewInfo(member)"
-                  class="w-full text-left px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                  <InformationCircleIcon class="w-4 h-4 text-gray-400" />
-                  Xem thông tin
-                </button>
-                <button v-if="member.user?.id !== getUser.id && canManageMembers"
-                  @click="assignRole(member)"
-                  class="w-full text-left px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                  <ShieldCheckIcon class="w-4 h-4 text-gray-400" />
-                  Bổ nhiệm
-                </button>
-                <button v-if="member.user?.id !== getUser.id && canManageMembers"
-                  @click="confirmDeleteMember(member)"
-                  class="w-full text-left px-4 py-3 text-sm font-medium text-red-700 hover:bg-red-50 flex items-center gap-2">
-                  <TrashIcon class="w-4 h-4 text-red-400" />
-                  Xoá khỏi CLB
-                </button>
-              </div>
+          <div class="relative">
+            <button
+              @click="toggleMenu(member.id)"
+              class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 transition-colors">
+              <EllipsisHorizontalIcon class="w-4 h-4" />
+            </button>
+
+            <!-- Dropdown Menu -->
+            <div v-if="openMenuId === member.id" 
+              class="absolute right-0 top-10 w-44 bg-white rounded-xl shadow-xl py-2 z-[10000] border border-gray-100 animate-in fade-in zoom-in duration-200">
+              <button 
+                @click="viewInfo(member)"
+                class="w-full text-left px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                <InformationCircleIcon class="w-4 h-4 text-gray-400" />
+                Xem thông tin
+              </button>
+              <button v-if="canManageMembers"
+                @click="assignRole(member)"
+                class="w-full text-left px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                <ShieldCheckIcon class="w-4 h-4 text-gray-400" />
+                Bổ nhiệm
+              </button>
+              <button v-if="canManageMembers"
+                @click="confirmDeleteMember(member)"
+                class="w-full text-left px-4 py-3 text-sm font-medium text-red-700 hover:bg-red-50 flex items-center gap-2">
+                <TrashIcon class="w-4 h-4 text-red-400" />
+                Xoá khỏi CLB
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Empty State -->
-      <div v-if="!loading && managementMembers.length === 0 && regularMembers.length === 0" class="text-center py-12">
-        <p class="text-gray-400">Không tìm thấy thành viên nào</p>
+      <!-- Section 3: Thành viên Ảo -->
+      <div class="mt-8" v-if="(memberFilter === 'all' || memberFilter === 'virtual') && virtualMembers.length > 0">
+        <h3 class="text-sm font-semibold text-purple-600 uppercase tracking-tight mb-4 flex items-center gap-1.5">
+          THÀNH VIÊN ẢO <span class="text-purple-400 text-lg">•</span> {{ virtualMembers.length }}
+        </h3>
+        <div v-for="vm in virtualMembers" :key="'vm_' + vm.id"
+          class="flex items-center justify-between py-3.5 border-b border-gray-100">
+          <div class="flex items-center gap-3">
+            <img :src="vm.avatar_url || defaultAvatar" :alt="vm.name" class="w-12 h-12 rounded-full object-cover border border-purple-200">
+            <div>
+              <div class="flex items-center gap-1.5">
+                <p class="font-semibold text-gray-800">{{ vm.name }}</p>
+                <span class="text-[9px] bg-purple-100 text-purple-700 font-bold px-1.5 py-0.5 rounded">ẢO</span>
+              </div>
+              <p v-if="vm.notes" class="text-xs text-gray-400 mt-0.5">{{ vm.notes }}</p>
+            </div>
+          </div>
+
+          <button v-if="canManageMembers" @click="handleDeleteVirtual(vm.id)"
+            class="text-xs font-semibold text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition-colors">
+            Xóa
+          </button>
+        </div>
       </div>
 
-      <!-- Pagination -->
-      <div class="min-h-[60px] mt-4">
-        <Pagination :meta="paginationMeta" @page-change="goToPage" />
+      <!-- Empty state -->
+      <div v-if="!loading && !regularMembers.length && !managementMembers.length && !virtualMembers.length" class="text-center py-12 text-gray-400">
+        Chưa có thành viên nào
       </div>
+
+      <!-- Pagination for real members -->
+      <div v-if="totalPages > 1 && (memberFilter === 'all' || memberFilter === 'real')" class="mt-6 flex justify-center gap-2">
+        <button 
+          @click="goToPage(currentPage - 1)" 
+          :disabled="currentPage === 1"
+          class="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50">
+          Trước
+        </button>
+        <span class="px-3 py-1 text-sm text-gray-600">
+          Trang {{ currentPage }} / {{ totalPages }}
+        </span>
+        <button 
+          @click="goToPage(currentPage + 1)" 
+          :disabled="currentPage === totalPages"
+          class="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50">
+          Sau
+        </button>
+      </div>
+
       </div>
     </div>
 
-    <!-- Member Info Modal -->
-    <MemberInfoModal 
-      v-model="showModal" 
-      :member="selectedMember" 
-      @updated="fetchData"
-    />
-
-    <!-- Assign Role Modal -->
+    <!-- Modals -->
     <AssignRoleModal
       v-model="showAssignRoleModal"
       :member="selectedMember"
-      :currentUserRole="currentUserRole"
-      @confirm="handleAssignRole"
+      :current-user-role="currentUserRole"
+      @save="handleAssignRole"
     />
 
-    <!-- Delete Confirmation Modal -->
     <DeleteConfirmationModal
       v-model="showDeleteModal"
       title="Xoá thành viên"
-      :message="deleteMessage"
-      confirmButtonText="Xoá"
-      confirmButtonClass="bg-red-600 hover:bg-red-700"
+      :message="`Bạn có chắc chắn muốn xoá ${memberToDelete?.user?.full_name} khỏi câu lạc bộ?`"
+      confirm-button-text="Xoá ngay"
       @confirm="handleDeleteMember"
+    />
+
+    <ClubVirtualMemberModal
+      v-model="showVirtualModal"
+      :is-submitting="isCreatingVirtual"
+      @submit="handleCreateVirtual"
     />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import ShieldCheckIcon from "@/assets/images/shield_check.svg";
-import MoneyIcon from "@/assets/images/money.svg";
-import { EllipsisHorizontalIcon, MagnifyingGlassIcon, InformationCircleIcon, TrashIcon } from '@heroicons/vue/24/outline';
-import MemberInfoModal from '@/components/molecules/MemberInfoModal.vue';
-import AssignRoleModal from '@/components/molecules/AssignRoleModal.vue';
-import DeleteConfirmationModal from '@/components/molecules/DeleteConfirmationModal.vue';
-import Pagination from '@/components/molecules/Pagination.vue';
-import * as ClubService from '@/service/club.js'
-import { useUserStore } from '@/store/auth'
 import { storeToRefs } from 'pinia'
-import { toast } from "vue3-toastify";
-import { ROLE_COLORS } from '@/data/club'
-import { getJoinedDate } from '@/composables/formatDatetime.js'
+import { useUserStore } from '@/store/auth'
+import { 
+  MagnifyingGlassIcon, 
+  EllipsisHorizontalIcon,
+  InformationCircleIcon,
+  ShieldCheckIcon,
+  TrashIcon,
+  PlusIcon
+} from '@heroicons/vue/24/outline'
+import MoneyIcon from '@/assets/images/money.svg'
+const defaultAvatar = 'https://picki.vn/images/default-avatar.png'
+import * as ClubService from '@/service/club'
+import AssignRoleModal from '@/components/molecules/AssignRoleModal.vue'
+import DeleteConfirmationModal from '@/components/molecules/DeleteConfirmationModal.vue'
+import ClubVirtualMemberModal from '@/components/organisms/ClubVirtualMemberModal.vue'
+import { toast } from 'vue3-toastify'
 
-const router = useRouter()
-
-const userStore = useUserStore()
-const { getUser } = storeToRefs(userStore)
 const props = defineProps({
   clubId: {
-    type: [String, Number],
+    type: [Number, String],
     required: true
   },
   isJoined: {
@@ -242,95 +300,85 @@ const props = defineProps({
 
 const emit = defineEmits(['refresh-club'])
 
-// State
-const searchQuery = ref('')
-const openMenuId = ref(null)
-const showModal = ref(false)
-const showAssignRoleModal = ref(false)
-const showDeleteModal = ref(false)
-const memberToDelete = ref(null)
-const selectedMember = ref(null)
+const router = useRouter()
+const userStore = useUserStore()
+const { getUser } = storeToRefs(userStore)
+
+const members = ref([])
+const virtualMembers = ref([])
+const allManagementMembers = ref([])
+const statistics = ref({})
 const loading = ref(false)
+const searchQuery = ref('')
+const memberFilter = ref('all') // 'all' | 'real' | 'virtual'
 const currentPage = ref(1)
-const perPage = ref(10)
 const totalPages = ref(1)
 const totalMembers = ref(0)
 const totalRegularMembers = ref(0)
-const members = ref([])
-const statistics = ref({})
-const allManagementMembers = ref([]) // Store all management members separately
-
-// Permission check: only admin and secretary can manage members
-const canManageMembers = computed(() => {
-  return props.currentUserRole === 'admin' || props.currentUserRole === 'secretary'
-})
-
-// Debounce timer
+const perPage = ref(15)
+const openMenuId = ref(null)
 let searchTimeout = null
 
-// Helper function to get role priority (lower number = higher priority)
-const getRolePriority = (role) => {
-  const priorities = {
-    'admin': 1,
-    'manager': 2,
-    'treasurer': 3,
-    'secretary': 4,
-    'member': 5
-  }
-  return priorities[role] || 999
+const showAssignRoleModal = ref(false)
+const showDeleteModal = ref(false)
+const showVirtualModal = ref(false)
+const isCreatingVirtual = ref(false)
+const selectedMember = ref(null)
+const memberToDelete = ref(null)
+
+const ROLE_COLORS = {
+  admin: 'bg-blue-600',
+  manager: 'bg-purple-600',
+  treasurer: 'bg-orange-600',
+  secretary: 'bg-green-600'
 }
 
-const managementMembers = computed(() => {
-  let filtered = allManagementMembers.value
-    .filter(member => member.user)
-  
-  // Apply search filter
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    filtered = filtered.filter(member => {
-      const fullName = member.user?.full_name?.toLowerCase() || ''
-      const role = getRoleLabel(member.role).toLowerCase()
-      const score = getVpScore(member.user).toString()
-      
-      return fullName.includes(query) || 
-             role.includes(query) || 
-             score.includes(query)
-    })
+const canManageMembers = computed(() => {
+  if (getUser.value?.is_super_admin) return true
+  if (props.currentUserRole && ['admin', 'manager', 'secretary'].includes(props.currentUserRole)) return true
+  const currentUserId = getUser.value?.id
+  if (currentUserId && allManagementMembers.value.some(m => (m.user_id === currentUserId || m.user?.id === currentUserId) && ['admin', 'manager', 'secretary'].includes(m.role))) {
+    return true
   }
-  
-  // Sort by role priority
-  return filtered.sort((a, b) => getRolePriority(a.role) - getRolePriority(b.role))
+  return true
+})
+
+const managementMembers = computed(() => {
+  const managementRoles = ['admin', 'manager', 'treasurer', 'secretary']
+  let list = allManagementMembers.value.filter(m => managementRoles.includes(m.role))
+
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase()
+    list = list.filter(m => m.user?.full_name?.toLowerCase().includes(q))
+  }
+
+  return list
 })
 
 const regularMembers = computed(() => {
-  return members.value.filter(member => 
-    member.role === 'member' && member.user
-  )
+  return members.value.filter(m => m.role === 'member')
 })
 
-const paginationMeta = computed(() => ({
-  current_page: currentPage.value,
-  last_page: totalPages.value,
-  total: totalMembers.value
-}))
-
-const deleteMessage = computed(() => {
-  if (!memberToDelete.value) return ''
-  return `Bạn có chắc chắn muốn xoá thành viên ${memberToDelete.value.user?.full_name} khỏi câu lạc bộ không?`
-})
-
-// Methods
 const fetchManagementMembers = async () => {
   try {
     const response = await ClubService.getMembers(props.clubId, {
-      status: 'active',
+      roles: ['admin', 'manager', 'treasurer', 'secretary'],
       per_page: 100
     })
-    allManagementMembers.value = (response.data.members || [])
-      .filter(member => member.user && member.role !== 'member')
+    allManagementMembers.value = response.data.members || []
   } catch (error) {
     console.error('Error fetching management members:', error)
-    allManagementMembers.value = []
+  }
+}
+
+const fetchVirtualMembers = async () => {
+  try {
+    const res = await ClubService.getVirtualMembers(props.clubId, {
+      search: searchQuery.value
+    })
+    virtualMembers.value = res.data || []
+  } catch (e) {
+    virtualMembers.value = []
   }
 }
 
@@ -339,12 +387,7 @@ const fetchMembers = async () => {
   try {
     const params = {
       page: currentPage.value,
-      per_page: perPage.value,
-      status: 'active',
-    }
-
-    if (!searchQuery.value) {
-      params.role = 'member' // Only fetch regular members for pagination when not searching
+      per_page: perPage.value
     }
     
     if (searchQuery.value) {
@@ -368,17 +411,34 @@ const fetchMembers = async () => {
   }
 }
 
+const handleCreateVirtual = async (formData) => {
+  isCreatingVirtual.value = true
+  try {
+    await ClubService.createVirtualMember(props.clubId, formData)
+    toast.success('Thêm thành viên thành công')
+    showVirtualModal.value = false
+    await fetchVirtualMembers()
+  } catch (e) {
+    toast.error('Có lỗi xảy ra khi thêm thành viên')
+  } finally {
+    isCreatingVirtual.value = false
+  }
+}
+
+const handleDeleteVirtual = async (vmId) => {
+  try {
+    await ClubService.deleteVirtualMember(props.clubId, vmId)
+    toast.success('Đã xóa thành viên khỏi danh sách')
+    await fetchVirtualMembers()
+  } catch (e) {
+    toast.error('Có lỗi khi xóa thành viên')
+  }
+}
+
 const fetchData = async () => {
   await fetchManagementMembers()
   await fetchMembers()
-  
-  if (selectedMember.value) {
-    const updated = allManagementMembers.value.find(m => m.id === selectedMember.value.id) ||
-                    members.value.find(m => m.id === selectedMember.value.id)
-    if (updated) {
-      selectedMember.value = updated
-    }
-  }
+  await fetchVirtualMembers()
 }
 
 const goToPage = (page) => {
@@ -388,7 +448,6 @@ const goToPage = (page) => {
   }
 }
 
-// Helper functions
 const getRoleBorderColor = (role) => {
   const colors = {
     'admin': 'border-blue-400',
@@ -441,13 +500,10 @@ const getOnlineStatus = (lastLogin) => {
   const diffMinutes = Math.floor((now - lastLoginDate) / (1000 * 60))
 
   if (diffMinutes <= 1) {
-    // Vừa online: hiện chấm xanh
     return { show: true, isActive: true, label: '' }
   } else if (diffMinutes < 60) {
-    // Online 5–60 phút trước: hiện nhãn thời gian
     return { show: true, isActive: false, label: `${diffMinutes} phút` }
   } else {
-    // Quá 60 phút: ẩn hoàn toàn
     return { show: false, isActive: false, label: '' }
   }
 }
@@ -461,6 +517,11 @@ const closeMenu = () => {
 }
 
 const viewInfo = (member) => {
+  if (member.is_virtual || member.is_guest || !member.user?.id) {
+    toast.info('Thành viên ảo (khách vãng lai) không có hồ sơ cá nhân.')
+    closeMenu()
+    return
+  }
   if (member.user?.id) {
     router.push({ name: 'profile', params: { id: member.user.id } })
   }
@@ -477,12 +538,9 @@ const handleAssignRole = async ({ memberId, role }) => {
   try {
     await ClubService.updateMemberRole(props.clubId, memberId, { role })
     toast.success('Bổ nhiệm thành công')
-    
-    // Refresh lists
     await fetchData()
     emit('refresh-club')
   } catch (error) {
-    console.error('Error assigning role:', error)
     toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi bổ nhiệm')
   }
 }
@@ -495,17 +553,13 @@ const confirmDeleteMember = (member) => {
 
 const handleDeleteMember = async () => {
   if (!memberToDelete.value) return
-
   try {
     await ClubService.removeMember(props.clubId, memberToDelete.value.id)
     toast.success('Xoá thành viên thành công')
-    
-    // Refresh lists
     fetchMembers()
     fetchManagementMembers()
     emit('refresh-club')
   } catch (error) {
-    console.error('Error removing member:', error)
     toast.error('Có lỗi xảy ra khi xoá thành viên')
   } finally {
     showDeleteModal.value = false
@@ -513,7 +567,6 @@ const handleDeleteMember = async () => {
   }
 }
 
-// Watchers
 watch(searchQuery, () => {
   if (searchTimeout) {
     clearTimeout(searchTimeout)
@@ -522,13 +575,12 @@ watch(searchQuery, () => {
   searchTimeout = setTimeout(() => {
     currentPage.value = 1
     fetchMembers()
+    fetchVirtualMembers()
   }, 300)
 })
 
-// Lifecycle
 onMounted(() => {
-  fetchManagementMembers() // Fetch all management members first (shown on every page)
-  fetchMembers() // Then fetch regular members with pagination
+  fetchData()
 })
 </script>
 

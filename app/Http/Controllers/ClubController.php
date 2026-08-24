@@ -399,7 +399,40 @@ class ClubController extends Controller
     {
         $club = Club::findOrFail($clubId);
 
-        $perPage = $request->input('per_page', 50);
+        $type = $request->input('type', 'rating');
+        $subType = $request->input('sub_type', 'star');
+        $timeFrame = $request->input('time_frame', 'month');
+        $perPage = (int) $request->input('per_page', 50);
+
+        if ($type === 'achievement') {
+            $achievementService = app(\App\Services\Club\ClubAchievementLeaderboardService::class);
+            $rankedLeaderboard = $achievementService->getLeaderboard($club, $subType, $timeFrame);
+
+            $total = $rankedLeaderboard->count();
+            $currentPage = max(1, (int) $request->query('page', 1));
+            $lastPage = (int) ceil($total / $perPage) ?: 1;
+            $offset = ($currentPage - 1) * $perPage;
+            $paginatedData = $rankedLeaderboard->slice($offset, $perPage)->values();
+
+            $response = [
+                'club_info' => [
+                    'id' => $club->id,
+                    'name' => $club->name,
+                    'member_count' => $total,
+                ],
+                'updated_at' => now()->toISOString(),
+                'leaderboard' => $paginatedData,
+            ];
+
+            $meta = [
+                'current_page' => $currentPage,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+            ];
+
+            return ResponseHelper::success($response, 'Lấy bảng xếp hạng thành tích thành công', 200, $meta);
+        }
 
         $rankedLeaderboard = $this->leaderboardService->getLeaderboard($club);
 
@@ -417,7 +450,7 @@ class ClubController extends Controller
 
         $total = $rankedLeaderboard->count();
         $currentPage = max(1, (int) $request->query('page', 1));
-        $lastPage = ceil($total / $perPage);
+        $lastPage = (int) ceil($total / $perPage) ?: 1;
         $offset = ($currentPage - 1) * $perPage;
         $paginatedData = $rankedLeaderboard->slice($offset, $perPage)->values();
 

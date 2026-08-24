@@ -360,6 +360,9 @@
                     </h4>
                     <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
                       <UserCard v-for="(item, index) in waitingConfirmationParticipants" :key="'waiting-' + index" :id="item.id"
+                        :user-id="item.user_id || item.user?.id"
+                        :is-guest="Boolean(item.is_guest)"
+                        :is-virtual="Boolean(item.is_virtual)"
                         :name="getParticipantDisplayName(item)"
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
@@ -368,7 +371,7 @@
                         :checked-in-at="item.checked_in_at"
                         :is-absent="item.is_absent"
                         @removeUser="handleRemoveUser"
-                        @click="openMemberActionModal($event)"
+                        @click="openMemberActionModal(item)"
                         @confirm="handleConfirmUser(item)"
                         @reject="handleRejectUser(item)" />
                       <UserCardPending v-for="(item, index) in guestPendingParticipants" :key="'guest-pending-' + index" :id="item.id"
@@ -390,6 +393,9 @@
                     </h4>
                     <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
                       <UserCard v-for="(item, index) in confirmedParticipants" :key="'confirmed-' + index" :id="item.id"
+                        :user-id="item.user_id || item.user?.id"
+                        :is-guest="Boolean(item.is_guest)"
+                        :is-virtual="Boolean(item.is_virtual)"
                         :name="getParticipantDisplayName(item)"
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
@@ -397,7 +403,7 @@
                         :checked-in-at="item.checked_in_at"
                         :is-absent="item.is_absent"
                         @removeUser="handleRemoveUser"
-                        @click="openMemberActionModal($event)" />
+                        @click="openMemberActionModal(item)" />
                       <UserCard v-if="isCreator"
                         :empty="true" @clickEmpty="openInviteModalWithFriends" />
                     </div>
@@ -411,6 +417,9 @@
                     </h4>
                     <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
                       <UserCard v-for="(item, index) in checkedInParticipants" :key="'checkedin-' + index" :id="item.id"
+                        :user-id="item.user_id || item.user?.id"
+                        :is-guest="Boolean(item.is_guest)"
+                        :is-virtual="Boolean(item.is_virtual)"
                         :name="getParticipantDisplayName(item)"
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
@@ -418,7 +427,7 @@
                         :checked-in-at="item.checked_in_at"
                         :is-absent="item.is_absent"
                         @removeUser="handleRemoveUser"
-                        @click="openMemberActionModal($event)" />
+                        @click="openMemberActionModal(item)" />
                     </div>
                   </div>
 
@@ -430,6 +439,9 @@
                     </h4>
                     <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
                       <UserCard v-for="(item, index) in absentParticipants" :key="'absent-' + index" :id="item.id"
+                        :user-id="item.user_id || item.user?.id"
+                        :is-guest="Boolean(item.is_guest)"
+                        :is-virtual="Boolean(item.is_virtual)"
                         :name="getParticipantDisplayName(item)"
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
@@ -437,7 +449,7 @@
                         :checked-in-at="item.checked_in_at"
                         :is-absent="item.is_absent"
                         @removeUser="handleRemoveUser"
-                        @click="openMemberActionModal($event)" />
+                        @click="openMemberActionModal(item)" />
                     </div>
                   </div>
 
@@ -882,6 +894,7 @@ import {
 } from '@/service/participant.js'
 import * as TournamentStaffService from '@/service/tournamentStaff.js'
 import * as ClubService from '@/service/club.js'
+import { addTournamentGuest } from '@/service/guest.js'
 import { useRoute, useRouter } from 'vue-router'
 import ShareAction from '@/components/molecules/ShareAction.vue'
 import { toast } from 'vue3-toastify'
@@ -1130,9 +1143,13 @@ const isCreator = computed(() => {
   )
 })
 const isScorer = computed(() => {
-  return tournament.value?.tournament_staff?.some(
-    staff => [1, 2, 3].includes(staff.role) && staff.user?.id === getUser.value.id
+  if (!getUser.value?.id) return false
+  const currentUserId = getUser.value.id
+  const isStaff = tournament.value?.tournament_staff?.some(
+    staff => [1, 2, 3].includes(staff.role) && (staff.staff?.id === currentUserId || staff.user_id === currentUserId || staff.user?.id === currentUserId)
   )
+  const isOwner = tournament.value?.user_id === currentUserId || tournament.value?.created_by?.id === currentUserId
+  return Boolean(isStaff || isOwner)
 })
 
 const isCurrentUserParticipant = computed(() => {
@@ -1223,31 +1240,45 @@ function openActionModal(user) {
 }
 
 function viewProfile() {
+  if (selectedUser.value?.is_guest || selectedUser.value?.is_virtual || !selectedUser.value?.user?.id) {
+    toast.info('Thành viên ảo (khách vãng lai) không có hồ sơ cá nhân.')
+    return
+  }
   router.push(`/profile/${selectedUser.value.user.id}`)
 }
 
 function openMemberActionModal(param) {
-  // param có thể là props object (từ UserCard click event) hoặc participant item (từ @click.stop)
-  if (param && param.id !== undefined && !param.user) {
-    // Đây là UserCard props — construct participant object từ props
+  if (param && typeof param === 'object') {
+    if (param.target && param.currentTarget) return
+
+    const isGuest = Boolean(param.is_guest || param.is_virtual || (!param.user?.id && !param.userId))
+    const participantId = param.participant_id || param.id
+    const realUserId = isGuest ? null : (param.user?.id || param.userId)
+
     selectedMember.value = {
-      id: param.userId || param.id,
-      participant_id: param.id,
-      name: param.name,
-      avatar: param.avatar,
+      ...param,
+      id: participantId,
+      participant_id: participantId,
+      name: param.user?.full_name || param.guest_name || param.name,
+      avatar: param.user?.avatar_url || param.guest_avatar || param.avatar,
       rating: param.rating,
       checked_in_at: param.checked_in_at || null,
       is_absent: param.is_absent || false,
-      user: { id: param.userId || param.id, full_name: param.name, avatar_url: param.avatar }
+      is_guest: isGuest,
+      is_virtual: Boolean(param.is_virtual),
+      user: realUserId ? { id: realUserId, full_name: param.user?.full_name || param.name, avatar_url: param.user?.avatar_url || param.avatar } : null
     }
   } else {
-    // Đây là participant item — đảm bảo có participant_id
-    selectedMember.value = { ...param, participant_id: param.id }
+    selectedMember.value = { id: param, participant_id: param }
   }
   showMemberActionModal.value = true
 }
 
 function handleMemberViewProfile(member) {
+  if (member?.is_guest || member?.is_virtual || !member?.user?.id) {
+    toast.info('Thành viên ảo (khách vãng lai) không có hồ sơ cá nhân.')
+    return
+  }
   router.push(`/profile/${member.user?.id}`)
 }
 
@@ -1382,7 +1413,18 @@ const handleRemoveStaff = async (data) => {
 
 // Hàm xử lý thống nhất
 const handleInviteAction = async (user) => {
-  if (inviteType.value === 'staff') {
+  if (user?.is_virtual) {
+    try {
+      await addTournamentGuest(id, {
+        guest_name: user.name || user.full_name,
+        guest_avatar: user.avatar_url,
+        guarantor_user_id: getUser.value?.id
+      })
+      toast.success(`Đã thêm thành viên ảo "${user.name}" vào giải đấu!`)
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Có lỗi khi thêm thành viên ảo vào giải đấu')
+    }
+  } else if (inviteType.value === 'staff') {
     await inviteStaff(user.id, user.role);
   } else {
     await invite(user.id);

@@ -248,13 +248,16 @@
                             <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
                                 <div v-for="(item, index) in displayedParticipants" :key="item.id || index" class="relative">
                                     <UserCard :id="item.id"
+                                              :user-id="item.user_id || item.user?.id"
+                                              :is-guest="Boolean(item.is_guest)"
+                                              :is-virtual="Boolean(item.is_virtual)"
                                               :name="item.user?.full_name || item.guest_name || 'Guest'"
-                                              :avatar="item.user?.avatar_url"
+                                              :avatar="item.user?.avatar_url || item.guest_avatar"
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
                                               :status="'approved'"
                                               :checkedInAt="item.checked_in_at"
                                               :is-absent="item.is_absent"
-                                              @click="openMemberActionModal($event)" />
+                                              @click="openMemberActionModal(item)" />
                                     <div v-if="item.is_guest" class="text-[10px] text-[#6B7280] text-center mt-1">
                                         <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
                                     </div>
@@ -286,13 +289,16 @@
                             <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
                                 <div v-for="(item, index) in checkedInParticipants" :key="item.id || index" class="relative">
                                     <UserCard :id="item.id"
+                                              :user-id="item.user_id || item.user?.id"
+                                              :is-guest="Boolean(item.is_guest)"
+                                              :is-virtual="Boolean(item.is_virtual)"
                                               :name="item.user?.full_name || item.guest_name || 'Guest'"
-                                              :avatar="item.user?.avatar_url"
+                                              :avatar="item.user?.avatar_url || item.guest_avatar"
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
                                               :status="'approved'"
                                               :checkedInAt="item.checked_in_at"
                                               :is-absent="item.is_absent"
-                                              @click="openMemberActionModal($event)" />
+                                              @click="openMemberActionModal(item)" />
                                     <div v-if="item.is_guest" class="text-[10px] text-[#6B7280] text-center mt-1">
                                         <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
                                     </div>
@@ -320,13 +326,16 @@
                             <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
                                 <div v-for="(item, index) in absentParticipants" :key="item.id || index" class="relative">
                                     <UserCard :id="item.id"
+                                              :user-id="item.user_id || item.user?.id"
+                                              :is-guest="Boolean(item.is_guest)"
+                                              :is-virtual="Boolean(item.is_virtual)"
                                               :name="item.user?.full_name || item.guest_name || 'Guest'"
-                                              :avatar="item.user?.avatar_url"
+                                              :avatar="item.user?.avatar_url || item.guest_avatar"
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
                                               :status="'absent'"
                                               :checkedInAt="item.checked_in_at"
                                               :is-absent="item.is_absent"
-                                              @click="openMemberActionModal($event)" />
+                                              @click="openMemberActionModal(item)" />
                                     <div v-if="item.is_guest" class="text-[10px] text-[#6B7280] text-center mt-1">
                                         <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
                                     </div>
@@ -354,13 +363,16 @@
                             <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
                                 <div v-for="(item, index) in unpaidParticipants" :key="item.id || index" class="relative">
                                     <UserCard :id="item.id"
+                                              :user-id="item.user_id || item.user?.id"
+                                              :is-guest="Boolean(item.is_guest)"
+                                              :is-virtual="Boolean(item.is_virtual)"
                                               :name="item.user?.full_name || item.guest_name || 'Guest'"
-                                              :avatar="item.user?.avatar_url"
+                                              :avatar="item.user?.avatar_url || item.guest_avatar"
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
                                               :status="'approved'"
                                               :checkedInAt="item.checked_in_at"
                                               :is-absent="item.is_absent"
-                                              @click="openMemberActionModal($event)" />
+                                              @click="openMemberActionModal(item)" />
                                     <div v-if="item.is_guest" class="text-[10px] text-[#6B7280] text-center mt-1">
                                         <span class="bg-[#FEF3C7] text-[#92400E] px-1.5 py-0.5 rounded font-medium">Guest</span>
                                     </div>
@@ -388,12 +400,15 @@
                             <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
                                 <div v-for="(item, index) in waitingConfirmationParticipants" :key="item.id || index" class="flex flex-col items-center gap-1">
                                     <UserCard :id="item.id"
-                                              :name="item.user?.full_name || item.guest_name" :avatar="item.user?.avatar_url"
+                                              :user-id="item.user_id || item.user?.id"
+                                              :is-guest="Boolean(item.is_guest)"
+                                              :is-virtual="Boolean(item.is_virtual)"
+                                              :name="item.user?.full_name || item.guest_name" :avatar="item.user?.avatar_url || item.guest_avatar"
                                               :rating="getUserScore(item.user)" @removeUser="handleRemoveUser"
                                               :status="'pending'"
                                               :checkedInAt="item.checked_in_at"
                                               :is-absent="item.is_absent"
-                                              @click="openMemberActionModal($event)" />
+                                              @click="openMemberActionModal(item)" />
                                     <!-- Nút xác nhận/từ chối cho người tự xin (chỉ hiện khi is_invited = false) -->
                                     <div v-if="!item.is_invited && isCreator" class="flex gap-2 mt-1">
                                         <button @click="handleApproveParticipant(item.id)"

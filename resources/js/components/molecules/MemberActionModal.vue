@@ -40,7 +40,7 @@
 
                         <!-- Action Buttons -->
                         <div class="space-y-2.5">
-                            <button @click="handleViewProfile"
+                            <button v-if="!isGuest" @click="handleViewProfile"
                                 class="w-full py-2.5 px-4 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition flex items-center justify-center gap-2 font-medium text-sm">
                                 <UserIcon class="w-5 h-5" />
                                 Xem hồ sơ
@@ -101,6 +101,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { toast } from 'vue3-toastify'
 import {
     XMarkIcon, UserIcon, CheckIcon, CheckBadgeIcon, XCircleIcon
 } from '@heroicons/vue/24/outline'
@@ -212,7 +213,16 @@ const canSelfMarkAbsent = computed(() => {
     return !props.member.is_absent && !props.member.checked_in_at
 })
 
+const isGuest = computed(() => {
+    if (!props.member) return false
+    return props.member.is_guest || props.member.is_virtual || !props.member.user?.id
+})
+
 const handleViewProfile = () => {
+    if (isGuest.value) {
+        toast.info('Thành viên ảo (khách vãng lai) không có hồ sơ cá nhân.')
+        return
+    }
     emit('view-profile', props.member)
     closeModal()
 }

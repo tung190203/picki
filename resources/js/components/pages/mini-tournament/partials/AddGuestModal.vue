@@ -27,6 +27,20 @@
 
           <!-- Form -->
           <div class="space-y-4 flex-1">
+            <!-- Chọn từ Thành viên ảo CLB -->
+            <div v-if="virtualMembers.length > 0">
+              <label class="block text-[13px] font-semibold text-[#6B7280] mb-1.5 uppercase tracking-wide">
+                Chọn nhanh từ Thành viên ảo CLB
+              </label>
+              <select v-model="selectedVirtualMemberId" @change="onSelectVirtualMember"
+                class="w-full bg-[#F9FAFB] border border-gray-200 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition cursor-pointer font-medium">
+                <option value="">-- Chọn thành viên ảo --</option>
+                <option v-for="vm in virtualMembers" :key="vm.id" :value="vm.id">
+                  {{ vm.name }} (Thành viên ảo)
+                </option>
+              </select>
+            </div>
+
             <!-- Tên hiển thị -->
             <div>
               <label for="add-guest-display-name" class="block text-[13px] font-semibold text-[#6B7280] mb-1.5 uppercase tracking-wide">
@@ -220,6 +234,7 @@
 import { computed, ref, watch } from 'vue'
 import { toast } from 'vue3-toastify'
 import { addGuest, getGuarantorCandidates } from '@/service/guest.js'
+import { getVirtualMembers } from '@/service/club.js'
 import { useUserStore } from '@/store/auth'
 import { storeToRefs } from 'pinia'
 
@@ -254,6 +269,8 @@ const avatarPreview = ref('')
 const errors = ref({})
 const isSubmitting = ref(false)
 const guarantorCandidates = ref([])
+const virtualMembers = ref([])
+const selectedVirtualMemberId = ref('')
 
 const validateForm = () => {
   errors.value = {}
@@ -287,6 +304,7 @@ const resetForm = () => {
     estimated_level_max: null,
   }
   avatarPreview.value = ''
+  selectedVirtualMemberId.value = ''
   errors.value = {}
 }
 
@@ -309,6 +327,32 @@ const fetchGuarantorCandidates = async () => {
     }
   } catch {
     guarantorCandidates.value = []
+  }
+}
+
+const fetchVirtualMembers = async () => {
+  const clubId = props.miniTournament?.club_id || props.miniTournament?.club?.id
+  if (!clubId) {
+    virtualMembers.value = []
+    return
+  }
+  try {
+    const data = await getVirtualMembers(clubId)
+    virtualMembers.value = data?.data || data || []
+  } catch {
+    virtualMembers.value = []
+  }
+}
+
+const onSelectVirtualMember = () => {
+  if (!selectedVirtualMemberId.value) return
+  const vm = virtualMembers.value.find(v => v.id === selectedVirtualMemberId.value)
+  if (vm) {
+    form.value.guest_name = vm.name
+    if (vm.avatar_url) {
+      avatarPreview.value = vm.avatar_url
+      form.value.guest_avatar = vm.avatar_url
+    }
   }
 }
 

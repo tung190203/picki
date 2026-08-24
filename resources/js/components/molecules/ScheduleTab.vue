@@ -645,9 +645,12 @@ const allKnockoutRounds = computed(() => {
 const activeBranch = ref('main');
 
 const hasResurrectionBracket = computed(() => {
+    const isTruthy = (val) => val === true || val === 'true' || val === 1 || val === '1';
     const tt = props.data?.tournament_types?.[0];
     if (!tt) return false;
-    return Boolean(tt.has_resurrection_bracket || tt.format_specific_config?.[0]?.has_resurrection_bracket);
+    const val1 = tt.has_resurrection_bracket;
+    const val2 = tt.format_specific_config?.[0]?.has_resurrection_bracket;
+    return isTruthy(val1) || isTruthy(val2);
 });
 
 const mainBracketName = computed(() => {
