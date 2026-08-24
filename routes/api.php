@@ -78,6 +78,7 @@ use App\Http\Controllers\Admin\ScoreVerificationManagementController;
 use App\Http\Controllers\Admin\UserMergeController;
 use App\Http\Controllers\Admin\AdminPushNotificationController;
 use App\Http\Controllers\Admin\AdminPushNotificationLookupController;
+use App\Http\Controllers\Admin\NotificationTemplateController;
 use App\Http\Controllers\ScoreVerificationController;
 use App\Http\Controllers\QuickMatchController;
 use App\Http\Controllers\MatchSuggestionController;
@@ -422,6 +423,14 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
 
         Route::get('/lookup/clubs', [AdminPushNotificationLookupController::class, 'lookupClubs']);
         Route::get('/lookup/users', [AdminPushNotificationLookupController::class, 'lookupUsers']);
+    });
+
+    Route::prefix('notification-templates')->group(function () {
+        Route::get('/', [NotificationTemplateController::class, 'index']);
+        Route::post('/', [NotificationTemplateController::class, 'store']);
+        Route::get('/{id}', [NotificationTemplateController::class, 'show'])->where('id', '[0-9]+');
+        Route::post('/{id}', [NotificationTemplateController::class, 'update'])->where('id', '[0-9]+');
+        Route::delete('/{id}', [NotificationTemplateController::class, 'destroy'])->where('id', '[0-9]+');
     });
 
     Route::prefix('banners')->group(function () {

@@ -26,6 +26,7 @@ import CreateQuickMatchPage from '@/components/pages/quick-match/CreateQuickMatc
 import CreateTournamentPage from '@/components/pages/tournament/CreateTournamentPage.vue'
 import ForbiddenPage from '@/components/pages/common/error/ForbiddenPage.vue'
 import AdminDashboard from '@/components/pages/admin/AdminDashboard.vue'
+import AdminNotificationPage from '@/components/pages/admin/AdminNotificationPage.vue'
 import RefereeDashboard from '@/components/pages/referee/RefereeDashboard.vue'
 import OnboardingPage from "@/components/pages/onboarding/Onboarding.vue"
 import CompleteRegistrationPage from '@/components/pages/auth/register/CompleteRegistrationPage.vue'
@@ -418,6 +419,14 @@ export const route = [
     path: '/admin/banners',
     name: 'admin.banners',
     component: () => import('@/components/pages/admin/AdminBannersPage.vue'),
+    meta: {
+      requiresAdmin: true,
+    }
+  },
+  {
+    path: '/admin/notifications',
+    name: 'admin.notifications',
+    component: AdminNotificationPage,
     meta: {
       requiresAdmin: true,
     }

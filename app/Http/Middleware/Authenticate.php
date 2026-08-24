@@ -12,6 +12,11 @@ class Authenticate extends Middleware
      */
     protected function redirectTo(Request $request): ?string
     {
+        \Log::info('Authenticate middleware check', [
+            'path' => $request->path(),
+            'is_api' => $request->is('api/*'),
+        ]);
+
         // For API routes, never redirect
         if ($request->is('api/*')) {
             return null;
