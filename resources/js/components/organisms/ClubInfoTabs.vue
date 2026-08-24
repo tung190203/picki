@@ -1,10 +1,12 @@
 <template>
-    <div class="mt-8 bg-white rounded-2xl shadow-sm flex flex-col">
-        <div class="flex border-b border-gray-200 mx-2">
-            <button v-for="tab in tabs" :key="tab.id" @click="handleTabClick(tab)"
-                class="flex-1 py-4 text-center font-semibold transition-all relative"
+    <div class="mt-8 bg-white rounded-2xl shadow-sm flex flex-col overflow-hidden">
+        <!-- Horizontal Scrollable Tab Bar -->
+        <div class="flex border-b border-gray-200 overflow-x-auto custom-scrollbar whitespace-nowrap bg-gray-50/50 px-2">
+            <button v-for="tab in tabs" :key="tab.id" :ref="(el) => setTabRef(el, tab.id)"
+                @click="handleTabClick(tab)"
+                class="flex-shrink-0 md:flex-1 px-4 sm:px-6 py-4 text-center font-semibold text-sm transition-all relative"
                 :class="[
-                    activeTab === tab.id ? 'text-[#D72D36]' : 'text-[#838799]',
+                    activeTab === tab.id ? 'text-[#D72D36] bg-white font-bold' : 'text-[#838799] hover:text-gray-800',
                     !props.isJoined && tab.id !== 'intro' && 'opacity-50 cursor-not-allowed pointer-events-none'
                 ]">
                 {{ tab.name }}
@@ -13,10 +15,9 @@
         </div>
 
         <div class="relative">
-            <div class="p-8 transition-all duration-500 ease-in-out"
-                ref="contentWrapper">
-                <!-- Tab Content -->
-                <div v-show="activeTab === 'intro'" ref="introContent" class="relative">
+            <div class="p-4 sm:p-8 transition-all duration-500 ease-in-out" ref="contentWrapper">
+                <!-- 1. Tab Giới thiệu -->
+                <div v-show="activeTab === 'intro'" ref="introContent" class="relative space-y-6">
                     <Transition name="fade-slide" mode="out-in">
                         <div v-if="isEditingIntro" :key="'edit'" class="space-y-4">
                             <textarea v-model="editDescription" rows="6" maxlength="300"
@@ -48,7 +49,6 @@
                                     {{ isExpanded ? '[Thu gọn]' : '[Đọc thêm]' }}
                                 </button>
                             </div>
-                            <!-- Edit button at bottom-right - persistent for better UX -->
                             <button v-if="['admin', 'secretary'].includes(currentUserRole)" 
                                 @click="startEditIntro"
                                 title="Chỉnh sửa giới thiệu"
@@ -69,6 +69,7 @@
                     </Transition>
                 </div>
 
+                <!-- 2. Tab Thành viên -->
                 <div v-show="activeTab === 'members'" class="text-gray-400">
                     <template v-if="hasMembersTabBeenActive">
                         <ClubMember v-if="club?.id" :club-id="club.id" :isJoined="isJoined" :currentUserRole="currentUserRole" @refresh-club="$emit('refresh-club')" />
@@ -78,8 +79,11 @@
                     </template>
                 </div>
 
+                <!-- 3. Tab BXH (Gồm Điểm trình & Thành tích Sao/Cúp) -->
                 <div v-show="activeTab === 'ranking'">
-                    <ClubRanking 
+                    <ClubAchievementRanking 
+                        v-if="club?.id"
+                        :club-id="club.id"
                         :top-three="topThree"
                         :leaderboard="leaderboard"
                         :meta="leaderboardMeta"
@@ -94,9 +98,9 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
-import { ChevronDownIcon, ChevronUpIcon, PencilSquareIcon, PlusIcon } from '@heroicons/vue/24/outline'
+import { PencilSquareIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import ClubMember from '@/components/molecules/ClubMember.vue'
-import ClubRanking from '@/components/molecules/ClubRanking.vue'
+import ClubAchievementRanking from '@/components/molecules/ClubAchievementRanking.vue'
 
 const activeTab = ref('intro')
 const isExpanded = ref(false)
@@ -106,6 +110,7 @@ const collapsedHeight = ref(78)
 const contentWrapper = ref(null)
 const introContent = ref(null)
 const hasMembersTabBeenActive = ref(false)
+const tabRefs = ref({})
 
 const props = defineProps({
     club: {
@@ -150,43 +155,32 @@ const tabs = computed(() => [
     { id: 'ranking', name: 'BXH' }
 ])
 
-// Only apply height limit to intro tab
-const shouldLimitHeight = computed(() => {
-    return activeTab.value === 'intro'
-})
-
-const needsExpand = computed(() => {
-    // 3 lines * 26px (approx line height for leading-relaxed) = 78px
-    // Use 80px as a safe threshold
-    return activeTab.value === 'intro' && contentHeight.value > 80
-})
+const setTabRef = (el, id) => {
+    if (el) {
+        tabRefs.value[id] = el
+    }
+}
 
 const updateContentHeight = async () => {
     await nextTick()
     if (activeTab.value === 'intro' && introContent.value) {
         const descDiv = introContent.value.querySelector('.description-text')
         if (descDiv) {
-            // Measure actual height without controls
             const wasExpanded = isExpanded.value
             const wasAnimating = isAnimating.value
             
-            // Temporary state for measurement
             descDiv.style.transition = 'none'
             descDiv.classList.remove('line-clamp-3')
             descDiv.style.maxHeight = 'none'
             
-            // Full content height
             contentHeight.value = descDiv.scrollHeight
             
-            // Measure collapsed height (exactly 3 lines)
             descDiv.classList.add('line-clamp-3')
             collapsedHeight.value = descDiv.offsetHeight
             
-            // Restore actual state
             descDiv.classList.toggle('line-clamp-3', !wasExpanded && !wasAnimating)
             descDiv.style.maxHeight = wasExpanded ? `${contentHeight.value}px` : `${collapsedHeight.value}px`
             
-            // Re-enable transition after next tick
             await nextTick()
             descDiv.style.transition = ''
         }
@@ -226,6 +220,12 @@ const handleTabClick = (tab) => {
     if (tab.id === 'members') {
         hasMembersTabBeenActive.value = true
     }
+    
+    // Auto scroll active tab into view smoothly
+    if (tabRefs.value[tab.id]) {
+        tabRefs.value[tab.id].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    }
+
     emit('tab-change', tab.id)
 }
 
@@ -239,6 +239,7 @@ onMounted(() => {
     window.addEventListener('resize', updateContentHeight)
 })
 </script>
+
 <style scoped>
 .line-clamp-3 {
     display: -webkit-box;
@@ -261,5 +262,14 @@ onMounted(() => {
 .fade-slide-leave-to {
     opacity: 0;
     transform: translateY(-10px);
+}
+
+/* Hide scrollbar for tab bar */
+.custom-scrollbar::-webkit-scrollbar {
+    height: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 4px;
 }
 </style>

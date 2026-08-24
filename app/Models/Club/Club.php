@@ -75,6 +75,11 @@ class Club extends Model
             ->where('membership_status', ClubMembershipStatus::Joined); // Chỉ lấy members đã joined (loại bỏ pending, left, rejected, cancelled)
     }
 
+    public function virtualMembers()
+    {
+        return $this->hasMany(ClubVirtualMember::class);
+    }
+
     /** Thành viên đang tham gia (membership_status = joined, status = active). */
     public function activeMembers()
     {

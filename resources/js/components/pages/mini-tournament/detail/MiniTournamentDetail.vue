@@ -24,6 +24,7 @@ import InviteGroup from '@/components/molecules/InviteGroup.vue'
 import * as MiniTournamnetService from '@/service/miniTournament.js'
 import * as MiniParticipantService from '@/service/miniParticipant.js'
 import * as ClubService from '@/service/club.js'
+import { addGuest } from '@/service/guest.js'
 import { useRoute, useRouter } from 'vue-router'
 import ShareAction from '@/components/molecules/ShareAction.vue'
 import ShareCardMini from '@/components/pages/mini-tournament/shared/ShareCardMini.vue'
@@ -145,6 +146,20 @@ export default {
 
         const handleInvite = async (user) => {
             const isAreaInvite = activeScope.value === 'area'
+            if (user?.is_virtual) {
+                try {
+                    await addGuest(id, {
+                        guest_name: user.name || user.full_name,
+                        guest_avatar: user.avatar_url,
+                        guarantor_user_id: getUser.value?.id
+                    });
+                    toast.success(`Đã thêm thành viên ảo "${user.name}" vào kèo đấu!`);
+                    await detailMiniTournament(id);
+                } catch (e) {
+                    toast.error(e.response?.data?.message || 'Có lỗi khi thêm thành viên ảo vào kèo đấu');
+                }
+                return;
+            }
             if (inviteType.value === 'staff') {
                 await inviteStaff(user.id);
             } else {
@@ -361,40 +376,37 @@ export default {
         const selectedMember = ref(null)
 
         const openMemberActionModal = (param) => {
-            // param có thể là props object (từ UserCard click event) hoặc participant item
-            // UserCard emit 'click' với props object: { id, name, avatar, rating, userId, ... }
             if (param && typeof param === 'object') {
-                // Nếu param là Event (có target), lấy thông tin từ target
-                if (param.target && param.currentTarget) {
-                    // Đây là Event object - không làm gì
-                    return
-                }
-                // UserCard props object: có id=participant_id, userId=user_id, name, avatar, rating
-                if (param.id !== undefined && !param.user) {
-                    const participantId = param.id
-                    const userId = param.userId || param.id
-                    selectedMember.value = {
-                        id: participantId,
-                        participant_id: participantId,
-                        name: param.name,
-                        avatar: param.avatar,
-                        rating: param.rating,
-                        checked_in_at: param.checked_in_at || null,
-                        is_absent: param.is_absent || false,
-                        is_guest: param.is_guest || false,
-                        user: { id: userId, full_name: param.name, avatar_url: param.avatar }
-                    }
-                } else {
-                    selectedMember.value = param
+                if (param.target && param.currentTarget) return
+
+                const isGuest = Boolean(param.is_guest || param.is_virtual || (!param.user?.id && !param.userId))
+                const participantId = param.participant_id || param.id
+                const realUserId = isGuest ? null : (param.user?.id || param.userId)
+
+                selectedMember.value = {
+                    ...param,
+                    id: participantId,
+                    participant_id: participantId,
+                    name: param.user?.full_name || param.guest_name || param.name,
+                    avatar: param.user?.avatar_url || param.guest_avatar || param.avatar,
+                    rating: param.rating,
+                    checked_in_at: param.checked_in_at || null,
+                    is_absent: param.is_absent || false,
+                    is_guest: isGuest,
+                    is_virtual: Boolean(param.is_virtual),
+                    user: realUserId ? { id: realUserId, full_name: param.user?.full_name || param.name, avatar_url: param.user?.avatar_url || param.avatar } : null
                 }
             } else {
-                // Fallback: param là primitive value (id)
                 selectedMember.value = { id: param, participant_id: param }
             }
             showMemberActionModal.value = true
         }
 
         const handleMemberViewProfile = (member) => {
+            if (member?.is_guest || member?.is_virtual || !member?.user?.id) {
+                toast.info('Thành viên ảo (khách vãng lai) không có hồ sơ cá nhân.')
+                return
+            }
             router.push(`/profile/${member.user?.id}`)
         }
 
@@ -578,8 +590,9 @@ export default {
         };
 
         const invite = async (friendId, isAreaInvite = false) => {
+            const targetId = Array.isArray(friendId) ? friendId : [friendId];
             try {
-                await MiniParticipantService.sendInvitation(id, friendId, isAreaInvite);
+                await MiniParticipantService.sendInvitation(id, targetId, isAreaInvite);
                 toast.success('Đã gửi lời mời thành công!');
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi gửi lời mời.');

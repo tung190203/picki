@@ -252,6 +252,7 @@ import BadgeIcon from "@/components/atoms/BadgeIcon.vue";
 import * as LeaderboardService from "@/service/leaderboard";
 import { useUserStore } from "@/store/auth";
 import { storeToRefs } from "pinia";
+import { toast } from 'vue3-toastify';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -372,8 +373,11 @@ const getScore = (item) => {
 };
 
 const goToItem = (item) => {
+  if (!item) return;
   if (activeTab.value === "allClubs") {
     router.push(`/club/${item.id}`);
+  } else if (item.is_virtual || !item.id) {
+    toast.info('Thành viên ảo (khách vãng lai) không có hồ sơ cá nhân.');
   } else {
     router.push(`/profile/${item.id}`);
   }

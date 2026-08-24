@@ -1076,6 +1076,26 @@ class ParticipantController extends Controller
             ];
         });
 
+        if ($scope === 'club' && !empty($validated['club_id'])) {
+            $virtualMembers = \App\Models\Club\ClubVirtualMember::where('club_id', $validated['club_id'])
+                ->when(!empty($validated['search']), fn($q) => $q->where('name', 'like', '%' . $validated['search'] . '%'))
+                ->get()
+                ->map(fn($vm) => [
+                    'id' => null,
+                    'virtual_member_id' => $vm->id,
+                    'is_virtual' => true,
+                    'is_guest' => true,
+                    'full_name' => $vm->name,
+                    'name' => $vm->name,
+                    'avatar_url' => $vm->avatar_url,
+                    'gender_text' => 'Thành viên ảo',
+                    'notes' => $vm->notes,
+                    'invited' => false,
+                ]);
+
+            $candidates = $candidates->concat($virtualMembers);
+        }
+
         return ResponseHelper::success([
             'result' => $candidates,
         ], 'Danh sách ứng viên', 200, [

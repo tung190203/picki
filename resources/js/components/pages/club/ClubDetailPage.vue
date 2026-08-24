@@ -768,11 +768,11 @@ const statsAdmin = computed(() => {
         {
             label: 'Quỹ hiện tại',
             value: fundBalance.toLocaleString(),
-            unit: fund.value?.currency,
+            unit: fund.value?.currency ?? 'VND',
             unitClass: 'text-[#00B377]'
         },
         {
-            label: 'Thành viên',
+            label: 'Số thành viên',
             value: club.value?.quantity_members ?? 0,
             unit: 'người'
         },
