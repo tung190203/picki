@@ -10,6 +10,7 @@ use App\Models\MiniMatch;
 use App\Models\MiniParticipant;
 use App\Models\MiniTeamMember;
 use App\Models\Participant;
+use App\Models\Sport;
 use App\Models\TeamMember;
 use App\Models\User;
 use App\Models\UserBadge;
@@ -293,9 +294,12 @@ class UserMergeService
 
             $this->transferUserReferences($mergedUserId, $survivorUserId);
 
-            $this->recalculateSurvivorScores($survivorUserId);
+            // Transfer badges, clubs, and user_sport from merged user to survivor
+            $this->transferSurvivorRecords($mergedUserId, $survivorUserId);
 
-            $this->removeDuplicateRecords($mergedUserId, $survivorUserId);
+            // Recalculate after all records are transferred
+            $this->recalculateSurvivorTotalMatches($survivorUserId);
+            $this->recalculateSurvivorScores($survivorUserId, $estimatedRating);
 
             $mergedUser->update([
                 'is_merged' => true,
@@ -372,16 +376,25 @@ class UserMergeService
             ->update(['user_id' => $toUserId]);
     }
 
-    protected function removeDuplicateRecords(int $mergedUserId, int $survivorUserId): void
+    /**
+     * Transfer badges, clubs, and user_sport from merged user to survivor.
+     * - Non-duplicate records are transferred to survivor
+     * - Duplicate records are removed (survivor's records take precedence)
+     */
+    protected function transferSurvivorRecords(int $mergedUserId, int $survivorUserId): void
     {
-        UserSport::where('user_id', $mergedUserId)
-            ->whereIn('sport_id', function ($query) use ($survivorUserId) {
-                $query->select('sport_id')
-                    ->from('user_sport')
-                    ->where('user_id', $survivorUserId);
-            })
-            ->delete();
+        // 1. Transfer non-duplicate badges from merged user to survivor
+        $survivorBadgeTypes = DB::table('user_badges')
+            ->where('user_id', $survivorUserId)
+            ->pluck('badge_type')
+            ->toArray();
 
+        DB::table('user_badges')
+            ->where('user_id', $mergedUserId)
+            ->whereNotIn('badge_type', $survivorBadgeTypes)
+            ->update(['user_id' => $survivorUserId]);
+
+        // 2. Remove duplicate badges from merged user
         UserBadge::where('user_id', $mergedUserId)
             ->whereIn('badge_type', function ($query) use ($survivorUserId) {
                 $query->select('badge_type')
@@ -390,12 +403,41 @@ class UserMergeService
             })
             ->delete();
 
+        // 3. Transfer non-duplicate club memberships from merged user to survivor
+        $survivorClubIds = DB::table('club_members')
+            ->where('user_id', $survivorUserId)
+            ->pluck('club_id')
+            ->toArray();
+
+        DB::table('club_members')
+            ->where('user_id', $mergedUserId)
+            ->whereNotIn('club_id', $survivorClubIds)
+            ->update(['user_id' => $survivorUserId]);
+
+        // 4. Remove duplicate club memberships from merged user
         ClubMember::where('user_id', $mergedUserId)
             ->whereIn('club_id', function ($query) use ($survivorUserId) {
                 $query->select('club_id')
                     ->from('club_members')
                     ->where('user_id', $survivorUserId);
             })
+            ->delete();
+
+        // 5. Handle user_sport for merged user
+        // If survivor doesn't have user_sport for a sport, transfer it
+        $survivorSportIds = DB::table('user_sport')
+            ->where('user_id', $survivorUserId)
+            ->pluck('sport_id')
+            ->toArray();
+
+        // Transfer non-duplicate user_sport records
+        UserSport::where('user_id', $mergedUserId)
+            ->whereNotIn('sport_id', $survivorSportIds)
+            ->update(['user_id' => $survivorUserId]);
+
+        // Remove duplicate user_sport records (survivor's records take precedence)
+        UserSport::where('user_id', $mergedUserId)
+            ->whereIn('sport_id', $survivorSportIds)
             ->delete();
     }
 
@@ -454,17 +496,21 @@ class UserMergeService
         ];
     }
 
-    protected function recalculateSurvivorScores(int $survivorUserId): void
+    protected function recalculateSurvivorScores(int $survivorUserId, ?float $estimatedRating = null): void
     {
         $userSports = DB::table('user_sport')
             ->where('user_id', $survivorUserId)
             ->get();
 
-        $lastHistory = VnduprHistory::where('user_id', $survivorUserId)
-            ->orderBy('updated_at', 'desc')
-            ->first();
-
-        $newScore = $lastHistory ? (float) $lastHistory->score_after : 0;
+        // Use estimated rating if provided, otherwise get from VnduprHistory
+        $newScore = $estimatedRating;
+        
+        if ($newScore === null) {
+            $lastHistory = VnduprHistory::where('user_id', $survivorUserId)
+                ->orderBy('updated_at', 'desc')
+                ->first();
+            $newScore = $lastHistory ? (float) $lastHistory->score_after : 0;
+        }
 
         foreach ($userSports as $userSport) {
             DB::table('user_sport_scores')
@@ -474,10 +520,81 @@ class UserMergeService
         }
     }
 
+    /**
+     * Recalculate total_matches for survivor's user_sport records.
+     * This counts all matches (tournament + mini + quick) from transferred references.
+     */
+    protected function recalculateSurvivorTotalMatches(int $survivorUserId): void
+    {
+        $sport = Sport::where('slug', 'pickleball')->first();
+        $sportId = $sport?->id ?? 1;
+
+        // Get survivor's user_sport record
+        $userSport = DB::table('user_sport')
+            ->where('user_id', $survivorUserId)
+            ->where('sport_id', $sportId)
+            ->first();
+
+        if (!$userSport) {
+            return;
+        }
+
+        // Count total matches from all sources (tournament + mini + quick)
+        // Tournament matches (home + away)
+        $tournamentMatches = DB::selectOne("
+            SELECT COUNT(DISTINCT m.id) as total
+            FROM matches m
+            JOIN tournament_types tt ON m.tournament_type_id = tt.id
+            JOIN tournaments t ON tt.tournament_id = t.id
+            JOIN team_members tm ON tm.team_id IN (m.home_team_id, m.away_team_id)
+            WHERE tm.user_id = ? AND t.sport_id = ? AND m.status = 'completed'
+        ", [$survivorUserId, $sportId]);
+
+        // Mini tournament matches (team1 + team2)
+        $miniMatches = DB::selectOne("
+            SELECT COUNT(DISTINCT mm.id) as total
+            FROM mini_matches mm
+            JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
+            JOIN mini_team_members mtm ON mtm.mini_team_id IN (mm.team1_id, mm.team2_id)
+            WHERE mtm.user_id = ? AND mnt.sport_id = ? AND mm.status = 'completed'
+        ", [$survivorUserId, $sportId]);
+
+        // Quick matches
+        $quickMatches = DB::selectOne("
+            SELECT COUNT(DISTINCT mh.quick_match_id) as total
+            FROM match_histories mh
+            JOIN quick_matches qm ON qm.id = mh.quick_match_id
+            WHERE mh.user_id = ? AND qm.status = 'completed'
+        ", [$survivorUserId]);
+
+        $totalMatches = 
+            (int) ($tournamentMatches->total ?? 0) +
+            (int) ($miniMatches->total ?? 0) +
+            (int) ($quickMatches->total ?? 0);
+
+        // Update user_sport total_matches
+        DB::table('user_sport')
+            ->where('id', $userSport->id)
+            ->update(['total_matches' => $totalMatches]);
+    }
+
     protected function invalidateUserCaches(int $userId): void
     {
+        // User profile caches
         Cache::forget("user:{$userId}:me_extras");
         Cache::forget("user:{$userId}:sport_stats");
+
+        // UserSport win rate cache
+        $sport = Sport::where('slug', 'pickleball')->first();
+        $sportId = $sport?->id ?? 1;
+        Cache::forget("user_sport_win_rate:{$userId}:{$sportId}");
+
+        // Leaderboard caches (global and sport-specific)
+        // Format: leaderboard_total:{sportId}:{rankingMatches}:{maxTotal}
+        Cache::forget("leaderboard_total:{$sportId}:10:50");
+
+        // Batch sport stats cache
+        Cache::forget("batch_sport_stats:{$sportId}");
     }
 
     public function getMergeHistory(int $page = 1, int $limit = 20, ?array $filters = []): LengthAwarePaginator
