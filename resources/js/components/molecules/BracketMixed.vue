@@ -419,13 +419,18 @@ const showRankingModal = ref(false);
 const activeBranch = ref('main');
 
 const hasResurrectionBracket = computed(() => {
+    const isTruthy = (val) => val === true || val === 'true' || val === 1 || val === '1';
+    const isFalsy = (val) => val === false || val === 'false' || val === 0 || val === '0';
+
     const tt = props.tournament?.tournament_types?.[0];
     if (tt) {
-        if (tt.has_resurrection_bracket || tt.format_specific_config?.[0]?.has_resurrection_bracket) {
-            return true;
-        }
+        const val1 = tt.has_resurrection_bracket;
+        const val2 = tt.format_specific_config?.[0]?.has_resurrection_bracket;
+        if (isTruthy(val1) || isTruthy(val2)) return true;
+        if (isFalsy(val1) || isFalsy(val2)) return false;
     }
-    return Boolean(props.bracket?.has_resurrection_bracket);
+    const bVal = props.bracket?.has_resurrection_bracket;
+    return isTruthy(bVal);
 });
 
 const mainBracketName = computed(() => {

@@ -23,7 +23,7 @@
 
                     <!-- Footer -->
                     <footer class="p-4 border-t flex justify-end gap-3">
-                        <button @click="emitViewProfile"
+                        <button v-if="!isGuest" @click="emitViewProfile"
                             class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition">
                             Xem hồ sơ
                         </button>
@@ -41,6 +41,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { toast } from 'vue3-toastify'
 import { XMarkIcon } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
@@ -55,6 +56,11 @@ const isOpen = computed({
     set: (v) => emit('update:modelValue', v)
 })
 
+const isGuest = computed(() => {
+    if (!props.user) return false
+    return props.user.is_guest || props.user.is_virtual || !props.user.user?.id
+})
+
 const closeModal = () => (isOpen.value = false)
 
 const emitConfirm = () => {
@@ -63,6 +69,10 @@ const emitConfirm = () => {
 }
 
 const emitViewProfile = () => {
+    if (isGuest.value) {
+        toast.info('Thành viên ảo (khách vãng lai) không có hồ sơ cá nhân.')
+        return
+    }
     emit('view-profile', props.user)
     closeModal()
 }
