@@ -286,3 +286,16 @@ export const selfAbsentActivity = async (clubId, activityId) => {
 export const reportClub = async (clubId, data) => {
     return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/report`, data).then((response) => response.data);
 }
+
+export const getVirtualMembers = async (clubId, params = {}) => {
+    const { data } = await axiosInstance.get(`${API_ENDPOINT.CLUB}/${clubId}/virtual-members`, { params });
+    return data;
+}
+
+export const createVirtualMember = async (clubId, data) => {
+    return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/virtual-members`, data).then((response) => response.data);
+}
+
+export const deleteVirtualMember = async (clubId, virtualMemberId) => {
+    return axiosInstance.delete(`${API_ENDPOINT.CLUB}/${clubId}/virtual-members/${virtualMemberId}`).then((response) => response.data);
+}

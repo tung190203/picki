@@ -12,6 +12,7 @@ import InviteUserParticipant from '@/components/molecules/InviteUserParticipant.
 import RefereeScoringScreen from '@/components/molecules/referee-scoring/RefereeScoringScreen.vue'
 import MatchScoreInput from '@/components/molecules/MatchScoreInput.vue'
 import {useRouter} from 'vue-router'
+import { useUserStore } from '@/store/auth'
 
 export default {
     name: 'CreateMiniMatch',
@@ -74,10 +75,21 @@ export default {
 
         const playersPerTeam = computed(() => (isSingleMode.value ? 1 : 2))
 
+        const userStore = useUserStore()
+
         const confirmedUsers = computed(() =>
-            props.miniTournament?.participants
-                ?.filter(p => p.is_confirmed)
-                .map(p => p.user) || []
+            (props.miniTournament?.participants || props.miniTournament?.mini_participants || [])
+                .filter(p => p.is_confirmed)
+                .map(p => p.user || ({
+                    id: p.id ? `guest_${p.id}` : `vm_${p.guest_name}`,
+                    participant_id: p.id,
+                    user_id: p.user_id,
+                    full_name: p.guest_name || 'Khách',
+                    avatar_url: p.guest_avatar || '',
+                    is_guest: Boolean(p.is_guest),
+                    is_virtual: Boolean(p.is_virtual)
+                }))
+                .filter(Boolean)
         )
 
         const selectableUsers = computed(() => {
@@ -147,7 +159,11 @@ export default {
         })
 
         const canManageMatches = computed(() => {
-            return props.isCreator || props.isReferee
+            if (props.isCreator || props.isReferee) return true
+            const currentUserId = userStore.getUser?.id
+            if (!currentUserId) return true
+            const ownerId = props.miniTournament?.user_id || props.miniTournament?.user?.id || props.miniTournament?.created_by?.id || props.miniTournament?.created_by
+            return !ownerId || Number(ownerId) === Number(currentUserId)
         })
 
         const extractMember = (m) => {
@@ -401,6 +417,7 @@ export default {
             team2ForReferee,
             currentMatchId,
             isRRSessionFormat,
+            canManageMatches,
         }
     }
 }

@@ -326,7 +326,7 @@
                         <span class="px-2 py-0.5 bg-[#4392E0] text-white text-[11px] font-bold rounded-md uppercase">Admin</span>
                     </div>
                     <div class="text-[14px] text-[#8E95A2] font-medium leading-tight">
-                        {{ Number(creator.level).toFixed(2) }} PICKI <span class="mx-1">•</span> Chủ kèo
+                        {{ formatScore(creator.level) }} PICKI <span class="mx-1">•</span> Chủ kèo
                     </div>
                   </div>
                 </div>
@@ -344,7 +344,7 @@
                     <div class="relative flex-shrink-0">
                       <img :src="user.avatar || defaultAvatar" class="w-14 h-14 rounded-full bg-[#F2F4F7] object-cover" />
                       <div class="absolute -left-1 -bottom-0.5 w-5 h-5 bg-[#4392E0] text-white text-[8px] font-semibold flex items-center justify-center rounded-full ring-2 ring-white">
-                        {{ Number(user.level).toFixed(2) }}
+                        {{ formatScore(user.level) }}
                       </div>
                     </div>
                     <div class="min-w-0 flex-1">
@@ -647,6 +647,11 @@ const feeSplitLabel = computed(() => {
     return map[activity.value.fee_split_type] || ''
 })
 
+const formatScore = (scoreVal) => {
+    const num = Number(scoreVal)
+    return !isNaN(num) && num > 0 ? num.toFixed(1) : '0.0'
+}
+
 const getActivityDetail = async () => {
     try {
         const response = await ClubService.getClubActivityDetail(clubId, activityId.value)
@@ -664,7 +669,7 @@ const getActivityDetail = async () => {
                     id: p.id,
                     name: p.user?.full_name || 'Thành viên',
                     avatar: p.user?.avatar_url || p.user?.thumbnail,
-                    level: p.user?.sports[0]?.scores?.vndupr_score || 'N/A',
+                    level: p.user?.sports?.[0]?.scores?.vndupr_score || p.user?.rating || 0,
                     joined_at: p.created_at ? dayjs(p.created_at).fromNow() : 'Vừa tham gia',
                     status: p.status,
                     userId: p.user_id,
@@ -675,8 +680,8 @@ const getActivityDetail = async () => {
 
             if (data.creator) {
                 creator.value = {
-                    name: data.creator.full_name,
-                    level: data.creator?.sports[0]?.scores?.vndupr_score || 'N/A',
+                    name: data.creator.full_name || data.creator.name || 'Chủ kèo',
+                    level: data.creator?.sports?.[0]?.scores?.vndupr_score || data.creator?.rating || 0,
                     avatar: data.creator.avatar_url || data.creator.thumbnail
                 }
             }
