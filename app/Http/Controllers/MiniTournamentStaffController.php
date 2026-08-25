@@ -16,7 +16,6 @@ class MiniTournamentStaffController extends Controller
     {
         $validatedData = $request->validate([
             'staff_id' => 'required|integer|exists:users,id',
-            'role' => 'sometimes|integer|in:' . MiniTournamentStaff::ROLE_ORGANIZER . ',' . MiniTournamentStaff::ROLE_REFEREE,
         ]);
 
         $tournament = MiniTournament::findOrFail($tournamentId);
@@ -27,7 +26,7 @@ class MiniTournamentStaffController extends Controller
             return ResponseHelper::error('Bạn không có quyền thêm người tổ chức', 403);
         }
         $staffId = $validatedData['staff_id'];
-        $role = $validatedData['role'] ?? MiniTournamentStaff::ROLE_ORGANIZER;
+        $role = MiniTournamentStaff::ROLE_REFEREE;
 
         if ($tournament->staff()->where('user_id', $staffId)->exists()) {
             return ResponseHelper::error('Người dùng này đã là thành viên ban tổ chức của giải đấu.', 409);
@@ -55,7 +54,7 @@ class MiniTournamentStaffController extends Controller
         );
 
         $roleText = MiniTournamentStaff::getRoleText($role);
-        return ResponseHelper::success(null, "Thêm {$roleText} thành công", 201);
+        return ResponseHelper::success(null, "Thêm trọng tài thành công", 201);
     }
 
     public function removeStaff($tournamentId, $staffId)
