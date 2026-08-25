@@ -1,8 +1,13 @@
 <template>
-  <div class="min-h-screen" style="background-color: var(--surface-bright, #fff8f7);">
-    <AdminHeader />
+  <div class="flex min-h-screen" style="background-color: var(--surface-bright, #fff8f7);">
+    <!-- SideNavBar -->
+    <AdminSidebar />
 
-    <div class="p-6 max-w-5xl mx-auto">
+    <!-- Main Content Area -->
+    <main class="flex-1 md:ml-64 min-h-screen" style="background-color: var(--surface-bright, #fff8f7);">
+      <AdminHeader />
+
+      <div class="p-6 max-w-5xl mx-auto">
       <!-- Page Header -->
       <div class="mb-8">
         <div class="flex items-center justify-between">
@@ -244,6 +249,7 @@
         </form>
       </div>
     </div>
+  </main>
 
     <!-- Template Modal -->
     <AdminNotificationTemplateModal
@@ -256,6 +262,7 @@
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
 import { toast } from 'vue3-toastify'
+import AdminSidebar from '@/components/organisms/AdminSidebar.vue'
 import AdminHeader from '@/components/organisms/AdminHeader.vue'
 import AdminNotificationTemplateModal from '@/components/organisms/AdminNotificationTemplateModal.vue'
 import axiosInstance from '@/utils/httpRequest.js'

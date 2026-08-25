@@ -1074,11 +1074,17 @@ const goToContentDetail = (rawItem, data) => {
 
 const formatActivity = (rawItem, data) => {
     const item = data || rawItem
-    const itemType = rawItem?.type || item.type
-    const userId = getUser.value.id
-    const isCancelled = item.status === 'cancelled'
-    const isCompleted = item.status === 'completed' || dayjs().isAfter(dayjs(item.end_time)) || isCancelled
-    const userParticipant = item.participants?.find(p => p.user_id === userId)
+    const itemType = rawItem?.type || item.type || 'activity'
+    const userId = getUser.value?.id
+
+    const startTime = item.start_time || item.start_date || item.starts_at
+    const endTime = item.end_time || item.end_date || item.ends_at || startTime
+
+    const isCancelled = item.status === 'cancelled' || item.status === 'canceled' || item.status === 4
+    const isCompleted = item.status === 'completed' || item.status === 3 || (endTime && dayjs().isAfter(dayjs(endTime))) || isCancelled
+
+    const participantsList = Array.isArray(item.participants) ? item.participants : []
+    const userParticipant = participantsList.find(p => p.user_id === userId || p.id === userId)
     const isRegistered = !!userParticipant
 
     let registrationStatus = 'none'
@@ -1087,7 +1093,7 @@ const formatActivity = (rawItem, data) => {
             registrationStatus = 'pending'
         } else if (userParticipant.status === 'attended') {
             registrationStatus = 'attended'
-        } else if (userParticipant.status === 'accepted' || !userParticipant.status) {
+        } else if (userParticipant.status === 'accepted' || userParticipant.is_confirmed || !userParticipant.status) {
             registrationStatus = 'accepted'
         }
     }
@@ -1101,12 +1107,12 @@ const formatActivity = (rawItem, data) => {
     }
 
     // Determine status badge (colors) - ActivityScheduleCard & ActivitySmallCard
-    let status = item.is_public ? 'open' : 'private'
+    let status = item.is_public !== false ? 'open' : 'private'
     if (isCancelled) status = 'cancelled'
     else if (isCompleted) status = 'completed'
 
     // Determine statusText (label) - ActivitySmallCard & updated ActivityScheduleCard
-    let statusText = item.is_public ? 'Công khai' : 'Nội bộ'
+    let statusText = item.status_text || (item.is_public !== false ? 'Công khai' : 'Nội bộ')
     if (isCancelled) statusText = 'Đã hủy'
     else if (isCompleted) statusText = 'Hoàn tất'
 
@@ -1120,22 +1126,31 @@ const formatActivity = (rawItem, data) => {
         buttonText = registrationStatus === 'pending' ? 'Đang chờ duyệt' : 'Check-in ngay'
     }
 
+    const currentCount = item.participants_count ?? item.current_participants_count ?? item.registered_count ?? (participantsList.length > 0 ? participantsList.length : 0)
+    const maxCount = item.max_participants ?? item.max_players ?? item.max_teams ?? '∞'
+
+    const title = item.title || item.name || 'Hoạt động CLB'
+    const locationName = item.location || item.competition_location?.name || item.competition_location?.address || ''
+
     return {
         ...item,
+        id: item.id,
         itemType,
-        day: getVietnameseDay(item.start_time),
-        date: dayjs(item.start_time).format('DD'),
-        time: `${dayjs(item.start_time).format('HH:mm')} - ${dayjs(item.end_time).format('HH:mm')}`,
-        participants: `${item.participants_count}/${item.max_participants || '∞'}`,
+        title,
+        day: startTime ? getVietnameseDay(startTime) : '',
+        date: startTime ? dayjs(startTime).format('DD') : '',
+        time: startTime ? `${dayjs(startTime).format('HH:mm')}${endTime && endTime !== startTime ? ' - ' + dayjs(endTime).format('HH:mm') : ''}` : '',
+        participants: `${currentCount}/${maxCount}`,
         status,
         statusText,
         buttonText,
         type,
         disabled: isCompleted,
-        isCreator: item.created_by === getUser.value.id,
-        location: item.location,
-        participants_list: item.participants || [],
-        result: isCompleted ? `Địa điểm: ${item.location}` : null,
+        isCreator: (item.created_by?.id || item.created_by) === userId,
+        address: locationName,
+        location: locationName,
+        participants_list: participantsList,
+        result: isCompleted ? (locationName ? `Địa điểm: ${locationName}` : null) : null,
         registrationStatus
     }
 }

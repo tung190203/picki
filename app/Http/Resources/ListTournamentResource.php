@@ -43,6 +43,9 @@ class ListTournamentResource extends JsonResource
                 ? ($participants->contains('user_id', auth()->id()) ?? false)
                 : false,
             'zalo_link' => $this->zalo_link,
+            'max_players' => $this->max_player ?? $this->max_team ?? null,
+            'max_participants' => $this->max_player ?? $this->max_team ?? null,
+            'participants_count' => ($participants && is_countable($participants)) ? $participants->count() : ($this->participants_count ?? 0),
         ];
     }
 }

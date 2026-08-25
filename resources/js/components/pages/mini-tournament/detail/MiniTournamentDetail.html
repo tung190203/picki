@@ -215,7 +215,7 @@
                         <div class="border border-[#BBBFCC] rounded-lg my-4 p-4">
                             <div class="flex items-center justify-between mb-3">
                                 <h4 class="font-semibold text-[#6B6F80] uppercase text-sm">
-                                    NGƯỜI TỔ CHỨC • {{ mini?.staff?.organizer?.length || 0 }}
+                                    NGƯỜI TỔ CHỨC • {{ (mini?.staff?.organizer?.length || 0) + (mini?.staff?.referee?.length || 0) }}
                                 </h4>
                             </div>
                             <div v-if="mini?.staff?.organizer?.length">
@@ -224,8 +224,21 @@
                                               :userId="item.user?.id"
                                               :name="item.user.full_name" :avatar="item.user.avatar_url"
                                               :rating="getUserScore(item.user)" status="approved"  @removeUser="(data) => handleRemoveStaff(item.id, data.userId, data.name, data.avatar)"/>
-                                    <UserCard :empty="true" @clickEmpty="openInviteModalDefault" v-if="isCreator" />
+                                    <UserCard :empty="true" @clickEmpty="() => openInviteModalStaff('referee')" v-if="isCreator" />
                                 </div>
+                            </div>
+                            <!-- Hiển thị trọng tài trong section người tổ chức -->
+                            <div v-if="mini?.staff?.referee?.length">
+                                <div class="grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-6 gap-4">
+                                    <UserCard v-for="(item, index) in mini.staff.referee" :key="'ref-' + index" :id="item.id"
+                                              :userId="item.user?.id"
+                                              :name="item.user.full_name" :avatar="item.user.avatar_url"
+                                              :rating="getUserScore(item.user)" status="approved" @removeUser="(data) => handleRemoveStaff(item.id, data.userId, data.name, data.avatar)"/>
+                                </div>
+                            </div>
+                            <!-- Empty state khi chưa có ai -->
+                            <div v-if="!mini?.staff?.organizer?.length && !mini?.staff?.referee?.length" class="text-center text-gray-400 py-4">
+                                Chưa có ai trong ban tổ chức
                             </div>
                         </div>
                         <!-- Section: Người tham gia - Chưa checkin -->
