@@ -119,10 +119,13 @@
                   <div class="flex justify-start space-x-4">
                     <div class="flex flex-col items-start pr-4 border-r">
                       <span class="text-xs text-gray-500 font-medium mb-2">Người tạo</span>
-                      <div class="flex -space-x-2">
-                        <img v-for="(organizer, idx) in mini.staff?.organizer" :key="'creator-' + idx"
-                          :src="organizer.user.avatar_url" :alt="organizer.user.full_name"
-                          class="w-8 h-8 rounded-full border-2 border-white object-cover" />
+                      <div class="flex -space-x-2" v-if="mini.staff?.organizer?.[0]?.user">
+                        <img
+                          :src="mini.staff.organizer[0].user.avatar_url"
+                          :alt="mini.staff.organizer[0].user.full_name"
+                          :title="mini.staff.organizer[0].user.full_name"
+                          class="w-8 h-8 rounded-full border-2 border-white object-cover"
+                        />
                       </div>
                     </div>
 

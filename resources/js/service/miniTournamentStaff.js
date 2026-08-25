@@ -9,6 +9,12 @@ export const addMiniTournamentStaff = async (miniTournamentId, staffId) => {
   }).then((response) => response.data.data)
 }
 
+export const addMiniTournamentReferee = async (miniTournamentId, userId) => {
+  return axiosInstance.post(`${miniTournamentStaffEndpoint}/add/${miniTournamentId}`, {
+    staff_id: userId,
+  }).then((response) => response.data.data)
+}
+
 export const removeMiniTournamentStaff = async (miniTournamentId, staffId) => {
   return axiosInstance.delete(`${miniTournamentStaffEndpoint}/${miniTournamentId}/${staffId}`)
 }

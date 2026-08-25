@@ -108,6 +108,7 @@ export default {
         const tabs = TABS
         const searchQuery = ref('')
         const inviteType = ref('participant')
+        const selectedStaffRole = ref('organizer')
         const activeScope = ref('all');
         const inviteGroupData = ref([]);
         const selectedClub = ref(null);
@@ -161,8 +162,10 @@ export default {
                 return;
             }
             if (inviteType.value === 'staff') {
+                // Mời từ sidebar "Mời nhóm" - thêm vào ban tổ chức với role referee
                 await inviteStaff(user.id);
             } else {
+                // Mời từ tab người tham gia - thêm vào danh sách participants
                 await invite([user.id], isAreaInvite);
             }
             await detailMiniTournament(id);
@@ -502,6 +505,14 @@ export default {
 
         const openInviteModalDefault = async () => {
             inviteType.value = 'staff'
+            activeScope.value = 'all'
+            await getInviteGroupData()
+            showInviteModal.value = true
+        }
+
+        const openInviteModalStaff = async (role = 'organizer') => {
+            inviteType.value = 'staff'
+            selectedStaffRole.value = role
             activeScope.value = 'all'
             await getInviteGroupData()
             showInviteModal.value = true
@@ -1002,6 +1013,7 @@ export default {
             copyLink,
             goToEditPage,
             openInviteModalDefault,
+            openInviteModalStaff,
             onScopeChange,
             onClubChange,
             openInviteModalWithFriends,
