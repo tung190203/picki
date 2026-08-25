@@ -46,28 +46,35 @@ class AdminBannerController extends Controller
             }
         }
 
-        // Tái sử dụng 4 audience segments từ push notification
+        // Tái sử dụng 4 audience segments từ push notification (lọc bỏ guest/banned/merged)
+        $baseUserQuery = fn() => User::where('is_guest', false)
+            ->where('is_banned', false)
+            ->where('is_merged', false);
+
         $audienceSegments = [
             [
                 'id' => 'ALL',
                 'name' => 'Tất cả user',
-                'estimated_count' => User::count(),
+                'estimated_count' => $baseUserQuery()->count(),
             ],
             [
                 'id' => 'NEW_USERS',
                 'name' => 'User mới (≤30 ngày)',
-                'estimated_count' => User::where('created_at', '>=', Carbon::now()->subDays(30))->count(),
+                'estimated_count' => $baseUserQuery()->where('created_at', '>=', Carbon::now()->subDays(30))->count(),
             ],
             [
                 'id' => 'TOURNAMENT_USERS',
                 'name' => 'User đã tham gia giải đấu',
-                'estimated_count' => User::whereHas('participants')->count(),
+                'estimated_count' => $baseUserQuery()->whereHas('participants')->count(),
             ],
             [
                 'id' => 'INACTIVE_USERS',
                 'name' => 'User không hoạt động (14+ ngày)',
-                'estimated_count' => User::where('last_login', '<=', Carbon::now()->subDays(14))
-                    ->orWhereNull('last_login')
+                'estimated_count' => $baseUserQuery()
+                    ->where(function ($q) {
+                        $q->where('last_login', '<=', Carbon::now()->subDays(14))
+                            ->orWhereNull('last_login');
+                    })
                     ->count(),
             ],
         ];
