@@ -78,13 +78,7 @@ class ClubActivityController extends Controller
             && empty(array_diff($filters['statuses'], ['completed', 'cancelled']));
 
         $clientSentDate = $request->has('date_from') || $request->has('from_date') || $request->has('date_to') || $request->has('to_date');
-        if (!$clientSentDate) {
-            if (!$statusesOnlyCompletedOrCancelled) {
-                $filters['date_from'] = Carbon::now()->startOfWeek()->format('Y-m-d');
-                $filters['date_to'] = Carbon::now()->endOfWeek()->format('Y-m-d');
-                $filters['include_next_occurrence_for_series_done_this_week'] = true;
-            }
-        } else {
+        if ($clientSentDate) {
             if (empty($filters['date_from']) && $request->has('from_date')) {
                 $filters['date_from'] = $request->input('from_date');
             }
