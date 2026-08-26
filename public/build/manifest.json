@@ -11,13 +11,21 @@
     "file": "assets/marker-icon-hN30_KVU.png",
     "src": "node_modules/leaflet/dist/images/marker-icon.png"
   },
+  "public/login-icons/face-id.png": {
+    "file": "assets/face-id-BJ1jGPiu.png",
+    "src": "public/login-icons/face-id.png"
+  },
+  "public/login-icons/fingerprint.png": {
+    "file": "assets/fingerprint-th7R0U37.png",
+    "src": "public/login-icons/fingerprint.png"
+  },
   "resources/css/app.css": {
-    "file": "assets/app-LlAVfKxT.css",
+    "file": "assets/app-BDv4dbsM.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-BXvhBEUQ.js",
+    "file": "assets/app-CNeCHxWe.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -27,9 +35,11 @@
       "resources/js/components/pages/admin/AdminBannersPage.vue"
     ],
     "css": [
-      "assets/app-BYBp7yWr.css"
+      "assets/app-BeosKXwE.css"
     ],
     "assets": [
+      "assets/face-id-BJ1jGPiu.png",
+      "assets/fingerprint-th7R0U37.png",
       "assets/dashboard-bg-j02aDZD4.svg",
       "assets/splash-bg-hSO4uccQ.png",
       "assets/club-default-thumbnail-BMB6u-Xk.svg",
@@ -81,7 +91,7 @@
     "src": "resources/js/assets/images/splash-bg.png"
   },
   "resources/js/components/pages/admin/AdminBannersPage.vue": {
-    "file": "assets/AdminBannersPage-SSmNygCZ.js",
+    "file": "assets/AdminBannersPage-DLWFvGXq.js",
     "name": "AdminBannersPage",
     "src": "resources/js/components/pages/admin/AdminBannersPage.vue",
     "isDynamicEntry": true,
@@ -93,7 +103,7 @@
     ]
   },
   "resources/js/components/pages/admin/AdminConfig.vue": {
-    "file": "assets/AdminConfig-DaPh8RRu.js",
+    "file": "assets/AdminConfig-2Hf8pMk0.js",
     "name": "AdminConfig",
     "src": "resources/js/components/pages/admin/AdminConfig.vue",
     "isDynamicEntry": true,
@@ -105,7 +115,7 @@
     ]
   },
   "resources/js/components/pages/admin/AdminModeration.vue": {
-    "file": "assets/AdminModeration-DX5pypVs.js",
+    "file": "assets/AdminModeration-BKsa1gsX.js",
     "name": "AdminModeration",
     "src": "resources/js/components/pages/admin/AdminModeration.vue",
     "isDynamicEntry": true,
