@@ -46,6 +46,7 @@ import MiniTournamentSubmitReceiptModal from '@/components/pages/mini-tournament
 import AddGuestModal from '@/components/pages/mini-tournament/partials/AddGuestModal.vue'
 import DeleteStaffModal from '@/components/molecules/DeleteStaffModal.vue'
 import MemberActionModal from '@/components/molecules/MemberActionModal.vue'
+import UploadAvatarModal from '@/components/molecules/UploadAvatarModal.vue'
 import {
     markMiniParticipantCheckIn,
     markMiniParticipantAbsent,
@@ -90,6 +91,7 @@ export default {
         AddGuestModal,
         MegaphoneIcon,
         MemberActionModal,
+        UploadAvatarModal,
         ShareCardMini,
     },
 
@@ -129,6 +131,8 @@ export default {
         const showAddGuestModal = ref(false)
         const showDeleteStaffModal = ref(false)
         const showShareCardModal = ref(false)
+        const showUploadAvatarModal = ref(false)
+        const selectedMemberForAvatar = ref(null)
         const deleteStaffData = ref({
             staffId: null,
             guarantor: null,
@@ -467,6 +471,15 @@ export default {
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi xác nhận VĐV.')
             }
+        }
+
+        const openUploadAvatarModal = (member) => {
+            selectedMemberForAvatar.value = member
+            showUploadAvatarModal.value = true
+        }
+
+        const handleUploadAvatarSuccess = async () => {
+            await detailMiniTournament(id)
         }
 
         const openPromotionModal = () => {
@@ -1073,6 +1086,10 @@ export default {
             handleMemberSelfAbsent,
             handleMemberAdminConfirm,
             isCurrentUserParticipant,
+            showUploadAvatarModal,
+            selectedMemberForAvatar,
+            openUploadAvatarModal,
+            handleUploadAvatarSuccess,
             competitionLocation: computed(() => mini.value?.competition_location ?? null),
             tournamentMaxPlayers: computed(() => mini.value?.max_players ?? null),
             tournamentId: computed(() => mini.value?.id ?? null),

@@ -92,6 +92,8 @@ export default {
         const partnerMatches = ref([])
         const isStartingSession = ref(false)
         const showStandardFormatSelection = ref(false) // Toggle format selection in standard format
+        const selectedCourtFilter = ref(null) // Court filter for standard format
+        const assignedCourts = ref([]) // Courts that have been assigned to matches
 
         const selectedRoundData = computed(() => {
             return sessionSchedule.value.find(r => r.round_number === currentRound.value) || null
@@ -221,9 +223,13 @@ export default {
         const getMiniMatches = async (miniTournamentId, page = 1) => {
             if (!miniTournamentId) return
             try {
+                const params = {
+                    page,
+                    court_number: selectedCourtFilter.value || undefined
+                }
                 const res = await MiniMatchService.getListMiniMatches(
                     miniTournamentId,
-                    { page }
+                    params
                 )
 
                 miniMatches.value = res.data?.matches || []
@@ -232,6 +238,16 @@ export default {
                 selectedMiniMatches.value = []
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Lấy trận thi đấu thất bại');
+            }
+        }
+
+        const loadAssignedCourts = async (miniTournamentId) => {
+            if (!miniTournamentId) return
+            try {
+                const courts = await MiniMatchService.getAssignedCourts(miniTournamentId)
+                assignedCourts.value = courts || []
+            } catch (error) {
+                assignedCourts.value = []
             }
         }
 
@@ -562,12 +578,21 @@ export default {
 
                 if (tab === 'match') {
                     getMiniMatches(id, 1)
+                    loadAssignedCourts(id)
                 } else if (tab === 'your-match') {
                     getMyMiniMatches(id, 1)
                 }
             },
             { immediate: true }
         )
+
+        const onCourtFilterChange = (courtNumber) => {
+            selectedCourtFilter.value = courtNumber || null
+            if (props.data?.id) {
+                pagination.value.current_page = 1
+                getMiniMatches(props.data.id, 1)
+            }
+        }
 
         const allParticipantsGrouped = computed(() => {
             const confirmed = confirmedParticipants.value
@@ -886,6 +911,9 @@ export default {
             isSavingSessionScore,
             onSaveSessionMatchScore,
             showStandardFormatSelection,
+            selectedCourtFilter,
+            assignedCourts,
+            onCourtFilterChange,
         }
     }
 }

@@ -33,9 +33,9 @@
                     {{ displayTitle }}
                 </h3>
             </div>
-            <div class="flex items-center gap-1.5 text-[#7D8696]">
+            <div v-if="courtNumber" class="flex items-center gap-1.5 text-[#7D8696]">
                 <CalendarIcon class="w-4 h-4" />
-                <span class="text-base font-semibold">{{ courtName }}</span>
+                <span class="text-base font-semibold">Sân {{ courtNumber }}</span>
             </div>
         </div>
 
@@ -131,7 +131,7 @@ const props = defineProps({
     matchId: [String, Number],
     matchTitle: String,
     matchTime: String,
-    courtName: String,
+    courtNumber: [ Number],
     miniMatchType: Number,
     teamWinId: Number,
     team1: Array,
