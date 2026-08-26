@@ -83,6 +83,7 @@ class MiniMatchResource extends JsonResource
             }),
             'has_anchor' => $hasAnchor,
             'is_bye' => (bool) $this->is_bye,
+            'court_number' => $this->court_number,
             'is_extra_players' => self::$extraPlayerFlags[$this->id] ?? [],
         ];
     }

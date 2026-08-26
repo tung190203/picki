@@ -28,6 +28,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class MiniParticipantController extends Controller
 {
@@ -1553,6 +1554,53 @@ class MiniParticipantController extends Controller
             'participant_id' => $participant->id,
             'modify_gender' => $participant->modify_gender,
         ], 'Giới tính đã được cập nhật', 200);
+    }
+
+    public function modifyAvatar(Request $request, int $miniTournamentId, int $participantId)
+    {
+        $userId = Auth::id();
+        $miniTournament = MiniTournament::with('staff')->find($miniTournamentId);
+
+        if (!$miniTournament) {
+            return ResponseHelper::error('Kèo đấu không tồn tại', 404);
+        }
+
+        if (!$miniTournament->hasOrganizer($userId) && !(Auth::user()->is_super_admin ?? false)) {
+            return ResponseHelper::error('Bạn không có quyền thực hiện thao tác này', 403);
+        }
+
+        $participant = MiniParticipant::where('id', $participantId)
+            ->where('mini_tournament_id', $miniTournamentId)
+            ->first();
+
+        if (!$participant) {
+            return ResponseHelper::error('Participant không tồn tại trong giải đấu này', 404);
+        }
+
+        $request->validate([
+            'avatar' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
+
+        $image = $request->file('avatar');
+        $avatarName = 'modified_avatars/' . uniqid() . '_' . time() . '.' . $image->getClientOriginalExtension();
+
+        if ($participant->modified_avatar) {
+            $oldPath = str_replace(asset('storage/') . '/', '', $participant->modified_avatar);
+            if (Storage::disk('public')->exists($oldPath)) {
+                Storage::disk('public')->delete($oldPath);
+            }
+        }
+
+        Storage::disk('public')->put($avatarName, file_get_contents($image->getRealPath()));
+
+        $participant->update([
+            'modified_avatar' => asset('storage/' . $avatarName),
+        ]);
+
+        return ResponseHelper::success([
+            'participant_id' => $participant->id,
+            'modified_avatar' => $participant->modified_avatar,
+        ], 'Avatar đã được cập nhật', 200);
     }
 
     private function authorizeMiniTournamentAdmin(MiniTournament $miniTournament, int $userId): ?\Illuminate\Http\JsonResponse
