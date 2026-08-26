@@ -1,19 +1,18 @@
 <template>
-    <div class="flex items-center justify-between py-2">
+    <div :class="label || description ? 'flex items-center justify-between py-2' : 'inline-flex items-center'">
         <div class="flex-1 pr-4" v-if="label || description">
-            <div v-if="label" class="text-sm font-medium text-gray-900">{{ label }}</div>
-            <div v-if="description" class="text-xs text-gray-500 mt-1">{{ description }}</div>
+            <div v-if="label" class="text-sm font-medium text-gray-900 dark:text-slate-200">{{ label }}</div>
+            <div v-if="description" class="text-xs text-gray-500 dark:text-slate-400 mt-1">{{ description }}</div>
         </div>
-        <button @click="toggle"
-            class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0"
+        <button type="button" @click="toggle"
+            class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-[2px] border-0 outline-none transition-colors duration-200 ease-in-out"
             :class="[
-                isChecked ? 'bg-[#D72D36]' : 'bg-gray-300',
+                isChecked ? 'bg-[#D72D36] shadow-sm' : 'bg-gray-300 dark:bg-[#3B4A63]',
                 disabled ? 'opacity-50 cursor-not-allowed' : ''
             ]">
-            <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                :class="isChecked ? 'translate-x-6' : 'translate-x-1'" />
+            <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white !bg-white shadow-md border-0 transition-transform duration-200 ease-in-out"
+                :class="isChecked ? 'translate-x-[20px]' : 'translate-x-0'" />
         </button>
-
     </div>
 </template>
 

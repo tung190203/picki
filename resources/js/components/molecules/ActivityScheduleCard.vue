@@ -1,11 +1,11 @@
 <template>
   <div 
-    class="flex items-center justify-between p-4 bg-white rounded-lg shadow-sm border-l-[2px] mb-4 transition cursor-pointer hover:shadow-md hover:border-l-4"
+    class="flex items-center justify-between p-4 bg-white dark:bg-[#161F33] rounded-lg shadow-sm border border-gray-100 dark:border-slate-800 border-l-[2px] mb-4 transition cursor-pointer hover:shadow-md hover:border-l-4"
     @click="$emit('click-card', { id, itemType })"
     :class="[
-      disabled ? 'border-gray-200 opacity-70 grayscale-[0.5]' : (
+      disabled ? 'border-gray-200 dark:border-slate-700 opacity-70 grayscale-[0.5]' : (
         type === 'danger' ? 'border-red-500' : 
-        type === 'primary' ? 'border-[#4392E0]' : 'border-[#BBBFCC]'
+        type === 'primary' ? 'border-[#4392E0]' : 'border-[#BBBFCC] dark:border-slate-700'
       )
     ]"
   >
@@ -14,8 +14,8 @@
       <div 
         class="flex flex-col items-center justify-center w-16 h-16 rounded-md border"
         :class="[
-          type === 'danger' ? 'bg-red-50 border-[#EB969B] text-[#D72D36]' : 
-          type === 'primary' ? 'bg-blue-50 border-[#4392E0] text-[#4392E0]' : 'bg-gray-50 border-[#BBBFCC] text-[#838799]'
+          type === 'danger' ? 'bg-red-50 dark:bg-red-950/60 border-[#EB969B] dark:border-red-800 text-[#D72D36] dark:text-red-400' : 
+          type === 'primary' ? 'bg-blue-50 dark:bg-blue-950/60 border-[#4392E0] dark:border-blue-700 text-[#4392E0] dark:text-blue-400' : 'bg-gray-50 dark:bg-slate-800 border-[#BBBFCC] dark:border-slate-700 text-[#838799] dark:text-slate-400'
         ]"
       >
         <span class="text-xs font-bold uppercase">{{ day }}</span>
@@ -24,20 +24,20 @@
 
       <!-- Info Section -->
       <div class="flex flex-col space-y-1">
-        <h3 class="text-xl font-semi-bold text-[#3E414C]">{{ title }}</h3>
-        <div class="flex items-center space-x-4 text-sm text-[#838799]">
+        <h3 class="text-xl font-semi-bold text-[#3E414C] dark:text-slate-100">{{ title }}</h3>
+        <div class="flex items-center space-x-4 text-sm text-[#838799] dark:text-slate-400">
           <div class="flex items-center space-x-1">
             <ClockIcon class="w-4 h-4" />
             <span>{{ time }}</span>
           </div>
         </div>
-        <div class="flex items-center space-x-4 text-sm text-[#838799]" v-if="address">
+        <div class="flex items-center space-x-4 text-sm text-[#838799] dark:text-slate-400" v-if="address">
           <div class="flex items-center space-x-1">
             <MapPinIcon class="w-4 h-4 flex-shrink-0" />
             <span class="truncate max-w-[450px]" :title="address">{{ address }}</span>
           </div>
         </div>
-        <div class="flex items-center space-x-1 text-sm text-[#838799]">
+        <div class="flex items-center space-x-1 text-sm text-[#838799] dark:text-slate-400">
             <UsersIcon class="w-4 h-4" />
             <span>{{ participants }} người tham gia</span>
         </div>
@@ -50,9 +50,9 @@
         v-if="status"
         class="text-[10px] font-bold px-2 py-0.5 rounded uppercase whitespace-nowrap h-fit"
         :class="{
-            'bg-[#E3F7EF] text-[#2D9B71]': status === 'open',
-            'bg-[#F2F7FC] text-[#4392E0]': status === 'private',
-            'bg-[#EDEEF2] text-[#838799]': !['open', 'private'].includes(status),
+            'bg-[#E3F7EF] dark:bg-emerald-950/80 text-[#2D9B71] dark:text-emerald-400': status === 'open',
+            'bg-[#F2F7FC] dark:bg-sky-950/80 text-[#4392E0] dark:text-sky-400': status === 'private',
+            'bg-[#EDEEF2] dark:bg-slate-800 text-[#838799] dark:text-slate-400': !['open', 'private'].includes(status),
         }"
       >
         {{ statusText || status }}
@@ -62,7 +62,7 @@
             <Button 
               size="md" 
               color="secondary"
-              class="font-bold px-4 py-3 rounded-[4px] bg-[#EDEEF2] text-[#3E414C] border border-[#DCDEE6] shadow-sm"
+              class="font-bold px-4 py-3 rounded-[4px] bg-[#EDEEF2] dark:bg-slate-800 text-[#3E414C] dark:text-slate-200 border border-[#DCDEE6] dark:border-slate-700 shadow-sm"
               :disabled="disabled"
               @click.stop="$emit('cancel-join')"
             >
@@ -71,7 +71,7 @@
             <Button 
               size="md" 
               color="secondary"
-              class="font-bold px-4 py-3 rounded-[4px] bg-[#EDEEF2] text-[#3E414C] border border-[#DCDEE6] shadow-sm"
+              class="font-bold px-4 py-3 rounded-[4px] bg-[#EDEEF2] dark:bg-slate-800 text-[#3E414C] dark:text-slate-200 border border-[#DCDEE6] dark:border-slate-700 shadow-sm"
               :disabled="true"
             >
               <div class="flex items-center gap-2">
@@ -105,7 +105,7 @@
             size="md" 
             :color="registrationStatus === 'attended' ? 'secondary' : buttonColor"
             class="font-bold px-4 py-3 rounded-[4px]"
-            :class="{ 'bg-[#EDEEF2] text-[#3E414C] border border-[#DCDEE6] shadow-sm': registrationStatus === 'attended' }"
+            :class="{ 'bg-[#EDEEF2] dark:bg-slate-800 text-[#3E414C] dark:text-slate-200 border border-[#DCDEE6] dark:border-slate-700 shadow-sm': registrationStatus === 'attended' }"
             :disabled="disabled || registrationStatus === 'attended'"
             @click.stop="registrationStatus === 'attended' ? null : $emit('register')"
           >
@@ -121,7 +121,7 @@
           class="font-bold px-3 py-3.5 rounded-[4px]"
           @click.stop="$emit('edit')"
         >
-          <PencilIcon class="w-5 h-5 text-[#3E414C]" />
+          <PencilIcon class="w-5 h-5 text-[#3E414C] dark:text-slate-200" />
         </Button>
       </div>
     </div>

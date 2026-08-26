@@ -485,6 +485,14 @@ class MiniTournament extends Model
         return $this->hasMany(MiniParticipantPayment::class);
     }
 
+    /**
+     * Get player pairs for fixed pairing.
+     */
+    public function playerPairs()
+    {
+        return $this->hasMany(MiniTournamentPlayerPair::class);
+    }
+
     public function pendingPayments()
     {
         return $this->hasMany(MiniParticipantPayment::class)->where('status', MiniParticipantPayment::STATUS_PENDING);

@@ -219,12 +219,12 @@ export function useMap() {
     resetControl.onAdd = function () {
       const btn = L.DomUtil.create('button', 'leaflet-bar leaflet-control leaflet-control-custom');
       btn.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px; margin: auto;">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#334155" style="width: 20px; height: 20px; margin: auto; display: block;">
           <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
         </svg>
       `;
       btn.title = 'Đặt lại bản đồ';
-      btn.style.cssText = 'background-color: white; width: 48px; height: 48px; cursor: pointer; font-size: 18px; line-height: 30px; text-align: center; margin: 10px;';
+      btn.style.cssText = 'background-color: white !important; width: 44px; height: 44px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin: 10px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); border: none;';
       L.DomEvent.disableClickPropagation(btn);
       btn.onclick = resetMap;
       return btn;
@@ -236,13 +236,13 @@ export function useMap() {
     locationControl.onAdd = function () {
       const btn = L.DomUtil.create('button', 'leaflet-bar leaflet-control leaflet-control-custom');
       btn.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px; margin: auto;">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#334155" style="width: 20px; height: 20px; margin: auto; display: block;">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
           <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
         </svg>
       `;
       btn.title = 'Vị trí hiện tại của tôi';
-      btn.style.cssText = 'background-color: white; width: 48px; height: 48px; cursor: pointer; font-size: 18px; line-height: 30px; text-align: center; margin: 10px; margin-bottom: 0;';
+      btn.style.cssText = 'background-color: white !important; width: 44px; height: 44px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin: 10px; margin-bottom: 0; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); border: none;';
       L.DomEvent.disableClickPropagation(btn);
       btn.onclick = getCurrentLocation;
       return btn;

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\DTO\FixedPairDTO;
 use App\DTO\MatchSuggestionRequestDTO;
 use App\DTO\MatchSuggestionResponseDTO;
 use App\DTO\PlayerContextDTO;
@@ -211,6 +212,9 @@ class SchedulerService
     ): array {
         $settings = $request->settings;
 
+        // Extract fixed pairs for constraint validation
+        $fixedPairs = $request->fixed_pairs;
+
         // Split main and backup pools
         [$mainPool, $backupPool] = $this->splitMainAndBackupPool($pool);
 
@@ -225,17 +229,18 @@ class SchedulerService
         $candidates = [];
 
         // STEP 1: Generate same-gender candidates from main pool
-        $sameGenderCandidates = $this->generateSameGenderCandidates($mainPool, $request, $userDataMap);
+        $sameGenderCandidates = $this->generateSameGenderCandidates($mainPool, $request, $userDataMap, $fixedPairs);
+        \Log::info('[Scheduler/generateCandidates] Same gender candidates: ' . count($sameGenderCandidates));
         $candidates = array_merge($candidates, $sameGenderCandidates);
 
         // STEP 2: Generate mixed-gender candidates from main pool
         // (always run — even if same-gender succeeded, mixed-gender may be better by fairness)
-        $mixedCandidates = $this->generateMixedGenderCandidates($mainPool, $request, $userDataMap);
+        $mixedCandidates = $this->generateMixedGenderCandidates($mainPool, $request, $userDataMap, $fixedPairs);
         $candidates = array_merge($candidates, $mixedCandidates);
 
         // STEP 3: Last resort — any 4 players from main pool, no gender/tier restrictions.
         // Guarantees a match when at least 4 eligible players remain but gender rules block both.
-        $anyCandidates = $this->generateAnyTierCombinations($mainPool, $request, $userDataMap, true);
+        $anyCandidates = $this->generateAnyTierCombinations($mainPool, $request, $userDataMap, true, $fixedPairs);
         foreach ($anyCandidates as &$c) {
             $c['is_high_tier'] = $this->isHighTierMatch($c['team_a'], $c['team_b']);
             $c['score'] = $this->calculateMatchScore($c['team_a'], $c['team_b'], $request->settings, $userDataMap);
@@ -248,13 +253,13 @@ class SchedulerService
             $extendedPool = array_merge($mainPool, $backupPool);
             $this->currentPoolMaxPlayed = max(array_column($extendedPool, 'played_count'));
 
-            $extSameGender = $this->generateSameGenderCandidates($extendedPool, $request, $userDataMap);
+            $extSameGender = $this->generateSameGenderCandidates($extendedPool, $request, $userDataMap, $fixedPairs);
             $candidates = array_merge($candidates, $extSameGender);
 
-            $extMixed = $this->generateMixedGenderCandidates($extendedPool, $request, $userDataMap);
+            $extMixed = $this->generateMixedGenderCandidates($extendedPool, $request, $userDataMap, $fixedPairs);
             $candidates = array_merge($candidates, $extMixed);
 
-            $extAny = $this->generateAnyTierCombinations($extendedPool, $request, $userDataMap, true);
+            $extAny = $this->generateAnyTierCombinations($extendedPool, $request, $userDataMap, true, $fixedPairs);
             foreach ($extAny as &$c) {
                 $c['is_high_tier'] = $this->isHighTierMatch($c['team_a'], $c['team_b']);
                 $c['score'] = $this->calculateMatchScore($c['team_a'], $c['team_b'], $request->settings, $userDataMap);
@@ -302,7 +307,9 @@ class SchedulerService
         array $pool,
         MatchSuggestionRequestDTO $request,
         array $userDataMap,
+        array $fixedPairs = [],
     ): array {
+        \Log::info('[Scheduler/generateSameGenderCandidates] Pool size: ' . count($pool) . ', Fixed pairs: ' . count($fixedPairs));
         $candidates = [];
 
         // Separate by gender - handle null gender as unknown group
@@ -349,13 +356,13 @@ class SchedulerService
         // Process each gender group — always generate all tier levels so compareCandidates
         // can pick the best one by fairness/starvation (not just the highest-tier one).
         foreach ($genderGroups as $genderPool) {
-            $sameTier = $this->generateSameTierCombinations($genderPool, $request, $userDataMap);
+            $sameTier = $this->generateSameTierCombinations($genderPool, $request, $userDataMap, $fixedPairs);
             $candidates = array_merge($candidates, $sameTier);
 
-            $adjacentTier = $this->generateAdjacentTierCombinations($genderPool, $request, $userDataMap);
+            $adjacentTier = $this->generateAdjacentTierCombinations($genderPool, $request, $userDataMap, $fixedPairs);
             $candidates = array_merge($candidates, $adjacentTier);
 
-            $anyTier = $this->generateAnyTierCombinations($genderPool, $request, $userDataMap);
+            $anyTier = $this->generateAnyTierCombinations($genderPool, $request, $userDataMap, false, $fixedPairs);
             $candidates = array_merge($candidates, $anyTier);
         }
 
@@ -372,6 +379,7 @@ class SchedulerService
         array $pool,
         MatchSuggestionRequestDTO $request,
         array $userDataMap,
+        array $fixedPairs = [],
     ): array {
         $candidates = [];
 
@@ -515,6 +523,7 @@ class SchedulerService
         array $pool,
         MatchSuggestionRequestDTO $request,
         array $userDataMap,
+        array $fixedPairs = [],
     ): array {
         $candidates = [];
 
@@ -537,8 +546,8 @@ class SchedulerService
             $combos = $this->generateCombinations($players, 4);
 
             foreach ($combos as $players) {
-                // Find best team pairing
-                $pairing = $this->findOptimalPairing($players, $userDataMap, $request->settings);
+                // Find best team pairing with fixed pairs constraint
+                $pairing = $this->findOptimalPairing($players, $userDataMap, $request->settings, false, $fixedPairs);
                 if (!$pairing) {
                     continue;
                 }
@@ -567,6 +576,7 @@ class SchedulerService
         array $pool,
         MatchSuggestionRequestDTO $request,
         array $userDataMap,
+        array $fixedPairs = [],
     ): array {
         $candidates = [];
 
@@ -614,7 +624,7 @@ class SchedulerService
                         continue;
                     }
 
-                    $pairing = $this->findOptimalPairing($players, $userDataMap, $request->settings);
+                    $pairing = $this->findOptimalPairing($players, $userDataMap, $request->settings, false, $fixedPairs);
                     if (!$pairing) {
                         continue;
                     }
@@ -647,6 +657,7 @@ class SchedulerService
         MatchSuggestionRequestDTO $request,
         array $userDataMap,
         bool $skipGenderValidation = false,
+        array $fixedPairs = [],
     ): array {
         $candidates = [];
 
@@ -654,7 +665,7 @@ class SchedulerService
         $combos = $this->generateCombinations($pool, 4);
 
         foreach ($combos as $players) {
-            $pairing = $this->findOptimalPairing($players, $userDataMap, $request->settings, $skipGenderValidation);
+            $pairing = $this->findOptimalPairing($players, $userDataMap, $request->settings, $skipGenderValidation, $fixedPairs);
             if (!$pairing) {
                 continue;
             }
@@ -1015,10 +1026,25 @@ class SchedulerService
         $pool = [];
 
         foreach ($players as $player) {
-            if (!$this->filterByAvailability($player, $needsPaymentCheck)) continue;
-            if (!$this->filterByPlayingStatus($player)) continue;
-            if (!$this->filterBySkipStatus($player)) continue;
-            if (!$this->filterByForcedRest($player, $request->settings->prevent_three_consecutive)) continue;
+            $reasons = [];
+            
+            if (!$this->filterByAvailability($player, $needsPaymentCheck)) {
+                $reasons[] = 'availability (absent=' . ($player->is_absent ? 'yes' : 'no') . ', payment_status=' . ($player->payment_status ?? 'null') . ')';
+            }
+            if (!$this->filterByPlayingStatus($player)) {
+                $reasons[] = 'is_playing=' . ($player->is_playing ? 'yes' : 'no');
+            }
+            if (!$this->filterBySkipStatus($player)) {
+                $reasons[] = 'skip_next_round=' . ($player->skip_next_round ? 'yes' : 'no');
+            }
+            if (!$this->filterByForcedRest($player, $request->settings->prevent_three_consecutive)) {
+                $reasons[] = 'consecutive_count=' . $player->consecutive_count;
+            }
+            
+            if (!empty($reasons)) {
+                \Log::info("[SchedulerService] Player {$player->full_name} (ID: {$player->mini_participant_id}) excluded: " . implode(', ', $reasons));
+                continue;
+            }
 
             $pool[] = $player;
         }
@@ -1039,8 +1065,15 @@ class SchedulerService
 
         // Exclude organizers/staff from pool when organizer_as_backup is disabled
         if (!$request->settings->organizer_as_backup) {
+            $beforeCount = count($pool);
             $pool = array_values(array_filter($pool, fn($p) => !$p->is_backup));
+            $afterCount = count($pool);
+            if ($beforeCount !== $afterCount) {
+                \Log::info("[SchedulerService] Excluded " . ($beforeCount - $afterCount) . " backup players (organizer_as_backup=false)");
+            }
         }
+
+        \Log::info("[SchedulerService] Pool size: " . count($pool) . " (from " . count($players) . " total players)");
 
         return $pool;
     }
@@ -1433,9 +1466,14 @@ class SchedulerService
      * 1. Same tier in each team (e.g., đỏ đỏ vs đỏ đỏ)
      * 2. Corresponding tier distribution (e.g., xanh đỏ vs xanh đỏ)
      * 
+     * @param array $players PlayerContextDTO[]
+     * @param array $userDataMap
+     * @param mixed $settings
+     * @param bool $skipGenderValidation
+     * @param array $fixedPairs FixedPairDTO[] - pairs that must be on the same team
      * @return array|null ['team_a' => PlayerContextDTO[], 'team_b' => PlayerContextDTO[], 'is_high_tier' => bool, 'rules_applied' => string[]]
      */
-    private function findOptimalPairing(array $players, array $userDataMap, $settings, bool $skipGenderValidation = false): ?array
+    private function findOptimalPairing(array $players, array $userDataMap, $settings, bool $skipGenderValidation = false, array $fixedPairs = []): ?array
     {
         if (count($players) < 4) {
             return null;
@@ -1467,6 +1505,12 @@ class SchedulerService
 
             // Validate gender compatibility (skip in last-resort mode)
             if (!$skipGenderValidation && !$this->isValidGenderPairing($playersA, $playersB, $genderCounts)) {
+                continue;
+            }
+
+            // Validate fixed pairs constraint - all paired players must be on the same team
+            if (!empty($fixedPairs) && !$this->validateFixedPairsConstraint($playersA, $playersB, $fixedPairs)) {
+                \Log::debug('[Scheduler] Fixed pair constraint violated for candidate');
                 continue;
             }
 
@@ -1516,6 +1560,58 @@ class SchedulerService
         }
 
         return $bestPairing;
+    }
+
+    /**
+     * Validate that all fixed pairs are on the same team.
+     * Returns false if any paired players are split across teams.
+     */
+    private function validateFixedPairsConstraint(array $teamA, array $teamB, array $fixedPairs): bool
+    {
+        foreach ($fixedPairs as $pair) {
+            $player1InA = null;
+            $player1InB = null;
+            $player2InA = null;
+            $player2InB = null;
+
+            // Find which team each player of the pair belongs to
+            foreach ($teamA as $p) {
+                $pId = $p->user_id ?? $p->mini_participant_id;
+                $pIsGuest = $p->is_guest ?? false;
+                if ($pair->hasPlayer($pId, $pIsGuest)) {
+                    if ($player1InA === null) {
+                        $player1InA = $pId;
+                    } else {
+                        $player2InA = $pId;
+                    }
+                }
+            }
+            foreach ($teamB as $p) {
+                $pId = $p->user_id ?? $p->mini_participant_id;
+                $pIsGuest = $p->is_guest ?? false;
+                if ($pair->hasPlayer($pId, $pIsGuest)) {
+                    if ($player1InB === null) {
+                        $player1InB = $pId;
+                    } else {
+                        $player2InB = $pId;
+                    }
+                }
+            }
+
+            // If both players are found but in different teams, constraint violated
+            if (($player1InA !== null || $player1InB !== null) &&
+                ($player2InA !== null || $player2InB !== null)) {
+                // Both players found - check they're in the same team
+                $inSameTeam = ($player1InA !== null && $player2InA !== null) ||
+                              ($player1InB !== null && $player2InB !== null);
+                \Log::debug("[Scheduler] Fixed pair check: p1_in_A=" . ($player1InA !== null) . ", p1_in_B=" . ($player1InB !== null) . ", p2_in_A=" . ($player2InA !== null) . ", p2_in_B=" . ($player2InB !== null) . ", in_same_team=" . ($inSameTeam ? 'yes' : 'NO'));
+                if (!$inSameTeam) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     /**

@@ -78,13 +78,13 @@
           <!-- Right: Participants & Badge -->
           <div class="flex flex-col items-end gap-3">
             <!-- Avatar Group (Mock/Real) -->
-            <div class="flex -space-x-2 overflow-hidden py-1"
+            <div class="flex -space-x-2 py-1 items-center"
               v-if="match.participants && match.participants.length > 0">
               <img v-for="(p, idx) in match.participants.slice(0, 2)" :key="idx" :src="p.avatar_url || defaultImage"
-                class="inline-block h-12 w-12 rounded-full ring-2 ring-white object-cover" />
-              <div v-if="match.participants.length > 3"
-                class="flex items-center justify-center h-8 w-8 rounded-full ring-2 ring-white bg-red-50 text-[#D72D36] text-xs font-bold">
-                +{{ match.participants.length - 3 }}
+                class="inline-block h-8 w-8 rounded-full ring-2 ring-white dark:ring-[#1E293B] object-cover shadow-sm" />
+              <div v-if="match.participants.length > 2"
+                class="flex items-center justify-center h-8 w-8 rounded-full ring-2 ring-white dark:ring-[#1E293B] bg-red-50 dark:bg-red-950/60 text-[#D72D36] dark:text-red-400 text-xs font-bold shadow-sm">
+                +{{ match.participants.length - 2 }}
               </div>
             </div>
             <!-- Placeholder if no participants yet but showing join count -->

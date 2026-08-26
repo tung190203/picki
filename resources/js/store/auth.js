@@ -2,6 +2,7 @@ import {defineStore} from "pinia";
 import {LOCAL_STORAGE_KEY, LOCAL_STORAGE_USER} from "@/constants/index.js";
 import * as AuthService from "@/service/auth.js";
 import {computed, reactive, watch} from "vue";
+import { syncUserThemeFromDatabase } from '@/utils/theme.js';
 
 export const useUserStore = defineStore("user", () => {
   const user = reactive({
@@ -58,6 +59,9 @@ export const useUserStore = defineStore("user", () => {
 
   const fillUserData = (userData) => {
     Object.assign(user, userData);
+    if (userData?.theme_mode) {
+      syncUserThemeFromDatabase(userData.theme_mode);
+    }
   };
 
   const clearUserData = () => {
@@ -101,11 +105,24 @@ export const useUserStore = defineStore("user", () => {
     return data;
   }
 
+  const loginWithBiometricData = async (data) => {
+    const response = await AuthService.loginWithBiometric(data);
+    fillUserData(response.user);
+    localStorage.setItem(LOCAL_STORAGE_USER.USER, JSON.stringify(response.user));
+    localStorage.setItem(LOCAL_STORAGE_KEY.LOGIN_TOKEN, response.token.access_token);
+    localStorage.setItem(LOCAL_STORAGE_KEY.REFRESH_TOKEN, response.token.refresh_token);
+    if (window.initEcho) {
+        window.initEcho(response.token.access_token);
+    }
+    return response;
+  }
+
   return {
     getUser,
     getRole,
     registerUser,
     loginUser,
+    loginWithBiometricData,
     logoutUser,
     forgotPassword,
     resetPassword,

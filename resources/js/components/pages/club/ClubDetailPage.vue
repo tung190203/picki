@@ -306,46 +306,46 @@
                 </div>
                 <div class="col-span-12 lg:col-span-4 space-y-4 order-1 lg:order-2">
                     <div class="max-w-3xl mx-auto" v-if="!hasAnyRole(['admin', 'manager', 'secretary', 'treasurer'])">
-                        <div class="bg-white rounded-2xl shadow-md px-6 py-5">
-                            <div class="grid grid-cols-3 divide-x divide-gray-200 text-center">
+                        <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl shadow-md px-6 py-5">
+                            <div class="grid grid-cols-3 divide-x divide-gray-200 dark:divide-slate-800 text-center">
                                 <div v-for="(stat, index) in clubStats" :key="index"
                                     class="flex flex-col items-center gap-2">
-                                    <div class="text-[#D72D36] h-12 flex items-center justify-center">
+                                    <div class="text-[#D72D36] dark:text-red-400 h-12 flex items-center justify-center">
                                         <component :is="stat.icon" class="w-12 h-12" />
                                     </div>
-                                    <div class="font-semibold text-gray-800">{{ statsValue[stat.key] }}</div>
-                                    <div class="text-sm text-[#838799]">{{ stat.label }}</div>
+                                    <div class="font-semibold text-gray-800 dark:text-slate-100">{{ statsValue[stat.key] }}</div>
+                                    <div class="text-sm text-[#838799] dark:text-slate-400">{{ stat.label }}</div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="max-w-3xl mx-auto"
                         v-if="hasAnyRole(['admin', 'manager', 'secretary', 'treasurer', 'member'])">
-                        <div class="bg-white rounded-2xl shadow-md px-2 py-5">
+                        <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl shadow-md px-2 py-5">
                             <div class="grid text-center"
                                 :class="filteredClubModules.length === 4 ? 'grid-cols-4' : 'grid-cols-3'">
                                 <div v-for="(module, index) in filteredClubModules" :key="index"
                                     class="flex flex-col items-center gap-2">
-                                    <div class="text-[#D72D36] rounded-md bg-[#FBEAEB] p-4 cursor-pointer relative"
+                                    <div class="text-[#D72D36] dark:text-red-400 rounded-md bg-[#FBEAEB] dark:bg-[#D72D36]/20 p-4 cursor-pointer relative"
                                         @click="handleModuleClick(module)">
                                         <component :is="module.icon" class="w-6 h-6" />
                                         <!-- Notification Badge -->
                                         <div v-if="module.key === 'notification' && hasUnreadNotifications"
-                                            class="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center animate-bounce-subtle shadow-sm">
+                                            class="absolute -bottom-1 -right-1 w-5 h-5 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center animate-bounce-subtle shadow-sm">
                                             <div class="w-3.5 h-3.5 bg-[#D72D36] rounded-full"></div>
                                         </div>
                                     </div>
-                                    <div class="text-sm text-[#3E414C]">{{ module.label }}</div>
+                                    <div class="text-sm text-[#3E414C] dark:text-slate-300">{{ module.label }}</div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="max-w-3xl mx-auto" v-if="hasAnyRole(['admin', 'secretary'])">
-                        <div class="bg-white rounded-2xl shadow-md p-6">
+                        <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl shadow-md p-6">
                             <div class="flex items-center gap-2 mb-6">
-                                <p class="uppercase font-bold text-[#838799] text-sm">Yêu cầu tham gia</p>
-                                <span class="w-1 h-1 rounded-full bg-[#3E414C]"></span>
-                                <span class="font-bold text-[#D72D36] text-sm">({{ joiningRequests.length }})</span>
+                                <p class="uppercase font-bold text-[#838799] dark:text-slate-400 text-sm">Yêu cầu tham gia</p>
+                                <span class="w-1 h-1 rounded-full bg-[#3E414C] dark:bg-slate-500"></span>
+                                <span class="font-bold text-[#D72D36] dark:text-red-400 text-sm">({{ joiningRequests.length }})</span>
                             </div>
 
                             <div v-if="joiningRequests.length > 0" class="space-y-6">
@@ -353,11 +353,11 @@
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center space-x-4">
                                             <img :src="request.user.avatar_url" alt="Avatar"
-                                                class="w-12 h-12 rounded-full object-cover border border-gray-100" />
+                                                class="w-12 h-12 rounded-full object-cover border border-gray-100 dark:border-slate-700" />
                                             <div>
-                                                <h4 class="font-bold text-[#3E414C] text-base">{{ request.user.full_name
+                                                <h4 class="font-bold text-[#3E414C] dark:text-slate-100 text-base">{{ request.user.full_name
                                                     }}</h4>
-                                                <p class="text-xs text-[#838799] mt-1">
+                                                <p class="text-xs text-[#838799] dark:text-slate-400 mt-1">
                                                     Trình {{
                                                         Number(request.user?.sports?.[0]?.scores?.vndupr_score).toFixed(1) }}
                                                     {{ request.message ? `• ${request.message}` : '' }}
@@ -377,11 +377,11 @@
                                             </button>
                                         </div>
                                     </div>
-                                    <div v-if="index < joiningRequests.length - 1" class="h-px bg-gray-100"></div>
+                                    <div v-if="index < joiningRequests.length - 1" class="h-px bg-gray-100 dark:bg-slate-800"></div>
                                 </template>
                             </div>
                             <div v-else class="p-4 text-center">
-                                <p class="text-[#838799]">Hiện chưa có yêu cầu tham gia nào</p>
+                                <p class="text-[#838799] dark:text-slate-400">Hiện chưa có yêu cầu tham gia nào</p>
                             </div>
                         </div>
                     </div>

@@ -10,6 +10,9 @@ import FloatingVue from 'floating-vue';
 import 'floating-vue/dist/style.css';
 import EmojiPicker from 'vue3-emoji-picker'
 import 'vue3-emoji-picker/css'
+import { initTheme } from './utils/theme.js'
+
+initTheme()
 
 const pinia = createPinia();
 

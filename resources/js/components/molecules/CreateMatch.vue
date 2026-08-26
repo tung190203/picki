@@ -68,11 +68,11 @@
                             </div>
 
                             <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-3">Chọn đội</label>
+                                <label class="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">Chọn đội</label>
                                 <div class="grid grid-cols-[2fr_1fr_2fr] gap-4 items-stretch mb-6">
                                     <div
-                                        class="border border-1 border-[#DCDEE6] bg-[#F2F7FC] rounded-lg p-3 flex flex-col">
-                                        <p class="text-center mb-4">{{ data.home_team?.name || 'Team A' }}</p>
+                                        class="border border-1 border-[#DCDEE6] dark:border-slate-700/60 bg-[#F2F7FC] dark:bg-[#1E293B] rounded-lg p-3 flex flex-col">
+                                        <p class="text-center mb-4 font-semibold text-gray-800 dark:text-slate-200">{{ data.home_team?.name || 'Team A' }}</p>
                                         <div class="flex gap-2 justify-around items-stretch">
                                             <UserCard v-for="member in data.home_team?.members || []" :key="member.id"
                                                 :showHoverDelete="false" :name="member.name" :avatar="member.avatar"
@@ -83,12 +83,12 @@
                                     </div>
 
                                     <div class="flex justify-center items-center">
-                                        <span class="text-sm font-bold">VS</span>
+                                        <span class="text-sm font-bold text-gray-700 dark:text-slate-300">VS</span>
                                     </div>
 
                                     <div
-                                        class="border border-1 border-[#DCDEE6] bg-[#F2F7FC] rounded-lg p-3 flex flex-col">
-                                        <p class="text-center mb-4">{{ data.away_team?.name || 'Team B' }}</p>
+                                        class="border border-1 border-[#DCDEE6] dark:border-slate-700/60 bg-[#F2F7FC] dark:bg-[#1E293B] rounded-lg p-3 flex flex-col">
+                                        <p class="text-center mb-4 font-semibold text-gray-800 dark:text-slate-200">{{ data.away_team?.name || 'Team B' }}</p>
                                         <div class="flex gap-2 justify-around items-stretch">
                                             <UserCard v-for="member in data.away_team?.members || []" :key="member.id"
                                                 :showHoverDelete="false" :name="member.name" :avatar="member.avatar"
