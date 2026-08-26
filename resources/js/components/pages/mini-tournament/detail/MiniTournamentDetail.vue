@@ -944,6 +944,75 @@ export default {
             el.setAttribute('href', url)
         }
 
+        // Bulk actions
+        const handleCheckInAll = async (participants) => {
+            if (!participants || participants.length === 0) {
+                toast.warning('Không có người chơi nào để check-in')
+                return
+            }
+            
+            try {
+                const participantIds = participants.map(p => p.id)
+                await MiniTournamnetService.markCheckInAll(id, participantIds)
+                toast.success(`Đã check-in ${participantIds.length} người chơi`)
+                await detailMiniTournament(id)
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Check-in thất bại')
+            }
+        }
+
+        const handleMarkPaidAll = async (participants) => {
+            if (!participants || participants.length === 0) {
+                toast.warning('Không có người chơi nào để thanh toán')
+                return
+            }
+            
+            try {
+                const participantIds = participants.map(p => p.id)
+                await MiniTournamnetService.markPaidAll(id, participantIds)
+                toast.success(`Đã xác nhận thanh toán cho ${participantIds.length} người chơi`)
+                await detailMiniTournament(id)
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Xác nhận thanh toán thất bại')
+            }
+        }
+
+        const handleConfirmAll = async (participants) => {
+            if (!participants || participants.length === 0) {
+                toast.warning('Không có người chơi nào để duyệt')
+                return
+            }
+            
+            try {
+                const participantIds = participants.map(p => p.id)
+                await MiniTournamnetService.confirmAllParticipants(participantIds)
+                toast.success(`Đã duyệt ${participantIds.length} người chơi`)
+                await detailMiniTournament(id)
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Duyệt thất bại')
+            }
+        }
+
+        const handleDeleteAll = async (participants) => {
+            if (!participants || participants.length === 0) {
+                toast.warning('Không có người chơi nào để xóa')
+                return
+            }
+            
+            if (!confirm(`Bạn có chắc muốn xóa ${participants.length} người chơi?`)) {
+                return
+            }
+            
+            try {
+                const participantIds = participants.map(p => p.id)
+                await MiniTournamnetService.deleteAllParticipants(participantIds)
+                toast.success(`Đã xóa ${participantIds.length} người chơi`)
+                await detailMiniTournament(id)
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Xóa thất bại')
+            }
+        }
+
         onMounted(async () => {
             activeTab.value = route.query.tab || 'detail'
             if (id) {
@@ -1090,6 +1159,10 @@ export default {
             selectedMemberForAvatar,
             openUploadAvatarModal,
             handleUploadAvatarSuccess,
+            handleCheckInAll,
+            handleMarkPaidAll,
+            handleConfirmAll,
+            handleDeleteAll,
             competitionLocation: computed(() => mini.value?.competition_location ?? null),
             tournamentMaxPlayers: computed(() => mini.value?.max_players ?? null),
             tournamentId: computed(() => mini.value?.id ?? null),

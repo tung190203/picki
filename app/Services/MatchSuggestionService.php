@@ -427,6 +427,11 @@ class MatchSuggestionService
             // Use tier from Frontend (source of truth), don't recalculate
             $tier = $feP->tier;
 
+            $isPlaying = in_array($miniParticipantId, $playingParticipants);
+            $skipNextRound = $participant->skip_next_round ?? false;
+            $isAbsent = $participant->is_absent;
+            $isBackup = in_array($userId, $staffUserIds);
+
             $players[] = new PlayerContextDTO(
                 mini_participant_id: $miniParticipantId,
                 user_id: $userId,
@@ -443,13 +448,25 @@ class MatchSuggestionService
                 vndupr_score: $vnduprScore,
                 partner_ids: $partnerIds,
                 is_checked_in: $participant->checked_in_at !== null,
-                is_playing: in_array($miniParticipantId, $playingParticipants),
-                skip_next_round: $participant->skip_next_round ?? false,
-                is_absent: $participant->is_absent,
+                is_playing: $isPlaying,
+                skip_next_round: $skipNextRound,
+                is_absent: $isAbsent,
                 payment_status: $needsPaymentCheck ? ($participant->payment_status?->value ?? null) : null,
-                is_backup: in_array($userId, $staffUserIds),
+                is_backup: $isBackup,
             );
+
+            // Debug log
+            \Log::info("[MatchSuggestion] Player: {$fullName} (ID: {$miniParticipantId})", [
+                'is_playing' => $isPlaying,
+                'skip_next_round' => $skipNextRound,
+                'is_absent' => $isAbsent,
+                'is_backup' => $isBackup,
+                'consecutive_count' => $consecutiveCounts[$miniParticipantId] ?? 0,
+            ]);
         }
+
+        \Log::info("[MatchSuggestion] Total players built: " . count($players));
+        \Log::info("[MatchSuggestion] Playing participants: " . json_encode($playingParticipants));
 
         return $players;
     }

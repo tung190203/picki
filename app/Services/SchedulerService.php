@@ -1015,10 +1015,25 @@ class SchedulerService
         $pool = [];
 
         foreach ($players as $player) {
-            if (!$this->filterByAvailability($player, $needsPaymentCheck)) continue;
-            if (!$this->filterByPlayingStatus($player)) continue;
-            if (!$this->filterBySkipStatus($player)) continue;
-            if (!$this->filterByForcedRest($player, $request->settings->prevent_three_consecutive)) continue;
+            $reasons = [];
+            
+            if (!$this->filterByAvailability($player, $needsPaymentCheck)) {
+                $reasons[] = 'availability (absent=' . ($player->is_absent ? 'yes' : 'no') . ', payment_status=' . ($player->payment_status ?? 'null') . ')';
+            }
+            if (!$this->filterByPlayingStatus($player)) {
+                $reasons[] = 'is_playing=' . ($player->is_playing ? 'yes' : 'no');
+            }
+            if (!$this->filterBySkipStatus($player)) {
+                $reasons[] = 'skip_next_round=' . ($player->skip_next_round ? 'yes' : 'no');
+            }
+            if (!$this->filterByForcedRest($player, $request->settings->prevent_three_consecutive)) {
+                $reasons[] = 'consecutive_count=' . $player->consecutive_count;
+            }
+            
+            if (!empty($reasons)) {
+                \Log::info("[SchedulerService] Player {$player->full_name} (ID: {$player->mini_participant_id}) excluded: " . implode(', ', $reasons));
+                continue;
+            }
 
             $pool[] = $player;
         }
@@ -1039,8 +1054,15 @@ class SchedulerService
 
         // Exclude organizers/staff from pool when organizer_as_backup is disabled
         if (!$request->settings->organizer_as_backup) {
+            $beforeCount = count($pool);
             $pool = array_values(array_filter($pool, fn($p) => !$p->is_backup));
+            $afterCount = count($pool);
+            if ($beforeCount !== $afterCount) {
+                \Log::info("[SchedulerService] Excluded " . ($beforeCount - $afterCount) . " backup players (organizer_as_backup=false)");
+            }
         }
+
+        \Log::info("[SchedulerService] Pool size: " . count($pool) . " (from " . count($players) . " total players)");
 
         return $pool;
     }

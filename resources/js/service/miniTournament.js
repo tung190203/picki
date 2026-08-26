@@ -93,3 +93,28 @@ export const getMiniTournamentTemplates = async () => {
   return axiosInstance.get(miniTournamentTemplateEndpoint)
     .then((response) => response.data); // { data: { templates: [...] }, message }
 }
+
+// Bulk actions
+export const markCheckInAll = async (tournamentId, participantIds) => {
+  return axiosInstance.post(`${miniTournamentEndpoint}/${tournamentId}/participants/mark-check-in-all`, {
+    participant_ids: participantIds
+  }).then((response) => response.data);
+}
+
+export const markPaidAll = async (tournamentId, participantIds) => {
+  return axiosInstance.post(`${miniTournamentEndpoint}/${tournamentId}/payments/mark-paid-all`, {
+    participant_ids: participantIds
+  }).then((response) => response.data);
+}
+
+export const confirmAllParticipants = async (participantIds) => {
+  return axiosInstance.post(`/mini-participants/confirm-all`, {
+    participant_ids: participantIds
+  }).then((response) => response.data);
+}
+
+export const deleteAllParticipants = async (participantIds) => {
+  return axiosInstance.post(`/mini-participants/delete-all`, {
+    participant_ids: participantIds
+  }).then((response) => response.data);
+}
