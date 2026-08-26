@@ -71,11 +71,11 @@
               :key="idx"
               :src="p?.user?.avatar_url || defaultAvatar"
               @error="e => e.target.src = defaultAvatar"
-              class="w-7 h-7 rounded-full ring-2 ring-white object-cover"
+              class="w-7 h-7 rounded-full ring-2 ring-white dark:ring-[#1E293B] object-cover shadow-sm"
             />
             <div
               v-if="extraParticipantCount > 0"
-              class="w-7 h-7 rounded-full ring-2 ring-white bg-gray-200 flex items-center justify-center text-[10px] font-semibold text-gray-600"
+              class="w-7 h-7 rounded-full ring-2 ring-white dark:ring-[#1E293B] bg-gray-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-semibold text-gray-600 dark:text-slate-200 shadow-sm"
             >
               +{{ extraParticipantCount }}
             </div>

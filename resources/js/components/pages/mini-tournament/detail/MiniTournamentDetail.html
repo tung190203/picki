@@ -185,21 +185,21 @@
 
                     <!-- Tab 2: Người tham gia -->
                     <div v-else-if="activeTab === 'participants'" key="participants">
-                        <div v-if="isCreator" class="flex items-center justify-start border border-[#BBBFCC] rounded px-3 py-2 mb-4">
-                            <ArrowTrendingUpIcon class="w-5 h-5 mr-2" />
+                        <div v-if="isCreator" class="flex items-center justify-start border border-[#BBBFCC] dark:border-slate-700 bg-white dark:bg-[#1E293B] text-gray-800 dark:text-slate-100 rounded px-3 py-2 mb-4">
+                            <ArrowTrendingUpIcon class="w-5 h-5 mr-2 text-gray-500 dark:text-slate-400" />
                             <p class="font-semibold">Quản lý điểm DUPR</p>
                         </div>
                         <div v-if="isCreator" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
-                            <button v-if="canManagePayments" type="button" @click="handlePaymentButtonClick" class="flex items-center justify-start border border-[#BBBFCC] rounded px-3 py-2 hover:bg-gray-50 transition">
-                                <CreditCardIcon class="w-5 h-5 mr-2" />
+                            <button v-if="canManagePayments" type="button" @click="handlePaymentButtonClick" class="flex items-center justify-start border border-[#BBBFCC] dark:border-slate-700 bg-white dark:bg-[#1E293B] text-gray-800 dark:text-slate-100 rounded px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition">
+                                <CreditCardIcon class="w-5 h-5 mr-2 text-gray-500 dark:text-slate-400" />
                                 <p class="font-semibold">{{ mini?.auto_split_fee ? 'Quản lý thanh toán' : 'Thanh toán' }}</p>
                             </button>
                             <div
-                                class="flex items-center justify-between border border-[#BBBFCC] rounded px-3 py-2">
+                                class="flex items-center justify-between border border-[#BBBFCC] dark:border-slate-700 bg-white dark:bg-[#1E293B] text-gray-800 dark:text-slate-100 rounded px-3 py-2">
                                 <p class="font-semibold">Duyệt tự động</p>
                                 <button @click="toggleAutoApprove"
                                         class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                        :class="autoApprove ? 'bg-[#D72D36]' : 'bg-gray-300'">
+                                        :class="autoApprove ? 'bg-[#D72D36]' : 'bg-gray-300 dark:bg-slate-700'">
                                         <span
                                             class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
                                             :class="autoApprove ? 'translate-x-6' : 'translate-x-1'" />
@@ -207,8 +207,8 @@
                             </div>
                         </div>
                         <div v-else-if="canShowPaymentButton" class="mb-4">
-                            <button type="button" @click="handlePaymentButtonClick" class="flex items-center justify-start border border-[#BBBFCC] rounded px-3 py-2 hover:bg-gray-50 transition w-full">
-                                <CreditCardIcon class="w-5 h-5 mr-2" />
+                            <button type="button" @click="handlePaymentButtonClick" class="flex items-center justify-start border border-[#BBBFCC] dark:border-slate-700 bg-white dark:bg-[#1E293B] text-gray-800 dark:text-slate-100 rounded px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition w-full">
+                                <CreditCardIcon class="w-5 h-5 mr-2 text-gray-500 dark:text-slate-400" />
                                 <p class="font-semibold">{{ mini?.auto_split_fee ? 'Nộp bằng chứng thanh toán' : 'Thanh toán' }}</p>
                             </button>
                         </div>
@@ -249,6 +249,30 @@
                                     CHƯA CHECKIN • {{ displayedParticipants?.length || 0 }} / {{ mini.max_players }}
                                 </h4>
                                 <span class="flex items-center gap-2">
+                                    <button v-if="isCreator" 
+                                            @click="handleCheckInAll(displayedParticipants)"
+                                            class="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                                            title="Check-in tất cả">
+                                        <CheckIcon class="w-4 h-4 text-green-600" />
+                                    </button>
+                                    <button v-if="isCreator && mini.has_fee" 
+                                            @click="handleMarkPaidAll(displayedParticipants)"
+                                            class="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                                            title="Thanh toán tất cả">
+                                        <CreditCardIcon class="w-4 h-4 text-blue-600" />
+                                    </button>
+                                    <button v-if="isCreator" 
+                                            @click="handleConfirmAll(displayedParticipants)"
+                                            class="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                                            title="Duyệt tất cả">
+                                        <ClipboardDocumentCheckIcon class="w-4 h-4 text-indigo-600" />
+                                    </button>
+                                    <button v-if="isCreator" 
+                                            @click="handleDeleteAll(displayedParticipants)"
+                                            class="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                                            title="Xóa tất cả">
+                                        <XMarkIcon class="w-4 h-4 text-red-600" />
+                                    </button>
                                     <span class="text-[#207AD5] text-xs font-semibold cursor-pointer" v-if="isCreator"
                                           @click="openInviteModalWithFriends">Mời bạn bè</span>
                                     <button v-if="isCreator && !isGuestSectionFull"
@@ -291,6 +315,18 @@
                                     ĐÃ CHECKIN • {{ checkedInParticipants?.length || 0 }}
                                 </h4>
                                 <span class="flex items-center gap-2">
+                                    <button v-if="isCreator && mini.has_fee" 
+                                            @click="handleMarkPaidAll(checkedInParticipants)"
+                                            class="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                                            title="Thanh toán tất cả">
+                                        <CreditCardIcon class="w-4 h-4 text-blue-600" />
+                                    </button>
+                                    <button v-if="isCreator" 
+                                            @click="handleDeleteAll(checkedInParticipants)"
+                                            class="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                                            title="Xóa tất cả">
+                                        <XMarkIcon class="w-4 h-4 text-red-600" />
+                                    </button>
                                     <span class="text-[#207AD5] text-xs font-semibold cursor-pointer" v-if="isCreator"
                                           @click="openInviteModalWithFriends">Mời bạn bè</span>
                                     <button v-if="isCreator"
@@ -329,6 +365,12 @@
                                     ĐÃ BÁO VẮNG • {{ absentParticipants?.length || 0 }}
                                 </h4>
                                 <span class="flex items-center gap-2">
+                                    <button v-if="isCreator" 
+                                            @click="handleDeleteAll(absentParticipants)"
+                                            class="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                                            title="Xóa tất cả">
+                                        <XMarkIcon class="w-4 h-4 text-red-600" />
+                                    </button>
                                     <span class="text-[#207AD5] text-xs font-semibold cursor-pointer" v-if="isCreator"
                                           @click="openInviteModalWithFriends">Mời bạn bè</span>
                                     <button v-if="isCreator"

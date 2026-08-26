@@ -1,16 +1,16 @@
 <template>
-    <div class="mt-8 bg-white rounded-2xl shadow-sm flex flex-col overflow-hidden">
+    <div class="mt-8 bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl shadow-sm flex flex-col overflow-hidden">
         <!-- Horizontal Scrollable Tab Bar -->
-        <div class="flex border-b border-gray-200 overflow-x-auto custom-scrollbar whitespace-nowrap bg-gray-50/50 px-2">
+        <div class="flex border-b border-gray-200 dark:border-slate-800 overflow-x-auto custom-scrollbar whitespace-nowrap bg-gray-50/50 dark:bg-[#1E293B] px-2">
             <button v-for="tab in tabs" :key="tab.id" :ref="(el) => setTabRef(el, tab.id)"
                 @click="handleTabClick(tab)"
                 class="flex-shrink-0 md:flex-1 px-4 sm:px-6 py-4 text-center font-semibold text-sm transition-all relative"
                 :class="[
-                    activeTab === tab.id ? 'text-[#D72D36] bg-white font-bold' : 'text-[#838799] hover:text-gray-800',
+                    activeTab === tab.id ? 'text-[#D72D36] dark:text-red-400 bg-white dark:bg-[#161F33] font-bold' : 'text-[#838799] dark:text-slate-400 hover:text-gray-800 dark:hover:text-white',
                     !props.isJoined && tab.id !== 'intro' && 'opacity-50 cursor-not-allowed pointer-events-none'
                 ]">
                 {{ tab.name }}
-                <div v-if="activeTab === tab.id" class="absolute bottom-0 left-0 w-full h-1 bg-[#D72D36]"></div>
+                <div v-if="activeTab === tab.id" class="absolute bottom-0 left-0 w-full h-1 bg-[#D72D36] dark:bg-red-500"></div>
             </button>
         </div>
 
@@ -21,11 +21,11 @@
                     <Transition name="fade-slide" mode="out-in">
                         <div v-if="isEditingIntro" :key="'edit'" class="space-y-4">
                             <textarea v-model="editDescription" rows="6" maxlength="300"
-                                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D72D36]/20 focus:border-[#D72D36] transition-colors placeholder:text-gray-400"
+                                class="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D72D36]/20 focus:border-[#D72D36] transition-colors placeholder:text-gray-400 dark:placeholder:text-slate-500"
                                 placeholder="Nhập giới thiệu về CLB..."></textarea>
                             <div class="flex items-center gap-3">
                                 <button @click="cancelEditIntro"
-                                    class="flex-1 px-4 py-2 rounded-lg border border-gray-200 text-[#3E414C] font-semibold hover:bg-gray-50 transition-colors">
+                                    class="flex-1 px-4 py-2 rounded-lg border border-gray-200 dark:border-slate-700 text-[#3E414C] dark:text-slate-200 font-semibold hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
                                     Hủy
                                 </button>
                                 <button @click="saveIntro" :disabled="isSaving"
@@ -36,7 +36,7 @@
                         </div>
 
                         <div v-else-if="club?.profile?.description" :key="'view'" class="flex flex-col relative group">
-                            <div class="whitespace-pre-wrap text-[#3E414C] leading-relaxed description-text overflow-hidden transition-all duration-500 ease-in-out"
+                            <div class="whitespace-pre-wrap text-[#3E414C] dark:text-slate-200 leading-relaxed description-text overflow-hidden transition-all duration-500 ease-in-out"
                                 :class="{ 'line-clamp-3': !isExpanded && !isAnimating && activeTab === 'intro' }"
                                 :style="{ maxHeight: isExpanded ? contentHeight + 'px' : collapsedHeight + 'px' }"
                                 @transitionstart="isAnimating = true"
@@ -45,23 +45,23 @@
                             </div>
                             <div v-if="needsExpand" class="mt-2 flex justify-start">
                                 <button @click="toggleExpand"
-                                    class="text-[#D72D36] text-sm font-semibold hover:underline transition-colors uppercase">
+                                    class="text-[#D72D36] dark:text-red-400 text-sm font-semibold hover:underline transition-colors uppercase">
                                     {{ isExpanded ? '[Thu gọn]' : '[Đọc thêm]' }}
                                 </button>
                             </div>
                             <button v-if="['admin', 'secretary'].includes(currentUserRole)" 
                                 @click="startEditIntro"
                                 title="Chỉnh sửa giới thiệu"
-                                class="absolute bottom-0 right-0 p-2 bg-white shadow-md rounded-full text-[#D72D36] border border-gray-100 hover:bg-gray-50 transition-all duration-200 z-10 scale-90 hover:scale-100">
+                                class="absolute bottom-0 right-0 p-2 bg-white dark:bg-slate-800 shadow-md rounded-full text-[#D72D36] dark:text-red-400 border border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 transition-all duration-200 z-10 scale-90 hover:scale-100">
                                 <PencilSquareIcon class="w-4 h-4" />
                             </button>
                         </div>
 
-                        <div v-else :key="'empty'" class="flex flex-col items-center justify-center min-h-[100px] text-gray-400">
+                        <div v-else :key="'empty'" class="flex flex-col items-center justify-center min-h-[100px] text-gray-400 dark:text-slate-500">
                             <span class="text-sm italic mb-4">Chưa có mô tả</span>
                             <button v-if="['admin', 'secretary'].includes(currentUserRole)"
                                 @click="startEditIntro"
-                                class="flex items-center gap-2 px-6 py-2.5 bg-gray-50 hover:bg-gray-100 text-[#D72D36] rounded-full transition-colors font-medium border border-dashed border-[#D72D36]/30">
+                                class="flex items-center gap-2 px-6 py-2.5 bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-[#D72D36] dark:text-red-400 rounded-full transition-colors font-medium border border-dashed border-[#D72D36]/30">
                                 <PlusIcon class="w-4 h-4" />
                                 Thêm giới thiệu
                             </button>

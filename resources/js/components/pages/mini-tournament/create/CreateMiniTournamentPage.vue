@@ -58,11 +58,11 @@
                             'flex flex-col items-center justify-center rounded-[8px] border px-3 py-5 min-h-[120px] transition-all',
                             selectedPlayMode === 1
                                 ? 'bg-[#D72D36] text-white border-[#D72D36] shadow-md'
-                                : 'border-[#DCDEE6] text-gray-700 hover:border-[#D72D36] hover:bg-[#FFF5F5]'
+                                : 'border-[#DCDEE6] dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:border-[#D72D36] hover:bg-[#FFF5F5] dark:hover:bg-[#1E293B] dark:hover:text-white'
                         ]">
                             <div :class="[
                                 'w-12 h-12 rounded-full flex items-center justify-center mb-3 transition-colors',
-                                selectedPlayMode === 1 ? 'bg-white' : 'bg-[#FBEAEB]'
+                                selectedPlayMode === 1 ? 'bg-white' : 'bg-[#FBEAEB] dark:bg-red-950/40'
                             ]">
                                 <!-- sentiment_satisfied icon -->
                                 <svg class="w-6 h-6 text-[#D72D36]" viewBox="0 0 24 24" fill="currentColor">
@@ -78,11 +78,11 @@
                             'flex flex-col items-center justify-center rounded-[8px] border px-3 py-5 min-h-[120px] transition-all',
                             selectedPlayMode === 2
                                 ? 'bg-[#D72D36] text-white border-[#D72D36] shadow-md'
-                                : 'border-[#DCDEE6] text-gray-700 hover:border-[#D72D36] hover:bg-[#FFF5F5]'
+                                : 'border-[#DCDEE6] dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:border-[#D72D36] hover:bg-[#FFF5F5] dark:hover:bg-[#1E293B] dark:hover:text-white'
                         ]">
                             <div :class="[
                                 'w-12 h-12 rounded-full flex items-center justify-center mb-3 transition-colors',
-                                selectedPlayMode === 2 ? 'bg-white' : 'bg-[#FBEAEB]'
+                                selectedPlayMode === 2 ? 'bg-white' : 'bg-[#FBEAEB] dark:bg-red-950/40'
                             ]">
                                 <!-- scoreboard icon -->
                                 <svg class="w-6 h-6 text-[#D72D36]" viewBox="0 0 24 24" fill="currentColor">
@@ -98,11 +98,11 @@
                             'flex flex-col items-center justify-center rounded-[8px] border px-3 py-5 min-h-[120px] transition-all',
                             selectedPlayMode === 3
                                 ? 'bg-[#D72D36] text-white border-[#D72D36] shadow-md'
-                                : 'border-[#DCDEE6] text-gray-700 hover:border-[#D72D36] hover:bg-[#FFF5F5]'
+                                : 'border-[#DCDEE6] dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:border-[#D72D36] hover:bg-[#FFF5F5] dark:hover:bg-[#1E293B] dark:hover:text-white'
                         ]">
                             <div :class="[
                                 'w-12 h-12 rounded-full flex items-center justify-center mb-3 transition-colors',
-                                selectedPlayMode === 3 ? 'bg-white' : 'bg-[#FBEAEB]'
+                                selectedPlayMode === 3 ? 'bg-white' : 'bg-[#FBEAEB] dark:bg-red-950/40'
                             ]">
                                 <!-- sports_tennis/padel icon -->
                                 <svg class="w-6 h-6 text-[#D72D36]" viewBox="0 0 24 24" fill="currentColor">
@@ -226,9 +226,9 @@
                                 </div>
 
                                 <div v-if="repeatUnit === 'Tuần'"
-                                    class="bg-[#FFF5F5] border border-[#FBEAEB] px-4 py-2 rounded-[4px] flex items-center justify-center gap-3">
-                                    <ArrowPathRoundedSquareIcon class="w-5 h-5 text-[#D72D36]" />
-                                    <p class="text-sm font-normal text-[#D72D36]">
+                                    class="bg-[#FFF5F5] dark:bg-red-950/30 border border-[#FBEAEB] dark:border-red-900/40 px-4 py-2 rounded-[4px] flex items-center justify-center gap-3">
+                                    <ArrowPathRoundedSquareIcon class="w-5 h-5 text-[#D72D36] dark:text-red-400" />
+                                    <p class="text-sm font-normal text-[#D72D36] dark:text-red-400">
                                         Kèo này sẽ tự động tạo vào <span class="font-bold">{{ formattedRepeatTime
                                             }}</span>
                                     </p>
@@ -296,13 +296,7 @@
                                     <CurrencyDollarIcon class="w-5 h-5 text-gray-700" />
                                     <span class="text-gray-700">Phí tham gia</span>
                                 </div>
-                                <button type="button" @click="toggleHasFee" :aria-checked="hasFee"
-                                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
-                                    :class="hasFee ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                    <span
-                                        class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                        :class="hasFee ? 'translate-x-6' : 'translate-x-1'" />
-                                </button>
+                                <Toggle :model-value="hasFee" @update:model-value="toggleHasFee" />
                             </div>
 
                             <!-- Fee details - chỉ hiện khi hasFee = true -->
@@ -327,13 +321,7 @@
                                         <p class="text-sm font-medium text-gray-700">Chia tiền sân tự động</p>
                                         <p class="text-xs text-gray-500">Tổng tiền / số người tham gia</p>
                                     </div>
-                                    <button @click="toggleAutoSplit"
-                                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                        :class="autoSplitCourtFee ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                        <span
-                                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                            :class="autoSplitCourtFee ? 'translate-x-6' : 'translate-x-1'" />
-                                    </button>
+                                    <Toggle :model-value="autoSplitCourtFee" @update:model-value="toggleAutoSplit" />
                                 </div>
 
                                 <!-- Số tiền input -->
@@ -413,12 +401,7 @@
                                                 <p class="text-sm font-medium text-gray-700">Quỹ CLB chi</p>
                                                 <p class="text-xs text-gray-500">CLB chi tiền, người tham gia không cần đóng phí</p>
                                             </div>
-                                            <button type="button" @click="toggleUseClubFund"
-                                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                                :class="useClubFund ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                                    :class="useClubFund ? 'translate-x-6' : 'translate-x-1'" />
-                                            </button>
+                                            <Toggle :model-value="useClubFund" @update:model-value="toggleUseClubFund" />
                                         </div>
 
                                         <!-- Thu vào quỹ chung CLB - chỉ hiện khi chưa bật Quỹ chi -->
@@ -427,12 +410,7 @@
                                                 <p class="text-sm font-medium text-gray-700">Thu vào quỹ chung CLB</p>
                                                 <p class="text-xs text-gray-500">Thu phí từ người tham gia và gửi vào quỹ CLB</p>
                                             </div>
-                                            <button type="button" @click="includedInClubFund = !includedInClubFund"
-                                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                                :class="includedInClubFund ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                                    :class="includedInClubFund ? 'translate-x-6' : 'translate-x-1'" />
-                                            </button>
+                                            <Toggle v-model="includedInClubFund" />
                                         </div>
 
                                         <!-- QR không hiện khi Quỹ chi -->
@@ -534,34 +512,17 @@
 
                         <div class="flex items-center justify-between">
                             <span class="text-gray-700">Duyệt tự động</span>
-                            <button type="button" @click="autoApprove = !autoApprove" :aria-checked="autoApprove"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
-                                :class="autoApprove ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="autoApprove ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
+                            <Toggle v-model="autoApprove" />
                         </div>
 
                         <div class="flex items-center justify-between">
                             <span class="text-gray-700">Cho phép người tham gia thêm bạn</span>
-                            <button type="button" @click="allowParticipantAddFriends = !allowParticipantAddFriends"
-                                :aria-checked="allowParticipantAddFriends"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
-                                :class="allowParticipantAddFriends ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="allowParticipantAddFriends ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
+                            <Toggle v-model="allowParticipantAddFriends" />
                         </div>
 
                         <div class="flex items-center justify-between">
                             <span class="text-gray-700">Cho phép hủy kèo</span>
-                            <button type="button" @click="allowCancellation = !allowCancellation"
-                                :aria-checked="allowCancellation"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
-                                :class="allowCancellation ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="allowCancellation ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
+                            <Toggle v-model="allowCancellation" />
                         </div>
 
                         <div v-if="allowCancellation" class="flex items-center justify-between relative">
@@ -585,13 +546,7 @@
 
                         <div class="flex items-center justify-between">
                             <span class="text-gray-700">Tôi tham gia giải đấu</span>
-                            <button type="button" @click="creatorJoin = !creatorJoin"
-                                :aria-checked="creatorJoin"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
-                                :class="creatorJoin ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="creatorJoin ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
+                            <Toggle v-model="creatorJoin" />
                         </div>
                     </div>
                 </div>

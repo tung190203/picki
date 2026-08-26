@@ -3,23 +3,23 @@
         <div v-if="isOpen && !showRefereeScreen"
              class="fixed inset-0 bg-black backdrop-blur-[1px] bg-opacity-50 flex items-center justify-center z-50 p-4"
              @click.self="closeModal">
-            <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[85vh] max-h-[95vh] flex flex-col">
-                <div class="flex items-start justify-between p-6 border-b min-w-0 border-gray-200 ">
-                    <h2 class="text-2xl font-semibold text-gray-800 break-words whitespace-normal max-w-full min-w-0">{{ data.name || 'Trận đấu' }}</h2>
-                    <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
+            <div class="bg-white dark:bg-[#161F33] rounded-lg shadow-xl w-full max-w-4xl h-[85vh] max-h-[95vh] flex flex-col border border-gray-100 dark:border-slate-800">
+                <div class="flex items-start justify-between p-6 border-b min-w-0 border-gray-200 dark:border-slate-800">
+                    <h2 class="text-2xl font-semibold text-gray-800 dark:text-slate-100 break-words whitespace-normal max-w-full min-w-0">{{ data.name || 'Trận đấu' }}</h2>
+                    <button @click="closeModal" class="text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white transition-colors">
                         <XMarkIcon class="w-6 h-6" />
                     </button>
                 </div>
                 <div class="p-6 overflow-y-auto flex-1">
                     <div class="grid sm:grid-cols-1 lg:grid-cols-2 gap-6">
                     <div class="space-y-4">
-                            <div v-if="data.scheduled_at" class="flex items-center gap-2 text-gray-700 mb-1">
-                                <CalendarDaysIcon class="w-5 h-5" />
+                            <div v-if="data.scheduled_at" class="flex items-center gap-2 text-gray-700 dark:text-slate-300 mb-1">
+                                <CalendarDaysIcon class="w-5 h-5 text-gray-500 dark:text-slate-400" />
                                 <span>{{ formatEventDate(data.scheduled_at) }}</span>
                             </div>
 
-                            <div class="flex items-center gap-2 text-gray-700">
-                                <MapPinIcon class="w-5 h-5" />
+                            <div class="flex items-center gap-2 text-gray-700 dark:text-slate-300">
+                                <MapPinIcon class="w-5 h-5 text-gray-500 dark:text-slate-400" />
                                 <span class="break-words lg:truncate lg:w-64">{{ data.competition_location?.name }}</span>
                             </div>
 
@@ -30,20 +30,20 @@
                             </div>
 
                             <div>
-                                <p class="text-sm text-gray-600 mb-3">
+                                <p class="text-sm text-gray-600 dark:text-slate-400 mb-3">
                                     Kết quả kèo đấu được ghi nhận khi tất cả người chơi đã quét mã QR
                                 </p>
-                                <div class="w-full h-auto p-3 rounded-lg flex items-center justify-center">
+                                <div class="w-full h-auto p-3 rounded-lg flex items-center justify-center bg-white dark:bg-white p-4 rounded-xl shadow-inner">
                                     <qrcode-vue :value="qrCodeUrl" :size="250" level="H" />
                                 </div>
                             </div>
                         </div>
                         <div>
-                            <div class="block text-sm font-semibold text-gray-700 mb-3">Chọn đội</div>
+                            <div class="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">Chọn đội</div>
                             <div class="grid grid-cols-[2fr_1fr_2fr] gap-4 items-stretch mb-6">
                                 <div
-                                    class="border border-1 border-[#DCDEE6] bg-[#F2F7FC] rounded-lg p-3 flex flex-col min-w-0">
-                                    <p class="text-center mb-4 break-words whitespace-normal leading-snug max-w-full">{{ data.team1?.name || 'Team 1' }}</p>
+                                    class="border border-1 border-[#DCDEE6] dark:border-slate-700/60 bg-[#F2F7FC] dark:bg-[#1E293B] rounded-lg p-3 flex flex-col min-w-0">
+                                    <p class="text-center mb-4 break-words whitespace-normal leading-snug max-w-full font-semibold text-gray-800 dark:text-slate-200">{{ data.team1?.name || 'Team 1' }}</p>
                                     <div class="flex gap-2 justify-around items-stretch">
                                         <div v-for="user in team1Users" :key="user.id" class="relative">
                                             <UserCard
@@ -57,7 +57,7 @@
                                             <button
                                                 v-if="canManageMatches"
                                                 type="button"
-                                                class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white border border-gray-200 shadow flex items-center justify-center text-gray-500 hover:text-red-600 hover:border-red-200"
+                                                class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 shadow flex items-center justify-center text-gray-500 dark:text-slate-300 hover:text-red-600 hover:border-red-200"
                                                 title="Xóa khỏi đội"
                                                 @click.stop="removeMemberFromTeam('team1', user.id)"
                                             >
@@ -70,12 +70,12 @@
                                 </div>
 
                                 <div class="flex justify-center items-center">
-                                    <span class="text-sm font-bold">VS</span>
+                                    <span class="text-sm font-bold text-gray-700 dark:text-slate-300">VS</span>
                                 </div>
 
                                 <div
-                                    class="border border-1 border-[#DCDEE6] bg-[#F2F7FC] rounded-lg p-3 flex flex-col min-w-0">
-                                    <p class="text-center mb-4 break-words whitespace-normal leading-snug max-w-full">{{ data.team2?.name || 'Team 2' }}</p>
+                                    class="border border-1 border-[#DCDEE6] dark:border-slate-700/60 bg-[#F2F7FC] dark:bg-[#1E293B] rounded-lg p-3 flex flex-col min-w-0">
+                                    <p class="text-center mb-4 break-words whitespace-normal leading-snug max-w-full font-semibold text-gray-800 dark:text-slate-200">{{ data.team2?.name || 'Team 2' }}</p>
                                     <div class="flex gap-2 justify-around items-stretch">
                                         <div v-for="user in team2Users" :key="user.id" class="relative">
                                             <UserCard
@@ -89,7 +89,7 @@
                                             <button
                                                 v-if="canManageMatches"
                                                 type="button"
-                                                class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white border border-gray-200 shadow flex items-center justify-center text-gray-500 hover:text-red-600 hover:border-red-200"
+                                                class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 shadow flex items-center justify-center text-gray-500 dark:text-slate-300 hover:text-red-600 hover:border-red-200"
                                                 title="Xóa khỏi đội"
                                                 @click.stop="removeMemberFromTeam('team2', user.id)"
                                             >
@@ -111,7 +111,7 @@
                     </div>
                 </div>
 
-                <div class="px-4 py-4 bg-white rounded-b-lg border-t">
+                <div class="px-4 py-4 bg-white dark:bg-[#161F33] rounded-b-lg border-t border-gray-200 dark:border-slate-800">
                     <div class="flex gap-3">
                         <button v-if="canManageMatches" @click="saveMiniMatch" :disabled="isSaving"
                                 class="px-12 py-3 bg-red-500 text-white rounded font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
@@ -129,7 +129,7 @@
                             </template>
                         </button>
                         <button @click="closeModal" :disabled="isSaving"
-                                class="px-12 py-3 bg-gray-200 text-gray-700 rounded font-medium hover:bg-gray-300 transition-colors disabled:opacity-50">
+                                class="px-12 py-3 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-300 dark:hover:bg-slate-600 font-medium rounded transition-colors disabled:opacity-50">
                             Hủy
                         </button>
                     </div>

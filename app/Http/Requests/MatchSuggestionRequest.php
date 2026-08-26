@@ -17,7 +17,7 @@ class MatchSuggestionRequest extends FormRequest
             // mini_tournament_id is in URL, not body
             'participants' => ['required', 'array', 'min:1'],
             'participants.*.mini_participant_id' => ['required', 'integer'],
-            'participants.*.tier' => ['required', 'string', 'in:purple,red,yellow,green'],
+            'participants.*.tier' => ['sometimes', 'nullable', 'string', 'in:purple,red,yellow,green'],
 
             // Settings
             'settings' => ['sometimes', 'array'],
@@ -26,6 +26,13 @@ class MatchSuggestionRequest extends FormRequest
             'settings.prefer_high_tier_match' => ['sometimes', 'boolean'],
             'settings.prevent_three_consecutive' => ['sometimes', 'boolean'],
             'settings.organizer_as_backup' => ['sometimes', 'boolean'],
+
+            // Fixed pairs for pairing constraint
+            'fixed_pairs' => ['sometimes', 'array'],
+            'fixed_pairs.*.player1_id' => ['required', 'integer'],
+            'fixed_pairs.*.player2_id' => ['required', 'integer'],
+            'fixed_pairs.*.player1_is_guest' => ['sometimes', 'boolean'],
+            'fixed_pairs.*.player2_is_guest' => ['sometimes', 'boolean'],
 
             // Optional
             'seed' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:999999'],
@@ -41,8 +48,9 @@ class MatchSuggestionRequest extends FormRequest
             'participants.array' => 'Danh sách participants phải là mảng.',
             'participants.min' => 'Cần ít nhất 1 participant.',
             'participants.*.mini_participant_id.required' => 'mini_participant_id là bắt buộc.',
-            'participants.*.tier.required' => 'tier là bắt buộc.',
             'participants.*.tier.in' => 'tier phải là purple, red, yellow hoặc green.',
+            'fixed_pairs.*.player1_id.required' => 'player1_id là bắt buộc.',
+            'fixed_pairs.*.player2_id.required' => 'player2_id là bắt buộc.',
             'seed.integer' => 'Seed phải là số nguyên.',
             'seed.min' => 'Seed phải lớn hơn 0.',
             'seed.max' => 'Seed không được lớn hơn 999999.',

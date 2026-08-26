@@ -16,6 +16,7 @@ import { SESSION_STATUS, MATCH_FORMAT } from '@/constants/index.js';
 import MiniTournamentLeaderboard from '@/components/molecules/MiniTournamentLeaderboard.vue';
 import SessionScheduleRound from '@/components/molecules/session-schedule-round/SessionScheduleRound.vue';
 import MatchScoreInput from '@/components/molecules/MatchScoreInput.vue';
+import MatchSuggestionModal from '@/components/molecules/match-suggestion/MatchSuggestionModal.vue';
 
 const SESSION_SUBTABS = [
     { id: 'format', label: 'Thể thức' },
@@ -37,6 +38,7 @@ export default {
             MiniTournamentLeaderboard,
             SessionScheduleRound,
             MatchScoreInput,
+            MatchSuggestionModal,
         },
     props: {
         isCreator: {
@@ -94,6 +96,9 @@ export default {
         const showStandardFormatSelection = ref(false) // Toggle format selection in standard format
         const selectedCourtFilter = ref(null) // Court filter for standard format
         const assignedCourts = ref([]) // Courts that have been assigned to matches
+
+        // Match Suggestion Modal State
+        const showMatchSuggestionModal = ref(false)
 
         const selectedRoundData = computed(() => {
             return sessionSchedule.value.find(r => r.round_number === currentRound.value) || null
@@ -779,7 +784,30 @@ export default {
         })
 
         const confirmedParticipants = computed(() => {
-            return (props.data?.participants || []).filter(p => p.is_confirmed && !p.is_absent)
+            const participants = props.data?.participants || [];
+            
+            // Debug: log first participant structure
+            if (participants.length > 0) {
+                console.log('[MiniMatchScheduleTab] Sample participant:', JSON.stringify(participants[0], null, 2));
+            }
+            
+            const result = participants.filter(p => {
+                if (!p.is_confirmed) return false;
+                if (p.is_absent) return false;
+                
+                // Nếu có entry_fee, check payment status
+                if (props.data.entry_fee > 0) {
+                    return p.payment_status === 'confirmed';
+                }
+                
+                return true;
+            });
+            
+            console.log('[MiniMatchScheduleTab] Total participants:', participants.length);
+            console.log('[MiniMatchScheduleTab] Confirmed participants:', result.length);
+            console.log('[MiniMatchScheduleTab] Entry fee:', props.data.entry_fee);
+            
+            return result;
         })
 
         const groupCounts = computed(() => {
@@ -827,6 +855,65 @@ export default {
                 playerGroups.value = { ...playerGroups.value, [participantId]: '' }
             } else {
                 playerGroups.value = { ...playerGroups.value, [participantId]: group }
+            }
+        }
+
+        // Match Suggestion Handler
+        const onMatchSuggestionAccepted = async (data) => {
+            console.log('[MiniMatchScheduleTab] Match suggestion accepted:', data);
+            
+            try {
+                const match = data.suggestion.match;
+
+                // The suggestion API returns team members under `members`, while
+                // the save API expects a flat array of user IDs for each team.
+                const getUserIds = (team) => (team?.members || [])
+                    .map(member => member.user_id ?? member.user?.id)
+                    .filter(Boolean);
+
+                const team1 = getUserIds(match.team1);
+                const team2 = getUserIds(match.team2);
+
+                if (
+                    !team1.length ||
+                    !team2.length ||
+                    team1.length !== match.team1?.members?.length ||
+                    team2.length !== match.team2?.members?.length
+                ) {
+                    toast.error('Chưa thể tạo trận từ gợi ý có người chơi khách');
+                    return;
+                }
+
+                const payload = {
+                    team1,
+                    team2,
+                    team1_name: match.team1?.name,
+                    team2_name: match.team2?.name,
+                };
+                
+                console.log('[MiniMatchScheduleTab] Saving match:', payload);
+                
+                // Call save API
+                await MiniMatchService.saveMiniMatch(props.data.id, payload);
+                
+                showMatchSuggestionModal.value = false;
+                toast.success('Đã tạo trận đấu thành công!');
+                
+                // Refresh data
+                emit('refresh-data');
+            } catch (error) {
+                console.error('Save match error:', error);
+                // Show detailed error message
+                const errorData = error.response?.data;
+                if (errorData?.errors) {
+                    // Laravel validation errors
+                    const validationErrors = Object.values(errorData.errors).flat().join(', ');
+                    toast.error(validationErrors || 'Lỗi xác thực dữ liệu');
+                } else if (errorData?.message) {
+                    toast.error(errorData.message);
+                } else {
+                    toast.error('Có lỗi xảy ra khi tạo trận');
+                }
             }
         }
 
@@ -914,6 +1001,10 @@ export default {
             selectedCourtFilter,
             assignedCourts,
             onCourtFilterChange,
+            // Match Suggestion
+            showMatchSuggestionModal,
+            onMatchSuggestionAccepted,
+            MATCH_FORMAT,
         }
     }
 }

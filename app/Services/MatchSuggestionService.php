@@ -89,6 +89,11 @@ class MatchSuggestionService
     ): MatchSuggestionResponseDTO {
         $miniTournamentId = $request->mini_tournament_id;
 
+        \Log::info('[MatchSuggestion/regenerate] Request fixed_pairs count: ' . count($request->fixed_pairs));
+        foreach ($request->fixed_pairs as $idx => $pair) {
+            \Log::info("[MatchSuggestion/regenerate] Fixed pair $idx: p1={$pair->player1_id}(guest={$pair->player1_is_guest}), p2={$pair->player2_id}(guest={$pair->player2_is_guest})");
+        }
+
         // Get mini tournament to check if payment is required
         $miniTournament = \App\Models\MiniTournament::find($miniTournamentId);
         $needsPaymentCheck = $miniTournament
@@ -137,6 +142,9 @@ class MatchSuggestionService
         $evaluation = $this->schedulerService->enumerateCandidates($pool, $request, $userDataMap, $existingSignatures);
         $candidates = $evaluation['candidates'];
         $totalCandidates = (int) $evaluation['total_candidates'];
+
+        \Log::info("[MatchSuggestion/regenerate] Total candidates after enumerate: " . count($candidates));
+        \Log::info("[MatchSuggestion/regenerate] Pool size for rotation: " . count($pool));
 
         if (empty($candidates)) {
             return $this->schedulerService->generate(
@@ -357,15 +365,16 @@ class MatchSuggestionService
     }
 
     /**
-     * Build player contexts: merge FE data (tier) with DB data (stats, gender, vndupr).
+     * Build player contexts: merge FE data (tier) with DB data (stats, vndupr).
      * 
-     * IMPORTANT: Gender is read from mini_participants.modify_gender if set, otherwise from users table.
+     * IMPORTANT: Tier is read from Frontend request if provided.
+     * Gender is always read from users table (not modify_gender).
      * Guests are included in the pool - they should be treated as normal participants.
      */
     private function buildPlayerContexts(int $miniTournamentId, array $feParticipants, bool $needsPaymentCheck): array
     {
         // FE sends mini_participant_id + tier
-        // Create lookup map
+        // Create lookup map for tier only
         $feTierMap = [];
         foreach ($feParticipants as $feP) {
             $feTierMap[$feP->mini_participant_id] = $feP->tier;
@@ -414,8 +423,8 @@ class MatchSuggestionService
             $avatarUrl = $user?->avatar_url
                 ?? $participant->guest_avatar;
 
-            // Gender: prioritize modify_gender (set by organizer/admin), fallback to user->gender
-            $gender = $participant->modify_gender ?? $user?->gender ?? null;
+            // Gender: from user.gender (not modify_gender)
+            $gender = $user?->gender ?? null;
 
             // VN DUPR score
             $vnduprScore = $userId ? ($vnduprScores[$userId] ?? null) : null;
@@ -426,6 +435,11 @@ class MatchSuggestionService
 
             // Use tier from Frontend (source of truth), don't recalculate
             $tier = $feP->tier;
+
+            $isPlaying = in_array($miniParticipantId, $playingParticipants);
+            $skipNextRound = $participant->skip_next_round ?? false;
+            $isAbsent = $participant->is_absent;
+            $isBackup = in_array($userId, $staffUserIds);
 
             $players[] = new PlayerContextDTO(
                 mini_participant_id: $miniParticipantId,
@@ -443,13 +457,25 @@ class MatchSuggestionService
                 vndupr_score: $vnduprScore,
                 partner_ids: $partnerIds,
                 is_checked_in: $participant->checked_in_at !== null,
-                is_playing: in_array($miniParticipantId, $playingParticipants),
-                skip_next_round: $participant->skip_next_round ?? false,
-                is_absent: $participant->is_absent,
+                is_playing: $isPlaying,
+                skip_next_round: $skipNextRound,
+                is_absent: $isAbsent,
                 payment_status: $needsPaymentCheck ? ($participant->payment_status?->value ?? null) : null,
-                is_backup: in_array($userId, $staffUserIds),
+                is_backup: $isBackup,
             );
+
+            // Debug log
+            \Log::info("[MatchSuggestion] Player: {$fullName} (ID: {$miniParticipantId})", [
+                'is_playing' => $isPlaying,
+                'skip_next_round' => $skipNextRound,
+                'is_absent' => $isAbsent,
+                'is_backup' => $isBackup,
+                'consecutive_count' => $consecutiveCounts[$miniParticipantId] ?? 0,
+            ]);
         }
+
+        \Log::info("[MatchSuggestion] Total players built: " . count($players));
+        \Log::info("[MatchSuggestion] Playing participants: " . json_encode($playingParticipants));
 
         return $players;
     }

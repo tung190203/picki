@@ -40,6 +40,30 @@ export const resetPassword = async (data) => {
   return axiosInstance.post(`${authEndpoint}/reset-password`, data).then((response) => response.data.data);
 };
 
+export const getBiometricChallenge = async () => {
+  return axiosInstance.post(`${authEndpoint}/biometric/challenge`).then((response) => response.data.data);
+};
+
+export const loginWithBiometric = async (data) => {
+  return axiosInstance.post(`${authEndpoint}/biometric/login`, data).then((response) => response.data.data);
+};
+
+export const registerBiometric = async (data) => {
+  return axiosInstance.post(`${authEndpoint}/biometric/register`, data).then((response) => response.data.data);
+};
+
+export const listBiometrics = async () => {
+  return axiosInstance.get(`${authEndpoint}/biometric/list`).then((response) => response.data.data);
+};
+
+export const deleteBiometric = async (id) => {
+  return axiosInstance.delete(`${authEndpoint}/biometric/${id}`).then((response) => response.data.data);
+};
+
+export const updateUserSettings = async (data) => {
+  return axiosInstance.post('/user/settings', data).then((response) => response.data.data);
+};
+
 export const updateUser = async (data) => {
   return axiosInstance.post(`${userEndpoint}/update`, data).then((response) => response.data.data);
 }

@@ -124,6 +124,10 @@ Route::prefix('auth')->group(function () {
     Route::post('/google', [AuthController::class, 'loginWithGoogle']);
     Route::post('/facebook', [AuthController::class, 'loginWithFacebook']);
     Route::post('/apple',[AuthController::class, 'loginWithApple']);
+
+    // Biometrics Auth
+    Route::post('/biometric/challenge', [AuthController::class, 'getBiometricChallenge']);
+    Route::post('/biometric/login', [AuthController::class, 'loginWithBiometric']);
 });
 
 Route::get('/verify-email', [VerificationController::class, 'verify']);
@@ -165,6 +169,10 @@ Route::match(['get', 'post'], '/courts/search', [SearchV2Controller::class, 'sea
 
 // Clubs API: không throttle để mobile gọi nhiều không bị lỗi 429
 Route::middleware(['auth:api', 'update.last_login'])->group(function () {
+    Route::post('/auth/biometric/register', [AuthController::class, 'registerBiometric']);
+    Route::get('/auth/biometric/list', [AuthController::class, 'listBiometrics']);
+    Route::delete('/auth/biometric/{id}', [AuthController::class, 'deleteBiometric']);
+
 Route::prefix('clubs')->middleware(['performance'])->group(function () {
     Route::get('/', [ClubController::class, 'index']);
     Route::post('/', [ClubController::class, 'store']);
@@ -892,6 +900,11 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     Route::prefix('mini-tournaments')->group(function () {
         Route::post('/{miniTournamentId}/participants/{participantId}/modify-score', [MiniParticipantController::class, 'modifyScore']);
         Route::post('/{miniTournamentId}/participants/{participantId}/modify-gender', [MiniParticipantController::class, 'modifyGender']);
+
+        // Player pairs for fixed pairing
+        Route::get('/{miniTournamentId}/player-pairs', [MiniTournamentController::class, 'getPlayerPairs']);
+        Route::post('/{miniTournamentId}/player-pairs', [MiniTournamentController::class, 'createPlayerPair']);
+        Route::delete('/{miniTournamentId}/player-pairs/{pairId}', [MiniTournamentController::class, 'deletePlayerPair']);
     });
 
     Route::prefix('match-suggestions')->group(function () {
@@ -966,4 +979,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     Route::prefix('score-verifications')->group(function () {
         Route::post('/', [ScoreVerificationController::class, 'store']);
     });
+
+    // User Settings Route
+    Route::post('/user/settings', [AuthController::class, 'updateSettings']);
 });

@@ -21,8 +21,8 @@ class PlayerContextDTO
         public readonly PlayerTier $tier,
         public readonly bool $is_manual_override,
 
-        // Gender (from DB, not FE)
-        public readonly ?int $gender,
+        // Gender (from Frontend or DB)
+        public readonly ?string $gender,
 
         // Guest flag
         public readonly bool $is_guest,
@@ -56,15 +56,21 @@ class PlayerContextDTO
 
     public static function fromArray(array $data): self
     {
-        $tier = $data['tier'];
-        if (is_string($tier)) {
-            $tier = PlayerTier::from($tier);
+        $tierRaw = $data['tier'] ?? 'green';
+        if (is_string($tierRaw)) {
+            try {
+                $tier = PlayerTier::from($tierRaw);
+            } catch (\ValueError) {
+                $tier = PlayerTier::GREEN;
+            }
+        } else {
+            $tier = $tierRaw;
         }
 
         return new self(
-            mini_participant_id: $data['mini_participant_id'],
+            mini_participant_id: (int) $data['mini_participant_id'],
             user_id: $data['user_id'] ?? null,
-            full_name: $data['full_name'],
+            full_name: $data['full_name'] ?? '',
             avatar_url: $data['avatar_url'] ?? null,
             tier: $tier,
             is_manual_override: $data['is_manual_override'] ?? false,

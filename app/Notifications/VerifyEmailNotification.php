@@ -23,16 +23,23 @@ class VerifyEmailNotification extends Notification implements ShouldQueue
 
     public function via($notifiable)
     {
-        return $this->type === 'email' ? ['mail'] : ['database'];
-        // Với 'phone' bạn có thể thay 'database' bằng service SMS thực tế (Twilio, ViettelSMS, v.v.)
+        $this->generateOtpCode();
+
+        if ($this->type === 'email') {
+            return ['mail'];
+        }
+
+        // If user has email registered, also send email as fallback
+        if (!empty($notifiable->email)) {
+            return ['mail', 'database'];
+        }
+
+        return ['database'];
     }
 
-    /**
-     * Get the mail representation of the notification.
-     */
-    public function toMail($notifiable)
+    protected function generateOtpCode(): string
     {
-        $otp = rand(100000, 999999);
+        $otp = (string) rand(100000, 999999);
 
         DB::table('verification_codes')->updateOrInsert(
             ['type' => $this->type, 'identifier' => $this->identifier],
@@ -43,6 +50,23 @@ class VerifyEmailNotification extends Notification implements ShouldQueue
                 'created_at' => now(),
             ]
         );
+
+        \Illuminate\Support\Facades\Log::info("Generated OTP {$otp} for {$this->type}: {$this->identifier}");
+
+        return $otp;
+    }
+
+    /**
+     * Get the mail representation of the notification.
+     */
+    public function toMail($notifiable)
+    {
+        $record = DB::table('verification_codes')
+            ->where('type', $this->type)
+            ->where('identifier', $this->identifier)
+            ->first();
+
+        $otp = $record ? $record->otp : rand(100000, 999999);
 
         // Dữ liệu truyền qua view
         $data = [
