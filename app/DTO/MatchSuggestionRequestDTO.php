@@ -13,9 +13,12 @@ class ParticipantTierDTO
 
     public static function fromArray(array $data): self
     {
-        $tier = $data['tier'];
+        $tier = $data['tier'] ?? null;
         if (is_string($tier)) {
             $tier = PlayerTier::from($tier);
+        } elseif ($tier === null) {
+            // Default to Green when tier is not provided
+            $tier = PlayerTier::Green;
         }
 
         return new self(

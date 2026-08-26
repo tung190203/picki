@@ -903,7 +903,17 @@ export default {
                 emit('refresh-data');
             } catch (error) {
                 console.error('Save match error:', error);
-                toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi tạo trận');
+                // Show detailed error message
+                const errorData = error.response?.data;
+                if (errorData?.errors) {
+                    // Laravel validation errors
+                    const validationErrors = Object.values(errorData.errors).flat().join(', ');
+                    toast.error(validationErrors || 'Lỗi xác thực dữ liệu');
+                } else if (errorData?.message) {
+                    toast.error(errorData.message);
+                } else {
+                    toast.error('Có lỗi xảy ra khi tạo trận');
+                }
             }
         }
 

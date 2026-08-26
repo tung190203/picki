@@ -17,7 +17,7 @@ class MatchSuggestionRequest extends FormRequest
             // mini_tournament_id is in URL, not body
             'participants' => ['required', 'array', 'min:1'],
             'participants.*.mini_participant_id' => ['required', 'integer'],
-            'participants.*.tier' => ['required', 'string', 'in:purple,red,yellow,green'],
+            'participants.*.tier' => ['sometimes', 'nullable', 'string', 'in:purple,red,yellow,green'],
 
             // Settings
             'settings' => ['sometimes', 'array'],
@@ -41,7 +41,6 @@ class MatchSuggestionRequest extends FormRequest
             'participants.array' => 'Danh sách participants phải là mảng.',
             'participants.min' => 'Cần ít nhất 1 participant.',
             'participants.*.mini_participant_id.required' => 'mini_participant_id là bắt buộc.',
-            'participants.*.tier.required' => 'tier là bắt buộc.',
             'participants.*.tier.in' => 'tier phải là purple, red, yellow hoặc green.',
             'seed.integer' => 'Seed phải là số nguyên.',
             'seed.min' => 'Seed phải lớn hơn 0.',

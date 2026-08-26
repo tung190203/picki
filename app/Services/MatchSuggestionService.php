@@ -357,15 +357,16 @@ class MatchSuggestionService
     }
 
     /**
-     * Build player contexts: merge FE data (tier) with DB data (stats, gender, vndupr).
+     * Build player contexts: merge FE data (tier) with DB data (stats, vndupr).
      * 
-     * IMPORTANT: Gender is read from mini_participants.modify_gender if set, otherwise from users table.
+     * IMPORTANT: Tier is read from Frontend request if provided.
+     * Gender is always read from users table (not modify_gender).
      * Guests are included in the pool - they should be treated as normal participants.
      */
     private function buildPlayerContexts(int $miniTournamentId, array $feParticipants, bool $needsPaymentCheck): array
     {
         // FE sends mini_participant_id + tier
-        // Create lookup map
+        // Create lookup map for tier only
         $feTierMap = [];
         foreach ($feParticipants as $feP) {
             $feTierMap[$feP->mini_participant_id] = $feP->tier;
@@ -414,8 +415,8 @@ class MatchSuggestionService
             $avatarUrl = $user?->avatar_url
                 ?? $participant->guest_avatar;
 
-            // Gender: prioritize modify_gender (set by organizer/admin), fallback to user->gender
-            $gender = $participant->modify_gender ?? $user?->gender ?? null;
+            // Gender: from user.gender (not modify_gender)
+            $gender = $user?->gender ?? null;
 
             // VN DUPR score
             $vnduprScore = $userId ? ($vnduprScores[$userId] ?? null) : null;

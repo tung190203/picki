@@ -21,8 +21,8 @@ class PlayerContextDTO
         public readonly PlayerTier $tier,
         public readonly bool $is_manual_override,
 
-        // Gender (from DB, not FE)
-        public readonly ?int $gender,
+        // Gender (from Frontend or DB)
+        public readonly ?string $gender,
 
         // Guest flag
         public readonly bool $is_guest,
