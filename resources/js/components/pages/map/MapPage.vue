@@ -196,7 +196,7 @@
                                             ? 'bg-[#D72D36] text-white border border-[#D72D36]'
                                             : 'border border-[#BBBFCC] bg-white text-gray-700 hover:border-gray-400'
                                     ]">
-                                        <img v-if="sport.icon" :src="sport.icon" class="w-4 h-4"
+                                        <img v-if="sport.icon" :src="sport.icon" class="w-4 h-4 dark:invert dark:brightness-200"
                                             :class="{ 'filter brightness-0 invert': selectedSportId === sport.id }"
                                             draggable="false" />
                                         {{ sport.name }}
@@ -211,13 +211,7 @@
                                 <p class="font-medium text-gray-900 text-xl">
                                     Hiển thị sân bóng tôi theo dõi
                                 </p>
-                                <button @click="isShowMyFollow = !isShowMyFollow"
-                                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                    :class="isShowMyFollow ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                    <span
-                                        class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                        :class="isShowMyFollow ? 'translate-x-6' : 'translate-x-1'" />
-                                </button>
+                                <Toggle v-model="isShowMyFollow" />
                             </div>
 
                             <!-- Xung quanh -->
@@ -429,7 +423,7 @@
                                             ? 'bg-[#D72D36] text-white border border-[#D72D36]'
                                             : 'border border-[#BBBFCC] bg-white text-gray-700 hover:border-gray-400'
                                     ]">
-                                        <img v-if="sport.icon" :src="sport.icon" class="w-4 h-4"
+                                        <img v-if="sport.icon" :src="sport.icon" class="w-4 h-4 dark:invert dark:brightness-200"
                                             :class="{ 'filter brightness-0 invert': selectedSportId === sport.id }"
                                             draggable="false" />
                                         {{ sport.name }}
@@ -718,7 +712,7 @@
                                             ? 'bg-[#D72D36] text-white border border-[#D72D36]'
                                             : 'border border-[#BBBFCC] bg-white text-gray-700 hover:border-gray-400'
                                     ]">
-                                        <img v-if="sport.icon" :src="sport.icon" class="w-4 h-4"
+                                        <img v-if="sport.icon" :src="sport.icon" class="w-4 h-4 dark:invert dark:brightness-200"
                                             :class="{ 'filter brightness-0 invert': selectedSportId === sport.id }"
                                             draggable="false" />
                                         {{ sport.name }}
@@ -845,25 +839,13 @@
                                     <p class="font-medium text-gray-900 text-xl">
                                         Người chơi yêu thích
                                     </p>
-                                    <button @click="isShowFavoritePlayer = !isShowFavoritePlayer"
-                                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                        :class="isShowFavoritePlayer ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                        <span
-                                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                            :class="isShowFavoritePlayer ? 'translate-x-6' : 'translate-x-1'" />
-                                    </button>
+                                    <Toggle v-model="isShowFavoritePlayer" />
                                 </div>
                                 <div class="flex justify-between items-center">
                                     <p class="font-medium text-gray-900 text-xl">
                                         Có kết nối với bạn
                                     </p>
-                                    <button @click="isConnected = !isConnected"
-                                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                        :class="isConnected ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                        <span
-                                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                            :class="isConnected ? 'translate-x-6' : 'translate-x-1'" />
-                                    </button>
+                                    <Toggle v-model="isConnected" />
                                 </div>
                                 <div class="flex justify-between items-center">
                                     <p class="font-medium text-gray-900 text-xl">Giới tính</p>
@@ -1029,25 +1011,13 @@
                                     <p class="font-medium text-gray-900 text-xl">
                                         Đã xác thực profile
                                     </p>
-                                    <button @click="is_verify_profile = !is_verify_profile"
-                                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                        :class="is_verify_profile ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                        <span
-                                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                            :class="is_verify_profile ? 'translate-x-6' : 'translate-x-1'" />
-                                    </button>
+                                    <Toggle v-model="is_verify_profile" />
                                 </div>
                                 <div class="flex justify-between items-center">
                                     <p class="font-medium text-gray-900 text-xl">
                                         Thành tích, giải thưởng
                                     </p>
-                                    <button @click="isHasAchievement = !isHasAchievement"
-                                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                        :class="isHasAchievement ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                        <span
-                                            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                            :class="isHasAchievement ? 'translate-x-6' : 'translate-x-1'" />
-                                    </button>
+                                    <Toggle v-model="isHasAchievement" />
                                 </div>
                             </div>
                         </div>
@@ -1099,7 +1069,7 @@
                                             ? 'bg-[#D72D36] text-white border border-[#D72D36]'
                                             : 'border border-[#BBBFCC] bg-white text-gray-700 hover:border-gray-400'
                                     ]">
-                                        <img v-if="sport.icon" :src="sport.icon" class="w-4 h-4"
+                                        <img v-if="sport.icon" :src="sport.icon" class="w-4 h-4 dark:invert dark:brightness-200"
                                             :class="{ 'filter brightness-0 invert': selectedSportId === sport.id }"
                                             draggable="false" />
                                         {{ sport.name }}
@@ -1369,6 +1339,7 @@ import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { FunnelIcon, MagnifyingGlassIcon, XMarkIcon, ArrowPathIcon, ChevronRightIcon } from '@heroicons/vue/24/outline';
+import Toggle from '@/components/atoms/Toggle.vue';
 import { toast } from 'vue3-toastify';
 import * as MapService from '@/service/map.js';
 import * as SearchService from '@/service/search.js';

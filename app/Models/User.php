@@ -69,6 +69,8 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'trust_score',
         'is_merged',
         'merged_into_user_id',
+        'theme_mode',
+        'settings',
     ];
 
     const PER_PAGE = 15;
@@ -214,6 +216,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'is_banned' => 'boolean',
         'banned_at' => 'datetime',
         'trust_score' => 'float',
+        'settings' => 'array',
     ];
     public function setPasswordAttribute($password)
     {
@@ -2094,5 +2097,10 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         }
 
         return $result;
+    }
+
+    public function biometrics()
+    {
+        return $table = $this->hasMany(\App\Models\UserBiometric::class);
     }
 }

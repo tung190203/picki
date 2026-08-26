@@ -207,12 +207,7 @@
                                 <p class="text-sm font-medium text-gray-700">Tích điểm DUPR</p>
                                 <p class="text-xs text-gray-500">Cập nhật điểm DUPR cho người chơi</p>
                             </div>
-                            <button @click="toggleDUPR"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                :class="duprEnabled ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="duprEnabled ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
+                            <Toggle :model-value="duprEnabled" @update:model-value="toggleDUPR" />
                         </div>
 
                         <div class="flex items-center justify-between pb-3 border-b border-[#DCDEE6]">
@@ -220,12 +215,7 @@
                                 <p class="text-sm font-medium text-gray-700">Tích điểm PICKI</p>
                                 <p class="text-xs text-gray-500">Cập nhật điểm PICKI cho người chơi</p>
                             </div>
-                            <button @click="toggleVNDUPR"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                :class="vnduprEnabled ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="vnduprEnabled ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
+                            <Toggle :model-value="vnduprEnabled" @update:model-value="toggleVNDUPR" />
                         </div>
 
                         <!-- Trình độ tối thiểu -->
@@ -405,12 +395,7 @@
                                 <p class="text-sm font-medium text-gray-700">Thu phí tham gia</p>
                                 <p class="text-xs text-gray-500">Thu tiền từ người tham gia</p>
                             </div>
-                            <button @click="hasFee = !hasFee"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                :class="hasFee ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="hasFee ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
+                            <Toggle v-model="hasFee" />
                         </div>
 
                         <template v-if="hasFee">
@@ -420,12 +405,7 @@
                                     <p class="text-sm font-medium text-gray-700">Chia tiền tự động</p>
                                     <p class="text-xs text-gray-500">Tổng tiền / số người</p>
                                 </div>
-                                <button @click="autoSplitFee = !autoSplitFee"
-                                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                    :class="autoSplitFee ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                        :class="autoSplitFee ? 'translate-x-6' : 'translate-x-1'" />
-                                </button>
+                                <Toggle v-model="autoSplitFee" />
                             </div>
 
                             <!-- Phí tham gia -->
@@ -547,12 +527,7 @@
                                 <p class="text-sm font-medium text-gray-700">Duyệt tự động</p>
                                 <p class="text-xs text-gray-500">Tự động chấp nhận người đăng ký</p>
                             </div>
-                            <button @click="autoApprove = !autoApprove"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                :class="autoApprove ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="autoApprove ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
+                            <Toggle v-model="autoApprove" />
                         </div>
 
                         <!-- Nhánh công khai -->
@@ -561,12 +536,7 @@
                                 <p class="text-sm font-medium text-gray-700">Nhánh công khai</p>
                                 <p class="text-xs text-gray-500">Hiển thị lịch thi đấu công khai</p>
                             </div>
-                            <button @click="isPublicBranch = !isPublicBranch"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                :class="isPublicBranch ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="isPublicBranch ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
+                            <Toggle v-model="isPublicBranch" />
                         </div>
 
                         <!-- Tự ghi điểm -->
@@ -575,12 +545,7 @@
                                 <p class="text-sm font-medium text-gray-700">Tự ghi điểm</p>
                                 <p class="text-xs text-gray-500">Người tham gia tự nhập kết quả</p>
                             </div>
-                            <button @click="isOwnScore = !isOwnScore"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                :class="isOwnScore ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="isOwnScore ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
+                            <Toggle v-model="isOwnScore" />
                         </div>
 
                         <!-- Tôi tham gia giải đấu -->
@@ -589,12 +554,7 @@
                                 <p class="text-sm font-medium text-gray-700">Tôi tham gia giải đấu</p>
                                 <p class="text-xs text-gray-500">Đăng ký tham gia với tư cách VĐV</p>
                             </div>
-                            <button @click="toggleCreatorJoin"
-                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                                :class="creatorJoin ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                                    :class="creatorJoin ? 'translate-x-6' : 'translate-x-1'" />
-                            </button>
+                            <Toggle :model-value="creatorJoin" @update:model-value="toggleCreatorJoin" />
                         </div>
                     </div>
                 </div>
@@ -755,6 +715,7 @@ import '@vuepic/vue-datepicker/dist/main.css'
 import { vi } from 'date-fns/locale'
 import { ChevronDownIcon, ChevronRightIcon, XCircleIcon, XMarkIcon } from "@heroicons/vue/24/solid";
 import { CalendarDaysIcon, CalendarIcon, ClockIcon, MapPinIcon, StarIcon, ArrowUpTrayIcon } from "@heroicons/vue/24/outline";
+import Toggle from '@/components/atoms/Toggle.vue'
 import * as TournamentService from '@/service/tournament'
 import * as SportService from '@/service/sport'
 import * as CompetitionLocationService from '@/service/competitionLocation'

@@ -4,14 +4,14 @@
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900 bg-opacity-50 backdrop-blur-sm"
       @click.self="closeModal">
 
-      <div class="bg-white rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 overflow-hidden"
+      <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 overflow-hidden"
         role="dialog" aria-modal="true">
 
-        <div class="p-5 border-b border-gray-100 flex items-center justify-between">
-          <h3 class="text-xl font-semibold text-gray-900">
+        <div class="p-5 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
+          <h3 class="text-xl font-semibold text-gray-900 dark:text-slate-100">
             Huỷ sự kiện
           </h3>
-          <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
+          <button @click="closeModal" class="text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white transition-colors">
             <XMarkIcon class="w-6 h-6" />
           </button>
         </div>
@@ -19,42 +19,42 @@
         <div class="p-5 space-y-4">
           <div>
             <div class="flex items-center justify-between">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Lý do huỷ sự kiện</label>
-                <p class="text-sm text-gray-500">{{ reason.length }}/300</p>
+                <label class="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">Lý do huỷ sự kiện</label>
+                <p class="text-sm text-gray-500 dark:text-slate-400">{{ reason.length }}/300</p>
             </div>
             <textarea
               v-model="reason"
               rows="3"
               maxlength="300"
-              class="w-full px-3 py-2 bg-[#F8F9FA] rounded-lg resize-none focus:outline-none focus:bg-white focus:border-[#D72D36] focus:ring-1 focus:ring-[#D72D36]"
+              class="w-full px-3 py-2 bg-[#F8F9FA] dark:bg-slate-800 border border-transparent dark:border-slate-700 rounded-lg text-gray-900 dark:text-slate-100 placeholder:text-gray-400 dark:placeholder:text-slate-500 resize-none focus:outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-[#D72D36] focus:ring-1 focus:ring-[#D72D36]"
               placeholder="Nhập lý do huỷ..."
             ></textarea>
           </div>
 
-          <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+          <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-800/60 rounded-lg border border-gray-100 dark:border-slate-700">
             <div>
-              <div class="text-sm font-medium text-gray-900">Hoàn tiền</div>
-              <div class="text-xs text-gray-500">Tự động hoàn trả phí cho người tham gia</div>
+              <div class="text-sm font-medium text-gray-900 dark:text-slate-100">Hoàn tiền</div>
+              <div class="text-xs text-gray-500 dark:text-slate-400">Tự động hoàn trả phí cho người tham gia</div>
             </div>
             <Toggle v-model="refund" />
           </div>
 
-          <div v-if="recurrenceSeriesId" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+          <div v-if="recurrenceSeriesId" class="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-800/60 rounded-lg border border-gray-100 dark:border-slate-700">
             <div>
-              <div class="text-sm font-medium text-gray-900">Hủy chuỗi</div>
-              <div class="text-xs text-gray-500">Hủy toàn bộ chuỗi sự kiện</div>
+              <div class="text-sm font-medium text-gray-900 dark:text-slate-100">Hủy chuỗi</div>
+              <div class="text-xs text-gray-500 dark:text-slate-400">Hủy toàn bộ chuỗi sự kiện</div>
             </div>
             <Toggle v-model="cancelSeries" />
           </div>
 
-          <p class="text-[13px] text-amber-600 bg-amber-50 p-2 rounded border border-amber-100 italic">
+          <p class="text-[13px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 p-2 rounded border border-amber-100 dark:border-amber-900/60 italic">
             * Lưu ý: Thao tác huỷ sự kiện không thể hoàn tác.
           </p>
         </div>
 
-        <div class="px-5 py-4 bg-gray-50 flex justify-end gap-3">
+        <div class="px-5 py-4 bg-gray-50 dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 flex justify-end gap-3">
           <button @click="closeModal"
-            class="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+            class="px-5 py-2 text-sm font-medium text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
             Đóng
           </button>
           <button @click="handleConfirm"

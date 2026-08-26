@@ -3,7 +3,7 @@
         @click.self="$emit('close')">
         <!-- Modal content with animation -->
         <div
-            class="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-2xl p-8 w-full max-w-md relative transform transition-all">
+            class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-md relative transform transition-all">
             <!-- Top gradient overlay - THÊM pointer-events-none -->
             <div
                 class="absolute top-0 left-0 right-0 h-32 bg-gradient-to-br from-[#db2627] via-[#e63946] to-[#ff6b6b] rounded-t-2xl opacity-20 pointer-events-none">
@@ -25,7 +25,7 @@
                     class="text-2xl font-bold text-center bg-gradient-to-r from-[#db2627] via-[#e63946] to-[#ff6b6b] bg-clip-text text-transparent">
                     Scan QR Code
                 </h2>
-                <p class="text-center text-gray-500 text-sm mt-2">
+                <p class="text-center text-gray-500 dark:text-slate-400 text-sm mt-2">
                     Quét mã để truy cập nhanh
                 </p>
             </div>
@@ -33,14 +33,14 @@
             <!-- QR Code Container -->
             <div class="flex justify-center mb-6">
                 <div
-                    class="bg-white p-6 rounded-2xl shadow-lg border-4 border-gray-100 hover:border-[#db2627]/30 transition-all duration-300 hover:shadow-xl">
+                    class="bg-white p-6 rounded-2xl shadow-lg border-4 border-gray-100 dark:border-slate-700 hover:border-[#db2627]/30 transition-all duration-300 hover:shadow-xl">
                     <qrcode-vue :value="value" :size="220" level="H" />
                 </div>
             </div>
 
             <!-- URL Display -->
-            <div class="bg-gray-100 rounded-xl p-3 mb-4 border border-gray-200">
-                <p class="text-xs text-gray-600 text-center truncate font-mono">
+            <div class="bg-gray-100 dark:bg-[#1E293B] rounded-xl p-3 mb-4 border border-gray-200 dark:border-slate-700">
+                <p class="text-xs text-gray-600 dark:text-slate-300 text-center truncate font-mono">
                     {{ value }}
                 </p>
             </div>

@@ -3,7 +3,7 @@
         <!-- Header -->
         <div class="flex justify-between items-center mb-8">
             <div></div>
-            <span class="text-xs text-gray-400 italic">Cập nhật lúc: {{ formattedUpdateTime }}</span>
+            <span class="text-xs text-gray-400 dark:text-slate-400 italic">Cập nhật lúc: {{ formattedUpdateTime }}</span>
         </div>
 
         <!-- Top 3 Section -->
@@ -20,14 +20,14 @@
                     </div>
                 </div>
                 <div class="text-center">
-                    <h3 class="font-semibold text-gray-800 text-lg leading-tight line-clamp-1">{{ topThree[1].user.full_name }}</h3>
+                    <h3 class="font-semibold text-gray-800 dark:text-slate-100 text-lg leading-tight line-clamp-1">{{ topThree[1].user.full_name }}</h3>
                     <div class="text-[#4F80FF] font-bold text-xl">{{ topThree[1].vndupr_score }}</div>
                 </div>
             </div>
 
             <!-- Rank 1 -->
             <div v-if="topThree[0]" class="flex flex-col items-center flex-1 max-w-[140px] -mt-6">
-                <span class="text-xl font-semibold text-[#D72D36] mb-2">Top 1</span>
+                <span class="text-xl font-semibold text-[#D72D36] dark:text-red-400 mb-2">Top 1</span>
                 <div class="relative mb-3">
                     <div class="absolute top-[80px] left-1/2 -translate-x-1/2">
                         <div
@@ -43,8 +43,8 @@
                     </div>
                 </div>
                 <div class="text-center">
-                    <h3 class="font-semibold text-gray-800 text-xl leading-tight line-clamp-1">{{ topThree[0].user.full_name }}</h3>
-                    <div class="text-[#D72D36] font-bold text-2xl">{{ topThree[0].vndupr_score }}</div>
+                    <h3 class="font-semibold text-gray-800 dark:text-slate-100 text-xl leading-tight line-clamp-1">{{ topThree[0].user.full_name }}</h3>
+                    <div class="text-[#D72D36] dark:text-red-400 font-bold text-2xl">{{ topThree[0].vndupr_score }}</div>
                 </div>
             </div>
 
@@ -60,7 +60,7 @@
                     </div>
                 </div>
                 <div class="text-center">
-                    <h3 class="font-semibold text-gray-800 text-lg leading-tight line-clamp-1">{{ topThree[2].user.full_name }}</h3>
+                    <h3 class="font-semibold text-gray-800 dark:text-slate-100 text-lg leading-tight line-clamp-1">{{ topThree[2].user.full_name }}</h3>
                     <div class="text-[#FFB84F] font-bold text-xl">{{ topThree[2].vndupr_score }}</div>
                 </div>
             </div>
@@ -70,7 +70,7 @@
         <div class="relative min-h-[300px]">
              <!-- Loading Overlay -->
             <div v-if="loading" 
-                class="absolute inset-0 z-10 flex justify-center items-start pt-12 bg-white/60 backdrop-blur-[1px] transition-all duration-300 rounded-xl">
+                class="absolute inset-0 z-10 flex justify-center items-start pt-12 bg-white/60 dark:bg-slate-900/60 backdrop-blur-[1px] transition-all duration-300 rounded-xl">
                 <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
             </div>
 
@@ -78,21 +78,21 @@
                 <div class="space-y-4 mb-8">
                     <template v-if="leaderboard.length > 0">
                         <div v-for="item in leaderboard" :key="item.member_id"
-                            class="flex items-center justify-between pb-4 border-b border-gray-100 last:border-0 rounded-xl transition-colors px-2">
+                            class="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-800/80 last:border-0 rounded-xl transition-colors px-2">
                             <div class="flex items-center gap-4">
-                                <span class="text-lg font-bold text-gray-400 w-6 text-center">{{ item.rank }}</span>
+                                <span class="text-lg font-bold text-gray-400 dark:text-slate-400 w-6 text-center">{{ item.rank }}</span>
                                 <div class="relative">
                                     <img :src="item.user.avatar_url || defaultAvatar" :alt="item.user.full_name"
-                                        class="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm" />
+                                        class="w-12 h-12 rounded-full object-cover border-2 border-white dark:border-slate-700 shadow-sm" />
                                     <div
-                                        class="absolute -bottom-1 -left-1 w-5 h-5 bg-[#4F80FF] text-[9px] text-white rounded-full flex items-center justify-center font-bold border-2 border-white">
+                                        class="absolute -bottom-1 -left-1 w-5 h-5 bg-[#4F80FF] text-[9px] text-white rounded-full flex items-center justify-center font-bold border-2 border-white dark:border-slate-800">
                                         {{ Number(item.vndupr_score).toFixed(1) }}
                                     </div>
                                 </div>
                                 <div>
-                                    <h4 class="font-bold text-gray-800 line-clamp-1">{{ item.user.full_name }}</h4>
+                                    <h4 class="font-bold text-gray-800 dark:text-slate-100 line-clamp-1">{{ item.user.full_name }}</h4>
                                     <div class="flex items-center gap-2">
-                                        <span class="text-xs text-gray-400">{{ item.all_time_stats?.matches_played || 0 }} Trận • Win {{ item.all_time_stats?.win_rate || 0 }}%</span>
+                                        <span class="text-xs text-gray-400 dark:text-slate-400">{{ item.all_time_stats?.matches_played || 0 }} Trận • Win {{ item.all_time_stats?.win_rate || 0 }}%</span>
                                         <!-- Score change badge -->
                                         <div v-if="item.all_time_stats?.score_change" :class="[
                                             'px-1.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5',
@@ -104,7 +104,7 @@
                                         <!-- Weekly change badge -->
                                         <div v-if="item.weekly_change !== undefined && item.weekly_change !== null" :class="[
                                             'px-1.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5',
-                                            item.weekly_change > 0 ? 'bg-green-100 text-green-700' : item.weekly_change < 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
+                                            item.weekly_change > 0 ? 'bg-green-100 dark:bg-emerald-950/60 text-green-700 dark:text-emerald-300' : item.weekly_change < 0 ? 'bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'
                                         ]">
                                             <svg v-if="item.weekly_change > 0" class="w-2 h-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
@@ -119,12 +119,12 @@
                                 </div>
                             </div>
                             <div class="text-right">
-                                <div class="font-semibold text-[#3E414C] text-lg">{{ item.vndupr_score }}</div>
+                                <div class="font-semibold text-[#3E414C] dark:text-slate-100 text-lg">{{ item.vndupr_score }}</div>
                             </div>
                         </div>
                     </template>
 
-                    <div v-if="leaderboard.length === 0 && topThree.length === 0" class="text-center py-12 text-gray-400">
+                    <div v-if="leaderboard.length === 0 && topThree.length === 0" class="text-center py-12 text-gray-400 dark:text-slate-400">
                         Chưa có dữ liệu xếp hạng
                     </div>
                 </div>

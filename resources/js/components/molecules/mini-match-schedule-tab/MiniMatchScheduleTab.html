@@ -392,8 +392,8 @@
     <!-- Standard: BXH -->
     <div v-if="subActiveTab === 'ranking'">
         <div class="mb-4">
-            <h3 class="font-semibold text-[#3E414C] text-base">Bảng xếp hạng</h3>
-            <p class="text-sm text-[#6B6F80] mt-1">Thống kê kết quả thi đấu của tất cả người chơi</p>
+            <h3 class="font-semibold text-[#3E414C] dark:text-slate-100 text-base">Bảng xếp hạng</h3>
+            <p class="text-sm text-[#6B6F80] dark:text-slate-400 mt-1">Thống kê kết quả thi đấu của tất cả người chơi</p>
         </div>
         <MiniTournamentLeaderboard
             :leaderboard="sessionLeaderboardData.leaderboard || []"

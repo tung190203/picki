@@ -14,24 +14,24 @@
                 <!-- Minimalist Dropdown Button -->
                 <div class="absolute bottom-4 right-4 z-20" v-click-outside="closeThumbnailMenu">
                     <button 
-                        class="text-black bg-white/95 hover:bg-white rounded-full p-2 cursor-pointer shadow-md flex items-center justify-center transition-all"
+                        class="bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:text-gray-900 dark:hover:text-white rounded-full p-2 cursor-pointer shadow-md flex items-center justify-center transition-all"
                         @click.stop="toggleThumbnailMenu">
-                        <ChevronDownIcon class="w-5 h-5 text-gray-700" />
+                        <ChevronDownIcon class="w-5 h-5 text-gray-700 dark:text-slate-200" />
                     </button>
 
                     <!-- Dropdown Menu -->
                     <div v-if="showThumbnailMenu"
-                        class="absolute bottom-full mb-2 right-0 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-30 min-w-[180px]"
+                        class="absolute bottom-full mb-2 right-0 bg-white dark:bg-[#1E293B] rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 py-2 z-30 min-w-[180px]"
                         @click.stop>
-                        <div class="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm text-gray-700 flex items-center gap-2"
+                        <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer text-sm text-gray-700 dark:text-slate-200 flex items-center gap-2"
                             @click.stop="openImageViewer(user.thumbnail || Background)">
-                            <EyeIcon class="w-4 h-4" />
+                            <EyeIcon class="w-4 h-4 text-gray-600 dark:text-slate-300" />
                             Xem ảnh bìa
                         </div>
                         <div v-if="isOwner"
-                            class="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm text-gray-700 flex items-center gap-2 border-t"
+                            class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer text-sm text-gray-700 dark:text-slate-200 flex items-center gap-2 border-t border-gray-100 dark:border-slate-700"
                             @click.stop="triggerThumbnailPicker(); closeThumbnailMenu()">
-                            <PencilIcon class="w-4 h-4" />
+                            <PencilIcon class="w-4 h-4 text-gray-600 dark:text-slate-300" />
                             Thay ảnh bìa
                         </div>
                     </div>
@@ -170,7 +170,7 @@
                     <h2 class="text-xl font-semibold text-gray-800">Môn thể thao</h2>
                     <div
                         v-if="isOwner"
-                        class="flex items-center text-sm text-gray-600 ml-4 cursor-pointer hover:text-gray-800 bg-white p-1.5 rounded-full shadow-md"
+                        class="flex items-center text-sm text-gray-600 dark:text-slate-300 ml-4 cursor-pointer hover:text-gray-900 dark:hover:text-white bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-slate-700/60 p-1.5 rounded-full shadow-sm transition"
                         @click="openSportModal">
                         <PencilIcon class="w-4 h-4" />
                     </div>
@@ -211,7 +211,7 @@
                     <h2 class="text-xl font-semibold text-gray-800">Cộng đồng</h2>
                     <div
                         v-if="isOwner"
-                        class="flex items-center text-sm text-gray-600 ml-4 cursor-pointer hover:text-gray-800 bg-white p-1.5 rounded-full shadow-md">
+                        class="flex items-center text-sm text-gray-600 dark:text-slate-300 ml-4 cursor-pointer hover:text-gray-900 dark:hover:text-white bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-slate-700/60 p-1.5 rounded-full shadow-sm transition">
                         <PencilIcon class="w-4 h-4" />
                     </div>
                 </div>

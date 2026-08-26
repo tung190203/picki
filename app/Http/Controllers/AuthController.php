@@ -867,4 +867,137 @@ class AuthController extends Controller
             ]
         );
     }
+
+    public function getBiometricChallenge(Request $request)
+    {
+        $challenge = bin2hex(random_bytes(32));
+        return ResponseHelper::success([
+            'challenge' => $challenge,
+        ], 'Biometric challenge generated');
+    }
+
+    public function registerBiometric(Request $request)
+    {
+        $request->validate([
+            'credential_id' => 'required|string',
+            'public_key' => 'required|string',
+            'device_name' => 'nullable|string',
+            'platform' => 'nullable|in:ios,android,web',
+        ]);
+
+        $user = $request->user();
+        $platform = $request->platform ?: 'web';
+        $deviceName = $request->device_name ?: ($platform === 'ios' ? 'Apple Device (Face ID / Touch ID)' : ($platform === 'android' ? 'Android Device (Vân tay)' : 'Web Browser Device'));
+
+        // Ensure 1 unique registered biometric entry per user per platform (web, ios, android)
+        $biometric = \App\Models\UserBiometric::updateOrCreate(
+            [
+                'user_id' => $user->id,
+                'platform' => $platform,
+            ],
+            [
+                'credential_id' => $request->credential_id,
+                'public_key' => $request->public_key,
+                'device_name' => $deviceName,
+                'last_used_at' => now(),
+            ]
+        );
+
+        return ResponseHelper::success([
+            'biometric' => $biometric
+        ], 'Đã đăng ký Face ID / Vân tay thành công cho thiết bị này.');
+    }
+
+    public function loginWithBiometric(Request $request)
+    {
+        $request->validate([
+            'credential_id' => 'required|string',
+            'token' => 'sometimes|string',
+            'platform' => 'nullable|in:ios,android,web'
+        ]);
+
+        $biometric = \App\Models\UserBiometric::where('credential_id', $request->credential_id)->first();
+        if (!$biometric) {
+            return ResponseHelper::error('Thiết bị này chưa được kích hoạt Face ID / Vân tay. Vui lòng sử dụng mật khẩu để đăng nhập và kích hoạt Face ID / Vân tay.', 404, [
+                'status_code' => 'BIOMETRIC_NOT_REGISTERED'
+            ]);
+        }
+
+        $user = $biometric->user;
+        if (!$user) {
+            return ResponseHelper::error('Người dùng không tồn tại.', 404, ['status_code' => 'USER_NOT_FOUND']);
+        }
+        if ($user->is_banned) {
+            return ResponseHelper::error('Tài khoản của bạn đã bị khóa: ' . ($user->ban_reason ?? 'Vui lòng liên hệ hỗ trợ'), 403, [
+                'status_code' => 'USER_BANNED',
+            ]);
+        }
+        if ($user->is_merged) {
+            return ResponseHelper::error('Tài khoản đã được gộp.', 403, ['status_code' => 'USER_MERGED']);
+        }
+
+        $biometric->counter = $biometric->counter + 1;
+        $biometric->last_used_at = now();
+        $biometric->save();
+
+        $accessToken = JWTAuth::claims(['type' => 'access'])->fromUser($user);
+        $refreshToken = JWTAuth::claims(['type' => 'refresh', 'exp' => now()->addDays(30)->timestamp])->fromUser($user);
+
+        $user->last_login = now();
+        $user->last_active_at = now();
+        $user->save();
+
+        if ($request->token && $request->platform) {
+            $this->handleDeviceLogin($user, $request->token, $request->platform);
+        }
+
+        return ResponseHelper::success($this->responseWithToken($accessToken, $refreshToken, $user), 'Đăng nhập thành công bằng Face ID / Vân tay');
+    }
+
+    public function listBiometrics(Request $request)
+    {
+        $user = $request->user();
+        $items = $user->biometrics()->select('id', 'credential_id', 'device_name', 'platform', 'last_used_at', 'created_at')->get();
+        return ResponseHelper::success(['biometrics' => $items], 'Danh sách thiết bị Face ID / Vân tay');
+    }
+
+    public function deleteBiometric(Request $request, $id)
+    {
+        $user = $request->user();
+        $deleted = $user->biometrics()->where('id', $id)->delete();
+        if (!$deleted) {
+            return ResponseHelper::error('Không tìm thấy thiết bị.', 404);
+        }
+        return ResponseHelper::success([], 'Đã xoá thiết bị khỏi tài khoản.');
+    }
+
+    public function updateSettings(Request $request)
+    {
+        $request->validate([
+            'theme_mode' => 'nullable|in:light,dark,system',
+            'favorite_features' => 'nullable|array',
+            'settings' => 'nullable|array',
+        ]);
+
+        $user = $request->user();
+
+        if ($request->has('theme_mode')) {
+            $user->theme_mode = $request->theme_mode;
+        }
+
+        $userSettings = $user->settings ?? [];
+
+        if ($request->has('favorite_features')) {
+            $userSettings['favorite_features'] = $request->favorite_features;
+        }
+
+        if ($request->has('settings')) {
+            $userSettings = array_merge($userSettings, $request->settings);
+        }
+
+        $user->settings = $userSettings;
+        $user->save();
+
+        return ResponseHelper::success(new UserResource($user), 'Đã cập nhật cài đặt người dùng thành công.');
+    }
 }

@@ -179,8 +179,8 @@
                         :class="[
                             'flex items-center h-12 px-3 rounded-xl transition-all w-full text-left',
                             isActive
-                                ? 'bg-gray-100 text-gray-900'
-                                : 'text-gray-600 hover:bg-gray-100',
+                                ? 'bg-gray-100 text-gray-900 dark:bg-slate-800 dark:text-white font-semibold'
+                                : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800/60',
                         ]"
                     >
                         <ShieldCheckIcon class="w-5 h-5 flex-shrink-0" />
@@ -203,8 +203,8 @@
                         :class="[
                             'flex items-center h-12 px-3 rounded-xl transition-all w-full text-left',
                             isActive
-                                ? 'bg-gray-100 text-gray-900'
-                                : 'text-gray-600 hover:bg-gray-100',
+                                ? 'bg-gray-100 text-gray-900 dark:bg-slate-800 dark:text-white font-semibold'
+                                : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800/60',
                         ]"
                     >
                         <HomeIcon class="w-5 h-5 flex-shrink-0" />
@@ -224,8 +224,8 @@
                 <!-- Notification -->
                 <router-link to="/notifications" v-slot="{ isActive }">
                 <button
-                    class="flex items-center h-12 px-3 rounded-xl text-gray-600 hover:bg-gray-100 transition-all relative w-full text-left"
-                    :class="isActive ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-100'"
+                    class="flex items-center h-12 px-3 rounded-xl transition-all relative w-full text-left"
+                    :class="isActive ? 'bg-gray-100 text-gray-900 dark:bg-slate-800 dark:text-white font-semibold' : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800/60'"
                 >
                     <div class="relative flex-shrink-0">
                         <BellIcon class="w-5 h-5" />
@@ -254,8 +254,8 @@
                         :class="[
                             'flex items-center h-12 px-3 rounded-xl transition-all w-full text-left',
                             isActive
-                                ? 'bg-gray-100 text-gray-900'
-                                : 'text-gray-600 hover:bg-gray-100',
+                                ? 'bg-gray-100 text-gray-900 dark:bg-slate-800 dark:text-white font-semibold'
+                                : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800/60',
                         ]"
                     >
                         <Cog6ToothIcon class="w-5 h-5 flex-shrink-0" />

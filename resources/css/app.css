@@ -12,7 +12,7 @@
     padding: 15px !important;
 }
 
-/* Utilities */
+/* Custom Scrollbar & Snap */
 @layer utilities {
     .no-scrollbar::-webkit-scrollbar {
         display: none;
@@ -29,4 +29,350 @@
 
 .scroll-snap-align-start {
     scroll-snap-align: start;
+}
+
+/* ==========================================================================
+   Obsidian Crimson Glow - Dark Mode Palette
+   ========================================================================== */
+
+html.dark {
+    color-scheme: dark;
+    background-color: #0B0F19 !important;
+}
+
+html.dark body {
+    background-color: #0B0F19 !important;
+    color: #F8FAFC !important;
+}
+
+/* Page wrapper & Figma containers */
+html.dark .figma-create-page,
+html.dark .bg-\[\#F7F8FA\] {
+    background-color: #0B0F19 !important;
+}
+
+/* Dark Mode Cards, Containers, Sidebar, and Headers */
+html.dark .bg-white {
+    background-color: #161F33 !important;
+    border-color: #233148 !important;
+    color: #F8FAFC !important;
+}
+
+html.dark .bg-gray-50,
+html.dark .bg-slate-50 {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+}
+
+html.dark .bg-gray-100,
+html.dark .bg-slate-100,
+html.dark .bg-\[\#EDEEF2\],
+html.dark .bg-gray-200 {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+}
+
+html.dark .hover\:bg-gray-100:hover,
+html.dark .hover\:bg-slate-100:hover,
+html.dark [class*="hover:bg-[#FFF5F5]"]:hover {
+    background-color: #1E293B !important;
+    border-color: #D72D36 !important;
+    color: #F8FAFC !important;
+}
+
+html.dark .bg-\[\#EDEEF2\] input,
+html.dark .bg-\[\#EDEEF2\] select,
+html.dark .bg-\[\#EDEEF2\] button {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+}
+
+/* Typography contrast in Dark Mode */
+html.dark .text-gray-900,
+html.dark .text-gray-800,
+html.dark .text-gray-700,
+html.dark .text-slate-900,
+html.dark .text-slate-800 {
+    color: #F8FAFC !important;
+}
+
+html.dark .text-gray-600,
+html.dark .text-gray-500,
+html.dark .text-slate-600,
+html.dark .text-slate-500,
+html.dark .text-\[\#838799\],
+html.dark .text-\[\#9EA2B3\] {
+    color: #94A3B8 !important;
+}
+
+html.dark .text-gray-400,
+html.dark .text-slate-400 {
+    color: #CBD5E1 !important;
+}
+
+/* Borders in Dark Mode */
+html.dark .border-gray-100,
+html.dark .border-gray-200,
+html.dark .border-gray-300,
+html.dark .border-slate-200,
+html.dark .border-\[\#DCDEE6\] {
+    border-color: #233148 !important;
+}
+
+/* Form Inputs, Selects, and Buttons in Dark Mode */
+html.dark input[type="text"],
+html.dark input[type="password"],
+html.dark input[type="email"],
+html.dark input[type="number"],
+html.dark select,
+html.dark textarea {
+    background-color: #0F172A !important;
+    color: #F8FAFC !important;
+    border-color: #334155 !important;
+}
+
+html.dark input.bg-transparent,
+html.dark input[class*="bg-transparent"] {
+    background-color: transparent !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+    color: #64748B !important;
+}
+
+/* Secondary / Outline Buttons in Dark Mode */
+html.dark button.bg-white {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+}
+
+/* Gradient Boxes in Dark Mode (e.g. Biometrics banner in Settings) */
+html.dark .bg-gradient-to-r.from-blue-50 {
+    background: linear-gradient(to right, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9)) !important;
+    border-color: rgba(215, 45, 54, 0.3) !important;
+}
+
+/* Glow Accent for Crimson Buttons in Dark Mode */
+html.dark .bg-primary,
+html.dark .bg-red-600,
+html.dark .bg-\[\#D72D36\] {
+    box-shadow: 0 0 15px rgba(215, 45, 54, 0.35) !important;
+}
+
+html.dark .bg-primary:hover,
+html.dark .bg-red-600:hover,
+html.dark .bg-\[\#D72D36\]:hover {
+    box-shadow: 0 0 20px rgba(215, 45, 54, 0.55) !important;
+}
+
+/* ==========================================================================
+   VueDatePicker Dark Mode Styling
+   ========================================================================== */
+html.dark .dp__main,
+html.dark .dp__theme_light,
+html.dark .dp__menu,
+html.dark .dp__outer_menu_wrap {
+    --dp-background-color: #1E293B !important;
+    --dp-text-color: #F8FAFC !important;
+    --dp-hover-color: #27354A !important;
+    --dp-hover-text-color: #F8FAFC !important;
+    --dp-hover-icon-color: #F8FAFC !important;
+    --dp-primary-color: #D72D36 !important;
+    --dp-primary-text-color: #FFFFFF !important;
+    --dp-secondary-color: #94A3B8 !important;
+    --dp-border-color: #334155 !important;
+    --dp-menu-border-color: #334155 !important;
+    --dp-icon-color: #94A3B8 !important;
+    --dp-danger-color: #EF4444 !important;
+    --dp-highlight-color: rgba(215, 45, 54, 0.2) !important;
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+    border-color: #334155 !important;
+}
+
+html.dark .dp__calendar_header_item,
+html.dark .dp__cell_inner,
+html.dark .dp__month_year_select {
+    color: #F8FAFC !important;
+}
+
+html.dark .dp__cell_disabled {
+    color: #475569 !important;
+}
+
+/* ==========================================================================
+   Toggle Switches Global Dark Mode High-Contrast & Pure White Knob Rules
+   ========================================================================== */
+/* 1. All Unchecked Toggle Tracks in Dark Mode */
+html.dark label .peer:not(:checked) + div,
+html.dark input.peer:not(:checked) + div,
+html.dark button[class*="w-11"].bg-gray-300,
+html.dark button[class*="w-11"].bg-gray-200,
+html.dark button[class*="w-11"]:not([class*="bg-\[\#D72D36\]"]):not([class*="bg-red"]) {
+    background-color: #3B4A63 !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* 2. All Checked Toggle Tracks in Dark Mode */
+html.dark label .peer:checked + div,
+html.dark input.peer:checked + div,
+html.dark button[class*="w-11"].bg-\[\#D72D36\],
+html.dark button[class*="w-11"].bg-red-600,
+html.dark button[class*="w-11"].bg-primary {
+    background-color: #D72D36 !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: 0 0 10px rgba(215, 45, 54, 0.4) !important;
+}
+
+/* 3. ALL Toggle Knobs (span, ::after, div) across the ENTIRE system MUST ALWAYS be PURE WHITE (#FFFFFF) */
+label .peer + div::after,
+input.peer + div::after,
+.peer + div::after,
+button[class*="w-11"] span,
+button[class*="w-11"] span.bg-white,
+button span.transform.rounded-full,
+html.dark button[class*="w-11"] span,
+html.dark button[class*="w-11"] span.bg-white,
+html.dark button span.transform.rounded-full {
+    background-color: #FFFFFF !important;
+    border: none !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* ==========================================================================
+   Sport & PNG Icons Dark Mode Invert Filter
+   ========================================================================== */
+html.dark img[src*="pickleball"],
+html.dark img[src*="basketball"],
+html.dark img[src*="tennis"],
+html.dark img[src*="badminton"],
+html.dark img[src*="sports"],
+html.dark img[src*="sport"],
+html.dark .dark\:invert {
+    filter: invert(1) brightness(2) !important;
+}
+
+/* User avatars, profile photos, and thumbnails must NEVER be inverted */
+html.dark img.avatar,
+html.dark img[src*="avatar"],
+html.dark img[src*="profile"],
+html.dark img[src*="storage"],
+html.dark img[src*="uploads"],
+html.dark .avatar img {
+    filter: none !important;
+}
+
+/* ==========================================================================
+   Team Cards (#F2F7FC) & Hover Glare Dark Mode Override
+   ========================================================================== */
+html.dark .bg-\[\#F2F7FC\],
+html.dark [class*="bg-[#F2F7FC]"] {
+    background-color: #1E293B !important;
+    border-color: #334155 !important;
+    color: #F8FAFC !important;
+}
+
+html.dark button.hover\:bg-gray-50:hover,
+html.dark button.hover\:bg-white:hover,
+html.dark div.hover\:bg-gray-50:hover {
+    background-color: #334155 !important;
+    color: #F8FAFC !important;
+}
+
+html.dark .border-\[\#BBBFCC\] {
+    border-color: #334155 !important;
+}
+
+/* ==========================================================================
+   Circular Action Buttons Dark Mode Override
+   ========================================================================== */
+html.dark .rounded-full.bg-white,
+html.dark [class*="bg-[#FFFFFF]"].rounded-full {
+    background-color: #1E293B !important;
+    border-color: #334155 !important;
+    color: #F8FAFC !important;
+}
+
+/* ==========================================================================
+   Light Pink Callouts & Container Dark Mode Overrides (bg-[#FFF5F5])
+   ========================================================================== */
+html.dark [class*="bg-[#FFF5F5]"],
+html.dark .bg-\[\#FFF5F5\] {
+    background-color: rgba(215, 45, 54, 0.15) !important;
+    border-color: rgba(215, 45, 54, 0.3) !important;
+}
+
+html.dark [class*="bg-[#FFF5F5]"] p,
+html.dark [class*="bg-[#FFF5F5]"] span,
+html.dark .bg-\[\#FFF5F5\] p,
+html.dark .bg-\[\#FFF5F5\] span {
+    color: #F87171 !important;
+}
+
+/* ==========================================================================
+   Leaflet Map Controls Exemption (Keep Original Light Design System-Wide)
+   ========================================================================== */
+.leaflet-control,
+.leaflet-bar,
+.leaflet-bar a,
+.leaflet-control-custom,
+.leaflet-control-layers,
+.leaflet-control-zoom,
+html.dark .leaflet-control,
+html.dark .leaflet-bar,
+html.dark .leaflet-bar a,
+html.dark .leaflet-control-custom,
+html.dark .leaflet-control-layers,
+html.dark .leaflet-control-zoom {
+    background-color: #FFFFFF !important;
+    color: #334155 !important;
+    border-color: #E2E8F0 !important;
+    filter: none !important;
+}
+
+.leaflet-control svg,
+.leaflet-bar a svg,
+.leaflet-control-custom svg,
+.leaflet-control-layers svg,
+.leaflet-control-zoom svg,
+html.dark .leaflet-control svg,
+html.dark .leaflet-bar a svg,
+html.dark .leaflet-control-custom svg,
+html.dark .leaflet-control-layers svg,
+html.dark .leaflet-control-zoom svg {
+    stroke: #334155 !important;
+    color: #334155 !important;
+    filter: none !important;
+}
+
+/* ==========================================================================
+   Unauthenticated / Auth Layout Exemption (Keep Original Light Design 100%)
+   ========================================================================== */
+.unauth-layout,
+.unauth-layout *,
+html.dark .unauth-layout,
+html.dark .unauth-layout * {
+    color-scheme: light !important;
+}
+
+html.dark .unauth-layout .bg-white,
+html.dark .unauth-layout [class*="bg-white"] {
+    background-color: #FFFFFF !important;
+    color: #1E293B !important;
+}
+
+html.dark .unauth-layout input,
+html.dark .unauth-layout select,
+html.dark .unauth-layout textarea {
+    background-color: #FFFFFF !important;
+    color: #1E293B !important;
+    border-color: #E2E8F0 !important;
+}
+
+html.dark .unauth-layout label {
+    color: #334155 !important;
 }

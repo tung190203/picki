@@ -3,28 +3,28 @@
         <div v-if="isOpen && !showRefereeScreen"
              class="fixed inset-0 bg-black backdrop-blur-[1px] bg-opacity-50 flex items-center justify-center z-50 p-4"
              @click.self="closeModal">
-            <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[95vh] sm:h-[85vh] max-h-[95vh] flex flex-col">
-                <div class="flex items-center justify-between p-6 border-b border-gray-200">
-                    <h2 class="text-2xl font-semibold text-gray-800">
+            <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-lg shadow-xl w-full max-w-4xl h-[95vh] sm:h-[85vh] max-h-[95vh] flex flex-col">
+                <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-slate-800">
+                    <h2 class="text-2xl font-semibold text-gray-800 dark:text-slate-100">
                         {{ currentMatchId && !isRRSessionFormat ? 'Sửa trận đấu' : (isRRSessionFormat ? 'Nhập kết quả trận đấu' : 'Trận đấu') }}
                     </h2>
-                    <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <button @click="closeModal" class="text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white transition-colors">
                         <XMarkIcon class="w-6 h-6"/>
                     </button>
                 </div>
                 <div class="p-6 overflow-y-auto flex-1">
                     <div class="grid sm:grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="space-y-4">
-                            <div class="bg-white rounded-[8px] p-5">
-                                <div class="block text-sm font-semibold text-gray-700 mb-3">Thông tin trận đấu</div>
+                            <div class="bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-slate-700/60 rounded-[8px] p-5">
+                                <div class="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">Thông tin trận đấu</div>
                                 <div class="space-y-4">
                                     <div>
                                         <input v-model="miniMatchName" type="text" placeholder="Tên trận đấu"
-                                               class="w-full px-2 py-2 my-1 border rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2]"/>
+                                               class="w-full px-2 py-2 my-1 border dark:border-slate-700 rounded focus:outline-none placeholder:text-sm placeholder:text-[#BBBFCC] bg-[#EDEEF2] dark:bg-slate-700 text-gray-900 dark:text-slate-100"/>
                                     </div>
 
-                                    <div class="flex items-center gap-2 text-gray-700">
-                                        <MapPinIcon class="w-5 h-5"/>
+                                    <div class="flex items-center gap-2 text-gray-700 dark:text-slate-300">
+                                        <MapPinIcon class="w-5 h-5 text-gray-500 dark:text-slate-400"/>
                                         <span class="truncate w-64">{{
                                                 miniTournament.competition_location?.name
                                             }}</span>
@@ -32,7 +32,7 @@
                                 </div>
                             </div>
 
-                            <div class="bg-white rounded-[8px] p-5" v-if="canManageMatches">
+                            <div class="bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-slate-700/60 rounded-[8px] p-5" v-if="canManageMatches">
                                 <MatchScoreInput
                                     v-model="scores"
                                     :can-edit="canManageMatches"
@@ -44,17 +44,17 @@
                             </div>
                         </div>
                         <div class="space-y-4">
-                            <div class="bg-white rounded-[8px] p-5">
-                                <div class="block text-sm font-semibold text-gray-700 mb-3">
+                            <div class="bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-slate-700/60 rounded-[8px] p-5">
+                                <div class="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">
                                     {{ isRRSessionFormat ? 'Thông tin đội' : 'Chọn đội' }}
                                 </div>
                                 <div class="space-y-4">
                                     <div class="grid grid-cols-[2fr_1fr_2fr] gap-4 items-stretch mb-6">
                                         <div
-                                            class="border border-1 border-[#DCDEE6] bg-[#F2F7FC] rounded-lg p-3 flex flex-col">
+                                            class="border border-1 border-[#DCDEE6] dark:border-slate-700/60 bg-[#F2F7FC] dark:bg-[#161F33] rounded-lg p-3 flex flex-col">
                                             <div class="text-center mb-4">
-                                                <input v-if="!isRRSessionFormat" v-model="text_team1" type="text" class="w-32 text-center border border-gray-300 rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-                                                <span v-else class="font-semibold text-[#3E414C]">{{ text_team1 }}</span>
+                                                <input v-if="!isRRSessionFormat" v-model="text_team1" type="text" class="w-32 text-center border border-gray-300 dark:border-slate-600 bg-white dark:bg-[#1E293B] text-gray-900 dark:text-slate-100 rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                                                <span v-else class="font-semibold text-[#3E414C] dark:text-slate-200">{{ text_team1 }}</span>
                                             </div>
                                             <div class="flex gap-2 justify-around items-stretch">
                                                 <UserCard v-for="user in team1Users || []" :key="user.id"
@@ -68,14 +68,14 @@
                                         </div>
 
                                         <div class="flex justify-center items-center">
-                                            <span class="text-sm font-bold">VS</span>
+                                            <span class="text-sm font-bold text-gray-700 dark:text-slate-300">VS</span>
                                         </div>
 
                                         <div
-                                            class="border border-1 border-[#DCDEE6] bg-[#F2F7FC] rounded-lg p-3 flex flex-col">
+                                            class="border border-1 border-[#DCDEE6] dark:border-slate-700/60 bg-[#F2F7FC] dark:bg-[#161F33] rounded-lg p-3 flex flex-col">
                                             <div class="text-center mb-4">
-                                                <input v-if="!isRRSessionFormat" v-model="text_team2" type="text" class="w-32 text-center border border-gray-300 rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-                                                <span v-else class="font-semibold text-[#3E414C]">{{ text_team2 }}</span>
+                                                <input v-if="!isRRSessionFormat" v-model="text_team2" type="text" class="w-32 text-center border border-gray-300 dark:border-slate-600 bg-white dark:bg-[#1E293B] text-gray-900 dark:text-slate-100 rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                                                <span v-else class="font-semibold text-[#3E414C] dark:text-slate-200">{{ text_team2 }}</span>
                                             </div>
                                             <div class="flex gap-2 justify-around items-stretch">
                                                 <UserCard v-for="user in team2Users || []" :key="user.id"
@@ -94,7 +94,7 @@
                     </div>
                 </div>
 
-                <div class="px-4 py-4 bg-white rounded-b-lg border-t">
+                <div class="px-4 py-4 bg-white dark:bg-[#161F33] rounded-b-lg border-t border-gray-200 dark:border-slate-800">
                     <div class="flex gap-3">
                         <button v-if="canManageMatches" @click="saveMiniMatch" :disabled="isSaving"
                                 class="px-12 py-3 bg-red-500 text-white rounded font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
@@ -107,7 +107,7 @@
                         </button>
 
                         <button @click="closeModal" :disabled="isSaving"
-                                class="px-12 py-3 bg-gray-200 text-gray-700 rounded font-medium hover:bg-gray-300 transition-colors disabled:opacity-50">
+                                class="px-12 py-3 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded font-medium hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors disabled:opacity-50">
                             Hủy
                         </button>
                     </div>
