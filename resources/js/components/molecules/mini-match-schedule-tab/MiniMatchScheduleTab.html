@@ -268,6 +268,26 @@
 
     <!-- Standard: Trận đấu -->
     <div v-if="subActiveTab === 'match'">
+        <!-- Court Filter -->
+        <div class="flex items-center gap-3 mb-4" v-if="assignedCourts.length > 0">
+            <span class="text-sm text-gray-600">Lọc theo sân:</span>
+            <div class="flex flex-wrap gap-2">
+                <button @click="onCourtFilterChange(null)"
+                    :class="selectedCourtFilter === null
+                        ? 'px-3 py-1 bg-red-500 text-white text-xs rounded-full font-medium'
+                        : 'px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-full font-medium hover:bg-gray-200'">
+                    Tất cả
+                </button>
+                <button v-for="court in assignedCourts" :key="court"
+                    @click="onCourtFilterChange(court)"
+                    :class="selectedCourtFilter === court
+                        ? 'px-3 py-1 bg-red-500 text-white text-xs rounded-full font-medium'
+                        : 'px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-full font-medium hover:bg-gray-200'">
+                    Sân {{ court }}
+                </button>
+            </div>
+        </div>
+
         <template v-if="miniMatches.length > 0">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div v-for="match in miniMatches" :key="match.id" @click="showMiniMatchDetail(match.id)"

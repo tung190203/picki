@@ -103,6 +103,11 @@ class MiniMatchController extends Controller
         ])
             ->where('mini_tournament_id', $miniTournament->id);
 
+        // Filter theo sân (court_number)
+        if ($request->filled('court_number')) {
+            $baseQuery->where('court_number', (int) $request->input('court_number'));
+        }
+
         // Load participants
         $participants = $miniTournament->participants()
             ->with('user:id,full_name,avatar_url,visibility')
@@ -302,6 +307,25 @@ class MiniMatchController extends Controller
             ],
         ], 'Lấy danh sách trận đấu thành công');
     }
+    /**
+     * Lấy danh sách sân (court_number) đã được gán cho các trận đấu trong mini tournament
+     */
+    public function getAssignedCourts(Request $request, $miniTournamentId)
+    {
+        $miniTournament = MiniTournament::findOrFail($miniTournamentId);
+
+        $courts = MiniMatch::where('mini_tournament_id', $miniTournament->id)
+            ->whereNotNull('court_number')
+            ->distinct()
+            ->orderBy('court_number')
+            ->pluck('court_number')
+            ->map(fn($n) => (int) $n)
+            ->values()
+            ->toArray();
+
+        return ResponseHelper::success($courts, 'Lấy danh sách sân đã gán thành công');
+    }
+
     /**
      * Lấy thông tin chi tiết trận đấu
      */
