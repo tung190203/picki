@@ -59,6 +59,7 @@ export default {
         const showRefereeScreen = ref(false)
         const team1Users = ref([])
         const team2Users = ref([])
+        const courtNumber = ref(null)
 
         const isOpen = computed({
             get: () => props.modelValue,
@@ -76,6 +77,11 @@ export default {
         const qrCodeUrl = computed(() => {
             if (!currentMiniMatch.value?.id) return ''
             return `${globalThis.location.origin}/mini-match/${currentMiniMatch.value.id}/verify`
+        })
+
+        const availableCourts = computed(() => {
+            const maxCourts = props.miniTournament?.scheduled_court_count || 4
+            return Array.from({ length: maxCourts }, (_, i) => i + 1)
         })
 
         const formatSetsForAPI = () => {
@@ -123,6 +129,7 @@ export default {
             scores.value = initializeScores()
             team1Users.value = (props.data?.team1?.members || []).map(m => m?.user ?? m).filter(Boolean)
             team2Users.value = (props.data?.team2?.members || []).map(m => m?.user ?? m).filter(Boolean)
+            courtNumber.value = props.data?.court_number || null
             showRefereeScreen.value = false
         }
 
@@ -144,6 +151,7 @@ export default {
                     team2: team2Users.value.map(u => u.id),
                     team1_name: props.data.team1?.name,
                     team2_name: props.data.team2?.name,
+                    court_number: courtNumber.value,
                 }
 
                 if (sets.length > 0) {
@@ -176,6 +184,7 @@ export default {
                         team2: team2Users.value.map(u => u.id),
                         team1_name: props.data.team1?.name,
                         team2_name: props.data.team2?.name,
+                        court_number: courtNumber.value,
                         sets: sets,
                     }
                     const tournamentId = props.data.mini_tournament_id || props.miniTournament?.id
@@ -286,7 +295,9 @@ export default {
             team1Users,
             team2Users,
             removeMemberFromTeam,
-            canManageMatches
+            canManageMatches,
+            courtNumber,
+            availableCourts,
         }
     }
 }

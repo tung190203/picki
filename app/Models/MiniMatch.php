@@ -23,6 +23,7 @@ class MiniMatch extends Model
         'team2_confirm',
         'name',
         'note',
+        'court_number',
         'round_number',
         'is_bye',
         'team_1_score',

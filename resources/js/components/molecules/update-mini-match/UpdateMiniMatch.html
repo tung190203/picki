@@ -23,6 +23,12 @@
                                 <span class="break-words lg:truncate lg:w-64">{{ data.competition_location?.name }}</span>
                             </div>
 
+                            <div v-if="availableCourts.length > 0" class="flex items-center gap-2">
+                                <label class="text-sm font-medium text-gray-700">Sân:</label>
+                                <input v-model.number="courtNumber" type="number" min="1" :max="availableCourts.length" placeholder="Nhập số"
+                                       class="px-2 py-1 border rounded text-sm w-20"/>
+                            </div>
+
                             <div>
                                 <p class="text-sm text-gray-600 mb-3">
                                     Kết quả kèo đấu được ghi nhận khi tất cả người chơi đã quét mã QR

@@ -55,6 +55,7 @@ export default {
         const scores = ref([{ team1: 0, team2: 0 }])
         const showRefereeScreen = ref(false)
         const currentMatchId = ref(null)
+        const courtNumber = ref(null)
 
         const isOpen = computed({
             get: () => props.modelValue,
@@ -152,6 +153,7 @@ export default {
             scores.value = [{ team1: 0, team2: 0 }]
             currentMatchId.value = null
             showRefereeScreen.value = false
+            courtNumber.value = null
         }
 
         const hasScores = computed(() => {
@@ -175,6 +177,11 @@ export default {
             return fmt && fmt !== 'standard'
         })
 
+        const availableCourts = computed(() => {
+            const maxCourts = props.miniTournament?.scheduled_court_count || 4
+            return Array.from({ length: maxCourts }, (_, i) => i + 1)
+        })
+
         const formatSetsForAPI = () => {
             return scores.value
                 .filter(s => s.team1 > 0 || s.team2 > 0)
@@ -194,6 +201,7 @@ export default {
                 team2_name: text_team2.value,
                 team1: team1Users.value.map(u => u.id),
                 team2: team2Users.value.map(u => u.id),
+                court_number: courtNumber.value,
             }
 
             if (currentMatchId.value) {
@@ -334,6 +342,7 @@ export default {
                 text_team2.value = m.team2?.name || 'Team 2'
                 team1Users.value = m.team1?.members?.map(extractMember) || []
                 team2Users.value = m.team2?.members?.map(extractMember) || []
+                courtNumber.value = m.court_number || null
 
                 if (m.results_by_sets) {
                     const r = m.results_by_sets
@@ -366,6 +375,7 @@ export default {
                 text_team2.value = match.team2?.name || 'Team 2'
                 team1Users.value = match.team1?.members?.map(extractMember) || []
                 team2Users.value = match.team2?.members?.map(extractMember) || []
+                courtNumber.value = match.court_number || null
 
                 if (match.results_by_sets) {
                     const r = match.results_by_sets
@@ -418,6 +428,8 @@ export default {
             currentMatchId,
             isRRSessionFormat,
             canManageMatches,
+            courtNumber,
+            availableCourts,
         }
     }
 }
