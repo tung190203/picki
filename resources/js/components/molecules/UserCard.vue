@@ -173,6 +173,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    modifiedAvatar: {
+        type: String,
+        default: null,
+    },
 })
 
 const emit = defineEmits(['clickEmpty', 'removeUser', 'confirm', 'reject', 'click'])
@@ -193,9 +197,10 @@ const handleClick = () => {
 }
 
 const computedSrc = computed(() => {
-  if (props.avatar) return props.avatar
-  if (props.defaultImage) return props.defaultImage
-  return null
+    if (props.modifiedAvatar) return props.modifiedAvatar
+    if (props.avatar) return props.avatar
+    if (props.defaultImage) return props.defaultImage
+    return null
 })
 const computedFallbackSrc = computed(() => `https://ui-avatars.com/api/?name=${encodeURIComponent(props.name || '?')}&background=random`)
 

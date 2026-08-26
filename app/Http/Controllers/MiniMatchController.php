@@ -103,6 +103,11 @@ class MiniMatchController extends Controller
         ])
             ->where('mini_tournament_id', $miniTournament->id);
 
+        // Filter theo sân (court_number)
+        if ($request->filled('court_number')) {
+            $baseQuery->where('court_number', (int) $request->input('court_number'));
+        }
+
         // Load participants
         $participants = $miniTournament->participants()
             ->with('user:id,full_name,avatar_url,visibility')
@@ -303,6 +308,25 @@ class MiniMatchController extends Controller
         ], 'Lấy danh sách trận đấu thành công');
     }
     /**
+     * Lấy danh sách sân (court_number) đã được gán cho các trận đấu trong mini tournament
+     */
+    public function getAssignedCourts(Request $request, $miniTournamentId)
+    {
+        $miniTournament = MiniTournament::findOrFail($miniTournamentId);
+
+        $courts = MiniMatch::where('mini_tournament_id', $miniTournament->id)
+            ->whereNotNull('court_number')
+            ->distinct()
+            ->orderBy('court_number')
+            ->pluck('court_number')
+            ->map(fn($n) => (int) $n)
+            ->values()
+            ->toArray();
+
+        return ResponseHelper::success($courts, 'Lấy danh sách sân đã gán thành công');
+    }
+
+    /**
      * Lấy thông tin chi tiết trận đấu
      */
     public function show($matchId)
@@ -342,6 +366,7 @@ class MiniMatchController extends Controller
             'team1_name' => 'nullable|string|max:255',
             'team2_name' => 'nullable|string|max:255',
             'name' => 'nullable|string|max:255',
+            'court_number' => 'nullable|integer|min:1',
         ]);
 
         $team1Count = count($data['team1']);
@@ -465,6 +490,7 @@ class MiniMatchController extends Controller
             'team1_name' => 'nullable|string|max:255',
             'team2_name' => 'nullable|string|max:255',
             'name' => 'nullable|string|max:255',
+            'court_number' => 'nullable|integer|min:1',
         ]);
 
         // ---- CHECK MATCH TYPE ----
@@ -522,6 +548,7 @@ class MiniMatchController extends Controller
             // ---- UPDATE MATCH INFO ----
             $match->update([
                 'name' => $data['name'] ?? $match->name,
+                'court_number' => $data['court_number'] ?? $match->court_number,
             ]);
 
             DB::commit();
@@ -1491,6 +1518,7 @@ class MiniMatchController extends Controller
             'team1_name' => 'nullable|string|max:255',
             'team2_name' => 'nullable|string|max:255',
             'name' => 'nullable|string|max:255',
+            'court_number' => 'nullable|integer|min:1',
             'round_number' => 'nullable|integer|min:1',
             'sets' => 'nullable|array',
             'sets.*.set_number' => 'required_with:sets|integer|min:1',
@@ -1539,6 +1567,7 @@ class MiniMatchController extends Controller
 
                 $match->update([
                     'name' => $data['name'] ?? $match->name,
+                    'court_number' => $data['court_number'] ?? $match->court_number,
                 ]);
             } else {
                 $allUserIds = array_unique(array_merge($data['team1'], $data['team2']));
@@ -1583,6 +1612,7 @@ class MiniMatchController extends Controller
                     'status' => MiniMatch::STATUS_PENDING,
                     'round_number' => $data['round_number'] ?? null,
                     'name' => $data['name'] ?? $this->generateMatchName($miniTournament, $data['round_number'] ?? null),
+                    'court_number' => $data['court_number'] ?? null,
                 ]);
             }
 

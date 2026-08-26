@@ -3,15 +3,14 @@ import {API_ENDPOINT} from "@/constants/index.js";
 
 const miniMatchEndpoint = API_ENDPOINT.MINI_MATCHES;
 
-export const getListMiniMatches = async (mini_tournament_id, { page = 1, filter = '' } = {}) => {
+export const getListMiniMatches = async (mini_tournament_id, { page = 1, filter = '', court_number = null } = {}) => {
+    const params = { page, filter }
+    if (court_number) {
+        params.court_number = court_number
+    }
     return axiosInstance.get(
         `${miniMatchEndpoint}/index/${mini_tournament_id}`,
-        {
-            params: {
-                page,
-                filter
-            }
-        }
+        { params }
     ).then(res => res.data)
 }
 
@@ -37,5 +36,9 @@ export const createMiniMatch = async(mini_tournament_id, data) => {
 
 export const saveMiniMatch = async(mini_tournament_id, data) => {
     return axiosInstance.post(`${miniMatchEndpoint}/save/${mini_tournament_id}`, data).then((response) => response.data.data);
+}
+
+export const getAssignedCourts = async (mini_tournament_id) => {
+    return axiosInstance.get(`${miniMatchEndpoint}/assigned-courts/${mini_tournament_id}`).then((response) => response.data.data);
 }
 
