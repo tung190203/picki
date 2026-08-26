@@ -3,7 +3,7 @@
         <!-- Header -->
         <div class="flex items-center justify-between cursor-pointer" @click="emit('toggle')">
             <div class="flex items-center gap-2">
-                <img :src="icon" class="w-6 h-6" />
+                <img :src="icon" class="w-6 h-6 dark:invert dark:brightness-200" />
                 <div>
                     <p class="font-semibold text-gray-800">{{ title }}</p>
                     <p class="text-gray-500 text-sm">{{ subtitle }}</p>

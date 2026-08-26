@@ -22,7 +22,7 @@
       >
         <div 
           v-if="modelValue && notification"
-          class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative overflow-hidden flex flex-col max-h-[90vh]"
+          class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl relative overflow-hidden flex flex-col max-h-[90vh]"
         >
           <!-- Header Strip with Icon -->
           <div :class="['h-24 flex items-center px-8 relative overflow-hidden', currentColors.cardBg]">
@@ -65,7 +65,7 @@
               >
                 <TrashIcon class="w-5 h-5" />
               </button>
-              <button @click="close" class="p-2 rounded-full hover:bg-black/5 transition-colors text-gray-400 hover:text-gray-600">
+              <button @click="close" class="p-2 rounded-full hover:bg-black/5 transition-colors text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white">
                 <XMarkIcon class="w-6 h-6" stroke-width="2" />
               </button>
             </div>
@@ -75,12 +75,12 @@
           <div v-if="!isEditMode" class="p-8 overflow-y-auto custom-scrollbar flex-1">
             <!-- Author Info -->
             <div class="flex items-center space-x-3 mb-6">
-              <img :src="notification.creator?.avatar_url || 'https://ui-avatars.com/api/?name=' + notification.creator?.full_name" class="w-10 h-10 rounded-full object-cover border border-gray-100 shadow-sm" />
+              <img :src="notification.creator?.avatar_url || 'https://ui-avatars.com/api/?name=' + notification.creator?.full_name" class="w-10 h-10 rounded-full object-cover border border-gray-100 dark:border-slate-700 shadow-sm" />
               <div>
-                <p class="font-bold text-[#3E414C] text-[15px]">{{ notification.creator?.full_name }}</p>
-                <div class="flex items-center text-[12px] text-[#838799] space-x-2">
+                <p class="font-bold text-[#3E414C] dark:text-slate-100 text-[15px]">{{ notification.creator?.full_name }}</p>
+                <div class="flex items-center text-[12px] text-[#838799] dark:text-slate-400 space-x-2">
                   <span>{{ getJoinedDate(notification.sent_at || notification.created_at) }}</span>
-                  <span v-if="notification.is_pinned" class="flex items-center text-[#D72D36] font-semibold">
+                  <span v-if="notification.is_pinned" class="flex items-center text-[#D72D36] dark:text-red-400 font-semibold">
                     <span class="mx-1">•</span>
                     <PinIcon class="w-3.5 h-3.5 mr-1" />
                     Đã ghim
@@ -90,22 +90,22 @@
             </div>
 
             <!-- Body Text -->
-            <div class="prose prose-slate max-w-none mb-8 text-[#3E414C] text-[14px] leading-relaxed whitespace-pre-wrap">
+            <div class="prose prose-slate dark:prose-invert max-w-none mb-8 text-[#3E414C] dark:text-slate-200 text-[14px] leading-relaxed whitespace-pre-wrap">
               {{ notification.content }}
             </div>
 
             <!-- Attachment -->
-            <div v-if="notification.attachment_url" class="mt-6 border-t border-gray-100 pt-6">
-              <h3 class="text-base font-bold text-[#3E414C] mb-3 flex items-center">
+            <div v-if="notification.attachment_url" class="mt-6 border-t border-gray-100 dark:border-slate-800 pt-6">
+              <h3 class="text-base font-bold text-[#3E414C] dark:text-slate-100 mb-3 flex items-center">
                 <PaperClipIcon class="w-4 h-4 mr-2 text-[#D72D36]" />
                 Đính kèm
               </h3>
-              <div class="group relative rounded-xl overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                <img v-if="isImage(notification.attachment_url)" :src="notification.attachment_url" class="w-full h-auto max-h-[300px] object-contain bg-gray-50" />
-                <div v-else class="p-6 bg-gray-50 flex items-center">
-                  <DocumentIcon class="w-8 h-8 text-gray-400 mr-4" />
-                  <span class="text-gray-600 font-medium truncate">{{ getFileName(notification.attachment_url) }}</span>
-                  <a :href="notification.attachment_url" download target="_blank" class="ml-auto bg-white border border-gray-200 px-4 py-2 rounded-xl text-sm font-bold text-[#3E414C] hover:bg-gray-100 transition-colors">
+              <div class="group relative rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                <img v-if="isImage(notification.attachment_url)" :src="notification.attachment_url" class="w-full h-auto max-h-[300px] object-contain bg-gray-50 dark:bg-slate-800" />
+                <div v-else class="p-6 bg-gray-50 dark:bg-slate-800 flex items-center">
+                  <DocumentIcon class="w-8 h-8 text-gray-400 dark:text-slate-400 mr-4" />
+                  <span class="text-gray-600 dark:text-slate-300 font-medium truncate">{{ getFileName(notification.attachment_url) }}</span>
+                  <a :href="notification.attachment_url" download target="_blank" class="ml-auto bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 px-4 py-2 rounded-xl text-sm font-bold text-[#3E414C] dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors">
                     Tải về
                   </a>
                 </div>
@@ -114,33 +114,33 @@
           </div>
 
           <!-- EDIT MODE: Title + Type (outside scroll — avoids overflow clipping on dropdown) -->
-          <div v-if="isEditMode" class="px-6 pt-6 pb-4 space-y-4 border-b border-gray-100">
+          <div v-if="isEditMode" class="px-6 pt-6 pb-4 space-y-4 border-b border-gray-100 dark:border-slate-800">
             <!-- Title -->
             <div>
-              <label class="block font-semibold text-[#3E414C] mb-2">Tiêu đề thông báo</label>
+              <label class="block font-semibold text-[#3E414C] dark:text-slate-200 mb-2">Tiêu đề thông báo</label>
               <input
                 v-model="editForm.title"
                 type="text"
-                class="w-full px-4 py-3 bg-[#EDEEF2] border-none rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D72D36]/20 transition-colors placeholder-[#9EA2B3]"
+                class="w-full px-4 py-3 bg-[#EDEEF2] dark:bg-slate-800 border-none rounded-lg text-[#3E414C] dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/20 transition-colors placeholder-[#9EA2B3] dark:placeholder:text-slate-500"
                 placeholder="Ví dụ: Thay đổi lịch đấu"
               />
             </div>
 
             <!-- Type dropdown — outside overflow-y-auto so it's never clipped -->
             <div class="relative" ref="typeDropdownRef">
-              <label class="block font-semibold text-[#3E414C] mb-2">Loại thông báo</label>
+              <label class="block font-semibold text-[#3E414C] dark:text-slate-200 mb-2">Loại thông báo</label>
               <div
-                class="w-full flex items-center justify-between px-4 py-3 bg-white border border-[#D72D36]/30 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                class="w-full flex items-center justify-between px-4 py-3 bg-white dark:bg-slate-800 border border-[#D72D36]/30 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
                 :class="{'ring-2 ring-[#D72D36]/20 border-[#D72D36]': isTypeDropdownOpen}"
                 @click="toggleTypeDropdown"
               >
                 <div class="flex items-center gap-3">
-                  <component v-if="selectedTypeObj?.icon" :is="selectedTypeObj.icon" class="w-5 h-5 text-gray-500" />
-                  <span class="font-bold" :class="selectedTypeObj?.label ? 'text-gray-700' : 'text-gray-400'">
+                  <component v-if="selectedTypeObj?.icon" :is="selectedTypeObj.icon" class="w-5 h-5 text-gray-500 dark:text-slate-400" />
+                  <span class="font-bold" :class="selectedTypeObj?.label ? 'text-gray-700 dark:text-slate-200' : 'text-gray-400 dark:text-slate-500'">
                     {{ selectedTypeObj?.label || 'Chọn loại thông báo' }}
                   </span>
                 </div>
-                <ChevronDownIcon class="h-4 w-4 text-gray-500 transition-transform duration-200" :class="{'rotate-180': isTypeDropdownOpen}" />
+                <ChevronDownIcon class="h-4 w-4 text-gray-500 dark:text-slate-400 transition-transform duration-200" :class="{'rotate-180': isTypeDropdownOpen}" />
               </div>
               <Transition
                 enter-active-class="transition duration-100 ease-out"
@@ -150,22 +150,22 @@
                 leave-from-class="transform scale-100 opacity-100"
                 leave-to-class="transform scale-95 opacity-0"
               >
-                <div v-if="isTypeDropdownOpen" class="absolute z-[100] w-full mt-2 bg-white rounded-xl shadow-xl border border-gray-100 py-2">
+                <div v-if="isTypeDropdownOpen" class="absolute z-[100] w-full mt-2 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-100 dark:border-slate-700 py-2">
                   <div
                     v-for="type in mappedNotificationTypes"
                     :key="type.value"
                     class="px-4 py-3 cursor-pointer flex items-center gap-3 transition-colors"
-                    :class="editForm.club_notification_type_id === type.value ? 'bg-[#fff5f5]' : 'hover:bg-gray-50'"
+                    :class="editForm.club_notification_type_id === type.value ? 'bg-[#fff5f5] dark:bg-red-950/40' : 'hover:bg-gray-50 dark:hover:bg-slate-700'"
                     @click.stop="selectType(type.value)"
                   >
                     <component
                       :is="type.icon"
                       class="w-5 h-5"
-                      :class="editForm.club_notification_type_id === type.value ? 'text-[#D72D36]' : 'text-[#3E414C]'"
+                      :class="editForm.club_notification_type_id === type.value ? 'text-[#D72D36] dark:text-red-400' : 'text-[#3E414C] dark:text-slate-300'"
                     />
                     <span
                       class="font-normal"
-                      :class="editForm.club_notification_type_id === type.value ? 'text-[#D72D36]' : 'text-[#3E414C]'"
+                      :class="editForm.club_notification_type_id === type.value ? 'text-[#D72D36] dark:text-red-400' : 'text-[#3E414C] dark:text-slate-300'"
                     >
                       {{ type.label }}
                     </span>
@@ -180,21 +180,21 @@
             <!-- Content -->
             <div>
               <div class="flex justify-between mb-2">
-                <label class="block font-semibold text-[#3E414C]">Nội dung thông báo</label>
-                <span class="text-xs text-gray-400">{{ editForm.content.length }}/300</span>
+                <label class="block font-semibold text-[#3E414C] dark:text-slate-200">Nội dung thông báo</label>
+                <span class="text-xs text-gray-400 dark:text-slate-400">{{ editForm.content.length }}/300</span>
               </div>
               <textarea
                 v-model="editForm.content"
                 rows="5"
                 maxlength="300"
-                class="w-full px-4 py-3 bg-[#EDEEF2] border-none rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D72D36]/20 transition-colors resize-none placeholder-[#9EA2B3]"
+                class="w-full px-4 py-3 bg-[#EDEEF2] dark:bg-slate-800 border-none rounded-lg text-[#3E414C] dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/20 transition-colors resize-none placeholder-[#9EA2B3] dark:placeholder:text-slate-500"
                 placeholder="Nhập nội dung chi tiết"
               ></textarea>
             </div>
 
             <!-- Image Upload -->
             <div
-              class="border-2 border-dashed border-gray-200 rounded-xl bg-white p-4 flex flex-col items-center justify-center cursor-pointer hover:border-[#D72D36]/50 hover:bg-gray-50 transition-all relative overflow-hidden h-36"
+              class="border-2 border-dashed border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 p-4 flex flex-col items-center justify-center cursor-pointer hover:border-[#D72D36]/50 hover:bg-gray-50 dark:hover:bg-slate-700 transition-all relative overflow-hidden h-36"
               @click="triggerFileInput"
             >
               <template v-if="editPreviewUrl">
@@ -204,25 +204,25 @@
                 </div>
               </template>
               <template v-else>
-                <div class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center mb-2 text-gray-400">
+                <div class="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center mb-2 text-gray-400 dark:text-slate-400">
                   <PhotoIcon class="w-5 h-5" />
                 </div>
-                <p class="text-sm font-bold text-gray-700">Nhấn để tải ảnh lên</p>
-                <p class="text-xs text-gray-400 mt-1">PNG, JPG, GIF (Tối đa 5MB)</p>
+                <p class="text-sm font-bold text-gray-700 dark:text-slate-200">Nhấn để tải ảnh lên</p>
+                <p class="text-xs text-gray-400 dark:text-slate-400 mt-1">PNG, JPG, GIF (Tối đa 5MB)</p>
               </template>
               <input type="file" ref="fileInput" class="hidden" accept="image/*" @change="handleFileChange" />
             </div>
           </div>
 
           <!-- Bottom Actions -->
-          <div class="p-5 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
+          <div class="p-5 bg-gray-50 dark:bg-[#161F33] border-t border-gray-100 dark:border-slate-800 flex justify-between items-center">
             <!-- View mode actions -->
             <template v-if="!isEditMode">
               <div v-if="isAdmin" class="flex space-x-3">
                 <button
                   @click="$emit('unpin', notification.id)"
                   v-if="notification.is_pinned"
-                  class="flex items-center px-5 py-2 rounded-lg border border-gray-200 text-[#3E414C] text-sm font-semibold hover:bg-white transition-colors"
+                  class="flex items-center px-5 py-2 rounded-lg border border-gray-200 dark:border-slate-700 text-[#3E414C] dark:text-slate-200 text-sm font-semibold hover:bg-white dark:hover:bg-slate-800 transition-colors"
                 >
                   <PinIcon class="w-4 h-4 mr-2" />
                   Bỏ ghim
@@ -230,14 +230,14 @@
                 <button
                   @click="$emit('pin', notification.id)"
                   v-else
-                  class="flex items-center px-5 py-2 rounded-lg border border-gray-200 text-[#3E414C] text-sm font-semibold hover:bg-white transition-colors"
+                  class="flex items-center px-5 py-2 rounded-lg border border-gray-200 dark:border-slate-700 text-[#3E414C] dark:text-slate-200 text-sm font-semibold hover:bg-white dark:hover:bg-slate-800 transition-colors"
                 >
                   <PinIcon class="w-4 h-4 mr-2" />
                   Ghim ngay
                 </button>
               </div>
               <div v-else></div>
-              <button @click="close" class="px-5 py-2 rounded-lg border border-gray-200 text-[#3E414C] text-sm font-semibold hover:bg-white transition-colors">
+              <button @click="close" class="px-5 py-2 rounded-lg border border-gray-200 dark:border-slate-700 text-[#3E414C] dark:text-slate-200 text-sm font-semibold hover:bg-white dark:hover:bg-slate-800 transition-colors">
                 Đóng
               </button>
             </template>
@@ -246,7 +246,7 @@
             <template v-else>
               <button
                 @click="cancelEdit"
-                class="px-5 py-2 rounded-lg border border-gray-200 text-[#3E414C] text-sm font-semibold hover:bg-white transition-colors"
+                class="px-5 py-2 rounded-lg border border-gray-200 dark:border-slate-700 text-[#3E414C] dark:text-slate-200 text-sm font-semibold hover:bg-white dark:hover:bg-slate-800 transition-colors"
                 :disabled="isUpdating"
               >
                 Hủy

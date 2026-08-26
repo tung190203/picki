@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, computed } from 'vue'
+import { reactive, computed, ref, onMounted } from 'vue'
 import useVuelidate from '@vuelidate/core'
 import { required, minLength, helpers } from '@vuelidate/validators'
 import Button from '@/components/atoms/Button.vue'
@@ -11,14 +11,31 @@ import GoogleIcon from '@/assets/images/google-icon.svg'
 import FacebookIcon from '@/assets/images/facebook-icon.svg'
 import AppleIcon from '@/assets/images/apple-icon.svg'
 import LogoSplash from '@/assets/images/logo-splash.svg'
+import faceIdIcon from '/public/login-icons/face-id.png'
+import fingerprintIcon from '/public/login-icons/fingerprint.png'
+import { isBiometricSupported, authenticateWithBiometric, getBiometricType } from '@/utils/biometrics.js'
+import * as AuthService from '@/service/auth.js'
 
 const router = useRouter()
 const userStore = useUserStore()
-const { getRole: userRole } = storeToRefs(userStore);
+const { getRole: userRole } = storeToRefs(userStore)
+
+const isBiometricAvailable = ref(false)
+const isBiometricLoading = ref(false)
+const biometricInfo = ref({
+  type: 'biometric',
+  label: 'Đăng nhập bằng Sinh trắc học',
+  icon: 'fingerprint'
+})
 
 const data = reactive({
   login: '',
   password: ''
+})
+
+onMounted(async () => {
+  biometricInfo.value = getBiometricType()
+  isBiometricAvailable.value = await isBiometricSupported()
 })
 
 const isEmailOrPhone = helpers.withMessage(
@@ -26,7 +43,7 @@ const isEmailOrPhone = helpers.withMessage(
   value => {
     if (!value) return true
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    const phoneRegex = /^0\d{9,10}$/
+    const phoneRegex = /^(0|\+84)\d{9,10}$/
     return emailRegex.test(value) || phoneRegex.test(value)
   }
 )
@@ -44,45 +61,73 @@ const rules = computed(() => ({
 
 const v$ = useVuelidate(rules, data)
 
+const handleRedirectAfterLogin = (res) => {
+  toast.success('Đăng nhập thành công!')
+  if (res && res?.user?.is_profile_completed == 0) {
+    setTimeout(() => {
+      router.push({ path: '/complete-profile' })
+    }, 1000)
+    return
+  }
+  const roleRouteMap = {
+    user: 'dashboard',
+    admin: 'admin.dashboard',
+    referee: 'referee.dashboard'
+  }
+  const defaultRouteName = roleRouteMap[userRole.value] || 'dashboard'
+
+  const redirectPath =
+    router.currentRoute.value.query.redirect
+      ? router.currentRoute.value.query.redirect
+      : { name: defaultRouteName }
+  setTimeout(() => {
+    router.push(redirectPath)
+  }, 1000)
+}
+
 const login = async () => {
   v$.value.$touch()
   if (!v$.value.$invalid) {
     try {
-      const res = await userStore.loginUser(data)
-      toast.success('Đăng nhập thành công!')
-      if(res && res?.user?.is_profile_completed == 0) {
-        setTimeout(() => {
-          router.push({ path: '/complete-profile' })
-        }, 1000)
-        return
-      }
-      const roleRouteMap = {
-        user: 'dashboard',
-        admin: 'admin.dashboard',
-        referee: 'referee.dashboard'
-      }
-      const defaultRouteName = roleRouteMap[userRole.value] || 'dashboard'
-
-      const redirectPath =
-        router.currentRoute.value.query.redirect
-          ? router.currentRoute.value.query.redirect
-          : { name: defaultRouteName }
-      setTimeout(() => {
-        router.push(redirectPath)
-      }, 1000)
+      const res = await userStore.loginUser({
+        login: data.login,
+        password: data.password
+      })
+      handleRedirectAfterLogin(res)
     } catch (error) {
       toast.error(error.response?.data?.message || 'Đăng nhập thất bại!')
-      if(error.response?.data?.errors?.status_code === "PASSWORD_PENDING") {
+      if (error.response?.data?.errors?.status_code === 'PASSWORD_PENDING') {
         setTimeout(() => {
           router.push({ path: '/complete-registration', query: { login: data.login } })
         }, 1000)
       }
-      if(error.response?.data?.errors?.status_code === "OTP_PENDING") {
+      if (error.response?.data?.errors?.status_code === 'OTP_PENDING') {
         setTimeout(() => {
           router.push({ path: '/verify', query: { login: data.login } })
         }, 1000)
       }
     }
+  }
+}
+
+const loginBiometrics = async () => {
+  try {
+    isBiometricLoading.value = true
+    const challengeRes = await AuthService.getBiometricChallenge()
+    const challengeStr = challengeRes?.challenge || 'picki-biometric-challenge'
+
+    const assertion = await authenticateWithBiometric(challengeStr)
+    const res = await userStore.loginWithBiometricData(assertion)
+    handleRedirectAfterLogin(res)
+  } catch (error) {
+    console.error('Biometric Login Error:', error)
+    if (error.name === 'NotAllowedError') {
+      toast.info('Bạn đã huỷ xác thực sinh trắc học.')
+    } else {
+      toast.error(error.response?.data?.message || error.message || 'Xác thực sinh trắc học không thành công.')
+    }
+  } finally {
+    isBiometricLoading.value = false
   }
 }
 
@@ -112,13 +157,16 @@ const loginWithApple = () => {
         bảng xếp hạng và thông báo trận đấu độc quyền!</p>
     </div>
     <div class="w-full max-w-md p-8 bg-white rounded-[12px] shadow">
+
       <form @submit.prevent="login" class="space-y-4">
         <div>
-          <label for="login" class="form-in font-semibold text-[14px]">Email</label>
+          <label for="login" class="form-in font-semibold text-[14px]">
+            Email hoặc Số điện thoại
+          </label>
           <input
             id="login"
             type="text"
-            placeholder="Nhập email của bạn"
+            placeholder="Nhập email hoặc số điện thoại"
             v-model="data.login"
             class="w-full px-4 py-2 my-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-sm"
           />
@@ -148,18 +196,39 @@ const loginWithApple = () => {
             {{ err.$message }}
           </span>
         </div>
+
         <div class="text-right text-sm text-[#4392E0] hover:underline">
           <router-link to="/forgot-password">Quên mật khẩu?</router-link>
         </div>
-        <Button 
-          type="submit" 
-          :class="{
-            'w-full !bg-primary hover:!bg-secondary': data.login && data.password,
-            'w-full !bg-[#edeef2] !text-[#333333] hover:!bg-[#edeefe]': !(data.login && data.password)
-          }"
-        >
-          Tiếp tục
-        </Button>
+
+        <!-- Submit Button Row with Inline Biometric Quick Login Icon -->
+        <div class="flex items-stretch gap-2 pt-1">
+          <Button 
+            type="submit" 
+            :class="{
+              'flex-1 !bg-primary hover:!bg-secondary': data.login && data.password,
+              'flex-1 !bg-[#edeef2] !text-[#333333] hover:!bg-[#edeefe]': !(data.login && data.password)
+            }"
+          >
+            Đăng nhập
+          </Button>
+
+          <!-- Biometrics Button: Crimson Red with crisp white icon -->
+          <button
+            v-if="isBiometricAvailable"
+            type="button"
+            :disabled="isBiometricLoading"
+            :title="biometricInfo.label"
+            class="px-3.5 bg-[#D72D36] hover:bg-[#c22830] text-white rounded-md shadow-sm flex items-center justify-center transition-all active:scale-95 shrink-0 cursor-pointer"
+            @click="loginBiometrics"
+          >
+            <img 
+              :src="biometricInfo.icon === 'face_id' ? faceIdIcon : fingerprintIcon" 
+              class="w-6 h-6 object-contain filter brightness-0 invert" 
+              :alt="biometricInfo.label"
+            />
+          </button>
+        </div>
       </form>
 
       <div class="flex items-center my-4 text-sm text-gray-500">

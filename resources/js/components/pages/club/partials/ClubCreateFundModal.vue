@@ -5,24 +5,24 @@
             @click.self="close">
             <Transition name="scale">
                 <div v-if="isOpen" 
-                    class="bg-white rounded-[24px] w-full max-w-[850px] max-h-[90vh] transition-all duration-300 flex flex-col p-6 md:p-6 relative shadow-2xl overflow-hidden">
+                    class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-[24px] w-full max-w-[850px] max-h-[90vh] transition-all duration-300 flex flex-col p-6 md:p-6 relative shadow-2xl overflow-hidden">
                     <!-- Modal Close -->
                     <button 
                         @click="close"
-                        class="absolute right-8 top-8 text-gray-400 hover:text-gray-600 transition-colors z-10">
+                        class="absolute right-8 top-8 text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white transition-colors z-10">
                         <XMarkIcon class="w-7 h-7" />
                     </button>
 
                     <!-- Modal Header -->
                     <div class="mb-8 flex-shrink-0">
-                        <h2 class="text-[20px] font-bold text-[#1F2937]">Tạo Khoản Thu</h2>
+                        <h2 class="text-[20px] font-bold text-[#1F2937] dark:text-slate-100">Tạo Khoản Thu</h2>
                     </div>
 
                     <div class="flex flex-col md:flex-row gap-6 md:gap-10 min-h-0 flex-1 overflow-y-auto md:overflow-hidden custom-scrollbar">
                         <!-- Left Column: Form Info -->
                         <div class="w-full md:w-[45%] flex flex-col space-y-6 md:space-y-8 md:overflow-y-auto custom-scrollbar pr-2 flex-shrink-0">
                             <div class="flex flex-col items-center flex-shrink-0">
-                                <p class="font-semibold text-[#838799] uppercase tracking-wider mb-4">SỐ TIỀN MỖI NGƯỜI</p>
+                                <p class="font-semibold text-[#838799] dark:text-slate-400 uppercase tracking-wider mb-4">SỐ TIỀN MỖI NGƯỜI</p>
                                 <div class="flex items-center justify-center space-x-1 border-b-2 rounded-[4px] border-[#E36C72] pb-2 px-8 w-fit mx-auto">
                                     <input 
                                         type="text" 
@@ -30,29 +30,29 @@
                                         @input="onAmountInput"
                                         @keypress="isNumber($event)"
                                         placeholder="0"
-                                        class="text-[36px] md:text-[48px] font-bold text-[#2D3139] bg-transparent border-none p-0 focus:outline-none w-40 md:w-60 text-center"
+                                        class="text-[36px] md:text-[48px] font-bold text-[#2D3139] dark:text-slate-100 bg-transparent border-none p-0 focus:outline-none w-40 md:w-60 text-center"
                                     />
-                                    <span class="text-[20px] md:text-[24px] font-bold text-[#838799]">đ</span>
+                                    <span class="text-[20px] md:text-[24px] font-bold text-[#838799] dark:text-slate-400">đ</span>
                                 </div>
                             </div>
 
-                            <div class="bg-white border border-[#F2F3F5] rounded-xl shadow-sm overflow-hidden flex-shrink-0">
-                                <div class="p-5 border-b border-[#F2F3F5]">
-                                    <label class="block text-[11px] font-bold text-[#838799] uppercase tracking-wider mb-2">NỘI DUNG THU</label>
+                            <div class="bg-white dark:bg-[#1E293B] border border-[#F2F3F5] dark:border-slate-700/60 rounded-xl shadow-sm overflow-hidden flex-shrink-0">
+                                <div class="p-5 border-b border-[#F2F3F5] dark:border-slate-700/60">
+                                    <label class="block text-[11px] font-bold text-[#838799] dark:text-slate-400 uppercase tracking-wider mb-2">NỘI DUNG THU</label>
                                     <input 
                                         type="text" 
                                         v-model="fundTitle"
-                                        class="w-full font-semibold text-[#3E414C] bg-transparent border-none p-0 focus:outline-none placeholder:text-gray-300"
+                                        class="w-full font-semibold text-[#3E414C] dark:text-slate-100 bg-transparent border-none p-0 focus:outline-none placeholder:text-gray-300 dark:placeholder:text-slate-500"
                                         placeholder="VD: Quỹ tháng 1/2026"
                                     />
                                 </div>
 
                                 <div class="p-5">
-                                    <label class="block text-[11px] font-bold text-[#838799] uppercase tracking-wider mb-2 whitespace-nowrap">HẠN CHÓT (DEADLINE)</label>
+                                    <label class="block text-[11px] font-bold text-[#838799] dark:text-slate-400 uppercase tracking-wider mb-2 whitespace-nowrap">HẠN CHÓT (DEADLINE)</label>
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center space-x-2 mr-2">
                                             <CalendarIcon class="w-5 h-5 text-[#D72D36]" />
-                                            <span class="font-semibold text-[#3E414C] whitespace-nowrap">{{ formattedFundDeadline }}</span>
+                                            <span class="font-semibold text-[#3E414C] dark:text-slate-200 whitespace-nowrap">{{ formattedFundDeadline }}</span>
                                         </div>
                                         <div class="flex-shrink-0">
                                             <VueDatePicker 
@@ -65,8 +65,8 @@
                                                 class="w-auto"
                                             >
                                                 <template #trigger>
-                                                    <button class="p-2 bg-[#F2F3F5] rounded-[4px] hover:bg-gray-200 transition-colors">
-                                                        <PencilIcon class="w-5 h-5 text-[#3E414C]" />
+                                                    <button class="p-2 bg-[#F2F3F5] dark:bg-slate-700 rounded-[4px] hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors">
+                                                        <PencilIcon class="w-5 h-5 text-[#3E414C] dark:text-slate-200" />
                                                     </button>
                                                 </template>
                                             </VueDatePicker>
@@ -76,20 +76,20 @@
                             </div>
 
                             <!-- Included in Club Fund Toggle -->
-                            <div class="flex items-center justify-between bg-[#F8FAFC] rounded-xl p-4 border border-[#F2F3F5] flex-shrink-0">
+                            <div class="flex items-center justify-between bg-[#F8FAFC] dark:bg-[#1E293B] rounded-xl p-4 border border-[#F2F3F5] dark:border-slate-700/60 flex-shrink-0">
                                 <div>
-                                    <p class="text-[13px] font-bold text-[#1F2937]">Quỹ chung CLB</p>
-                                    <p class="text-[11px] text-[#838799] mt-0.5">Dùng chung mã QR ví CLB</p>
+                                    <p class="text-[13px] font-bold text-[#1F2937] dark:text-slate-100">Quỹ chung CLB</p>
+                                    <p class="text-[11px] text-[#838799] dark:text-slate-400 mt-0.5">Dùng chung mã QR ví CLB</p>
                                 </div>
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" v-model="includedInClubFund" class="sr-only peer">
-                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#D72D36]"></div>
+                                    <div class="w-11 h-6 bg-gray-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#D72D36]"></div>
                                 </label>
                             </div>
 
                             <!-- QR Code Upload Section -->
                             <div class="space-y-3 flex-shrink-0" v-if="!includedInClubFund">
-                                <label class="block text-[11px] font-bold text-[#838799] uppercase tracking-wider">ẢNH QR CHUYỂN KHOẢN (TÙY CHỌN)</label>
+                                <label class="block text-[11px] font-bold text-[#838799] dark:text-slate-400 uppercase tracking-wider">ẢNH QR CHUYỂN KHOẢN (TÙY CHỌN)</label>
                                 
                                 <div 
                                     @click="triggerFileInput"
@@ -98,7 +98,7 @@
                                     @drop.prevent="onDrop"
                                     :class="[
                                         'relative border-2 border-dashed rounded-xl transition-all duration-200 cursor-pointer overflow-hidden flex flex-col items-center justify-center min-h-[140px]',
-                                        isDragging ? 'border-[#D72D36] bg-[#D72D36]/5' : 'border-gray-200 hover:border-[#D72D36] hover:bg-gray-50',
+                                        isDragging ? 'border-[#D72D36] bg-[#D72D36]/5' : 'border-gray-200 dark:border-slate-700 hover:border-[#D72D36] hover:bg-gray-50 dark:hover:bg-slate-800',
                                         qrCodePreview ? 'border-solid' : ''
                                     ]"
                                 >
@@ -111,16 +111,16 @@
                                     />
 
                                     <div v-if="!qrCodePreview" class="flex flex-col items-center p-6 text-center">
-                                        <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3 group-hover:bg-[#D72D36]/10 transition-colors">
-                                            <ArrowUpTrayIcon class="w-6 h-6 text-gray-400 group-hover:text-[#D72D36]" />
+                                        <div class="w-12 h-12 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center mb-3 group-hover:bg-[#D72D36]/10 transition-colors">
+                                            <ArrowUpTrayIcon class="w-6 h-6 text-gray-400 dark:text-slate-300 group-hover:text-[#D72D36]" />
                                         </div>
-                                        <p class="text-sm font-semibold text-[#3E414C]">Thả ảnh vào đây hoặc nhấn để tải lên</p>
-                                        <p class="text-xs text-[#838799] mt-1">Hỗ trợ JPG, PNG (Tối đa 5MB)</p>
+                                        <p class="text-sm font-semibold text-[#3E414C] dark:text-slate-200">Thả ảnh vào đây hoặc nhấn để tải lên</p>
+                                        <p class="text-xs text-[#838799] dark:text-slate-400 mt-1">Hỗ trợ JPG, PNG (Tối đa 5MB)</p>
 
                                         <button type="button"
                                             v-if="user.latest_used_qr"
                                             @click.stop="useCachedQr = true; qrImageFile = null; qrCodePreview = user.latest_used_qr"
-                                            class="mt-3 w-full py-1.5 px-3 bg-green-50 border border-green-300 rounded-lg text-center cursor-pointer hover:bg-green-100 transition-colors text-xs text-green-700 font-medium">
+                                            class="mt-3 w-full py-1.5 px-3 bg-green-50 dark:bg-emerald-950/60 border border-green-300 dark:border-emerald-700 rounded-lg text-center cursor-pointer hover:bg-green-100 dark:hover:bg-emerald-900 transition-colors text-xs text-green-700 dark:text-emerald-400 font-medium">
                                             Dùng mã QR đã lưu trước đó
                                         </button>
                                     </div>
@@ -142,16 +142,16 @@
                         </div>
 
                         <!-- Right Column: Member Selection -->
-                        <div class="w-full md:w-[55%] flex flex-col min-h-[300px] md:min-h-0 md:border-l border-[#F2F3F5] md:pl-5">
+                        <div class="w-full md:w-[55%] flex flex-col min-h-[300px] md:min-h-0 md:border-l border-[#F2F3F5] dark:border-slate-800 md:pl-5">
                             <div class="flex items-center justify-between mb-6 flex-shrink-0">
-                                <div class="flex items-center space-x-2 font-semibold text-[#838799]">
+                                <div class="flex items-center space-x-2 font-semibold text-[#838799] dark:text-slate-400">
                                     <span class="uppercase tracking-wider">ÁP DỤNG CHO</span>
                                     <span>•</span>
                                     <span>{{ selectedMemberIds.length }}/{{ club.members?.length || 0 }}</span>
                                 </div>
                                 <button 
                                     @click="selectAllMembers"
-                                    class="text-[#D72D36] text-sm font-semibold"
+                                    class="text-[#D72D36] dark:text-red-400 text-sm font-semibold hover:underline"
                                 >
                                     Chọn tất cả
                                 </button>
@@ -162,22 +162,22 @@
                                     v-for="member in club.members" 
                                     :key="member.user_id"
                                     @click="toggleMemberSelection(member.user_id)"
-                                    class="flex items-center justify-between p-3 hover:bg-[#F8FAFC] rounded-xl transition-colors cursor-pointer group"
+                                    class="flex items-center justify-between p-3 hover:bg-[#F8FAFC] dark:hover:bg-slate-800/60 rounded-xl transition-colors cursor-pointer group"
                                 >
                                     <div class="flex items-center space-x-4">
                                         <div class="relative">
-                                            <div class="w-14 h-14 rounded-full border-2 border-white shadow-sm overflow-hidden bg-gray-100">
+                                            <div class="w-14 h-14 rounded-full border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden bg-gray-100 dark:bg-slate-700">
                                                 <img :src="member.user?.avatar_url || `https://ui-avatars.com/api/?name=${member.user?.full_name || 'User'}&background=random`" class="w-full h-full object-cover" />
                                             </div>
-                                            <div class="absolute bottom-0 left-0 w-4 h-4 bg-[#4392E0] text-white text-[8px] font-semibold rounded-full border border-white flex items-center justify-center">
+                                            <div class="absolute bottom-0 left-0 w-4 h-4 bg-[#4392E0] text-white text-[8px] font-semibold rounded-full border border-white dark:border-slate-700 flex items-center justify-center">
                                                 {{ Number(member.user?.sports[0]?.scores?.vndupr_score).toFixed(1) || 0 }}
                                             </div>
                                         </div>
-                                        <span class="font-bold text-[#1F2937] text-[15px] truncate max-w-[150px] md:max-w-none">{{ member.user?.full_name || 'Thành viên' }}</span>
+                                        <span class="font-bold text-[#1F2937] dark:text-slate-100 text-[15px] truncate max-w-[150px] md:max-w-none">{{ member.user?.full_name || 'Thành viên' }}</span>
                                     </div>
                                     <div 
                                         class="w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center"
-                                        :class="selectedMemberIds.includes(member.user_id) ? 'bg-[#D72D36] border-[#D72D36]' : 'border-gray-200 group-hover:border-[#D72D36]'"
+                                        :class="selectedMemberIds.includes(member.user_id) ? 'bg-[#D72D36] border-[#D72D36]' : 'border-gray-200 dark:border-slate-700 group-hover:border-[#D72D36]'"
                                     >
                                         <CheckIcon v-if="selectedMemberIds.includes(member.user_id)" class="w-4 h-4 text-white stroke-[3px]" />
                                     </div>
@@ -187,17 +187,17 @@
                     </div>
 
                     <!-- Modal Footer -->
-                    <div class="pt-6 md:pt-6 border-t border-[#F2F3F5] flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div class="pt-6 md:pt-6 border-t border-[#F2F3F5] dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
                         <div>
-                            <p class="text-sm font-normal text-[#6B6F80] tracking-wider mb-1">Tổng thu dự kiến</p>
+                            <p class="text-sm font-normal text-[#6B6F80] dark:text-slate-400 tracking-wider mb-1">Tổng thu dự kiến</p>
                             <div class="flex items-baseline space-x-1">
-                                <span class="text-[28px] font-bold text-[#1F2937]">{{ totalExpectedAmount }}</span>
-                                <span class="text-[20px] font-bold text-[#1F2937]">đ</span>
+                                <span class="text-[28px] font-bold text-[#1F2937] dark:text-slate-100">{{ totalExpectedAmount }}</span>
+                                <span class="text-[20px] font-bold text-[#1F2937] dark:text-slate-100">đ</span>
                             </div>
                         </div>
                         <button 
                             @click="submitCreateFund"
-                            class="bg-[#2D3139] text-white px-10 py-4 rounded-[4px] font-semibold hover:bg-black transition-all shadow-lg active:scale-[0.98]"
+                            class="bg-[#D72D36] dark:bg-[#D72D36] text-white px-10 py-4 rounded-[4px] font-semibold hover:bg-red-700 transition-all shadow-lg active:scale-[0.98]"
                         >
                             Gửi yêu cầu
                         </button>

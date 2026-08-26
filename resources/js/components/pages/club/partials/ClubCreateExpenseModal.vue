@@ -5,32 +5,32 @@
             @click.self="close">
             <Transition name="scale">
                 <div v-if="isOpen" 
-                    class="bg-white rounded-[24px] w-full max-w-[500px] max-h-[90vh] transition-all duration-300 flex flex-col p-6 relative shadow-2xl overflow-hidden">
+                    class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-[24px] w-full max-w-[500px] max-h-[90vh] transition-all duration-300 flex flex-col p-6 relative shadow-2xl overflow-hidden">
                     <!-- Modal Close -->
                     <button 
                         @click="close"
-                        class="absolute right-6 top-6 text-gray-400 hover:text-gray-600 transition-colors z-10">
+                        class="absolute right-6 top-6 text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white transition-colors z-10">
                         <XMarkIcon class="w-7 h-7" />
                     </button>
 
                     <!-- Modal Header -->
                     <div class="mb-8 flex-shrink-0">
-                        <h2 class="text-[20px] font-bold text-[#1F2937]">Tạo Khoản Chi</h2>
+                        <h2 class="text-[20px] font-bold text-[#1F2937] dark:text-slate-100">Tạo Khoản Chi</h2>
                     </div>
 
                     <div class="flex flex-col space-y-6 min-h-0 flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pt-2">
                         <!-- Amount Section -->
                         <div class="flex flex-col items-center">
-                            <label class="block text-[11px] font-bold text-[#838799] uppercase tracking-wider mb-4">SỐ TIỀN CHI</label>
+                            <label class="block text-[11px] font-bold text-[#838799] dark:text-slate-400 uppercase tracking-wider mb-4">SỐ TIỀN CHI</label>
                             <div class="flex items-center justify-center space-x-1 border-b-2 rounded-[4px] border-[#E36C72] pb-2 px-8 w-fit mx-auto">
                                 <input 
                                     type="text" 
                                     :value="expenseAmount"
                                     @input="onAmountInput"
                                     placeholder="0"
-                                    class="text-[36px] md:text-[48px] font-bold text-[#2D3139] bg-transparent border-none p-0 focus:ring-0 focus:outline-none w-40 md:w-60 text-center"
+                                    class="text-[36px] md:text-[48px] font-bold text-[#2D3139] dark:text-slate-100 bg-transparent border-none p-0 focus:ring-0 focus:outline-none w-40 md:w-60 text-center"
                                 />
-                                <span class="text-[20px] md:text-[24px] font-bold text-[#838799]">đ</span>
+                                <span class="text-[20px] md:text-[24px] font-bold text-[#838799] dark:text-slate-400">đ</span>
                             </div>
                         </div>
 
@@ -38,12 +38,12 @@
                         <div class="space-y-6">
                             <!-- Title -->
                             <div class="space-y-2">
-                                <label class="block text-[11px] font-bold text-[#838799] uppercase tracking-wider ml-1">TIÊU ĐỀ KHOẢN CHI</label>
-                                <div class="bg-[#F9FAFB] border border-[#F2F3F5] rounded-xl p-4">
+                                <label class="block text-[11px] font-bold text-[#838799] dark:text-slate-400 uppercase tracking-wider ml-1">TIÊU ĐỀ KHOẢN CHI</label>
+                                <div class="bg-[#F9FAFB] dark:bg-slate-800 border border-[#F2F3F5] dark:border-slate-700 rounded-xl p-4">
                                     <input 
                                         type="text" 
                                         v-model="expenseDescription"
-                                        class="w-full font-semibold text-[#3E414C] bg-transparent border-none p-0 focus:ring-0 focus:outline-none placeholder:text-gray-300"
+                                        class="w-full font-semibold text-[#3E414C] dark:text-slate-100 bg-transparent border-none p-0 focus:ring-0 focus:outline-none placeholder:text-gray-300 dark:placeholder:text-slate-500"
                                         placeholder="VD: Mua bóng mới"
                                     />
                                 </div>
@@ -51,7 +51,7 @@
 
                             <!-- Payment Method -->
                             <div class="space-y-3">
-                                <label class="block text-[11px] font-bold text-[#838799] uppercase tracking-wider ml-1">PHƯƠNG THỨC THANH TOÁN</label>
+                                <label class="block text-[11px] font-bold text-[#838799] dark:text-slate-400 uppercase tracking-wider ml-1">PHƯƠNG THỨC THANH TOÁN</label>
                                 <div class="grid grid-cols-2 gap-3">
                                     <button 
                                         v-for="method in paymentMethods" 
@@ -60,8 +60,8 @@
                                         :class="[
                                             'py-3 px-4 rounded-xl text-[13px] font-bold transition-all border flex items-center justify-center space-x-2',
                                             expensePaymentMethod === method.value 
-                                                ? 'bg-[#2D3139] text-white border-[#2D3139] shadow-md' 
-                                                : 'bg-[#F9FAFB] text-[#3E414C] border-[#F2F3F5] hover:border-gray-300'
+                                                ? 'bg-[#2D3139] dark:bg-slate-700 text-white border-[#2D3139] dark:border-slate-600 shadow-md' 
+                                                : 'bg-[#F9FAFB] dark:bg-slate-800 text-[#3E414C] dark:text-slate-300 border-[#F2F3F5] dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
                                         ]"
                                     >
                                         <component :is="method.icon" class="w-4 h-4 shrink-0" />
@@ -73,15 +73,15 @@
                             <!-- Note -->
                             <div class="space-y-2">
                                 <div class="flex items-center justify-between ml-1">
-                                    <label class="block text-[11px] font-bold text-[#838799] uppercase tracking-wider">GHI CHÚ</label>
-                                    <span class="text-[10px] text-[#9EA2B3] font-normal uppercase">{{ expenseNote.length }}/300</span>
+                                    <label class="block text-[11px] font-bold text-[#838799] dark:text-slate-400 uppercase tracking-wider">GHI CHÚ</label>
+                                    <span class="text-[10px] text-[#9EA2B3] dark:text-slate-400 font-normal uppercase">{{ expenseNote.length }}/300</span>
                                 </div>
-                                <div class="bg-[#F9FAFB] border border-[#F2F3F5] rounded-xl p-4">
+                                <div class="bg-[#F9FAFB] dark:bg-slate-800 border border-[#F2F3F5] dark:border-slate-700 rounded-xl p-4">
                                     <textarea 
                                         v-model="expenseNote"
                                         rows="3"
                                         placeholder="Nhập nội dung chi tiết..."
-                                        class="w-full bg-transparent border-none p-0 text-sm font-medium text-[#3E414C] focus:ring-0 focus:outline-none placeholder:text-gray-300 resize-none"
+                                        class="w-full bg-transparent border-none p-0 text-sm font-medium text-[#3E414C] dark:text-slate-100 focus:ring-0 focus:outline-none placeholder:text-gray-300 dark:placeholder:text-slate-500 resize-none"
                                         maxlength="300"
                                     ></textarea>
                                 </div>
@@ -90,7 +90,7 @@
                     </div>
 
                     <!-- Modal Footer -->
-                    <div class="pt-6 border-t border-[#F2F3F5] mt- auto">
+                    <div class="pt-6 border-t border-[#F2F3F5] dark:border-slate-800 mt-auto">
                         <button 
                             @click="submitCreateExpense"
                             :disabled="isSubmitting"

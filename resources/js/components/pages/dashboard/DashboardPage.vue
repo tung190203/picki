@@ -77,8 +77,8 @@
           <div class="flex items-center justify-start mb-4">
             <h2 class="text-xl font-semibold text-gray-800">Kèo đấu sắp tới</h2>
             <div
-              class="flex items-center text-sm text-gray-600 ml-4 cursor-pointer hover:text-gray-800 bg-[#FFFFFF] p-1.5 rounded-full shadow-md">
-              <ArrowUpRightIcon class="w-4 h-4 text-gray-[#838799]" />
+              class="flex items-center text-sm text-gray-600 dark:text-slate-300 ml-4 cursor-pointer hover:text-gray-900 dark:hover:text-white bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-slate-700/60 p-1.5 rounded-full shadow-sm transition">
+              <ArrowUpRightIcon class="w-4 h-4" />
             </div>
           </div>
 
@@ -124,7 +124,7 @@
                           :src="mini.staff.organizer[0].user.avatar_url"
                           :alt="mini.staff.organizer[0].user.full_name"
                           :title="mini.staff.organizer[0].user.full_name"
-                          class="w-8 h-8 rounded-full border-2 border-white object-cover"
+                          class="w-8 h-8 rounded-full border-2 border-white dark:border-[#1E293B] object-cover shadow-sm"
                         />
                       </div>
                     </div>
@@ -134,9 +134,9 @@
                       <div class="flex items-center -space-x-2">
                         <img v-for="(user, idx) in mini.all_users.slice(0, 3)" :key="'participant-' + idx"
                           :src="user.avatar_url" :alt="user.full_name"
-                          class="w-8 h-8 rounded-full border-2 border-white object-cover" />
+                          class="w-8 h-8 rounded-full border-2 border-white dark:border-[#1E293B] object-cover shadow-sm" />
                         <div v-if="mini.all_users.length > 3"
-                          class="w-8 h-8 rounded-full border-2 border-white bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-600">
+                          class="w-8 h-8 rounded-full border-2 border-white dark:border-[#1E293B] bg-gray-200 dark:bg-slate-700 flex items-center justify-center text-xs font-semibold text-gray-600 dark:text-slate-200 shadow-sm">
                           +{{ mini.all_users.length - 3 }}
                         </div>
                       </div>
@@ -151,10 +151,11 @@
 
         <section>
           <div class="flex items-center justify-start mb-4">
-            <h2 class="text-xl font-semibold text-gray-800">Giải đấu sắp tới</h2>
+            <h2 class="text-xl font-semibold text-gray-800 dark:text-slate-100">Giải đấu sắp tới</h2>
             <div
-              class="flex items-center text-sm text-gray-600 ml-4 cursor-pointer hover:text-gray-800 bg-[#FFFFFF] p-1.5 rounded-full shadow-md">
-              <ArrowUpRightIcon class="w-4 h-4 text-gray-[#838799]" />
+              @click="$router.push('/map?tab=tournament')"
+              class="flex items-center text-sm text-gray-600 dark:text-slate-300 ml-4 cursor-pointer hover:text-gray-900 dark:hover:text-white bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-slate-700/60 p-1.5 rounded-full shadow-sm transition">
+              <ArrowUpRightIcon class="w-4 h-4" />
             </div>
           </div>
 
@@ -238,11 +239,7 @@
             <div
               v-for="club in homeData.my_club"
               :key="club.id"
-              class="group rounded-2xl p-4 flex flex-col items-center text-center cursor-pointer transition-all duration-200"
-              style="background: #F8F9FC; box-shadow: 0 2px 8px rgba(0,0,0,0.04);"
-              @mouseenter="hoveredClub = club.id"
-              @mouseleave="hoveredClub = null"
-              :style="hoveredClub === club.id ? 'background: #FFFFFF; box-shadow: 0 8px 24px rgba(0,0,0,0.10); transform: translateY(-2px);' : ''"
+              class="group rounded-2xl p-4 flex flex-col items-center text-center cursor-pointer transition-all duration-200 bg-[#F8F9FC] dark:bg-[#1E293B] border border-gray-100 dark:border-slate-700/60 hover:bg-white dark:hover:bg-[#27354A] shadow-sm hover:shadow-md"
               @click="navigateTo(`/club/${club.id}`)">
               <img
                 v-if="club.logo_url"
@@ -277,20 +274,20 @@
       </div>
 
       <div class="space-y-6">
-        <div class="bg-white rounded-[8px] shadow p-5">
+        <div class="bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-slate-700/60 rounded-[8px] shadow p-5">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="font-semibold text-gray-900 text-base">Tính năng ưa thích</h3>
-            <button class="text-gray-600 hover:text-gray-700 rounded-full p-2 bg-[#EDEEF2] shadow-md">
+            <h3 class="font-semibold text-gray-900 dark:text-slate-100 text-base">Tính năng ưa thích</h3>
+            <button @click="isFavoriteModalOpen = true" title="Tùy chỉnh tính năng ưa thích" class="text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white rounded-full p-2 bg-[#EDEEF2] dark:bg-slate-700 shadow-md cursor-pointer transition">
               <PencilIcon class="w-3 h-3" />
             </button>
           </div>
           <div class="grid grid-cols-4 gap-4">
-            <div v-for="(f, i) in features" :key="i" class="flex flex-col items-center text-center cursor-pointer group"
+            <div v-for="(f, i) in favoriteFeaturesList" :key="i" class="flex flex-col items-center text-center cursor-pointer group"
               @click="f.action ? f.action() : navigateTo(f.route)">
-              <div class="w-12 h-12 bg-red-100 text-red-600 flex items-center justify-center rounded-full mb-2 group-hover:bg-red-200 transition-colors">
+              <div class="w-12 h-12 bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center rounded-full mb-2 group-hover:bg-red-200 dark:group-hover:bg-red-900/60 transition-colors">
                 <component :is="f.icon" class="w-6 h-6" />
               </div>
-              <p class="text-xs text-gray-700 font-medium">{{ f.label }}</p>
+              <p class="text-xs text-gray-700 dark:text-slate-300 font-medium line-clamp-2">{{ f.label }}</p>
             </div>
           </div>
         </div>
@@ -447,9 +444,14 @@
     :promotableId="selectedPromotionMiniId"
     @success="toast.success('Đã gửi quảng bá thành công')"
   />
+
+  <FavoriteFeaturesModal
+    v-model:isOpen="isFavoriteModalOpen"
+    @saved="onFavoriteFeaturesSaved"
+  />
 </template>
 <script setup>
-import { onMounted, ref, computed, nextTick, provide } from "vue";
+import { onMounted, ref, computed, watch, nextTick, provide } from "vue";
 import { useRouter } from 'vue-router'
 import { toast } from "vue3-toastify";
 import {
@@ -482,6 +484,7 @@ import { storeToRefs } from "pinia";
 import VerifyIcon from "@/assets/images/verify-icon.svg";
 import PromotionModal from "@/components/organisms/PromotionModal.vue";
 import LeaderboardSection from "./LeaderboardSection.vue";
+import FavoriteFeaturesModal, { getSavedFavoriteFeatures } from "@/components/molecules/FavoriteFeaturesModal.vue";
 
 const userStore = useUserStore();
 const { getUser } = storeToRefs(userStore);
@@ -500,6 +503,17 @@ const decodedQrCode = ref('');
 const isPromotionModalOpen = ref(false);
 const selectedPromotionMiniId = ref(null);
 const hoveredClub = ref(null);
+const isFavoriteModalOpen = ref(false);
+const favoriteFeaturesList = ref(getSavedFavoriteFeatures(getUser.value));
+watch(getUser, (newUser) => {
+  if (newUser) {
+    favoriteFeaturesList.value = getSavedFavoriteFeatures(newUser);
+  }
+}, { immediate: true });
+
+const onFavoriteFeaturesSaved = (newFeatures) => {
+  favoriteFeaturesList.value = newFeatures;
+};
 // KẾT THÚC KHAI BÁO MỚI
 let html5QrCode = null;
 const profileLink = computed(() => {

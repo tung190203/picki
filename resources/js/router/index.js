@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { route } from './router'
 import { LOCAL_STORAGE_KEY, LOCAL_STORAGE_USER, ROLE } from "@/constants/index.js"
+import { applyTheme } from '@/utils/theme.js'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -58,6 +59,10 @@ router.beforeEach((to, from, next) => {
   }
 
   next();
+});
+
+router.afterEach(() => {
+  applyTheme();
 });
 
 export default router;

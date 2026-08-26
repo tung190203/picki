@@ -8,15 +8,15 @@
       <Transition name="scale">
         <div
           v-if="isOpen"
-          class="bg-white rounded-[16px] w-full max-w-[480px] max-h-[90vh] overflow-y-auto transition-all duration-300 flex flex-col p-6 relative shadow-2xl"
+          class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-[16px] w-full max-w-[480px] max-h-[90vh] overflow-y-auto transition-all duration-300 flex flex-col p-6 relative shadow-2xl"
         >
           <!-- Header -->
           <div class="flex items-center justify-between mb-5 flex-shrink-0">
-            <h2 class="text-lg font-bold text-[#2D3139]">Thêm khách mời (Guest)</h2>
+            <h2 class="text-lg font-bold text-[#2D3139] dark:text-slate-100">Thêm khách mời (Guest)</h2>
             <button
               type="button"
               @click="close"
-              class="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded"
+              class="text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white transition-colors p-1 rounded"
               aria-label="Đóng"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -29,11 +29,11 @@
           <div class="space-y-4 flex-1">
             <!-- Chọn từ Thành viên ảo CLB -->
             <div v-if="virtualMembers.length > 0">
-              <label class="block text-[13px] font-semibold text-[#6B7280] mb-1.5 uppercase tracking-wide">
+              <label class="block text-[13px] font-semibold text-[#6B7280] dark:text-slate-300 mb-1.5 uppercase tracking-wide">
                 Chọn nhanh từ Thành viên ảo CLB
               </label>
               <select v-model="selectedVirtualMemberId" @change="onSelectVirtualMember"
-                class="w-full bg-[#F9FAFB] border border-gray-200 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition cursor-pointer font-medium">
+                class="w-full bg-[#F9FAFB] dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition cursor-pointer font-medium">
                 <option value="">-- Chọn thành viên ảo --</option>
                 <option v-for="vm in virtualMembers" :key="vm.id" :value="vm.id">
                   {{ vm.name }} (Thành viên ảo)
@@ -43,7 +43,7 @@
 
             <!-- Tên hiển thị -->
             <div>
-              <label for="add-guest-display-name" class="block text-[13px] font-semibold text-[#6B7280] mb-1.5 uppercase tracking-wide">
+              <label for="add-guest-display-name" class="block text-[13px] font-semibold text-[#6B7280] dark:text-slate-300 mb-1.5 uppercase tracking-wide">
                 Tên hiển thị <span class="text-red-500">*</span>
               </label>
               <input
@@ -51,25 +51,25 @@
                 v-model="form.guest_name"
                 type="text"
                 placeholder="Ví dụ: Tuấn Nguyễn, Văn Khải,..."
-                class="w-full bg-[#F9FAFB] border border-gray-200 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
+                class="w-full bg-[#F9FAFB] dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] dark:text-slate-100 placeholder:text-[#9CA3AF] dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
               />
               <p v-if="errors.guest_name" class="text-red-500 text-xs mt-1">{{ errors.guest_name }}</p>
             </div>
 
             <!-- Avatar khách mời -->
             <div>
-              <label class="block text-[13px] font-semibold text-[#6B7280] mb-1.5 uppercase tracking-wide">
+              <label class="block text-[13px] font-semibold text-[#6B7280] dark:text-slate-300 mb-1.5 uppercase tracking-wide">
                 Ảnh đại diện
               </label>
               <div class="flex items-center gap-4">
-                <div class="relative w-16 h-16 rounded-full overflow-hidden flex-shrink-0 border-2 border-gray-200 bg-gray-50">
+                <div class="relative w-16 h-16 rounded-full overflow-hidden flex-shrink-0 border-2 border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
                   <img
                     v-if="avatarPreview || form.guest_avatar"
                     :src="avatarPreview || form.guest_avatar"
                     alt="Avatar Preview"
                     class="w-full h-full object-cover"
                   />
-                  <div v-else class="w-full h-full flex items-center justify-center text-gray-400">
+                  <div v-else class="w-full h-full flex items-center justify-center text-gray-400 dark:text-slate-500">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
@@ -85,11 +85,11 @@
                   </div>
                 </div>
                 <div class="flex-1">
-                  <p class="text-[12px] text-[#6B7280] mb-2">Tải lên ảnh đại diện cho khách mời (tùy chọn)</p>
+                  <p class="text-[12px] text-[#6B7280] dark:text-slate-400 mb-2">Tải lên ảnh đại diện cho khách mời (tùy chọn)</p>
                   <button
                     type="button"
                     @click="triggerAvatarInput"
-                    class="text-[12px] text-[#D72D36] font-medium hover:underline"
+                    class="text-[12px] text-[#D72D36] dark:text-red-400 font-medium hover:underline"
                   >
                     Chọn ảnh
                   </button>
@@ -114,7 +114,7 @@
 
             <!-- Số điện thoại -->
             <div>
-              <label for="add-guest-phone" class="block text-[13px] font-semibold text-[#6B7280] mb-1.5 uppercase tracking-wide">
+              <label for="add-guest-phone" class="block text-[13px] font-semibold text-[#6B7280] dark:text-slate-300 mb-1.5 uppercase tracking-wide">
                 Số điện thoại
               </label>
               <input
@@ -122,19 +122,19 @@
                 v-model="form.guest_phone"
                 type="tel"
                 placeholder="Nhập SĐT để định danh khách (tùy chọn)"
-                class="w-full bg-[#F9FAFB] border border-gray-200 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
+                class="w-full bg-[#F9FAFB] dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] dark:text-slate-100 placeholder:text-[#9CA3AF] dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
               />
               <p v-if="errors.guest_phone" class="text-red-500 text-xs mt-1">{{ errors.guest_phone }}</p>
             </div>
 
             <!-- Trình độ ước tính -->
             <div>
-              <label class="block text-[13px] font-semibold text-[#6B7280] mb-1.5 uppercase tracking-wide">
+              <label class="block text-[13px] font-semibold text-[#6B7280] dark:text-slate-300 mb-1.5 uppercase tracking-wide">
                 Trình độ ước tính
               </label>
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <p class="text-[11px] text-[#9CA3AF] mb-1">Từ</p>
+                  <p class="text-[11px] text-[#9CA3AF] dark:text-slate-400 mb-1">Từ</p>
                   <input
                     v-model.number="form.estimated_level_min"
                     type="number"
@@ -142,11 +142,11 @@
                     max="8"
                     step="0.5"
                     placeholder="1.0"
-                    class="w-full bg-[#F9FAFB] border border-gray-200 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
+                    class="w-full bg-[#F9FAFB] dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
                   />
                 </div>
                 <div>
-                  <p class="text-[11px] text-[#9CA3AF] mb-1">Đến</p>
+                  <p class="text-[11px] text-[#9CA3AF] dark:text-slate-400 mb-1">Đến</p>
                   <input
                     v-model.number="form.estimated_level_max"
                     type="number"
@@ -154,22 +154,22 @@
                     max="8"
                     step="0.5"
                     placeholder="8.0"
-                    class="w-full bg-[#F9FAFB] border border-gray-200 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
+                    class="w-full bg-[#F9FAFB] dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
                   />
                 </div>
               </div>
-              <p class="text-[11px] text-[#9CA3AF] mt-1">Khoảng trình độ ước tính từ 1.0 đến 8.0</p>
+              <p class="text-[11px] text-[#9CA3AF] dark:text-slate-400 mt-1">Khoảng trình độ ước tính từ 1.0 đến 8.0</p>
             </div>
 
             <!-- Người bảo lãnh (Thu tiền) - luôn hiển thị như trong ảnh -->
             <div>
-              <label for="add-guest-guarantor" class="block text-[13px] font-semibold text-[#6B7280] mb-1.5 uppercase tracking-wide">
+              <label for="add-guest-guarantor" class="block text-[13px] font-semibold text-[#6B7280] dark:text-slate-300 mb-1.5 uppercase tracking-wide">
                 Người bảo lãnh (Thu tiền) <span class="text-red-500">*</span>
               </label>
               <select
                 id="add-guest-guarantor"
                 v-model="form.guarantor_user_id"
-                class="w-full bg-[#F9FAFB] border border-gray-200 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition appearance-none cursor-pointer"
+                class="w-full bg-[#F9FAFB] dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition appearance-none cursor-pointer"
               >
                 <option value="" disabled>-- Chọn người bảo lãnh --</option>
                 <option
@@ -180,31 +180,31 @@
                   {{ candidate.is_organizer && candidate.user_id === currentUserId ? 'Tôi (Host)' : candidate.full_name }}{{ candidate.is_organizer && candidate.user_id !== currentUserId ? ' (Chủ kèo)' : '' }}
                 </option>
               </select>
-              <p class="text-[11px] text-[#6B7280] mt-1.5">
+              <p class="text-[11px] text-[#6B7280] dark:text-slate-400 mt-1.5">
                 *Người bảo lãnh là Host hoặc người đã tham gia và đã đóng phí kèo đấu (trong trường hợp kèo có phí). Người bảo lãnh có trách nhiệm thu tiền từ Guest và thanh toán chi phí (nếu có) của kèo đấu.
               </p>
               <p v-if="errors.guarantor_user_id" class="text-red-500 text-xs mt-1">{{ errors.guarantor_user_id }}</p>
             </div>
 
             <!-- Banner thông tin -->
-            <div class="flex gap-3 p-3 bg-[#FEFCE8] border border-[#FEF08A] rounded-lg">
+            <div class="flex gap-3 p-3 bg-[#FEFCE8] dark:bg-amber-950/60 border border-[#FEF08A] dark:border-amber-800 rounded-lg">
               <div class="flex-shrink-0 w-5 h-5 rounded-full bg-[#EAB308] flex items-center justify-center mt-0.5">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-white" viewBox="0 0 20 20" fill="currentColor">
                   <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
                 </svg>
               </div>
-              <p class="text-[12px] text-[#713F12] leading-snug">
+              <p class="text-[12px] text-[#713F12] dark:text-amber-200 leading-snug">
                 Trận đấu có sự tham gia của Khách mời sẽ chuyển sang chế độ <strong>Giao lưu</strong>. Hệ thống sẽ <strong>KHÔNG tính điểm xếp hạng (Picki-Rating)</strong> cho tất cả người chơi trong trận này.
               </p>
             </div>
           </div>
 
           <!-- Actions -->
-          <div class="grid grid-cols-2 gap-3 mt-6 pt-4 border-t border-gray-100 flex-shrink-0">
+          <div class="grid grid-cols-2 gap-3 mt-6 pt-4 border-t border-gray-100 dark:border-slate-800 flex-shrink-0">
             <button
               type="button"
               @click="close"
-              class="w-full py-3 bg-[#F2F3F5] text-[#2D3139] rounded-lg font-semibold text-[13px] hover:bg-gray-200 transition-colors"
+              class="w-full py-3 bg-[#F2F3F5] dark:bg-slate-800 text-[#2D3139] dark:text-slate-200 rounded-lg font-semibold text-[13px] hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
             >
               Hủy bỏ
             </button>

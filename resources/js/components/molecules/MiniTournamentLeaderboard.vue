@@ -8,7 +8,7 @@
                     'px-4 py-1.5 rounded-full text-sm font-medium transition-colors',
                     activeGroupTab === group
                         ? 'bg-red-500 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
                 ]">
                 BXH Hạng {{ group }}
             </button>
@@ -18,7 +18,7 @@
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
-                    <tr class="text-left text-[#6B6F80] text-xs uppercase border-b">
+                    <tr class="text-left text-[#6B6F80] dark:text-slate-400 text-xs uppercase border-b border-gray-200 dark:border-slate-800">
                         <th class="pb-2 pr-2 w-10">Hạng</th>
                         <th class="pb-2">Người chơi</th>
                         <th class="pb-2 text-center w-16">T/TT</th>
@@ -28,27 +28,27 @@
                 </thead>
                 <tbody>
                     <tr v-for="row in currentLeaderboard" :key="row.participant_id"
-                        class="border-b border-[#F0F0F5] hover:bg-gray-50 transition-colors">
+                        class="border-b border-[#F0F0F5] dark:border-slate-800/80 hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors">
                         <!-- Rank with medal -->
                         <td class="py-3 pr-2">
                             <!-- Gold -->
-                            <div v-if="row.rank === 1" class="flex items-center justify-center w-8 h-8 rounded-full bg-yellow-100 border-2 border-yellow-400">
-                                <span class="text-yellow-600 font-bold text-xs">1</span>
+                            <div v-if="row.rank === 1" class="flex items-center justify-center w-8 h-8 rounded-full bg-yellow-100 dark:bg-yellow-950/60 border-2 border-yellow-400 dark:border-yellow-600">
+                                <span class="text-yellow-600 dark:text-yellow-400 font-bold text-xs">1</span>
                             </div>
                             <!-- Silver -->
-                            <div v-else-if="row.rank === 2" class="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 border-2 border-gray-300">
-                                <span class="text-gray-500 font-bold text-xs">2</span>
+                            <div v-else-if="row.rank === 2" class="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-700 border-2 border-gray-300 dark:border-slate-600">
+                                <span class="text-gray-500 dark:text-slate-200 font-bold text-xs">2</span>
                             </div>
                             <!-- Bronze -->
-                            <div v-else-if="row.rank === 3" class="flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 border-2 border-orange-300">
-                                <span class="text-orange-600 font-bold text-xs">3</span>
+                            <div v-else-if="row.rank === 3" class="flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-950/60 border-2 border-orange-300 dark:border-orange-600">
+                                <span class="text-orange-600 dark:text-orange-400 font-bold text-xs">3</span>
                             </div>
-                            <span v-else class="font-semibold text-[#6B6F80]">{{ row.rank }}</span>
+                            <span v-else class="font-semibold text-[#6B6F80] dark:text-slate-400">{{ row.rank }}</span>
                         </td>
                         <!-- Name with group indicator -->
                         <td class="py-3">
                             <div class="flex items-center gap-2">
-                                <span class="font-medium text-[#3E414C]">{{ row.name }}</span>
+                                <span class="font-medium text-[#3E414C] dark:text-slate-100">{{ row.name }}</span>
                                 <span v-if="row.player_group"
                                     :class="[
                                         'text-[10px] px-1.5 py-0.5 rounded font-semibold',
@@ -60,8 +60,8 @@
                         </td>
                         <!-- Wins / Total -->
                         <td class="py-3 text-center">
-                            <span class="font-semibold text-[#3E414C]">{{ row.wins }}</span>
-                            <span class="text-[#9EA2B3]">/{{ row.total_matches }}</span>
+                            <span class="font-semibold text-[#3E414C] dark:text-slate-100">{{ row.wins }}</span>
+                            <span class="text-[#9EA2B3] dark:text-slate-400">/{{ row.total_matches }}</span>
                         </td>
                         <!-- Win Rate -->
                         <td class="py-3 text-center">
@@ -75,7 +75,7 @@
                         </td>
                     </tr>
                     <tr v-if="currentLeaderboard.length === 0">
-                        <td colspan="5" class="py-8 text-center text-[#9EA2B3] text-sm">
+                        <td colspan="5" class="py-8 text-center text-[#9EA2B3] dark:text-slate-400 text-sm">
                             Chưa có dữ liệu thi đấu.
                         </td>
                     </tr>
@@ -91,10 +91,6 @@ import { ref, computed } from 'vue'
 export default {
     name: 'MiniTournamentLeaderboard',
     props: {
-        leaderboard: {
-            type: Array,
-            default: () => []
-        },
         leaderboard: {
             type: Array,
             default: () => []

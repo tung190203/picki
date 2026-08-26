@@ -62,7 +62,7 @@
               :key="idx"
               :src="member?.avatar_url || defaultAvatar"
               @error="e => e.target.src = defaultAvatar"
-              class="w-8 h-8 rounded-full ring-2 ring-white object-cover"
+              class="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1E293B] object-cover shadow-sm"
             />
           </div>
           <span class="text-sm text-gray-800 font-semibold truncate">
@@ -96,7 +96,7 @@
               :key="idx"
               :src="member?.avatar_url || defaultAvatar"
               @error="e => e.target.src = defaultAvatar"
-              class="w-8 h-8 rounded-full ring-2 ring-white object-cover"
+              class="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1E293B] object-cover shadow-sm"
             />
           </div>
         </div>

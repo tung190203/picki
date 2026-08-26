@@ -228,12 +228,7 @@
             <div v-else-if="activeTab === 'list'" key="list">
               <div class="flex items-center justify-between border-b border-[#BBBFCC] px-3 py-4 mb-4" v-if="isCreator">
                 <p class="font-semibold uppercase">Duyệt yêu cầu tham gia tự động</p>
-                <button @click="toggleAutoApprove"
-                  class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                  :class="autoApprove ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                  <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                    :class="autoApprove ? 'translate-x-6' : 'translate-x-1'" />
-                </button>
+                <Toggle :model-value="autoApprove" @update:model-value="toggleAutoApprove" />
               </div>
               <div class="flex justify-start gap-2 mb-4">
                 <button v-for="tab in listTabs" :key="tab.id" @click="listActiveTab = tab.id" :class="[
@@ -593,12 +588,7 @@
                 <div class="flex items-center justify-between border-b border-[#BBBFCC] px-3 py-4 mb-4"
                   v-if="isCreator">
                   <p class="font-semibold uppercase">Công khai bảng đấu</p>
-                  <button @click="togglePublicBranch"
-                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                    :class="publicBracket ? 'bg-[#D72D36]' : 'bg-gray-300'">
-                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                      :class="publicBracket ? 'translate-x-6' : 'translate-x-1'" />
-                  </button>
+                  <Toggle :model-value="publicBracket" @update:model-value="togglePublicBranch" />
                 </div>
                 <div v-if="displayFormat"
                   class="border border-[#BBBFCC] flex justify-start items-start p-4 rounded gap-2">
@@ -878,6 +868,7 @@ import {
   ArrowTopRightOnSquareIcon as ExternalLinkIcon,
   CreditCardIcon,
 } from '@heroicons/vue/24/outline'
+import Toggle from '@/components/atoms/Toggle.vue'
 import UserCard from '@/components/molecules/UserCard.vue'
 import UserCardPending from '@/components/molecules/UserCardPending.vue'
 import QRcodeModal from '@/components/molecules/QRcodeModal.vue'

@@ -6,22 +6,22 @@
                 class="fixed inset-0 bg-black backdrop-blur-[1px] bg-opacity-50 flex items-center justify-center z-50 p-4"
                 @click.self="closeModal"
             >
-                <div class="bg-white rounded-lg shadow-xl w-full max-w-lg h-[90%] flex flex-col">
+                <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-lg shadow-xl w-full max-w-lg h-[90%] flex flex-col">
 
                     <!-- Header -->
                     <div class="flex items-center justify-between p-6">
                         <div class="flex items-center gap-3">
-                            <h2 class="text-xl font-semibold text-gray-800">{{ title }}</h2>
+                            <h2 class="text-xl font-semibold text-gray-800 dark:text-slate-100">{{ title }}</h2>
                             <select
                                 v-if="inviteType === 'staff'"
                                 v-model="selectedRole"
-                                class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                class="px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-700 bg-white dark:bg-[#1E293B] text-gray-900 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="organizer">Organizer</option>
                                 <option value="referee">Trọng tài</option>
                             </select>
                         </div>
-                        <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <button @click="closeModal" class="text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white transition-colors">
                             <XMarkIcon class="w-6 h-6" />
                         </button>
                     </div>
@@ -43,7 +43,7 @@
                                         'px-4 py-2 rounded-full text-sm font-semibold cursor-pointer transition select-none whitespace-nowrap',
                                         activeTab === tab.id
                                             ? 'bg-red-500 text-white'
-                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                            : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
                                     ]"
                                 >
                                     {{ tab.label }}
@@ -56,15 +56,15 @@
                     <div v-if="activeTab === 'area'" class="px-6 pb-4 space-y-3">
                         <!-- Source Toggle -->
                         <div class="flex items-center gap-2">
-                            <span class="text-sm font-medium text-gray-700">Nguồn toạ độ:</span>
-                            <div class="flex rounded-lg border border-gray-300 overflow-hidden text-xs">
+                            <span class="text-sm font-medium text-gray-700 dark:text-slate-300">Nguồn toạ độ:</span>
+                            <div class="flex rounded-lg border border-gray-300 dark:border-slate-700 overflow-hidden text-xs">
                                 <button
                                     @click="locationSource = 'venue'"
                                     :class="[
                                         'px-3 py-1.5 transition',
                                         locationSource === 'venue'
                                             ? 'bg-red-500 text-white'
-                                            : 'bg-white text-gray-600 hover:bg-gray-50'
+                                            : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                                     ]"
                                 >
                                     Theo sân đấu
@@ -75,7 +75,7 @@
                                         'px-3 py-1.5 transition',
                                         locationSource === 'user'
                                             ? 'bg-red-500 text-white'
-                                            : 'bg-white text-gray-600 hover:bg-gray-50'
+                                            : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                                     ]"
                                 >
                                     Theo vị trí tôi
@@ -86,8 +86,8 @@
                         <!-- Radius Slider -->
                         <div>
                             <div class="flex items-center justify-between mb-2">
-                                <label class="text-sm font-medium text-gray-700">Bán kính tìm kiếm</label>
-                                <span class="text-sm font-semibold text-red-600">{{ localRadius }} km</span>
+                                <label class="text-sm font-medium text-gray-700 dark:text-slate-300">Bán kính tìm kiếm</label>
+                                <span class="text-sm font-semibold text-red-600 dark:text-red-400">{{ localRadius }} km</span>
                             </div>
                             <input
                                 type="range"
@@ -96,10 +96,10 @@
                                 min="1"
                                 max="50"
                                 step="1"
-                                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-600 custom-range"
+                                class="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-red-600 custom-range"
                                 :style="sliderStyle"
                             />
-                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                            <div class="flex justify-between text-xs text-gray-500 dark:text-slate-400 mt-1">
                                 <span>1 km</span>
                                 <span>50 km</span>
                             </div>
@@ -111,9 +111,9 @@
                                 type="checkbox"
                                 id="friend-only"
                                 v-model="friendOnly"
-                                class="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                                class="w-4 h-4 text-red-600 border-gray-300 dark:border-slate-700 rounded focus:ring-red-500 cursor-pointer"
                             />
-                            <label for="friend-only" class="text-sm font-medium text-gray-700 cursor-pointer select-none">
+                            <label for="friend-only" class="text-sm font-medium text-gray-700 dark:text-slate-300 cursor-pointer select-none">
                                 Chỉ bạn bè (friend only)
                             </label>
                         </div>
@@ -122,13 +122,13 @@
                     <!-- Search -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-6 py-4">
                         <div :class="activeTab === 'club' ? '' : 'md:col-span-2'" class="relative flex items-center">
-                            <MagnifyingGlassIcon class="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <MagnifyingGlassIcon class="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-400" />
                             <input
                                 v-model="localSearchQuery"
                                 @input="onSearch"
                                 type="text"
                                 placeholder="Tìm kiếm"
-                                class="w-full pl-10 pr-4 py-2 h-10 border border-[#EDEEF2] bg-[#EDEEF2] rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                class="w-full pl-10 pr-4 py-2 h-10 border border-[#EDEEF2] dark:border-slate-700 bg-[#EDEEF2] dark:bg-slate-800 text-gray-900 dark:text-slate-100 placeholder:text-gray-400 dark:placeholder:text-slate-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
 
@@ -136,7 +136,7 @@
                             <select
                                 v-model="selectedClub"
                                 @change="$emit('change-club', selectedClub)"
-                                class="w-full px-4 py-2 h-10 border border-[#EDEEF2] bg-[#EDEEF2] rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                class="w-full px-4 py-2 h-10 border border-[#EDEEF2] dark:border-slate-700 bg-[#EDEEF2] dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="">Chọn CLB</option>
                                 <option v-for="club in clubs" :key="club.id" :value="club.id">
@@ -153,7 +153,7 @@
                         @scroll="onScroll"
                     >
                         <template v-if="filteredUsers.length === 0">
-                            <div class="text-center text-gray-400 mt-10">
+                            <div class="text-center text-gray-400 dark:text-slate-400 mt-10">
                                 Không tìm thấy người dùng.
                             </div>
                         </template>
@@ -162,7 +162,7 @@
                             <div
                                 v-for="user in filteredUsers"
                                 :key="user.id"
-                                class="flex items-center gap-3 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
+                                class="flex items-center gap-3 py-3 border-b border-gray-100 dark:border-slate-800/80 last:border-b-0 hover:bg-gray-50 dark:hover:bg-slate-800/60 p-2 rounded-lg transition"
                             >
                                 <!-- Avatar -->
                                 <div class="relative">
@@ -173,7 +173,7 @@
                                             class="w-full h-full object-cover"
                                         />
                                         <div
-                                            class="absolute -bottom-1 -left-1 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border border-white"
+                                            class="absolute -bottom-1 -left-1 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border border-white dark:border-slate-800"
                                         >
                                             <span class="text-white text-[9px] font-bold">
                                                 {{ convertLevel(user) }}
@@ -183,7 +183,7 @@
                                     <!-- Friend badge -->
                                     <div
                                         v-if="user.is_friend"
-                                        class="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center border border-white"
+                                        class="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center border border-white dark:border-slate-800"
                                         title="Bạn bè"
                                     >
                                         <span class="text-white text-[8px] font-bold">F</span>
@@ -193,11 +193,11 @@
                                 <!-- Info -->
                                 <div class="flex-1 min-w-0 pr-2">
                                     <div class="w-full">
-                                        <div class="font-semibold text-gray-800 truncate" :title="user.name">
+                                        <div class="font-semibold text-gray-800 dark:text-slate-100 truncate" :title="user.name">
                                             {{ user.name }}
                                         </div>
                                     </div>
-                                    <div class="flex items-center gap-2 text-sm text-gray-500 mt-0.5">
+                                    <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 mt-0.5">
                                         <component :is="user.gender == 1 ? maleIcon : femaleIcon" class="w-4 h-4 flex-shrink-0" />
                                         <span class="truncate">{{ user.gender_text }}</span>
                                     </div>
@@ -208,9 +208,9 @@
                                     @click="inviteUser(user.id)"
                                     :disabled="user.invited"
                                     :class="[
-                                        'px-4 py-2 rounded-lg text-sm',
+                                        'px-4 py-2 rounded-lg text-sm font-semibold transition',
                                         user.invited
-                                            ? 'bg-gray-100 text-gray-400'
+                                            ? 'bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500 cursor-not-allowed'
                                             : 'bg-blue-500 text-white hover:bg-blue-600'
                                     ]"
                                 >
