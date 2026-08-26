@@ -1,11 +1,11 @@
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <div class="min-h-screen bg-gray-50 dark:bg-[#0B1120]">
     <!-- Header -->
     <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
       <div class="flex items-center justify-end">
         <button
           @click="markAllAsRead"
-          class="flex items-center gap-2 bg-[#D72D36] hover:bg-red-500 text-white px-4 py-2 rounded-lg text-sm"
+          class="flex items-center gap-2 bg-[#D72D36] hover:bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-md dark:shadow-none"
         >
           <CheckIcon class="w-5 h-5" />
           <span class="hidden sm:inline">Đánh dấu tất cả</span>
@@ -15,16 +15,16 @@
 
     <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <!-- Tabs -->
-      <div class="flex gap-2 bg-white rounded-lg p-2 shadow-md mb-6 overflow-x-auto">
+      <div class="flex gap-2 bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-lg p-2 shadow-md mb-6 overflow-x-auto">
         <button
           v-for="tab in filterTabs"
           :key="tab.value"
           @click="changeFilter(tab.value)"
           :class="[
-            'px-4 py-2 rounded-lg font-medium whitespace-nowrap transition',
+            'px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition',
             activeFilter === tab.value
-              ? 'bg-[#D72D36] text-white'
-              : 'text-gray-600 hover:bg-gray-100'
+              ? 'bg-[#D72D36] text-white shadow-sm'
+              : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800'
           ]"
         >
           {{ tab.label }} ({{ tab.count }})
@@ -34,7 +34,7 @@
       <!-- Empty -->
       <div
         v-if="notifications.length === 0 && !loading"
-        class="text-center pt-8 text-gray-500"
+        class="text-center pt-8 text-gray-500 dark:text-slate-400"
       >
         Không có thông báo nào
       </div>
@@ -54,29 +54,29 @@
             <!-- ICON -->
             <component
               :is="getIcon(notification.type)"
-              class="w-6 h-6"
+              class="w-6 h-6 flex-shrink-0"
               :class="{
-                'text-green-500': notification.type === 'success',
-                'text-yellow-500': notification.type === 'warning',
-                'text-blue-500': notification.type === 'info',
+                'text-green-500 dark:text-emerald-400': notification.type === 'success',
+                'text-yellow-500 dark:text-amber-400': notification.type === 'warning',
+                'text-blue-500 dark:text-red-400': notification.type === 'info',
               }"
             />
 
             <div class="flex-1 min-w-0">
               <div class="flex items-start justify-between gap-2 mb-2">
-                <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-slate-100 flex items-center gap-2">
                   {{ notification.title }}
                   <span
                     v-if="!notification.read"
-                    class="w-2 h-2 bg-blue-600 rounded-full"
+                    class="w-2.5 h-2.5 bg-blue-600 dark:bg-red-500 rounded-full flex-shrink-0"
                   />
                 </h3>
-                <span class="text-xs sm:text-sm text-gray-500 whitespace-nowrap">
+                <span class="text-xs sm:text-sm text-gray-500 dark:text-slate-400 whitespace-nowrap">
                   {{ notification.time }}
                 </span>
               </div>
 
-              <p class="text-gray-600 mb-4 text-sm sm:text-base">
+              <p class="text-gray-600 dark:text-slate-300 mb-4 text-sm sm:text-base leading-relaxed">
                 {{ notification.message }}
               </p>
 
@@ -84,7 +84,7 @@
                 <button
                   v-if="!notification.read"
                   @click.stop="markOneAsRead(notification.id)"
-                  class="flex items-center gap-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md text-sm"
+                  class="flex items-center gap-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 px-3 py-1.5 rounded-md text-sm font-semibold transition-colors"
                 >
                   <CheckIcon class="w-4 h-4" />
                   Đánh dấu đã đọc
@@ -92,7 +92,7 @@
 
                 <button
                   @click.stop="deleteOne(notification.id)"
-                  class="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-md text-sm"
+                  class="flex items-center gap-2 bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-600 dark:text-red-300 border border-transparent dark:border-red-900/60 px-3 py-1.5 rounded-md text-sm font-semibold transition-colors"
                 >
                   <TrashIcon class="w-4 h-4" />
                   Xóa
@@ -103,13 +103,13 @@
         </div>
 
         <!-- Loading -->
-        <div v-if="loading" class="flex justify-center py-8 text-gray-500">
+        <div v-if="loading" class="flex justify-center py-8 text-gray-500 dark:text-slate-400">
           Đang tải...
         </div>
 
         <div
           v-if="!hasMore && notifications.length"
-          class="text-center py-8 text-gray-400"
+          class="text-center py-8 text-gray-400 dark:text-slate-500"
         >
           Đã hiển thị tất cả thông báo
         </div>
@@ -518,12 +518,12 @@ const getIcon = (type) => {
 }
 
 const getNotificationClass = (n) => {
-  if (n.read) return 'bg-gray-50'
+  if (n.read) return 'bg-white dark:bg-[#161F33]/60 border border-gray-100 dark:border-slate-800/80 text-gray-900 dark:text-slate-100'
 
   return {
-    success: 'bg-green-50 border-l-4 border-green-500',
-    warning: 'bg-yellow-50 border-l-4 border-yellow-500',
-    info: 'bg-blue-50 border-l-4 border-blue-500',
+    success: 'bg-green-50 dark:bg-emerald-950/40 border-l-4 border-green-500 dark:border-emerald-500 text-gray-900 dark:text-slate-100 border-y border-r border-transparent dark:border-slate-800',
+    warning: 'bg-yellow-50 dark:bg-amber-950/40 border-l-4 border-yellow-500 dark:border-amber-500 text-gray-900 dark:text-slate-100 border-y border-r border-transparent dark:border-slate-800',
+    info: 'bg-[#F0F7FF] dark:bg-slate-800 border-l-4 border-blue-500 dark:border-red-500 text-gray-900 dark:text-slate-100 border-y border-r border-transparent dark:border-slate-700/80 shadow-md dark:shadow-none',
   }[n.type]
 }
 
