@@ -42,6 +42,9 @@ class Kernel extends ConsoleKernel
                 \Illuminate\Support\Facades\Log::info('ranks:snapshot-weekly OK at ' . now());
             });
         $schedule->command('tournaments:backfill-end-date')->dailyAt('00:05');
+        $schedule->command('notifications:prune-old --days=30')->dailyAt('02:00');
+        $schedule->command('verification-codes:prune-expired')->dailyAt('02:15');
+        $schedule->command('queue:prune-failed --hours=168')->dailyAt('02:30');
         $schedule->command('admin-push-notifications:process-scheduled')
             ->everyMinute()
             ->withoutOverlapping(60);
