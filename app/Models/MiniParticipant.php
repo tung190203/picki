@@ -41,6 +41,7 @@ class MiniParticipant extends Model
         'modify_gender',
         'match_tier',
         'skip_next_round',
+        'modified_avatar',
     ];
 
     protected $casts = [

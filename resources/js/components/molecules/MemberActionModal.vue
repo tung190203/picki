@@ -72,6 +72,11 @@
                                     <XCircleIcon v-else class="w-5 h-5" />
                                     {{ props.member?.is_absent ? 'Đã báo vắng' : 'Báo vắng' }}
                                 </button>
+                                <button v-if="!props.member?.is_guest" @click="handleModifyAvatar"
+                                    class="w-full py-2.5 px-4 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition flex items-center justify-center gap-2 font-medium text-sm">
+                                    <CameraIcon class="w-5 h-5" />
+                                    Chụp ảnh tạm thời
+                                </button>
                             </template>
 
                             <!-- Participant actions: Tự check-in / Tự báo vắng (chỉ khi chính mình) -->
@@ -103,7 +108,7 @@
 import { computed } from 'vue'
 import { toast } from 'vue3-toastify'
 import {
-    XMarkIcon, UserIcon, CheckIcon, CheckBadgeIcon, XCircleIcon
+    XMarkIcon, UserIcon, CheckIcon, CheckBadgeIcon, XCircleIcon, CameraIcon
 } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
@@ -113,9 +118,10 @@ const props = defineProps({
     tournamentType: { type: String, default: 'tournament' },
     isCurrentUserOrganizer: { type: Boolean, default: false },
     isCurrentUserParticipant: { type: Boolean, default: false },
+    miniTournamentId: { type: [Number, String], default: null },
 })
 
-const emit = defineEmits(['update:modelValue', 'view-profile', 'check-in', 'absent', 'self-check-in', 'self-absent', 'admin-confirm'])
+const emit = defineEmits(['update:modelValue', 'view-profile', 'check-in', 'absent', 'self-check-in', 'self-absent', 'admin-confirm', 'modify-avatar'])
 
 const isOpen = computed({
     get: () => props.modelValue,
@@ -245,6 +251,10 @@ const handleSelfAbsent = () => {
 
 const handleAdminConfirm = () => {
     emit('admin-confirm', props.member)
+}
+
+const handleModifyAvatar = () => {
+    emit('modify-avatar', props.member)
 }
 </script>
 

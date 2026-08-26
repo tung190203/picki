@@ -274,7 +274,7 @@
                      class="border border-[#BBBFCC] p-4 rounded-lg cursor-pointer hover:shadow-md transition">
                     <MiniMatchCard :matchTitle="match.name" :matchTime="match.scheduled_at ? formatDate(match.scheduled_at) : null"
                        :matchId="match.id"
-                       :courtName="`Sân ${match.yard_number || 1}`"
+                       :courtNumber="match.court_number"
                        :miniMatchType="match.match_type"
                        :teamWinId="match.team_win_id"
                        :team1="match.team1.members.map(m => ({ team_id: match.team1.id, id: m.id, name: m.full_name, avatar: m.avatar_url, rating: getUserRatingBySport(m, props.sportId), status: m.visibility }))"
@@ -342,7 +342,7 @@
                  class="border border-[#BBBFCC] p-4 rounded-lg cursor-pointer hover:shadow-md transition">
                 <MiniMatchCard :matchTitle="miniMatch.name" :matchTime="miniMatch.scheduled_at ? formatDate(miniMatch.scheduled_at) : null"
                    :matchId="miniMatch.id"
-                   :courtName="`Sân ${miniMatch.yard_number || 1}`"
+                   :courtNumber="miniMatch.court_number"
                    :miniMatchType="miniMatch.match_type"
                    :teamWinId="miniMatch.team_win_id"
                    :team1="miniMatch.team1.members.map(m => ({ team_id: miniMatch.team1.id, id: m.id, name: m.full_name, avatar: m.avatar_url, rating: getUserRatingBySport(m, props.sportId), status: m.visibility }))"
