@@ -89,6 +89,11 @@ class MatchSuggestionService
     ): MatchSuggestionResponseDTO {
         $miniTournamentId = $request->mini_tournament_id;
 
+        \Log::info('[MatchSuggestion/regenerate] Request fixed_pairs count: ' . count($request->fixed_pairs));
+        foreach ($request->fixed_pairs as $idx => $pair) {
+            \Log::info("[MatchSuggestion/regenerate] Fixed pair $idx: p1={$pair->player1_id}(guest={$pair->player1_is_guest}), p2={$pair->player2_id}(guest={$pair->player2_is_guest})");
+        }
+
         // Get mini tournament to check if payment is required
         $miniTournament = \App\Models\MiniTournament::find($miniTournamentId);
         $needsPaymentCheck = $miniTournament
@@ -137,6 +142,9 @@ class MatchSuggestionService
         $evaluation = $this->schedulerService->enumerateCandidates($pool, $request, $userDataMap, $existingSignatures);
         $candidates = $evaluation['candidates'];
         $totalCandidates = (int) $evaluation['total_candidates'];
+
+        \Log::info("[MatchSuggestion/regenerate] Total candidates after enumerate: " . count($candidates));
+        \Log::info("[MatchSuggestion/regenerate] Pool size for rotation: " . count($pool));
 
         if (empty($candidates)) {
             return $this->schedulerService->generate(

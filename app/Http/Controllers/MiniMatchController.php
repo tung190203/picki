@@ -367,6 +367,7 @@ class MiniMatchController extends Controller
             'team2_name' => 'nullable|string|max:255',
             'name' => 'nullable|string|max:255',
             'court_number' => 'nullable|integer|min:1',
+            'disable_scoring' => 'nullable|boolean',
         ]);
 
         $team1Count = count($data['team1']);
@@ -446,6 +447,7 @@ class MiniMatchController extends Controller
                 'team2_id' => $team2->id,
                 'status' => MiniMatch::STATUS_PENDING,
                 'name' => $data['name'] ?? $defaultMatchName,
+                'disable_scoring' => $request->boolean('disable_scoring'),
             ]);
 
             DB::commit();
@@ -491,6 +493,7 @@ class MiniMatchController extends Controller
             'team2_name' => 'nullable|string|max:255',
             'name' => 'nullable|string|max:255',
             'court_number' => 'nullable|integer|min:1',
+            'disable_scoring' => 'nullable|boolean',
         ]);
 
         // ---- CHECK MATCH TYPE ----
@@ -549,6 +552,9 @@ class MiniMatchController extends Controller
             $match->update([
                 'name' => $data['name'] ?? $match->name,
                 'court_number' => $data['court_number'] ?? $match->court_number,
+                'disable_scoring' => $request->has('disable_scoring')
+                    ? $request->boolean('disable_scoring')
+                    : $match->disable_scoring,
             ]);
 
             DB::commit();
@@ -851,7 +857,7 @@ class MiniMatchController extends Controller
             $matchFullyConfirmed = $match->team1_confirm && $match->team2_confirm;
 
             if ($matchFullyConfirmed) {
-                $this->processMatchCompletion($match, $sportId);
+                $this->processMatchCompletion($match, $sportId, $match->disable_scoring);
                 $this->checkRoundActivation($match);
             }
 
@@ -1098,8 +1104,10 @@ class MiniMatchController extends Controller
 
     /**
      * Logic xử lý khi trận đấu hoàn tất (Tính winner, Elo/VNDUPR)
+     *
+     * @param bool $disableScoring If true, records history/scores but keeps values unchanged
      */
-    private function processMatchCompletion($match, $sportId)
+    private function processMatchCompletion($match, $sportId, bool $disableScoring = false)
     {
         // A. Xác định đội thắng
         $wins = $match->results->where('won_set', true)->groupBy('team_id')->map->count();
@@ -1129,8 +1137,7 @@ class MiniMatchController extends Controller
         MiniMatchResult::whereIn('id', $resultIds)
             ->update(['status' => MiniMatchResult::STATUS_APPROVED]);
 
-        // ===== GUEST: skip VNDUPR + anchor counting for entire match if any guest is present =====
-        // Guest matches should not affect any user's rating or anchor count.
+        // ===== GUEST: skip everything (no history, no anchor, no rating) =====
         $tournament = $match->miniTournament;
         if ($tournament) {
             $hasGuest = $match->team1->members->contains(fn($m) => $m->is_guest)
@@ -1141,31 +1148,33 @@ class MiniMatchController extends Controller
         }
 
         // ===== ANCHOR MATCH LOGIC =====
-        // FIX: dùng user_id thay vì member id (mini_team_member.id)
-        $allMemberUserIds = $match->team1->members->pluck('user_id')
-            ->merge($match->team2->members->pluck('user_id'))
-            ->unique()
-            ->values();
-
-        $badgeService = app(\App\Services\BadgeService::class);
-
-        $allUserIds = $allMemberUserIds->toArray();
-        $hasAnchorInMatch = false;
-        foreach ($allUserIds as $userId) {
-            if ($badgeService->has_any_badge($userId)) {
-                $hasAnchorInMatch = true;
-                break;
-            }
-        }
-
-        if ($hasAnchorInMatch) {
-            $nonAnchorIds = collect($allUserIds)
-                ->filter(fn($userId) => !$badgeService->has_any_badge($userId))
+        // Anchor count is only incremented for matches that affect rating
+        if (!$disableScoring) {
+            $allMemberUserIds = $match->team1->members->pluck('user_id')
+                ->merge($match->team2->members->pluck('user_id'))
+                ->unique()
                 ->values();
 
-            if ($nonAnchorIds->isNotEmpty()) {
-                DB::table('users')->whereIn('id', $nonAnchorIds)
-                    ->increment('total_matches_has_anchor');
+            $badgeService = app(\App\Services\BadgeService::class);
+
+            $allUserIds = $allMemberUserIds->toArray();
+            $hasAnchorInMatch = false;
+            foreach ($allUserIds as $userId) {
+                if ($badgeService->has_any_badge($userId)) {
+                    $hasAnchorInMatch = true;
+                    break;
+                }
+            }
+
+            if ($hasAnchorInMatch) {
+                $nonAnchorIds = collect($allUserIds)
+                    ->filter(fn($userId) => !$badgeService->has_any_badge($userId))
+                    ->values();
+
+                if ($nonAnchorIds->isNotEmpty()) {
+                    DB::table('users')->whereIn('id', $nonAnchorIds)
+                        ->increment('total_matches_has_anchor');
+                }
             }
         }
 
@@ -1186,6 +1195,11 @@ class MiniMatchController extends Controller
         // =====================================================
         // C. Batch load all data for rating calculation
         // =====================================================
+        $allMemberUserIds = $match->team1->members->pluck('user_id')
+            ->merge($match->team2->members->pluck('user_id'))
+            ->unique()
+            ->values();
+
         $userSportRecords = DB::table('user_sport')
             ->whereIn('user_id', $allMemberUserIds)
             ->where('sport_id', $sportId)
@@ -1214,7 +1228,6 @@ class MiniMatchController extends Controller
             $total = 0;
             $count = 0;
             foreach ($team->members as $member) {
-                // FIX: dùng user_id để lookup, không phải member->id (mini_team_member.id)
                 $userSport = $userSportRecords->get($member->user_id);
                 if ($userSport) {
                     $score = $scoreMap->get($userSport->id);
@@ -1240,9 +1253,7 @@ class MiniMatchController extends Controller
 
         // =====================================================
         // E. Batch operations — no individual queries per user
-        // NOTE: total_matches column is deprecated; is_verified is driven by
-        // total_matches_has_anchor (via UserObserver, threshold >= 10).
-        // total_matches has been dropped from the users table.
+        // =====================================================
 
         $vnduprHistoryRecords = [];
         $scoreUpserts = [];
@@ -1261,7 +1272,6 @@ class MiniMatchController extends Controller
                 if ($scoreRecord) {
                     $R_old = (float) $scoreRecord->score_value;
                 }
-                // FIX: user chưa có vndupr_score → fallback từ history
                 if ($R_old === null) {
                     $history = $historyMap->get($user->id, collect());
                     if ($history->isNotEmpty()) {
@@ -1272,25 +1282,30 @@ class MiniMatchController extends Controller
 
                 $history = $historyMap->get($user->id, collect());
 
-                $K = 0.3;
-                if ($user->is_anchor || $user->hasAnyBadge(['PICKI', 'CHAMPION', 'ANCHOR', 'VERIFIED'])) {
-                    $K = 0.1;
+                // When scoring is disabled, rating stays the same
+                if ($disableScoring) {
+                    $R_new = $R_old;
                 } else {
-                    $anchored = $user->total_matches_has_anchor ?? 0;
-                    if ($anchored <= 10) {
-                        $K = 1;
-                    } elseif ($anchored <= 50) {
-                        $K = 0.6;
+                    $K = 0.3;
+                    if ($user->is_anchor || $user->hasAnyBadge(['PICKI', 'CHAMPION', 'ANCHOR', 'VERIFIED'])) {
+                        $K = 0.1;
+                    } else {
+                        $anchored = $user->total_matches_has_anchor ?? 0;
+                        if ($anchored <= 10) {
+                            $K = 1;
+                        } elseif ($anchored <= 50) {
+                            $K = 0.6;
+                        }
                     }
-                }
 
-                if ($history->count() >= 2) {
-                    if (($history->first()->score_before - $history->last()->score_after) > 0.5) {
-                        $K = 1;
+                    if ($history->count() >= 2) {
+                        if (($history->first()->score_before - $history->last()->score_after) > 0.5) {
+                            $K = 1;
+                        }
                     }
-                }
 
-                $R_new = $R_old + (0.1 * $K * ($data['S'] - $data['E']));
+                    $R_new = $R_old + (0.1 * $K * ($data['S'] - $data['E']));
+                }
 
                 $vnduprHistoryRecords[] = [
                     'user_id' => $user->id,
@@ -1520,6 +1535,7 @@ class MiniMatchController extends Controller
             'name' => 'nullable|string|max:255',
             'court_number' => 'nullable|integer|min:1',
             'round_number' => 'nullable|integer|min:1',
+            'disable_scoring' => 'nullable|boolean',
             'sets' => 'nullable|array',
             'sets.*.set_number' => 'required_with:sets|integer|min:1',
             'sets.*.results' => 'required_with:sets|array|size:2',
@@ -1568,6 +1584,9 @@ class MiniMatchController extends Controller
                 $match->update([
                     'name' => $data['name'] ?? $match->name,
                     'court_number' => $data['court_number'] ?? $match->court_number,
+                    'disable_scoring' => $request->has('disable_scoring')
+                        ? $request->boolean('disable_scoring')
+                        : $match->disable_scoring,
                 ]);
             } else {
                 $allUserIds = array_unique(array_merge($data['team1'], $data['team2']));
@@ -1613,6 +1632,7 @@ class MiniMatchController extends Controller
                     'round_number' => $data['round_number'] ?? null,
                     'name' => $data['name'] ?? $this->generateMatchName($miniTournament, $data['round_number'] ?? null),
                     'court_number' => $data['court_number'] ?? null,
+                    'disable_scoring' => $request->boolean('disable_scoring'),
                 ]);
             }
 

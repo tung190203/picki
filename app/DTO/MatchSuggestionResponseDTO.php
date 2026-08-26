@@ -35,17 +35,23 @@ class MatchSuggestionResponseDTO
     public static function fromArray(array $data): self
     {
         $match = null;
-        if ($data['match'] !== null) {
+        if (($data['match'] ?? null) !== null) {
             $match = SuggestionMatchDTO::fromArray($data['match']);
         }
 
-        $waitingPlayers = array_map(
-            fn($p) => PlayerContextDTO::fromArray($p),
-            $data['waiting_players'] ?? []
-        );
+        // Defensive: skip waiting entries that lack required fields (e.g. when
+        // the previous suggestion is round-tripped from the client, the
+        // waiting_players are slimmed down and don't carry mini_participant_id).
+        $waitingPlayers = [];
+        foreach (($data['waiting_players'] ?? []) as $p) {
+            if (!is_array($p) || !array_key_exists('mini_participant_id', $p)) {
+                continue;
+            }
+            $waitingPlayers[] = PlayerContextDTO::fromArray($p);
+        }
 
         $backupPlayer = null;
-        if ($data['backup_player'] !== null) {
+        if (($data['backup_player'] ?? null) !== null && is_array($data['backup_player']) && array_key_exists('mini_participant_id', $data['backup_player'])) {
             $backupPlayer = PlayerContextDTO::fromArray($data['backup_player']);
         }
 

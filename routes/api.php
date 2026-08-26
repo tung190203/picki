@@ -900,6 +900,11 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     Route::prefix('mini-tournaments')->group(function () {
         Route::post('/{miniTournamentId}/participants/{participantId}/modify-score', [MiniParticipantController::class, 'modifyScore']);
         Route::post('/{miniTournamentId}/participants/{participantId}/modify-gender', [MiniParticipantController::class, 'modifyGender']);
+
+        // Player pairs for fixed pairing
+        Route::get('/{miniTournamentId}/player-pairs', [MiniTournamentController::class, 'getPlayerPairs']);
+        Route::post('/{miniTournamentId}/player-pairs', [MiniTournamentController::class, 'createPlayerPair']);
+        Route::delete('/{miniTournamentId}/player-pairs/{pairId}', [MiniTournamentController::class, 'deletePlayerPair']);
     });
 
     Route::prefix('match-suggestions')->group(function () {

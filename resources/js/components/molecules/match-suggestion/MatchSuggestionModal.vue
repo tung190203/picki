@@ -41,6 +41,21 @@
 
                         <!-- Suggestion Result -->
                         <div v-else-if="currentSuggestion" class="space-y-6">
+                            <!-- Pairing Status Banner -->
+                            <div v-if="selectedForPairing" class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-yellow-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                                    </svg>
+                                    <span class="text-sm text-yellow-700">Đang chọn cặp cho <strong>{{ getParticipantName(selectedForPairing) }}</strong>...</span>
+                                </div>
+                                <button @click="cancelPairingSelection" class="text-yellow-500 hover:text-yellow-700">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+
                             <!-- Suggested Match Card -->
                             <SuggestedMatchCard 
                                 :match="currentSuggestion.match" 
@@ -69,11 +84,14 @@
                                 </div>
                             </div>
 
-                            <!-- Participants List with Skip Toggle -->
+                            <!-- Participants List with Skip Toggle and Pairing -->
                             <ParticipantsList
                                 v-model:participants="localParticipants"
                                 :collapsed="isParticipantsCollapsed"
+                                :player-pairs="playerPairs"
+                                :selected-for-pairing="selectedForPairing"
                                 @toggle-collapse="isParticipantsCollapsed = !isParticipantsCollapsed"
+                                @pair-toggle="handlePairToggle"
                             />
 
                             <!-- Messages -->
@@ -169,6 +187,11 @@ export default {
         // Local participants with skip, tier, and display_gender state
         const localParticipants = ref([]);
 
+        // Fixed pairing state
+        const playerPairs = ref([]);
+        const selectedForPairing = ref(null);
+        const PAIR_COLORS = ['cyan', 'orange', 'teal', 'purple', 'pink', 'amber'];
+
         // Sync participants from props to local state with tier and gender
         watch(() => props.participants, (newParticipants) => {
             localParticipants.value = (newParticipants || []).map(p => {
@@ -195,6 +218,126 @@ export default {
             });
         }, { immediate: true, deep: true });
 
+        // Load player pairs when modal opens
+        watch(() => props.modelValue, async (newVal) => {
+            if (newVal) {
+                // Reset collapse state
+                isParticipantsCollapsed.value = true;
+                await loadPlayerPairs();
+                generate();
+            }
+        });
+
+        // Load player pairs from server
+        const loadPlayerPairs = async () => {
+            try {
+                const response = await MatchSuggestionService.getPlayerPairs(props.miniTournamentId);
+                const data = response?.data || response;
+                playerPairs.value = data?.data || data || [];
+            } catch (err) {
+                console.error('Failed to load player pairs:', err);
+                playerPairs.value = [];
+            }
+        };
+
+        // Get participant name by ID
+        const getParticipantName = (participantId) => {
+            const p = localParticipants.value.find(p => p.id === participantId || p.mini_participant_id === participantId);
+            return p?.user?.full_name || p?.guest_name || 'Người chơi';
+        };
+
+        // Handle pair toggle from ParticipantsList
+        const handlePairToggle = async (participant) => {
+            const participantId = participant.id || participant.mini_participant_id;
+            const isGuest = participant.is_guest || false;
+
+            // Check if participant is already paired
+            const existingPair = findPairForParticipant(participantId, isGuest);
+
+            if (existingPair) {
+                // Already paired - click to unpair
+                await unpairParticipant(existingPair, participantId);
+            } else if (selectedForPairing.value === participantId) {
+                // Currently waiting for pairing - cancel selection
+                cancelPairingSelection();
+            } else if (selectedForPairing.value !== null) {
+                // Has someone waiting - create pair with them
+                const waitingId = selectedForPairing.value;
+                const waitingParticipant = localParticipants.value.find(p => 
+                    (p.id || p.mini_participant_id) === waitingId
+                );
+                const waitingIsGuest = waitingParticipant?.is_guest || false;
+
+                await createPair(waitingId, participantId, waitingIsGuest, isGuest);
+                selectedForPairing.value = null;
+            } else {
+                // No one waiting - select this participant
+                selectedForPairing.value = participantId;
+            }
+        };
+
+        // Find pair for a participant
+        const findPairForParticipant = (participantId, isGuest) => {
+            return playerPairs.value.find(pair => {
+                const player1Match = String(pair.player1_id) === String(participantId) && pair.player1_is_guest === isGuest;
+                const player2Match = String(pair.player2_id) === String(participantId) && pair.player2_is_guest === isGuest;
+                return player1Match || player2Match;
+            });
+        };
+
+        // Create a new pair
+        const createPair = async (player1Id, player2Id, player1IsGuest, player2IsGuest) => {
+            try {
+                await MatchSuggestionService.createPlayerPair(
+                    props.miniTournamentId,
+                    player1Id,
+                    player2Id,
+                    player1IsGuest,
+                    player2IsGuest
+                );
+                await loadPlayerPairs();
+            } catch (err) {
+                console.error('Failed to create pair:', err);
+                // Could show toast error here
+            }
+        };
+
+        // Unpair a participant (delete their pair)
+        const unpairParticipant = async (pair, participantId) => {
+            try {
+                await MatchSuggestionService.deletePlayerPair(props.miniTournamentId, pair.id);
+                await loadPlayerPairs();
+            } catch (err) {
+                console.error('Failed to unpair:', err);
+            }
+        };
+
+        // Cancel pairing selection
+        const cancelPairingSelection = () => {
+            selectedForPairing.value = null;
+        };
+
+        // Get pair color for a participant
+        const getPairColor = (participantId, isGuest = false) => {
+            const pair = findPairForParticipant(participantId, isGuest);
+            return pair?.pair_color || null;
+        };
+
+        // Get pairing partner name
+        const getPairPartnerName = (participantId, isGuest = false) => {
+            const pair = findPairForParticipant(participantId, isGuest);
+            if (!pair) return null;
+
+            const partnerId = String(pair.player1_id) === String(participantId) && pair.player1_is_guest === isGuest
+                ? pair.player2_id
+                : pair.player1_id;
+            const partnerIsGuest = String(pair.player1_id) === String(participantId) && pair.player1_is_guest === isGuest
+                ? pair.player2_is_guest
+                : pair.player1_is_guest;
+
+            return getParticipantName(partnerId);
+        };
+
         const close = () => {
             emit('update:modelValue', false);
         };
@@ -212,15 +355,7 @@ export default {
             error.value = null;
 
             try {
-                // Get active participants (not skipped) with their current modal state
-                const activeParticipants = localParticipants.value.filter(p => !p.skip);
-                
-                // Transform participants to API format: { mini_participant_id, tier }
-                // Gender is read from user table on backend
-                const apiParticipants = activeParticipants.map(p => ({
-                    mini_participant_id: p.id || p.mini_participant_id,
-                    tier: p.tier || 'green',
-                }));
+                const apiParticipants = buildApiParticipants();
 
                 if (apiParticipants.length < 4) {
                     error.value = 'Cần ít nhất 4 người chơi để gợi ý trận đấu';
@@ -231,30 +366,86 @@ export default {
                 const response = await MatchSuggestionService.getSuggestions(props.miniTournamentId, {
                     participants: apiParticipants,
                     settings: settings.value,
+                    fixed_pairs: buildFixedPairs(),
                 });
 
-                // Laravel Resource wraps data in response.data.data
-                const rawData = response?.data || response;
-                const suggestionData = rawData?.data || rawData;
-
+                const suggestionData = extractSuggestionData(response);
                 if (!suggestionData?.match) {
                     error.value = response?.message || suggestionData?.error_message || 'Không có gợi ý nào';
                 }
 
                 currentSuggestion.value = suggestionData;
             } catch (err) {
-                const errorMsg = err.response?.data?.message
-                    || err.response?.data?.errors
-                    || err.message
-                    || 'Không thể tạo gợi ý';
-                error.value = typeof errorMsg === 'object' ? Object.values(errorMsg).flat().join(', ') : errorMsg;
+                handleGenerateError(err);
             } finally {
                 isLoading.value = false;
             }
         };
 
         const regenerate = async () => {
-            await generate();
+            isLoading.value = true;
+            error.value = null;
+
+            try {
+                const apiParticipants = buildApiParticipants();
+
+                if (apiParticipants.length < 4) {
+                    error.value = 'Cần ít nhất 4 người chơi để gợi ý trận đấu';
+                    isLoading.value = false;
+                    return;
+                }
+
+                const response = await MatchSuggestionService.regenerateMatchSuggestion(
+                    props.miniTournamentId,
+                    {
+                        participants: apiParticipants,
+                        settings: settings.value,
+                        fixed_pairs: buildFixedPairs(),
+                        previous_suggestion: currentSuggestion.value || null,
+                    }
+                );
+
+                const suggestionData = extractSuggestionData(response);
+                if (!suggestionData?.match) {
+                    error.value = response?.message || suggestionData?.error_message || 'Không có gợi ý nào';
+                }
+
+                currentSuggestion.value = suggestionData;
+            } catch (err) {
+                handleGenerateError(err);
+            } finally {
+                isLoading.value = false;
+            }
+        };
+
+        const buildApiParticipants = () => {
+            const activeParticipants = localParticipants.value.filter(p => !p.skip);
+            return activeParticipants.map(p => ({
+                mini_participant_id: p.id || p.mini_participant_id,
+                tier: p.tier || 'green',
+            }));
+        };
+
+        const buildFixedPairs = () => {
+            return playerPairs.value.map(pair => ({
+                player1_id: pair.player1_id,
+                player2_id: pair.player2_id,
+                player1_is_guest: pair.player1_is_guest,
+                player2_is_guest: pair.player2_is_guest,
+            }));
+        };
+
+        const extractSuggestionData = (response) => {
+            const rawData = response?.data || response;
+            return rawData?.data || rawData;
+        };
+
+        const handleGenerateError = (err) => {
+            const errorMsg = err.response?.data?.message
+                || err.response?.data?.errors
+                || err.message
+                || 'Không thể tạo gợi ý';
+            error.value = typeof errorMsg === 'object' ? Object.values(errorMsg).flat().join(', ') : errorMsg;
         };
 
         const accept = () => {
@@ -268,15 +459,6 @@ export default {
             }
         };
 
-        // Auto-generate when modal opens
-        watch(() => props.modelValue, (newVal) => {
-            if (newVal) {
-                // Reset collapse state
-                isParticipantsCollapsed.value = true;
-                generate();
-            }
-        });
-
         return {
             isLoading,
             error,
@@ -285,6 +467,14 @@ export default {
             showSettings,
             isParticipantsCollapsed,
             localParticipants,
+            playerPairs,
+            selectedForPairing,
+            PAIR_COLORS,
+            getParticipantName,
+            handlePairToggle,
+            getPairColor,
+            getPairPartnerName,
+            cancelPairingSelection,
             close,
             openSettings,
             updateSettings,

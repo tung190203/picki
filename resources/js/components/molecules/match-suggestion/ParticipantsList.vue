@@ -11,6 +11,7 @@
                         <th class="text-center py-2 px-2 font-semibold text-gray-600 dark:text-gray-300">GT</th>
                         <th class="text-center py-2 px-2 font-semibold text-gray-600 dark:text-gray-300">SỐ TRẬN</th>
                         <th class="text-center py-2 px-2 font-semibold text-gray-600 dark:text-gray-300">MÀU</th>
+                        <th class="text-center py-2 px-2 font-semibold text-gray-600 dark:text-gray-300">CẶP</th>
                         <th class="text-center py-2 px-2 font-semibold text-gray-600 dark:text-gray-300">BỎ VÒNG</th>
                     </tr>
                 </thead>
@@ -28,9 +29,17 @@
                                     class="w-8 h-8 rounded-full object-cover border-2"
                                     :class="getAvatarBorderClass(participant.tier)"
                                 />
-                                <span class="text-gray-800 dark:text-gray-200">
-                                    {{ participant.user?.full_name || participant.guest_name || 'Khách' }}
-                                </span>
+                                <div class="flex flex-col">
+                                    <span class="text-gray-800 dark:text-gray-200">
+                                        {{ participant.user?.full_name || participant.guest_name || 'Khách' }}
+                                    </span>
+                                    <!-- Paired chip -->
+                                    <span v-if="getPairingStatus(participant) === 'paired'" 
+                                          class="inline-flex items-center mt-0.5 px-1.5 py-0.5 text-[10px] rounded font-medium w-fit"
+                                          :class="getPairChipClass(participant)">
+                                        {{ getPairPartnerName(participant) }}
+                                    </span>
+                                </div>
                             </div>
                         </td>
                         <td class="py-3 px-2 text-center">
@@ -55,6 +64,19 @@
                                     :title="getTierLabel(color)"
                                 ></button>
                             </div>
+                        </td>
+                        <td class="py-3 px-2 text-center">
+                            <!-- Pairing button -->
+                            <button
+                                @click="$emit('pair-toggle', participant)"
+                                class="w-7 h-7 rounded border-2 transition-all flex items-center justify-center mx-auto"
+                                :class="getPairingButtonClass(participant)"
+                                title="Ghép cặp cố định"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                                </svg>
+                            </button>
                         </td>
                         <td class="py-3 px-2 text-center">
                             <button
@@ -99,9 +121,17 @@ export default {
         collapsed: {
             type: Boolean,
             default: true
+        },
+        playerPairs: {
+            type: Array,
+            default: () => []
+        },
+        selectedForPairing: {
+            type: [Number, Object],
+            default: null
         }
     },
-    emits: ['update:participants', 'toggle-collapse'],
+    emits: ['update:participants', 'toggle-collapse', 'pair-toggle'],
     setup(props, { emit }) {
         const displayedParticipants = computed(() => {
             if (props.collapsed && props.participants.length > 5) {
@@ -109,6 +139,93 @@ export default {
             }
             return props.participants;
         });
+
+        // Pairing colors (6 màu xoay vòng, riêng biệt với tier)
+        const PAIR_COLOR_CLASSES = {
+            cyan: { border: 'border-cyan-500', text: 'text-cyan-600', bg: 'bg-cyan-100' },
+            orange: { border: 'border-orange-500', text: 'text-orange-600', bg: 'bg-orange-100' },
+            teal: { border: 'border-teal-500', text: 'text-teal-600', bg: 'bg-teal-100' },
+            purple: { border: 'border-purple-500', text: 'text-purple-600', bg: 'bg-purple-100' },
+            pink: { border: 'border-pink-500', text: 'text-pink-600', bg: 'bg-pink-100' },
+            amber: { border: 'border-amber-500', text: 'text-amber-600', bg: 'bg-amber-100' },
+        };
+
+        // Get participant ID
+        const getParticipantId = (participant) => {
+            return participant.id || participant.mini_participant_id;
+        };
+
+        // Check if participant is already paired
+        const findPairForParticipant = (participantId, isGuest = false) => {
+            return props.playerPairs.find(pair => {
+                const player1Match = String(pair.player1_id) === String(participantId) && pair.player1_is_guest === isGuest;
+                const player2Match = String(pair.player2_id) === String(participantId) && pair.player2_is_guest === isGuest;
+                return player1Match || player2Match;
+            });
+        };
+
+        // Get pairing status: 'none' | 'waiting' | 'paired'
+        const getPairingStatus = (participant) => {
+            const participantId = getParticipantId(participant);
+            const isGuest = participant.is_guest || false;
+
+            if (props.selectedForPairing === participantId) {
+                return 'waiting';
+            }
+
+            const pair = findPairForParticipant(participantId, isGuest);
+            return pair ? 'paired' : 'none';
+        };
+
+        // Get pair color for participant
+        const getPairColor = (participant) => {
+            const participantId = getParticipantId(participant);
+            const isGuest = participant.is_guest || false;
+            const pair = findPairForParticipant(participantId, isGuest);
+            return pair?.pair_color || null;
+        };
+
+        // Get partner name
+        const getPairPartnerName = (participant) => {
+            const participantId = getParticipantId(participant);
+            const isGuest = participant.is_guest || false;
+            const pair = findPairForParticipant(participantId, isGuest);
+            
+            if (!pair) return '';
+
+            const isPlayer1 = String(pair.player1_id) === String(participantId) && pair.player1_is_guest === isGuest;
+            const partnerId = isPlayer1 ? pair.player2_id : pair.player1_id;
+
+            // Find partner participant
+            const partner = props.participants.find(p => 
+                String(p.id || p.mini_participant_id) === String(partnerId)
+            );
+            return partner?.user?.full_name || partner?.guest_name || 'Người chơi';
+        };
+
+        // Get pairing button class
+        const getPairingButtonClass = (participant) => {
+            const status = getPairingStatus(participant);
+            
+            if (status === 'waiting') {
+                return 'border-yellow-400 text-yellow-500 bg-yellow-50 border-dashed';
+            }
+            
+            if (status === 'paired') {
+                const color = getPairColor(participant);
+                const colorClass = PAIR_COLOR_CLASSES[color] || PAIR_COLOR_CLASSES.cyan;
+                return `${colorClass.border} ${colorClass.text} ${colorClass.bg}`;
+            }
+            
+            return 'border-gray-300 dark:border-slate-600 text-gray-400 hover:border-gray-400';
+        };
+
+        // Get pair chip class
+        const getPairChipClass = (participant) => {
+            const color = getPairColor(participant);
+            const colorClass = PAIR_COLOR_CLASSES[color] || PAIR_COLOR_CLASSES.cyan;
+            return `${colorClass.bg} ${colorClass.text}`;
+        };
 
         const toggleSkip = (participant) => {
             const updated = props.participants.map(p => 
@@ -169,6 +286,10 @@ export default {
 
         return {
             displayedParticipants,
+            getPairingStatus,
+            getPairingButtonClass,
+            getPairChipClass,
+            getPairPartnerName,
             toggleSkip,
             updateTier,
             getGenderIcon,
