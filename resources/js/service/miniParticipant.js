@@ -74,3 +74,13 @@ export const adminConfirmMiniParticipant = async (miniTournamentId, participantI
     return axiosInstance.post(`/mini-tournaments/${miniTournamentId}/participants/${participantId}/admin-confirm`)
         .then(r => r.data);
 };
+
+export const modifyParticipantAvatar = async (miniTournamentId, participantId, imageFile) => {
+    const formData = new FormData();
+    formData.append('avatar', imageFile);
+    return axiosInstance.post(
+        `/mini-tournaments/${miniTournamentId}/participants/${participantId}/modify-avatar`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+    ).then(r => r.data);
+};
