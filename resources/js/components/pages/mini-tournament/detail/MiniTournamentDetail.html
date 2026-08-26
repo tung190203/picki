@@ -249,6 +249,30 @@
                                     CHƯA CHECKIN • {{ displayedParticipants?.length || 0 }} / {{ mini.max_players }}
                                 </h4>
                                 <span class="flex items-center gap-2">
+                                    <button v-if="isCreator" 
+                                            @click="handleCheckInAll(displayedParticipants)"
+                                            class="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                                            title="Check-in tất cả">
+                                        <CheckIcon class="w-4 h-4 text-green-600" />
+                                    </button>
+                                    <button v-if="isCreator && mini.has_fee" 
+                                            @click="handleMarkPaidAll(displayedParticipants)"
+                                            class="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                                            title="Thanh toán tất cả">
+                                        <CreditCardIcon class="w-4 h-4 text-blue-600" />
+                                    </button>
+                                    <button v-if="isCreator" 
+                                            @click="handleConfirmAll(displayedParticipants)"
+                                            class="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                                            title="Duyệt tất cả">
+                                        <ClipboardDocumentCheckIcon class="w-4 h-4 text-indigo-600" />
+                                    </button>
+                                    <button v-if="isCreator" 
+                                            @click="handleDeleteAll(displayedParticipants)"
+                                            class="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                                            title="Xóa tất cả">
+                                        <XMarkIcon class="w-4 h-4 text-red-600" />
+                                    </button>
                                     <span class="text-[#207AD5] text-xs font-semibold cursor-pointer" v-if="isCreator"
                                           @click="openInviteModalWithFriends">Mời bạn bè</span>
                                     <button v-if="isCreator && !isGuestSectionFull"
@@ -291,6 +315,18 @@
                                     ĐÃ CHECKIN • {{ checkedInParticipants?.length || 0 }}
                                 </h4>
                                 <span class="flex items-center gap-2">
+                                    <button v-if="isCreator && mini.has_fee" 
+                                            @click="handleMarkPaidAll(checkedInParticipants)"
+                                            class="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                                            title="Thanh toán tất cả">
+                                        <CreditCardIcon class="w-4 h-4 text-blue-600" />
+                                    </button>
+                                    <button v-if="isCreator" 
+                                            @click="handleDeleteAll(checkedInParticipants)"
+                                            class="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                                            title="Xóa tất cả">
+                                        <XMarkIcon class="w-4 h-4 text-red-600" />
+                                    </button>
                                     <span class="text-[#207AD5] text-xs font-semibold cursor-pointer" v-if="isCreator"
                                           @click="openInviteModalWithFriends">Mời bạn bè</span>
                                     <button v-if="isCreator"
@@ -329,6 +365,12 @@
                                     ĐÃ BÁO VẮNG • {{ absentParticipants?.length || 0 }}
                                 </h4>
                                 <span class="flex items-center gap-2">
+                                    <button v-if="isCreator" 
+                                            @click="handleDeleteAll(absentParticipants)"
+                                            class="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                                            title="Xóa tất cả">
+                                        <XMarkIcon class="w-4 h-4 text-red-600" />
+                                    </button>
                                     <span class="text-[#207AD5] text-xs font-semibold cursor-pointer" v-if="isCreator"
                                           @click="openInviteModalWithFriends">Mời bạn bè</span>
                                     <button v-if="isCreator"

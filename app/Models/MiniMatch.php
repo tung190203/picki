@@ -26,6 +26,7 @@ class MiniMatch extends Model
         'court_number',
         'round_number',
         'is_bye',
+        'disable_scoring',
         'team_1_score',
         'team_2_score',
     ];
@@ -40,6 +41,7 @@ class MiniMatch extends Model
 
     protected $casts = [
         'is_bye' => 'boolean',
+        'disable_scoring' => 'boolean',
         'team_1_score' => 'integer',
         'team_2_score' => 'integer',
     ];

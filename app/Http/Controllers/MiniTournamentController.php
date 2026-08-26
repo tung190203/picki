@@ -2070,4 +2070,117 @@ class MiniTournamentController extends Controller
             'participant_id' => $participantId,
         ], 'Đã đánh dấu vắng mặt trong trận đấu');
     }
+
+    /**
+     * Lấy danh sách cặp người chơi ghép cố định.
+     */
+    public function getPlayerPairs(int $miniTournamentId)
+    {
+        $miniTournament = MiniTournament::findOrFail($miniTournamentId);
+
+        $pairs = $miniTournament->playerPairs()->get()->map(function ($pair) {
+            return [
+                'id' => $pair->id,
+                'player1_id' => $pair->player1_id,
+                'player2_id' => $pair->player2_id,
+                'player1_is_guest' => $pair->player1_is_guest,
+                'player2_is_guest' => $pair->player2_is_guest,
+                'pair_color' => $pair->pair_color,
+                'created_at' => $pair->created_at,
+            ];
+        });
+
+        return ResponseHelper::success($pairs, 'Lấy danh sách cặp thành công');
+    }
+
+    /**
+     * Tạo cặp ghép cố định mới.
+     * Tự động huỷ cặp cũ nếu có xung đột (mỗi người chỉ ghép với 1 người).
+     */
+    public function createPlayerPair(Request $request, int $miniTournamentId)
+    {
+        $miniTournament = MiniTournament::findOrFail($miniTournamentId);
+
+        $validated = $request->validate([
+            'player1_id' => 'required|integer',
+            'player2_id' => 'required|integer',
+            'player1_is_guest' => 'boolean',
+            'player2_is_guest' => 'boolean',
+        ]);
+
+        $player1Id = $validated['player1_id'];
+        $player2Id = $validated['player2_id'];
+        $player1IsGuest = $validated['player1_is_guest'] ?? false;
+        $player2IsGuest = $validated['player2_is_guest'] ?? false;
+
+        // Validate: 2 người phải khác nhau
+        if ($player1Id === $player2Id) {
+            return ResponseHelper::error('Hai người chơi phải khác nhau', 422);
+        }
+
+        // Xoá cặp cũ của cả 2 người (nếu có)
+        $existingPairs = $miniTournament->playerPairs()
+            ->where(function ($query) use ($player1Id, $player1IsGuest, $player2Id, $player2IsGuest) {
+                $query->where(function ($q) use ($player1Id, $player1IsGuest) {
+                    $q->where('player1_id', $player1Id)
+                      ->where('player1_is_guest', $player1IsGuest);
+                })->orWhere(function ($q) use ($player1Id, $player1IsGuest) {
+                    $q->where('player2_id', $player1Id)
+                      ->where('player2_is_guest', $player1IsGuest);
+                });
+            })
+            ->orWhere(function ($query) use ($player2Id, $player2IsGuest) {
+                $query->where(function ($q) use ($player2Id, $player2IsGuest) {
+                    $q->where('player1_id', $player2Id)
+                      ->where('player1_is_guest', $player2IsGuest);
+                })->orWhere(function ($q) use ($player2Id, $player2IsGuest) {
+                    $q->where('player2_id', $player2Id)
+                      ->where('player2_is_guest', $player2IsGuest);
+                });
+            })
+            ->delete();
+
+        // Assign color (6 colors cycling)
+        $usedColors = $miniTournament->playerPairs()->pluck('pair_color')->filter()->toArray();
+        $allColors = ['cyan', 'orange', 'teal', 'purple', 'pink', 'amber'];
+        $availableColors = array_diff($allColors, $usedColors);
+        $pairColor = !empty($availableColors) ? reset($availableColors) : $allColors[count($usedColors) % 6];
+
+        // Tạo cặp mới
+        $pair = $miniTournament->playerPairs()->create([
+            'player1_id' => $player1Id,
+            'player2_id' => $player2Id,
+            'player1_is_guest' => $player1IsGuest,
+            'player2_is_guest' => $player2IsGuest,
+            'pair_color' => $pairColor,
+        ]);
+
+        return ResponseHelper::success([
+            'id' => $pair->id,
+            'player1_id' => $pair->player1_id,
+            'player2_id' => $pair->player2_id,
+            'player1_is_guest' => $pair->player1_is_guest,
+            'player2_is_guest' => $pair->player2_is_guest,
+            'pair_color' => $pair->pair_color,
+            'created_at' => $pair->created_at,
+        ], 'Tạo cặp ghép thành công', 201);
+    }
+
+    /**
+     * Xoá/huỷ cặp ghép cố định.
+     */
+    public function deletePlayerPair(int $miniTournamentId, int $pairId)
+    {
+        $miniTournament = MiniTournament::findOrFail($miniTournamentId);
+
+        $pair = $miniTournament->playerPairs()->where('id', $pairId)->first();
+
+        if (!$pair) {
+            return ResponseHelper::error('Cặp ghép không tồn tại', 404);
+        }
+
+        $pair->delete();
+
+        return ResponseHelper::success(null, 'Huỷ cặp ghép thành công');
+    }
 }
