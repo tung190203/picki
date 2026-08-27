@@ -99,14 +99,14 @@
         <div class="flex items-center mt-2 pt-2 border-t border-gray-100 h-10">
           <!-- Creator (60%) -->
           <div class="w-[60%] flex items-center gap-2 pr-2 border-gray-100 h-full">
-            <div class="flex items-center gap-2" v-if="match.staff?.organizer?.[0]?.user">
+            <div class="flex items-center gap-2" v-if="firstOrganizer">
               <img 
-                :src="match.staff.organizer[0].user.avatar_url || defaultImage"
+                :src="firstOrganizer.avatar_url || defaultImage"
                 @error="e => e.target.src = defaultImage"
                 class="w-6 h-6 rounded-full object-cover ring-1 ring-gray-200" 
               />
               <span class="text-xs text-gray-700 font-medium truncate">
-                {{ match.staff.organizer[0].user.full_name }}
+                {{ firstOrganizer.full_name }}
               </span>
             </div>
             <!-- Fallback if no organizer -->
@@ -171,6 +171,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
 import { ClockIcon, MapPinIcon, CalendarIcon, CalendarDaysIcon, UserGroupIcon, StarIcon, LockOpenIcon } from '@heroicons/vue/24/outline'; // Using outline icons
 import { FlagIcon } from '@heroicons/vue/24/solid';
 import dayjs from 'dayjs';
@@ -182,7 +183,7 @@ import 'swiper/css';
 dayjs.extend(relativeTime);
 dayjs.locale('vi');
 
-defineProps({
+const props = defineProps({
   match: {
     type: Object,
     required: true
@@ -192,6 +193,17 @@ defineProps({
 })
 
 defineEmits(['select'])
+
+/**
+ * Lấy người tổ chức đầu tiên (để hiển thị avatar).
+ * RBAC v2: organizers (số nhiều) — fallback organizer (số ít) cho FE/backend cũ.
+ */
+const firstOrganizer = computed(() => {
+  const staff = props.match?.staff
+  if (!staff) return null
+  const list = staff.organizers ?? staff.organizer ?? []
+  return list[0]?.user ?? null
+})
 
 const formatDateText = (date) => {
   if (!date) return '';

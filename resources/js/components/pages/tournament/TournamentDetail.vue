@@ -249,7 +249,7 @@
                     </h4>
                     <button
                       v-if="isCreator"
-                      @click="openInviteModalStaff('organizer')"
+                      @click="openInviteModalStaff(1)"
                       class="text-xs text-blue-600 hover:text-blue-800 font-medium"
                     >
                       + Mời vào ban tổ chức
@@ -272,7 +272,7 @@
                     </h4>
                     <button
                       v-if="isCreator"
-                      @click="openInviteModalStaff('referee')"
+                      @click="openInviteModalStaff(3)"
                       class="text-xs text-blue-600 hover:text-blue-800 font-medium"
                     >
                       + Mời Trọng tài
@@ -918,7 +918,7 @@ import TableChartIcon from '@/assets/images/table_chart.svg';
 import ScheduleIcon from '@/assets/images/branch.svg';
 
 const inviteType = ref('participant')
-const selectedStaffRole = ref('organizer')
+const selectedStaffRole = ref(1) // RBAC v2: mặc định mời Admin (organizer)
 const userStore = useUserStore()
 const { getUser, getRole } = storeToRefs(userStore)
 const { formatDateTime } = useFormatDate()
@@ -1416,7 +1416,8 @@ const handleInviteAction = async (user) => {
       toast.error(e.response?.data?.message || 'Có lỗi khi thêm thành viên ảo vào giải đấu')
     }
   } else if (inviteType.value === 'staff') {
-    await inviteStaff(user.id, user.role);
+    // RBAC v2: truyền role số (1/2/3) — lấy từ selectedStaffRole
+    await inviteStaff(user.id, Number(selectedStaffRole.value) || 1)
   } else {
     await invite(user.id);
   }
@@ -1438,7 +1439,7 @@ const openInviteModalDefault = async () => {
   showInviteModal.value = true
 }
 
-const openInviteModalStaff = async (role = 'organizer') => {
+const openInviteModalStaff = async (role = 1) => {
   inviteType.value = 'staff'
   selectedStaffRole.value = role
   activeScope.value = 'all'
@@ -2089,19 +2090,22 @@ const invite = async (friendId) => {
   }
 };
 
-const inviteStaff = async (userId, role = 'organizer') => {
+const inviteStaff = async (userId, role = 1) => {
   try {
-    let response;
-    if (role === 'referee') {
-      response = await TournamentStaffService.addReferee(id, userId);
+    // RBAC v2: role là số 1/2/3
+    const roleNum = Number(role) || 1
+    let response
+    if (roleNum === 3) {
+      // Trọng tài — backward-compat endpoint
+      response = await TournamentStaffService.addReferee(id, userId)
     } else {
-      response = await TournamentStaffService.addTournamentStaff(id, userId);
+      response = await TournamentStaffService.addTournamentStaff(id, userId, roleNum)
     }
-    toast.success(response.message);
+    toast.success(response?.message || 'Thêm thành công')
   } catch (error) {
-    toast.error(error.response?.data?.message || 'Đã xảy ra lỗi');
+    toast.error(error.response?.data?.message || 'Đã xảy ra lỗi')
   }
-};
+}
 
 const getTeams = async () => {
   try {

@@ -15,6 +15,12 @@ import faceIdIcon from '/public/login-icons/face-id.png'
 import fingerprintIcon from '/public/login-icons/fingerprint.png'
 import { isBiometricSupported, authenticateWithBiometric, getBiometricType } from '@/utils/biometrics.js'
 import * as AuthService from '@/service/auth.js'
+import TurnstileWidget from '@/components/common/TurnstileWidget.vue'
+
+const turnstileToken = ref('')
+const onTurnstileVerify = (token) => {
+  turnstileToken.value = token
+}
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -91,7 +97,8 @@ const login = async () => {
     try {
       const res = await userStore.loginUser({
         login: data.login,
-        password: data.password
+        password: data.password,
+        'cf-turnstile-response': turnstileToken.value
       })
       handleRedirectAfterLogin(res)
     } catch (error) {
@@ -229,6 +236,8 @@ const loginWithApple = () => {
             />
           </button>
         </div>
+
+        <TurnstileWidget size="flexible" @verify="onTurnstileVerify" @expire="turnstileToken = ''" />
       </form>
 
       <div class="flex items-center my-4 text-sm text-gray-500">

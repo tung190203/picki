@@ -71,14 +71,13 @@ class MatchSuggestionSettingsDTO
 
 /**
  * DTO for a fixed player pair (for pairing constraint).
+ * Always uses user_id - backend resolves guest flag via mini_participants table when needed.
  */
 class FixedPairDTO
 {
     public function __construct(
         public readonly int $player1_id,
         public readonly int $player2_id,
-        public readonly bool $player1_is_guest = false,
-        public readonly bool $player2_is_guest = false,
     ) {}
 
     public static function fromArray(array $data): self
@@ -86,8 +85,6 @@ class FixedPairDTO
         return new self(
             player1_id: $data['player1_id'],
             player2_id: $data['player2_id'],
-            player1_is_guest: $data['player1_is_guest'] ?? false,
-            player2_is_guest: $data['player2_is_guest'] ?? false,
         );
     }
 
@@ -96,40 +93,29 @@ class FixedPairDTO
         return [
             'player1_id' => $this->player1_id,
             'player2_id' => $this->player2_id,
-            'player1_is_guest' => $this->player1_is_guest,
-            'player2_is_guest' => $this->player2_is_guest,
         ];
     }
 
     /**
-     * Check if a player is part of this pair.
+     * Check if a user is part of this pair.
+     * Always uses user_id.
      */
-    public function hasPlayer(int $playerId, bool $isGuest = false): bool
+    public function hasPlayer(int $userId): bool
     {
-        if ($isGuest) {
-            return (string) $this->player1_id === (string) $playerId && $this->player1_is_guest
-                || (string) $this->player2_id === (string) $playerId && $this->player2_is_guest;
-        }
-        return (string) $this->player1_id === (string) $playerId && !$this->player1_is_guest
-            || (string) $this->player2_id === (string) $playerId && !$this->player2_is_guest;
+        return (int) $this->player1_id === $userId || (int) $this->player2_id === $userId;
     }
 
     /**
-     * Get the partner of a player in this pair.
+     * Get the partner of a user in this pair.
+     * Returns partner's user_id.
      */
-    public function getPartnerId(int $playerId, bool $isGuest = false): ?array
+    public function getPartnerId(int $userId): ?int
     {
-        if ((string) $this->player1_id === (string) $playerId && $this->player1_is_guest === $isGuest) {
-            return [
-                'id' => $this->player2_id,
-                'is_guest' => $this->player2_is_guest,
-            ];
+        if ((int) $this->player1_id === $userId) {
+            return (int) $this->player2_id;
         }
-        if ((string) $this->player2_id === (string) $playerId && $this->player2_is_guest === $isGuest) {
-            return [
-                'id' => $this->player1_id,
-                'is_guest' => $this->player1_is_guest,
-            ];
+        if ((int) $this->player2_id === $userId) {
+            return (int) $this->player1_id;
         }
         return null;
     }

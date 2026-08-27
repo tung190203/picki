@@ -72,5 +72,6 @@ class Kernel extends HttpKernel
         'update.last_login' => \App\Http\Middleware\UpdateLastLoginMiddleware::class,
         'super_admin' => \App\Http\Middleware\SuperAdminMiddleware::class,
         'performance' => \App\Http\Middleware\PerformanceMonitoringMiddleware::class,
+        'turnstile' => \App\Http\Middleware\ValidateTurnstile::class,
     ];
 }

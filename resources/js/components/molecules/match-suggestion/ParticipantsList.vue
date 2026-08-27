@@ -155,11 +155,11 @@ export default {
             return participant.id || participant.mini_participant_id;
         };
 
-        // Check if participant is already paired
-        const findPairForParticipant = (participantId, isGuest = false) => {
+        // Check if participant is already paired (always uses user_id)
+        const findPairForParticipant = (participantId) => {
             return props.playerPairs.find(pair => {
-                const player1Match = String(pair.player1_id) === String(participantId) && pair.player1_is_guest === isGuest;
-                const player2Match = String(pair.player2_id) === String(participantId) && pair.player2_is_guest === isGuest;
+                const player1Match = String(pair.player1_id) === String(participantId);
+                const player2Match = String(pair.player2_id) === String(participantId);
                 return player1Match || player2Match;
             });
         };
@@ -167,33 +167,30 @@ export default {
         // Get pairing status: 'none' | 'waiting' | 'paired'
         const getPairingStatus = (participant) => {
             const participantId = getParticipantId(participant);
-            const isGuest = participant.is_guest || false;
 
             if (props.selectedForPairing === participantId) {
                 return 'waiting';
             }
 
-            const pair = findPairForParticipant(participantId, isGuest);
+            const pair = findPairForParticipant(participantId);
             return pair ? 'paired' : 'none';
         };
 
         // Get pair color for participant
         const getPairColor = (participant) => {
             const participantId = getParticipantId(participant);
-            const isGuest = participant.is_guest || false;
-            const pair = findPairForParticipant(participantId, isGuest);
+            const pair = findPairForParticipant(participantId);
             return pair?.pair_color || null;
         };
 
         // Get partner name
         const getPairPartnerName = (participant) => {
             const participantId = getParticipantId(participant);
-            const isGuest = participant.is_guest || false;
-            const pair = findPairForParticipant(participantId, isGuest);
+            const pair = findPairForParticipant(participantId);
             
             if (!pair) return '';
 
-            const isPlayer1 = String(pair.player1_id) === String(participantId) && pair.player1_is_guest === isGuest;
+            const isPlayer1 = String(pair.player1_id) === String(participantId);
             const partnerId = isPlayer1 ? pair.player2_id : pair.player1_id;
 
             // Find partner participant
