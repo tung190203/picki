@@ -399,6 +399,29 @@ class Tournament extends Model
         );
     }
 
+    public function hasBtc(int $userId): bool
+    {
+        return $this->staff->contains(
+            fn($staff) =>
+            (int) $staff->pivot->user_id === $userId
+            && (int) $staff->pivot->role === TournamentStaff::ROLE_STAFF
+        );
+    }
+
+    public function hasReferee(int $userId): bool
+    {
+        return $this->staff->contains(
+            fn($staff) =>
+            (int) $staff->pivot->user_id === $userId
+            && (int) $staff->pivot->role === TournamentStaff::ROLE_REFEREE
+        );
+    }
+
+    public function hasAdminOrBtc(int $userId): bool
+    {
+        return $this->hasOrganizer($userId) || $this->hasBtc($userId);
+    }
+
     public function hasOrganizerOrStaff(int $userId): bool
     {
         return $this->staff->contains(
