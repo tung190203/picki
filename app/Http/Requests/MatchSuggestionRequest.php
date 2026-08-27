@@ -27,12 +27,10 @@ class MatchSuggestionRequest extends FormRequest
             'settings.prevent_three_consecutive' => ['sometimes', 'boolean'],
             'settings.organizer_as_backup' => ['sometimes', 'boolean'],
 
-            // Fixed pairs for pairing constraint
+            // Fixed pairs for pairing constraint (always uses user_id)
             'fixed_pairs' => ['sometimes', 'array'],
             'fixed_pairs.*.player1_id' => ['required', 'integer'],
             'fixed_pairs.*.player2_id' => ['required', 'integer'],
-            'fixed_pairs.*.player1_is_guest' => ['sometimes', 'boolean'],
-            'fixed_pairs.*.player2_is_guest' => ['sometimes', 'boolean'],
 
             // Optional
             'seed' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:999999'],

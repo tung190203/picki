@@ -2083,8 +2083,6 @@ class MiniTournamentController extends Controller
                 'id' => $pair->id,
                 'player1_id' => $pair->player1_id,
                 'player2_id' => $pair->player2_id,
-                'player1_is_guest' => $pair->player1_is_guest,
-                'player2_is_guest' => $pair->player2_is_guest,
                 'pair_color' => $pair->pair_color,
                 'created_at' => $pair->created_at,
             ];
@@ -2104,14 +2102,10 @@ class MiniTournamentController extends Controller
         $validated = $request->validate([
             'player1_id' => 'required|integer',
             'player2_id' => 'required|integer',
-            'player1_is_guest' => 'boolean',
-            'player2_is_guest' => 'boolean',
         ]);
 
         $player1Id = $validated['player1_id'];
         $player2Id = $validated['player2_id'];
-        $player1IsGuest = $validated['player1_is_guest'] ?? false;
-        $player2IsGuest = $validated['player2_is_guest'] ?? false;
 
         // Validate: 2 người phải khác nhau
         if ($player1Id === $player2Id) {
@@ -2119,25 +2113,11 @@ class MiniTournamentController extends Controller
         }
 
         // Xoá cặp cũ của cả 2 người (nếu có)
-        $existingPairs = $miniTournament->playerPairs()
-            ->where(function ($query) use ($player1Id, $player1IsGuest, $player2Id, $player2IsGuest) {
-                $query->where(function ($q) use ($player1Id, $player1IsGuest) {
-                    $q->where('player1_id', $player1Id)
-                      ->where('player1_is_guest', $player1IsGuest);
-                })->orWhere(function ($q) use ($player1Id, $player1IsGuest) {
-                    $q->where('player2_id', $player1Id)
-                      ->where('player2_is_guest', $player1IsGuest);
-                });
-            })
-            ->orWhere(function ($query) use ($player2Id, $player2IsGuest) {
-                $query->where(function ($q) use ($player2Id, $player2IsGuest) {
-                    $q->where('player1_id', $player2Id)
-                      ->where('player1_is_guest', $player2IsGuest);
-                })->orWhere(function ($q) use ($player2Id, $player2IsGuest) {
-                    $q->where('player2_id', $player2Id)
-                      ->where('player2_is_guest', $player2IsGuest);
-                });
-            })
+        $miniTournament->playerPairs()
+            ->where('player1_id', $player1Id)
+            ->orWhere('player2_id', $player1Id)
+            ->orWhere('player1_id', $player2Id)
+            ->orWhere('player2_id', $player2Id)
             ->delete();
 
         // Assign color (6 colors cycling)
@@ -2150,8 +2130,6 @@ class MiniTournamentController extends Controller
         $pair = $miniTournament->playerPairs()->create([
             'player1_id' => $player1Id,
             'player2_id' => $player2Id,
-            'player1_is_guest' => $player1IsGuest,
-            'player2_is_guest' => $player2IsGuest,
             'pair_color' => $pairColor,
         ]);
 
@@ -2159,8 +2137,6 @@ class MiniTournamentController extends Controller
             'id' => $pair->id,
             'player1_id' => $pair->player1_id,
             'player2_id' => $pair->player2_id,
-            'player1_is_guest' => $pair->player1_is_guest,
-            'player2_is_guest' => $pair->player2_is_guest,
             'pair_color' => $pair->pair_color,
             'created_at' => $pair->created_at,
         ], 'Tạo cặp ghép thành công', 201);

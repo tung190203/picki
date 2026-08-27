@@ -63,8 +63,30 @@ class SearchMatchResource extends JsonResource
                 'is_guest'   => (bool) $p->is_guest,
             ])->toArray() : [],
             'staff' => [
-                'organizer' => $staff ? $staff
-                    ->filter(fn($s) => (int) ($s->pivot->role ?? null) === MiniTournamentStaff::ROLE_ORGANIZER)
+                'organizers' => $staff ? $staff
+                    ->filter(fn($s) => (int) ($s->pivot->role ?? null) === MiniTournamentStaff::ROLE_ADMIN)
+                    ->map(fn($s) => [
+                        'mini_tournament_id' => (int) ($s->pivot->mini_tournament_id ?? $this->id),
+                        'user_id' => $s->id,
+                        'user' => [
+                            'id' => $s->id,
+                            'full_name' => $s->full_name,
+                            'avatar_url' => $s->avatar_url,
+                        ],
+                    ])->values()->toArray() : [],
+                'staffs' => $staff ? $staff
+                    ->filter(fn($s) => (int) ($s->pivot->role ?? null) === MiniTournamentStaff::ROLE_STAFF)
+                    ->map(fn($s) => [
+                        'mini_tournament_id' => (int) ($s->pivot->mini_tournament_id ?? $this->id),
+                        'user_id' => $s->id,
+                        'user' => [
+                            'id' => $s->id,
+                            'full_name' => $s->full_name,
+                            'avatar_url' => $s->avatar_url,
+                        ],
+                    ])->values()->toArray() : [],
+                'referees' => $staff ? $staff
+                    ->filter(fn($s) => (int) ($s->pivot->role ?? null) === MiniTournamentStaff::ROLE_REFEREE)
                     ->map(fn($s) => [
                         'mini_tournament_id' => (int) ($s->pivot->mini_tournament_id ?? $this->id),
                         'user_id' => $s->id,
