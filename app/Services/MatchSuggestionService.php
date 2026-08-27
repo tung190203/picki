@@ -91,7 +91,7 @@ class MatchSuggestionService
 
         \Log::info('[MatchSuggestion/regenerate] Request fixed_pairs count: ' . count($request->fixed_pairs));
         foreach ($request->fixed_pairs as $idx => $pair) {
-            \Log::info("[MatchSuggestion/regenerate] Fixed pair $idx: p1={$pair->player1_id}(guest={$pair->player1_is_guest}), p2={$pair->player2_id}(guest={$pair->player2_is_guest})");
+            \Log::info("[MatchSuggestion/regenerate] Fixed pair $idx: p1={$pair->player1_id}, p2={$pair->player2_id}");
         }
 
         // Get mini tournament to check if payment is required
@@ -400,8 +400,13 @@ class MatchSuggestionService
         $vnduprScores = $this->getVnduprScores($miniTournamentId);
 
         // Get organizer/staff user IDs for backup flag
+        // RBAC v2: include Admin (organizer) + BTC (staff) + Trọng tài (referee)
         $staffUserIds = \App\Models\MiniTournamentStaff::where('mini_tournament_id', $miniTournamentId)
-            ->whereIn('role', [\App\Models\MiniTournamentStaff::ROLE_ORGANIZER, \App\Models\MiniTournamentStaff::ROLE_REFEREE])
+            ->whereIn('role', [
+                \App\Models\MiniTournamentStaff::ROLE_ADMIN,
+                \App\Models\MiniTournamentStaff::ROLE_STAFF,
+                \App\Models\MiniTournamentStaff::ROLE_REFEREE,
+            ])
             ->whereNotNull('user_id')
             ->pluck('user_id')
             ->toArray();

@@ -871,7 +871,6 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     // Mini Match Routes
     Route::prefix('mini-matches')->group(function (): void {
         Route::match(['get', 'post'], '/index/{miniTournamentId}', [MiniMatchController::class, 'index']);
-        Route::match(['get', 'post'], '/assigned-courts/{miniTournamentId}', [MiniMatchController::class, 'getAssignedCourts']);
         Route::get('/{matchId}', [MiniMatchController::class, 'show']);
         Route::post('/save/{miniTournamentId}', [MiniMatchController::class, 'save']);
         Route::post('/store/{miniTournamentId}', [MiniMatchController::class, 'store']);
@@ -905,6 +904,9 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::get('/{miniTournamentId}/player-pairs', [MiniTournamentController::class, 'getPlayerPairs']);
         Route::post('/{miniTournamentId}/player-pairs', [MiniTournamentController::class, 'createPlayerPair']);
         Route::delete('/{miniTournamentId}/player-pairs/{pairId}', [MiniTournamentController::class, 'deletePlayerPair']);
+
+        // Lấy danh sách sân (court_number) đã được gán cho các trận đấu trong mini tournament
+        Route::match(['get', 'post'], '/{miniTournamentId}/mini-matches/assigned-courts', [MiniMatchController::class, 'getAssignedCourts']);
     });
 
     Route::prefix('match-suggestions')->group(function () {

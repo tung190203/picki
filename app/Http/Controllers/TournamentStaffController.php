@@ -9,35 +9,64 @@ use App\Models\Participant;
 use App\Models\Tournament;
 use App\Models\TournamentStaff;
 use App\Models\User;
+use App\Services\Permission\TournamentPermission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class TournamentStaffController extends Controller
 {
+    /**
+     * Thêm thành viên vào giải đấu (Admin / BTC / Trọng tài).
+     *
+     * Body: { user_id, role?: 1|2|3, court_id?: int }
+     *  - role = 1 (Admin / Organizer) → Admin
+     *  - role = 2 (Staff)            → BTC
+     *  - role = 3 (Referee)          → Trọng tài
+     *  - court_id chỉ có hiệu lực khi role = 3 (giới hạn scope trọng tài theo sân).
+     *
+     * Quyền: Chỉ Admin (organizer) của giải mới được thêm.
+     * 1 user chỉ giữ tối đa 1 role / giải.
+     */
     public function addStaff(Request $request, $tournamentId)
     {
         $validatedData = $request->validate([
             'user_id' => 'required|integer|exists:users,id',
+            'role' => 'nullable|integer|in:1,2,3',
+            'court_id' => 'nullable|integer',
         ]);
 
         $tournament = Tournament::findOrFail($tournamentId);
-        $isOrganizer = $tournament->hasOrganizer(Auth::id());
 
-        if (!$isOrganizer) {
-            return ResponseHelper::error('Bạn không có quyền thêm người vào ban tổ chức', 403);
+        if (!$tournament->hasOrganizer(Auth::id())) {
+            return ResponseHelper::error('Bạn không có quyền thêm thành viên vào ban tổ chức', 403);
         }
 
         $userId = $validatedData['user_id'];
+
+        // 1 user chỉ giữ 1 role / giải
         if ($tournament->staff()->where('user_id', $userId)->exists()) {
-            return ResponseHelper::error('Người dùng này đã là thành viên ban tổ chức của giải đấu', 409);
+            return ResponseHelper::error(
+                'Người dùng đã là thành viên ban tổ chức của giải đấu',
+                409
+            );
+        }
+
+        $role = (int) ($validatedData['role'] ?? TournamentStaff::ROLE_ORGANIZER);
+
+        // court_id chỉ áp dụng cho role REFEREE
+        $courtId = null;
+        if ($role === TournamentStaff::ROLE_REFEREE && isset($validatedData['court_id'])) {
+            $courtId = (int) $validatedData['court_id'];
         }
 
         $tournament->staff()->attach($userId, [
-            'role' => TournamentStaff::ROLE_ORGANIZER,
+            'role' => $role,
+            'court_id' => $courtId,
         ]);
 
         $staffUser = User::find($userId);
         $tournament->load('staff');
+
         TournamentMemberAdded::dispatch(
             $tournament->id,
             $tournament->name,
@@ -48,18 +77,31 @@ class TournamentStaffController extends Controller
                     'full_name' => $staffUser->full_name,
                     'avatar_url' => $staffUser->avatar_url,
                 ],
-                'role' => TournamentStaff::ROLE_ORGANIZER,
+                'role' => $role,
+                'court_id' => $courtId,
             ],
             'staff'
         );
 
-        return ResponseHelper::success(null, 'Thêm người vào ban tổ chức thành công', 201);
+        $roleText = TournamentStaff::ROLES ? match ($role) {
+            TournamentStaff::ROLE_ORGANIZER => 'người tổ chức',
+            TournamentStaff::ROLE_STAFF => 'BTC',
+            TournamentStaff::ROLE_REFEREE => 'trọng tài',
+            default => 'thành viên',
+        } : 'thành viên';
+
+        return ResponseHelper::success(null, "Thêm {$roleText} thành công", 201);
     }
 
+    /**
+     * Backward-compat endpoint: chỉ thêm Trọng tài (mặc định role = REFEREE, court_id optional).
+     * Body: { user_id, court_id?: int }
+     */
     public function addReferee(Request $request, $tournamentId)
     {
         $validatedData = $request->validate([
             'user_id' => 'required|integer|exists:users,id',
+            'court_id' => 'nullable|integer',
         ]);
 
         $tournament = Tournament::findOrFail($tournamentId);
@@ -74,13 +116,19 @@ class TournamentStaffController extends Controller
             return ResponseHelper::error('Người dùng này đã là thành viên ban tổ chức của giải đấu', 409);
         }
 
+        $courtId = isset($validatedData['court_id']) ? (int) $validatedData['court_id'] : null;
+
         $tournament->staff()->attach($userId, [
             'role' => TournamentStaff::ROLE_REFEREE,
+            'court_id' => $courtId,
         ]);
 
         return ResponseHelper::success(null, 'Thêm trọng tài thành công', 201);
     }
 
+    /**
+     * Xoá thành viên khỏi giải. Chỉ Admin mới được xoá.
+     */
     public function removeStaff(Request $request, $tournamentId)
     {
         $validatedData = $request->validate([

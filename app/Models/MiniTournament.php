@@ -592,10 +592,25 @@ class MiniTournament extends Model
 
     public function hasOrganizer(int $userId): bool
     {
+        // Backward-compat alias của hasAdmin() — ROLE_ORGANIZER == ROLE_ADMIN == 1
         return $this->staff->contains(
             fn($staff) =>
             (int) $staff->pivot->user_id === $userId
-                && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ORGANIZER
+                && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ADMIN
+        );
+    }
+
+    public function hasAdmin(int $userId): bool
+    {
+        return $this->hasOrganizer($userId);
+    }
+
+    public function hasBtc(int $userId): bool
+    {
+        return $this->staff->contains(
+            fn($staff) =>
+            (int) $staff->pivot->user_id === $userId
+                && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_STAFF
         );
     }
 
@@ -608,19 +623,22 @@ class MiniTournament extends Model
         );
     }
 
+    /**
+     * Backward-compat: trước đây `hasOrganizerOrStaff` thực chất là
+     * check organizer HOẶC referee (vì backend cũ chỉ có 2 role).
+     *
+     * Sau RBAC v2: Admin (organizer) + BTC (staff) + Trọng tài (referee) đều có quyền scoring.
+     * Method này giữ cho các chỗ gọi cũ vẫn hoạt động đúng với logic scoring permission.
+     */
     public function hasOrganizerOrStaff(int $userId): bool
     {
-        return $this->staff->contains(
-            fn($staff) =>
-            (int) $staff->pivot->user_id === $userId
-                && in_array((int) $staff->pivot->role, [MiniTournamentStaff::ROLE_ORGANIZER, MiniTournamentStaff::ROLE_REFEREE])
-        );
+        return $this->hasAdmin($userId) || $this->hasBtc($userId);
     }
 
     public function hasScoringPermission(int $userId): bool
     {
-        // Organizer và referee được phép nhập điểm
-        return $this->hasOrganizerOrStaff($userId);
+        // Organizer + BTC + Trọng tài đều được nhập điểm
+        return $this->hasOrganizerOrStaff($userId) || $this->hasReferee($userId);
     }
 
     public function scopeFilter($query, $filter)
