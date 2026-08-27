@@ -376,3 +376,18 @@ html.dark .unauth-layout textarea {
 html.dark .unauth-layout label {
     color: #334155 !important;
 }
+
+/* Turnstile 100% Width Responsive Styling */
+.turnstile-container,
+.turnstile-wrapper {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: center !important;
+}
+
+.turnstile-container iframe,
+.turnstile-wrapper iframe,
+iframe[src*="challenges.cloudflare.com"] {
+    width: 100% !important;
+    max-width: 100% !important;
+}
