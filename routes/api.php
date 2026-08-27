@@ -544,6 +544,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     Route::prefix('mini-tournament-staff')->group(function () {
         Route::post('/add/{tournamentId}', [MiniTournamentStaffController::class, 'addStaff']);
         Route::delete('/{tournamentId}/{staffId}', [MiniTournamentStaffController::class, 'removeStaff']);
+        Route::patch('/update/{tournamentId}', [MiniTournamentStaffController::class, 'updateRole']);
     });
 
     Route::prefix('tournament-types')->group(function () {

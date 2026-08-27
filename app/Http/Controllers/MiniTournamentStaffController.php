@@ -108,4 +108,56 @@ class MiniTournamentStaffController extends Controller
         $roleText = MiniTournamentStaff::getRoleText($staff->role);
         return ResponseHelper::success(null, "Xoá {$roleText} thành công");
     }
+
+    /**
+     * Chuyển đổi role của thành viên trong kèo (trong 1 call).
+     *
+     * Body: { staff_id, new_role: 1|2|3 }
+     *
+     * Quyền: Caller phải có quyền revoke role cũ VÀ assign role mới.
+     * VD: Admin → BTC → caller phải có quyền revoke Admin VÀ assign BTC.
+     *
+     * 1 user chỉ giữ tối đa 1 role / kèo (không tạo bản ghi mới).
+     */
+    public function updateRole(Request $request, $tournamentId)
+    {
+        $validatedData = $request->validate([
+            'staff_id' => 'required|integer|exists:users,id',
+            'new_role' => 'required|integer|in:1,2,3',
+        ]);
+
+        $tournament = MiniTournament::findOrFail($tournamentId);
+        $targetUserId = (int) $validatedData['staff_id'];
+        $newRole = (int) $validatedData['new_role'];
+
+        // Tìm bản ghi staff hiện tại
+        $staff = MiniTournamentStaff::where('mini_tournament_id', $tournamentId)
+            ->where('user_id', $targetUserId)
+            ->first();
+
+        if (!$staff) {
+            return ResponseHelper::error('Thành viên không tồn tại trong kèo đấu', 404);
+        }
+
+        // Không đổi sang chính role hiện tại
+        if ((int) $staff->role === $newRole) {
+            return ResponseHelper::error('Thành viên đã có vai trò này', 400);
+        }
+
+        // Permission: revoke role cũ + assign role mới
+        $callerId = Auth::id();
+        if (!MiniTournamentPermission::canRevokeRole($tournament, $callerId, (int) $staff->role)) {
+            return ResponseHelper::error('Bạn không có quyền thu hồi vai trò hiện tại của thành viên này', 403);
+        }
+        if (!MiniTournamentPermission::canAssignRole($tournament, $callerId, $newRole)) {
+            return ResponseHelper::error('Bạn không có quyền gán vai trò mới cho thành viên này', 403);
+        }
+
+        $staff->role = $newRole;
+        $staff->save();
+
+        $oldRoleText = MiniTournamentStaff::getRoleText($staff->getOriginal('role'));
+        $newRoleText = MiniTournamentStaff::getRoleText($newRole);
+        return ResponseHelper::success(null, "Chuyển từ {$oldRoleText} sang {$newRoleText} thành công");
+    }
 }

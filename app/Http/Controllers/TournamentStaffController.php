@@ -36,8 +36,9 @@ class TournamentStaffController extends Controller
         ]);
 
         $tournament = Tournament::findOrFail($tournamentId);
+        $role = (int) ($validatedData['role'] ?? TournamentStaff::ROLE_ORGANIZER);
 
-        if (!$tournament->hasOrganizer(Auth::id())) {
+        if (!TournamentPermission::canAssignRole($tournament, Auth::id(), $role)) {
             return ResponseHelper::error('Bạn không có quyền thêm thành viên vào ban tổ chức', 403);
         }
 
@@ -50,8 +51,6 @@ class TournamentStaffController extends Controller
                 409
             );
         }
-
-        $role = (int) ($validatedData['role'] ?? TournamentStaff::ROLE_ORGANIZER);
 
         // court_id chỉ áp dụng cho role REFEREE
         $courtId = null;
@@ -105,9 +104,7 @@ class TournamentStaffController extends Controller
         ]);
 
         $tournament = Tournament::findOrFail($tournamentId);
-        $isOrganizer = $tournament->hasOrganizer(Auth::id());
-
-        if (!$isOrganizer) {
+        if (!TournamentPermission::canAssignRole($tournament, Auth::id(), TournamentStaff::ROLE_REFEREE)) {
             return ResponseHelper::error('Bạn không có quyền thêm trọng tài', 403);
         }
 
@@ -127,7 +124,14 @@ class TournamentStaffController extends Controller
     }
 
     /**
-     * Xoá thành viên khỏi giải. Chỉ Admin mới được xoá.
+     * Xoá thành viên khỏi giải.
+     *
+     * Body: { tournament_staff_id: int }
+     *
+     * Quyền (matrix đồng bộ với mini-tournament):
+     *  - Admin (organizer): xoá mọi role (Admin / BTC / Trọng tài)
+     *  - BTC (staff): chỉ xoá được Trọng tài
+     *  - Không có guard "organizer cuối cùng" — 1 giải có thể có nhiều Admin.
      */
     public function removeStaff(Request $request, $tournamentId)
     {
@@ -136,21 +140,24 @@ class TournamentStaffController extends Controller
         ]);
 
         $tournament = Tournament::findOrFail($tournamentId);
-        if (!$tournament->hasOrganizer(Auth::id())) {
-            return ResponseHelper::error('Bạn không có quyền xóa người trong ban tổ chức', 403);
-        }
 
-        $tournamentStaff = TournamentStaff::where('id', $validatedData['tournament_staff_id'])
+        $staff = TournamentStaff::where('id', $validatedData['tournament_staff_id'])
             ->where('tournament_id', $tournamentId)
             ->first();
 
-        if (!$tournamentStaff) {
+        if (!$staff) {
             return ResponseHelper::error('Không tìm thấy thành viên ban tổ chức', 404);
         }
 
-        $tournamentStaff->delete();
+        // Permission: caller phải có quyền thu hồi role này
+        if (!TournamentPermission::canRevokeRole($tournament, Auth::id(), (int) $staff->role)) {
+            return ResponseHelper::error('Bạn không có quyền xoá thành viên với vai trò này', 403);
+        }
 
-        return response()->noContent();
+        $staff->delete();
+
+        $roleText = (new TournamentStaff(['role' => $staff->role]))->role_text;
+        return ResponseHelper::success(null, "Xoá {$roleText} thành công");
     }
 
     /**
