@@ -114,7 +114,15 @@ class TournamentPermission
         int $userId,
         ?int $targetRole = null
     ): bool {
-        return $t->hasOrganizer($userId);
+        if ($t->hasOrganizer($userId)) {
+            return true;
+        }
+
+        if ($t->hasBtc($userId) && $targetRole === TournamentStaff::ROLE_REFEREE) {
+            return true;
+        }
+
+        return false;
     }
 
     public static function canRevokeRole(
@@ -122,7 +130,7 @@ class TournamentPermission
         int $userId,
         ?int $targetRole = null
     ): bool {
-        return $t->hasOrganizer($userId);
+        return self::canAssignRole($t, $userId, $targetRole);
     }
 
     protected static function isAdminOrBtc(Tournament $t, int $userId): bool
