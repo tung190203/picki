@@ -59,15 +59,14 @@ export const getPlayerPairs = async (miniTournamentId) => {
 
 /**
  * Create a new player pair (auto-removes old pairs for both players)
+ * Always uses user_id - backend resolves guest flag via mini_participants when needed
  */
-export const createPlayerPair = async (miniTournamentId, player1Id, player2Id, player1IsGuest = false, player2IsGuest = false) => {
+export const createPlayerPair = async (miniTournamentId, player1Id, player2Id) => {
     const response = await axiosInstance.post(
         `/mini-tournaments/${miniTournamentId}/player-pairs`,
         {
             player1_id: player1Id,
             player2_id: player2Id,
-            player1_is_guest: player1IsGuest,
-            player2_is_guest: player2IsGuest,
         }
     );
     return response.data;

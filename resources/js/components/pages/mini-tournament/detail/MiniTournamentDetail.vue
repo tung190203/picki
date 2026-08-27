@@ -29,6 +29,7 @@ import { useRoute, useRouter } from 'vue-router'
 import ShareAction from '@/components/molecules/ShareAction.vue'
 import ShareCardMini from '@/components/pages/mini-tournament/shared/ShareCardMini.vue'
 import { formatEventDate } from '@/composables/formatDatetime.js'
+import { useMiniTournamentPermission } from '@/composables/useMiniTournamentPermission.js'
 import { TABS } from '@/data/mini/index.js'
 import debounce from "lodash.debounce";
 import {toast} from "vue3-toastify";
@@ -110,7 +111,7 @@ export default {
         const tabs = TABS
         const searchQuery = ref('')
         const inviteType = ref('participant')
-        const selectedStaffRole = ref('organizer')
+        const selectedStaffRole = ref(3) // RBAC v2: mặc định mời Trọng tài
         const activeScope = ref('all');
         const inviteGroupData = ref([]);
         const selectedClub = ref(null);
@@ -166,8 +167,8 @@ export default {
                 return;
             }
             if (inviteType.value === 'staff') {
-                // Mời từ sidebar "Mời nhóm" - thêm vào ban tổ chức với role referee
-                await inviteStaff(user.id);
+                // Mời từ sidebar "Mời nhóm" - thêm vào ban tổ chức với role từ selectedStaffRole
+                await inviteStaff(user.id, Number(selectedStaffRole.value) || 3)
             } else {
                 // Mời từ tab người tham gia - thêm vào danh sách participants
                 await invite([user.id], isAreaInvite);
@@ -282,17 +283,49 @@ export default {
             }
         }
 
+        // Backward-compat: backend RBAC v2 trả staff.organizers/staffs/referees (số nhiều),
+        // nhưng data cũ (và FE cũ) vẫn đọc staff.organizer/referee (số ít).
+        // Đọc cả 2 dạng để tương thích trong giai đoạn migration.
+        const organizersList = computed(
+            () => mini.value?.staff?.organizers ?? mini.value?.staff?.organizer ?? []
+        )
+        const refereesList = computed(
+            () => mini.value?.staff?.referees ?? mini.value?.staff?.referee ?? []
+        )
+        const btcList = computed(
+            () => mini.value?.staff?.staffs ?? []
+        )
+
         const isCreator = computed(() => {
-            return mini.value?.staff?.organizer?.some(
-                staff => staff.role === 1 && staff.user?.id === getUser.value.id
+            return organizersList.value.some(
+                staff => staff.user?.id === getUser.value.id
             )
         })
 
         const isReferee = computed(() => {
-            return mini.value?.staff?.referee?.some(
+            return refereesList.value.some(
                 staff => staff.user?.id === getUser.value.id
             )
         })
+
+        // === RBAC v2: 3-role permission composable ===
+        // - Admin ↔ organizers (role=1)
+        // - BTC   ↔ staffs (role=2)
+        // - Trọng tài ↔ referees (role=3)
+        // FE dùng các computed canX để ẩn/hiện nút thay vì hard-code.
+        const {
+            isAdmin,
+            isBTC,
+            canEditRules,
+            canDelete,
+            canManageParticipants,
+            canCheckIn,
+            canOperateMatches,
+            canScore,
+            canManageFinance,
+            canAssignRoles,
+            canAssignReferee,
+        } = useMiniTournamentPermission(mini, computed(() => getUser.value?.id))
 
         // Tất cả người tham gia (confirmed, chưa checkin, chưa vắng) - base cho các section
         const allParticipants = computed(() => {
@@ -523,7 +556,7 @@ export default {
             showInviteModal.value = true
         }
 
-        const openInviteModalStaff = async (role = 'organizer') => {
+        const openInviteModalStaff = async (role = 3) => {
             inviteType.value = 'staff'
             selectedStaffRole.value = role
             activeScope.value = 'all'
@@ -625,8 +658,11 @@ export default {
 
         const inviteStaff = async (userId) => {
             try {
-                await MiniTournamentStaffService.addMiniTournamentStaff(id, userId);
-                toast.success('Thêm thành công');
+                // RBAC v2: role bắt buộc (1=Admin, 2=BTC, 3=Trọng tài)
+                // Mặc định lấy từ selectedStaffRole; fallback 3 (Trọng tài).
+                const role = Number(selectedStaffRole.value) || 3
+                await MiniTournamentStaffService.addMiniTournamentStaff(id, userId, role)
+                toast.success('Thêm thành công')
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi thêm.');
             }
@@ -1070,6 +1106,22 @@ export default {
             toggleAutoApprove,
             isCreator,
             isReferee,
+            // RBAC v2 permission
+            isAdmin,
+            isBTC,
+            canEditRules,
+            canDelete,
+            canManageParticipants,
+            canCheckIn,
+            canOperateMatches,
+            canScore,
+            canManageFinance,
+            canAssignRoles,
+            canAssignReferee,
+            // Backward-compat staff lists (đọc cả key cũ & mới)
+            organizersList,
+            refereesList,
+            btcList,
             inviteGroupData,
             clubs,
             activeScope,

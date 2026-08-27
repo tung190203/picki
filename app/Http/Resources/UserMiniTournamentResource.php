@@ -298,8 +298,9 @@ class UserMiniTournamentResource extends JsonResource
 
             if ($staff) {
                 return match ((int) $staff->role) {
-                    \App\Models\MiniTournamentStaff::ROLE_ORGANIZER => 'organizer',
-                    \App\Models\MiniTournamentStaff::ROLE_REFEREE => 'staff',
+                    \App\Models\MiniTournamentStaff::ROLE_ADMIN => 'admin',
+                    \App\Models\MiniTournamentStaff::ROLE_STAFF => 'staff',
+                    \App\Models\MiniTournamentStaff::ROLE_REFEREE => 'referee',
                     default => null,
                 };
             }

@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, computed } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import useVuelidate from '@vuelidate/core'
 import { required, helpers } from '@vuelidate/validators'
 import { useRouter } from 'vue-router'
@@ -10,6 +10,12 @@ import GoogleIcon from '@/assets/images/google-icon.svg'
 import FacebookIcon from '@/assets/images/facebook-icon.svg'
 import AppleIcon from '@/assets/images/apple-icon.svg'
 import LogoSplash from '@/assets/images/logo-splash.svg'
+import TurnstileWidget from '@/components/common/TurnstileWidget.vue'
+
+const turnstileToken = ref('')
+const onTurnstileVerify = (token) => {
+  turnstileToken.value = token
+}
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -41,7 +47,10 @@ const register = async () => {
   v$.value.$touch()
   if (!v$.value.$invalid) {
     try {
-      await userStore.registerUser(data)
+      await userStore.registerUser({
+        ...data,
+        'cf-turnstile-response': turnstileToken.value
+      })
       toast.success('Đăng ký thành công!')
       setTimeout(() => {
         router.push({ path: '/verify', query: { login: data.login } })
@@ -107,6 +116,7 @@ const registerWithApple = () => {
         >
           Tiếp tục
         </Button>
+        <TurnstileWidget size="flexible" @verify="onTurnstileVerify" @expire="turnstileToken = ''" />
       </form>
 
       <div class="flex items-center my-4 text-sm text-gray-500">

@@ -50,9 +50,7 @@ class ListMiniTournamentResource extends JsonResource
             'is_session_started' => $this->is_session_started,
             'apply_rule' => $this->apply_rule,
             'staff' => $this->whenLoaded('staff', function () {
-                return $this->staff
-                    ->groupBy(fn($staff) => MiniTournamentStaff::getRoleText( $staff->pivot->role))
-                    ->map(fn($group) => MiniTournamentStaffResource::collection($group));
+                return $this->buildStaffPayload();
             }),
             'participants' => MiniParticipantResource::collection($participants),
             'matches' => $this->whenLoaded('matches', function () {
@@ -81,5 +79,34 @@ class ListMiniTournamentResource extends JsonResource
         }
 
         return $data;
+    }
+
+    /**
+     * Build staff payload với 3 key rõ ràng (Admin/BTC/Trọng tài).
+     */
+    protected function buildStaffPayload(): array
+    {
+        $organizers = collect();
+        $staffs = collect();
+        $referees = collect();
+
+        foreach ($this->staff as $user) {
+            $role = (int) ($user->pivot->role ?? 0);
+            $resource = (new MiniTournamentStaffResource($user))->resolve();
+
+            if ($role === MiniTournamentStaff::ROLE_ADMIN) {
+                $organizers->push($resource);
+            } elseif ($role === MiniTournamentStaff::ROLE_STAFF) {
+                $staffs->push($resource);
+            } elseif ($role === MiniTournamentStaff::ROLE_REFEREE) {
+                $referees->push($resource);
+            }
+        }
+
+        return [
+            'organizers' => $organizers->values(),
+            'staffs' => $staffs->values(),
+            'referees' => $referees->values(),
+        ];
     }
 }

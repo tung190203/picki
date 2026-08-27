@@ -102,16 +102,16 @@ Route::post('/broadcasting/auth', function () {
 })->middleware('auth:api');
 
 Route::prefix('auth')->group(function () {
-    Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/resend-otp', [AuthController::class, 'resendOtp']);
-    Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
+    Route::post('/login', [AuthController::class, 'login'])->middleware(['turnstile', 'throttle:auth-strict']);
+    Route::post('/register', [AuthController::class, 'register'])->middleware(['turnstile', 'throttle:auth-strict']);
+    Route::post('/resend-otp', [AuthController::class, 'resendOtp'])->middleware('throttle:auth-strict');
+    Route::post('/verify-otp', [AuthController::class, 'verifyOtp'])->middleware('throttle:auth-strict');
     Route::post('/refresh-token', [AuthController::class, 'refresh']);
     Route::post('/fill-password', [AuthController::class, 'fillPassword']);
-    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-    Route::post('/verify-otp-password', [AuthController::class, 'verifyOtpPassword']);
-    Route::post('/resend-otp-password', [AuthController::class, 'resendOtpPassword']);
-    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:auth-strict');
+    Route::post('/verify-otp-password', [AuthController::class, 'verifyOtpPassword'])->middleware('throttle:auth-strict');
+    Route::post('/resend-otp-password', [AuthController::class, 'resendOtpPassword'])->middleware('throttle:auth-strict');
+    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:auth-strict');
 
     Route::get('/google/redirect', [AuthController::class, 'redirectToGoogle']);
     Route::get('/google/callback', [AuthController::class, 'handleGoogleCallback']);
@@ -871,7 +871,6 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     // Mini Match Routes
     Route::prefix('mini-matches')->group(function (): void {
         Route::match(['get', 'post'], '/index/{miniTournamentId}', [MiniMatchController::class, 'index']);
-        Route::match(['get', 'post'], '/assigned-courts/{miniTournamentId}', [MiniMatchController::class, 'getAssignedCourts']);
         Route::get('/{matchId}', [MiniMatchController::class, 'show']);
         Route::post('/save/{miniTournamentId}', [MiniMatchController::class, 'save']);
         Route::post('/store/{miniTournamentId}', [MiniMatchController::class, 'store']);
@@ -905,6 +904,9 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::get('/{miniTournamentId}/player-pairs', [MiniTournamentController::class, 'getPlayerPairs']);
         Route::post('/{miniTournamentId}/player-pairs', [MiniTournamentController::class, 'createPlayerPair']);
         Route::delete('/{miniTournamentId}/player-pairs/{pairId}', [MiniTournamentController::class, 'deletePlayerPair']);
+
+        // Lấy danh sách sân (court_number) đã được gán cho các trận đấu trong mini tournament
+        Route::match(['get', 'post'], '/{miniTournamentId}/mini-matches/assigned-courts', [MiniMatchController::class, 'getAssignedCourts']);
     });
 
     Route::prefix('match-suggestions')->group(function () {

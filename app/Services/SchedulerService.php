@@ -1574,26 +1574,22 @@ class SchedulerService
             $player2InA = null;
             $player2InB = null;
 
-            // Find which team each player of the pair belongs to
+            // Find which team each player of the pair belongs to (always use user_id)
             foreach ($teamA as $p) {
-                $pId = $p->user_id ?? $p->mini_participant_id;
-                $pIsGuest = $p->is_guest ?? false;
-                if ($pair->hasPlayer($pId, $pIsGuest)) {
+                if ($pair->hasPlayer($p->user_id)) {
                     if ($player1InA === null) {
-                        $player1InA = $pId;
+                        $player1InA = $p->user_id;
                     } else {
-                        $player2InA = $pId;
+                        $player2InA = $p->user_id;
                     }
                 }
             }
             foreach ($teamB as $p) {
-                $pId = $p->user_id ?? $p->mini_participant_id;
-                $pIsGuest = $p->is_guest ?? false;
-                if ($pair->hasPlayer($pId, $pIsGuest)) {
+                if ($pair->hasPlayer($p->user_id)) {
                     if ($player1InB === null) {
-                        $player1InB = $pId;
+                        $player1InB = $p->user_id;
                     } else {
-                        $player2InB = $pId;
+                        $player2InB = $p->user_id;
                     }
                 }
             }

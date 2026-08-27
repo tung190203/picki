@@ -28,6 +28,7 @@ class TournamentStaffResource extends JsonResource
             }),
             'role'                     => (int) $this->role,
             'role_text'                => $this->role_text,
+            'court_id'                 => $this->court_id !== null ? (int) $this->court_id : null,
             'checked_in_at'           => $this->checked_in_at?->format('d-m-Y H:i'),
             'is_absent'                => (bool) $this->is_absent,
         ];

@@ -249,10 +249,9 @@ export default {
         // Handle pair toggle from ParticipantsList
         const handlePairToggle = async (participant) => {
             const participantId = participant.id || participant.mini_participant_id;
-            const isGuest = participant.is_guest || false;
 
             // Check if participant is already paired
-            const existingPair = findPairForParticipant(participantId, isGuest);
+            const existingPair = findPairForParticipant(participantId);
 
             if (existingPair) {
                 // Already paired - click to unpair
@@ -263,12 +262,8 @@ export default {
             } else if (selectedForPairing.value !== null) {
                 // Has someone waiting - create pair with them
                 const waitingId = selectedForPairing.value;
-                const waitingParticipant = localParticipants.value.find(p => 
-                    (p.id || p.mini_participant_id) === waitingId
-                );
-                const waitingIsGuest = waitingParticipant?.is_guest || false;
 
-                await createPair(waitingId, participantId, waitingIsGuest, isGuest);
+                await createPair(waitingId, participantId);
                 selectedForPairing.value = null;
             } else {
                 // No one waiting - select this participant
@@ -276,29 +271,26 @@ export default {
             }
         };
 
-        // Find pair for a participant
-        const findPairForParticipant = (participantId, isGuest) => {
+        // Find pair for a participant (always uses user_id)
+        const findPairForParticipant = (participantId) => {
             return playerPairs.value.find(pair => {
-                const player1Match = String(pair.player1_id) === String(participantId) && pair.player1_is_guest === isGuest;
-                const player2Match = String(pair.player2_id) === String(participantId) && pair.player2_is_guest === isGuest;
+                const player1Match = String(pair.player1_id) === String(participantId);
+                const player2Match = String(pair.player2_id) === String(participantId);
                 return player1Match || player2Match;
             });
         };
 
-        // Create a new pair
-        const createPair = async (player1Id, player2Id, player1IsGuest, player2IsGuest) => {
+        // Create a new pair (always uses user_id)
+        const createPair = async (player1Id, player2Id) => {
             try {
                 await MatchSuggestionService.createPlayerPair(
                     props.miniTournamentId,
                     player1Id,
-                    player2Id,
-                    player1IsGuest,
-                    player2IsGuest
+                    player2Id
                 );
                 await loadPlayerPairs();
             } catch (err) {
                 console.error('Failed to create pair:', err);
-                // Could show toast error here
             }
         };
 
@@ -317,23 +309,20 @@ export default {
             selectedForPairing.value = null;
         };
 
-        // Get pair color for a participant
-        const getPairColor = (participantId, isGuest = false) => {
-            const pair = findPairForParticipant(participantId, isGuest);
+        // Get pair color for a participant (always uses user_id)
+        const getPairColor = (participantId) => {
+            const pair = findPairForParticipant(participantId);
             return pair?.pair_color || null;
         };
 
-        // Get pairing partner name
-        const getPairPartnerName = (participantId, isGuest = false) => {
-            const pair = findPairForParticipant(participantId, isGuest);
+        // Get pairing partner name (always uses user_id)
+        const getPairPartnerName = (participantId) => {
+            const pair = findPairForParticipant(participantId);
             if (!pair) return null;
 
-            const partnerId = String(pair.player1_id) === String(participantId) && pair.player1_is_guest === isGuest
+            const partnerId = String(pair.player1_id) === String(participantId)
                 ? pair.player2_id
                 : pair.player1_id;
-            const partnerIsGuest = String(pair.player1_id) === String(participantId) && pair.player1_is_guest === isGuest
-                ? pair.player2_is_guest
-                : pair.player1_is_guest;
 
             return getParticipantName(partnerId);
         };
@@ -430,8 +419,6 @@ export default {
             return playerPairs.value.map(pair => ({
                 player1_id: pair.player1_id,
                 player2_id: pair.player2_id,
-                player1_is_guest: pair.player1_is_guest,
-                player2_is_guest: pair.player2_is_guest,
             }));
         };
 

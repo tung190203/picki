@@ -123,9 +123,7 @@ class MiniTournamentResource extends JsonResource
             'invited_by' => $invitedBy,
 
             'staff' => $this->whenLoaded('staff', function () {
-                return $this->staff
-                    ->groupBy(fn($staff) => MiniTournamentStaff::getRoleText( $staff->pivot->role))
-                    ->map(fn($group) => MiniTournamentStaffResource::collection($group));
+                return $this->buildStaffPayload();
             }),
             'participants' => MiniParticipantResource::collection($participants),
             'matches' => $this->whenLoaded('matches', function () {
@@ -172,5 +170,40 @@ class MiniTournamentResource extends JsonResource
         }
 
         return $data;
+    }
+
+    /**
+     * Build staff payload với 3 key rõ ràng theo plan RBAC v2:
+     *  - organizers (Admin, role=1)
+     *  - staffs     (BTC, role=2)
+     *  - referees   (Trọng tài, role=3)
+     *
+     * Trước đây groupBy(role_text) sinh ra `organizer` (số ít) — không khớp
+     * với Flutter model. Cấu trúc mới ổn định cho cả FE web và Flutter.
+     */
+    protected function buildStaffPayload(): array
+    {
+        $organizers = collect();
+        $staffs = collect();
+        $referees = collect();
+
+        foreach ($this->staff as $user) {
+            $role = (int) ($user->pivot->role ?? 0);
+            $resource = (new MiniTournamentStaffResource($user))->resolve();
+
+            if ($role === MiniTournamentStaff::ROLE_ADMIN) {
+                $organizers->push($resource);
+            } elseif ($role === MiniTournamentStaff::ROLE_STAFF) {
+                $staffs->push($resource);
+            } elseif ($role === MiniTournamentStaff::ROLE_REFEREE) {
+                $referees->push($resource);
+            }
+        }
+
+        return [
+            'organizers' => $organizers->values(),
+            'staffs' => $staffs->values(),
+            'referees' => $referees->values(),
+        ];
     }
 }

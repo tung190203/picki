@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,14 +17,7 @@ class MiniTournamentPlayerPair extends Model
         'mini_tournament_id',
         'player1_id',
         'player2_id',
-        'player1_is_guest',
-        'player2_is_guest',
         'pair_color',
-    ];
-
-    protected $casts = [
-        'player1_is_guest' => 'boolean',
-        'player2_is_guest' => 'boolean',
     ];
 
     /**
@@ -35,34 +29,25 @@ class MiniTournamentPlayerPair extends Model
     }
 
     /**
-     * Check if a player is part of this pair.
+     * Check if a user is part of this pair.
+     * Always uses user_id - backend resolves guest flag via mini_participants table when needed.
      */
-    public function hasPlayer(int $playerId, bool $isGuest = false): bool
+    public function hasPlayer(int $userId): bool
     {
-        if ($isGuest) {
-            return (string) $this->player1_id === (string) $playerId && $this->player1_is_guest
-                || (string) $this->player2_id === (string) $playerId && $this->player2_is_guest;
-        }
-        return (string) $this->player1_id === (string) $playerId && !$this->player1_is_guest
-            || (string) $this->player2_id === (string) $playerId && !$this->player2_is_guest;
+        return (int) $this->player1_id === $userId || (int) $this->player2_id === $userId;
     }
 
     /**
      * Get the partner of a player in this pair.
+     * Returns partner's user_id.
      */
-    public function getPartnerId(int $playerId, bool $isGuest = false): ?array
+    public function getPartnerId(int $userId): ?int
     {
-        if ((string) $this->player1_id === (string) $playerId && $this->player1_is_guest === $isGuest) {
-            return [
-                'id' => $this->player2_id,
-                'is_guest' => $this->player2_is_guest,
-            ];
+        if ((int) $this->player1_id === $userId) {
+            return (int) $this->player2_id;
         }
-        if ((string) $this->player2_id === (string) $playerId && $this->player2_is_guest === $isGuest) {
-            return [
-                'id' => $this->player1_id,
-                'is_guest' => $this->player1_is_guest,
-            ];
+        if ((int) $this->player2_id === $userId) {
+            return (int) $this->player1_id;
         }
         return null;
     }
