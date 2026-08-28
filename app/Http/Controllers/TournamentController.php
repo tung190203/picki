@@ -211,6 +211,7 @@ class TournamentController extends Controller
                     'tournament_id' => $tournament->id,
                     'user_id' => auth()->id(),
                     'is_confirmed' => true,
+                    'self_registered' => false,
                 ];
 
                 if (!empty($validated['has_fee'])) {
