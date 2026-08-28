@@ -5,10 +5,6 @@ import LogoSplash from '@/assets/images/logo-splash.svg'
 
 const router = useRouter()
 
-function goCancel() {
-  router.push('/')
-}
-
 function goCompleteProfile() {
   router.push('/update-profile')
 }
@@ -26,10 +22,7 @@ function goCompleteProfile() {
     </div>
     <div class="w-full max-w-md space-y-4">
       <Button class="w-full bg-secondary hover:bg-white hover:text-[#333333]" @click="goCompleteProfile">
-        Bắt đầu
-      </Button>
-      <Button class="w-full bg-white !text-[#333333] hover:bg-secondary hover:!text-white" @click="goCancel">
-        Bỏ qua
+        Bắt đầu hoàn tất hồ sơ
       </Button>
     </div>
   </div>

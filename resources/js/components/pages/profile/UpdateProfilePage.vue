@@ -63,9 +63,18 @@ const skillDropdownRef = ref(null);
 const defaultAvatar = "/images/default-avatar.png";
 
 // --- Validation ---
+const notDefaultName = helpers.withMessage(
+    "Vui lòng nhập tên hiển thị thực tế của bạn (không dùng tên mặc định PickiUser)",
+    (value) => {
+        if (!value) return true;
+        return !/^PickiUser/i.test(value.trim());
+    }
+);
+
 const rules = computed(() => ({
     full_name: {
         required: helpers.withMessage("Tên không được để trống", required),
+        notDefaultName,
     },
     location_id: {
         required: helpers.withMessage(
@@ -77,7 +86,7 @@ const rules = computed(() => ({
         required: helpers.withMessage("Vui lòng chọn trình độ", required),
     },
     gender: {
-    required: helpers.withMessage("Vui lòng chọn giới tính", required),
+        required: helpers.withMessage("Vui lòng chọn giới tính", required),
     },
     date_of_birth: {
         required: helpers.withMessage("Vui lòng chọn ngày sinh", required),
