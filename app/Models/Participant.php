@@ -31,6 +31,7 @@ class Participant extends Model
         'payment_status',
         'self_confirmed',
         'modified_score',
+        'self_registered',
     ];
 
     protected $casts = [
@@ -47,6 +48,7 @@ class Participant extends Model
         'payment_status' => PaymentStatusEnum::class,
         'self_confirmed' => 'boolean',
         'modified_score' => 'decimal:2',
+        'self_registered' => 'boolean',
     ];
 
     const PER_PAGE = 15;

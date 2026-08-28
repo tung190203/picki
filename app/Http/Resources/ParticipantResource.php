@@ -34,6 +34,7 @@ class ParticipantResource extends JsonResource
             'avatar' => $this->user?->avatar_url,
             'is_confirmed' => (bool) $this->is_confirmed,
             'self_confirmed' => (bool) ($this->self_confirmed ?? true),
+            'self_registered' => (bool) ($this->self_registered ?? false),
             'is_guest' => (bool) $this->is_guest,
             'user' => $this->omitNestedUserSports
                 ? (new UserListResource($this->whenLoaded('user')))->withoutSports()

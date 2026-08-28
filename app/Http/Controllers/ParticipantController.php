@@ -236,6 +236,7 @@ class ParticipantController extends Controller
             'rating_before' => $score,
             'rank_before' => $rank,
             'payment_status' => $paymentStatus,
+            'self_registered' => true,
         ]);
 
         // Tạo TournamentParticipantPayment record nếu có phí cố định mỗi người
@@ -596,6 +597,7 @@ class ParticipantController extends Controller
             }
         }
         $participant->is_confirmed = true;
+        $participant->self_registered = false;
         $participant->save();
 
         return ResponseHelper::success(new ParticipantResource($participant), 'Chấp nhận lời mời tham gia thành công');
@@ -673,6 +675,7 @@ class ParticipantController extends Controller
                 'user_id' => $invitedUserId,
                 'is_confirmed' => $isSuperAdmin,
                 'self_confirmed' => !$isSuperAdmin,
+                'self_registered' => false,
                 'created_at' => now(),
                 'updated_at' => now(),
                 'payment_status' => $paymentStatus,
