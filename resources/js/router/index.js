@@ -19,6 +19,9 @@ router.beforeEach((to, from, next) => {
   const isSuperAdmin = user?.is_super_admin === true;
   const hasSeenOnboarding = localStorage.getItem(LOCAL_STORAGE_KEY.ONBOARDING) === "true";
 
+  const isDefaultName = !user?.full_name || /^PickiUser/i.test(String(user.full_name).trim());
+  const isProfileIncomplete = Boolean(user && ((user.is_profile_completed == 0 || user.is_profile_completed === false) || isDefaultName));
+
   const publicPages = [
     "login", "register", "verify-email", "verify",
     "forgot-password", "reset-password", "login-success", "privacy-policy", "onboarding", 'complete-registration', 'verify-change-password', 'reset-password', 'tournament-landing',
@@ -41,7 +44,18 @@ router.beforeEach((to, from, next) => {
     }
   }
 
+  // Mandatory redirect to update-profile if user profile is incomplete or using default PickiUser name
+  if (loginToken && isProfileIncomplete) {
+    const profileAllowedPages = ["complete-profile", "update-profile", "privacy-policy", "tournament-landing", "pairing-wheel", "group-draw-wheel", "public-live-score", "login-success"];
+    if (!profileAllowedPages.includes(to.name)) {
+      return next({ name: "update-profile" });
+    }
+  }
+
   if (loginToken && publicPages.includes(to.name) && !["privacy-policy", "tournament-landing", "pairing-wheel", "group-draw-wheel", "public-live-score"].includes(to.name)) {
+    if (isProfileIncomplete) {
+      return next({ name: "update-profile" });
+    }
     switch (userRole) {
       case ROLE.ADMIN:
         return next({ name: "dashboard" });

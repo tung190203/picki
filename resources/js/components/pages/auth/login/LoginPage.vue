@@ -69,9 +69,13 @@ const v$ = useVuelidate(rules, data)
 
 const handleRedirectAfterLogin = (res) => {
   toast.success('Đăng nhập thành công!')
-  if (res && res?.user?.is_profile_completed == 0) {
+  const user = res?.user
+  const isDefaultName = !user?.full_name || /^PickiUser/i.test(String(user.full_name).trim())
+  const isProfileIncomplete = user?.is_profile_completed == 0 || isDefaultName
+
+  if (res && isProfileIncomplete) {
     setTimeout(() => {
-      router.push({ path: '/complete-profile' })
+      router.push({ path: '/update-profile' })
     }, 1000)
     return
   }
