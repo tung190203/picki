@@ -17,6 +17,7 @@ class TournamentParticipantResource extends JsonResource
         return [
             'id'                       => $this->id,
             'is_confirmed'             => (bool) $this->is_confirmed,
+            'self_registered'          => (bool) ($this->self_registered ?? false),
             'is_guest'                 => (bool) $this->is_guest,
             'user'                     => new UserListResource($this->whenLoaded('user')),
             'guest_name'               => $this->when($this->is_guest, $this->guest_name),

@@ -170,6 +170,10 @@ class TournamentController extends Controller
         if (!$userId) {
             return ResponseHelper::error('Bạn cần đăng nhập', 401);
         }
+        $isSuperAdmin = (bool) (Auth::user()?->is_super_admin ?? false);
+        if ($isSuperAdmin) {
+            return null;
+        }
         if (!$tournament->hasOrganizerOrStaff($userId)) {
             return ResponseHelper::error('Bạn không có quyền thực hiện thao tác này', 403);
         }
@@ -211,6 +215,7 @@ class TournamentController extends Controller
                     'tournament_id' => $tournament->id,
                     'user_id' => auth()->id(),
                     'is_confirmed' => true,
+                    'self_registered' => false,
                 ];
 
                 if (!empty($validated['has_fee'])) {
@@ -329,7 +334,8 @@ class TournamentController extends Controller
         $validated = $request->validated();
         $tournament = Tournament::with('staff')->findOrFail($id);
 
-        $isOrganizer = $tournament->hasOrganizer(Auth::id());
+        $isSuperAdmin = (bool) (Auth::user()?->is_super_admin ?? false);
+        $isOrganizer = $isSuperAdmin || $tournament->hasOrganizer(Auth::id());
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền thay đổi giải đấu', 400);
         }
@@ -434,6 +440,17 @@ class TournamentController extends Controller
         $tournament->load(['sport', 'club', 'createdBy', 'participants']);
         TournamentUpdated::dispatch($tournament, $oldStatus !== $tournament->status ? ['status' => $oldStatus] : []);
 
+        if ($isSuperAdmin && $oldStatus !== (int) $tournament->status) {
+            app(\App\Services\Admin\AuditLogService::class)->log(
+                Auth::user(),
+                'superadmin_update_tournament',
+                Tournament::class,
+                $tournament->id,
+                ['old_status' => $oldStatus, 'new_status' => $tournament->status],
+                ['actor_role' => 'superadmin']
+            );
+        }
+
         return ResponseHelper::success(new TournamentResource($tournament), 'Cập nhật giải đấu thành công');
     }
 
@@ -449,6 +466,8 @@ class TournamentController extends Controller
             return $err;
         }
 
+        $isSuperAdmin = (bool) (Auth::user()?->is_super_admin ?? false);
+
         if ($tournament->status === Tournament::CANCELLED) {
             return ResponseHelper::error('Giải đấu đã bị hủy trước đó rồi', 422);
         }
@@ -459,7 +478,7 @@ class TournamentController extends Controller
         ->where('status', Matches::STATUS_COMPLETED)
         ->exists();
 
-        if ($hasCompletedMatch) {
+        if ($hasCompletedMatch && !$isSuperAdmin) {
             return ResponseHelper::error(
                 'Không thể hủy giải. Đã có trận đấu hoàn thành thuộc giải này.',
                 400
@@ -475,6 +494,17 @@ class TournamentController extends Controller
             // tournament_participant_payments đã có cascade qua participants
             $tournament->delete();
         });
+
+        if ($isSuperAdmin) {
+            app(\App\Services\Admin\AuditLogService::class)->log(
+                Auth::user(),
+                'superadmin_delete_tournament',
+                Tournament::class,
+                $tournamentId,
+                ['status' => $tournament->status, 'name' => $tournamentName],
+                ['actor_role' => 'superadmin']
+            );
+        }
 
         TournamentDeleted::dispatch($tournamentId, $tournamentName);
         DashboardStatUpdated::dispatch('active_tournaments', 1, 'decremented');
