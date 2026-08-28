@@ -416,11 +416,14 @@ class MiniTournamentController extends Controller
             $data['payment_account_id'] = null;
         }
 
-        $isOrganizer = $miniTournament->hasOrganizer(Auth::id());
+        $isSuperAdmin = (bool) (Auth::user()?->is_super_admin ?? false);
+        $isOrganizer = $isSuperAdmin || $miniTournament->hasOrganizer(Auth::id());
 
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền cập nhật kèo đấu', 403);
         }
+
+        $oldStatus = $miniTournament->status;
 
         if ($editScope === 'entire_series' && !empty($miniTournament->recurrence_series_id)) {
             // Xử lý poster cho entire_series: đưa poster mới vào data để updateTournamentAsNewSeries áp dụng cho tất cả kèo
@@ -576,6 +579,17 @@ class MiniTournamentController extends Controller
 
         MiniTournamentUpdated::dispatch($miniTournament);
 
+        if ($isSuperAdmin && $oldStatus !== (int) ($miniTournament->status ?? $oldStatus)) {
+            app(\App\Services\Admin\AuditLogService::class)->log(
+                Auth::user(),
+                'superadmin_update_mini_tournament',
+                MiniTournament::class,
+                $miniTournament->id,
+                ['old_status' => $oldStatus, 'new_status' => $miniTournament->status],
+                ['actor_role' => 'superadmin']
+            );
+        }
+
         return ResponseHelper::success(new MiniTournamentResource($miniTournament), 'Cập nhật thông tin kèo đấu thành công');
     }
 
@@ -587,7 +601,8 @@ class MiniTournamentController extends Controller
             return ResponseHelper::error('Kèo đấu không tồn tại', 404);
         }
 
-        $isOrganizer = $miniTournament->hasOrganizer(Auth::id());
+        $isSuperAdmin = (bool) (Auth::user()?->is_super_admin ?? false);
+        $isOrganizer = $isSuperAdmin || $miniTournament->hasOrganizer(Auth::id());
 
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền huỷ kèo đấu', 403);
@@ -595,7 +610,7 @@ class MiniTournamentController extends Controller
 
         $hasCompletedMatch = MiniMatch::where('mini_tournament_id', $miniTournament->id)->where('status', MiniMatch::STATUS_COMPLETED)->exists();
 
-        if($hasCompletedMatch) {
+        if($hasCompletedMatch && !$isSuperAdmin) {
             return ResponseHelper::error('Không thể huỷ bỏ kèo đã có trận đấu được xác nhận', 404);
         }
 
@@ -623,6 +638,17 @@ class MiniTournamentController extends Controller
         DB::transaction(function () use ($miniTournament) {
             $miniTournament->delete();
         });
+
+        if ($isSuperAdmin) {
+            app(\App\Services\Admin\AuditLogService::class)->log(
+                Auth::user(),
+                'superadmin_delete_mini_tournament',
+                MiniTournament::class,
+                $miniTournamentId,
+                ['status' => $miniTournament->status, 'name' => $miniTournamentName],
+                ['actor_role' => 'superadmin']
+            );
+        }
 
         MiniTournamentDeleted::dispatch($miniTournamentId, $miniTournamentName);
         DashboardStatUpdated::dispatch('mini_tournament_growth', 1, 'decremented');

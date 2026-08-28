@@ -161,6 +161,7 @@ class TournamentGuestController extends Controller
             'estimated_level' => $data['estimated_level'] ?? null,
             'is_pending_confirmation' => $isPendingConfirmation,
             'payment_status' => $paymentStatus,
+            'self_registered' => false,
         ]);
 
         // Tạo tournament_participant_payment nếu giải có thu phí

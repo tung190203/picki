@@ -273,11 +273,12 @@
                   <th class="table-head">Sân & Địa điểm</th>
                   <th class="table-head">Người tạo</th>
                   <th class="table-head">Người chơi</th>
-                  <th class="table-head text-right text-right-important">Trạng thái</th>
+                  <th class="table-head">Trạng thái</th>
+                  <th class="table-head text-right text-right-important">Hành động</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-outline-variant/5">
-                <tr v-for="match in paginatedMatches" :key="match.id" class="hover:bg-surface-container-low transition-colors group cursor-pointer">
+                <tr v-for="match in paginatedMatches" :key="match.id" class="hover:bg-surface-container-low transition-colors group">
                   <td class="px-6 py-4">
                     <div class="font-bold text-sm text-on-surface">{{ match.time }}</div>
                     <div class="text-[10px] text-on-surface-variant">{{ match.date }}</div>
@@ -302,8 +303,41 @@
                       <div v-if="match.extra" class="w-7 h-7 rounded-full border-2 border-surface-container-low bg-surface-container-high flex items-center justify-center text-[10px] font-bold">+{{ match.extra }}</div>
                     </div>
                   </td>
-                  <td class="px-6 py-4 text-right">
+                  <td class="px-6 py-4">
                     <span :class="match.statusClass">{{ match.status }}</span>
+                  </td>
+                  <td class="px-6 py-4 text-right">
+                    <div class="flex justify-end gap-1.5">
+                      <button
+                        v-if="match.rawStatus === 1"
+                        :disabled="match.actionLoading === 'publish'"
+                        @click="publishMiniTournament(match)"
+                        class="action-btn action-publish"
+                        title="Công bố kèo"
+                      >
+                        <span v-if="match.actionLoading === 'publish'" class="material-symbols-outlined text-base">progress_activity</span>
+                        <span v-else class="material-symbols-outlined text-base">publish</span>
+                      </button>
+                      <button
+                        v-if="match.rawStatus === 2"
+                        :disabled="match.actionLoading === 'unpublish'"
+                        @click="unpublishMiniTournament(match)"
+                        class="action-btn action-unpublish"
+                        title="Huỷ công bố"
+                      >
+                        <span v-if="match.actionLoading === 'unpublish'" class="material-symbols-outlined text-base">progress_activity</span>
+                        <span v-else class="material-symbols-outlined text-base">unpublished</span>
+                      </button>
+                      <button
+                        :disabled="match.actionLoading === 'delete'"
+                        @click="deleteMiniTournamentFromAdmin(match)"
+                        class="action-btn action-ban"
+                        title="Xoá kèo"
+                      >
+                        <span v-if="match.actionLoading === 'delete'" class="material-symbols-outlined text-base">progress_activity</span>
+                        <span v-else class="material-symbols-outlined text-base">delete</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -349,9 +383,33 @@
                   <div class="w-6 h-6 rounded-full bg-surface-container-high border border-white flex items-center justify-center text-[8px] font-bold shadow-sm">{{ t.regCount }}</div>
                   <span class="text-[10px] font-medium">{{ t.regText }}</span>
                 </div>
-                <div class="flex gap-2">
-                  <button class="flex-1 py-2 bg-surface-container-high text-on-surface rounded-xl font-bold text-xs hover:bg-primary hover:text-white transition-all active:scale-95">Chi tiết</button>
-                  <button class="flex-1 py-2 bg-primary text-white rounded-xl font-bold text-xs shadow-md shadow-primary/20 active:scale-95 transition-all hover:bg-primary/90">Duyệt</button>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-if="t.rawStatus === 1"
+                    :disabled="t.actionLoading === 'publish'"
+                    @click="publishTournament(t)"
+                    class="flex-1 py-2 bg-tertiary text-white rounded-xl font-bold text-xs shadow-md shadow-tertiary/20 active:scale-95 transition-all hover:bg-tertiary/90 disabled:opacity-50"
+                  >
+                    <span v-if="t.actionLoading === 'publish'" class="material-symbols-outlined text-sm align-middle">progress_activity</span>
+                    <span v-else>Công bố</span>
+                  </button>
+                  <button
+                    v-if="t.rawStatus === 2"
+                    :disabled="t.actionLoading === 'unpublish'"
+                    @click="unpublishTournament(t)"
+                    class="flex-1 py-2 bg-secondary-container text-on-secondary-container rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all hover:bg-secondary hover:text-white disabled:opacity-50"
+                  >
+                    <span v-if="t.actionLoading === 'unpublish'" class="material-symbols-outlined text-sm align-middle">progress_activity</span>
+                    <span v-else>Huỷ công bố</span>
+                  </button>
+                  <button
+                    :disabled="t.actionLoading === 'delete'"
+                    @click="deleteTournamentFromAdmin(t)"
+                    class="flex-1 py-2 bg-error text-on-error rounded-xl font-bold text-xs shadow-lg shadow-error/20 active:scale-95 transition-all hover:bg-error/90 disabled:opacity-50"
+                  >
+                    <span v-if="t.actionLoading === 'delete'" class="material-symbols-outlined text-sm align-middle">progress_activity</span>
+                    <span v-else class="material-symbols-outlined text-sm align-middle">delete</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -532,6 +590,16 @@
 
       </div>
     </main>
+
+    <!-- Confirmation modal (publish / unpublish / delete kèo/giải) -->
+    <DeleteConfirmationModal
+      v-model="confirmModal.open"
+      :title="confirmModal.title"
+      :message="confirmModal.message"
+      :confirm-button-text="confirmModal.confirmText"
+      :confirm-button-class="confirmModal.confirmClass"
+      @confirm="onConfirmModalConfirm"
+    />
   </div>
 </template>
 
@@ -543,6 +611,14 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { get, post } from '@/utils/httpRequest.js'
 import { formatedDate } from '@/composables/formatedDate.js'
+import { toast } from 'vue3-toastify'
+import DeleteConfirmationModal from '@/components/molecules/DeleteConfirmationModal.vue'
+import {
+  updateMiniTournamentStatus,
+  adminDeleteMiniTournament,
+  updateTournamentStatus,
+  adminDeleteTournament,
+} from '@/service/adminTournament.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -575,6 +651,16 @@ const matchesMeta = ref({ current_page: 1, last_page: 1, total: 0 })
 const tournamentsMeta = ref({ current_page: 1, last_page: 1, total: 0 })
 const clubsMeta = ref({ current_page: 1, last_page: 1, total: 0 })
 const venuesMeta = ref({ current_page: 1, last_page: 1, total: 0 })
+
+// Confirmation modal state (cho thao tác publish/unpublish/delete kèo/giải)
+const confirmModal = ref({
+  open: false,
+  title: '',
+  message: '',
+  confirmText: 'Xác nhận',
+  confirmClass: '',
+  action: null, // async () => void
+})
 
 // ===========================
 // TAB STATE
@@ -868,10 +954,13 @@ const paginatedMatches = computed(() => {
     const statusMap = {
       1: { label: 'Nháp', class: 'px-3 py-1 bg-secondary-fixed text-on-secondary-fixed text-[10px] font-bold rounded-full' },
       2: { label: 'Mở', class: 'px-3 py-1 bg-tertiary-container text-on-tertiary-container text-[10px] font-bold rounded-full' },
+      3: { label: 'Đóng', class: 'px-3 py-1 bg-on-surface-variant/20 text-on-surface-variant text-[10px] font-bold rounded-full' },
+      4: { label: 'Huỷ', class: 'px-3 py-1 bg-error-container text-on-error-container text-[10px] font-bold rounded-full' },
     }
     const mapped = statusMap[m.status] ?? statusMap[2]
     return {
       id: m.id,
+      rawStatus: m.status,
       time: formatedDate(m.start_time, 'time') || '—',
       date: formatedDate(m.start_time, 'dateDMY') || '—',
       court: m.name || 'Kèo không tên',
@@ -881,7 +970,8 @@ const paginatedMatches = computed(() => {
       players: m.participants?.slice(0, 4).map(p => p.user?.avatar_url) || [],
       extra: Math.max(0, (m.max_players || 4) - (m.participants?.length || 0)),
       status: mapped.label,
-      statusClass: mapped.class
+      statusClass: mapped.class,
+      actionLoading: null
     }
   })
 })
@@ -891,10 +981,13 @@ const paginatedTournaments = computed(() => {
     const statusMap = {
       1: { label: 'Nháp', class: 'px-2 py-1 bg-secondary-fixed text-on-secondary-fixed text-[10px] font-bold rounded-full' },
       2: { label: 'Đang mở', class: 'px-2 py-1 bg-tertiary-container text-on-tertiary-container text-[10px] font-bold rounded-full' },
+      3: { label: 'Đóng', class: 'px-2 py-1 bg-on-surface-variant/20 text-on-surface-variant text-[10px] font-bold rounded-full' },
+      4: { label: 'Huỷ', class: 'px-2 py-1 bg-error-container text-on-error-container text-[10px] font-bold rounded-full' },
     }
     const mapped = statusMap[t.status] ?? statusMap[2]
     return {
       id: t.id,
+      rawStatus: t.status,
       name: t.name || 'Giải không tên',
       status: mapped.label,
       statusClass: mapped.class,
@@ -902,7 +995,8 @@ const paginatedTournaments = computed(() => {
       location: t.competition_location?.name || '—',
       regCount: t.fee || '—',
       regText: t.fee ? `${Number(t.fee).toLocaleString()} VNĐ` : 'Miễn phí',
-      image: t.poster || 'https://images.unsplash.com/photo-1530549387789-4c1017266635?w=800&q=80'
+      image: t.poster || 'https://images.unsplash.com/photo-1530549387789-4c1017266635?w=800&q=80',
+      actionLoading: null
     }
   })
 })
@@ -1058,6 +1152,139 @@ const resetRating = (user) => {
     null
   )
 }
+
+// ===========================
+// TOURNAMENT / MINI-TOURNAMENT SUPERADMIN ACTIONS
+// ===========================
+const STATUS_OPEN = 2
+const STATUS_DRAFT = 1
+
+const runMatchAction = async (item, action, request, refetch) => {
+  item.actionLoading = action
+  try {
+    await request()
+    toast.success(actionSuccessMessage(action))
+    await refetch()
+  } catch (e) {
+    const msg = e?.response?.data?.message || 'Có lỗi xảy ra'
+    toast.error(msg)
+    console.error(`Match action ${action} error:`, e)
+  } finally {
+    item.actionLoading = null
+  }
+}
+
+const actionSuccessMessage = (action) => ({
+  publish: 'Đã công bố thành công',
+  unpublish: 'Đã huỷ công bố thành công',
+  delete: 'Đã xoá thành công',
+}[action] || 'Thao tác thành công')
+
+const askConfirm = ({ title, message, confirmText, confirmClass, action }) => {
+  confirmModal.value = {
+    open: true,
+    title,
+    message,
+    confirmText,
+    confirmClass,
+    action,
+  }
+}
+
+const onConfirmModalConfirm = async () => {
+  const action = confirmModal.value.action
+  if (!action) return
+  try {
+    await action()
+  } catch (e) {
+    // Lỗi đã được toast.error trong runMatchAction; chỉ log thêm
+    console.error('Confirm modal action error:', e)
+  }
+}
+
+const publishMiniTournament = (match) => {
+  askConfirm({
+    title: 'Công bố kèo đấu',
+    message: `Bạn có chắc muốn công bố kèo "${match.court}"?`,
+    confirmText: 'Công bố',
+    confirmClass: 'bg-tertiary hover:bg-tertiary/90',
+    action: () => runMatchAction(
+      match, 'publish',
+      () => updateMiniTournamentStatus(match.id, STATUS_OPEN),
+      () => fetchMatches(matchesMeta.value.current_page)
+    ),
+  })
+}
+
+const unpublishMiniTournament = (match) => {
+  askConfirm({
+    title: 'Huỷ công bố kèo đấu',
+    message: `Bạn có chắc muốn huỷ công bố kèo "${match.court}"? Kèo sẽ chuyển về trạng thái nháp.`,
+    confirmText: 'Huỷ công bố',
+    confirmClass: 'bg-secondary hover:bg-secondary/90 text-white',
+    action: () => runMatchAction(
+      match, 'unpublish',
+      () => updateMiniTournamentStatus(match.id, STATUS_DRAFT),
+      () => fetchMatches(matchesMeta.value.current_page)
+    ),
+  })
+}
+
+const deleteMiniTournamentFromAdmin = (match) => {
+  askConfirm({
+    title: 'Xoá kèo đấu',
+    message: `Bạn có chắc muốn xoá kèo "${match.court}"? Hành động này không thể hoàn tác.`,
+    confirmText: 'Xoá',
+    confirmClass: 'bg-red-600 hover:bg-red-700',
+    action: () => runMatchAction(
+      match, 'delete',
+      () => adminDeleteMiniTournament(match.id),
+      () => fetchMatches(matchesMeta.value.current_page)
+    ),
+  })
+}
+
+const publishTournament = (t) => {
+  askConfirm({
+    title: 'Công bố giải đấu',
+    message: `Bạn có chắc muốn công bố giải đấu "${t.name}"?`,
+    confirmText: 'Công bố',
+    confirmClass: 'bg-tertiary hover:bg-tertiary/90',
+    action: () => runMatchAction(
+      t, 'publish',
+      () => updateTournamentStatus(t.id, STATUS_OPEN),
+      () => fetchTournaments(tournamentsMeta.value.current_page)
+    ),
+  })
+}
+
+const unpublishTournament = (t) => {
+  askConfirm({
+    title: 'Huỷ công bố giải đấu',
+    message: `Bạn có chắc muốn huỷ công bố giải đấu "${t.name}"? Giải sẽ chuyển về trạng thái nháp.`,
+    confirmText: 'Huỷ công bố',
+    confirmClass: 'bg-secondary hover:bg-secondary/90 text-white',
+    action: () => runMatchAction(
+      t, 'unpublish',
+      () => updateTournamentStatus(t.id, STATUS_DRAFT),
+      () => fetchTournaments(tournamentsMeta.value.current_page)
+    ),
+  })
+}
+
+const deleteTournamentFromAdmin = (t) => {
+  askConfirm({
+    title: 'Xoá giải đấu',
+    message: `Bạn có chắc muốn xoá giải đấu "${t.name}"? Hành động này không thể hoàn tác.`,
+    confirmText: 'Xoá',
+    confirmClass: 'bg-red-600 hover:bg-red-700',
+    action: () => runMatchAction(
+      t, 'delete',
+      () => adminDeleteTournament(t.id),
+      () => fetchTournaments(tournamentsMeta.value.current_page)
+    ),
+  })
+}
 </script>
 
 <style scoped>
@@ -1137,5 +1364,17 @@ const resetRating = (user) => {
 }
 .action-more {
   color: var(--on-surface-variant, #5b403d);
+}
+.action-publish {
+  color: var(--tertiary, #705c2e);
+}
+.action-publish:hover:not(:disabled) {
+  background-color: var(--tertiary-container, #fde998);
+}
+.action-unpublish {
+  color: var(--secondary, #76584c);
+}
+.action-unpublish:hover:not(:disabled) {
+  background-color: var(--secondary-container, #ecd9d3);
 }
 </style>
