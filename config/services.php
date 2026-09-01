@@ -91,4 +91,9 @@ return [
     ],
 
     'club_report_notification_email' => env('CLUB_REPORT_NOTIFICATION_EMAIL', 'truongvanthang@gmail.com'),
+
+    'turnstile' => [
+        'secret' => env('TURNSTILE_SECRET_KEY'),
+        'site_key' => env('VITE_TURNSTILE_SITE_KEY'),
+    ],
 ];
