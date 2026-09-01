@@ -619,7 +619,7 @@ export function useMap() {
       const locationName = mini.competition_location?.name || mini.competition_location?.address || '';
       const dateText = formatDateText(mini.starts_at);
       const timeRange = formatTimeRange(mini.starts_at, mini.duration_minutes);
-      const organizer = (mini.staff?.organizers?.[0]?.user ?? mini.staff?.organizer?.[0]?.user) || mini.creator || mini.user;
+      const organizer = (mini.staff?.organizer?.[0]?.user) || mini.creator || mini.user;
       const organizerName = organizer?.full_name || organizer?.name || '';
       const organizerAvatar = organizer?.avatar_url || organizer?.avatar || defaultImage;
       const participants = mini.participants || [];

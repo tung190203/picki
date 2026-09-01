@@ -104,9 +104,9 @@ class ListMiniTournamentResource extends JsonResource
         }
 
         return [
-            'organizers' => $organizers->values(),
-            'staffs' => $staffs->values(),
-            'referees' => $referees->values(),
+            'organizer' => $organizers->values(),
+            'staff' => $staffs->values(),
+            'referee' => $referees->values(),
         ];
     }
 }
