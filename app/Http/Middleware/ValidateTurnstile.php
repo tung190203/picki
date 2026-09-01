@@ -22,6 +22,11 @@ class ValidateTurnstile
             return $next($request);
         }
 
+        // Bỏ qua xác thực Turnstile cho Mobile App (iOS / Android)
+        if ($this->isMobileRequest($request)) {
+            return $next($request);
+        }
+
         $token = $request->input('cf-turnstile-response') 
             ?: $request->input('turnstile_token') 
             ?: $request->header('X-Turnstile-Token');
@@ -60,5 +65,22 @@ class ValidateTurnstile
         }
 
         return $next($request);
+    }
+
+    /**
+     * Determine if the incoming request is from a mobile app client.
+     */
+    protected function isMobileRequest(Request $request): bool
+    {
+        $platform = strtolower((string) (
+            $request->input('platform')
+            ?: $request->header('X-Platform')
+            ?: $request->header('X-App-Platform')
+            ?: $request->header('X-Client-Platform')
+            ?: $request->header('X-Client-Type')
+            ?: ''
+        ));
+
+        return in_array($platform, ['ios', 'android', 'mobile', 'app']);
     }
 }
