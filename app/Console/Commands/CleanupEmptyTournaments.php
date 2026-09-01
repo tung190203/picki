@@ -41,6 +41,14 @@ class CleanupEmptyTournaments extends Command
             ->whereNotNull('start_date')
             ->where('start_date', '<=', now()->subHours(24))
             ->whereNull('deleted_at')
+            // Lọc ngay tầng DB: chỉ lấy các giải KHÔNG có participants hợp lệ
+            // (user_id != created_by). Tránh N+1 query trong transaction.
+            ->whereNotExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('participants')
+                    ->whereColumn('participants.tournament_id', 'tournaments.id')
+                    ->whereColumn('participants.user_id', '!=', 'tournaments.created_by');
+            })
             ->with('creator')
             ->chunkById(100, function ($tournaments) use (&$count) {
                 foreach ($tournaments as $tournament) {
@@ -55,15 +63,8 @@ class CleanupEmptyTournaments extends Command
     {
         try {
             return DB::transaction(function () use ($tournament) {
-                $validParticipantCount = $tournament
-                    ->participants()
-                    ->where('user_id', '!=', $tournament->created_by)
-                    ->count();
-
-                if ($validParticipantCount > 0) {
-                    return false;
-                }
-
+                // Filter đã chạy ở tầng DB (whereNotExists trong cleanupTournaments),
+                // nên trong transaction không cần count lại participants nữa.
                 $creator = $tournament->creator;
                 $name = $tournament->name;
                 $clubId = $tournament->club_id;
@@ -115,6 +116,15 @@ class CleanupEmptyTournaments extends Command
             ->whereNotNull('start_time')
             ->where('start_time', '<=', now()->subHours(24))
             ->whereNull('deleted_at')
+            // Lọc ngay tầng DB: chỉ lấy các mini-tournament KHÔNG có participants hợp lệ
+            // (user_id != created_by và chưa declined). Tránh N+1 query trong transaction.
+            ->whereNotExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('mini_participants')
+                    ->whereColumn('mini_participants.mini_tournament_id', 'mini_tournaments.id')
+                    ->whereColumn('mini_participants.user_id', '!=', 'mini_tournaments.created_by')
+                    ->whereNull('mini_participants.declined_at');
+            })
             ->with('creator')
             ->chunkById(100, function ($miniTournaments) use (&$count) {
                 foreach ($miniTournaments as $miniTournament) {
@@ -129,16 +139,8 @@ class CleanupEmptyTournaments extends Command
     {
         try {
             return DB::transaction(function () use ($miniTournament) {
-                $validParticipantCount = $miniTournament
-                    ->participants()
-                    ->where('user_id', '!=', $miniTournament->created_by)
-                    ->whereNull('declined_at')
-                    ->count();
-
-                if ($validParticipantCount > 0) {
-                    return false;
-                }
-
+                // Filter đã chạy ở tầng DB (whereNotExists trong cleanupMiniTournaments),
+                // nên trong transaction không cần count lại participants nữa.
                 $creator = $miniTournament->creator;
                 $name = $miniTournament->name;
                 $clubId = $miniTournament->club_id;

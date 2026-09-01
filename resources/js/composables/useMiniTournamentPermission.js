@@ -5,26 +5,26 @@ import { computed } from 'vue'
  * RBAC 3-role permission composable cho MiniTournament (Kèo đấu).
  *
  * Mapping (chuẩn hoá theo backend MiniTournamentResource):
- *   organizers = Admin (role=1)
- *   staffs     = BTC (role=2)
- *   referees   = Trọng tài (role=3)
+ *   organizer = Admin (role=1)
+ *   staff     = BTC (role=2)
+ *   referee   = Trọng tài (role=3)
  *
  * Backend API trả 3 list riêng biệt; composable này dùng trực tiếp 3 list
  * đó để check role — KHÔNG đoán từ numeric role để tránh bug.
  *
- * @param {Ref|Object} miniTournament - ref/object chứa MiniTournament detail (có .staff.organizers/staffs/referees)
+ * @param {Ref|Object} miniTournament - ref/object chứa MiniTournament detail (có .staff.organizer/staff/referee)
  * @param {Number} currentUserId - ID user hiện tại (auth)
  * @returns {Object} các computed: isAdmin, isBTC, isReferee, canXxx
  */
 export function useMiniTournamentPermission(miniTournament, currentUserId) {
   const organizers = computed(
-    () => miniTournament.value?.staff?.organizers ?? []
+    () => miniTournament.value?.staff?.organizer ?? []
   )
   const staffs = computed(
-    () => miniTournament.value?.staff?.staffs ?? []
+    () => miniTournament.value?.staff?.staff ?? []
   )
   const referees = computed(
-    () => miniTournament.value?.staff?.referees ?? []
+    () => miniTournament.value?.staff?.referee ?? []
   )
 
   const userId = computed(() => Number(currentUserId))

@@ -196,12 +196,12 @@ defineEmits(['select'])
 
 /**
  * Lấy người tổ chức đầu tiên (để hiển thị avatar).
- * RBAC v2: organizers (số nhiều) — fallback organizer (số ít) cho FE/backend cũ.
+ * RBAC v2: staff.organizer (số ít) là key chính.
  */
 const firstOrganizer = computed(() => {
   const staff = props.match?.staff
   if (!staff) return null
-  const list = staff.organizers ?? staff.organizer ?? []
+  const list = staff.organizer ?? []
   return list[0]?.user ?? null
 })
 

@@ -119,11 +119,11 @@
                   <div class="flex justify-start space-x-4">
                     <div class="flex flex-col items-start pr-4 border-r">
                       <span class="text-xs text-gray-500 font-medium mb-2">Người tạo</span>
-                      <div class="flex -space-x-2" v-if="(mini.staff?.organizers?.[0]?.user ?? mini.staff?.organizer?.[0]?.user)">
+                      <div class="flex -space-x-2" v-if="(mini.staff?.organizer?.[0]?.user)">
                         <img
-                          :src="(mini.staff?.organizers?.[0]?.user?.avatar_url ?? mini.staff?.organizer?.[0]?.user?.avatar_url)"
-                          :alt="(mini.staff?.organizers?.[0]?.user?.full_name ?? mini.staff?.organizer?.[0]?.user?.full_name)"
-                          :title="(mini.staff?.organizers?.[0]?.user?.full_name ?? mini.staff?.organizer?.[0]?.user?.full_name)"
+                          :src="(mini.staff?.organizer?.[0]?.user?.avatar_url)"
+                          :alt="(mini.staff?.organizer?.[0]?.user?.full_name)"
+                          :title="(mini.staff?.organizer?.[0]?.user?.full_name)"
                           class="w-8 h-8 rounded-full border-2 border-white dark:border-[#1E293B] object-cover shadow-sm"
                         />
                       </div>
@@ -774,8 +774,8 @@ const openPromotionModal = (miniId) => {
 
 const isMiniOrganizer = (mini) => {
   const currentUserId = getUser.value?.id;
-  // RBAC v2: organizers (số nhiều) là key mới, organizer (số ít) là key cũ
-  const organizers = mini?.staff?.organizers ?? mini?.staff?.organizer ?? [];
+  // Backend RBAC v2 trả staff.organizer (số ít).
+  const organizers = mini?.staff?.organizer ?? [];
 
   if (!currentUserId || !Array.isArray(organizers)) return false;
 
