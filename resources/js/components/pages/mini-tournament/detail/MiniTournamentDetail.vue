@@ -283,17 +283,15 @@ export default {
             }
         }
 
-        // Backward-compat: backend RBAC v2 trả staff.organizers/staffs/referees (số nhiều),
-        // nhưng data cũ (và FE cũ) vẫn đọc staff.organizer/referee (số ít).
-        // Đọc cả 2 dạng để tương thích trong giai đoạn migration.
+        // Backend RBAC v2 trả staff.organizer/staff/referee (số ít).
         const organizersList = computed(
-            () => mini.value?.staff?.organizers ?? mini.value?.staff?.organizer ?? []
+            () => mini.value?.staff?.organizer ?? []
         )
         const refereesList = computed(
-            () => mini.value?.staff?.referees ?? mini.value?.staff?.referee ?? []
+            () => mini.value?.staff?.referee ?? []
         )
         const btcList = computed(
-            () => mini.value?.staff?.staffs ?? []
+            () => mini.value?.staff?.staff ?? []
         )
 
         const isCreator = computed(() => {
@@ -309,9 +307,9 @@ export default {
         })
 
         // === RBAC v2: 3-role permission composable ===
-        // - Admin ↔ organizers (role=1)
-        // - BTC   ↔ staffs (role=2)
-        // - Trọng tài ↔ referees (role=3)
+        // - Admin ↔ organizer (role=1)
+        // - BTC   ↔ staff (role=2)
+        // - Trọng tài ↔ referee (role=3)
         // FE dùng các computed canX để ẩn/hiện nút thay vì hard-code.
         const {
             isAdmin,

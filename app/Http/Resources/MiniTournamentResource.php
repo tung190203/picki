@@ -174,12 +174,12 @@ class MiniTournamentResource extends JsonResource
 
     /**
      * Build staff payload với 3 key rõ ràng theo plan RBAC v2:
-     *  - organizers (Admin, role=1)
-     *  - staffs     (BTC, role=2)
-     *  - referees   (Trọng tài, role=3)
+     *  - organizer (Admin, role=1)
+     *  - staff    (BTC, role=2)
+     *  - referee  (Trọng tài, role=3)
      *
-     * Trước đây groupBy(role_text) sinh ra `organizer` (số ít) — không khớp
-     * với Flutter model. Cấu trúc mới ổn định cho cả FE web và Flutter.
+     * Đổi từ dạng số nhiều (organizers/staffs/referees) sang số ít
+     * cho đồng bộ với Flutter model và docs FE.
      */
     protected function buildStaffPayload(): array
     {
@@ -201,9 +201,9 @@ class MiniTournamentResource extends JsonResource
         }
 
         return [
-            'organizers' => $organizers->values(),
-            'staffs' => $staffs->values(),
-            'referees' => $referees->values(),
+            'organizer' => $organizers->values(),
+            'staff' => $staffs->values(),
+            'referee' => $referees->values(),
         ];
     }
 }

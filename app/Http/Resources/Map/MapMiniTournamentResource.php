@@ -66,21 +66,21 @@ class MapMiniTournamentResource extends JsonResource
                 'is_guest'   => (bool) $p->is_guest,
             ])->toArray() : [],
             'staff' => [
-                'organizers' => $staff ? $staff
+                'organizer' => $staff ? $staff
                     ->filter(fn($s) => (int) ($s->pivot->role ?? null) === MiniTournamentStaff::ROLE_ADMIN)
                     ->map(fn($s) => [
                         'mini_tournament_id' => (int) ($s->pivot->mini_tournament_id ?? $this->id),
                         'user_id' => $s->id,
                         'user' => new UserResource($s),
                     ])->values()->toArray() : [],
-                'staffs' => $staff ? $staff
+                'staff' => $staff ? $staff
                     ->filter(fn($s) => (int) ($s->pivot->role ?? null) === MiniTournamentStaff::ROLE_STAFF)
                     ->map(fn($s) => [
                         'mini_tournament_id' => (int) ($s->pivot->mini_tournament_id ?? $this->id),
                         'user_id' => $s->id,
                         'user' => new UserResource($s),
                     ])->values()->toArray() : [],
-                'referees' => $staff ? $staff
+                'referee' => $staff ? $staff
                     ->filter(fn($s) => (int) ($s->pivot->role ?? null) === MiniTournamentStaff::ROLE_REFEREE)
                     ->map(fn($s) => [
                         'mini_tournament_id' => (int) ($s->pivot->mini_tournament_id ?? $this->id),
