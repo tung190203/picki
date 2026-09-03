@@ -280,6 +280,11 @@ class MiniTournamentController extends Controller
 
         MiniTournamentCreated::dispatch($miniTournament);
 
+        // Invalidate club content cache if this tournament belongs to a club
+        if ($miniTournament->club_id) {
+            \App\Http\Controllers\Club\ClubActivityController::forgetClubContentCache($miniTournament->club_id);
+        }
+
         return ResponseHelper::success(new MiniTournamentResource($miniTournament), 'Tạo kèo đấu thành công', 201);
     }
     /**
@@ -479,7 +484,17 @@ class MiniTournamentController extends Controller
                 ->delete();
         }
 
+        $oldClubId = $miniTournament->club_id;
         $miniTournament->update($data);
+        $newClubId = $miniTournament->club_id;
+
+        // Invalidate club content cache for both old and new club (in case club was changed)
+        if ($oldClubId) {
+            \App\Http\Controllers\Club\ClubActivityController::forgetClubContentCache($oldClubId);
+        }
+        if ($newClubId && $newClubId !== $oldClubId) {
+            \App\Http\Controllers\Club\ClubActivityController::forgetClubContentCache($newClubId);
+        }
 
         // Reset participant groups and session state when match_format changes
         if (isset($data['match_format']) && $data['match_format'] !== $originalFormat) {
