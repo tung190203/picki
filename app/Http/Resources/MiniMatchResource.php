@@ -85,6 +85,8 @@ class MiniMatchResource extends JsonResource
             'is_bye' => (bool) $this->is_bye,
             'court_number' => $this->court_number,
             'disable_scoring' => (bool) $this->disable_scoring,
+            'team1_confirm' => (bool) $this->team1_confirm,
+            'team2_confirm' => (bool) $this->team2_confirm,
             'is_extra_players' => self::$extraPlayerFlags[$this->id] ?? [],
         ];
     }
