@@ -76,7 +76,7 @@ class UserResource extends JsonResource
             'primary_badge' => $this->getBatchBadge('primary_badge'),
             'is_banned' => (bool)$this->is_banned,
             'is_guest' => (bool)$this->is_guest,
-            'has_advanced_mini_tournament' => (bool) $this->hasAdvancedMiniTournament(),
+            'has_advanced_mini_tournament' => (bool) ($this->has_advanced_mini_tournament ?? $this->hasAdvancedMiniTournament()),
             'latest_used_qr' => $this->latest_used_qr,
             'created_at' => $this->created_at?->toISOString(),
             'spcn_request' => $this->spcn_request ?? null,
