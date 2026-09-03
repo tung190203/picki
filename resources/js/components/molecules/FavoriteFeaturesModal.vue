@@ -153,8 +153,8 @@ export const ALL_FAVORITE_FEATURES = [
     { id: 'map', label: 'Tìm sân', icon: MapPinIcon, route: '/map' },
     { id: 'leaderboard', label: 'Bảng xếp hạng', icon: ChartBarIcon, route: '/leaderboard' },
     { id: 'tournament_create', label: 'Tạo giải đấu', icon: TrophyIcon, route: '/tournament/create' },
-    { id: 'pairing_wheel', label: 'Vòng quay ghép cặp', icon: ArrowPathIcon, route: '/tools/pairing-wheel' },
-    { id: 'group_draw_wheel', label: 'Vòng quay chia bảng', icon: PuzzlePieceIcon, route: '/tools/group-draw-wheel' },
+    { id: 'pairing_wheel', label: 'Vòng quay ghép cặp', icon: ArrowPathIcon, route: '/pairing-wheel' },
+    { id: 'group_draw_wheel', label: 'Vòng quay chia bảng', icon: PuzzlePieceIcon, route: '/group-draw-wheel' },
     { id: 'notifications', label: 'Thông báo', icon: BellIcon, route: '/notifications' },
     { id: 'settings', label: 'Cài đặt', icon: Cog6ToothIcon, route: '/settings' },
     { id: 'profile', label: 'Trang cá nhân', icon: UserIcon, route: '/profile' }
