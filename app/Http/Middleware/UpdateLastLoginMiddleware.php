@@ -10,7 +10,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class UpdateLastLoginMiddleware
 {
-    private const ACTIVE_THRESHOLD_MINUTES = 1;
+    private const ACTIVE_THRESHOLD_MINUTES = 5;
 
     public function handle(Request $request, Closure $next): Response
     {
