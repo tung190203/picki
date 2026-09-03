@@ -729,4 +729,52 @@ class ClubService
             }
         }
     }
+
+    /**
+     * Aggregate MIN/MAX vndupr_score for active club members in a single query.
+     * Avoids N+1 when ClubResource renders skill_level for multiple clubs.
+     * Pre-sets $club->skill_level on each club so ClubResource reads it directly.
+     *
+     * @param Collection|array $clubs
+     * @return Collection|array
+     */
+    public function attachSkillLevel(Collection|array $clubs): Collection|array
+    {
+        if (empty($clubs)) {
+            return $clubs;
+        }
+
+        $clubIds = collect($clubs)->pluck('id')->toArray();
+        if (empty($clubIds)) {
+            return $clubs;
+        }
+
+        // Single aggregate query: MIN/MAX vndupr_score per club
+        $placeholders = implode(',', array_fill(0, count($clubIds), '?'));
+        $rows = DB::select(
+            "SELECT cm.club_id,
+                    MIN(uss.score_value) as min_score,
+                    MAX(uss.score_value) as max_score
+             FROM club_members cm
+             JOIN user_sport us ON us.user_id = cm.user_id
+             JOIN user_sport_scores uss ON uss.user_sport_id = us.id
+                 AND uss.score_type = 'vndupr_score'
+             WHERE cm.club_id IN ({$placeholders})
+                 AND cm.membership_status = 'joined'
+                 AND cm.status = 'active'
+                 AND uss.score_value IS NOT NULL
+             GROUP BY cm.club_id",
+            $clubIds
+        );
+
+        $skillMap = collect($rows)->keyBy('club_id');
+        foreach ($clubs as $club) {
+            $row = $skillMap->get($club->id);
+            $club->skill_level = ($row && $row->min_score !== null)
+                ? ['min' => round((float) $row->min_score, 1), 'max' => round((float) $row->max_score, 1)]
+                : null;
+        }
+
+        return $clubs;
+    }
 }

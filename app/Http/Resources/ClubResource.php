@@ -41,7 +41,7 @@ class ClubResource extends JsonResource
             'created_by' => $this->created_by,
             'members' => ClubMemberResource::collection($this->whenLoaded('members')),
             'quantity_members' => (int) ($this->active_members_count ?? 0),
-            'skill_level' => $this->whenLoaded('members', function () {
+            'skill_level' => $this->skill_level ?? $this->whenLoaded('members', function () {
                 $scores = $this->members
                     ->filter(fn($m) => $m->user !== null)
                     ->where('membership_status', ClubMembershipStatus::Joined)
@@ -112,16 +112,22 @@ class ClubResource extends JsonResource
     protected function toLimitedArray(): array
     {
         $profile = $this->profile;
-        $activeMembers = $this->resource->relationLoaded('activeMembers')
-            ? $this->resource->activeMembers
-            : ($this->resource->members
-                ? $this->resource->members->filter(fn($m) => $m->membership_status === ClubMembershipStatus::Joined && $m->status === ClubMemberStatus::Active)
-                : collect());
-        $scores = $activeMembers->map(fn ($m) => $this->getMemberVnduprScore($m))->filter(fn ($s) => $s !== null);
-        $skillLevel = $scores->isEmpty() ? null : [
-            'min' => round($scores->min(), 1),
-            'max' => round($scores->max(), 1),
-        ];
+        // Ưu tiên skill_level đã được attachSkillLevel() tính sẵn (1 query thay vì N+1)
+        // Chỉ fallback về logic filter members khi attachSkillLevel chưa chạy
+        if (!isset($this->skill_level)) {
+            $activeMembers = $this->resource->relationLoaded('activeMembers')
+                ? $this->resource->activeMembers
+                : ($this->resource->members
+                    ? $this->resource->members->filter(fn($m) => $m->membership_status === ClubMembershipStatus::Joined && $m->status === ClubMemberStatus::Active)
+                    : collect());
+            $scores = $activeMembers->map(fn ($m) => $this->getMemberVnduprScore($m))->filter(fn ($s) => $s !== null);
+            $skillLevel = $scores->isEmpty() ? null : [
+                'min' => round($scores->min(), 1),
+                'max' => round($scores->max(), 1),
+            ];
+        } else {
+            $skillLevel = $this->skill_level;
+        }
 
         return [
             'id' => $this->id,

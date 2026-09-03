@@ -255,7 +255,6 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     {
         return [
             'is_super_admin' => (bool) $this->is_super_admin,
-            'primary_badge' => app(\App\Services\BadgeService::class)->getPrimaryBadge($this->id),
         ];
     }
 
@@ -302,6 +301,9 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     public function getPlatformAttribute(): ?string
     {
+        if ($this->relationLoaded('deviceTokens') && $this->deviceTokens->isNotEmpty()) {
+            return $this->deviceTokens->first()->platform;
+        }
         return $this->deviceTokens()->latest('last_seen_at')->value('platform');
     }
 
@@ -439,10 +441,13 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
      * Scope dành riêng cho /me endpoint.
      * Không eager load clubs.members.* để tránh N+1 khi user thuộc nhiều CLB lớn.
      * Sử dụng withCount aggregate thay vì load toàn bộ collection.
+     * NOTE: Không gọi withPickleballStats ở đây vì controller/me() sẽ gọi
+     * getBatchVNRanks trực tiếp và gán vào $user->vn_rank. Việc addSelect
+     * vn_rank ở scope gây duplicate CTE query.
      */
     public function scopeWithMeRelations($query, ?int $sportId = null)
     {
-        $query = $query->with([
+        return $query->with([
             'referee',
             'follows',
             'playTimes' => fn($q) => $q->latest('id')->limit(50),
@@ -455,11 +460,6 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                     ->where('status', ClubMemberStatus::Active),
             ]),
         ]);
-
-        $effectiveSportId = $sportId ?? 1;
-        $query->withPickleballStats($effectiveSportId, false);
-
-        return $query;
     }
 
     /**
@@ -1502,7 +1502,18 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
      * Fetch sport stats for multiple users in a single query (avoids N+1).
      * Returns an array keyed by user_id.
      */
-    public static function getBatchSportStats(array $userIds, int $sportId, bool $isOwnProfile = true): array
+    /**
+     * Batch compute sport stats (total_matches, win_rate, performance, etc.) for multiple users.
+     * NOTE: Does NOT call getBatchVNRanks internally. Ranks should be computed separately
+     * and passed to loadSportStatsOnUsers / AuthController::me as $currentRanks.
+     *
+     * @param array $userIds
+     * @param int $sportId
+     * @param bool $isOwnProfile
+     * @param array|null $currentRanks Pre-computed ranks (accepted for API consistency, not used here)
+     * @return array
+     */
+    public static function getBatchSportStats(array $userIds, int $sportId, bool $isOwnProfile = true, ?array $currentRanks = null): array
     {
         if (empty($userIds)) {
             return [];
@@ -1954,9 +1965,11 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
      * Calls getBatchSportStats per unique sport_id and merges results.
      *
      * @param array $pairs Array of ['user_id' => X, 'sport_id' => Y] pairs
+     * @param bool $isOwnProfile
+     * @param array|null $currentRanks Pre-computed ranks from getBatchVNRanks to avoid duplicate query
      * @return array Nested array: $result[$userId][$sportId] = stats
      */
-    public static function getBatchSportStatsByUserSport(array $pairs, bool $isOwnProfile = true): array
+    public static function getBatchSportStatsByUserSport(array $pairs, bool $isOwnProfile = true, ?array $currentRanks = null): array
     {
         if (empty($pairs)) {
             return [];
@@ -1970,9 +1983,10 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         }
 
         // Call getBatchSportStats per sport_id — keeps the exact same logic that already works.
+        // $currentRanks is accepted for API consistency but getBatchSportStats does not call getBatchVNRanks.
         $result = [];
         foreach ($sportIds as $sportId) {
-            $sportStats = self::getBatchSportStats($userIds, (int) $sportId, $isOwnProfile);
+            $sportStats = self::getBatchSportStats($userIds, (int) $sportId, $isOwnProfile, $currentRanks);
             foreach ($userIds as $uid) {
                 if (isset($sportStats[$uid])) {
                     $result[$uid][$sportId] = $sportStats[$uid];
@@ -1991,9 +2005,11 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
      *   - flat stats array to each UserSport model (for UserSportResource)
      *
      * @param \Illuminate\Support\Collection|array $users
-     * @param string $pickleballSportId The sport_id of pickleball (default 1)
+     * @param int $pickleballSportId The sport_id of pickleball (default 1)
+     * @param bool $isOwnProfile
+     * @param array|null $currentRanks Pre-computed ranks from getBatchVNRanks to avoid duplicate query
      */
-    public static function loadSportStatsOnUsers($users, int $pickleballSportId = 1, bool $isOwnProfile = true): void
+    public static function loadSportStatsOnUsers($users, int $pickleballSportId = 1, bool $isOwnProfile = true, ?array $currentRanks = null): void
     {
         if ($users->isEmpty()) {
             return;
@@ -2016,7 +2032,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             return;
         }
 
-        $batchStats = self::getBatchSportStatsByUserSport($pairs, $isOwnProfile);
+        $batchStats = self::getBatchSportStatsByUserSport($pairs, $isOwnProfile, $currentRanks);
 
         foreach ($users as $user) {
             if (!$user->relationLoaded('sports') || !isset($batchStats[$user->id])) {
