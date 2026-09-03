@@ -257,6 +257,11 @@ class TournamentController extends Controller
             ])->find($tournament->id);
             TournamentCreated::dispatch($tournament);
             DashboardStatUpdated::dispatch('tournaments_this_month', 1, 'incremented');
+
+            // Invalidate club content cache if this tournament belongs to a club
+            if ($tournament->club_id) {
+                \App\Http\Controllers\Club\ClubActivityController::forgetClubContentCache($tournament->club_id);
+            }
         } else {
             return ResponseHelper::error('Tạo giải đấu thất bại', 500);
         }
@@ -342,6 +347,8 @@ class TournamentController extends Controller
 
         $oldCreatorJoin = $tournament->creator_join;
         $oldStatus = $tournament->status;
+
+        $oldClubId = $tournament->club_id;
 
         DB::transaction(function () use ($validated, $tournament, $request, $oldCreatorJoin) {
             $newPosterPath = null;
@@ -449,6 +456,15 @@ class TournamentController extends Controller
                 ['old_status' => $oldStatus, 'new_status' => $tournament->status],
                 ['actor_role' => 'superadmin']
             );
+        }
+
+        // Invalidate club content cache for both old and new club (in case club was changed)
+        $newClubId = $tournament->club_id;
+        if ($oldClubId) {
+            \App\Http\Controllers\Club\ClubActivityController::forgetClubContentCache($oldClubId);
+        }
+        if ($newClubId && $newClubId !== $oldClubId) {
+            \App\Http\Controllers\Club\ClubActivityController::forgetClubContentCache($newClubId);
         }
 
         return ResponseHelper::success(new TournamentResource($tournament), 'Cập nhật giải đấu thành công');
