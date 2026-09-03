@@ -197,6 +197,7 @@
                             </div>
                         </div>
 
+                        <!-- Thiết lập lặp lại -->
                         <div class="border border-[#DCDEE6] rounded-[8px] px-3 py-3 bg-white" @click.stop>
                             <div class="flex items-center justify-between">
                                 <div class="flex items-center gap-3">
@@ -235,6 +236,18 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Edit Scope Toggle (chỉ hiển thị khi edit kèo có recurring) -->
+                        <div v-if="isEditMode && hasRecurringSchedule" class="border border-[#DCDEE6] rounded-[8px] px-3 py-3 bg-white">
+                            <div class="flex items-center justify-between">
+                                <div class="space-y-0.5">
+                                    <label class="text-sm font-bold text-[#3E414C]">Áp dụng cho cả chuỗi</label>
+                                    <p class="text-xs text-[#838799]">Bật để cập nhật tất cả các kèo trong tương lai</p>
+                                </div>
+                                <Toggle v-model="editEntireSeries" />
+                            </div>
+                        </div>
+
                         <hr>
                         <div class="bg-white rounded-lg py-2 space-y-4">
                             <div class="flex items-center justify-between">
@@ -1086,6 +1099,10 @@ const recurringWeekDays = ref([])
 const lockCancellation = ref(1)
 const allowCancellation = ref(true)
 
+// Edit scope for recurring tournaments
+const editEntireSeries = ref(false)
+const hasRecurringSchedule = ref(false)
+
 const openGender = ref(false)
 const openLock = ref(false)
 
@@ -1169,6 +1186,8 @@ const resetFormState = () => {
     selectedClubId.value = initialStates.selectedClubId;
     useClubFund.value = initialStates.useClubFund;
     includedInClubFund.value = initialStates.includedInClubFund;
+    editEntireSeries.value = false;
+    hasRecurringSchedule.value = false;
     qrCodeImage.value = null;
     qrCodePreview.value = null;
     qrCodeFile.value = null;
@@ -1938,7 +1957,11 @@ const handleSubmit = async () => {
         }
 
         if (isEditMode.value) {
-            const payload = buildFormDataWithFile({ ...data, use_cached_qr: useCachedQr.value }, !!qrCodeFile.value, !!posterFile.value)
+            const payload = buildFormDataWithFile({ 
+                ...data, 
+                use_cached_qr: useCachedQr.value,
+                edit_scope: editEntireSeries.value ? 'entire_series' : 'this_occurrence'
+            }, !!qrCodeFile.value, !!posterFile.value)
             await updateMiniTournament(miniTournamentId, payload)
         } else {
             const payload = buildFormDataWithFile({ ...data, use_cached_qr: useCachedQr.value }, !!qrCodeFile.value, !!posterFile.value)
@@ -1965,6 +1988,9 @@ const buildFormDataWithFile = (data, hasQrFile, hasPosterFile = false) => {
             }
         } else if (key === 'invite_user' && Array.isArray(value)) {
             value.forEach((id) => formData.append('invite_user[]', id))
+        } else if (key === 'edit_scope') {
+            // Luôn thêm edit_scope nếu có
+            formData.append('edit_scope', value)
         } else if (typeof value === 'boolean') {
             formData.append(key, value ? '1' : '0')
         } else {
@@ -2075,6 +2101,7 @@ const getApiErrorMessage = (error, fallback = 'Có lỗi xảy ra.') => {
 const applyRecurringScheduleFromData = (recurringSchedule) => {
     if (recurringSchedule?.period) {
         isRepeated.value = true
+        hasRecurringSchedule.value = true
         const periodLabelMap = {
             weekly: 'Tuần',
             monthly: 'Tháng',
@@ -2089,6 +2116,7 @@ const applyRecurringScheduleFromData = (recurringSchedule) => {
     }
 
     isRepeated.value = false
+    hasRecurringSchedule.value = false
     repeatUnit.value = 'Tuần'
     recurringWeekDays.value = []
 }
