@@ -794,18 +794,28 @@ class AuthController extends Controller
             ]);
         }
 
-        // Load sport stats cho user hiện tại (loadSportStatsOnUsers nhắm vào $sport->preloaded_sport_stats
-        // mà UserSportResource đọc). Vì clubs.members không load nữa nên chỉ truyền 1 user — rất nhẹ.
-        User::loadSportStatsOnUsers(collect([$user]), 1);
-
-        // Preload rank data once and reuse to avoid duplicate queries
+        // Tính rank 1 lần duy nhất, truyền cho mọi nơi cần để tránh duplicate CTE query
         $ranks = User::getBatchVNRanks([$user->id], 1);
         $user->vn_rank = $ranks[$user->id] ?? null;
         $user->weekly_change = User::getBatchWeeklyChanges([$user->id], 1, $ranks)[$user->id] ?? null;
 
+        // Load sport stats với ranks đã có (pass vào để API consistent dù có cần hay không)
+        User::loadSportStatsOnUsers(collect([$user]), 1, true, $ranks);
+
+        // Preload badges: set vào request attributes để UserResource đọc không cần fallback query
+        $badgeService = app(\App\Services\BadgeService::class);
+        $request->attributes->set('batch_badges', [
+            $user->id => $badgeService->getUserBadges($user->id),
+        ]);
+
+        // Preload hasAdvancedMiniTournament để tránh query JOIN 3 bảng trong UserResource
+        $user->has_advanced_mini_tournament = $user->hasAdvancedMiniTournament();
+
         $clubs = $user->clubs;
         if ($clubs->isNotEmpty()) {
             $this->clubService->attachUnreadNotificationCount($clubs, $user->id);
+            $this->clubService->attachMembershipStatus($clubs, $user->id);
+            $this->clubService->attachSkillLevel($clubs);
         }
 
         return ResponseHelper::success(new UserResource($user), 'Lay thong tin nguoi dung thanh cong', 200);
@@ -813,14 +823,43 @@ class AuthController extends Controller
 
     private function responseWithToken(string $accessToken, string $refreshToken, object $user): array
     {
-        $user->loadFullRelations();
+        // Load relations trực tiếp trên $user object (không tạo query mới)
+        // Dùng FULL_RELATIONS để giữ nguyên dữ liệu, nhưng skip members trong clubs
+        // thông qua attachSkillLevel sau
+        $user->load([
+            'referee',
+            'follows',
+            'playTimes' => fn($q) => $q->latest('id')->limit(50),
+            'sports',
+            'sports.sport',
+            'sports.scores',
+            'clubs' => fn($q) => $q->withCount([
+                'members as active_members_count' => fn($qq) => $qq
+                    ->where('membership_status', 'joined')
+                    ->where('status', 'active'),
+            ]),
+        ]);
 
-        User::loadSportStatsOnUsers(collect([$user]), 1);
-
-        // Preload rank data once and reuse to avoid duplicate queries
+        // Tính rank 1 lần duy nhất
         $ranks = User::getBatchVNRanks([$user->id], 1);
         $user->vn_rank = $ranks[$user->id] ?? null;
         $user->weekly_change = User::getBatchWeeklyChanges([$user->id], 1, $ranks)[$user->id] ?? null;
+
+        User::loadSportStatsOnUsers(collect([$user]), 1, true, $ranks);
+
+        // Preload badges vào request attributes cho UserResource
+        $badgeService = app(\App\Services\BadgeService::class);
+        app('request')->attributes->set('batch_badges', [
+            $user->id => $badgeService->getUserBadges($user->id),
+        ]);
+
+        // Preload hasAdvancedMiniTournament
+        $user->has_advanced_mini_tournament = $user->hasAdvancedMiniTournament();
+
+        $clubs = $user->clubs;
+        if ($clubs->isNotEmpty()) {
+            $this->clubService->attachSkillLevel($clubs);
+        }
 
         $resource = new UserResource($user);
 
