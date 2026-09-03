@@ -150,6 +150,8 @@ class UpdateMiniTournamentRequest extends FormRequest
 
             'status' => 'sometimes|integer|in:' . implode(',', MiniTournament::STATUS),
 
+            'club_id' => 'nullable|integer|exists:clubs,id',
+
             'invite_user' => 'nullable|array',
             'invite_user.*' => 'distinct|exists:users,id',
             'zalo_link' => 'nullable|url',
@@ -213,20 +215,28 @@ class UpdateMiniTournamentRequest extends FormRequest
             // QR validation: only applies when has_fee=true, use_club_fund=false, and tournament doesn't already have a QR.
             // For independent tournaments (no club): QR is always required.
             // For club tournaments: QR is required unless the club has a shared QR wallet.
-            if ($this->boolean('has_fee') && $this->has('use_club_fund') && !$this->boolean('use_club_fund') && !$this->boolean('use_cached_qr') && !$this->getClubHasQrWallet()) {
+            if ($this->boolean('has_fee') && $this->has('use_club_fund') && !$this->boolean('use_club_fund') && !$this->boolean('use_cached_qr')) {
                 $qrValue = $this->input('qr_code_url');
                 $qrFile = $this->file('qr_code_url');
                 $hasQrInput = $qrFile !== null || ($qrValue !== null && $qrValue !== '');
+                
                 if (!$hasQrInput && !$this->filled('payment_account_id')) {
-                    $miniTournamentId = $this->route('miniTournamentId') ?? $this->route('mini_tournament');
+                    // Check all possible route parameter names
+                    $miniTournamentId = $this->route('id') ?? $this->route('miniTournamentId') ?? $this->route('mini_tournament');
                     $miniTournament = $miniTournamentId ? \App\Models\MiniTournament::find($miniTournamentId) : null;
                     $existingQr = $miniTournament?->qr_code_url;
+                    
+                    // Chỉ báo lỗi khi tournament chưa có QR sẵn
                     if (!$existingQr) {
-                        $clubId = $this->input('club_id') ?? $miniTournament?->club_id;
-                        $errorMsg = $clubId
-                            ? 'Kèo thu phí cần tải ảnh QR thanh toán. Nếu dùng quỹ CLB, vui lòng chọn CLB có ví với mã QR chung.'
-                            : 'Kèo thu phí cần tải ảnh QR thanh toán. Vui lòng tải lên ảnh QR hoặc chọn "Dùng mã QR đã lưu trước đó".';
-                        $validator->errors()->add('qr_code_url', $errorMsg);
+                        // Kiểm tra CLB mới có QR wallet không (chỉ khi chưa có QR riêng)
+                        $hasClubQrWallet = $this->getClubHasQrWallet();
+                        if (!$hasClubQrWallet) {
+                            $clubId = $this->input('club_id') ?? $miniTournament?->club_id;
+                            $errorMsg = $clubId
+                                ? 'Kèo thu phí cần tải ảnh QR thanh toán. Nếu dùng quỹ CLB, vui lòng chọn CLB có ví với mã QR chung.'
+                                : 'Kèo thu phí cần tải ảnh QR thanh toán. Vui lòng tải lên ảnh QR hoặc chọn "Dùng mã QR đã lưu trước đó".';
+                            $validator->errors()->add('qr_code_url', $errorMsg);
+                        }
                     }
                 }
             }
@@ -257,7 +267,8 @@ class UpdateMiniTournamentRequest extends FormRequest
             // mixed_gender requires at least 1 male and 1 female (or 2 each for double)
             // rank_pairing requires at least 1 in group A and 1 in group B (or 2 each for double)
             $newMatchFormat = $this->input('match_format');
-            $miniTournamentId = $this->route('miniTournamentId') ?? $this->route('mini_tournament');
+            // Check all possible route parameter names
+            $miniTournamentId = $this->route('id') ?? $this->route('miniTournamentId') ?? $this->route('mini_tournament');
             if ($newMatchFormat !== null && $miniTournamentId) {
                 $miniTournament = \App\Models\MiniTournament::find($miniTournamentId);
                 if ($miniTournament) {
@@ -315,7 +326,8 @@ class UpdateMiniTournamentRequest extends FormRequest
 
     public function getClubHasQrWallet(): bool
     {
-        $miniTournamentId = $this->route('miniTournamentId') ?? $this->route('mini_tournament');
+        // Check all possible route parameter names
+        $miniTournamentId = $this->route('id') ?? $this->route('miniTournamentId') ?? $this->route('mini_tournament');
         $miniTournament = $miniTournamentId
             ? \App\Models\MiniTournament::find($miniTournamentId)
             : null;
