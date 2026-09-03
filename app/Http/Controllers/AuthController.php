@@ -1016,6 +1016,7 @@ class AuthController extends Controller
             'theme_mode' => 'nullable|in:light,dark,system',
             'favorite_features' => 'nullable|array',
             'settings' => 'nullable|array',
+            'leaderboard_scope' => 'nullable|in:all,club,friend,allClubs',
         ]);
 
         $user = $request->user();
