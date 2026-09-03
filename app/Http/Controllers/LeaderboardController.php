@@ -367,6 +367,17 @@ class LeaderboardController extends Controller
         $perPage = $validated['per_page'] ?? 50;
         $page = $validated['page'] ?? 1;
 
+        // Auto-save leaderboard scope preference
+        $user = $request->user();
+        if ($user) {
+            $settings = $user->settings ?? [];
+            if (!isset($settings['leaderboard_scope']) || $settings['leaderboard_scope'] !== $scope) {
+                $settings['leaderboard_scope'] = $scope;
+                $user->settings = $settings;
+                $user->save();
+            }
+        }
+
         $sport = Sport::where('slug', 'pickleball')->first();
         $sportId = $sport?->id ?? 1;
 

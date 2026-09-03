@@ -527,10 +527,11 @@ class ClubActivityService
                 continue;
             }
 
-            $existing = ClubActivity::where('club_id', $firstActivity->club_id)
-                ->where('recurrence_series_id', $seriesId)
-                ->whereBetween('start_time', [$nextStart->copy(), $nextStart->copy()->endOfMinute()])
-                ->exists();
+            $existing = $this->hasExistingOccurrence(
+                $firstActivity->club_id,
+                $seriesId,
+                $nextStartTime
+            );
 
             if (!$existing) {
                 $this->createNextOccurrence($firstActivity, $nextStartTime, $userId, $seriesId);
@@ -591,9 +592,34 @@ class ClubActivityService
 
         if ($editScope === 'this_occurrence') {
             unset($data['recurring_schedule']);
-            DB::transaction(function () use ($activity, $data) {
+
+            // Nếu start_time thay đổi và kèo đang thuộc series, tách kèo này khỏi chuỗi
+            // để tránh hệ thống tự động tạo occurrence mới cho ngày cũ.
+            $detachFromSeries = false;
+            $oldSeriesId = $activity->recurrence_series_id;
+            if (!empty($data['start_time']) && $oldSeriesId) {
+                $newStart = Carbon::parse($data['start_time']);
+                $oldStart = $activity->start_time ? Carbon::parse($activity->start_time) : null;
+                if (!$oldStart || !$newStart->equalTo($oldStart)) {
+                    $detachFromSeries = true;
+                    $data['recurrence_series_id'] = null;
+                    $data['recurrence_series_cancelled_at'] = null;
+                }
+            }
+
+            DB::transaction(function () use ($activity, $data, $detachFromSeries) {
                 $activity->update($data);
             });
+
+            if ($detachFromSeries) {
+                \Log::info('ClubActivity detached from recurrence series on edit', [
+                    'activity_id' => $activity->id,
+                    'club_id' => $activity->club_id,
+                    'old_series_id' => $oldSeriesId,
+                    'new_start_time' => $data['start_time'] ?? null,
+                ]);
+            }
+
             return $activity->fresh();
         }
 
@@ -862,22 +888,12 @@ class ClubActivityService
         }
 
         $seriesId = $completedActivity->recurrence_series_id;
-        $existingQuery = ClubActivity::where('club_id', $completedActivity->club_id)
-            ->whereBetween('start_time', [
-                $nextStartTime->copy()->startOfMinute(),
-                $nextStartTime->copy()->endOfMinute(),
-            ]);
-        if ($seriesId) {
-            $existingQuery->where('recurrence_series_id', $seriesId);
-        } else {
-            $rawSchedule = $completedActivity->getRecurringScheduleRaw();
-            if ($rawSchedule) {
-                $rawSchedule = json_encode($rawSchedule);
-            }
-            $existingQuery->where('title', $completedActivity->title)
-                ->where('recurring_schedule', $rawSchedule);
-        }
-        if ($existingQuery->exists()) {
+        $existing = $this->hasExistingOccurrence(
+            $completedActivity->club_id,
+            $seriesId,
+            $nextStartTime
+        );
+        if ($existing) {
             return;
         }
 
@@ -911,14 +927,13 @@ class ClubActivityService
             if ($rawSchedule) {
                 $rawSchedule = json_encode($rawSchedule);
             }
-            $existing = ClubActivity::where('club_id', $activity->club_id)
-                ->where('title', $activity->title)
-                ->where('recurring_schedule', $rawSchedule)
-                ->whereBetween('start_time', [
-                    $nextStartTime->copy()->startOfMinute(),
-                    $nextStartTime->copy()->endOfMinute(),
-                ])
-                ->exists();
+            $existing = $this->hasExistingOccurrence(
+                $activity->club_id,
+                $activity->recurrence_series_id,
+                $nextStartTime,
+                $activity->title,
+                $activity->getRecurringScheduleRaw()
+            );
 
             if (!$existing) {
                 $this->createNextOccurrence($activity, $nextStartTime, $userId, $activity->recurrence_series_id);
@@ -973,6 +988,51 @@ class ClubActivityService
         $newActivity->update(['check_in_token' => $checkInToken]);
 
         return $newActivity;
+    }
+
+    /**
+     * Kiểm tra kèo đã tồn tại cho start_time này chưa.
+     * Dùng window ±2 giờ thay vì chính xác 1 phút để bắt các edge case về timezone,
+     * calculation drift hoặc do user sửa kèo trong series gây lệch giờ.
+     */
+    private function hasExistingOccurrence(
+        int $clubId,
+        ?string $seriesId,
+        Carbon $startTime,
+        ?string $title = null,
+        ?array $recurringSchedule = null
+    ): bool {
+        $windowStart = $startTime->copy()->subHours(2);
+        $windowEnd = $startTime->copy()->addHours(2);
+
+        $query = ClubActivity::where('club_id', $clubId)
+            ->whereBetween('start_time', [$windowStart, $windowEnd]);
+
+        if ($seriesId) {
+            $query->where('recurrence_series_id', $seriesId);
+        } else {
+            $query->whereNull('recurrence_series_id');
+        }
+
+        if ($title !== null) {
+            $query->where('title', $title);
+        }
+
+        if ($recurringSchedule !== null) {
+            $query->where('recurring_schedule', json_encode($recurringSchedule));
+        }
+
+        if ($query->exists()) {
+            \Log::warning('Near-duplicate occurrence detected', [
+                'club_id' => $clubId,
+                'series_id' => $seriesId,
+                'title' => $title,
+                'attempted_start_time' => $startTime->format('Y-m-d H:i:s'),
+            ]);
+            return true;
+        }
+
+        return false;
     }
 
     public function buildCheckInUrl(int $clubId, int $activityId, string $token): string
@@ -1092,10 +1152,11 @@ class ClubActivityService
             }
 
             foreach ($startTimes as $nextStartTime) {
-                $nextStart = $nextStartTime->copy()->startOfMinute();
-                $existing = ClubActivity::where('recurrence_series_id', $seriesId)
-                    ->whereBetween('start_time', [$nextStart, $nextStart->copy()->endOfMinute()])
-                    ->exists();
+                $existing = $this->hasExistingOccurrence(
+                    $lastActivity->club_id,
+                    $seriesId,
+                    $nextStartTime
+                );
                 if (!$existing) {
                     $this->createNextOccurrence($lastActivity, $nextStartTime, $userId, $seriesId);
                     $created++;

@@ -79,11 +79,10 @@ class GenerateRecurringActivities extends Command
                 break;
             }
 
-            $existing = ClubActivity::where('club_id', $activity->club_id)
-                ->where('title', $activity->title)
-                ->where('recurring_schedule', $activity->attributes['recurring_schedule'] ?? null)
-                ->where('start_time', $nextStartTime)
-                ->exists();
+            $existing = $this->hasNearDuplicate(
+                $activity,
+                $nextStartTime
+            );
 
             if (!$existing) {
                 $newActivity = $this->createNextOccurrence($activity, $nextStartTime);
@@ -98,6 +97,24 @@ class GenerateRecurringActivities extends Command
         }
 
         return $count;
+    }
+
+    /**
+     * Check duplicate với window ±2 giờ thay vì exact match.
+     * Tránh trường hợp user sửa kèo trong series tạo ra occurrence trùng.
+     */
+    private function hasNearDuplicate(ClubActivity $activity, Carbon $nextStartTime): bool
+    {
+        $windowStart = $nextStartTime->copy()->subHours(2);
+        $windowEnd = $nextStartTime->copy()->addHours(2);
+
+        $schedule = $activity->attributes['recurring_schedule'] ?? null;
+
+        return ClubActivity::where('club_id', $activity->club_id)
+            ->where('title', $activity->title)
+            ->where('recurring_schedule', $schedule)
+            ->whereBetween('start_time', [$windowStart, $windowEnd])
+            ->exists();
     }
 
     private function createNextOccurrence(ClubActivity $activity, Carbon $nextStartTime): ?ClubActivity
@@ -124,6 +141,8 @@ class GenerateRecurringActivities extends Command
         $newActivity->end_time = $nextEndTime;
         $newActivity->cancellation_deadline = $nextCancellationDeadline;
         $newActivity->status = ClubActivityStatus::Scheduled;
+        $newActivity->recurrence_series_id = $activity->recurrence_series_id;
+        $newActivity->recurrence_series_cancelled_at = null;
         $newActivity->save();
 
         \App\Models\Club\ClubActivityParticipant::create([
