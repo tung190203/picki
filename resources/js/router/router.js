@@ -467,11 +467,13 @@ export const route = [
   {
     path: '/pairing-wheel',
     name: 'pairing-wheel',
+    alias: '/tools/pairing-wheel',
     component: PairingWheelPage
   },
   {
     path: '/group-draw-wheel',
     name: 'group-draw-wheel',
+    alias: '/tools/group-draw-wheel',
     component: GroupDrawWheelPage
   },
   {
