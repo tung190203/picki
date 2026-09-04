@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\TournamentCleanupType;
 use App\Models\MiniMatch;
 use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
@@ -105,7 +106,7 @@ class CleanupEmptyTournaments extends Command
                 if ($creator) {
                     $creator->notify(
                         (new TournamentCleanupNotification(
-                            tournamentType: 'tournament',
+                            tournamentType: TournamentCleanupType::Tournament,
                             tournamentName: $name,
                             reason: self::CLEANUP_REASON,
                             clubId: $clubId,
@@ -199,7 +200,7 @@ class CleanupEmptyTournaments extends Command
                 if ($creator) {
                     $creator->notify(
                         (new TournamentCleanupNotification(
-                            tournamentType: 'mini-tournament',
+                            tournamentType: TournamentCleanupType::MiniTournament,
                             tournamentName: $name,
                             reason: self::CLEANUP_REASON,
                             clubId: $clubId,
