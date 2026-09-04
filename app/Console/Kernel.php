@@ -10,42 +10,99 @@ use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
 class Kernel extends ConsoleKernel
 {
+    /**
+     * Các khoảng withoutOverlapping (giây) được đặt lớn hơn interval
+     * để tránh skip lặp khi job chậm xử lý do tải server.
+     */
     protected function schedule(Schedule $schedule): void
     {
+        // === Reminders (mỗi 2 phút, không trùng phút chẵn) ===
         $schedule->job(new SendMiniTournamentRemindersJob())
-            ->everyMinute()
-            ->withoutOverlapping(60);
-        $schedule->job(new SendMiniTournamentDraftRemindersJob())
-            ->everyMinute()
-            ->withoutOverlapping(60);
-        $schedule->command('system:send-notifications')
-            ->everyMinute()
-            ->withoutOverlapping(60);
-        $schedule->command('clubs:send-scheduled-notifications')
-            ->everyMinute()
-            ->withoutOverlapping(60);
-        $schedule->call(function () {
-            DeviceToken::where('last_seen_at', '<', now()->subDays(60))->delete();
-        })->daily();
-
-        $schedule->command('activities:auto-complete')
             ->everyTwoMinutes()
-            ->withoutOverlapping();
+            ->withoutOverlapping(180)
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/schedule-reminders.log'));
+
+        $schedule->job(new SendMiniTournamentDraftRemindersJob())
+            ->everyTwoMinutes()
+            ->withoutOverlapping(180)
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/schedule-draft-reminders.log'));
+
+        // === Notification commands (mỗi 2 phút) ===
+        $schedule->command('system:send-notifications')
+            ->everyTwoMinutes()
+            ->withoutOverlapping(180)
+            ->runInBackground();
+
+        $schedule->command('clubs:send-scheduled-notifications')
+            ->everyTwoMinutes()
+            ->withoutOverlapping(180)
+            ->runInBackground();
+
+        $schedule->command('admin-push-notifications:process-scheduled')
+            ->everyTwoMinutes()
+            ->withoutOverlapping(180)
+            ->runInBackground();
+
+        // === Auto-close commands (mỗi 2 phút) ===
         $schedule->command('tournaments:auto-close')
-            ->everyMinute()
-            ->withoutOverlapping(60);
-        $schedule->command('tournaments:cleanup-empty')->hourly()->withoutOverlapping();
+            ->everyTwoMinutes()
+            ->withoutOverlapping(180)
+            ->runInBackground();
+
         $schedule->command('mini-tournaments:auto-close')
-            ->everyMinute()
-            ->withoutOverlapping(60);
-        $schedule->command('mini-tournaments:rollover-recurrence')->daily();
-        $schedule->command('mini-tournaments:create-auto-payments')
-            ->everyMinute()
-            ->withoutOverlapping(60);
-        $schedule->command('users:sync-online-status')
-            ->everyMinute()
-            ->withoutOverlapping(60);
-        $schedule->command('clubs:precompute-ranks')->hourly();
+            ->everyTwoMinutes()
+            ->withoutOverlapping(180)
+            ->runInBackground();
+
+        // === Payment + Online status (mỗi 5 phút, có batch limit) ===
+        $schedule->command('mini-tournaments:create-auto-payments --limit=50')
+            ->everyFiveMinutes()
+            ->withoutOverlapping(600)
+            ->runInBackground();
+
+        $schedule->command('users:sync-online-status --limit=200')
+            ->everyFiveMinutes()
+            ->withoutOverlapping(600)
+            ->runInBackground();
+
+        // === Activities auto-complete (5 phút thay vì 2) ===
+        $schedule->command('activities:auto-complete --limit=100')
+            ->everyFiveMinutes()
+            ->withoutOverlapping(600)
+            ->runInBackground();
+
+        // === Cleanup empty tournaments (hourly, có batch limit) ===
+        $schedule->command('tournaments:cleanup-empty --limit=200')
+            ->hourly()
+            ->withoutOverlapping(3600)
+            ->runInBackground()
+            ->onFailure(function () {
+                \Illuminate\Support\Facades\Log::error('tournaments:cleanup-empty FAILED at ' . now());
+            });
+
+        // === Heart-beat monitor (mỗi 10 phút, rất nhẹ) ===
+        $schedule->command('system:monitor-tasks')
+            ->everyTenMinutes()
+            ->withoutOverlapping(900)
+            ->runInBackground();
+
+        // === Daily/Weekly commands ===
+        $schedule->command('mini-tournaments:rollover-recurrence')
+            ->dailyAt('01:00')
+            ->withoutOverlapping(3600)
+            ->runInBackground();
+
+        $schedule->command('tournaments:backfill-end-date')
+            ->dailyAt('00:05')
+            ->runInBackground();
+
+        $schedule->command('clubs:precompute-ranks')
+            ->hourly()
+            ->withoutOverlapping(3600)
+            ->runInBackground();
+
         $schedule->command('ranks:snapshot-weekly')
             ->weeklyOn(0, '23:59')
             ->withoutOverlapping(60)
@@ -55,13 +112,22 @@ class Kernel extends ConsoleKernel
             ->onSuccess(function () {
                 \Illuminate\Support\Facades\Log::info('ranks:snapshot-weekly OK at ' . now());
             });
-        $schedule->command('tournaments:backfill-end-date')->dailyAt('00:05');
-        $schedule->command('notifications:prune-old --days=30')->dailyAt('02:00');
-        $schedule->command('verification-codes:prune-expired')->dailyAt('02:15');
-        $schedule->command('queue:prune-failed --hours=168')->dailyAt('02:30');
-        $schedule->command('admin-push-notifications:process-scheduled')
-            ->everyMinute()
-            ->withoutOverlapping(60);
+
+        $schedule->command('notifications:prune-old --days=30')
+            ->dailyAt('02:00')
+            ->runInBackground();
+
+        $schedule->command('verification-codes:prune-expired')
+            ->dailyAt('02:15')
+            ->runInBackground();
+
+        $schedule->command('queue:prune-failed --hours=168')
+            ->dailyAt('02:30')
+            ->runInBackground();
+
+        $schedule->call(function () {
+            DeviceToken::where('last_seen_at', '<', now()->subDays(60))->delete();
+        })->dailyAt('03:30');
     }
 
     protected function commands(): void
