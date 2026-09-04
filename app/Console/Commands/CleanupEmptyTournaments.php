@@ -2,7 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Models\MiniMatch;
+use App\Models\MiniParticipant;
+use App\Models\MiniParticipantPayment;
 use App\Models\MiniTournament;
+use App\Models\MiniTournamentStaff;
 use App\Models\Tournament;
 use App\Notifications\TournamentCleanupNotification;
 use Illuminate\Console\Command;
@@ -11,7 +15,8 @@ use Illuminate\Support\Facades\Log;
 
 class CleanupEmptyTournaments extends Command
 {
-    protected $signature = 'tournaments:cleanup-empty';
+    protected $signature = 'tournaments:cleanup-empty
+                            {--limit=200 : Override max records to process per run}';
 
     protected $description = 'Xóa các giải đấu và mini-tournament không có người tham gia hợp lệ khi đã quá thời gian bắt đầu';
 
@@ -19,15 +24,26 @@ class CleanupEmptyTournaments extends Command
 
     public function handle(): int
     {
-        $tournamentCount = $this->cleanupTournaments();
-        $miniCount = $this->cleanupMiniTournaments();
+        $limit = max(1, (int) $this->option('limit'));
+        $remaining = $limit;
 
-        $this->info("Đã xóa {$tournamentCount} giải đấu và {$miniCount} mini-tournament.");
+        $tournamentCount = $this->cleanupTournaments($remaining);
+        $remaining -= $tournamentCount;
+        if ($remaining <= 0) {
+            return $this->finishRun($limit, $tournamentCount, 0);
+        }
 
+        $miniCount = $this->cleanupMiniTournaments($remaining);
+        return $this->finishRun($limit, $tournamentCount, $miniCount);
+    }
+
+    private function finishRun(int $limit, int $tournaments, int $mini): int
+    {
+        $this->info("Đã xóa {$tournaments} giải đấu và {$mini} mini-tournament (giới hạn {$limit}/run).");
         return Command::SUCCESS;
     }
 
-    protected function cleanupTournaments(): int
+    protected function cleanupTournaments(int $remaining): int
     {
         $count = 0;
 
@@ -50,10 +66,15 @@ class CleanupEmptyTournaments extends Command
                     ->whereColumn('participants.user_id', '!=', 'tournaments.created_by');
             })
             ->with('creator')
-            ->chunkById(100, function ($tournaments) use (&$count) {
+            ->chunkById(100, function ($tournaments) use (&$count, &$remaining) {
                 foreach ($tournaments as $tournament) {
+                    if ($remaining <= 0) {
+                        return false; // dừng chunk
+                    }
                     $this->processTournament($tournament) && $count++;
+                    $remaining--;
                 }
+                return null; // tiếp tục
             });
 
         return $count;
@@ -82,13 +103,15 @@ class CleanupEmptyTournaments extends Command
                 ]);
 
                 if ($creator) {
-                    $creator->notify(new TournamentCleanupNotification(
-                        tournamentType: 'giải đấu',
-                        tournamentName: $name,
-                        reason: self::CLEANUP_REASON,
-                        clubId: $clubId,
-                        tournamentId: $tournament->id,
-                    ));
+                    $creator->notify(
+                        (new TournamentCleanupNotification(
+                            tournamentType: 'tournament',
+                            tournamentName: $name,
+                            reason: self::CLEANUP_REASON,
+                            clubId: $clubId,
+                            tournamentId: $tournament->id,
+                        ))->afterCommit()
+                    );
                 }
 
                 return true;
@@ -102,7 +125,7 @@ class CleanupEmptyTournaments extends Command
         }
     }
 
-    protected function cleanupMiniTournaments(): int
+    protected function cleanupMiniTournaments(int $remaining): int
     {
         $count = 0;
 
@@ -126,10 +149,15 @@ class CleanupEmptyTournaments extends Command
                     ->whereNull('mini_participants.declined_at');
             })
             ->with('creator')
-            ->chunkById(100, function ($miniTournaments) use (&$count) {
+            ->chunkById(100, function ($miniTournaments) use (&$count, &$remaining) {
                 foreach ($miniTournaments as $miniTournament) {
+                    if ($remaining <= 0) {
+                        return false;
+                    }
                     $this->processMiniTournament($miniTournament) && $count++;
+                    $remaining--;
                 }
+                return null;
             });
 
         return $count;
@@ -146,6 +174,17 @@ class CleanupEmptyTournaments extends Command
                 $clubId = $miniTournament->club_id;
                 $creatorId = $miniTournament->created_by;
 
+                // Cascade các bảng con trước khi soft delete để tránh mồ côi:
+                //   - matches có results (mini_match_result) phụ thuộc
+                //   - payments có receipt
+                //   - staff là BTC của tournament đã xoá
+                // Sau khi xoá các bảng con, mới xoá tournament để các FK
+                // (nếu có cascade ở DB) an toàn.
+                MiniMatch::where('mini_tournament_id', $miniTournament->id)->delete();
+                MiniParticipant::where('mini_tournament_id', $miniTournament->id)->delete();
+                MiniParticipantPayment::where('mini_tournament_id', $miniTournament->id)->delete();
+                MiniTournamentStaff::where('mini_tournament_id', $miniTournament->id)->delete();
+
                 $miniTournament->delete();
 
                 $this->line("Deleted mini-tournament #{$miniTournament->id}");
@@ -158,13 +197,15 @@ class CleanupEmptyTournaments extends Command
                 ]);
 
                 if ($creator) {
-                    $creator->notify(new TournamentCleanupNotification(
-                        tournamentType: 'mini-tournament',
-                        tournamentName: $name,
-                        reason: self::CLEANUP_REASON,
-                        clubId: $clubId,
-                        tournamentId: $miniTournament->id,
-                    ));
+                    $creator->notify(
+                        (new TournamentCleanupNotification(
+                            tournamentType: 'mini-tournament',
+                            tournamentName: $name,
+                            reason: self::CLEANUP_REASON,
+                            clubId: $clubId,
+                            tournamentId: $miniTournament->id,
+                        ))->afterCommit()
+                    );
                 }
 
                 return true;

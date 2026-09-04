@@ -6,6 +6,7 @@ use App\Enums\ClubActivityStatus;
 use App\Models\Club\ClubActivity;
 use App\Services\Club\ClubActivityService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 
 class AutoCompleteActivitiesCommand extends Command
 {
@@ -23,6 +24,7 @@ class AutoCompleteActivitiesCommand extends Command
         $now = now();
         $completed = 0;
         $ongoing = 0;
+        $affectedClubIds = [];
 
         // 1. scheduled -> ongoing (khi start_time <= now < end_time)
         $toOngoing = ClubActivity::where('status', ClubActivityStatus::Scheduled)
@@ -33,6 +35,7 @@ class AutoCompleteActivitiesCommand extends Command
         foreach ($toOngoing as $activity) {
             $activity->update(['status' => ClubActivityStatus::Ongoing]);
             $ongoing++;
+            $affectedClubIds[$activity->club_id] = true;
             $this->line("  → Ongoing: #{$activity->id} {$activity->title}");
         }
 
@@ -44,6 +47,7 @@ class AutoCompleteActivitiesCommand extends Command
         foreach ($toComplete as $activity) {
             $activity->update(['status' => ClubActivityStatus::Completed]);
             $completed++;
+            $affectedClubIds[$activity->club_id] = true;
             $this->line("  ✓ Completed: #{$activity->id} {$activity->title}");
 
             $this->activityService->notifyCreatorToCollectFees($activity);
@@ -54,8 +58,12 @@ class AutoCompleteActivitiesCommand extends Command
             }
         }
 
-        $this->info("Đã cập nhật: {$ongoing} ongoing, {$completed} completed.");
+        // Bump cache version cho tất cả club bị ảnh hưởng
+        foreach (array_keys($affectedClubIds) as $clubId) {
+            Cache::increment('club_content_version:' . $clubId);
+        }
 
+        $this->info("Đã cập nhật: {$ongoing} ongoing, {$completed} completed.");
         return 0;
     }
 }

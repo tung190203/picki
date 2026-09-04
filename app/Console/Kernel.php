@@ -18,19 +18,33 @@ class Kernel extends ConsoleKernel
         $schedule->job(new SendMiniTournamentDraftRemindersJob())
             ->everyMinute()
             ->withoutOverlapping(60);
-        $schedule->command('system:send-notifications')->everyMinute();
-        $schedule->command('clubs:send-scheduled-notifications')->everyMinute();
+        $schedule->command('system:send-notifications')
+            ->everyMinute()
+            ->withoutOverlapping(60);
+        $schedule->command('clubs:send-scheduled-notifications')
+            ->everyMinute()
+            ->withoutOverlapping(60);
         $schedule->call(function () {
             DeviceToken::where('last_seen_at', '<', now()->subDays(60))->delete();
         })->daily();
 
-        $schedule->command('activities:auto-complete')->everyTwoMinutes();
-        $schedule->command('tournaments:auto-close')->everyMinute();
+        $schedule->command('activities:auto-complete')
+            ->everyTwoMinutes()
+            ->withoutOverlapping();
+        $schedule->command('tournaments:auto-close')
+            ->everyMinute()
+            ->withoutOverlapping(60);
         $schedule->command('tournaments:cleanup-empty')->hourly()->withoutOverlapping();
-        $schedule->command('mini-tournaments:auto-close')->everyMinute();
+        $schedule->command('mini-tournaments:auto-close')
+            ->everyMinute()
+            ->withoutOverlapping(60);
         $schedule->command('mini-tournaments:rollover-recurrence')->daily();
-        $schedule->command('mini-tournaments:create-auto-payments')->everyMinute();
-        $schedule->command('users:sync-online-status')->everyMinute();
+        $schedule->command('mini-tournaments:create-auto-payments')
+            ->everyMinute()
+            ->withoutOverlapping(60);
+        $schedule->command('users:sync-online-status')
+            ->everyMinute()
+            ->withoutOverlapping(60);
         $schedule->command('clubs:precompute-ranks')->hourly();
         $schedule->command('ranks:snapshot-weekly')
             ->weeklyOn(0, '23:59')
