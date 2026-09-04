@@ -4,26 +4,34 @@ namespace App\Console;
 
 use App\Jobs\SendMiniTournamentDraftRemindersJob;
 use App\Jobs\SendMiniTournamentRemindersJob;
-use App\Models\DeviceToken;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
 class Kernel extends ConsoleKernel
 {
     /**
-     * Các khoảng withoutOverlapping (giây) được đặt lớn hơn interval
-     * để tránh skip lặp khi job chậm xử lý do tải server.
+     * Lưu ý quan trọng:
+     *  - KHÔNG dùng closure (`$schedule->call(fn() => ...)`) - không gọi được
+     *    runInBackground()/withoutOverlapping() và làm chậm schedule:run.
+     *  - KHÔNG dùng `$schedule->job(new X())->runInBackground()` - trong Laravel 10
+     *    `job()` trả về CallbackEvent nên runInBackground() throw RuntimeException.
+     *  - Cách an toàn: dùng `$schedule->command(...)` cho mọi command, có thể thêm
+     *    runInBackground()/withoutOverlapping() tùy ý.
+     *
+     *  Các Jobs (Reminder) sẽ được dispatch qua command wrapper
+     *  `app:dispatch-job SendMiniTournamentRemindersJob` để chạy nền đúng cách.
      */
     protected function schedule(Schedule $schedule): void
     {
-        // === Reminders (mỗi 2 phút, không trùng phút chẵn) ===
-        $schedule->job(new SendMiniTournamentRemindersJob())
+        // === Reminders (mỗi 2 phút) ===
+        // Wrap job trong command để chạy được runInBackground() trong Laravel 10.
+        $schedule->command('app:dispatch-job ' . SendMiniTournamentRemindersJob::class)
             ->everyTwoMinutes()
             ->withoutOverlapping(180)
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/schedule-reminders.log'));
 
-        $schedule->job(new SendMiniTournamentDraftRemindersJob())
+        $schedule->command('app:dispatch-job ' . SendMiniTournamentDraftRemindersJob::class)
             ->everyTwoMinutes()
             ->withoutOverlapping(180)
             ->runInBackground()
@@ -125,9 +133,10 @@ class Kernel extends ConsoleKernel
             ->dailyAt('02:30')
             ->runInBackground();
 
-        $schedule->call(function () {
-            DeviceToken::where('last_seen_at', '<', now()->subDays(60))->delete();
-        })->dailyAt('03:30');
+        // === Device token cleanup (daily) ===
+        $schedule->command('device-tokens:cleanup-stale --days=60')
+            ->dailyAt('03:30')
+            ->runInBackground();
     }
 
     protected function commands(): void
