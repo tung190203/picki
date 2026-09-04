@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Enums\TournamentCleanupType;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
@@ -13,7 +14,7 @@ class TournamentCleanupNotification extends Notification implements ShouldQueue
     private const TYPE = 'tournament_cleanup';
 
     public function __construct(
-        public readonly string $tournamentType,
+        public readonly TournamentCleanupType $tournamentType,
         public readonly string $tournamentName,
         public readonly string $reason = '',
         public readonly ?int $clubId = null,
@@ -25,23 +26,14 @@ class TournamentCleanupNotification extends Notification implements ShouldQueue
         return ['database'];
     }
 
-    private function getVietnameseTypeLabel(string $type): string
-    {
-        return match ($type) {
-            'mini-tournament' => 'Kèo đấu',
-            'tournament' => 'Giải đấu',
-            default => $type,
-        };
-    }
-
     public function toDatabase(object $notifiable): array
     {
-        $typeLabel = $this->getVietnameseTypeLabel($this->tournamentType);
+        $typeLabel = $this->tournamentType->label();
 
         return [
             'type' => self::TYPE,
             'action' => 'cleanup',
-            'tournament_type' => $this->tournamentType,
+            'tournament_type' => $this->tournamentType->value,
             'tournament_id' => $this->tournamentId,
             'title' => $typeLabel . ' đã được xóa tự động.',
             'message' => $typeLabel . " \"{$this->tournamentName}\" đã được xóa tự động. Lý do: {$this->reason}",

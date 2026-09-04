@@ -1510,7 +1510,6 @@ class SchedulerService
 
             // Validate fixed pairs constraint - all paired players must be on the same team
             if (!empty($fixedPairs) && !$this->validateFixedPairsConstraint($playersA, $playersB, $fixedPairs)) {
-                \Log::debug('[Scheduler] Fixed pair constraint violated for candidate');
                 continue;
             }
 
@@ -1600,7 +1599,6 @@ class SchedulerService
                 // Both players found - check they're in the same team
                 $inSameTeam = ($player1InA !== null && $player2InA !== null) ||
                               ($player1InB !== null && $player2InB !== null);
-                \Log::debug("[Scheduler] Fixed pair check: p1_in_A=" . ($player1InA !== null) . ", p1_in_B=" . ($player1InB !== null) . ", p2_in_A=" . ($player2InA !== null) . ", p2_in_B=" . ($player2InB !== null) . ", in_same_team=" . ($inSameTeam ? 'yes' : 'NO'));
                 if (!$inSameTeam) {
                     return false;
                 }
