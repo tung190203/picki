@@ -8,10 +8,12 @@ use App\Models\MatchHistory;
 use App\Models\Matches;
 use App\Models\MiniMatch;
 use App\Models\MiniParticipant;
+use App\Models\MiniParticipantPayment;
 use App\Models\MiniTeamMember;
 use App\Models\Participant;
 use App\Models\Sport;
 use App\Models\TeamMember;
+use App\Models\TournamentParticipantPayment;
 use App\Models\User;
 use App\Models\UserBadge;
 use App\Models\UserMerge;
@@ -374,6 +376,10 @@ class UserMergeService
 
         VnduprHistory::where('user_id', $fromUserId)
             ->update(['user_id' => $toUserId]);
+
+        // Transfer user_id in payment tables
+        MiniParticipantPayment::where('user_id', $fromUserId)->update(['user_id' => $toUserId]);
+        TournamentParticipantPayment::where('user_id', $fromUserId)->update(['user_id' => $toUserId]);
     }
 
     /**
