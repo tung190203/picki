@@ -26,7 +26,6 @@ class AutoCompleteActivitiesCommand extends Command
         $ongoing = 0;
         $affectedClubIds = [];
 
-        // 1. scheduled -> ongoing (khi start_time <= now < end_time)
         $toOngoing = ClubActivity::where('status', ClubActivityStatus::Scheduled)
             ->where('start_time', '<=', $now)
             ->where('end_time', '>=', $now)
@@ -39,7 +38,6 @@ class AutoCompleteActivitiesCommand extends Command
             $this->line("  → Ongoing: #{$activity->id} {$activity->title}");
         }
 
-        // 2. scheduled/ongoing -> completed (khi end_time < now) - kể cả recurring
         $toComplete = ClubActivity::whereIn('status', [ClubActivityStatus::Scheduled, ClubActivityStatus::Ongoing])
             ->where('end_time', '<', $now)
             ->get();
