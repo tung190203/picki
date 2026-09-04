@@ -26,10 +26,6 @@ class UserSportMatchCounter
 
         $missing = array_diff($userIds, $existing);
         if (empty($missing)) {
-            Log::debug('[UserSportMatchCounter] All records exist, skipping insert', [
-                'sport_id' => $sportId,
-                'count' => count($userIds),
-            ]);
             return;
         }
 
@@ -65,7 +61,6 @@ class UserSportMatchCounter
             ->toArray();
 
         if (empty($userIds)) {
-            Log::debug('[UserSportMatchCounter] incrementForTeam: no members in team', ['team_id' => $teamId]);
             return;
         }
 
@@ -100,7 +95,6 @@ class UserSportMatchCounter
             ->toArray();
 
         if (empty($userIds)) {
-            Log::debug('[UserSportMatchCounter] incrementForMiniTeam: no members in team', ['mini_team_id' => $miniTeamId]);
             return;
         }
 

@@ -15,10 +15,15 @@ class AutoCloseMiniTournaments extends Command
 
     public function handle(): int
     {
-        $miniTournaments = MiniTournament::where('status', '!=', MiniTournament::STATUS_CLOSED)
+        // Eager-load participant + user để tránh N+1 trong vòng foreach
+        $miniTournaments = MiniTournament::query()
+            ->where('status', '!=', MiniTournament::STATUS_CLOSED)
             ->whereNotNull('end_time')
             ->where('end_time', '<', now())
-            ->with(['participants'])
+            ->with(['participants' => function ($q) {
+                $q->whereNotNull('user_id')
+                  ->where('is_guest', false);
+            }])
             ->get();
 
         if ($miniTournaments->isEmpty()) {
@@ -40,24 +45,35 @@ class AutoCloseMiniTournaments extends Command
 
     protected function closeMiniTournament(MiniTournament $miniTournament): void
     {
-        $miniTournament->status = MiniTournament::STATUS_CLOSED;
-        $miniTournament->save();
+        $sportId = $miniTournament->sport_id;
 
-        // Cập nhật stats cho từng participant
+        // Collect user IDs để batch query ratings/rankings 1 lần thay vì N lần User::find()
+        $userIds = $miniTournament->participants
+            ->pluck('user_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($userIds)) {
+            $miniTournament->status = MiniTournament::STATUS_CLOSED;
+            $miniTournament->saveQuietly();
+            return;
+        }
+
+        // Batch load users để tránh N+1
+        $users = User::whereIn('id', $userIds)->get()->keyBy('id');
+
         foreach ($miniTournament->participants as $participant) {
             if (!$participant->user_id || $participant->is_guest) {
                 continue;
             }
 
-            $sportId = $miniTournament->sport_id;
-            $userId = $participant->user_id;
-
-            $user = User::find($userId);
+            $user = $users->get($participant->user_id);
             if (!$user) {
                 continue;
             }
 
-            // Lấy rating hiện tại trước khi cập nhật
             $currentRating = $user->vnduprScoresBySport($sportId)->max('score_value');
             $currentRank = $user->getVNRank($sportId);
 
@@ -66,7 +82,10 @@ class AutoCloseMiniTournaments extends Command
             $participant->rank_before = $currentRank;
             $participant->rank_after = $currentRank;
             $participant->rank_change = null;
-            $participant->save();
+            $participant->saveQuietly();
         }
+
+        $miniTournament->status = MiniTournament::STATUS_CLOSED;
+        $miniTournament->saveQuietly();
     }
 }

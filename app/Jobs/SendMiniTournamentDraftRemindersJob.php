@@ -26,80 +26,93 @@ class SendMiniTournamentDraftRemindersJob implements ShouldQueue
      */
     private const MAX_REMINDERS_PER_DRAFT = 3;
 
+    /**
+     * Chunk size khi duyệt các mini-tournament ở trạng thái DRAFT quá 24h.
+     */
+    private const CHUNK_SIZE = 50;
+
     public function handle(): void
     {
         $now = Carbon::now();
         $cutoffTime = $now->copy()->subHours(24);
 
-        // SoftDeletes global scope already filters deleted rows.
-        $tournaments = MiniTournament::where('status', MiniTournament::STATUS_DRAFT)
+        // Duyệt theo chunk thay vì ->get() toàn bộ - giảm memory peak
+        // và giải phóng PHP process giữa các batch.
+        MiniTournament::where('status', MiniTournament::STATUS_DRAFT)
             ->where('created_at', '<=', $cutoffTime)
+            ->select(['id', 'status', 'created_at'])
+            ->orderBy('id')
+            ->chunkById(self::CHUNK_SIZE, function ($tournaments) use ($now, $cutoffTime) {
+                foreach ($tournaments as $tournament) {
+                    $this->processTournament($tournament, $cutoffTime);
+                }
+            });
+    }
+
+    private function processTournament(MiniTournament $tournament, Carbon $cutoffTime): void
+    {
+        // Re-check status inside the loop: tournament may have been
+        // published (status -> OPEN) or deleted between the query above
+        // and processing this row.
+        $tournament->refresh();
+        if ($tournament->trashed()
+            || $tournament->status !== MiniTournament::STATUS_DRAFT
+            || $tournament->created_at->gt($cutoffTime)) {
+            return;
+        }
+
+        $staffMembers = MiniTournamentStaff::where('mini_tournament_id', $tournament->id)
+            ->where('role', MiniTournamentStaff::ROLE_ORGANIZER)
+            ->with('user')
             ->get();
 
-        foreach ($tournaments as $tournament) {
-            // Re-check status inside the loop: tournament may have been
-            // published (status -> OPEN) or deleted between the query above
-            // and processing this row.
-            $tournament->refresh();
-            if ($tournament->trashed()
-                || $tournament->status !== MiniTournament::STATUS_DRAFT
-                || $tournament->created_at->gt($cutoffTime)) {
+        foreach ($staffMembers as $staff) {
+            $user = $staff->user;
+            if (!$user) {
+                // Organizer account was deleted; nothing to notify.
                 continue;
             }
 
-            $staffMembers = MiniTournamentStaff::where('mini_tournament_id', $tournament->id)
-                ->where('role', MiniTournamentStaff::ROLE_ORGANIZER)
-                ->with('user')
-                ->get();
+            $recentReminder = MiniTournamentDraftReminder::where('mini_tournament_id', $tournament->id)
+                ->where('user_id', $user->id)
+                ->where('sent_at', '>=', $cutoffTime)
+                ->exists();
 
-            foreach ($staffMembers as $staff) {
-                $user = $staff->user;
-                if (!$user) {
-                    // Organizer account was deleted; nothing to notify.
-                    continue;
-                }
+            if ($recentReminder) {
+                continue;
+            }
 
-                $recentReminder = MiniTournamentDraftReminder::where('mini_tournament_id', $tournament->id)
-                    ->where('user_id', $user->id)
-                    ->where('sent_at', '>=', $cutoffTime)
-                    ->exists();
+            $totalSent = MiniTournamentDraftReminder::where('mini_tournament_id', $tournament->id)
+                ->where('user_id', $user->id)
+                ->count();
 
-                if ($recentReminder) {
-                    continue;
-                }
+            if ($totalSent >= self::MAX_REMINDERS_PER_DRAFT) {
+                continue;
+            }
 
-                $totalSent = MiniTournamentDraftReminder::where('mini_tournament_id', $tournament->id)
-                    ->where('user_id', $user->id)
-                    ->count();
-
-                if ($totalSent >= self::MAX_REMINDERS_PER_DRAFT) {
-                    continue;
-                }
-
-                // Record FIRST, then notify. If notify fails we have already
-                // persisted the attempt; subsequent runs will see the record
-                // and skip instead of re-firing the notification.
-                try {
-                    DB::transaction(function () use ($tournament, $user) {
-                        MiniTournamentDraftReminder::create([
-                            'mini_tournament_id' => $tournament->id,
-                            'user_id' => $user->id,
-                            'sent_at' => now(),
-                        ]);
-                    });
-                } catch (\Throwable $e) {
-                    // Unique constraint or other DB error: another worker
-                    // already recorded the reminder. Safe to skip.
-                    Log::warning('MiniTournamentDraftReminder record failed', [
+            // Record FIRST, then notify. If notify fails we have already
+            // persisted the attempt; subsequent runs will see the record
+            // and skip instead of re-firing the notification.
+            try {
+                DB::transaction(function () use ($tournament, $user) {
+                    MiniTournamentDraftReminder::create([
                         'mini_tournament_id' => $tournament->id,
                         'user_id' => $user->id,
-                        'error' => $e->getMessage(),
+                        'sent_at' => now(),
                     ]);
-                    continue;
-                }
-
-                $user->notify(new MiniTournamentDraftReminderNotification($tournament));
+                });
+            } catch (\Throwable $e) {
+                // Unique constraint or other DB error: another worker
+                // already recorded the reminder. Safe to skip.
+                Log::warning('MiniTournamentDraftReminder record failed', [
+                    'mini_tournament_id' => $tournament->id,
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+                continue;
             }
+
+            $user->notify(new MiniTournamentDraftReminderNotification($tournament));
         }
     }
 }

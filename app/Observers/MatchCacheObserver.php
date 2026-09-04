@@ -314,12 +314,6 @@ class MatchCacheObserver
         if ($match instanceof MiniMatch) {
             // miniTournament() is the relationship method — NOT mini_tournament (snake_case).
             $sportId = $match->miniTournament?->sport_id;
-            Log::debug('[MatchCacheObserver] getSportId MiniMatch', [
-                'match_id' => $match->id,
-                'sport_id' => $sportId,
-                'miniTournament_loaded' => $match->relationLoaded('miniTournament'),
-                'mini_tournament_id' => $match->mini_tournament_id,
-            ]);
             return $sportId;
         }
         if ($match instanceof QuickMatch) {
@@ -330,15 +324,6 @@ class MatchCacheObserver
             $tournamentTypeLoaded = $groupLoaded && $match->group?->relationLoaded('tournamentType');
             $tournamentLoaded = $tournamentTypeLoaded && $match->group?->tournamentType?->relationLoaded('tournament');
             $sportId = $match->group?->tournamentType?->tournament?->sport_id;
-            Log::debug('[MatchCacheObserver] getSportId Matches', [
-                'match_id' => $match->id,
-                'sport_id' => $sportId,
-                'group_loaded' => $groupLoaded,
-                'tournament_type_loaded' => $tournamentTypeLoaded,
-                'tournament_loaded' => $tournamentLoaded,
-                'group_id' => $match->group_id,
-                'group' => $match->group ? $match->group->id : 'null',
-            ]);
             return $sportId;
         }
         return null;
