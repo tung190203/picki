@@ -53,8 +53,24 @@ class GroupStandingRanker
             return collect();
         }
 
-        // Build stats cho từng team trong group (từ các trận completed)
-        $teamStats = self::buildStatsFromMatches($matches);
+        // ✅ FIX: Khởi tạo stats theo thứ tự teams trong group (group_team.order)
+        // — GIỐNG TournamentTypeController::getRank() dùng `$group->teams()->get()`.
+        //
+        // Lý do: Nếu dùng thứ tự xuất hiện trong matches, thứ tự khởi tạo sẽ khác
+        // nhau giữa các lần chạy/khác với getRank(). Khi H2H tạo thành cycle
+        // (3 đội đồng hạng: A thắng B, B thắng C, C thắng A), PHP usort không
+        // stable → kết quả cuối cùng phụ thuộc thứ tự khởi tạo ban đầu.
+        //
+        // Dùng `$group->teams()` (đã orderBy group_team.order) đảm bảo thứ tự
+        // khởi tạo giống getRank() → kết quả sort giống nhau → nhất quán với API /rank.
+        $teams = $group->teams()->orderBy('group_team.order')->get();
+        $teamStats = collect();
+        foreach ($teams as $team) {
+            $teamStats->push(self::emptyStats($team->id, $team));
+        }
+
+        // Tính stats từ matches (giữ nguyên thứ tự khởi tạo để kết quả sort deterministic)
+        $teamStats = self::buildStatsFromMatches($matches, $teamStats);
 
         // Sort theo rankingRules + HEAD_TO_HEAD
         $sorted = $teamStats->sort(function (array $a, array $b) use ($rankingRules, $matches) {
@@ -84,7 +100,47 @@ class GroupStandingRanker
     }
 
     /**
-     * Tính stats cho từng team trong 1 collection các match.
+     * Helper: build map rank (1-based) → team info cho 1 group.
+     *
+     * Trả về array dạng:
+     *   [
+     *     1 => ['team_id' => int|null, 'team_name' => string|null],
+     *     2 => ['team_id' => int|null, 'team_name' => string|null],
+     *     ...
+     *   ]
+     *
+     * Dùng ở các chỗ cần lookup team theo rank đã được sort sẵn bằng
+     * ranking rules + HEAD_TO_HEAD (đã bao gồm fallback POINTS_WON + HEAD_TO_HEAD).
+     *
+     * Lưu ý: Bắt buộc rankingRules phải đã được chuẩn hóa (đã bao gồm fallback
+     * HEAD_TO_HEAD nếu thiếu) — gọi y hệt như getRank/recalculateRankings.
+     *
+     * @param  Group $group
+     * @param  array $rankingRules
+     * @return array<int, array{team_id: int|null, team_name: string|null}>
+     */
+    public static function standingsByRankMap(Group $group, array $rankingRules): array
+    {
+        $standings = self::rank($group, $rankingRules);
+
+        $map = [];
+        foreach ($standings as $entry) {
+            $rank = (int) ($entry['rank'] ?? 0);
+            if ($rank <= 0) {
+                continue;
+            }
+            $map[$rank] = [
+                'team_id' => isset($entry['team_id']) ? (int) $entry['team_id'] : null,
+                'team_name' => $entry['team_name'] ?? null,
+            ];
+        }
+
+        return $map;
+    }
+
+    /**
+     * Tính stats cho từng team từ 1 collection các match.
+     *
      * Mỗi LEG là 1 "match" (nhưng phần lớn các giải 1 cặp = 1 leg).
      *
      * Logic giống TournamentTypeController::calculateStatsFromMatches:
@@ -92,21 +148,34 @@ class GroupStandingRanker
      * - points_for/points_against cộng từ score của các set.
      * - win_rate = wins / played * 100.
      *
-     * @param  Collection<int, Matches> $matches
+     * Tham số $initialStats cho phép caller kiểm soát thứ tự khởi tạo
+     * (vd: theo `$group->teams()->orderBy('group_team.order')` để deterministic,
+     * khớp với TournamentTypeController::getRank).
+     *
+     * @param  Collection<int, Matches>  $matches
+     * @param  Collection<int, array>|null $initialStats  Nếu null thì tự khởi tạo theo thứ tự xuất hiện trong matches.
      * @return Collection<int, array>
      */
-    public static function buildStatsFromMatches(Collection $matches): Collection
+    public static function buildStatsFromMatches(Collection $matches, ?Collection $initialStats = null): Collection
     {
-        $statsByTeamId = [];
+        if ($initialStats === null) {
+            // Backward-compatible path: khởi tạo theo thứ tự xuất hiện trong matches.
+            $statsByTeamId = [];
+            foreach ($matches as $match) {
+                if ($match->home_team_id) {
+                    $statsByTeamId[$match->home_team_id] = self::emptyStats($match->home_team_id, $match->homeTeam);
+                }
+                if ($match->away_team_id) {
+                    $statsByTeamId[$match->away_team_id] = self::emptyStats($match->away_team_id, $match->awayTeam);
+                }
+            }
+            $initialStats = collect(array_values($statsByTeamId));
+        }
 
-        // Khởi tạo stats cho mỗi team xuất hiện trong matches
-        foreach ($matches as $match) {
-            if ($match->home_team_id) {
-                $statsByTeamId[$match->home_team_id] = self::emptyStats($match->home_team_id, $match->homeTeam);
-            }
-            if ($match->away_team_id) {
-                $statsByTeamId[$match->away_team_id] = self::emptyStats($match->away_team_id, $match->awayTeam);
-            }
+        // Map stats theo team_id để cộng dồn nhanh
+        $statsByTeamId = [];
+        foreach ($initialStats as $stats) {
+            $statsByTeamId[(int) $stats['team_id']] = $stats;
         }
 
         foreach ($matches as $leg) {
@@ -163,15 +232,19 @@ class GroupStandingRanker
             }
         }
 
-        // Tính point_diff + win_rate
+        // Tính point_diff + win_rate, giữ nguyên thứ tự từ $initialStats
         $result = collect();
-        foreach ($statsByTeamId as $teamId => $stats) {
-            $stats['team_id'] = $teamId;
-            $stats['point_diff'] = $stats['points_for'] - $stats['points_against'];
-            $stats['win_rate'] = $stats['played'] > 0
-                ? round(($stats['wins'] / $stats['played']) * 100, 2)
+        foreach ($initialStats as $stats) {
+            $teamId = (int) $stats['team_id'];
+            if (!isset($statsByTeamId[$teamId])) {
+                continue;
+            }
+            $row = $statsByTeamId[$teamId];
+            $row['point_diff'] = $row['points_for'] - $row['points_against'];
+            $row['win_rate'] = $row['played'] > 0
+                ? round(($row['wins'] / $row['played']) * 100, 2)
                 : 0.0;
-            $result->push($stats);
+            $result->push($row);
         }
 
         return $result;

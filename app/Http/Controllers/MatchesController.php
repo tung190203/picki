@@ -20,7 +20,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\PoolAdvancementRule;
 use App\Models\VnduprHistory;
+use App\Models\Group;
 use App\Services\TournamentService;
+use App\Services\TournamentType\GroupStandingRanker;
 use Illuminate\Support\Facades\Auth;
 
 class MatchesController extends Controller
@@ -299,7 +301,16 @@ class MatchesController extends Controller
             ->unique()
             ->filter();
 
-        $groupStandings = TournamentService::calculateGroupStandings($allGroupMatches);
+        // ✅ FIX: Dùng GroupStandingRanker (có HEAD_TO_HEAD + ranking rules đã config)
+        // thay cho TournamentService::calculateGroupStandings (thiếu H2H → chọn sai
+        // Nhì/Ba khi nhiều đội đồng hạng trên points/point_diff/win_rate).
+        $tournamentType = TournamentType::find($tournamentTypeId);
+        $groupModel = Group::find($groupId);
+        $standingByRank = [];
+        if ($tournamentType && $groupModel) {
+            $rankingRules = $this->extractRankingRulesForGroup($tournamentType);
+            $standingByRank = GroupStandingRanker::standingsByRankMap($groupModel, $rankingRules);
+        }
 
         // 4. Lấy luật tiến cử (Advancement Rules)
         $rules = PoolAdvancementRule::where('group_id', $groupId)
@@ -323,8 +334,7 @@ class MatchesController extends Controller
 
             // Apply all position assignments from rules targeting this match
             foreach ($rulesForMatch as $rule) {
-                $standing = $groupStandings->get($rule->rank - 1);
-                $teamId = $standing ? ($standing['team']['id'] ?? null) : null;
+                $teamId = $standingByRank[(int) $rule->rank]['team_id'] ?? null;
 
                 if ($rule->next_position === 'home') {
                     $updateData['home_team_id'] = $teamId;
@@ -337,6 +347,33 @@ class MatchesController extends Controller
         }
 
         $this->checkAllPoolsCompleted($tournamentTypeId);
+    }
+
+    /**
+     * Trích xuất ranking rules từ format_specific_config (đã chuẩn hóa + fallback HEAD_TO_HEAD).
+     * Dùng cho checkAndAdvanceFromPool để chọn đội Nhất/Nhì/Ba theo đúng rule đã config.
+     */
+    private function extractRankingRulesForGroup(TournamentType $tournamentType): array
+    {
+        $config = $tournamentType->format_specific_config ?? [];
+        if (is_array($config) && isset($config[0])) {
+            $config = $config[0];
+        }
+
+        $rules = collect($config['ranking'] ?? [1, 4, 5])
+            ->map(fn($id) => (int) $id)
+            ->toArray();
+
+        // ✅ Fallback: Tự động thêm POINTS_WON (4) + HEAD_TO_HEAD (5) nếu thiếu
+        // (giống TournamentTypeController::getRank và CrossGroupComparisonService).
+        if (!in_array(TournamentType::RANKING_POINTS_WON, $rules, true)) {
+            $rules[] = TournamentType::RANKING_POINTS_WON;
+        }
+        if (!in_array(TournamentType::RANKING_HEAD_TO_HEAD, $rules, true)) {
+            $rules[] = TournamentType::RANKING_HEAD_TO_HEAD;
+        }
+
+        return $rules;
     }
     private function checkAllPoolsCompleted($tournamentTypeId)
     {
