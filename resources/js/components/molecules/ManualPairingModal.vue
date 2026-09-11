@@ -363,12 +363,21 @@ const initializeData = () => {
             console.warn('[ManualPairingModal] rebuild mode: candidates is empty');
         }
         const groupedByGroupId = {};
+        let virtualCounter = 0;
         (candidatesToUse || []).forEach((c) => {
-            // Real groups dùng group_id dương, virtual dùng id âm unique theo group_position
-            const gId = c.is_virtual
-                ? -1 - (((c.candidate_type || '').charCodeAt(0) || 0) * 100 + (c.group_position ?? 1))
-                : c.group_id;
-            const key = gId;
+            let key;
+            if (c.is_virtual) {
+                // ✅ FIX: Trong rebuild mode (pool đã hoàn thành), mỗi candidate virtual đã có
+                // team_id thật. Dùng team_id làm key để phân biệt từng slot virtual
+                // (2 Nhì tốt nhất có team_id khác nhau, không thể dùng candidate_type*100+position
+                // vì cả 2 cùng type "runner_up" + position 2 → cùng key → chỉ hiển thị 1 virtual group).
+                virtualCounter++;
+                key = c.team_id
+                    ? -10000 - Number(c.team_id)
+                    : -1 - (virtualCounter * 100);
+            } else {
+                key = c.group_id;
+            }
             if (!groupedByGroupId[key]) {
                 groupedByGroupId[key] = {
                     groupId: key,
