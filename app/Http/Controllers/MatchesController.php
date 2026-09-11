@@ -411,6 +411,36 @@ class MatchesController extends Controller
             return;
         }
 
+        // ===== RESOLVE ĐỘI VÀO BẢNG ẢO TỪ CROSS-GROUP COMPARISON =====
+        // ✅ FIX: Resolve virtual rules (Nhì tốt nhất) TRƯỚC khi check bye.
+        // Lý do: khi không có bye, code cũ return luôn → virtual rules không bao giờ được fill.
+        // Cần resolve TRƯỚC vì:
+        //  - Sau resolve, $knockoutMatches sẽ thay đổi (slot trống → có team_id)
+        //  - $byeMatches phụ thuộc vào slot trống → cần tính lại sau resolve.
+        $tournamentTypeForResolve = TournamentType::find($tournamentTypeId);
+        if ($tournamentTypeForResolve) {
+            // resolveVirtualPoolAdvancementRules() nằm trên TournamentTypeController.
+            $typeController = app(\App\Http\Controllers\TournamentTypeController::class);
+            $resolvedEntries = $typeController->resolveVirtualPoolAdvancementRules($tournamentTypeForResolve);
+            foreach ($resolvedEntries as $entry) {
+                Matches::where('id', $entry['next_match_id'])
+                    ->update([
+                        $entry['next_position'] . '_team_id' => $entry['team_id'],
+                        'status' => 'pending',
+                    ]);
+            }
+            // Reload để lấy team_id vừa fill
+            if (!empty($resolvedEntries)) {
+                $knockoutMatches = Matches::where('tournament_type_id', $tournamentTypeId)
+                    ->where('round', 2)
+                    ->where('status', 'pending')
+                    ->get();
+                if ($knockoutMatches->isEmpty()) {
+                    return;
+                }
+            }
+        }
+
         // Tìm các trận có đội lẻ (is_bye = true hoặc có 1 team null)
         $byeMatches = $knockoutMatches->filter(function ($match) {
             return $match->is_bye || $match->home_team_id === null || $match->away_team_id === null;
