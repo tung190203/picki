@@ -5,7 +5,6 @@ namespace App\Services\TournamentType;
 use App\Models\Matches;
 use App\Models\PoolAdvancementRule;
 use App\Models\TournamentType;
-use App\Services\TournamentService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -82,28 +81,33 @@ class KnockoutRebuildService
         $candidates = [];
 
         // ===== 1. REAL CANDIDATES TỪ CÁC BẢNG (Nhất/Nhì/Ba/...) =====
-        $groups = $type->groups()->with(['matches.homeTeam', 'matches.awayTeam'])->get();
+        $groups = $type->groups()->get();
+
+        // ✅ FIX: Tính ranking rules đã chuẩn hóa (kèm fallback POINTS_WON + HEAD_TO_HEAD)
+        // để phân biệt Nhì/Ba khi đồng hạng trên points/diff/WR.
+        $rankingRules = $this->extractRankingRules($type);
 
         foreach ($groups as $group) {
-            $groupMatches = $group->matches;
-            if ($groupMatches->isEmpty()) {
+            // ✅ FIX: Dùng GroupStandingRanker (có H2H + ranking rules) thay cho
+            // TournamentService::calculateGroupStandings (thiếu H2H → chọn sai
+            // Nhì/Ba khi nhiều đội đồng hạng).
+            $standings = GroupStandingRanker::rank($group, $rankingRules);
+
+            if ($standings->isEmpty()) {
                 continue;
             }
-
-            // Tính standings cho group này
-            $standings = TournamentService::calculateGroupStandings($groupMatches);
 
             // Lấy top numAdvancing đội
             for ($rank = 1; $rank <= $numAdvancing; $rank++) {
                 $teamAtRank = $standings->get($rank - 1);
-                if (!$teamAtRank || empty($teamAtRank['team']['id'])) {
+                if (!$teamAtRank || empty($teamAtRank['team_id'])) {
                     continue;
                 }
 
                 $candidates[] = [
-                    'team_id' => (int) $teamAtRank['team']['id'],
-                    'team_name' => $teamAtRank['team']['name'] ?? null,
-                    'team_avatar' => $teamAtRank['team']['team_avatar'] ?? null,
+                    'team_id' => (int) $teamAtRank['team_id'],
+                    'team_name' => $teamAtRank['team_name'] ?? null,
+                    'team_avatar' => null, // GroupStandingRanker không attach avatar; FE lookup qua team_id nếu cần
                     'group_id' => (int) $group->id,
                     'group_name' => $group->name,
                     'group_position' => $rank,
@@ -475,20 +479,26 @@ class KnockoutRebuildService
     private function buildRealTeamMap(TournamentType $type): array
     {
         $map = [];
-        $groups = $type->groups()->with(['matches.homeTeam', 'matches.awayTeam'])->get();
+        $groups = $type->groups()->get();
+
+        // ✅ FIX: Tính ranking rules đã chuẩn hóa (kèm fallback POINTS_WON + HEAD_TO_HEAD)
+        // để GroupStandingRanker phân biệt Nhì/Ba khi đồng hạng trên points/diff/WR.
+        $rankingRules = $this->extractRankingRules($type);
 
         foreach ($groups as $group) {
-            $matches = $group->matches;
-            if ($matches->isEmpty()) {
-                continue;
-            }
-            $standings = TournamentService::calculateGroupStandings($matches);
+            // ✅ FIX: Dùng GroupStandingRanker (có H2H + ranking rules) thay cho
+            // TournamentService::calculateGroupStandings (thiếu H2H → chọn sai
+            // Nhì/Ba khi nhiều đội đồng hạng).
+            $standings = GroupStandingRanker::rank($group, $rankingRules);
 
-            foreach ($standings as $rankIdx => $entry) {
-                $rank = $rankIdx + 1;
+            foreach ($standings as $entry) {
+                $rank = (int) ($entry['rank'] ?? 0);
+                if ($rank <= 0) {
+                    continue;
+                }
                 $key = $group->id . '_' . $rank;
-                $teamId = isset($entry['team']['id']) ? (int) $entry['team']['id'] : null;
-                $teamName = $entry['team']['name'] ?? null;
+                $teamId = isset($entry['team_id']) ? (int) $entry['team_id'] : null;
+                $teamName = $entry['team_name'] ?? null;
                 $map[$key] = [
                     'team_id' => $teamId,
                     'team_name' => $teamName,
@@ -497,6 +507,35 @@ class KnockoutRebuildService
         }
 
         return $map;
+    }
+
+    /**
+     * Trích xuất ranking rules từ format_specific_config (đã chuẩn hóa + fallback HEAD_TO_HEAD).
+     * Dùng cho buildCandidatesList và buildRealTeamMap.
+     *
+     * @return int[]
+     */
+    private function extractRankingRules(TournamentType $type): array
+    {
+        $config = $type->format_specific_config ?? [];
+        if (is_array($config) && isset($config[0])) {
+            $config = $config[0];
+        }
+
+        $rules = collect($config['ranking'] ?? [1, 4, 5])
+            ->map(fn($id) => (int) $id)
+            ->toArray();
+
+        // ✅ Fallback: Tự động thêm POINTS_WON (4) + HEAD_TO_HEAD (5) nếu thiếu
+        // (giống getRank, CrossGroupComparisonService).
+        if (!in_array(TournamentType::RANKING_POINTS_WON, $rules, true)) {
+            $rules[] = TournamentType::RANKING_POINTS_WON;
+        }
+        if (!in_array(TournamentType::RANKING_HEAD_TO_HEAD, $rules, true)) {
+            $rules[] = TournamentType::RANKING_HEAD_TO_HEAD;
+        }
+
+        return $rules;
     }
 
     /**

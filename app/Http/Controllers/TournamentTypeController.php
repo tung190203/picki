@@ -13,6 +13,7 @@ use App\Models\Tournament;
 use App\Models\TournamentType;
 use App\Services\TournamentType\CrossGroupComparisonService;
 use App\Services\TournamentType\CrossGroupRankingService;
+use App\Services\TournamentType\GroupStandingRanker;
 use App\Services\TournamentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -1726,13 +1727,17 @@ class TournamentTypeController extends Controller
      */
     public function applyPoolAdvancement(TournamentType $type)
     {
-        $groups = $type->groups()->with(['matches'])->get();
+        $groups = $type->groups()->get();
+
+        // ✅ FIX: Tính ranking rules đã chuẩn hóa (kèm fallback POINTS_WON + HEAD_TO_HEAD)
+        // để GroupStandingRanker phân biệt Nhì/Ba khi đồng hạng trên points/diff/WR.
+        $rankingRules = $this->extractRankingRules($type);
 
         foreach ($groups as $group) {
-            $matches = $group->matches;
-
-            // Tính standings
-            $standings = TournamentService::calculateGroupStandings($matches);
+            // ✅ FIX: Dùng GroupStandingRanker (có H2H + ranking rules) thay cho
+            // TournamentService::calculateGroupStandings (thiếu H2H → chọn sai
+            // Nhì/Ba khi nhiều đội đồng hạng).
+            $standingByRank = GroupStandingRanker::standingsByRankMap($group, $rankingRules);
 
             // ✅ Lấy TẤT CẢ các rules cho group này (bao gồm cả các legs)
             $rules = PoolAdvancementRule::where('group_id', $group->id)
@@ -1745,10 +1750,13 @@ class TournamentTypeController extends Controller
 
             foreach ($rulesByRank as $rank => $rulesForRank) {
                 // Lấy team theo ranking
-                $teamAtRank = $standings->get($rank - 1);
-                if (!$teamAtRank) continue;
-
-                $advancingTeamId = $teamAtRank['team_id'];
+                if (!isset($standingByRank[$rank])) {
+                    continue;
+                }
+                $advancingTeamId = $standingByRank[$rank]['team_id'] ?? null;
+                if ($advancingTeamId === null) {
+                    continue;
+                }
 
                 // ✅ Cập nhật TẤT CẢ các legs của đội này
                 foreach ($rulesForRank as $rule) {
@@ -1770,6 +1778,33 @@ class TournamentTypeController extends Controller
             Matches::where('id', $virtualEntry['next_match_id'])
                 ->update([$virtualEntry['next_position'] . '_team_id' => $virtualEntry['team_id']]);
         }
+    }
+
+    /**
+     * Trích xuất ranking rules từ format_specific_config (đã chuẩn hóa + fallback HEAD_TO_HEAD).
+     * Dùng cho applyPoolAdvancement và các chỗ khác cần chọn Nhất/Nhì/Ba theo rule đã config.
+     */
+    private function extractRankingRules(TournamentType $type): array
+    {
+        $config = $type->format_specific_config ?? [];
+        if (is_array($config) && isset($config[0])) {
+            $config = $config[0];
+        }
+
+        $rules = collect($config['ranking'] ?? [1, 4, 5])
+            ->map(fn($id) => (int) $id)
+            ->toArray();
+
+        // ✅ Fallback: Tự động thêm POINTS_WON (4) + HEAD_TO_HEAD (5) nếu thiếu
+        // (giống getRank, CrossGroupComparisonService).
+        if (!in_array(TournamentType::RANKING_POINTS_WON, $rules, true)) {
+            $rules[] = TournamentType::RANKING_POINTS_WON;
+        }
+        if (!in_array(TournamentType::RANKING_HEAD_TO_HEAD, $rules, true)) {
+            $rules[] = TournamentType::RANKING_HEAD_TO_HEAD;
+        }
+
+        return $rules;
     }
     private function getTeamId($placeholder)
     {
