@@ -222,6 +222,11 @@ class TournamentTypeController extends Controller
             return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Throwable $e) {
             DB::rollBack();
+            \Log::error('store() failed', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile() . ':' . $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             return ResponseHelper::error('Có lỗi xảy ra khi tạo thể thức giải đấu', 500);
         }
     }
@@ -1673,8 +1678,31 @@ class TournamentTypeController extends Controller
                 continue;
             }
             if (property_exists($placeholder, '_virtual') && $placeholder->_virtual) {
-                // Bảng ảo: KHÔNG tạo PoolAdvancementRule (vì không có group_id thật).
-                // Đội sẽ được resolve sau bằng cross-group comparison trong applyPoolAdvancement.
+                // ✅ FIX: Vẫn tạo PoolAdvancementRule cho slot ảo, với is_virtual=true +
+                // group_id=null. Điều này giúp applyPoolAdvancement() có thể resolve
+                // qua cross-group comparison một cách idempotent và đầy đủ,
+                // tránh tình trạng "match round 2 trống không có rule" bị bỏ sót.
+                $virtualIndex = (int) ($placeholder->_virtual_index ?? 0);
+                $rank = (int) ($placeholder->_rank ?? 2);
+
+                foreach ($matchPair as $legMatch) {
+                    $isReturnLeg = ($legMatch->leg % 2 === 0);
+                    $actualPosition = $isReturnLeg
+                        ? ($basePosition === 'home' ? 'away' : 'home')
+                        : $basePosition;
+
+                    PoolAdvancementRule::updateOrCreate([
+                        'tournament_type_id' => $type->id,
+                        'group_id' => null,
+                        'is_virtual' => true,
+                        'virtual_index' => $virtualIndex,
+                    ], [
+                        'rank' => $rank,
+                        'next_match_id' => $legMatch->id,
+                        'next_position' => $actualPosition,
+                    ]);
+                }
+
                 $knockoutIndex++;
                 continue;
             }
@@ -1774,12 +1802,77 @@ class TournamentTypeController extends Controller
         }
 
         // ===== RESOLVE ĐỘI VÀO BẢNG ẢO TỪ CROSS-GROUP COMPARISON =====
-        // Các bảng ảo (_virtual=true) không có PoolAdvancementRule → resolve bằng cross-group comparison
-        $virtualAdvancingTeams = $this->crossGroupComparisonService->resolveVirtualGroupAdvancing($type);
-        foreach ($virtualAdvancingTeams as $virtualEntry) {
-            Matches::where('id', $virtualEntry['next_match_id'])
-                ->update([$virtualEntry['next_position'] . '_team_id' => $virtualEntry['team_id']]);
+        // ✅ FIX: chỉ resolve các virtual rule CÒN pending (match round 2 có slot trống).
+        // Trước đây hàm này quét "match round 2 trống KHÔNG có rule" — không idempotent.
+        // Bây giờ có rule rồi, ta resolve theo `PoolAdvancementRule::virtual()->pending()`.
+        $resolvedVirtualEntries = $this->resolveVirtualPoolAdvancementRules($type);
+        foreach ($resolvedVirtualEntries as $entry) {
+            Matches::where('id', $entry['next_match_id'])
+                ->update([
+                    $entry['next_position'] . '_team_id' => $entry['team_id'],
+                    'status' => 'pending',
+                ]);
         }
+    }
+
+    /**
+     * Resolve các PoolAdvancementRule có is_virtual=true (slot ảo từ cross-group)
+     * bằng cách xếp hạng Nhì tốt nhất giữa các bảng.
+     *
+     * Quy tắc:
+     *  - Mỗi rule có virtual_index (1..N) → chọn candidate Nhì ở rank tương ứng.
+     *  - Nếu cross-group không áp dụng (applied=false) hoặc pool chưa hoàn thành
+     *    (chưa có candidate qualified) → KHÔNG gán gì, để pending chờ resolve sau.
+     *  - Idempotent: gọi nhiều lần cũng không gán nhầm.
+     *
+     * @return array<int, array{next_match_id:int, next_position:string, team_id:int}>
+     */
+    public function resolveVirtualPoolAdvancementRules(TournamentType $type): array
+    {
+        $payload = $this->crossGroupComparisonService->buildComparisonPayload($type);
+        if (!($payload['applied'] ?? false)) {
+            return [];
+        }
+
+        // Chỉ pick Nhì (rank=2). Nếu có Ba tốt nhất (rank=3) → rule ảo tương ứng
+        // sẽ là rank=3, controller generateMixedWithAssignedTeams PHASE 2.5 mở rộng.
+        $qualifiedRunners = collect($payload['candidates'] ?? [])
+            ->where('candidate_type', \App\Services\TournamentType\CrossGroupComparisonService::CANDIDATE_TYPE_RUNNER_UP)
+            ->where('status', 'qualified')
+            ->sortBy('rank')
+            ->values();
+
+        if ($qualifiedRunners->isEmpty()) {
+            return [];
+        }
+
+        // Lấy các rule ảo còn chưa được resolve (match slot vẫn trống)
+        $virtualRules = PoolAdvancementRule::where('tournament_type_id', $type->id)
+            ->virtual()
+            ->orderBy('virtual_index')
+            ->orderBy('next_match_id')
+            ->get()
+            ->filter(function ($rule) {
+                $m = Matches::find($rule->next_match_id);
+                if (!$m) return false;
+                $field = $rule->next_position . '_team_id';
+                return $m->{$field} === null;
+            });
+
+        $entries = [];
+        foreach ($virtualRules as $rule) {
+            $candidate = $qualifiedRunners->get(($rule->virtual_index ?? 1) - 1);
+            if (!$candidate) {
+                break;
+            }
+            $entries[] = [
+                'next_match_id' => (int) $rule->next_match_id,
+                'next_position' => $rule->next_position,
+                'team_id' => (int) $candidate['team']['id'],
+            ];
+        }
+
+        return $entries;
     }
 
     /**
@@ -2324,15 +2417,14 @@ class TournamentTypeController extends Controller
                     $awayPlaceholder = null;
 
                     foreach ($rulesForThisMatch as $rule) {
-                        $text = trim(
-                            $this->getRankText($rule->rank) . ' ' . ($rule->group?->name ?? '')
-                        );
+                        $text = $this->buildAdvancementPlaceholder($rule);
 
                         if ($rule->next_position === 'home') $homePlaceholder = $text;
                         if ($rule->next_position === 'away') $awayPlaceholder = $text;
                     }
 
-                    // 👉 RULE BỊ LẺ ⇒ SINH "NHÌ TỐT NHẤT"
+                    // 👉 RULE BỊ LẺ (chỉ 1 rule trên 2 slot) ⇒ sinh "Nhì tốt nhất #1"
+                    // Fallback giữ nguyên cho backward-compat với format cũ "Nhì tốt nhất" (không có index).
                     if ($rulesForThisMatch->count() === 1) {
                         $onlyRule = $rulesForThisMatch->first();
 
@@ -2424,6 +2516,30 @@ class TournamentTypeController extends Controller
             4 => 'Tư',
             default => "Hạng {$rank}",
         };
+    }
+
+    /**
+     * Build placeholder text cho 1 advancement rule đang chờ resolve.
+     *
+     * - Real rule (group_id NOT null + is_virtual=false): "Nhất Bảng A", "Nhì Bảng A", ...
+     * - Virtual rule (group_id null + is_virtual=true): "Nhì tốt nhất #1", "Ba tốt nhất #2", ...
+     *   (dùng để chỉ rõ cho FE biết đây là slot cross-group, hiển thị ở vòng 2)
+     *
+     * @param PoolAdvancementRule $rule
+     * @return string
+     */
+    private function buildAdvancementPlaceholder(\App\Models\PoolAdvancementRule $rule): string
+    {
+        if ($rule->is_virtual) {
+            $rankText = $this->getRankText((int) $rule->rank);
+            $index = (int) ($rule->virtual_index ?? 0);
+            return $index > 0
+                ? "{$rankText} tốt nhất #{$index}"
+                : "{$rankText} tốt nhất";
+        }
+        $rankText = $this->getRankText((int) $rule->rank);
+        $groupName = $rule->group?->name ?? '';
+        return trim($rankText . ' ' . $groupName);
     }
 
     /**
@@ -2570,9 +2686,7 @@ class TournamentTypeController extends Controller
                 $awayPlaceholder = null;
 
                 foreach ($rulesForThisMatch as $rule) {
-                    $text = trim(
-                        $this->getRankText($rule->rank) . ' ' . ($rule->group?->name ?? '')
-                    );
+                    $text = $this->buildAdvancementPlaceholder($rule);
 
                     if ($rule->next_position === 'home') $homePlaceholder = $text;
                     if ($rule->next_position === 'away') $awayPlaceholder = $text;
