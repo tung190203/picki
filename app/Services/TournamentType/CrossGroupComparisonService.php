@@ -279,15 +279,20 @@ class CrossGroupComparisonService
         $config = $type->format_specific_config ?? [];
         $mainConfig = is_array($config) && isset($config[0]) ? $config[0] : (is_array($config) ? $config : []);
 
-        $rules = collect($mainConfig['ranking'] ?? [1, 4, 5])
+        $rules = collect($mainConfig['ranking'] ?? [1, 2, 3, 4, 7])
             ->map(fn($id) => (int) $id)
             ->toArray();
 
-        if (!in_array(\App\Models\TournamentType::RANKING_POINTS_WON, $rules, true)) {
-            $rules[] = \App\Models\TournamentType::RANKING_POINTS_WON;
-        }
+        // ✅ Auto-fallback các rule thiết yếu cho cross-group comparison:
+        // - H2H (5): không gây hại (luôn = 0 vì Nhì/Ba chéo bảng chưa từng gặp nhau),
+        //   nhưng nếu user tự cấu hình thêm vẫn OK.
+        // - GOALS_SCORED (7 = points_for): phân định khi points/win_rate/sets_diff/point_diff
+        //   vẫn bằng nhau giữa các Nhì/Ba ở bảng khác nhau.
         if (!in_array(\App\Models\TournamentType::RANKING_HEAD_TO_HEAD, $rules, true)) {
             $rules[] = \App\Models\TournamentType::RANKING_HEAD_TO_HEAD;
+        }
+        if (!in_array(\App\Models\TournamentType::RANKING_GOALS_SCORED, $rules, true)) {
+            $rules[] = \App\Models\TournamentType::RANKING_GOALS_SCORED;
         }
 
         return $rules;
@@ -578,8 +583,12 @@ class CrossGroupComparisonService
      *  - RANKING_WIN_RATE (2): % thắng
      *  - RANKING_SETS_WON (3): số hiệp thắng
      *  - RANKING_POINTS_WON (4): hiệu số điểm
-     *  - RANKING_HEAD_TO_HEAD (5): đối đầu trực tiếp
+     *  - RANKING_HEAD_TO_HEAD (5): đối đầu trực tiếp (vô hiệu với cross-group vì Nhì/Ba ở bảng khác nhau chưa từng gặp nhau)
      *  - RANKING_RANDOM_DRAW (6): stable theo team_id
+     *  - RANKING_GOALS_SCORED (7): tổng số bàn/điểm ghi được (points_for) — tie-breaker quan trọng cho cross-group.
+     *
+     * Default cho cross-group: [1, 2, 3, 4, 7] (points → win_rate → sets_diff → point_diff → goals_scored)
+     * + auto-append RANKING_HEAD_TO_HEAD (5).
      *
      * pending_draw = true khi CÙNG candidate_type + cùng tất cả ranking keys đang xét.
      */
@@ -606,6 +615,10 @@ class CrossGroupComparisonService
                         $this->compareScalar($a, $b, 'sets_diff'),
                     \App\Models\TournamentType::RANKING_POINTS_WON =>
                         $this->compareScalar($a, $b, 'point_diff'),
+                    \App\Models\TournamentType::RANKING_GOALS_SCORED =>
+                        // Tổng số bàn/điểm ghi được (DESC). Tie-breaker quan trọng
+                        // vì Nhì/Ba chéo bảng không thể so H2H.
+                        $this->compareScalar($a, $b, 'points_for'),
                     \App\Models\TournamentType::RANKING_HEAD_TO_HEAD =>
                         $this->compareHeadToHead($a, $b, $h2hMatrix),
                     \App\Models\TournamentType::RANKING_RANDOM_DRAW =>
@@ -694,6 +707,7 @@ class CrossGroupComparisonService
                 \App\Models\TournamentType::RANKING_WIN_RATE => 'win_rate',
                 \App\Models\TournamentType::RANKING_SETS_WON => 'sets_diff',
                 \App\Models\TournamentType::RANKING_POINTS_WON => 'point_diff',
+                \App\Models\TournamentType::RANKING_GOALS_SCORED => 'points_for',
                 default => null,
             };
             if ($key === null) {
@@ -786,6 +800,11 @@ class CrossGroupComparisonService
         // Ba sẽ được mark 'not_applicable' để FE ẩn, dù `apply_to` có chứa 'third_place'.
         $needThirdPlace = $additionalSlots > $numberOfGroups;
 
+        // ✅ Nếu additionalSlots = 0 (đã đủ đội từ pool, totalFromPool đã là power-of-2)
+        // → không cần xét Nhì/Ba tốt nhất giữa các bảng. Tất cả Nhì/Ba sẽ là 'not_applicable'
+        // để FE ẩn (kể cả khi apply_to có chứa 'runner_up'/'third_place').
+        $needRunnerUp = $additionalSlots > 0;
+
         // Sort candidates: runner_up trước third_place, theo rank
         $sorted = $candidates->sortBy([
             ['candidate_type', 'asc'],
@@ -822,11 +841,16 @@ class CrossGroupComparisonService
         }
 
         // Bước 2: gắn status
-        return $candidates->map(function (array $candidate) use ($qualifiedTeamIds, $applyTo, $needThirdPlace) {
+        return $candidates->map(function (array $candidate) use ($qualifiedTeamIds, $applyTo, $needThirdPlace, $needRunnerUp) {
             $type = $candidate['candidate_type'];
 
+            // Nhì khi không cần pick (additionalSlots=0) → not_applicable (FE ẩn),
+            // kể cả khi apply_to có 'runner_up'.
+            if ($type === self::CANDIDATE_TYPE_RUNNER_UP && !$needRunnerUp) {
+                $candidate['status'] = 'not_applicable';
+            }
             // Ba khi không cần pick → not_applicable (FE ẩn), kể cả khi apply_to có third_place.
-            if ($type === self::CANDIDATE_TYPE_THIRD_PLACE && !$needThirdPlace) {
+            elseif ($type === self::CANDIDATE_TYPE_THIRD_PLACE && !$needThirdPlace) {
                 $candidate['status'] = 'not_applicable';
             } elseif (!in_array($type, $applyTo, true)) {
                 $candidate['status'] = 'not_applicable';

@@ -58,6 +58,10 @@ class TournamentType extends Model
     const RANKING_POINTS_WON = 4;
     const RANKING_HEAD_TO_HEAD = 5;
     const RANKING_RANDOM_DRAW = 6;
+    // Tổng số bàn/điểm ghi được (points_for DESC) — dùng để phân định khi
+    // points + win_rate + sets_diff + point_diff vẫn bằng nhau giữa các Nhì/Ba.
+    // Đặc biệt hữu ích khi so sánh chéo bảng (H2H không áp dụng được).
+    const RANKING_GOALS_SCORED = 7;
 
     // Seeding rules
     const SEED_LEVEL = 1;
@@ -177,7 +181,8 @@ class TournamentType extends Model
                         self::RANKING_SETS_WON,
                         self::RANKING_POINTS_WON,
                         self::RANKING_HEAD_TO_HEAD,
-                        self::RANKING_RANDOM_DRAW
+                        self::RANKING_RANDOM_DRAW,
+                        self::RANKING_GOALS_SCORED
                     ],
                     'pool_stage' => [
                         'name' => 'Vòng bảng',
@@ -201,7 +206,8 @@ class TournamentType extends Model
                         self::RANKING_SETS_WON,
                         self::RANKING_POINTS_WON,
                         self::RANKING_HEAD_TO_HEAD,
-                        self::RANKING_RANDOM_DRAW
+                        self::RANKING_RANDOM_DRAW,
+                        self::RANKING_GOALS_SCORED
                     ],
                     'has_third_place_match' => false,
                     'advanced_to_next_round' => false
@@ -216,7 +222,8 @@ class TournamentType extends Model
                         self::RANKING_SETS_WON,
                         self::RANKING_POINTS_WON,
                         self::RANKING_HEAD_TO_HEAD,
-                        self::RANKING_RANDOM_DRAW
+                        self::RANKING_RANDOM_DRAW,
+                        self::RANKING_GOALS_SCORED
                     ],
                 ];
                 break;
