@@ -57,10 +57,19 @@ Khi các bảng có số đội không đều, thành tích các đội Nhì/Ba 
         $applied = false;
         $minimumGroupSize = null;
 
+        // Lấy num_advancing_teams từ config để xác định có cần so sánh cross-group hay không.
+        // Cross-group comparison chỉ áp dụng khi num_advancing_teams = 1 (mỗi bảng chỉ lấy Nhất).
+        // Khi num_advancing_teams >= 2, mỗi bảng đã có Nhất + Nhì (hoặc hơn) đi tiếp,
+        // không cần so sánh Nhì/Ba giữa các bảng.
+        $config = $type->format_specific_config ?? [];
+        $mainConfig = is_array($config) && isset($config[0]) ? $config[0] : $config;
+        $numAdvancing = max(0, (int) ($mainConfig['pool_stage']['num_advancing_teams'] ?? 0));
+
         if ($enabled
             && $type->format === TournamentType::FORMAT_MIXED
             && $numberOfGroups >= 2
             && !$isUniform
+            && $numAdvancing === 1
         ) {
             $applied = true;
             $minimumGroupSize = min(array_filter($groupTeamCounts)) ?: null;
@@ -86,6 +95,7 @@ Khi các bảng có số đội không đều, thành tích các đội Nhì/Ba 
      *  - cross_group_ranking.enabled = true (user bật setting)
      *  - format = MIXED (Hỗn hợp)
      *  - Số bảng >= 2
+     *  - num_advancing_teams = 1 (chỉ khi lấy 1 đội/bảng mới cần so sánh cross-group)
      *
      * Không yêu cầu !isUniform vì lúc user vừa chọn thể thức, các bảng có thể đang
      * trống chờ teams được assign sau.
@@ -102,9 +112,15 @@ Khi các bảng có số đội không đều, thành tích các đội Nhì/Ba 
         $groupTeamCounts = $this->getGroupTeamCounts($type);
         $numberOfGroups = count($groupTeamCounts);
 
+        // Lấy num_advancing_teams từ config.
+        $fullConfig = $type->format_specific_config ?? [];
+        $mainConfig = is_array($fullConfig) && isset($fullConfig[0]) ? $fullConfig[0] : $fullConfig;
+        $numAdvancing = max(0, (int) ($mainConfig['pool_stage']['num_advancing_teams'] ?? 0));
+
         $configured = $enabled
             && $type->format === TournamentType::FORMAT_MIXED
-            && $numberOfGroups >= 2;
+            && $numberOfGroups >= 2
+            && $numAdvancing === 1;
 
         return [
             'enabled' => $enabled,

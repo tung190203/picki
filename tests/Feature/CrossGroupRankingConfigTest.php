@@ -60,15 +60,41 @@ class CrossGroupRankingConfigTest extends TestCase
     // CrossGroupRankingService unit tests
     // -------------------------------------------------------------------------
 
-    public function test_evaluate_enabled_true_mixed_uneven_groups(): void
+    public function test_evaluate_enabled_true_mixed_uneven_groups_num_advancing_2(): void
     {
+        // num_advancing_teams = 2 (default in makeTournamentWithMixedType).
+        // When each group contributes Nhất + Nhì, cross-group comparison is NOT needed.
+        // Rule should NOT apply even with non-uniform groups.
         $tournament = $this->makeTournamentWithMixedType(4, [5, 5, 5, 4]);
 
         $config = ['enabled' => true, 'apply_to' => ['runner_up', 'third_place'], 'exclude_bottom_team_matches' => true];
         $result = $this->service->evaluate($tournament->tournamentTypes()->first(), $config);
 
         $this->assertTrue($result['enabled']);
-        $this->assertTrue($result['applied']);
+        $this->assertFalse($result['applied']); // numAdvancing=2 → no cross-group comparison needed
+        $this->assertNull($result['minimum_group_size']);
+        $this->assertEquals([5, 5, 5, 4], $result['group_team_counts']);
+        $this->assertEquals(4, $result['number_of_groups']);
+        $this->assertFalse($result['is_group_counts_uniform']);
+    }
+
+    public function test_evaluate_enabled_true_mixed_uneven_groups_num_advancing_1(): void
+    {
+        // num_advancing_teams = 1 → rule applies when groups are non-uniform.
+        $tournament = $this->makeTournamentWithMixedType(4, [5, 5, 5, 4]);
+
+        $type = $tournament->tournamentTypes()->first();
+        // Override num_advancing_teams to 1
+        $configData = $type->format_specific_config;
+        $configData[0]['pool_stage']['num_advancing_teams'] = 1;
+        $type->format_specific_config = $configData;
+        $type->save();
+
+        $config = ['enabled' => true, 'apply_to' => ['runner_up', 'third_place'], 'exclude_bottom_team_matches' => true];
+        $result = $this->service->evaluate($type->fresh(), $config);
+
+        $this->assertTrue($result['enabled']);
+        $this->assertTrue($result['applied']); // numAdvancing=1 + non-uniform → rule applies
         $this->assertEquals(4, $result['minimum_group_size']);
         $this->assertEquals([5, 5, 5, 4], $result['group_team_counts']);
         $this->assertEquals(4, $result['number_of_groups']);
@@ -258,10 +284,18 @@ class CrossGroupRankingConfigTest extends TestCase
     // API endpoint tests
     // -------------------------------------------------------------------------
 
-    public function test_store_mixed_5_5_5_4_syncs_description(): void
+    public function test_store_mixed_non_uniform_with_num_advancing_1_syncs_description(): void
     {
+        // num_advancing_teams = 1 + non-uniform groups → rule applies.
         $user = $this->makeUser();
         $tournament = $this->makeTournamentWithMixedType(4, [5, 5, 5, 4], $user);
+
+        $type = $tournament->tournamentTypes()->first();
+        // Override num_advancing_teams to 1
+        $configData = $type->format_specific_config;
+        $configData[0]['pool_stage']['num_advancing_teams'] = 1;
+        $type->format_specific_config = $configData;
+        $type->save();
 
         $payload = $this->buildStorePayload($tournament, [
             'cross_group_ranking' => [
@@ -574,6 +608,156 @@ class CrossGroupRankingConfigTest extends TestCase
             ],
             'format_specific_config' => [$specificConfig],
         ];
+    }
+
+    /**
+     * Regression test: when teams are pre-assigned to non-uniform groups with
+     * cross_group_ranking.enabled (advanced_to_next_round=true) and num_advancing_teams=1,
+     * round 2 should contain the correct number of teams (winners + best runner-ups to
+     * reach next power-of-2), not just the real winners.
+     *
+     * Scenario: 5 groups with sizes [4, 4, 4, 4, 3] → nextPowerOf2(5) = 8.
+     * Expected: 5 winners + 3 best runner-ups = 8 teams → 4 round-2 matches.
+     *
+     * @see PHASE 2.5 missing in generateMixedWithAssignedTeams
+     */
+    public function test_assign_teams_generates_correct_virtual_slots_for_non_uniform_groups(): void
+    {
+        $user = $this->makeUser();
+
+        // Create a sport directly (no factory needed)
+        $sport = Sport::create([
+            'name' => 'Pickleball',
+            'slug' => 'pickleball',
+        ]);
+
+        $tournament = Tournament::create([
+            'name' => 'Regression: 19 teams in 5 groups',
+            'sport_id' => $sport->id,
+            'max_team' => 19,
+            'player_per_team' => 2,
+            'status' => Tournament::DRAFT,
+            'created_by' => $user->id,
+            'description' => '',
+            'duration' => 1,
+        ]);
+
+        // Step 1: Create teams FIRST (store endpoint requires >= 2 teams in tournament).
+        $teams = [];
+        for ($i = 0; $i < 19; $i++) {
+            $teams[] = Team::create([
+                'name' => "Team " . ($i + 1),
+                'tournament_id' => $tournament->id,
+            ]);
+        }
+
+        // Step 2: Create tournament type with MIXED format and cross_group_ranking enabled.
+        // advanced_to_next_round=true syncs to cross_group_ranking.enabled=true via store logic.
+        // The store endpoint creates 5 empty groups (Bảng A..E) automatically.
+        $storePayload = $this->buildStorePayload($tournament, [
+            'advanced_to_next_round' => true,
+            'pool_stage' => [
+                'number_competing_teams' => 5,
+                'num_advancing_teams' => 1,
+            ],
+            'has_third_place_match' => false,
+            'has_resurrection_bracket' => false,
+            'main_bracket_name' => 'Giải chính',
+            'sub_bracket_name' => 'Giải Tái sinh',
+        ], TournamentType::FORMAT_MIXED, 5);
+
+        $this->actingAs($user)->postJson('/api/tournament-types/store', $storePayload);
+
+        $type = $tournament->tournamentTypes()->first();
+        $this->assertNotNull($type);
+        $this->assertEquals(TournamentType::FORMAT_MIXED, $type->format);
+
+        // Step 3: Attach teams to the 5 existing groups (created by store endpoint).
+        // Groups: A=4, B=4, C=4, D=4, E=3 teams (total=19).
+        $teamCounts = [4, 4, 4, 4, 3];
+        $type->refresh();
+        $groups = $type->groups->sortBy('id')->values(); // A, B, C, D, E in creation order
+
+        // Detach any existing team attachments first
+        foreach ($groups as $group) {
+            $group->teams()->detach();
+        }
+
+        $teamIndex = 0;
+        foreach ($groups as $group) {
+            $count = $teamCounts[$teamIndex] ?? 3;
+            for ($j = 0; $j < $count; $j++) {
+                $group->teams()->attach($teams[$teamIndex++]->id, ['order' => $j + 1]);
+            }
+            // Verify after each group
+            dump("After attaching to {$group->name}: {$group->teams()->count()} teams (teamIndex now at {$teamIndex})");
+        }
+
+        // Verify total team count across all groups
+        $type->refresh();
+        $totalTeamsInGroups = $type->groups->sum(function ($g) {
+            return $g->teams()->count();
+        });
+        if ($totalTeamsInGroups !== 19) {
+            // Debug: show group sizes
+            foreach ($type->groups as $g) {
+                dump("Group {$g->id} ({$g->name}): {$g->teams()->count()} teams");
+            }
+            dump('Total in groups:', $totalTeamsInGroups, 'Teams created:', count($teams));
+        }
+        $this->assertEquals(19, $totalTeamsInGroups, 'Should have 19 teams across all groups.');
+
+        // Step 3: Call assign-teams-and-generate to trigger generateMixedWithAssignedTeams.
+        $groupsPayload = $type->groups->map(function ($group) {
+            return [
+                'group_id' => $group->id,
+                'team_ids' => $group->teams()->pluck('teams.id')->toArray(),
+            ];
+        })->values()->toArray();
+
+        $response = $this->actingAs($user)->postJson(
+            "/api/tournament-types/{$type->id}/assign-teams-and-generate",
+            ['groups' => $groupsPayload]
+        );
+
+        $response->assertStatus(200);
+
+        // Step 4: Verify round 2 has the correct number of matches.
+        // With 5 groups × 1 advancing = 5 real winners.
+        // nextPowerOf2(5) = 8 → 3 virtual Nhì tốt nhất needed.
+        // Total: 5 + 3 = 8 teams → 4 round-2 matches.
+        $type->refresh();
+        $round2Matches = $type->matches()
+            ->where('round', 2)
+            ->where('bracket_type', 'main')
+            ->get();
+
+        $this->assertEquals(4, $round2Matches->count(), sprintf(
+            'Expected 4 round-2 matches (8 slots) but got %d. ' .
+            'PHASE 2.5 may be missing in generateMixedWithAssignedTeams.',
+            $round2Matches->count()
+        ));
+
+        // Step 5: Verify the BYE/vacant slot pattern.
+        // With 8 slots: 5 real teams + 3 virtual Nhì slots.
+        // Each match has 1 real team + 1 virtual slot.
+        $numLegs = (int) ($type->num_legs ?? 1);
+        $matchGroups = $round2Matches->sortBy('id')->chunk($numLegs)->values();
+
+        $hasRealTeam = 0;
+        $hasVirtualSlot = 0;
+        foreach ($matchGroups as $matchGroup) {
+            $firstLeg = $matchGroup->first();
+            if ($firstLeg->home_team_id !== null && $firstLeg->away_team_id !== null) {
+                $hasRealTeam++;
+            }
+            if ($firstLeg->home_team_id === null || $firstLeg->away_team_id === null) {
+                $hasVirtualSlot++;
+            }
+        }
+
+        $this->assertEquals(5, $hasRealTeam, 'Should have 5 matches with a real team (one per group winner).');
+        $this->assertEquals(3, $hasVirtualSlot, 'Should have 3 matches with a virtual Nhì tốt nhất slot.');
     }
 
     /**
