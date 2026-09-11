@@ -60,15 +60,41 @@ class CrossGroupRankingConfigTest extends TestCase
     // CrossGroupRankingService unit tests
     // -------------------------------------------------------------------------
 
-    public function test_evaluate_enabled_true_mixed_uneven_groups(): void
+    public function test_evaluate_enabled_true_mixed_uneven_groups_num_advancing_2(): void
     {
+        // num_advancing_teams = 2 (default in makeTournamentWithMixedType).
+        // When each group contributes Nhất + Nhì, cross-group comparison is NOT needed.
+        // Rule should NOT apply even with non-uniform groups.
         $tournament = $this->makeTournamentWithMixedType(4, [5, 5, 5, 4]);
 
         $config = ['enabled' => true, 'apply_to' => ['runner_up', 'third_place'], 'exclude_bottom_team_matches' => true];
         $result = $this->service->evaluate($tournament->tournamentTypes()->first(), $config);
 
         $this->assertTrue($result['enabled']);
-        $this->assertTrue($result['applied']);
+        $this->assertFalse($result['applied']); // numAdvancing=2 → no cross-group comparison needed
+        $this->assertNull($result['minimum_group_size']);
+        $this->assertEquals([5, 5, 5, 4], $result['group_team_counts']);
+        $this->assertEquals(4, $result['number_of_groups']);
+        $this->assertFalse($result['is_group_counts_uniform']);
+    }
+
+    public function test_evaluate_enabled_true_mixed_uneven_groups_num_advancing_1(): void
+    {
+        // num_advancing_teams = 1 → rule applies when groups are non-uniform.
+        $tournament = $this->makeTournamentWithMixedType(4, [5, 5, 5, 4]);
+
+        $type = $tournament->tournamentTypes()->first();
+        // Override num_advancing_teams to 1
+        $configData = $type->format_specific_config;
+        $configData[0]['pool_stage']['num_advancing_teams'] = 1;
+        $type->format_specific_config = $configData;
+        $type->save();
+
+        $config = ['enabled' => true, 'apply_to' => ['runner_up', 'third_place'], 'exclude_bottom_team_matches' => true];
+        $result = $this->service->evaluate($type->fresh(), $config);
+
+        $this->assertTrue($result['enabled']);
+        $this->assertTrue($result['applied']); // numAdvancing=1 + non-uniform → rule applies
         $this->assertEquals(4, $result['minimum_group_size']);
         $this->assertEquals([5, 5, 5, 4], $result['group_team_counts']);
         $this->assertEquals(4, $result['number_of_groups']);
@@ -258,10 +284,18 @@ class CrossGroupRankingConfigTest extends TestCase
     // API endpoint tests
     // -------------------------------------------------------------------------
 
-    public function test_store_mixed_5_5_5_4_syncs_description(): void
+    public function test_store_mixed_non_uniform_with_num_advancing_1_syncs_description(): void
     {
+        // num_advancing_teams = 1 + non-uniform groups → rule applies.
         $user = $this->makeUser();
         $tournament = $this->makeTournamentWithMixedType(4, [5, 5, 5, 4], $user);
+
+        $type = $tournament->tournamentTypes()->first();
+        // Override num_advancing_teams to 1
+        $configData = $type->format_specific_config;
+        $configData[0]['pool_stage']['num_advancing_teams'] = 1;
+        $type->format_specific_config = $configData;
+        $type->save();
 
         $payload = $this->buildStorePayload($tournament, [
             'cross_group_ranking' => [

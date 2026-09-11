@@ -786,6 +786,11 @@ class CrossGroupComparisonService
         // Ba sẽ được mark 'not_applicable' để FE ẩn, dù `apply_to` có chứa 'third_place'.
         $needThirdPlace = $additionalSlots > $numberOfGroups;
 
+        // ✅ Nếu additionalSlots = 0 (đã đủ đội từ pool, totalFromPool đã là power-of-2)
+        // → không cần xét Nhì/Ba tốt nhất giữa các bảng. Tất cả Nhì/Ba sẽ là 'not_applicable'
+        // để FE ẩn (kể cả khi apply_to có chứa 'runner_up'/'third_place').
+        $needRunnerUp = $additionalSlots > 0;
+
         // Sort candidates: runner_up trước third_place, theo rank
         $sorted = $candidates->sortBy([
             ['candidate_type', 'asc'],
@@ -822,11 +827,16 @@ class CrossGroupComparisonService
         }
 
         // Bước 2: gắn status
-        return $candidates->map(function (array $candidate) use ($qualifiedTeamIds, $applyTo, $needThirdPlace) {
+        return $candidates->map(function (array $candidate) use ($qualifiedTeamIds, $applyTo, $needThirdPlace, $needRunnerUp) {
             $type = $candidate['candidate_type'];
 
+            // Nhì khi không cần pick (additionalSlots=0) → not_applicable (FE ẩn),
+            // kể cả khi apply_to có 'runner_up'.
+            if ($type === self::CANDIDATE_TYPE_RUNNER_UP && !$needRunnerUp) {
+                $candidate['status'] = 'not_applicable';
+            }
             // Ba khi không cần pick → not_applicable (FE ẩn), kể cả khi apply_to có third_place.
-            if ($type === self::CANDIDATE_TYPE_THIRD_PLACE && !$needThirdPlace) {
+            elseif ($type === self::CANDIDATE_TYPE_THIRD_PLACE && !$needThirdPlace) {
                 $candidate['status'] = 'not_applicable';
             } elseif (!in_array($type, $applyTo, true)) {
                 $candidate['status'] = 'not_applicable';
