@@ -158,13 +158,29 @@
                     #{{ sponsor.display_order }}
                   </div>
 
-                  <!-- Logo Box with transparent pattern background -->
-                  <div class="w-20 h-14 rounded-xl border border-slate-200 bg-white p-2 flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden checker-pattern">
-                    <img
-                      :src="getLogoUrl(sponsor.logo_url)"
-                      :alt="sponsor.name || 'Logo nhãn hàng'"
-                      class="max-w-full max-h-full object-contain"
-                    />
+                  <!-- Logo Boxes: Dương bản (nền sáng) & Âm bản (nền tối) -->
+                  <div class="flex items-center gap-2 flex-shrink-0">
+                    <!-- Dương bản -->
+                    <div class="w-16 h-12 rounded-xl border border-slate-200 bg-white p-1.5 flex flex-col items-center justify-center shadow-xs overflow-hidden checker-pattern group relative" title="Logo Dương bản (Nền sáng)">
+                      <img
+                        :src="getLogoUrl(sponsor.logo_url)"
+                        :alt="sponsor.name || 'Logo dương bản'"
+                        class="max-w-full max-h-full object-contain"
+                      />
+                    </div>
+                    <!-- Âm bản -->
+                    <div
+                      class="w-16 h-12 rounded-xl border border-slate-700 bg-[#0F172A] p-1.5 flex flex-col items-center justify-center shadow-xs overflow-hidden dark-checker-pattern relative"
+                      :title="sponsor.logo_dark_url ? 'Logo Âm bản (Nền tối / Dark Mode)' : 'Chưa có logo âm bản riêng'"
+                    >
+                      <img
+                        v-if="sponsor.logo_dark_url"
+                        :src="getLogoUrl(sponsor.logo_dark_url)"
+                        :alt="sponsor.name || 'Logo âm bản'"
+                        class="max-w-full max-h-full object-contain"
+                      />
+                      <span v-else class="text-[9px] text-slate-500 font-medium select-none">Mặc định</span>
+                    </div>
                   </div>
 
                   <!-- Name & External Link -->
@@ -270,42 +286,104 @@
 
             <!-- Modal Body -->
             <form @submit.prevent="saveSponsor" class="p-6 space-y-5">
-              <!-- Upload Logo File -->
-              <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                  Ảnh Logo Nhãn Hàng <span class="text-red-500">*</span>
-                </label>
-
-                <div
-                  @click="triggerFileInput"
-                  class="border-2 border-dashed border-slate-200 hover:border-primary/60 rounded-2xl p-5 text-center cursor-pointer transition-all bg-slate-50/50 hover:bg-red-50/20 group relative overflow-hidden"
-                >
-                  <input
-                    ref="fileInput"
-                    type="file"
-                    accept="image/*,.svg"
-                    class="hidden"
-                    @change="onFileSelected"
-                  />
-
-                  <!-- Image Preview -->
-                  <div v-if="logoPreview || formData.logo_url" class="flex flex-col items-center">
-                    <div class="w-32 h-20 rounded-xl border border-slate-200 bg-white p-2 flex items-center justify-center mb-2 shadow-sm checker-pattern">
-                      <img
-                        :src="logoPreview || getLogoUrl(formData.logo_url)"
-                        alt="Logo preview"
-                        class="max-w-full max-h-full object-contain"
-                      />
-                    </div>
-                    <p class="text-xs font-bold text-primary group-hover:underline">Bấm để thay đổi ảnh</p>
-                    <p class="text-[11px] text-slate-400 mt-0.5">Hỗ trợ PNG trong suốt, SVG, JPG, WEBP (Tối đa 5MB)</p>
+              <!-- Upload Logos: Dương bản & Âm bản -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- 1. Logo Dương bản (Nền sáng) -->
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Logo Dương bản <span class="text-red-500">*</span>
+                    </label>
+                    <span class="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                      Nền sáng
+                    </span>
                   </div>
 
-                  <!-- Upload Placeholder -->
-                  <div v-else class="py-4">
-                    <span class="material-symbols-outlined text-4xl text-slate-400 group-hover:text-primary transition-colors">cloud_upload</span>
-                    <p class="text-xs font-bold text-slate-700 mt-2">Bấm để chọn file logo hoặc kéo thả vào đây</p>
-                    <p class="text-[11px] text-slate-400 mt-1">Nên dùng ảnh PNG nền trong suốt hoặc SVG để hiển thị đẹp nhất</p>
+                  <div
+                    @click="triggerFileInput"
+                    class="border-2 border-dashed border-slate-200 hover:border-primary/60 rounded-2xl p-4 text-center cursor-pointer transition-all bg-slate-50/50 hover:bg-red-50/20 group relative overflow-hidden h-44 flex flex-col items-center justify-center"
+                  >
+                    <input
+                      ref="fileInput"
+                      type="file"
+                      accept="image/*,.svg"
+                      class="hidden"
+                      @change="onFileSelected"
+                    />
+
+                    <!-- Image Preview -->
+                    <div v-if="logoPreview || formData.logo_url" class="flex flex-col items-center">
+                      <div class="w-32 h-20 rounded-xl border border-slate-200 bg-white p-2 flex items-center justify-center mb-2 shadow-xs checker-pattern">
+                        <img
+                          :src="logoPreview || getLogoUrl(formData.logo_url)"
+                          alt="Logo dương bản preview"
+                          class="max-w-full max-h-full object-contain"
+                        />
+                      </div>
+                      <p class="text-xs font-bold text-primary group-hover:underline">Bấm để thay đổi</p>
+                      <p class="text-[10px] text-slate-400 mt-0.5">PNG trong suốt hoặc SVG</p>
+                    </div>
+
+                    <!-- Upload Placeholder -->
+                    <div v-else class="py-2">
+                      <span class="material-symbols-outlined text-3xl text-slate-400 group-hover:text-primary transition-colors">cloud_upload</span>
+                      <p class="text-xs font-bold text-slate-700 mt-1">Chọn logo dương bản</p>
+                      <p class="text-[10px] text-slate-400 mt-0.5">Dùng cho giao diện nền sáng</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 2. Logo Âm bản (Nền tối / Dark Mode) -->
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Logo Âm bản
+                    </label>
+                    <span class="text-[10px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                      Nền tối / Dark
+                    </span>
+                  </div>
+
+                  <div
+                    @click="triggerDarkFileInput"
+                    class="border-2 border-dashed border-slate-300 hover:border-slate-500 rounded-2xl p-4 text-center cursor-pointer transition-all bg-slate-900/90 hover:bg-slate-900 group relative overflow-hidden h-44 flex flex-col items-center justify-center"
+                  >
+                    <input
+                      ref="darkFileInput"
+                      type="file"
+                      accept="image/*,.svg"
+                      class="hidden"
+                      @change="onDarkFileSelected"
+                    />
+
+                    <!-- Image Preview -->
+                    <div v-if="logoDarkPreview || formData.logo_dark_url" class="flex flex-col items-center relative w-full">
+                      <div class="w-32 h-20 rounded-xl border border-slate-700 bg-[#0F172A] p-2 flex items-center justify-center mb-2 shadow-xs dark-checker-pattern">
+                        <img
+                          :src="logoDarkPreview || getLogoUrl(formData.logo_dark_url)"
+                          alt="Logo âm bản preview"
+                          class="max-w-full max-h-full object-contain"
+                        />
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <p class="text-xs font-bold text-slate-300 group-hover:underline">Bấm để thay đổi</p>
+                        <button
+                          type="button"
+                          @click.stop="removeDarkLogo"
+                          class="text-[10px] text-rose-400 hover:text-rose-300 hover:underline cursor-pointer"
+                        >
+                          (Gỡ bỏ)
+                        </button>
+                      </div>
+                      <p class="text-[10px] text-slate-400 mt-0.5">Dành cho nền tối / Dark Mode</p>
+                    </div>
+
+                    <!-- Upload Placeholder -->
+                    <div v-else class="py-2 text-slate-300">
+                      <span class="material-symbols-outlined text-3xl text-slate-400 group-hover:text-slate-200 transition-colors">dark_mode</span>
+                      <p class="text-xs font-bold text-slate-200 mt-1">Chọn logo âm bản (Tùy chọn)</p>
+                      <p class="text-[10px] text-slate-400 mt-0.5">Nếu để trống, tự dùng logo dương bản</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -449,10 +527,15 @@ const fileInput = ref(null);
 const logoFile = ref(null);
 const logoPreview = ref(null);
 
+const darkFileInput = ref(null);
+const logoDarkFile = ref(null);
+const logoDarkPreview = ref(null);
+
 const formData = ref({
   id: null,
   name: '',
   logo_url: '',
+  logo_dark_url: '',
   website_url: '',
   display_order: 1,
   is_active: true,
@@ -513,6 +596,10 @@ const triggerFileInput = () => {
   fileInput.value?.click();
 };
 
+const triggerDarkFileInput = () => {
+  darkFileInput.value?.click();
+};
+
 const onFileSelected = (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -526,14 +613,39 @@ const onFileSelected = (e) => {
   logoPreview.value = URL.createObjectURL(file);
 };
 
+const onDarkFileSelected = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (file.size > 5 * 1024 * 1024) {
+    toast.error('Kích thước ảnh âm bản không được vượt quá 5MB');
+    return;
+  }
+
+  logoDarkFile.value = file;
+  logoDarkPreview.value = URL.createObjectURL(file);
+};
+
+const removeDarkLogo = () => {
+  logoDarkFile.value = null;
+  logoDarkPreview.value = null;
+  formData.value.logo_dark_url = '';
+  if (darkFileInput.value) {
+    darkFileInput.value.value = '';
+  }
+};
+
 const openCreateModal = () => {
   isEditing.value = false;
   logoFile.value = null;
   logoPreview.value = null;
+  logoDarkFile.value = null;
+  logoDarkPreview.value = null;
   formData.value = {
     id: null,
     name: '',
     logo_url: '',
+    logo_dark_url: '',
     website_url: '',
     display_order: allSponsors.value.length + 1,
     is_active: true,
@@ -545,10 +657,13 @@ const openEditModal = (sponsor) => {
   isEditing.value = true;
   logoFile.value = null;
   logoPreview.value = null;
+  logoDarkFile.value = null;
+  logoDarkPreview.value = null;
   formData.value = {
     id: sponsor.id,
     name: sponsor.name || '',
     logo_url: sponsor.logo_url || '',
+    logo_dark_url: sponsor.logo_dark_url || '',
     website_url: sponsor.website_url || '',
     display_order: sponsor.display_order ?? 1,
     is_active: Boolean(sponsor.is_active),
@@ -588,6 +703,13 @@ const saveSponsor = async () => {
       payload.append('logo', logoFile.value);
     } else if (formData.value.logo_url) {
       payload.append('logo_url', formData.value.logo_url);
+    }
+
+    // Logo âm bản (nền tối / Dark Mode)
+    if (logoDarkFile.value) {
+      payload.append('logo_dark', logoDarkFile.value);
+    } else {
+      payload.append('logo_dark_url', formData.value.logo_dark_url || '');
     }
 
     let res;
@@ -641,6 +763,16 @@ onMounted(() => {
     linear-gradient(-45deg, transparent 75%, #f1f5f9 75%);
   background-size: 12px 12px;
   background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
+}
+
+.dark-checker-pattern {
+  background-color: #0f172a;
+  background-image: linear-gradient(45deg, #1e293b 25%, transparent 25%),
+    linear-gradient(-45deg, #1e293b 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1e293b 75%),
+    linear-gradient(-45deg, transparent 75%, #1e293b 75%);
+  background-size: 10px 10px;
+  background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
 }
 
 .modal-fade-enter-active,

@@ -11,10 +11,20 @@
         :class="activeSponsors[0].website_url ? 'cursor-pointer hover:opacity-75' : 'cursor-default'"
         :title="activeSponsors[0].name || ''"
       >
+        <!-- Logo Dương bản (Nền sáng) -->
         <img
           :src="getLogoUrl(activeSponsors[0].logo_url)"
           :alt="activeSponsors[0].name || 'Logo'"
-          class="h-9 md:h-11 w-auto max-w-[280px] object-contain block"
+          class="h-9 md:h-11 w-auto max-w-[280px] object-contain"
+          :class="activeSponsors[0].logo_dark_url ? 'block dark:hidden' : 'block'"
+          loading="lazy"
+        />
+        <!-- Logo Âm bản (Nền tối / Dark Mode) -->
+        <img
+          v-if="activeSponsors[0].logo_dark_url"
+          :src="getLogoUrl(activeSponsors[0].logo_dark_url)"
+          :alt="activeSponsors[0].name || 'Logo'"
+          class="h-9 md:h-11 w-auto max-w-[280px] object-contain hidden dark:block"
           loading="lazy"
         />
         <span
@@ -42,10 +52,20 @@
             :class="sponsor.website_url ? 'cursor-pointer hover:opacity-75' : 'cursor-default'"
             :title="sponsor.name || ''"
           >
+            <!-- Logo Dương bản (Nền sáng) -->
             <img
               :src="getLogoUrl(sponsor.logo_url)"
               :alt="sponsor.name || 'Logo'"
-              class="h-8 md:h-10 w-auto max-w-[260px] object-contain block"
+              class="h-8 md:h-10 w-auto max-w-[260px] object-contain"
+              :class="sponsor.logo_dark_url ? 'block dark:hidden' : 'block'"
+              loading="lazy"
+            />
+            <!-- Logo Âm bản (Nền tối / Dark Mode) -->
+            <img
+              v-if="sponsor.logo_dark_url"
+              :src="getLogoUrl(sponsor.logo_dark_url)"
+              :alt="sponsor.name || 'Logo'"
+              class="h-8 md:h-10 w-auto max-w-[260px] object-contain hidden dark:block"
               loading="lazy"
             />
             <span
@@ -70,10 +90,20 @@
             :class="sponsor.website_url ? 'cursor-pointer hover:opacity-75' : 'cursor-default'"
             :title="sponsor.name || ''"
           >
+            <!-- Logo Dương bản (Nền sáng) -->
             <img
               :src="getLogoUrl(sponsor.logo_url)"
               :alt="sponsor.name || 'Logo'"
-              class="h-8 md:h-9 w-auto max-w-[140px] object-contain block"
+              class="h-8 md:h-10 w-auto max-w-[260px] object-contain"
+              :class="sponsor.logo_dark_url ? 'block dark:hidden' : 'block'"
+              loading="lazy"
+            />
+            <!-- Logo Âm bản (Nền tối / Dark Mode) -->
+            <img
+              v-if="sponsor.logo_dark_url"
+              :src="getLogoUrl(sponsor.logo_dark_url)"
+              :alt="sponsor.name || 'Logo'"
+              class="h-8 md:h-10 w-auto max-w-[260px] object-contain hidden dark:block"
               loading="lazy"
             />
             <span
