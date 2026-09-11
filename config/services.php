@@ -96,4 +96,9 @@ return [
         'secret' => env('TURNSTILE_SECRET_KEY'),
         'site_key' => env('VITE_TURNSTILE_SITE_KEY'),
     ],
+
+    'gemini' => [
+        'api_key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-1.5-flash'),
+    ],
 ];

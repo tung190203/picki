@@ -85,6 +85,7 @@ use App\Http\Controllers\Admin\NotificationTemplateController;
 use App\Http\Controllers\ScoreVerificationController;
 use App\Http\Controllers\QuickMatchController;
 use App\Http\Controllers\MatchSuggestionController;
+use App\Http\Controllers\ChatbotController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
 
@@ -168,6 +169,12 @@ Route::match(['get', 'post'], '/players/search', [SearchV2Controller::class, 'se
     ->defaults('tab', 'user');
 Route::match(['get', 'post'], '/courts/search', [SearchV2Controller::class, 'search'])
     ->defaults('tab', 'court');
+
+// Chatbot AI Routes (Hỗ trợ cả khách vãng lai và thành viên)
+Route::prefix('chatbot')->group(function () {
+    Route::post('/message', [ChatbotController::class, 'sendMessage']);
+    Route::get('/prompts', [ChatbotController::class, 'getPrompts']);
+});
 
 // Clubs API: không throttle để mobile gọi nhiều không bị lỗi 429
 Route::middleware(['auth:api', 'update.last_login'])->group(function () {
