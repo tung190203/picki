@@ -20,12 +20,12 @@
     "src": "public/login-icons/fingerprint.png"
   },
   "resources/css/app.css": {
-    "file": "assets/app-Dym69Zim.css",
+    "file": "assets/app-Cv8cZ65O.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-vriF987Z.js",
+    "file": "assets/app-DwjtSKfJ.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -36,7 +36,7 @@
       "resources/js/components/pages/admin/AdminSponsorsPage.vue"
     ],
     "css": [
-      "assets/app-B2ymoDGZ.css"
+      "assets/app-DDNYQM6z.css"
     ],
     "assets": [
       "assets/face-id-BJ1jGPiu.png",
@@ -92,7 +92,7 @@
     "src": "resources/js/assets/images/splash-bg.png"
   },
   "resources/js/components/pages/admin/AdminBannersPage.vue": {
-    "file": "assets/AdminBannersPage-Cg9DDc1C.js",
+    "file": "assets/AdminBannersPage-B1NLEF8d.js",
     "name": "AdminBannersPage",
     "src": "resources/js/components/pages/admin/AdminBannersPage.vue",
     "isDynamicEntry": true,
@@ -104,7 +104,7 @@
     ]
   },
   "resources/js/components/pages/admin/AdminConfig.vue": {
-    "file": "assets/AdminConfig-D9ILms5T.js",
+    "file": "assets/AdminConfig-9hp0kHh6.js",
     "name": "AdminConfig",
     "src": "resources/js/components/pages/admin/AdminConfig.vue",
     "isDynamicEntry": true,
@@ -116,7 +116,7 @@
     ]
   },
   "resources/js/components/pages/admin/AdminModeration.vue": {
-    "file": "assets/AdminModeration-CpLt24NJ.js",
+    "file": "assets/AdminModeration-cPt5C4C-.js",
     "name": "AdminModeration",
     "src": "resources/js/components/pages/admin/AdminModeration.vue",
     "isDynamicEntry": true,
@@ -128,7 +128,7 @@
     ]
   },
   "resources/js/components/pages/admin/AdminSponsorsPage.vue": {
-    "file": "assets/AdminSponsorsPage-DdJtkKaf.js",
+    "file": "assets/AdminSponsorsPage-DmB3ibSI.js",
     "name": "AdminSponsorsPage",
     "src": "resources/js/components/pages/admin/AdminSponsorsPage.vue",
     "isDynamicEntry": true,
@@ -136,7 +136,7 @@
       "resources/js/app.js"
     ],
     "css": [
-      "assets/AdminSponsorsPage-T0oRwD8t.css"
+      "assets/AdminSponsorsPage-Dz5Jst0w.css"
     ]
   }
 }
