@@ -128,12 +128,12 @@
                     class="bg-white dark:bg-[#1E293B] rounded-xl border border-gray-200 dark:border-[#233148] p-2.5 shadow-2xs hover:shadow-sm dark:hover:border-primary/50 transition-shadow flex items-center gap-3 group"
                   >
                     <!-- Image or Neutral Icon -->
-                    <div class="w-13 h-13 rounded-lg bg-gray-100 dark:bg-[#0F172A] flex-shrink-0 overflow-hidden flex items-center justify-center relative border border-gray-200 dark:border-[#334155]">
+                    <div class="card-thumbnail-box w-14 h-14 min-w-[56px] min-h-[56px] max-w-[56px] max-h-[56px] rounded-lg bg-gray-100 dark:bg-[#0F172A] flex-shrink-0 overflow-hidden flex items-center justify-center relative border border-gray-200 dark:border-[#334155]">
                       <img
                         v-if="card.image"
                         :src="card.image"
                         :alt="card.title"
-                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        class="w-full h-full object-cover rounded-lg group-hover:scale-105 transition-transform duration-300 block"
                         @error="handleImageError"
                       />
                       <svg v-else-if="card.type === 'tournament'" class="w-6 h-6 text-gray-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -461,6 +461,7 @@ const formatMarkdown = (text) => {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" class="max-w-full h-auto rounded-lg my-2 max-h-48 object-cover border border-gray-200 dark:border-[#233148]" />')
     .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900 dark:text-[#F8FAFC]">$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
     .replace(/^### (.*$)/gim, '<h4 class="font-bold text-gray-900 dark:text-[#F8FAFC] mt-2 mb-1">$1</h4>')
@@ -535,6 +536,36 @@ textarea.chatbot-textarea {
   outline: none !important;
   box-shadow: none !important;
   border: none !important;
+}
+
+/* Khóa chặt kích thước ảnh thumbnail card giải đấu, ngăn không cho ảnh vỡ to */
+.card-thumbnail-box {
+  width: 56px !important;
+  height: 56px !important;
+  min-width: 56px !important;
+  min-height: 56px !important;
+  max-width: 56px !important;
+  max-height: 56px !important;
+}
+
+.card-thumbnail-box img {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+/* Giới hạn kích thước bất kỳ ảnh nào trong nội dung tin nhắn bot */
+:deep(.markdown-content img),
+.markdown-content img {
+  max-width: 100% !important;
+  max-height: 180px !important;
+  border-radius: 8px !important;
+  object-fit: cover !important;
+  margin-top: 6px !important;
+  margin-bottom: 6px !important;
 }
 
 /* Hide scrollbar completely on textarea */
