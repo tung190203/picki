@@ -57,23 +57,36 @@ class AdminSponsorController extends Controller
             'name' => 'nullable|string|max:255',
             'logo' => 'nullable|file|mimes:jpeg,png,jpg,webp,svg,gif|max:5120',
             'logo_url' => 'nullable|string',
+            'logo_dark' => 'nullable|file|mimes:jpeg,png,jpg,webp,svg,gif|max:5120',
+            'logo_dark_url' => 'nullable|string',
             'website_url' => 'nullable|string|max:1000',
             'display_order' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
         ]);
 
         $logoPath = $validated['logo_url'] ?? null;
+        $logoDarkPath = $validated['logo_dark_url'] ?? null;
 
+        // Xử lý logo dương bản (nền sáng)
         if ($request->hasFile('logo')) {
             $file = $request->file('logo');
             $extension = $file->getClientOriginalExtension();
-            $filename = 'sponsor_' . time() . '_' . uniqid() . '.' . $extension;
+            $filename = 'sponsor_pos_' . time() . '_' . uniqid() . '.' . $extension;
             $path = $file->storeAs('sponsors', $filename, 'public');
             $logoPath = $path;
         }
 
+        // Xử lý logo âm bản (nền tối / Dark Mode)
+        if ($request->hasFile('logo_dark')) {
+            $darkFile = $request->file('logo_dark');
+            $darkExt = $darkFile->getClientOriginalExtension();
+            $darkFilename = 'sponsor_neg_' . time() . '_' . uniqid() . '.' . $darkExt;
+            $darkPath = $darkFile->storeAs('sponsors', $darkFilename, 'public');
+            $logoDarkPath = $darkPath;
+        }
+
         if (empty($logoPath)) {
-            return ResponseHelper::error('Vui lòng tải lên ảnh logo nhãn hàng tài trợ.', 422);
+            return ResponseHelper::error('Vui lòng tải lên ảnh logo nhãn hàng tài trợ (dương bản).', 422);
         }
 
         $nextOrder = $validated['display_order'] ?? ((Sponsor::max('display_order') ?? 0) + 1);
@@ -81,6 +94,7 @@ class AdminSponsorController extends Controller
         $sponsor = Sponsor::create([
             'name' => $validated['name'] ?? null,
             'logo_url' => $logoPath,
+            'logo_dark_url' => $logoDarkPath,
             'website_url' => $validated['website_url'] ?? null,
             'display_order' => $nextOrder,
             'is_active' => filter_var($validated['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
@@ -116,6 +130,8 @@ class AdminSponsorController extends Controller
             'name' => 'nullable|string|max:255',
             'logo' => 'nullable|file|mimes:jpeg,png,jpg,webp,svg,gif|max:5120',
             'logo_url' => 'nullable|string',
+            'logo_dark' => 'nullable|file|mimes:jpeg,png,jpg,webp,svg,gif|max:5120',
+            'logo_dark_url' => 'nullable|string',
             'website_url' => 'nullable|string|max:1000',
             'display_order' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
@@ -141,13 +157,14 @@ class AdminSponsorController extends Controller
             $data['is_active'] = filter_var($validated['is_active'], FILTER_VALIDATE_BOOLEAN);
         }
 
+        // Cập nhật logo dương bản (nền sáng)
         if ($request->hasFile('logo')) {
             $file = $request->file('logo');
             $extension = $file->getClientOriginalExtension();
-            $filename = 'sponsor_' . time() . '_' . uniqid() . '.' . $extension;
+            $filename = 'sponsor_pos_' . time() . '_' . uniqid() . '.' . $extension;
             $path = $file->storeAs('sponsors', $filename, 'public');
 
-            // Xóa file cũ nếu lưu trong storage public
+            // Xóa file cũ
             if (!empty($sponsor->logo_url) && !str_starts_with($sponsor->logo_url, 'http')) {
                 Storage::disk('public')->delete($sponsor->logo_url);
             }
@@ -155,6 +172,32 @@ class AdminSponsorController extends Controller
             $data['logo_url'] = $path;
         } elseif (!empty($validated['logo_url'])) {
             $data['logo_url'] = $validated['logo_url'];
+        }
+
+        // Cập nhật logo âm bản (nền tối)
+        if ($request->hasFile('logo_dark')) {
+            $darkFile = $request->file('logo_dark');
+            $darkExt = $darkFile->getClientOriginalExtension();
+            $darkFilename = 'sponsor_neg_' . time() . '_' . uniqid() . '.' . $darkExt;
+            $darkPath = $darkFile->storeAs('sponsors', $darkFilename, 'public');
+
+            // Xóa file âm bản cũ nếu có
+            if (!empty($sponsor->logo_dark_url) && !str_starts_with($sponsor->logo_dark_url, 'http')) {
+                Storage::disk('public')->delete($sponsor->logo_dark_url);
+            }
+
+            $data['logo_dark_url'] = $darkPath;
+        } elseif ($request->exists('logo_dark_url')) {
+            $darkVal = $validated['logo_dark_url'] ?? null;
+            if (empty($darkVal)) {
+                // Xóa ảnh âm bản cũ nếu admin muốn gỡ
+                if (!empty($sponsor->logo_dark_url) && !str_starts_with($sponsor->logo_dark_url, 'http')) {
+                    Storage::disk('public')->delete($sponsor->logo_dark_url);
+                }
+                $data['logo_dark_url'] = null;
+            } else {
+                $data['logo_dark_url'] = $darkVal;
+            }
         }
 
         $sponsor->update($data);
@@ -207,6 +250,10 @@ class AdminSponsorController extends Controller
     {
         if (!empty($sponsor->logo_url) && !str_starts_with($sponsor->logo_url, 'http')) {
             Storage::disk('public')->delete($sponsor->logo_url);
+        }
+
+        if (!empty($sponsor->logo_dark_url) && !str_starts_with($sponsor->logo_dark_url, 'http')) {
+            Storage::disk('public')->delete($sponsor->logo_dark_url);
         }
 
         $sponsor->delete();

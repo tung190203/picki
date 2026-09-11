@@ -18,6 +18,7 @@ class SponsorResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'logo_url' => $this->logo_url,
+            'logo_dark_url' => $this->logo_dark_url,
             'website_url' => $this->website_url,
             'display_order' => $this->display_order,
             'is_active' => (bool) $this->is_active,
