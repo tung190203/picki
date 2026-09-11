@@ -2,7 +2,8 @@
     <button
       v-if="showButton"
       @click="scrollToTop"
-      class="fixed bottom-6 right-6 z-50 p-3 rounded-full bg-black text-white shadow-lg hover:bg-gray-800 transition duration-300"
+      class="fixed z-[9990] w-12 h-12 rounded-full bg-black/80 hover:bg-black text-white shadow-lg backdrop-blur-sm hover:scale-105 active:scale-95 transition duration-300 flex items-center justify-center"
+      style="bottom: 132px; right: 12px;"
       aria-label="Scroll to top"
     >
       <!-- SVG Arrow Up -->

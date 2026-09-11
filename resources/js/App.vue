@@ -1,8 +1,11 @@
 <template>
   <div>
     <SplashScreen v-if="showSplash" />
-    <router-view v-else />
-    <ScrollToTop />
+    <template v-else>
+      <router-view />
+      <ScrollToTop />
+      <ChatWidget />
+    </template>
   </div>
 </template>
 
@@ -10,6 +13,7 @@
 import { ref, onMounted } from 'vue'
 import ScrollToTop from './components/atoms/ScrollToTop.vue'
 import SplashScreen from './components/atoms/SplashScreen.vue'
+import ChatWidget from './components/chatbot/ChatWidget.vue'
 
 const showSplash = ref(true)
 
