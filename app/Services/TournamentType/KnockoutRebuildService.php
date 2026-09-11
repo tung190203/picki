@@ -415,7 +415,7 @@ class KnockoutRebuildService
         // minimumGroupSize: lấy từ CrossGroupRankingService::evaluate() — giá trị này phản ánh
         // spec thật (khi applied=true thì minimumGroupSize = min(group_team_counts)).
         // Pass giá trị này để kết quả LUÔN GIỐNG với API comparison chính khi applied=true.
-        // Nếu applied=false (do enabled=false hoặc isUniform=true), fallback về 0.
+        // Nếu applied=false (do enabled=false hoặc num_advancing>=2) → fallback về 0.
         $crossGroupRaw = $type->format_specific_config[0]['cross_group_ranking'] ?? [];
         $evaluation = $this->crossGroupRankingService->evaluate($type, is_array($crossGroupRaw) ? $crossGroupRaw : []);
         $effectiveMin = $evaluation['applied']

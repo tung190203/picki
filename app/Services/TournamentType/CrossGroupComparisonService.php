@@ -1013,19 +1013,24 @@ class CrossGroupComparisonService
             return [];
         }
 
-        // Lấy các trận knockout round 2 đang trống mà KHÔNG có PoolAdvancementRule
-        // (vì bảng ảo không tạo rule ở createPoolAdvancementRules)
+        // Lấy các trận knockout round 2 đang trống (home/away chưa gán team) mà
+        // slot đó KHÔNG có real rule chiếm chỗ. Virtual rule (is_virtual=true)
+        // chiếm đúng position home/away tương ứng → vẫn match được 2 rule trên
+        // cùng 1 match (1 real home + 1 virtual away) mà không xung đột.
         $virtualSlots = Matches::where('tournament_type_id', $type->id)
             ->where('round', 2)
             ->where('bracket_type', 'main')
-            ->where(function ($q) {
-                $q->whereNull('home_team_id')
-                  ->orWhereNull('away_team_id');
-            })
             ->whereNotExists(function ($q) {
+                // Loại slot nào đã có REAL rule (is_virtual=false) cùng position.
                 $q->select(DB::raw(1))
-                  ->from('pool_advancement_rules')
-                  ->whereColumn('pool_advancement_rules.next_match_id', 'matches.id');
+                  ->from('pool_advancement_rules as par')
+                  ->whereColumn('par.next_match_id', 'matches.id')
+                  ->where(function ($qq) {
+                      $qq->whereNull('par.is_virtual')->orWhere('par.is_virtual', false);
+                  });
+            })
+            ->where(function ($q) {
+                $q->whereNull('home_team_id')->orWhereNull('away_team_id');
             })
             ->orderBy('id')
             ->get();
