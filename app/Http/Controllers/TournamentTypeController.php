@@ -3576,6 +3576,32 @@ class TournamentTypeController extends Controller
             }
         }
 
+        // ===== PHASE 2.5: TỰ ĐỘNG THÊM BẢNG ẢO CHO NHÌ TỐT NHẤT =====
+        // Chỉ chạy khi cross_group_ranking.enabled VÀ các bảng KHÔNG đồng đều
+        $crossGroupRaw = $mainConfig['cross_group_ranking'] ?? [];
+        $crossGroupEval = $this->crossGroupRankingService->evaluate($type, $crossGroupRaw);
+
+        if ($crossGroupEval['enabled'] && !$crossGroupEval['is_group_counts_uniform']) {
+            $totalAdvancingFromRealGroups = $numAdvancing * $crossGroupEval['number_of_groups'];
+            $nextPowerOfTwo = (int) pow(2, (int) ceil(log(max(2, $totalAdvancingFromRealGroups), 2)));
+            $virtualSlotsNeeded = $nextPowerOfTwo - $totalAdvancingFromRealGroups;
+
+            if ($virtualSlotsNeeded > 0) {
+                if (!isset($advancingByRank[1])) {
+                    $advancingByRank[1] = collect();
+                }
+                for ($v = 0; $v < $virtualSlotsNeeded; $v++) {
+                    $advancingByRank[1]->push((object)[
+                        'team_id' => null,
+                        '_from_group' => null,
+                        '_virtual' => true,
+                        '_virtual_index' => $v + 1,
+                        '_rank' => 2,
+                    ]);
+                }
+            }
+        }
+
         // ✅ SẮP XẾP ĐỘI ADVANCING THEO MODE ĐÃ CHỌN (MAIN BRACKET)
         $advancing = $this->teamPairingService->arrangeAdvancingTeams($advancingByRank, $pairingMode, $manualPairings);
 
