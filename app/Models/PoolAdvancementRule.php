@@ -9,10 +9,35 @@ class PoolAdvancementRule extends Model
     protected $fillable = [
         'tournament_type_id',
         'group_id',
+        'is_virtual',
+        'virtual_index',
         'rank',
         'next_match_id',
         'next_position',
     ];
+
+    protected $casts = [
+        'is_virtual' => 'boolean',
+        'virtual_index' => 'integer',
+    ];
+
+    /**
+     * Scope: các rule ảo (cross-group slot) chưa được resolve.
+     */
+    public function scopeVirtual($q)
+    {
+        return $q->where('is_virtual', true);
+    }
+
+    /**
+     * Scope: các rule đang trỏ vào group thật.
+     */
+    public function scopeReal($q)
+    {
+        return $q->where(function ($q) {
+            $q->whereNull('is_virtual')->orWhere('is_virtual', false);
+        });
+    }
 
     public function tournamentType()
     {

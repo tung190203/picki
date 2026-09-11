@@ -68,8 +68,8 @@ Khi các bảng có số đội không đều, thành tích các đội Nhì/Ba 
         if ($enabled
             && $type->format === TournamentType::FORMAT_MIXED
             && $numberOfGroups >= 2
-            && !$isUniform
             && $numAdvancing === 1
+            && !empty(array_filter($groupTeamCounts))
         ) {
             $applied = true;
             $minimumGroupSize = min(array_filter($groupTeamCounts)) ?: null;
