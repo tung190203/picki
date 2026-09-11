@@ -10,6 +10,8 @@ GET /api/tournament-types/{tournamentType}/cross-group-comparison
 
 Trả về danh sách xếp hạng tất cả đội Nhì và Ba từ mọi bảng, kèm thống kê so sánh sau khi loại các trận gặp **đội cuối bảng (Ba)**.
 
+> **Tài liệu liên quan**: [cross-group-ranking-logic.md](./cross-group-ranking-logic.md) — giải thích chi tiết thuật toán xét đội Nhì/Ba, điều kiện áp dụng, và cách loại trận đội cuối bảng.
+
 **Quy tắc loại trận:**
 - **Bảng đủ** (k đội > minimum_group_size): loại trận gặp **đội cuối bảng (Ba)** → Nhì được so sánh qua trận gặp Nhất. Điều này loại bỏ handicap không công bằng khi Ba có thể thua nhiều trận hơn.
 - **Bảng thiếu** (k đội <= minimum_group_size): không loại gì, tính đầy đủ.
@@ -74,6 +76,26 @@ Trả về danh sách xếp hạng tất cả đội Nhì và Ba từ mọi bả
     }
 }
 ```
+
+### Các chỉ số xét hạng (ranking rules) được dùng cho cross-group comparison
+
+Vì Nhì/Ba ở **các bảng khác nhau chưa từng gặp nhau**, không thể so sánh head-to-head giữa chúng. Hệ thống dùng thứ tự ưu tiên:
+
+| Ưu tiên | Rule ID | Tên | Field | Ý nghĩa |
+|---|---|---|---|---|
+| 1 | 1 | `RANKING_WIN_DRAW_LOSE_POINTS` | `points` | Điểm xếp hạng (Thắng=3, Hòa=1, Thua=0) |
+| 2 | 2 | `RANKING_WIN_RATE` | `win_rate` | Tỷ lệ thắng (%) |
+| 3 | 3 | `RANKING_SETS_WON` | `sets_diff` | Hiệu số hiệp thắng - hiệp thua |
+| 4 | 4 | `RANKING_POINTS_WON` | `point_diff` | Hiệu số điểm (points_for - points_against) |
+| 5 | 7 | `RANKING_GOALS_SCORED` | `points_for` | **Tổng điểm/bàn ghi được** — tie-breaker khi 4 chỉ số trên vẫn bằng nhau |
+| 6 | 5 | `RANKING_HEAD_TO_HEAD` | H2H | Vô hiệu với cross-group (luôn = 0); vẫn được append để tương thích |
+| — | 6 | `RANKING_RANDOM_DRAW` | team_id ASC | Stable fallback khi tất cả rule trên đều bằng |
+
+**Default cross-group ranking**: `[1, 2, 3, 4, 7]` (+ auto-append `5`).
+
+Có thể override bằng cách set `format_specific_config[0].ranking` (mảng các rule ID ở trên). Nếu thiếu `RANKING_GOALS_SCORED` và `RANKING_HEAD_TO_HEAD`, hệ thống sẽ **tự động append**.
+
+`pending_draw = true` khi cùng `candidate_type` và cùng tất cả ranking keys đang xét (tính cả `points_for` mới).
 
 ### Các trường Response
 
@@ -193,6 +215,26 @@ Trả về danh sách đầy đủ các trận vòng bảng của một đội �
     }
 }
 ```
+
+### Các chỉ số xét hạng (ranking rules) được dùng cho cross-group comparison
+
+Vì Nhì/Ba ở **các bảng khác nhau chưa từng gặp nhau**, không thể so sánh head-to-head giữa chúng. Hệ thống dùng thứ tự ưu tiên:
+
+| Ưu tiên | Rule ID | Tên | Field | Ý nghĩa |
+|---|---|---|---|---|
+| 1 | 1 | `RANKING_WIN_DRAW_LOSE_POINTS` | `points` | Điểm xếp hạng (Thắng=3, Hòa=1, Thua=0) |
+| 2 | 2 | `RANKING_WIN_RATE` | `win_rate` | Tỷ lệ thắng (%) |
+| 3 | 3 | `RANKING_SETS_WON` | `sets_diff` | Hiệu số hiệp thắng - hiệp thua |
+| 4 | 4 | `RANKING_POINTS_WON` | `point_diff` | Hiệu số điểm (points_for - points_against) |
+| 5 | 7 | `RANKING_GOALS_SCORED` | `points_for` | **Tổng điểm/bàn ghi được** — tie-breaker khi 4 chỉ số trên vẫn bằng nhau |
+| 6 | 5 | `RANKING_HEAD_TO_HEAD` | H2H | Vô hiệu với cross-group (luôn = 0); vẫn được append để tương thích |
+| — | 6 | `RANKING_RANDOM_DRAW` | team_id ASC | Stable fallback khi tất cả rule trên đều bằng |
+
+**Default cross-group ranking**: `[1, 2, 3, 4, 7]` (+ auto-append `5`).
+
+Có thể override bằng cách set `format_specific_config[0].ranking` (mảng các rule ID ở trên). Nếu thiếu `RANKING_GOALS_SCORED` và `RANKING_HEAD_TO_HEAD`, hệ thống sẽ **tự động append**.
+
+`pending_draw = true` khi cùng `candidate_type` và cùng tất cả ranking keys đang xét (tính cả `points_for` mới).
 
 ### Các trường Response
 
