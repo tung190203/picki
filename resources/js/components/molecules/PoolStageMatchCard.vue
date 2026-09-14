@@ -11,11 +11,11 @@
             },
 
         ]"
-        class="match-card bg-[#dcdee6] rounded-lg mb-4 flex flex-col transition-all"
+        class="match-card rounded-lg mb-4 flex flex-col transition-all"
     >
         <div
             :class="matchHeaderContentClass"
-            class="flex justify-between items-center text-xs font-medium text-[#838799] px-4 py-2 bg-[#dcdee6] rounded-tl-lg rounded-tr-lg"
+            class="flex justify-between items-center text-xs font-medium px-4 py-2 rounded-tl-lg rounded-tr-lg"
         >
             <span class="uppercase"
                 >SÂN {{ match.legs?.[0]?.court || match.court || 1 }}</span
@@ -28,23 +28,23 @@
                     <VideoCameraIcon class="w-4 h-4 mr-1" />
                     Trực tiếp
                 </span>
-                <span class="text-xs" v-else>
+                <span class="text-xs text-gray-500 dark:text-slate-400" v-else>
                     {{ formattedTime }}
                 </span>
             </div>
         </div>
 
         <div
-            class="flex flex-col gap-3 rounded-lg shadow-md border border-[#dcdee6] bg-[#EDEEF2] px-4 py-3 flex-1 justify-between"
+            class="flex flex-col gap-3 rounded-lg shadow-md border border-gray-200 dark:border-slate-600 bg-gray-100 dark:bg-slate-800 px-4 py-3 flex-1 justify-between"
         >
             <!-- HOME TEAM - DRAGGABLE -->
             <div
                 v-tooltip="match.home_team.name"
                 class="flex justify-between items-start px-2 -mx-2 rounded transition-all py-2 min-h-[48px]"
                 :class="{
-                    'bg-blue-100 ring-2 ring-blue-400':
+                    'bg-blue-100 dark:bg-blue-900/40 ring-2 ring-blue-400 dark:ring-blue-500':
                         isDropTarget(match.match_id, 'home'),
-                    'cursor-move hover:bg-gray-100':
+                    'cursor-move hover:bg-gray-200 dark:hover:bg-slate-700':
                         canDrag,
                     'cursor-pointer':
                         !canDrag,
@@ -66,7 +66,7 @@
                         :alt="match.home_team.name"
                     />
                     <p
-                        class="text-sm font-semibold text-[#3E414C] break-words leading-tight"
+                        class="text-sm font-semibold text-gray-700 dark:text-slate-100 break-words leading-tight"
                     >
                         {{ match.home_team.name }}
                     </p>
@@ -75,11 +75,14 @@
                     class="font-bold text-lg pointer-events-none flex-shrink-0 ml-2 self-start mt-0.5"
                     :class="[
                         {
-                            'text-green-700': isHomeWinner,
+                            'text-green-600 dark:text-green-400': isHomeWinner,
                         },
                         {
-                            'text-red-700': isHomeLoser,
+                            'text-red-600 dark:text-red-400': isHomeLoser,
                         },
+                        {
+                            'text-gray-700 dark:text-slate-100': !isHomeWinner && !isHomeLoser,
+                        }
                     ]"
                 >
                     {{ match.aggregate_score?.home ?? match.home_score ?? 0 }}
@@ -91,9 +94,9 @@
                 v-tooltip="match.away_team.name"
                 class="flex justify-between items-start px-2 -mx-2 rounded transition-all py-2 min-h-[48px]"
                 :class="{
-                    'bg-blue-100 ring-2 ring-blue-400':
+                    'bg-blue-100 dark:bg-blue-900/40 ring-2 ring-blue-400 dark:ring-blue-500':
                         isDropTarget(match.match_id, 'away'),
-                    'cursor-move hover:bg-gray-100':
+                    'cursor-move hover:bg-gray-200 dark:hover:bg-slate-700':
                         canDrag,
                     'cursor-pointer':
                         !canDrag,
@@ -115,7 +118,7 @@
                         :alt="match.away_team.name"
                     />
                     <p
-                        class="text-sm font-semibold text-[#3E414C] break-words leading-tight"
+                        class="text-sm font-semibold text-gray-700 dark:text-slate-100 break-words leading-tight"
                     >
                         {{ match.away_team.name }}
                     </p>
@@ -124,11 +127,14 @@
                     class="font-bold text-lg pointer-events-none flex-shrink-0 ml-2 self-start mt-0.5"
                     :class="[
                         {
-                            'text-green-700': isAwayWinner,
+                            'text-green-600 dark:text-green-400': isAwayWinner,
                         },
                         {
-                            'text-red-700': isAwayLoser,
+                            'text-red-600 dark:text-red-400': isAwayLoser,
                         },
+                        {
+                            'text-gray-700 dark:text-slate-100': !isAwayWinner && !isAwayLoser,
+                        }
                     ]"
                 >
                     {{ match.aggregate_score?.away ?? match.away_score ?? 0 }}
@@ -203,18 +209,21 @@ const matchCardWrapperClass = computed(() => {
     if (props.match.status === 'completed') {
         return 'border border-green-500 shadow-md bg-green-500';
     } else if (hasAnyLegStarted.value || props.match.status === 'in_progress') {
-        return 'border border-[#FBBF24] shadow-md !bg-[#FBBF24]';
+        return 'border border-amber-500 dark:border-amber-400 shadow-md bg-amber-500';
     }
-    return 'border';
+    // Pending: cần nền để nổi lên trên header cột bracket (slate-700/800), tránh trùng màu
+    return 'border border-gray-200 dark:border-slate-500 bg-white dark:bg-slate-700';
 });
 
 const matchHeaderContentClass = computed(() => {
     if (props.match.status === 'completed') {
         return 'text-white bg-green-500';
     } else if (hasAnyLegStarted.value || props.match.status === 'in_progress') {
-        return 'text-white !bg-[#FBBF24]';
+        return 'text-white bg-amber-500';
     }
-    return 'text-[#838799]';
+    // Trạng thái pending: 3 tầng phân biệt rõ trong dark mode
+    //   header card (slate-500) > wrapper card (slate-700) > body card (slate-800)
+    return 'text-white bg-gray-200 dark:bg-slate-500 border-b border-gray-300 dark:border-slate-400';
 });
 
 const formattedTime = computed(() => {
