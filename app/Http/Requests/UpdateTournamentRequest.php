@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateTournamentRequest extends FormRequest
 {
@@ -18,7 +19,11 @@ class UpdateTournamentRequest extends FormRequest
             'remove_poster' => 'nullable|boolean',
             'sport_id' => 'nullable|exists:sports,id',
             'name' => 'sometimes|required|string|max:255',
-            'competition_location_id' => 'sometimes|required|exists:competition_locations,id',
+            'competition_location_id' => [
+                'sometimes',
+                'required',
+                Rule::exists('competition_locations', 'id')->where(fn($q) => $q->where('is_banned', false)),
+            ],
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date',
             'registration_open_at' => 'nullable|date',

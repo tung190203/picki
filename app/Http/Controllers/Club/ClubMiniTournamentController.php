@@ -17,6 +17,7 @@ use App\Http\Resources\MiniTournamentResource;
 use App\Models\Club\Club;
 use App\Models\Club\ClubExpense;
 use App\Models\Club\ClubFundCollection;
+use App\Models\CompetitionLocation;
 use App\Models\Club\ClubFundContribution;
 use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
@@ -66,6 +67,15 @@ class ClubMiniTournamentController extends Controller
         }
 
         $data = $request->safe()->except(['invite_user', 'poster', 'qr_code_url']);
+
+        // === Chặn submit nếu sân thi đấu đã bị admin khoá (is_banned = true) ===
+        if (!empty($data['competition_location_id'])) {
+            $location = CompetitionLocation::find($data['competition_location_id']);
+            if ($location && $location->is_banned) {
+                return ResponseHelper::error('Địa điểm tạm thời bị cấm truy cập', 422);
+            }
+        }
+
         $data['club_id'] = $club->id;
 
         // === Xử lý QR code: ưu tiên use_cached_qr, nếu không thì dùng club wallet (khi use_club_fund=true) ===
@@ -313,6 +323,14 @@ class ClubMiniTournamentController extends Controller
 
         $editScope = $request->input('edit_scope', 'this_occurrence');
         $data = $request->safe()->except(['invite_user', 'poster', 'qr_code_url', 'remove_poster']);
+
+        // === Chặn submit nếu sân thi đấu đã bị admin khoá (is_banned = true) ===
+        if (!empty($data['competition_location_id'])) {
+            $location = CompetitionLocation::find($data['competition_location_id']);
+            if ($location && $location->is_banned) {
+                return ResponseHelper::error('Địa điểm tạm thời bị cấm truy cập', 422);
+            }
+        }
 
         if ($editScope === 'entire_series' && !empty($miniTournament->recurrence_series_id)) {
             // Xử lý poster cho entire_series: đưa poster mới vào data để updateTournamentAsNewSeries áp dụng cho tất cả kèo
