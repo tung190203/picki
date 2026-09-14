@@ -400,7 +400,10 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
     Route::post('/clubs/{clubId}/ban', [AdminClubManagementController::class, 'toggleBan']);
 
     Route::get('/competition-locations', [AdminCompetitionLocationManagementController::class, 'index']);
+    Route::post('/competition-locations', [AdminCompetitionLocationManagementController::class, 'store']);
     Route::get('/competition-locations/{locationId}', [AdminCompetitionLocationManagementController::class, 'show']);
+    Route::match(['put', 'post'], '/competition-locations/{locationId}', [AdminCompetitionLocationManagementController::class, 'update']);
+    Route::delete('/competition-locations/{locationId}', [AdminCompetitionLocationManagementController::class, 'destroy']);
     Route::post('/competition-locations/{locationId}/ban', [AdminCompetitionLocationManagementController::class, 'toggleBan']);
 
     Route::get('/tournaments', [TournamentManagementController::class, 'index']);

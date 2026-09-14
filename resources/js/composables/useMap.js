@@ -395,10 +395,11 @@ export function useMap() {
               <span style="color: #4392E0; font-weight: 500;">${clockIcon}</span>
               Giờ Mở cửa: ${toHourMinute(cl.opening_time)} - ${toHourMinute(cl.closing_time)}
             </p>
+            ${cl.phone ? `
             <p style="margin: 0;display:flex; justify-content:start; align-items:center; gap:6px; font-size: 14px; color: #4b5563;">
               <span style="color: #4392E0; font-weight: 500;">${phoneIcon}</span>
-              ${escapeHtml(cl.phone || '')}
-            </p>
+              ${escapeHtml(cl.phone)}
+            </p>` : ''}
             <p style="margin: 0;display:flex; justify-content:start; align-items:baseline; gap:6px; font-size: 14px; color: #4b5563; line-height: 1.4;">
               <span style="color: #4392E0; font-weight: 500;">${mapPinIcon}</span>
               ${escapeHtml(cl.address || '')}

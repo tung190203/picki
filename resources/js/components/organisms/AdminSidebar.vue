@@ -1,5 +1,5 @@
 <template>
-  <aside class="hidden md:flex flex-col h-screen w-64 docked left-0 bg-surface-container-low py-6 px-4 gap-2 fixed z-50 border-r border-outline-variant/5">
+  <aside class="hidden md:flex flex-col h-screen w-64 docked left-0 bg-white py-6 px-4 gap-2 fixed z-50 border-r border-slate-200/80 shadow-sm">
     <!-- Logo Section -->
     <div class="px-2 mb-8">
       <div class="flex items-center gap-3">
@@ -28,7 +28,7 @@
       </router-link>
       
       <!-- Static / Coming Soon Links -->
-      <a class="nav-item">
+      <a class="nav-item opacity-50 cursor-not-allowed">
         <span class="material-symbols-outlined">podcasts</span>
         <span>Broadcast</span>
       </a>
@@ -60,18 +60,16 @@ const isRouteActive = (routeName) => {
 
 <style scoped>
 .nav-item {
-  @apply flex items-center gap-3 px-4 py-3 hover:text-[#af101a] transition-all duration-200 active:translate-x-1 cursor-pointer rounded-xl font-semibold text-sm;
+  @apply flex items-center gap-3 px-4 py-3 text-slate-600 hover:text-[#af101a] hover:bg-slate-100 transition-all duration-200 active:translate-x-1 cursor-pointer rounded-xl font-semibold text-sm;
   font-family: 'Manrope', sans-serif;
-  color: var(--on-surface-variant, #5b403d);
-  background-color: var(--surface-container-high, #ffe2de);
 }
 
 .nav-item:hover {
-  background-color: var(--surface-container-high, #ffe2de);
+  background-color: #f1f5f9;
 }
 
 .nav-item.active {
-  @apply text-white bg-[#af101a] shadow-lg shadow-red-900/10;
+  @apply text-white bg-[#af101a] shadow-lg shadow-red-900/15 hover:bg-[#af101a] hover:text-white;
 }
 
 .material-symbols-outlined {
