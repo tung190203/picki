@@ -307,11 +307,11 @@ Accept: application/json
 
 ---
 
-## 3. 🏷️ Sponsors API (Logo Nhãn Hàng Tài Trợ)
+## 4. 🏷️ Sponsors API (Logo Nhãn Hàng Tài Trợ)
 
-Quản lý và hiển thị logo đối tác, nhãn hàng tài trợ chạy ngang trên trang chủ web và ứng dụng mobile (nằm dưới khung đỏ thông tin điểm/rank và nằm trên mục "Kèo đấu sắp tới").
+Quản lý và hiển thị logo đối tác, nhãn hàng tài trợ chạy ngang trên trang chủ web và ứng dụng mobile (nằm dưới khung đỏ thông tin điểm/rank và nằm trên mục "Kèo đấu sắp tới"). Hỗ trợ đầy đủ **2 phiên bản logo**: **Logo Dương bản** (nền sáng / Light Mode) và **Logo Âm bản** (nền tối / Dark Mode).
 
-### 3.1. Lấy danh sách nhãn hàng tài trợ (Public)
+### 4.1. Lấy danh sách nhãn hàng tài trợ (Public)
 
 Có 2 cách để lấy danh sách nhãn hàng đang hoạt động (`is_active = true`):
 
@@ -329,7 +329,8 @@ Có 2 cách để lấy danh sách nhãn hàng đang hoạt động (`is_active 
       {
         "id": 1,
         "name": "Wilson Pickleball",
-        "logo_url": "sponsors/sponsor_1725450000_66d8.png",
+        "logo_url": "sponsors/sponsor_pos_1725450000_66d8.png",
+        "logo_dark_url": "sponsors/sponsor_neg_1725450000_66d8.png",
         "website_url": "https://www.wilson.com",
         "display_order": 1,
         "is_active": true
@@ -337,7 +338,8 @@ Có 2 cách để lấy danh sách nhãn hàng đang hoạt động (`is_active 
       {
         "id": 2,
         "name": null,
-        "logo_url": "sponsors/sponsor_1725450001_66d9.png",
+        "logo_url": "sponsors/sponsor_pos_1725450001_66d9.png",
+        "logo_dark_url": null,
         "website_url": null,
         "display_order": 2,
         "is_active": true
@@ -359,12 +361,13 @@ Có 2 cách để lấy danh sách nhãn hàng đang hoạt động (`is_active 
     {
       "id": 1,
       "name": "Wilson Pickleball",
-      "logo_url": "sponsors/sponsor_1725450000_66d8.png",
+      "logo_url": "sponsors/sponsor_pos_1725450000_66d8.png",
+      "logo_dark_url": "sponsors/sponsor_neg_1725450000_66d8.png",
       "website_url": "https://www.wilson.com",
       "display_order": 1,
       "is_active": true,
       "created_at": "2026-09-04T10:01:07.000000Z",
-      "updated_at": "2026-09-04T10:01:07.000000Z"
+      "updated_at": "2026-09-11T08:30:00.000000Z"
     }
   ]
 }
@@ -373,14 +376,15 @@ Có 2 cách để lấy danh sách nhãn hàng đang hoạt động (`is_active 
 *Mô tả các trường trong Sponsor Object:*
 - `id` *(number)*: ID nhãn hàng.
 - `name` *(string | null)*: Tên nhãn hàng (Tùy chọn / Optional). Nếu không đặt tên sẽ trả về `null`.
-- `logo_url` *(string)*: Đường dẫn ảnh logo (Nếu là relative path, nối với base storage URL: `https://domain.com/storage/{logo_url}`).
+- `logo_url` *(string)*: Đường dẫn ảnh logo dương bản (dành cho nền sáng / Light Mode). Nối với base storage URL: `https://domain.com/storage/{logo_url}`.
+- `logo_dark_url` *(string | null)*: Đường dẫn ảnh logo âm bản (dành cho nền tối / Dark Mode). Nếu nhãn hàng chưa thiết lập ảnh âm bản riêng thì trường này trả về `null`. Nối với base storage URL: `https://domain.com/storage/{logo_dark_url}`.
 - `website_url` *(string | null)*: Đường dẫn liên kết ngoài app / website của nhà tài trợ (Tùy chọn / Optional). Nếu không có sẽ trả về `null`.
 - `display_order` *(number)*: Thứ tự hiển thị ưu tiên (số nhỏ hơn đứng trước).
 - `is_active` *(boolean)*: Trạng thái hiển thị (`true` = Đang hiển thị, `false` = Đang ẩn).
 
 ---
 
-### 3.2. Quản lý nhãn hàng tài trợ (Admin APIs)
+### 4.2. Quản lý nhãn hàng tài trợ (Admin APIs)
 
 Tất cả các endpoint sau yêu cầu Header: `Authorization: Bearer {admin_access_token}`.
 
@@ -395,8 +399,10 @@ Tất cả các endpoint sau yêu cầu Header: `Authorization: Bearer {admin_ac
 - **Endpoint:** `POST /api/admin/sponsors`
 - **Content-Type:** `multipart/form-data`
 - **Request Body:**
-  - `logo` *(file image, bắt buộc nếu không có logo_url)*: File ảnh logo (hỗ trợ PNG trong suốt, SVG, JPG, WEBP, tối đa 5MB).
-  - `logo_url` *(string, tùy chọn)*: Link ảnh nếu không upload file.
+  - `logo` *(file image, bắt buộc nếu không có logo_url)*: File ảnh logo dương bản / nền sáng (hỗ trợ PNG trong suốt, SVG, JPG, WEBP, tối đa 5MB).
+  - `logo_url` *(string, tùy chọn)*: Link ảnh dương bản nếu không upload file.
+  - `logo_dark` *(file image, tùy chọn)*: File ảnh logo âm bản / nền tối (Dark Mode) (hỗ trợ PNG trong suốt, SVG, JPG, WEBP, tối đa 5MB).
+  - `logo_dark_url` *(string, tùy chọn)*: Link ảnh âm bản nếu không upload file.
   - `name` *(string, tùy chọn)*: Tên nhãn hàng (có thể bỏ trống).
   - `website_url` *(string, tùy chọn)*: Link website ngoài app (vd: `https://brand.com`).
   - `display_order` *(number, tùy chọn)*: Thứ tự hiển thị.
@@ -406,7 +412,10 @@ Tất cả các endpoint sau yêu cầu Header: `Authorization: Bearer {admin_ac
 - **Endpoint:** `POST /api/admin/sponsors/{id}`
 - **Content-Type:** `multipart/form-data`
 - **Request Body:**
-  - `logo` *(file image, tùy chọn)*: Tải lên ảnh mới nếu muốn thay đổi logo.
+  - `logo` *(file image, tùy chọn)*: Tải lên ảnh mới nếu muốn thay đổi logo dương bản.
+  - `logo_url` *(string, tùy chọn)*: Link ảnh logo dương bản mới.
+  - `logo_dark` *(file image, tùy chọn)*: Tải lên ảnh mới nếu muốn thay đổi logo âm bản.
+  - `logo_dark_url` *(string, tùy chọn)*: Link ảnh logo âm bản mới. Gửi chuỗi rỗng `""` nếu muốn gỡ bỏ logo âm bản hiện tại (hệ thống sẽ lưu `null` và tự động xóa file cũ).
   - `name` *(string, tùy chọn)*: Tên nhãn hàng. Nếu muốn xóa tên cũ, gửi chuỗi rỗng `""`, hệ thống sẽ lưu `null`.
   - `website_url` *(string, tùy chọn)*: Link website ngoài app. Nếu muốn xóa link cũ, gửi chuỗi rỗng `""`, hệ thống sẽ lưu `null`.
   - `display_order` *(number, tùy chọn)*: Thứ tự hiển thị.
@@ -431,11 +440,11 @@ Tất cả các endpoint sau yêu cầu Header: `Authorization: Bearer {admin_ac
 
 #### 6. Xóa nhãn hàng
 - **Endpoint:** `DELETE /api/admin/sponsors/{id}`
-- **Mô tả:** Xóa nhãn hàng và tự động dọn dẹp file ảnh logo cũ trên server.
+- **Mô tả:** Xóa nhãn hàng và tự động dọn dẹp các file ảnh logo (cả logo dương bản và âm bản) trên server storage.
 
 ---
 
-## 🛠 Hướng dẫn tích hợp cho Frontend & Mobile
+## 5. 🛠 Hướng dẫn tích hợp cho Frontend & Mobile
 
 ### 1. Đăng ký Face ID / Vân tay lần đầu:
 1. Người dùng đăng nhập bằng Tài khoản/Mật khẩu hoặc OTP.
@@ -463,7 +472,12 @@ Tất cả các endpoint sau yêu cầu Header: `Authorization: Bearer {admin_ac
 ### 4. Hiển thị Dải Logo Tài Trợ (Sponsors Bar) trên Web & App:
 1. **Vị trí hiển thị:**
    - Nằm ngay dưới khung đỏ thông tin điểm/rank (`user_info`) và nằm ngay trên tiêu đề mục `"Kèo đấu sắp tới"`.
-2. **Quy tắc hiển thị logo:**
+2. **Quy tắc hiển thị logo theo Theme (Light Mode vs Dark Mode):**
+   - **Khi ở chế độ Sáng (Light Mode):** Hiển thị ảnh `logo_url` (logo dương bản nền sáng).
+   - **Khi ở chế độ Tối (Dark Mode):**
+     - Nếu nhãn hàng có `logo_dark_url`: Ưu tiên hiển thị `logo_dark_url` (logo âm bản để nổi bật trên nền tối).
+     - Nếu `logo_dark_url` là `null`: Fallback hiển thị `logo_url` gốc.
+3. **Quy tắc hiển thị số lượng & hiệu ứng:**
    - **Khi chỉ có 1 nhà tài trợ:** Hiển thị đúng 1 logo duy nhất căn giữa, tuyệt đối không lặp lại ảnh.
    - **Khi có từ 2 nhà tài trợ trở lên:** Hiển thị dải chạy ngang liên tục (infinite marquee/slider) lướt nhẹ nhàng.
    - **Không sử dụng viền bọc hay nền thẻ:** Để logo hiển thị trong suốt (transparent) tự nhiên trên nền giao diện. Chiều cao cố định chuẩn mực (khoảng 36px - 44px), chiều dài tự động co giãn theo tỉ lệ gốc (`w-auto`).
