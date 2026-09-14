@@ -1,10 +1,10 @@
 <template>
-  <div class="flex min-h-screen" style="background-color: var(--surface-bright, #fff8f7);">
+  <div class="flex min-h-screen bg-[#f7f9fb] font-body text-slate-800">
     <!-- SideNavBar -->
     <AdminSidebar />
 
     <!-- Main Content Area -->
-    <main class="flex-1 md:ml-64 min-h-screen" style="background-color: var(--surface-bright, #fff8f7);">
+    <main class="flex-1 md:ml-64 min-h-screen bg-[#f7f9fb] pb-16">
       <AdminHeader />
 
       <div class="p-6 max-w-5xl mx-auto">
@@ -15,7 +15,7 @@
         </div>
 
         <!-- Tabs -->
-        <div class="bg-white rounded-2xl shadow-sm border mb-6">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 mb-6">
           <div class="flex border-b">
             <button
               v-for="tab in tabs"

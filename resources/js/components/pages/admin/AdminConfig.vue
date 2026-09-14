@@ -1,10 +1,10 @@
 <template>
-  <div class="flex min-h-screen bg-background font-body text-on-surface">
+  <div class="flex min-h-screen bg-[#f7f9fb] font-body text-slate-800">
     <!-- SideNavBar -->
     <AdminSidebar />
 
     <!-- Main Content -->
-    <main class="ml-64 flex-1">
+    <main class="ml-64 flex-1 pb-16">
       <AdminHeader />
       <div class="p-8 lg:p-12">
       <div class="grid grid-cols-12 gap-8">
@@ -12,52 +12,52 @@
         <section class="col-span-12 lg:col-span-12 xl:col-span-7">
           <div class="flex items-center gap-3 mb-6">
             <span class="material-symbols-outlined text-secondary icon-fill">analytics</span>
-            <h3 class="text-xl font-headline font-bold text-on-surface">Thuật toán & Giới hạn</h3>
+            <h3 class="text-xl font-headline font-bold text-slate-800">Thuật toán & Giới hạn</h3>
           </div>
           
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- KPI Card 1: K-Factor -->
-            <div class="bg-secondary-fixed-dim/20 rounded-xl p-6 relative overflow-hidden group border border-secondary/5">
+            <div class="bg-white rounded-2xl p-6 relative overflow-hidden group border border-slate-200/80 shadow-sm">
               <div class="relative z-10">
                 <label class="text-[10px] font-bold text-secondary uppercase tracking-widest block mb-4">Hệ số K-Factor (Elo Rating)</label>
                 <div class="flex items-baseline gap-2">
-                  <input class="bg-transparent border-none p-0 text-5xl font-headline font-extrabold text-on-secondary-fixed focus:ring-0 w-32 outline-none" type="number" v-model="kFactor" />
+                  <input class="bg-transparent border-none p-0 text-5xl font-headline font-extrabold text-slate-800 focus:ring-0 w-32 outline-none" type="number" v-model="kFactor" />
                   <span class="text-secondary font-bold">PT</span>
                 </div>
-                <p class="text-xs text-on-surface-variant mt-4 leading-relaxed">Xác định mức độ nhạy cảm của thay đổi điểm số người chơi sau mỗi trận đấu.</p>
+                <p class="text-xs text-slate-500 mt-4 leading-relaxed">Xác định mức độ nhạy cảm của thay đổi điểm số người chơi sau mỗi trận đấu.</p>
               </div>
-              <div class="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform">
+              <div class="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform">
                 <span class="material-symbols-outlined text-9xl">trending_up</span>
               </div>
             </div>
 
             <!-- KPI Card 2: Service Fee -->
-            <div class="bg-tertiary-fixed-dim/20 rounded-xl p-6 relative overflow-hidden group border border-tertiary/5">
+            <div class="bg-white rounded-2xl p-6 relative overflow-hidden group border border-slate-200/80 shadow-sm">
               <div class="relative z-10">
                 <label class="text-[10px] font-bold text-tertiary uppercase tracking-widest block mb-4">Phí dịch vụ thu hộ (%)</label>
                 <div class="flex items-baseline gap-2">
-                  <input class="bg-transparent border-none p-0 text-5xl font-headline font-extrabold text-on-tertiary-fixed focus:ring-0 w-32 outline-none" step="0.1" type="number" v-model="serviceFee" />
+                  <input class="bg-transparent border-none p-0 text-5xl font-headline font-extrabold text-slate-800 focus:ring-0 w-32 outline-none" step="0.1" type="number" v-model="serviceFee" />
                   <span class="text-tertiary font-bold">%</span>
                 </div>
-                <p class="text-xs text-on-surface-variant mt-4 leading-relaxed">Tỷ lệ cắt phế khi người dùng thanh toán qua App Picki.</p>
+                <p class="text-xs text-slate-500 mt-4 leading-relaxed">Tỷ lệ cắt phế khi người dùng thanh toán qua App Picki.</p>
               </div>
-              <div class="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform">
+              <div class="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform">
                 <span class="material-symbols-outlined text-9xl">payments</span>
               </div>
             </div>
 
             <!-- KPI Card 3: Auto-Confirm Time -->
-            <div class="col-span-1 md:col-span-2 bg-surface-container-low rounded-xl p-8 border border-outline-variant/10 shadow-sm">
+            <div class="col-span-1 md:col-span-2 bg-white rounded-2xl p-8 border border-slate-200/80 shadow-sm">
               <div class="flex justify-between items-center mb-6">
                 <div>
-                  <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block mb-1">Thời gian Auto-Confirm</label>
-                  <h4 class="text-lg font-bold text-on-surface">Thời gian tự động xác nhận</h4>
+                  <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Thời gian Auto-Confirm</label>
+                  <h4 class="text-lg font-bold text-slate-800">Thời gian tự động xác nhận</h4>
                 </div>
                 <div class="text-right">
                   <div class="text-3xl font-headline font-extrabold text-primary">{{ autoConfirmTime }} <span class="text-sm font-bold uppercase">Giờ</span></div>
                 </div>
               </div>
-              <div class="relative h-2 bg-surface-container-high rounded-full overflow-hidden mb-6">
+              <div class="relative h-2 bg-slate-100 rounded-full overflow-hidden mb-6">
                 <div class="absolute top-0 left-0 h-full bg-primary transition-all duration-500" :style="{ width: (autoConfirmTime / 72 * 100) + '%' }"></div>
               </div>
               <div class="grid grid-cols-4 gap-4">
@@ -65,8 +65,8 @@
                   v-for="time in [12, 24, 48, 72]" 
                   :key="time"
                   @click="autoConfirmTime = time"
-                  class="py-2 rounded-lg text-xs font-bold transition-all"
-                  :class="autoConfirmTime === time ? 'bg-primary text-on-primary shadow-md shadow-primary/20' : 'bg-surface text-on-surface shadow-sm hover:bg-primary-fixed'"
+                  class="py-2.5 rounded-xl text-xs font-bold transition-all"
+                  :class="autoConfirmTime === time ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-slate-100 text-slate-700 shadow-sm hover:bg-slate-200'"
                 >
                   {{ time }}h
                 </button>
@@ -74,17 +74,17 @@
             </div>
 
             <!-- KPI Card 4: Ranking Matches -->
-            <div class="col-span-1 md:col-span-2 bg-surface-container-low rounded-xl p-8 border border-outline-variant/10 shadow-sm">
+            <div class="col-span-1 md:col-span-2 bg-white rounded-2xl p-8 border border-slate-200/80 shadow-sm">
               <div class="flex justify-between items-center mb-6">
                 <div>
-                  <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block mb-1">Số trận tối thiểu lên BXH</label>
-                  <h4 class="text-lg font-bold text-on-surface">Ngưỡng xuất hiện bảng xếp hạng</h4>
+                  <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Số trận tối thiểu lên BXH</label>
+                  <h4 class="text-lg font-bold text-slate-800">Ngưỡng xuất hiện bảng xếp hạng</h4>
                 </div>
                 <div class="text-right">
                   <div class="text-3xl font-headline font-extrabold text-primary">{{ rankingMatches }} <span class="text-sm font-bold uppercase">Trận</span></div>
                 </div>
               </div>
-              <div class="relative h-2 bg-surface-container-high rounded-full overflow-hidden mb-6">
+              <div class="relative h-2 bg-slate-100 rounded-full overflow-hidden mb-6">
                 <div class="absolute top-0 left-0 h-full bg-primary transition-all duration-500" :style="{ width: (rankingMatches / 50 * 100) + '%' }"></div>
               </div>
               <div class="flex items-center gap-4">
@@ -101,10 +101,10 @@
                   v-model.number="rankingMatches" 
                   min="0" 
                   max="999"
-                  class="w-20 bg-surface-container-high rounded-lg px-3 py-2 text-center font-bold text-on-surface border border-outline-variant/20 focus:border-primary focus:outline-none"
+                  class="w-20 bg-slate-100 rounded-xl px-3 py-2 text-center font-bold text-slate-800 border border-slate-200 focus:border-primary focus:bg-white focus:outline-none"
                 />
               </div>
-              <p class="text-xs text-on-surface-variant mt-3 italic">User cần đấu đủ số trận thực tế này mới xuất hiện trên bảng xếp hạng hệ thống. Đặt về 0 để hiển thị tất cả.</p>
+              <p class="text-xs text-slate-500 mt-3 italic">User cần đấu đủ số trận thực tế này mới xuất hiện trên bảng xếp hạng hệ thống. Đặt về 0 để hiển thị tất cả.</p>
             </div>
           </div>
         </section>
@@ -113,22 +113,22 @@
         <section class="col-span-12 lg:col-span-12 xl:col-span-5">
           <div class="flex items-center gap-3 mb-6">
             <span class="material-symbols-outlined text-primary icon-fill">flag</span>
-            <h3 class="text-xl font-headline font-bold text-on-surface">Cấu hình tính năng</h3>
+            <h3 class="text-xl font-headline font-bold text-slate-800">Cấu hình tính năng</h3>
           </div>
           
           <div class="space-y-4">
             <div 
               v-for="flag in featureFlags" 
               :key="flag.name"
-              class="group bg-surface-container-lowest rounded-xl p-5 shadow-sm hover:shadow-md transition-all flex items-center justify-between border border-outline-variant/10 hover:border-outline-variant/30"
+              class="group bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex items-center justify-between border border-slate-200/80 hover:border-slate-300"
             >
               <div class="flex items-center gap-4">
                 <div class="w-12 h-12 rounded-xl flex items-center justify-center" :class="flag.bgClass">
                   <span class="material-symbols-outlined" :class="flag.iconClass">{{ flag.icon }}</span>
                 </div>
                 <div>
-                  <h5 class="font-bold text-on-surface">{{ flag.name }}</h5>
-                  <p class="text-xs text-on-surface-variant italic">{{ flag.desc }}</p>
+                  <h5 class="font-bold text-slate-800">{{ flag.name }}</h5>
+                  <p class="text-xs text-slate-500 italic">{{ flag.desc }}</p>
                 </div>
               </div>
               <Toggle v-model="flag.enabled" />

@@ -39,11 +39,13 @@ class AdminCompetitionLocationResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'location_id' => $this->location_id,
             'location' => new \App\Http\Resources\LocationResource($this->whenLoaded('location')),
             'name' => $this->name,
             'latitude' => $this->latitude,
             'longitude' => $this->longitude,
             'image' => $this->image,
+            'image_url' => $this->image ? (str_starts_with($this->image, 'http') ? $this->image : asset($this->image)) : null,
             'address' => $this->address,
             'phone' => $this->phone,
             'opening_time' => $this->opening_time,
@@ -63,6 +65,16 @@ class AdminCompetitionLocationResource extends JsonResource
                             \App\Models\CompetitionLocationYard::TYPE_ROOF => 'Mái che',
                             default => 'Unknown',
                         },
+                    ];
+                })->values();
+            }),
+            'yards' => $this->whenLoaded('competitionLocationYards', function () {
+                return $this->competitionLocationYards->map(function ($yard) {
+                    return [
+                        'id' => $yard->id,
+                        'yard_number' => $yard->yard_number,
+                        'yard_type' => $yard->yard_type,
+                        'yard_type_name' => $yard->yard_type_name,
                     ];
                 })->values();
             }),
