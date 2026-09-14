@@ -9,25 +9,25 @@
       <div v-for="(round, roundIndex) in bracket.bracket" :key="roundIndex"
         class="flex flex-col min-w-[320px] relative">
         <div :class="[
-          'flex justify-between items-center w-full mb-6 bg-[#EDEEF2] p-4 sticky top-0 z-10',
+          'flex justify-between items-center w-full mb-6 bg-gray-100 dark:bg-[#1E293B] p-4 sticky top-0 z-10 rounded-md',
           roundIndex === 0
             ? 'rounded-l-md'
             : roundIndex === totalRounds - 1
-              ? 'rounded-r-md border-l border-white'
-              : 'border-l border-white',
+              ? 'rounded-r-md border-l border-white dark:border-slate-700'
+              : 'border-l border-white dark:border-slate-700',
         ]">
-          <h2 class="font-bold text-[#3E414C] whitespace-nowrap">
+          <h2 class="font-bold text-gray-700 dark:text-slate-100 whitespace-nowrap">
             {{ round.round_name }}
           </h2>
 
           <div class="flex items-center gap-2">
-            <span class="text-sm text-[#838799]">
+            <span class="text-sm text-gray-500 dark:text-slate-400">
               {{ formatRoundDate(round.date) }}
             </span>
 
             <button
-              class="w-9 h-9 rounded-full flex items-center justify-center border border-[#BBBFCC] hover:bg-gray-100 hover:border-[#838799] transition-colors">
-              <PencilIcon class="w-5 h-5 text-[#838799]" />
+              class="w-9 h-9 rounded-full flex items-center justify-center border border-gray-300 dark:border-slate-600 hover:bg-gray-200 dark:hover:bg-slate-700 hover:border-gray-400 dark:hover:border-slate-500 transition-colors">
+              <PencilIcon class="w-5 h-5 text-gray-500 dark:text-slate-400" />
             </button>
           </div>
         </div>
@@ -39,7 +39,7 @@
     <Bracket :rounds="rounds">
       <template #player="{ player }">
         <div v-if="player.isPlayer1"
-          class="w-64 rounded-lg shadow-md border bg-[#EDEEF2] relative cursor-pointer hover:shadow-lg transition-all"
+          class="w-64 rounded-lg shadow-md border bg-gray-100 dark:bg-[#1E293B] relative cursor-pointer hover:shadow-lg transition-all"
           :class="playerWrapperClass(player)" @click="!isDragging ? handleMatchClick(player.matchId) : null">      
           <div class="flex justify-between items-center text-xs font-medium rounded-t-[7px] rounded-b-[7px] px-4 py-2"
             :class="headerClass(player)">
@@ -57,12 +57,12 @@
           </div>
 
           <!-- TEAMS -->
-          <div class="px-4 space-y-1 bg-[#eceef2] rounded-br-[7px] rounded-bl-[7px] rounded-tl-[7px] rounded-tr-[7px]">
+          <div class="px-4 space-y-1 bg-gray-100 dark:bg-[#1E293B] rounded-br-[7px] rounded-bl-[7px] rounded-tl-[7px] rounded-tr-[7px]">
 
             <!-- HOME TEAM -->
             <div v-tooltip="player.name" class="space-y-1 rounded transition-all px-2 -mx-2" :class="{
-              'bg-blue-100 ring-2 ring-blue-400': isDropTarget(player.matchId, 'home'),
-              'cursor-move hover:bg-gray-100': canDrag(player),
+              'bg-blue-100 dark:bg-blue-900/40 ring-2 ring-blue-400 dark:ring-blue-500': isDropTarget(player.matchId, 'home'),
+              'cursor-move hover:bg-gray-200 dark:hover:bg-slate-700': canDrag(player),
               'cursor-not-allowed': !canDrag(player)
             }" 
             :draggable="canDrag(player) ? 'true' : 'false'"
@@ -74,14 +74,14 @@
               <div class="flex justify-between items-center pointer-events-none">
                 <div class="flex items-center gap-2">
                   <img :src="player.logo || placeholderFor(player.name)" class="w-8 h-8 rounded-full" />
-                  <p class="text-sm font-semibold text-[#3E414C] truncate max-w-[150px]">{{ player.name }}</p>
+                  <p class="text-sm font-semibold text-gray-700 dark:text-slate-100 truncate max-w-[150px]">{{ player.name }}</p>
                 </div>
 
                 <span class="font-bold text-lg" :class="player.winnerId
                     ? (player.id === player.winnerId
-                      ? 'text-green-700'
-                      : 'text-red-700')
-                    : 'text-[#3E414C]'
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400')
+                    : 'text-gray-700 dark:text-slate-100'
                   ">
                   {{ player.score ?? 0 }}
                 </span>
@@ -90,8 +90,8 @@
 
             <!-- AWAY TEAM -->
             <div v-tooltip="player.opponent.name" class="space-y-1 rounded transition-all px-2 -mx-2" :class="{
-              'bg-blue-100 ring-2 ring-blue-400': isDropTarget(player.matchId, 'away'),
-              'cursor-move hover:bg-gray-100': canDrag(player),
+              'bg-blue-100 dark:bg-blue-900/40 ring-2 ring-blue-400 dark:ring-blue-500': isDropTarget(player.matchId, 'away'),
+              'cursor-move hover:bg-gray-200 dark:hover:bg-slate-700': canDrag(player),
               'cursor-not-allowed': !canDrag(player)
             }" 
             :draggable="canDrag(player) ? 'true' : 'false'"
@@ -105,14 +105,14 @@
                 <div class="flex items-center gap-2">
                   <img :src="player.opponent.logo || placeholderFor(player.opponent.name)"
                     class="w-8 h-8 rounded-full" />
-                  <p class="text-sm font-semibold text-[#3E414C] truncate max-w-[150px]">{{ player.opponent.name }}</p>
+                  <p class="text-sm font-semibold text-gray-700 dark:text-slate-100 truncate max-w-[150px]">{{ player.opponent.name }}</p>
                 </div>
 
                 <span class="font-bold text-lg" :class="player.winnerId
                     ? (player.opponent.id === player.winnerId
-                      ? 'text-green-700'
-                      : 'text-red-700')
-                    : 'text-[#3E414C]'
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400')
+                    : 'text-gray-700 dark:text-slate-100'
                   ">
                   {{ player.opponent.score ?? 0 }}
                 </span>
@@ -276,11 +276,11 @@ const hasScoreInSets = (player) => {
 
 const headerClass = (player) => {
   if (player.status === 'pending' && hasScoreInSets(player)) {
-    return ' bg-[#FBBF24] text-white';
+    return 'bg-amber-500 text-white';
   } else if (player.status === 'completed') {
     return 'bg-green-500 text-white';
   } else {
-    return 'bg-[#dddee5] text-[#3E414C]';
+    return 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-100';
   }
 };
 
@@ -294,16 +294,16 @@ const playerWrapperClass = (player) => {
 
   // Trận tranh hạng 3
   if (player.isThirdPlace) {
-    classes.push('bg-[#dddee5] text-white');
+    classes.push('bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-100');
   } else if (player.status === 'pending' && hasScoreInSets(player)) {
-    // Pending + có score → đỏ
-    classes.push('border border-[#FBBF24]', 'bg-[#FBBF24]', 'text-white');
+    // Pending + có score → vàng
+    classes.push('border border-amber-500 bg-amber-500 text-white');
   } else if (player.status === 'completed') {
     // Completed → xanh
-    classes.push('border border-green-500', 'bg-green-500', 'text-white');
+    classes.push('border border-green-500 bg-green-500 text-white');
   } else {
     // Pending chưa score / default
-    classes.push('bg-[#dddee5] text-[#838799]');
+    classes.push('bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300');
   }
 
   return classes.join(' ');

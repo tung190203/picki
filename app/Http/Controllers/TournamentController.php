@@ -20,6 +20,7 @@ use App\Http\Resources\UserListResource;
 use App\Services\BadgeService;
 use App\Models\User;
 use App\Models\Club\Club;
+use App\Models\CompetitionLocation;
 use App\Models\Matches;
 use App\Models\Participant;
 use App\Models\Tournament;
@@ -183,6 +184,15 @@ class TournamentController extends Controller
     public function store(StoreTournamentRequest $request)
     {
         $validated = $request->validated();
+
+        // === Chặn submit nếu sân thi đấu đã bị admin khoá (is_banned = true) ===
+        if (!empty($validated['competition_location_id'])) {
+            $location = CompetitionLocation::find($validated['competition_location_id']);
+            if ($location && $location->is_banned) {
+                return ResponseHelper::error('Địa điểm tạm thời bị cấm truy cập', 422);
+            }
+        }
+
         $tournament = null;
 
         DB::transaction(function () use ($validated, &$tournament, $request) {
@@ -338,6 +348,14 @@ class TournamentController extends Controller
     {
         $validated = $request->validated();
         $tournament = Tournament::with('staff')->findOrFail($id);
+
+        // === Chặn submit nếu sân thi đấu đã bị admin khoá (is_banned = true) ===
+        if (!empty($validated['competition_location_id'])) {
+            $location = CompetitionLocation::find($validated['competition_location_id']);
+            if ($location && $location->is_banned) {
+                return ResponseHelper::error('Địa điểm tạm thời bị cấm truy cập', 422);
+            }
+        }
 
         $isSuperAdmin = (bool) (Auth::user()?->is_super_admin ?? false);
         $isOrganizer = $isSuperAdmin || $tournament->hasOrganizer(Auth::id());

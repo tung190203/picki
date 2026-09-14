@@ -6,6 +6,7 @@ use App\Events\QuickMatchConfirmed;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\CompetitionLocationResource;
 use App\Http\Resources\QuickMatchResource;
+use App\Models\CompetitionLocation;
 use App\Models\MatchHistory;
 use App\Models\QuickMatch;
 use App\Models\User;
@@ -51,6 +52,14 @@ class QuickMatchController extends Controller
         $creator = Auth::user();
         $isSuperAdmin = (bool) ($creator->is_super_admin ?? false);
         $isRefereeScoring = (bool) ($validated['is_referee_scoring'] ?? false);
+
+        // === Chặn submit nếu sân thi đấu đã bị admin khoá (is_banned = true) ===
+        if (!empty($validated['competition_location_id'])) {
+            $location = CompetitionLocation::find($validated['competition_location_id']);
+            if ($location && $location->is_banned) {
+                return ResponseHelper::error('Địa điểm tạm thời bị cấm truy cập', 422);
+            }
+        }
 
         $matchType = $validated['match_type'] ?? QuickMatch::MATCH_TYPE_RANK;
 
