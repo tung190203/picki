@@ -124,6 +124,10 @@ class TournamentService
         $standings = collect($standings)->map(function ($team) {
             $team['set_difference'] = $team['sets_won'] - $team['sets_lost'];
             $team['point_difference'] = $team['points_for'] - $team['points_against'];
+            // ✅ Alias ngắn cho FE đọc (đồng bộ với GroupStandingRanker / calculateStatsFromMatches)
+            $team['sets_diff'] = $team['set_difference'];
+            $team['point_diff'] = $team['point_difference'];
+            $team['points_against'] = $team['points_against'];
             return $team;
         })->sort(function ($a, $b) {
             if ($a['points'] !== $b['points']) {

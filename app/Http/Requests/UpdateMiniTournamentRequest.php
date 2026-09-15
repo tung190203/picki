@@ -74,7 +74,10 @@ class UpdateMiniTournamentRequest extends FormRequest
             'start_time' => 'nullable|date',
             'end_time' => 'nullable|date|after:start_time',
             'duration' => 'nullable|integer|min:1',
-            'competition_location_id' => 'nullable|exists:competition_locations,id',
+            'competition_location_id' => [
+                'nullable',
+                Rule::exists('competition_locations', 'id')->where(fn($q) => $q->where('is_banned', false)),
+            ],
 
             'is_private' => 'boolean',
 

@@ -111,6 +111,7 @@ class SearchV2Controller extends Controller
             SearchFilterConfig::TAB_CLUB => $this->buildClubQuery($userId, $filters),
 
             SearchFilterConfig::TAB_COURT => CompetitionLocation::withFullRelations()
+                ->active()
                 ->filter($filters),
 
             default => throw new \InvalidArgumentException("Unknown tab: {$tab}"),

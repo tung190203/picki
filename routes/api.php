@@ -400,7 +400,10 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
     Route::post('/clubs/{clubId}/ban', [AdminClubManagementController::class, 'toggleBan']);
 
     Route::get('/competition-locations', [AdminCompetitionLocationManagementController::class, 'index']);
+    Route::post('/competition-locations', [AdminCompetitionLocationManagementController::class, 'store']);
     Route::get('/competition-locations/{locationId}', [AdminCompetitionLocationManagementController::class, 'show']);
+    Route::match(['put', 'post'], '/competition-locations/{locationId}', [AdminCompetitionLocationManagementController::class, 'update']);
+    Route::delete('/competition-locations/{locationId}', [AdminCompetitionLocationManagementController::class, 'destroy']);
     Route::post('/competition-locations/{locationId}/ban', [AdminCompetitionLocationManagementController::class, 'toggleBan']);
 
     Route::get('/tournaments', [TournamentManagementController::class, 'index']);
@@ -584,6 +587,15 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         // ✅ Knockout rebuild flow (NEW) — tách riêng khỏi luồng pairing_mode hiện tại
         Route::get('/{tournamentType}/knockout-candidates', [TournamentTypeController::class, 'getKnockoutCandidates']);
         Route::post('/{tournamentType}/knockout-rebuild-pairing', [TournamentTypeController::class, 'rebuildKnockoutPairing']);
+    });
+
+    // ✅ Manual tiebreaker routes (bốc thăm / kéo-thả thủ công khi đội đồng hạng)
+    Route::middleware(['auth:api'])->prefix('tournament-types/{tournamentType}/groups/{group}')->whereNumber('group')->group(function () {
+        Route::get('/pending-ties', [\App\Http\Controllers\Api\TiebreakerController::class, 'pendingTies']);
+        Route::post('/manual-tiebreaker', [\App\Http\Controllers\Api\TiebreakerController::class, 'store']);
+        Route::delete('/manual-tiebreaker', [\App\Http\Controllers\Api\TiebreakerController::class, 'destroy']);
+        Route::post('/manual-tiebreaker/cross', [\App\Http\Controllers\Api\TiebreakerController::class, 'storeCross']);
+        Route::delete('/manual-tiebreaker/cross', [\App\Http\Controllers\Api\TiebreakerController::class, 'destroyCross']);
     });
 
     Route::prefix('matches')->group(function() {

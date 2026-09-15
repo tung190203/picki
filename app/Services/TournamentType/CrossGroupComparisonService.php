@@ -633,16 +633,24 @@ class CrossGroupComparisonService
 
             // Fallback cuối: stable theo team_id
             return $a['team_id'] <=> $b['team_id'];
-        })->values();
+        })->values()->all();
+
+        // ✅ B.7 — Áp dụng manual tiebreaker trước khi gán rank
+        $sorted = app(ManualTiebreakerService::class)->applyManualToCandidates(
+            $sorted,
+            (int) $type->id,
+            $rankingRules
+        );
 
         // Gắn rank + pending_draw
         // pending_draw = true chỉ khi CẢ HAI đội cùng candidate_type
         // (cùng loại: runner_up hoặc third_place) và cùng tất cả ranking keys.
-        $withRank = $sorted->map(function (array $c, int $idx) use ($sorted, $rankingRules) {
+        $sortedCollection = collect($sorted);
+        $withRank = $sortedCollection->map(function (array $c, int $idx) use ($sortedCollection, $rankingRules) {
             $c['rank'] = $idx + 1;
 
             if ($idx > 0) {
-                $prev = $sorted->get($idx - 1);
+                $prev = $sortedCollection->get($idx - 1);
                 $isSameType = $prev['candidate_type'] === $c['candidate_type'];
                 $c['pending_draw'] = $isSameType && $this->isSameStats($prev, $c, $rankingRules);
             } else {

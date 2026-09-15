@@ -1,8 +1,8 @@
 <template>
     <div class="p-4 max-w-8xl mx-auto">
         <div class="flex items-center gap-4 mb-4">
-            <ArrowLeftIcon class="w-6 h-6 text-gray-600 hover:text-[#D72D36] cursor-pointer" @click="goBack" />
-            <h1 class="text-lg font-semibold">Sơ đồ thi đấu</h1>
+            <ArrowLeftIcon class="w-6 h-6 text-gray-500 dark:text-slate-400 hover:text-[#D72D36] cursor-pointer" @click="goBack" />
+            <h1 class="text-lg font-semibold text-gray-800 dark:text-slate-100">Sơ đồ thi đấu</h1>
         </div>
         <template v-if="bracket && bracket.format == 1">
             <BracketMixed :bracket="bracket" :tournament="tournament" :rank="ranks" @refresh="loadBracketData" />

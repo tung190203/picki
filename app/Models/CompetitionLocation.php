@@ -209,6 +209,20 @@ class CompetitionLocation extends Model
             );
     }
 
+    /**
+     * Scope lọc các sân thi đấu đang hoạt động (không bị khoá).
+     *
+     * Sử dụng cho tất cả luồng user-facing: search dropdown chọn sân,
+     * SearchV2, và các nơi cần ẩn sân bị admin khoá (`is_banned = true`).
+     *
+     * KHÔNG áp dụng cho admin management: admin cần thấy cả sân bị khoá
+     * để quản lý/mở khoá.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_banned', false);
+    }
+
     public function scopeNearBy($query, float $lat, float $lng, float $radiusKm)
     {
         $haversine = "(6371 * acos(cos(radians($lat))

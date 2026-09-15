@@ -397,6 +397,12 @@ class MatchesController extends Controller
             return;
         }
 
+        // ✅ Fill Nhất/Nhì/Ba từ group vào các slot knockout (round 2) cho REAL rules
+        // (Nhì tốt nhất / cross-group được resolve riêng ở bước dưới.)
+        // QUAN TRỌNG: Phải áp dụng manual tiebreaker (nếu BTC đã bốc thăm) trước khi fill.
+        $typeController = app(\App\Http\Controllers\TournamentTypeController::class);
+        $typeController->applyPoolAdvancement($tournamentType);
+
         $config = $tournamentType->format_specific_config ?? [];
         $mainConfig = is_array($config) && isset($config[0]) ? $config[0] : [];
         $advancedToNext = filter_var($mainConfig['advanced_to_next_round'] ?? false, FILTER_VALIDATE_BOOLEAN);
@@ -417,27 +423,23 @@ class MatchesController extends Controller
         // Cần resolve TRƯỚC vì:
         //  - Sau resolve, $knockoutMatches sẽ thay đổi (slot trống → có team_id)
         //  - $byeMatches phụ thuộc vào slot trống → cần tính lại sau resolve.
-        $tournamentTypeForResolve = TournamentType::find($tournamentTypeId);
-        if ($tournamentTypeForResolve) {
-            // resolveVirtualPoolAdvancementRules() nằm trên TournamentTypeController.
-            $typeController = app(\App\Http\Controllers\TournamentTypeController::class);
-            $resolvedEntries = $typeController->resolveVirtualPoolAdvancementRules($tournamentTypeForResolve);
-            foreach ($resolvedEntries as $entry) {
-                Matches::where('id', $entry['next_match_id'])
-                    ->update([
-                        $entry['next_position'] . '_team_id' => $entry['team_id'],
-                        'status' => 'pending',
-                    ]);
-            }
-            // Reload để lấy team_id vừa fill
-            if (!empty($resolvedEntries)) {
-                $knockoutMatches = Matches::where('tournament_type_id', $tournamentTypeId)
-                    ->where('round', 2)
-                    ->where('status', 'pending')
-                    ->get();
-                if ($knockoutMatches->isEmpty()) {
-                    return;
-                }
+        // ✅ $typeController đã được khai báo ở trên (khi fill Nhất/Nhì/Ba vào round 2).
+        $resolvedEntries = $typeController->resolveVirtualPoolAdvancementRules($tournamentType);
+        foreach ($resolvedEntries as $entry) {
+            Matches::where('id', $entry['next_match_id'])
+                ->update([
+                    $entry['next_position'] . '_team_id' => $entry['team_id'],
+                    'status' => 'pending',
+                ]);
+        }
+        // Reload để lấy team_id vừa fill
+        if (!empty($resolvedEntries)) {
+            $knockoutMatches = Matches::where('tournament_type_id', $tournamentTypeId)
+                ->where('round', 2)
+                ->where('status', 'pending')
+                ->get();
+            if ($knockoutMatches->isEmpty()) {
+                return;
             }
         }
 

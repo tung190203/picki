@@ -14,6 +14,7 @@ use App\Models\TournamentType;
 use App\Services\TournamentType\CrossGroupComparisonService;
 use App\Services\TournamentType\CrossGroupRankingService;
 use App\Services\TournamentType\GroupStandingRanker;
+use App\Services\TournamentType\ManualTiebreakerService;
 use App\Services\TournamentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -33,7 +34,8 @@ class TournamentTypeController extends Controller
         private \App\Services\TournamentType\TeamPairingService $teamPairingService,
         private CrossGroupRankingService $crossGroupRankingService,
         private CrossGroupComparisonService $crossGroupComparisonService,
-        private \App\Services\TournamentType\KnockoutRebuildService $knockoutRebuildService
+        private \App\Services\TournamentType\KnockoutRebuildService $knockoutRebuildService,
+        private \App\Services\TournamentType\ManualTiebreakerService $manualTiebreakerService,
     ) {}
 
     /**
@@ -1767,7 +1769,23 @@ class TournamentTypeController extends Controller
             // ✅ FIX: Dùng GroupStandingRanker (có H2H + ranking rules) thay cho
             // TournamentService::calculateGroupStandings (thiếu H2H → chọn sai
             // Nhì/Ba khi nhiều đội đồng hạng).
-            $standingByRank = GroupStandingRanker::standingsByRankMap($group, $rankingRules);
+            $standings = GroupStandingRanker::rank($group, $rankingRules);
+
+            // ✅ FIX: Áp dụng manual tiebreaker (nếu BTC đã bốc thăm) trước khi
+            // dựng map rank → team. Nếu không, khi có cụm đồng hạng → chọn sai
+            // đội vào slot knockout.
+            $standings = $this->manualTiebreakerService->applyManualToGroup(
+                $standings,
+                (int) $type->id,
+                (int) $group->id,
+                $rankingRules
+            );
+
+            // ✅ Re-rank sau khi áp dụng manual (đảm bảo rank ổn định cho map)
+            $standingByRank = [];
+            foreach ($standings->values() as $idx => $entry) {
+                $standingByRank[$idx + 1] = $entry;
+            }
 
             // ✅ Lấy TẤT CẢ các rules cho group này (bao gồm cả các legs)
             $rules = PoolAdvancementRule::where('group_id', $group->id)
@@ -2244,7 +2262,7 @@ class TournamentTypeController extends Controller
             ->orderBy('leg')
             ->get();
 
-        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches, $groupId) use ($tournamentId) {
+        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches, $groupId) use ($tournamentId, $type) {
             $group = $groupMatches->first()->group;
 
             $grouped = $groupMatches->groupBy(function ($match) {
@@ -2257,6 +2275,44 @@ class TournamentTypeController extends Controller
                     $match->away_team_id,
                 ])->sort()->implode('_');
             })->values();
+
+            $rankingRules = $this->extractRankingRules($type);
+            $standingsRaw = $this->calculateGroupStandings($groupMatches);
+
+            // ✅ Áp dụng manual tiebreaker (nếu BTC đã bốc thăm).
+            // Shape raw có 'team.id' (nested), 'won/draw/lost', 'set_difference', ...
+            // Cần chuẩn hoá về shape phẳng để applyManualToGroup xử lý đúng.
+            $standingsNormalized = $standingsRaw->map(function ($row) {
+                $teamId = $row['team']['id'] ?? null;
+                return [
+                    'team_id' => $teamId !== null ? (int) $teamId : null,
+                    'team_name' => $row['team']['name'] ?? null,
+                    'team_avatar' => $row['team']['team_avatar'] ?? null,
+                    'points' => (int) ($row['points'] ?? 0),
+                    'win_rate' => isset($row['won'], $row['played']) && $row['played'] > 0
+                        ? round(($row['won'] / $row['played']) * 100, 2)
+                        : 0,
+                    'sets_diff' => (int) ($row['sets_won'] ?? 0) - (int) ($row['sets_lost'] ?? 0),
+                    'point_diff' => (int) ($row['points_for'] ?? 0) - (int) ($row['points_against'] ?? 0),
+                    'points_for' => (int) ($row['points_for'] ?? 0),
+                    // giữ raw để re-gắn sau
+                    '_raw' => $row,
+                ];
+            })->filter(fn($r) => $r['team_id'] !== null)->values();
+
+            $standingsApplied = $this->manualTiebreakerService->applyManualToGroup(
+                $standingsNormalized,
+                (int) $type->id,
+                (int) $groupId,
+                $rankingRules
+            );
+
+            // ✅ Re-gắn lại shape cũ và gán rank ổn định
+            $standingsFinal = $standingsApplied->values()->map(function ($row, $idx) {
+                $raw = $row['_raw'];
+                $raw['rank'] = $idx + 1;
+                return $raw;
+            });
 
             return [
                 'group_id' => $groupId,
@@ -2315,7 +2371,7 @@ class TournamentTypeController extends Controller
                         'status' => $matchGroup->every(fn ($l) => $l->status === 'completed') ? 'completed' : 'pending',
                     ];
                 })->values(),
-                'standings' => $this->calculateGroupStandings($groupMatches),
+                'standings' => $standingsFinal,
             ];
         })->values();
 
@@ -2580,7 +2636,7 @@ class TournamentTypeController extends Controller
             ->orderBy('leg')
             ->get();
 
-        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches, $groupId) use ($tournamentId) {
+        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches, $groupId) use ($tournamentId, $type) {
             $group = $groupMatches->first()->group;
 
             $grouped = $groupMatches->groupBy(function ($match) {
@@ -2589,6 +2645,40 @@ class TournamentTypeController extends Controller
                 }
                 return collect([$match->home_team_id, $match->away_team_id])->sort()->implode('_');
             })->values();
+
+            $rankingRules = $this->extractRankingRules($type);
+            $standingsRaw = $this->calculateGroupStandings($groupMatches);
+
+            // ✅ Áp dụng manual tiebreaker (nếu BTC đã bốc thăm)
+            $standingsNormalized = $standingsRaw->map(function ($row) {
+                $teamId = $row['team']['id'] ?? null;
+                return [
+                    'team_id' => $teamId !== null ? (int) $teamId : null,
+                    'team_name' => $row['team']['name'] ?? null,
+                    'team_avatar' => $row['team']['team_avatar'] ?? null,
+                    'points' => (int) ($row['points'] ?? 0),
+                    'win_rate' => isset($row['won'], $row['played']) && $row['played'] > 0
+                        ? round(($row['won'] / $row['played']) * 100, 2)
+                        : 0,
+                    'sets_diff' => (int) ($row['sets_won'] ?? 0) - (int) ($row['sets_lost'] ?? 0),
+                    'point_diff' => (int) ($row['points_for'] ?? 0) - (int) ($row['points_against'] ?? 0),
+                    'points_for' => (int) ($row['points_for'] ?? 0),
+                    '_raw' => $row,
+                ];
+            })->filter(fn($r) => $r['team_id'] !== null)->values();
+
+            $standingsApplied = $this->manualTiebreakerService->applyManualToGroup(
+                $standingsNormalized,
+                (int) $type->id,
+                (int) $groupId,
+                $rankingRules
+            );
+
+            $standingsFinalNew = $standingsApplied->values()->map(function ($row, $idx) {
+                $raw = $row['_raw'];
+                $raw['rank'] = $idx + 1;
+                return $raw;
+            });
 
             $matchesData = $grouped->map(function ($matchGroup) use ($tournamentId) {
                 $first = $matchGroup->first();
@@ -2633,7 +2723,7 @@ class TournamentTypeController extends Controller
                 'group_id' => $groupId,
                 'group_name' => $group?->name ?? 'Bảng ' . $groupId,
                 'matches' => $matchesData,
-                'standings' => $this->calculateGroupStandings($groupMatches),
+                'standings' => $standingsFinalNew,
             ];
         })->values();
 
@@ -2962,7 +3052,10 @@ class TournamentTypeController extends Controller
                             }
                             break;
                         case TournamentType::RANKING_SETS_WON: // 3
-                            // getRank không có sets_won, bỏ qua hoặc có thể map từ stats nếu cần mở rộng sau
+                            // ✅ BẬT: so theo hiệu số hiệp (sets_diff DESC)
+                            if (($a['sets_diff'] ?? 0) !== ($b['sets_diff'] ?? 0)) {
+                                return ($b['sets_diff'] ?? 0) <=> ($a['sets_diff'] ?? 0);
+                            }
                             break;
                         case TournamentType::RANKING_POINTS_WON: // 4
                             if ($a['point_diff'] !== $b['point_diff']) {
@@ -2981,6 +3074,12 @@ class TournamentTypeController extends Controller
                             break;
                         case TournamentType::RANKING_RANDOM_DRAW: // 6
                             return $a['team_id'] <=> $b['team_id'];
+                        case TournamentType::RANKING_GOALS_SCORED: // 7
+                            // ✅ NEW: so theo tổng điểm ghi được (points_for DESC)
+                            if (($a['points_for'] ?? 0) !== ($b['points_for'] ?? 0)) {
+                                return ($b['points_for'] ?? 0) <=> ($a['points_for'] ?? 0);
+                            }
+                            break;
                     }
                 }
 
@@ -3001,15 +3100,32 @@ class TournamentTypeController extends Controller
         }
 
         // TH 2: Nếu có chia bảng
-        $groupRankings = $groups->map(function ($group) use ($type, $rankingRules, $allMatches) {
+
+        // ✅ Preload PoolAdvancementRule cho mỗi group (A.6 — cần num_advancing_teams để xác định ranh giới cần bốc thăm)
+        // Schema: mỗi rule có `rank` (1=Nhất, 2=Nhì, 3=Ba…). num_advancing = max(rank) của REAL rules.
+        $realAdvancementByGroupId = PoolAdvancementRule::where('tournament_type_id', $type->id)
+            ->whereIn('group_id', $groups->pluck('id'))
+            ->real()
+            ->get()
+            ->groupBy('group_id');
+
+        $groupRankings = $groups->map(function ($group) use ($type, $rankingRules, $allMatches, $realAdvancementByGroupId) {
             // ✅ LẤY TẤT CẢ ĐỘI TRONG BẢNG (từ group_team pivot table)
             $teamsInGroup = $group->teams()->with('members')->get();
+
+            // ✅ Xác định num_advancing cho group này = max(rank) của REAL rules
+            $groupRules = $realAdvancementByGroupId->get($group->id, collect());
+            $numAdvancingForGroup = $groupRules->isNotEmpty()
+                ? (int)$groupRules->max('rank')
+                : 2; // fallback: top 2 (Nhất + Nhì)
 
             // Nếu không có đội nào được assign vào bảng này
             if ($teamsInGroup->isEmpty()) {
                 return [
                     'group_id' => $group->id,
                     'group_name' => $group->name,
+                    'need_draw_lots' => false,
+                    'advanced_team_ids' => [],
                     'rankings' => [],
                 ];
             }
@@ -3046,6 +3162,10 @@ class TournamentTypeController extends Controller
                             }
                             break;
                         case TournamentType::RANKING_SETS_WON: // 3
+                            // ✅ BẬT: so theo hiệu số hiệp (sets_diff DESC)
+                            if (($a['sets_diff'] ?? 0) !== ($b['sets_diff'] ?? 0)) {
+                                return ($b['sets_diff'] ?? 0) <=> ($a['sets_diff'] ?? 0);
+                            }
                             break;
                         case TournamentType::RANKING_POINTS_WON: // 4
                             if ($a['point_diff'] !== $b['point_diff']) {
@@ -3064,6 +3184,12 @@ class TournamentTypeController extends Controller
                             break;
                         case TournamentType::RANKING_RANDOM_DRAW: // 6
                             return $a['team_id'] <=> $b['team_id'];
+                        case TournamentType::RANKING_GOALS_SCORED: // 7
+                            // ✅ NEW: so theo tổng điểm ghi được (points_for DESC)
+                            if (($a['points_for'] ?? 0) !== ($b['points_for'] ?? 0)) {
+                                return ($b['points_for'] ?? 0) <=> ($a['points_for'] ?? 0);
+                            }
+                            break;
                     }
                 }
 
@@ -3079,9 +3205,64 @@ class TournamentTypeController extends Controller
                 return $item;
             });
 
+            // ✅ Kiểm tra vòng bảng đã kết thúc chưa: tất cả trận trong group phải completed.
+            // Lưu ý: cần query cả trận non-completed (bị filter ở $allMatches phía trên).
+            $totalMatchesInGroup = Matches::where('tournament_type_id', $type->id)
+                ->where('group_id', $group->id)
+                ->count();
+            $completedMatchesInGroup = $allMatches->where('group_id', $group->id)->count();
+            $isGroupFinished = $totalMatchesInGroup > 0 && $totalMatchesInGroup === $completedMatchesInGroup;
+
+            // ✅ GẮN pending_tie: chỉ xét đồng hạng khi vòng bảng đã kết thúc.
+            // Dùng ManualTiebreakerService::findTiedClusters() giống hệt GroupStandingRanker.
+            $tiedTeamIds = [];
+            if ($isGroupFinished) {
+                $clusters = $this->manualTiebreakerService->findTiedClusters($rankings, $rankingRules);
+                foreach ($clusters as $cluster) {
+                    foreach ($cluster['team_ids'] as $tid) {
+                        $tiedTeamIds[$tid] = true;
+                    }
+                }
+            }
+            $rankings = $rankings->map(function ($item) use ($tiedTeamIds) {
+                $item['pending_tie'] = isset($tiedTeamIds[(int) $item['team_id']]);
+                return $item;
+            });
+
+            // ✅ Áp dụng manual tiebreaker (nếu BTC đã bốc thăm) — CHỈ khi vòng bảng đã kết thúc.
+            // applyManualToGroup() sẽ sắp xếp lại các cụm đồng hạng theo manual_rank.
+            if ($isGroupFinished) {
+                $rankings = $this->manualTiebreakerService->applyManualToGroup(
+                    $rankings,
+                    (int) $type->id,
+                    (int) $group->id,
+                    $rankingRules
+                );
+
+                // Gán lại rank + pending_tie sau khi re-sort
+                $rankings = $rankings->values()->map(function ($item, $index) use ($tiedTeamIds) {
+                    $item['rank'] = $index + 1;
+                    $item['pending_tie'] = isset($tiedTeamIds[(int) $item['team_id']]);
+                    return $item;
+                });
+            }
+
+            if (! $isGroupFinished) {
+                // Vòng bảng CHƯA kết thúc → KHÔNG thể xác định cần bốc thăm hay đội nào đi tiếp.
+                return [
+                    'group_id' => $group->id,
+                    'group_name' => $group->name,
+                    'need_draw_lots' => null,
+                    'advanced_team_ids' => null,
+                    'rankings' => $rankings,
+                ];
+            }
+
         return [
             'group_id' => $group->id,
             'group_name' => $group->name,
+            'need_draw_lots' => $this->computeNeedDrawLots($rankings, $numAdvancingForGroup, $rankingRules),
+            'advanced_team_ids' => $this->computeAdvancedTeamIds($rankings, $numAdvancingForGroup),
             'rankings' => $rankings,
         ];
         });
@@ -3114,6 +3295,12 @@ class TournamentTypeController extends Controller
                                 return ($b['win_rate'] ?? 0) <=> ($a['win_rate'] ?? 0);
                             }
                             break;
+                        case TournamentType::RANKING_SETS_WON:
+                            // ✅ BẬT: so theo hiệu số hiệp (sets_diff DESC)
+                            if (($a['sets_diff'] ?? 0) !== ($b['sets_diff'] ?? 0)) {
+                                return ($b['sets_diff'] ?? 0) <=> ($a['sets_diff'] ?? 0);
+                            }
+                            break;
                         case TournamentType::RANKING_POINTS_WON:
                             if ($a['point_diff'] !== $b['point_diff']) {
                                 return $b['point_diff'] <=> $a['point_diff'];
@@ -3127,6 +3314,12 @@ class TournamentTypeController extends Controller
                             break;
                         case TournamentType::RANKING_RANDOM_DRAW:
                             return $a['team_id'] <=> $b['team_id'];
+                        case TournamentType::RANKING_GOALS_SCORED:
+                            // ✅ NEW: so theo tổng điểm ghi được (points_for DESC)
+                            if (($a['points_for'] ?? 0) !== ($b['points_for'] ?? 0)) {
+                                return ($b['points_for'] ?? 0) <=> ($a['points_for'] ?? 0);
+                            }
+                            break;
                     }
                 }
                 if ($a['point_diff'] !== $b['point_diff']) {
@@ -3175,7 +3368,12 @@ class TournamentTypeController extends Controller
                 'draws' => 0,
                 'losses' => 0,
                 'points' => 0,
+                'points_for' => 0,
+                'points_against' => 0,
                 'point_diff' => 0,
+                'sets_won' => 0,
+                'sets_lost' => 0,
+                'sets_diff' => 0,
                 'win_rate' => 0,
             ];
         }
@@ -3186,6 +3384,8 @@ class TournamentTypeController extends Controller
         $losses = 0;
         $pWon = 0;
         $pLost = 0;
+        $setsWon = 0;
+        $setsLost = 0;
 
         // ✅ TÍNH ĐIỂM TỪNG LEG (không group)
         foreach ($matches as $leg) {
@@ -3211,6 +3411,15 @@ class TournamentTypeController extends Controller
                     $pWon += $awayScore;
                     $pLost += $homeScore;
                 }
+            }
+
+            // ✅ Tính số hiệp thắng/thua của đội (cho rule RANKING_SETS_WON)
+            if ($leg->home_team_id == $teamId) {
+                $setsWon += $homeSetWins;
+                $setsLost += $awaySetWins;
+            } elseif ($leg->away_team_id == $teamId) {
+                $setsWon += $awaySetWins;
+                $setsLost += $homeSetWins;
             }
 
             // ✅ XÁC ĐỊNH THẮNG/THUA/HÒA CHO LEG NÀY
@@ -3241,7 +3450,12 @@ class TournamentTypeController extends Controller
             'draws' => $draws,
             'losses' => $losses,
             'points' => $totalPoints,
+            'points_for' => $pWon,
+            'points_against' => $pLost,
             'point_diff' => $pWon - $pLost,
+            'sets_won' => $setsWon,
+            'sets_lost' => $setsLost,
+            'sets_diff' => $setsWon - $setsLost,
             'win_rate' => $played > 0 ? round(($wins / $played) * 100, 2) : 0,
         ];
     }
@@ -3260,6 +3474,138 @@ class TournamentTypeController extends Controller
             ->get();
 
         return $this->calculateStatsFromMatches($matches, $teamId);
+    }
+
+    /**
+     * ============================================================
+     * ✅ A.6 — Helper xác định need_draw_lots + advanced_team_ids
+     * ============================================================
+     */
+
+    /**
+     * Kiểm tra 2 team có cùng stats trên TẤT CẢ ranking keys thực sự
+     * (không tính HEAD_TO_HEAD vì có thể cycle, không tính RANDOM_DRAW).
+     *
+     * @param  array $a
+     * @param  array $b
+     * @param  array $rankingRules  Mảng rule ID
+     * @return bool
+     */
+    private function areRankerStatsEqual(array $a, array $b, array $rankingRules): bool
+    {
+        foreach ($rankingRules as $ruleId) {
+            // Skip H2H (5) + RANDOM (6)
+            if (in_array((int)$ruleId, [
+                TournamentType::RANKING_HEAD_TO_HEAD,
+                TournamentType::RANKING_RANDOM_DRAW,
+            ], true)) {
+                continue;
+            }
+            $key = match ((int)$ruleId) {
+                TournamentType::RANKING_WIN_DRAW_LOSE_POINTS => 'points',
+                TournamentType::RANKING_WIN_RATE => 'win_rate',
+                TournamentType::RANKING_SETS_WON => 'sets_diff',
+                TournamentType::RANKING_POINTS_WON => 'point_diff',
+                TournamentType::RANKING_GOALS_SCORED => 'points_for',
+                default => null,
+            };
+            if ($key === null) {
+                continue;
+            }
+            if ((float)($a[$key] ?? 0) !== (float)($b[$key] ?? 0)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Tính cờ need_draw_lots cho 1 group:
+     * true khi team ở vị trí num_advancing-1 (0-based) và num_advancing (ranh giới)
+     * hoặc 2 team liên tiếp khác cùng stats — đặc biệt là ở ranh giới N/N+1.
+     *
+     * @param  Collection $rankings         Danh sách đã sort + đã gắn rank
+     * @param  int        $numAdvancing      Số đội đi tiếp (num_advancing_teams)
+     * @param  array      $rankingRules
+     * @return bool
+     */
+    private function computeNeedDrawLots(Collection $rankings, int $numAdvancing, array $rankingRules): bool
+    {
+        $count = $rankings->count();
+        if ($count <= $numAdvancing) {
+            return false;
+        }
+
+        // Check ranh giới chính: vị trí $numAdvancing - 1 (cuối nhóm đi tiếp) và $numAdvancing (đầu nhóm ở lại)
+        $cutoffIdx = $numAdvancing - 1; // 0-based index của vị trí cuối nhóm đi tiếp
+        $cutoff = $rankings->get($cutoffIdx);
+        $next = $rankings->get($numAdvancing);
+
+        if ($cutoff && $next && $this->areRankerStatsEqual($cutoff, $next, $rankingRules)) {
+            return true;
+        }
+
+        // Check thêm: cụm đồng hạng KHÁC trong nhóm đi tiếp (e.g., Nhất + Nhì cùng stats → cần bốc cho cả 2)
+        for ($i = 0; $i < min($cutoffIdx, $count - 1); $i++) {
+            $cur = $rankings->get($i);
+            $next2 = $rankings->get($i + 1);
+            if ($cur && $next2 && $this->areRankerStatsEqual($cur, $next2, $rankingRules)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Tính danh sách team đã xác định rõ ràng đi tiếp.
+     *
+     * Luật:
+     * - Nếu KHÔNG có ranh giới đồng hạng → trả top N.
+     * - Nếu CÓ ranh giới đồng hạng ở rank K (K ≥ 1) → chỉ trả top (K-1),
+     *   vì các team từ K trở đi đang chờ bốc thăm.
+     *
+     * Ví dụ: 4 đội, top 2 đi tiếp, 3 đội đồng hạng ở rank 1,2,3
+     *   → cụm đồng hạng bắt đầu ở rank 1 → chỉ trả [] (chưa xác định được đội nào)
+     *
+     * Ví dụ: 4 đội, top 2 đi tiếp, 2 đội đồng hạng ở rank 2,3
+     *   → cụm đồng hạng bắt đầu ở rank 2 → trả [rank 1] (1 đội an toàn)
+     *
+     * @param  Collection $rankings
+     * @param  int        $numAdvancing
+     * @return int[]   Mảng team_id
+     */
+    private function computeAdvancedTeamIds(Collection $rankings, int $numAdvancing): array
+    {
+        $count = $rankings->count();
+        if ($numAdvancing <= 0 || $count === 0) {
+            return [];
+        }
+
+        if ($count <= $numAdvancing) {
+            // Tất cả đội đều đi tiếp (ít hơn số slot)
+            return $rankings->pluck('team_id')->map(fn($id) => (int)$id)->toArray();
+        }
+
+        // ✅ Tìm ranh giới đồng hạng GẦN NHẤT trước/vào vị trí numAdvancing
+        // (cụm đồng hạng có rank nhỏ nhất mà VẪN ẢNH HƯỞNG đến top N)
+        $cutoffRank = $numAdvancing; // mặc định: top N an toàn
+
+        foreach ($rankings as $idx => $item) {
+            $rank = (int) ($item['rank'] ?? ($idx + 1));
+            if (($item['pending_tie'] ?? false) === true && $rank <= $numAdvancing) {
+                // Cụm đồng hạng ảnh hưởng đến top N → chỉ lấy top (rank-1)
+                $cutoffRank = min($cutoffRank, $rank - 1);
+            }
+        }
+
+        if ($cutoffRank <= 0) {
+            return [];
+        }
+
+        return $rankings->take($cutoffRank)->pluck('team_id')
+            ->map(fn($id) => (int)$id)
+            ->toArray();
     }
 
     /**

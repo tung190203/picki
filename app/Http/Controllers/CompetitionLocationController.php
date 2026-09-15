@@ -43,7 +43,7 @@ class CompetitionLocationController extends Controller
             'is_map' => 'nullable|boolean',
         ]);
 
-        $query = CompetitionLocation::withFullRelations();
+        $query = CompetitionLocation::withFullRelations()->active();
 
         if (!empty($validated['lat']) && !empty($validated['lng'])) {
             $query->orderByDistance($validated['lat'], $validated['lng']);
