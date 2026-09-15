@@ -57,6 +57,7 @@ class Tournament extends Model
         'zalo_link',
         'main_phone',
         'sub_phone',
+        'bracket_background',
     ];
 
     protected $casts = [
@@ -69,8 +70,8 @@ class Tournament extends Model
         'creator_join' => 'bool',
     ];
 
-    protected $appends = ['poster_url', 'qr_code_url'];
-    protected $hidden = ['poster'];
+    protected $appends = ['poster_url', 'qr_code_url', 'bracket_background_url'];
+    protected $hidden = ['poster', 'bracket_background'];
 
     const PER_PAGE = 10;
 
@@ -366,6 +367,22 @@ class Tournament extends Model
             return null;
         }
         return asset('storage/' . $this->attributes['poster']);
+    }
+
+    /**
+     * Trả về URL đầy đủ của ảnh background bracket (modal sơ đồ thi đấu).
+     * Nếu null thì frontend sẽ dùng ảnh mặc định.
+     */
+    public function getBracketBackgroundUrlAttribute()
+    {
+        if (!array_key_exists('bracket_background', $this->attributes) || !$this->attributes['bracket_background']) {
+            return null;
+        }
+        $url = $this->attributes['bracket_background'];
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            return $url;
+        }
+        return asset('storage/' . ltrim($url, '/'));
     }
 
     public function getQrCodeUrlAttribute()

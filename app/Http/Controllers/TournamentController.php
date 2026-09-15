@@ -1217,4 +1217,105 @@ class TournamentController extends Controller
             ]);
         }
     }
+
+    /**
+     * Cập nhật ảnh background cho modal sơ đồ thi đấu (BracketMixedPreview).
+     *
+     * - Method: POST
+     * - Body: multipart/form-data với field `bracket_background` (file ảnh)
+     *         hoặc `remove_background` = 1 để xoá ảnh (về mặc định)
+     * - Quyền: chỉ organizer/staff/club-staff của giải
+     */
+    public function updateBracketBackground(Request $request, int $tournamentId)
+    {
+        try {
+            $tournament = Tournament::find($tournamentId);
+            if (!$tournament) {
+                return ResponseHelper::error('Giải đấu không tồn tại', 404);
+            }
+
+            // Phân quyền: organizer/staff/club-staff
+            $authError = $this->authorizeAdmin($tournament);
+            if ($authError !== null) {
+                return $authError;
+            }
+
+            $validated = $request->validate([
+                'bracket_background' => 'nullable|file|mimes:jpg,jpeg,png,webp|max:5120',
+                'remove_background' => 'nullable|boolean',
+            ], [
+                'bracket_background.mimes' => 'Ảnh background chỉ chấp nhận định dạng: jpg, jpeg, png, webp',
+                'bracket_background.max' => 'Ảnh background không được vượt quá 5MB',
+            ]);
+
+            // Trường hợp 1: User muốn xoá ảnh background (về mặc định)
+            if ($request->boolean('remove_background') && !$request->hasFile('bracket_background')) {
+                $this->imageService->deleteOldImage($tournament->bracket_background);
+                $tournament->bracket_background = null;
+                $tournament->save();
+
+                return ResponseHelper::success([
+                    'tournament_id' => $tournament->id,
+                    'bracket_background_url' => null,
+                    'message' => 'Đã xoá ảnh background. Hệ thống sẽ dùng ảnh mặc định.',
+                ]);
+            }
+
+            // Trường hợp 2: Upload ảnh mới
+            if (!$request->hasFile('bracket_background')) {
+                return ResponseHelper::error('Vui lòng chọn ảnh background hoặc gửi remove_background=1 để xoá', 422);
+            }
+
+            $savedPath = $this->imageService->processAndSaveImage(
+                $request->file('bracket_background'),
+                'tournaments/bracket-backgrounds',
+                'bracket_bg_',
+                1920, // width tối đa cho background
+                80    // quality
+            );
+
+            // Xoá ảnh cũ (nếu có) trước khi lưu cái mới
+            $this->imageService->deleteOldImage($tournament->bracket_background);
+
+            $tournament->bracket_background = $savedPath;
+            $tournament->save();
+
+            return ResponseHelper::success([
+                'tournament_id' => $tournament->id,
+                'bracket_background_url' => $tournament->fresh()->bracket_background_url,
+                'message' => 'Cập nhật ảnh background thành công',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return ResponseHelper::error($e->getMessage(), 422, $e->errors());
+        } catch (\Throwable $e) {
+            return ResponseHelper::error(
+                'Có lỗi xảy ra khi cập nhật ảnh background: ' . $e->getMessage(),
+                500
+            );
+        }
+    }
+
+    /**
+     * Lấy ảnh background hiện tại của giải đấu.
+     * API public (không cần auth) để mọi người xem đều có thể load được background.
+     */
+    public function getBracketBackground(int $tournamentId)
+    {
+        try {
+            $tournament = Tournament::find($tournamentId);
+            if (!$tournament) {
+                return ResponseHelper::error('Giải đấu không tồn tại', 404);
+            }
+
+            return ResponseHelper::success([
+                'tournament_id' => $tournament->id,
+                'bracket_background_url' => $tournament->bracket_background_url,
+            ]);
+        } catch (\Throwable $e) {
+            return ResponseHelper::error(
+                'Có lỗi xảy ra khi lấy ảnh background: ' . $e->getMessage(),
+                500
+            );
+        }
+    }
 }

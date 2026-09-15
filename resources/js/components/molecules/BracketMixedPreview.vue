@@ -1,8 +1,21 @@
 <template>
     <div ref="bracketContainer"
-        class="fixed inset-0 z-[9999] bg-image-container overflow-hidden flex items-center justify-center">
+        class="fixed inset-0 z-[9999] overflow-hidden flex items-center justify-center bracket-bg-container"
+        :style="bracketContainerStyle">
         <!-- Control Buttons -->
         <div class="fixed top-6 right-6 z-[10000] flex gap-4">
+            <!-- ✅ Change background button (chỉ hiện với creator) -->
+            <button v-if="isCreator && !isFullscreen" @click="openBackgroundModal"
+                class="p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full border border-white/20 transition-all group shadow-xl"
+                title="Đổi ảnh nền">
+                <svg xmlns="http://www.w3.org/2000/svg"
+                    class="w-6 h-6 text-white group-hover:scale-110 transition-transform" fill="none"
+                    viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+            </button>
+
             <!-- Fullscreen Toggle -->
             <button @click="toggleFullscreen"
                 class="p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full border border-white/20 transition-all group shadow-xl"
@@ -31,14 +44,7 @@
                 </svg>
             </button>
         </div>
-        <div class="w-full mb-8 flex justify-center absolute top-16 left-0">
-                    <img
-                        :src="bannerImage"
-                        alt="Tournament Banner"
-                        class="max-w-[692px] w-full h-auto object-contain"
-                        style="max-height: 300px;"
-                    />
-                </div>
+        
         <div ref="bracketContent"
             class="flex flex-nowrap justify-center items-stretch gap-20 lg:gap-5 min-w-max min-h-[950px] py-10 px-10 transition-transform duration-300 origin-center"
             :style="{
@@ -210,6 +216,73 @@
                 </div>
             </div>
         </div>
+
+        <!-- ✅ Modal chọn ảnh background -->
+        <Teleport to="body">
+            <Transition name="bg-modal">
+                <div v-if="showBackgroundModal"
+                    class="fixed inset-0 bg-black/70 z-[11000] flex items-center justify-center p-4"
+                    @click.self="closeBackgroundModal">
+                    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+                        <div class="flex justify-between items-center p-5 border-b border-gray-200">
+                            <h3 class="text-lg font-bold text-gray-800">Đổi ảnh nền sơ đồ</h3>
+                            <button @click="closeBackgroundModal"
+                                class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors">
+                                <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div class="p-5 space-y-4">
+                            <!-- Preview -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Xem trước</label>
+                                <div class="relative w-full h-40 rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
+                                    <img v-if="backgroundPreviewUrl || currentBackgroundUrl" :src="backgroundPreviewUrl || currentBackgroundUrl"
+                                        alt="Preview" class="w-full h-full object-cover" />
+                                    <div v-else
+                                        class="w-full h-full flex items-center justify-center text-gray-400 text-sm">
+                                        Chưa có ảnh - sẽ dùng ảnh mặc định của dự án
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- File input -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Chọn ảnh mới</label>
+                                <input ref="backgroundFileInput" type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
+                                    @change="handleBackgroundFileChange"
+                                    class="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-[#D72D36] hover:file:bg-red-100 cursor-pointer" />
+                                <p class="text-xs text-gray-500 mt-2">Hỗ trợ: JPG, PNG, WEBP. Tối đa 5MB.</p>
+                            </div>
+
+                            <!-- Actions -->
+                            <div class="flex items-center justify-between gap-3 pt-2">
+                                <button v-if="currentBackgroundUrl" @click="handleRemoveBackground" :disabled="isUploadingBackground"
+                                    class="text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    Xoá ảnh (về mặc định)
+                                </button>
+                                <div class="flex-1"></div>
+                                <button @click="closeBackgroundModal" :disabled="isUploadingBackground"
+                                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50">
+                                    Huỷ
+                                </button>
+                                <button @click="handleSaveBackground" :disabled="!pendingBackgroundFile || isUploadingBackground"
+                                    class="px-4 py-2 text-sm font-medium text-white bg-[#D72D36] hover:bg-red-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                                    <svg v-if="isUploadingBackground" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                    </svg>
+                                    {{ isUploadingBackground ? 'Đang lưu...' : 'Lưu' }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </Transition>
+        </Teleport>
     </div>
 </template>
 
@@ -228,13 +301,82 @@ import { VideoCameraIcon } from "@heroicons/vue/24/solid";
 import * as TournamentService from "@/service/tournament.js";
 import * as TournamentTypeService from "@/service/tournamentType.js";
 import { toast } from "vue3-toastify";
-import bannerImage from "@/assets/images/bracket_banner.png";
+import {
+    updateBracketBackground as apiUpdateBracketBackground,
+    removeBracketBackground as apiRemoveBracketBackground,
+    getBracketBackground as apiGetBracketBackground,
+} from "@/service/tournament.js";
 const emit = defineEmits(["close"]);
+
+const props = defineProps({
+    tournamentId: {
+        type: [Number, String],
+        default: null,
+    },
+    tournamentTypeId: {
+        type: [Number, String],
+        default: null,
+    },
+    bracketData: {
+        type: Object,
+        default: () => ({}),
+    },
+    rankData: {
+        type: Object,
+        default: () => ({}),
+    },
+    // ✅ Props mới cho background
+    isCreator: {
+        type: Boolean,
+        default: false,
+    },
+    bracketBackgroundUrl: {
+        type: String,
+        default: null,
+    },
+});
 
 const bracketContainer = ref(null);
 const bracketContent = ref(null);
 const isFullscreen = ref(false);
 const scale = ref(1);
+
+// ✅ State cho background modal
+const showBackgroundModal = ref(false);
+const currentBackgroundUrl = ref(null);
+const backgroundPreviewUrl = ref(null);
+const pendingBackgroundFile = ref(null);
+const backgroundFileInput = ref(null);
+const isUploadingBackground = ref(false);
+
+// Khởi tạo giá trị ban đầu từ prop (sau khi props đã sẵn sàng)
+currentBackgroundUrl.value = props.bracketBackgroundUrl || null;
+
+// Watch prop thay đổi để cập nhật background
+watch(
+    () => props.bracketBackgroundUrl,
+    (newUrl) => {
+        if (newUrl !== currentBackgroundUrl.value) {
+            currentBackgroundUrl.value = newUrl || null;
+        }
+    },
+);
+
+// ✅ Computed: style cho container với dynamic background
+const bracketContainerStyle = computed(() => {
+    const url = currentBackgroundUrl.value;
+    if (url) {
+        return {
+            backgroundImage: `url("${url}")`,
+            backgroundSize: '100% 100%',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            backgroundAttachment: 'fixed',
+        };
+    }
+    // Fallback về ảnh mặc định của dự án
+    return {};
+});
 
 const updateScale = () => {
     if (!bracketContainer.value || !bracketContent.value) return;
@@ -844,25 +986,6 @@ const MatchCard = defineComponent({
     },
 });
 
-const props = defineProps({
-    tournamentId: {
-        type: [Number, String],
-        default: null,
-    },
-    tournamentTypeId: {
-        type: [Number, String],
-        default: null,
-    },
-    bracketData: {
-        type: Object,
-        default: () => ({}),
-    },
-    rankData: {
-        type: Object,
-        default: () => ({}),
-    },
-});
-
 const bracket = ref({});
 const refreshInterval = ref(null); // Lưu interval ID để clear khi unmount
 
@@ -995,12 +1118,14 @@ const fetchBracketData = async () => {
         );
 
         bracket.value = {
-            poolStage: response.poolStage || [],
-            leftSide: response.leftSide || [],
-            rightSide: response.rightSide || [],
-            finalMatch: response.finalMatch || null,
-            thirdPlaceMatch: response.thirdPlaceMatch || null,
+            poolStage: response.poolStage || response.pool_stage || [],
+            leftSide: response.leftSide || response.left_side || [],
+            rightSide: response.rightSide || response.right_side || [],
+            finalMatch: response.finalMatch || response.final_match || null,
+            thirdPlaceMatch: response.thirdPlaceMatch || response.third_place_match || null,
             has_third_place_match: response.has_third_place_match,
+            // ✅ Giữ lại knockout_stage để có thể tự tính lại left/right nếu cần
+            knockout_stage: response.knockout_stage || [],
         };
     } catch (error) {
         // Không hiển thị error khi auto-refresh để tránh spam
@@ -1219,10 +1344,86 @@ const normalizeMatch = (match) => {
 };
 
 
+/**
+ * ✅ Helper: Tự tính lại leftSide/rightSide từ knockout_stage
+ * vì backend chia left/right theo next_position có thể sai bố cục
+ * Logic: với mỗi round, một nửa đầu matches là left, một nửa sau là right
+ */
+const computeLeftRightFromKnockoutStage = (knockoutStage) => {
+    if (!knockoutStage || knockoutStage.length === 0) {
+        return { leftSide: [], rightSide: [], finalMatch: null, thirdPlaceMatch: null };
+    }
+
+    const leftSide = [];
+    const rightSide = [];
+    let finalMatch = null;
+    let thirdPlaceMatch = null;
+
+    const maxRound = Math.max(...knockoutStage.map((r) => r.round || 0));
+
+    knockoutStage.forEach((roundData) => {
+        const round = roundData.round || 0;
+        const roundName = roundData.round_name;
+        const matches = roundData.matches || [];
+
+        // Tách final match (round cuối, không phải tranh hạng 3)
+        if (round === maxRound) {
+            const finalMatchData = matches.find(
+                (m) => m.is_third_place !== true && m.is_third_place !== 1,
+            );
+            if (finalMatchData && !finalMatch) {
+                finalMatch = finalMatchData;
+                return; // final match không thuộc left/right
+            }
+        }
+
+        // Tách third place match
+        const thirdPlaceData = matches.find(
+            (m) => m.is_third_place === true || m.is_third_place === 1,
+        );
+        if (thirdPlaceData && !thirdPlaceMatch) {
+            thirdPlaceMatch = thirdPlaceData;
+            return; // third place không thuộc left/right
+        }
+
+        // Nếu round chỉ có 1 match thì đó là final (đã xử lý ở trên)
+        // Chia đều: nửa đầu = left, nửa sau = right
+        const mid = Math.ceil(matches.length / 2);
+        const leftMatches = matches.slice(0, mid);
+        const rightMatches = matches.slice(mid);
+
+        if (leftMatches.length > 0) {
+            leftSide.push({
+                round: round,
+                round_name: roundName,
+                matches: leftMatches,
+            });
+        }
+
+        if (rightMatches.length > 0) {
+            rightSide.push({
+                round: round,
+                round_name: roundName,
+                matches: rightMatches,
+            });
+        }
+    });
+
+    return { leftSide, rightSide, finalMatch, thirdPlaceMatch };
+};
+
 const leftRounds = computed(() => {
-    const data = (bracket.value.leftSide || []).sort(
-        (a, b) => a.round - b.round,
-    );
+    // ✅ Ưu tiên dùng leftSide từ bracket
+    // Nếu leftSide rỗng nhưng có knockout_stage, tự tính lại từ knockout_stage
+    let data = bracket.value.leftSide || [];
+
+    if (data.length === 0 && bracket.value.knockout_stage && bracket.value.knockout_stage.length > 0) {
+        const computed = computeLeftRightFromKnockoutStage(bracket.value.knockout_stage);
+        data = computed.leftSide;
+    }
+
+    data = [...data].sort((a, b) => a.round - b.round);
+
     if (data.length > 0) {
         // Normalize matches trong mỗi round
         return data.map(round => ({
@@ -1234,7 +1435,16 @@ const leftRounds = computed(() => {
 });
 
 const rightRounds = computed(() => {
-    const data = (bracket.value.rightSide || [])
+    // ✅ Ưu tiên dùng rightSide từ bracket
+    // Nếu rightSide rỗng nhưng có knockout_stage, tự tính lại từ knockout_stage
+    let data = bracket.value.rightSide || [];
+
+    if (data.length === 0 && bracket.value.knockout_stage && bracket.value.knockout_stage.length > 0) {
+        const computed = computeLeftRightFromKnockoutStage(bracket.value.knockout_stage);
+        data = computed.rightSide;
+    }
+
+    data = [...data]
         .filter(
             (r) =>
                 !r.matches.some(
@@ -1254,11 +1464,17 @@ const rightRounds = computed(() => {
 });
 
 const finalMatch = computed(() => {
+    // ✅ Nếu finalMatch rỗng, thử lấy từ knockout_stage
+    if (!bracket.value.finalMatch && bracket.value.knockout_stage && bracket.value.knockout_stage.length > 0) {
+        const computed = computeLeftRightFromKnockoutStage(bracket.value.knockout_stage);
+        if (computed.finalMatch) return normalizeMatch(computed.finalMatch);
+    }
     if (bracket.value.finalMatch) return normalizeMatch(bracket.value.finalMatch);
     return createPlaceholderMatch(999);
 });
 
 const thirdPlaceMatch = computed(() => {
+    // ✅ Nếu thirdPlaceMatch rỗng, thử lấy từ knockout_stage
     const rightSide = bracket.value.rightSide || [];
     for (const round of rightSide) {
         const match = round.matches.find(
@@ -1267,6 +1483,12 @@ const thirdPlaceMatch = computed(() => {
         if (match) return normalizeMatch(match);
     }
     if (bracket.value.thirdPlaceMatch) return normalizeMatch(bracket.value.thirdPlaceMatch);
+
+    // Fallback: lấy từ knockout_stage
+    if (bracket.value.knockout_stage && bracket.value.knockout_stage.length > 0) {
+        const computed = computeLeftRightFromKnockoutStage(bracket.value.knockout_stage);
+        if (computed.thirdPlaceMatch) return normalizeMatch(computed.thirdPlaceMatch);
+    }
     return createPlaceholderMatch("3rd");
 });
 
@@ -1285,15 +1507,174 @@ const hasThirdPlaceMatch = computed(() => {
     const match = thirdPlaceMatch.value;
     return match && match.match_id && !match.match_id.includes('placeholder');
 });
+
+// ============================================================
+// ✅ Background management (chỉ dành cho creator)
+// ============================================================
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+
+const openBackgroundModal = async () => {
+    showBackgroundModal.value = true;
+    backgroundPreviewUrl.value = null;
+    pendingBackgroundFile.value = null;
+
+    // Refresh URL hiện tại từ API để đảm bảo cập nhật mới nhất
+    if (props.tournamentId) {
+        try {
+            const res = await apiGetBracketBackground(props.tournamentId);
+            if (res?.bracket_background_url !== undefined) {
+                currentBackgroundUrl.value = res.bracket_background_url || null;
+            }
+        } catch (err) {
+            console.error('Lỗi khi load bracket background:', err);
+            // Fallback: giữ giá trị hiện tại
+        }
+    }
+};
+
+const closeBackgroundModal = () => {
+    if (isUploadingBackground.value) return;
+    showBackgroundModal.value = false;
+    backgroundPreviewUrl.value = null;
+    pendingBackgroundFile.value = null;
+    if (backgroundFileInput.value) {
+        backgroundFileInput.value.value = '';
+    }
+};
+
+const handleBackgroundFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+        pendingBackgroundFile.value = null;
+        backgroundPreviewUrl.value = null;
+        return;
+    }
+
+    // Validate size
+    if (file.size > MAX_FILE_SIZE) {
+        toast.error('Ảnh không được vượt quá 5MB');
+        event.target.value = '';
+        pendingBackgroundFile.value = null;
+        backgroundPreviewUrl.value = null;
+        return;
+    }
+
+    // Validate type
+    if (!ALLOWED_TYPES.includes(file.type)) {
+        toast.error('Chỉ chấp nhận ảnh JPG, PNG, WEBP');
+        event.target.value = '';
+        pendingBackgroundFile.value = null;
+        backgroundPreviewUrl.value = null;
+        return;
+    }
+
+    pendingBackgroundFile.value = file;
+
+    // Tạo preview local
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        backgroundPreviewUrl.value = e.target.result;
+    };
+    reader.readAsDataURL(file);
+};
+
+const handleSaveBackground = async () => {
+    if (!pendingBackgroundFile.value) {
+        toast.warning('Vui lòng chọn ảnh');
+        return;
+    }
+    if (!props.tournamentId) {
+        toast.error('Không tìm thấy tournament ID');
+        return;
+    }
+
+    isUploadingBackground.value = true;
+    try {
+        const res = await apiUpdateBracketBackground(
+            props.tournamentId,
+            pendingBackgroundFile.value,
+        );
+        if (res?.bracket_background_url !== undefined) {
+            currentBackgroundUrl.value = res.bracket_background_url || null;
+        }
+        toast.success(res?.message || 'Cập nhật ảnh nền thành công');
+        closeBackgroundModal();
+    } catch (error) {
+        const errorMsg =
+            error.response?.data?.message ||
+            error.message ||
+            'Có lỗi xảy ra khi cập nhật ảnh nền';
+        toast.error(errorMsg);
+    } finally {
+        isUploadingBackground.value = false;
+    }
+};
+
+const handleRemoveBackground = async () => {
+    if (!props.tournamentId) return;
+    if (!window.confirm('Bạn có chắc muốn xoá ảnh nền và quay về ảnh mặc định?')) {
+        return;
+    }
+
+    isUploadingBackground.value = true;
+    try {
+        const res = await apiRemoveBracketBackground(props.tournamentId);
+        currentBackgroundUrl.value = res?.bracket_background_url || null;
+        toast.success(res?.message || 'Đã xoá ảnh nền');
+        closeBackgroundModal();
+    } catch (error) {
+        const errorMsg =
+            error.response?.data?.message ||
+            error.message ||
+            'Có lỗi xảy ra khi xoá ảnh nền';
+        toast.error(errorMsg);
+    } finally {
+        isUploadingBackground.value = false;
+    }
+};
 </script>
 
 <style scoped>
+.bracket-bg-container {
+    /* ✅ Mặc định: dùng ảnh bracket-bg.png của dự án
+       Khi user chọn ảnh riêng, style này sẽ bị override bằng inline style */
+    background-image: url("@/assets/images/bracket-bg.png");
+    background-size: 100% 100%;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+}
+
+/* Backward compat: giữ class cũ để không vỡ những chỗ dùng class này */
 .bg-image-container {
     background-image: url("@/assets/images/bracket-bg.png");
     background-size: 100% 100%;
     background-position: center;
     background-repeat: no-repeat;
     background-attachment: fixed;
+}
+
+/* ✅ Transition cho modal background */
+.bg-modal-enter-active,
+.bg-modal-leave-active {
+    transition: opacity 0.25s ease;
+}
+
+.bg-modal-enter-from,
+.bg-modal-leave-to {
+    opacity: 0;
+}
+
+.bg-modal-enter-active .bg-white,
+.bg-modal-leave-active .bg-white {
+    transition: transform 0.3s ease;
+}
+
+.bg-modal-enter-from .bg-white,
+.bg-modal-leave-to .bg-white {
+    transform: scale(0.95);
 }
 
 .bracket-scroll-container {
