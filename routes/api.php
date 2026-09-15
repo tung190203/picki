@@ -589,6 +589,15 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/{tournamentType}/knockout-rebuild-pairing', [TournamentTypeController::class, 'rebuildKnockoutPairing']);
     });
 
+    // ✅ Manual tiebreaker routes (bốc thăm / kéo-thả thủ công khi đội đồng hạng)
+    Route::middleware(['auth:api'])->prefix('tournament-types/{tournamentType}/groups/{group}')->group(function () {
+        Route::get('/pending-ties', [\App\Http\Controllers\Api\TiebreakerController::class, 'pendingTies']);
+        Route::post('/manual-tiebreaker', [\App\Http\Controllers\Api\TiebreakerController::class, 'store']);
+        Route::delete('/manual-tiebreaker', [\App\Http\Controllers\Api\TiebreakerController::class, 'destroy']);
+        Route::post('/manual-tiebreaker/cross', [\App\Http\Controllers\Api\TiebreakerController::class, 'storeCross']);
+        Route::delete('/manual-tiebreaker/cross', [\App\Http\Controllers\Api\TiebreakerController::class, 'destroyCross']);
+    });
+
     Route::prefix('matches')->group(function() {
         Route::match(['get', 'post'], '/index/{tournamentTypeId}', [MatchesController::class, 'index']);
         Route::get('/detail/{matchId}', [MatchesController::class, 'detail']);

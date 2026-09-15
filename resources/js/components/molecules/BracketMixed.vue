@@ -186,17 +186,42 @@
                         :key="group.group_id"
                         class="bg-gray-100 dark:bg-[#161F33] border border-gray-200 dark:border-slate-700 rounded-lg shadow overflow-hidden mb-4"
                     >
-                        <template
-                            v-if="group.rankings && group.rankings.length"
-                        >
+                        <template v-if="group.rankings && group.rankings.length">
                             <!-- Group Header -->
                             <div
                                 class="grid grid-cols-[20px_1fr_60px_60px] bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-slate-100 px-4 py-2 font-semibold text-sm border-b border-gray-300 dark:border-slate-500"
                             >
                                 <span>#</span>
-                                <span>{{ group.group_name }}</span>
+                                <span class="flex items-center gap-2">
+                                    {{ group.group_name }}
+                                    <!-- ✅ Badge: group cần bốc thăm -->
+                                    <span
+                                        v-if="group.rankings.some(t => t.pending_tie)"
+                                        class="inline-flex items-center px-1.5 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 text-[10px] font-semibold uppercase"
+                                    >
+                                        Chờ bốc thăm
+                                    </span>
+                                </span>
                                 <span class="text-center">Điểm</span>
-                                <span class="text-center">Hiệu số</span>
+                                <span class="text-center">
+                                    <span>Hiệu số</span>
+                                </span>
+                            </div>
+
+                            <!-- ✅ Toolbar: Bốc thăm (chỉ hiện khi cần) -->
+                            <div
+                                v-if="group.rankings.some(t => t.pending_tie)"
+                                class="bg-yellow-50 dark:bg-yellow-900/20 border-b border-yellow-200 dark:border-yellow-800/50 px-4 py-2"
+                            >
+                                <button
+                                    @click="openManualTiebreaker(group)"
+                                    class="text-xs px-3 py-1 rounded bg-[#D72D36] hover:bg-red-700 text-white font-medium transition-colors"
+                                >
+                                    Mở bốc thăm
+                                </button>
+                                <span class="ml-2 text-xs text-yellow-700 dark:text-yellow-300">
+                                    Có {{ group.rankings.filter(t => t.pending_tie).length }} đội đang đồng hạng
+                                </span>
                             </div>
 
                             <!-- Teams -->
@@ -205,6 +230,9 @@
                                     v-for="(team, index) in group.rankings"
                                     :key="team.team_id"
                                     class="grid grid-cols-[20px_1fr_60px_60px] items-center px-4 py-3 bg-white dark:bg-[#161F33] hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors duration-200"
+                                    :class="{
+                                        'bg-yellow-50/40 dark:bg-yellow-900/10': team.pending_tie,
+                                    }"
                                 >
                                     <span
                                         class="font-bold text-lg"
@@ -213,8 +241,7 @@
                                             'text-gray-400 dark:text-slate-500': index === 1,
                                             'text-orange-500': index === 2,
                                         }"
-                                        >{{ index + 1 }}</span
-                                    >
+                                        >{{ index + 1 }}</span>
 
                                     <div class="flex items-center gap-2">
                                         <img
@@ -229,6 +256,14 @@
                                         >
                                             {{ team.team_name }}
                                         </p>
+                                        <!-- ✅ Badge: team này đang đồng hạng -->
+                                        <span
+                                            v-if="team.pending_tie"
+                                            class="inline-flex items-center px-1.5 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 text-[10px] font-semibold"
+                                            title="Đội này đang đồng hạng — cần bốc thăm/kéo-thả"
+                                        >
+                                            Đồng hạng
+                                        </span>
                                     </div>
 
                                     <span
@@ -378,6 +413,16 @@
                 </div>
             </div>
         </div>
+
+        <!-- ✅ Manual Tiebreaker Modal (Bốc thăm thủ công) -->
+        <ManualTiebreakerModal
+            v-if="tiebreakerContext.groupId && currentTournamentTypeId"
+            v-model="showManualTiebreakerModal"
+            :tournament-type-id="currentTournamentTypeId"
+            :group-id="tiebreakerContext.groupId"
+            :group-name="tiebreakerContext.groupName"
+            @saved="onTiebreakerSaved"
+        />
     </div>
 </template>
 
@@ -389,6 +434,7 @@ import {
 } from "@heroicons/vue/24/solid";
 import CreateMatch from "@/components/molecules/CreateMatch.vue";
 import PoolStageMatchCard from "@/components/molecules/PoolStageMatchCard.vue";
+import ManualTiebreakerModal from "@/components/molecules/ManualTiebreakerModal.vue";
 import * as MatchesService from "@/service/match.js";
 import { toast } from "vue3-toastify";
 
@@ -415,6 +461,10 @@ const draggedTeam = ref(null);
 const dropTargetMatch = ref(null);
 const dropTargetPosition = ref(null);
 const showRankingModal = ref(false);
+
+// ✅ Manual tiebreaker state
+const showManualTiebreakerModal = ref(false);
+const tiebreakerContext = ref({ groupId: null, groupName: '', tournamentTypeId: null });
 
 const activeBranch = ref('main');
 
@@ -516,6 +566,33 @@ const hasAnyRanking = computed(() => {
         (g) => g.rankings && g.rankings.length > 0,
     );
 });
+
+// ✅ Manual tiebreaker — tổng số team đang đồng hạng để hiển thị badge
+const hasPendingTies = computed(() => {
+    return props.rank?.group_rankings?.some((g) =>
+        g.rankings?.some((t) => t.pending_tie),
+    );
+});
+
+// ✅ Lấy tournament_type_id từ props.tournament
+const currentTournamentTypeId = computed(() => {
+    return props.tournament?.tournament_types?.[0]?.id || null;
+});
+
+// ✅ Mở modal bốc thăm cho 1 group cụ thể
+const openManualTiebreaker = (group) => {
+    tiebreakerContext.value = {
+        groupId: group.group_id,
+        groupName: group.group_name,
+        tournamentTypeId: currentTournamentTypeId.value,
+    };
+    showManualTiebreakerModal.value = true;
+};
+
+// ✅ Callback khi lưu xong → refresh rank
+const onTiebreakerSaved = () => {
+    emit('refresh');
+};
 
 const handleDragLeave = ({ event }) => {
     const rect = event.currentTarget.getBoundingClientRect();

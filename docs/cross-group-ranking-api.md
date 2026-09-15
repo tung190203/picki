@@ -246,3 +246,100 @@ Có thể override bằng cách set `format_specific_config[0].ranking` (mảng 
 | `matches[].opponent_group_position` | integer\|null | Thứ hạng cuối cùng của đối thủ trong bảng |
 
 ---
+
+## API 3: Lấy Bảng Xếp Hạng (Rankings) — có `need_draw_lots` + `advanced_team_ids`
+
+### Endpoint
+
+```
+GET /api/tournament-types/{tournamentType}/rank
+```
+
+### Mục đích
+
+Trả về BXH chi tiết cho từng bảng + BXH tổng, kèm **2 field mới** giúp frontend xác định nhóm đang chờ bốc thăm:
+
+- `need_draw_lots` — true khi có cụm đồng hạng cần BTC xử lý.
+- `advanced_team_ids` — danh sách team_id đã chắc chắn đi tiếp (loại trừ các vị trí đang chờ bốc thăm).
+
+> **Tài liệu liên quan**: [manual-tiebreaker-api.md](./manual-tiebreaker-api.md) — chỉnh sửa thủ công thứ hạng khi đồng hạng.
+
+### Schema Response (TH có chia bảng)
+
+```json
+{
+  "status": true,
+  "message": "...",
+  "data": {
+    "group_rankings": [
+      {
+        "group_id": 1,
+        "group_name": "Bảng A",
+        "need_draw_lots": true,
+        "advanced_team_ids": [101, 102],
+        "rankings": [
+          {
+            "rank": 1,
+            "team_id": 101,
+            "team_name": "Đoàn Trần - Radio",
+            "team_avatar": "...",
+            "played": 3,
+            "wins": 2,
+            "draws": 1,
+            "losses": 0,
+            "points": 7,
+            "points_for": 35,
+            "points_against": 30,
+            "point_diff": 5,
+            "sets_won": 6,
+            "sets_lost": 3,
+            "sets_diff": 3,
+            "win_rate": 66.67,
+            "pending_tie": false
+          },
+          {
+            "rank": 2,
+            "team_id": 102,
+            "team_name": "Duy Nguyễn",
+            "points": 7,
+            "point_diff": 5,
+            "win_rate": 66.67,
+            "sets_diff": 3,
+            "points_for": 35,
+            "pending_tie": true
+          }
+        ]
+      }
+    ],
+    "overall_rankings": [ /* ... */ ]
+  }
+}
+```
+
+### Các trường mới
+
+| Trường | Kiểu | Mô tả |
+|--------|------|--------|
+| `need_draw_lots` | boolean | `true` khi trong BXH có >=2 team đồng hạng trên TẤT CẢ ranking keys thực sự (không tính H2H vì cycle). Frontend dùng để hiển thị badge "Chờ bốc thăm" + mở Modal bốc thăm. |
+| `advanced_team_ids` | int[] | Danh sách team_id đã được xác định rõ ràng đi tiếp (= top N-1 nếu ranh giới đồng hạng, hoặc top N nếu không). FE dựa vào đây + `advanced_per_group` để tính còn bao nhiêu suất cần bốc thêm. |
+| `rankings[].pending_tie` | boolean | `true` nếu team thuộc cụm đồng hạng (>=2 team cùng stats). Frontend dùng để highlight dòng vàng + thêm badge "Đồng hạng". |
+| `points_for` | int | ✅ NEW: tổng điểm/bàn ghi được (cho rule GOALS_SCORED). |
+| `sets_won`, `sets_lost`, `sets_diff` | int | ✅ NEW: tổng hiệp thắng/thua/hiệu số hiệp (cho rule SETS_WON). |
+
+### Logic `need_draw_lots`
+
+`true` nếu có cụm >=2 team đồng hạng trên TẤT CẢ ranking keys (không tính `RANKING_HEAD_TO_HEAD` + `RANKING_RANDOM_DRAW`).
+
+Đặc biệt: nếu cụm đồng hạng nằm **ở ranh giới N/N+1** (số team đi tiếp) → `need_draw_lots = true` → FE nên ưu tiên mở modal bốc thăm.
+
+### Logic `advanced_team_ids`
+
+- Nếu group có `<= num_advancing` team → trả về TẤT CẢ team.
+- Nếu group có `> num_advancing` team + ranh giới đồng hạng → trả về `top (num_advancing - 1)`.
+- Nếu group có `> num_advancing` team + không có ranh giới đồng hạng → trả về `top num_advancing`.
+
+`num_advancing` = max(`rank`) của REAL `PoolAdvancementRule` cho group đó (mỗi rule đại diện cho 1 spot: Nhất/Nhì/Ba).
+
+### TH không chia bảng
+
+Response chỉ trả `rankings[]`, không có `need_draw_lots` + `advanced_team_ids` (vì BXH chung toàn giải không có ranh giới đội đi tiếp).

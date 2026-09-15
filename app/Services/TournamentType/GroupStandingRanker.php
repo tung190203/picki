@@ -7,6 +7,9 @@ use App\Models\Matches;
 use Illuminate\Support\Collection;
 
 /**
+    10| * Helper tính BXH cho 1 group có áp dụng ranking rules đã cấu hình.
+
+/**
  * Helper tính BXH cho 1 group có áp dụng ranking rules đã cấu hình.
  *
  * Mục đích:
@@ -77,9 +80,28 @@ class GroupStandingRanker
             return self::compareByRankingRules($a, $b, $rankingRules, $matches);
         })->values();
 
-        // Gắn rank (1-based)
-        return $sorted->map(function (array $entry, int $idx) {
+        // ✅ B.4 — Áp dụng manual tiebreaker (nếu BTC đã set)
+        $manualService = app(ManualTiebreakerService::class);
+        $sorted = $manualService->applyManualToGroup(
+            $sorted,
+            (int) $group->tournament_type_id,
+            (int) $group->id,
+            $rankingRules
+        )->values();
+
+        // ✅ A.6 — Đánh dấu team thuộc cụm đồng hạng (cho FE hiển thị badge + modal)
+        $tiedClusters = $manualService->findTiedClusters($sorted, $rankingRules);
+        $tiedTeamIds = [];
+        foreach ($tiedClusters as $cluster) {
+            foreach ($cluster['team_ids'] as $tid) {
+                $tiedTeamIds[$tid] = true;
+            }
+        }
+
+        // Gắn rank (1-based) + cờ pending_tie
+        return $sorted->map(function (array $entry, int $idx) use ($tiedTeamIds) {
             $entry['rank'] = $idx + 1;
+            $entry['pending_tie'] = isset($tiedTeamIds[(int) $entry['team_id']]);
             return $entry;
         });
     }
@@ -211,6 +233,12 @@ class GroupStandingRanker
             $statsByTeamId[$homeId]['played']++;
             $statsByTeamId[$awayId]['played']++;
 
+            // Cộng dồn sets thắng/thua (cho rule RANKING_SETS_WON)
+            $statsByTeamId[$homeId]['sets_won'] += $homeSetWins;
+            $statsByTeamId[$homeId]['sets_lost'] += $awaySetWins;
+            $statsByTeamId[$awayId]['sets_won'] += $awaySetWins;
+            $statsByTeamId[$awayId]['sets_lost'] += $homeSetWins;
+
             $statsByTeamId[$homeId]['points_for'] += $homePoints;
             $statsByTeamId[$homeId]['points_against'] += $awayPoints;
             $statsByTeamId[$awayId]['points_for'] += $awayPoints;
@@ -241,6 +269,7 @@ class GroupStandingRanker
             }
             $row = $statsByTeamId[$teamId];
             $row['point_diff'] = $row['points_for'] - $row['points_against'];
+            $row['sets_diff'] = (int)$row['sets_won'] - (int)$row['sets_lost'];
             $row['win_rate'] = $row['played'] > 0
                 ? round(($row['wins'] / $row['played']) * 100, 2)
                 : 0.0;
@@ -266,13 +295,16 @@ class GroupStandingRanker
             $cmp = match ((int) $ruleId) {
                 \App\Models\TournamentType::RANKING_WIN_DRAW_LOSE_POINTS => self::cmpScalar($a, $b, 'points'),
                 \App\Models\TournamentType::RANKING_WIN_RATE => self::cmpScalar($a, $b, 'win_rate'),
-                // SETS_WON (3) không có ở controller getRank → bỏ qua để consistent
+                // ✅ FIX: Bật lại SETS_WON (rule 3) — sort theo hiệu số hiệp (sets_diff DESC)
+                \App\Models\TournamentType::RANKING_SETS_WON => self::cmpScalar($a, $b, 'sets_diff'),
                 \App\Models\TournamentType::RANKING_POINTS_WON => self::cmpScalar($a, $b, 'point_diff'),
                 \App\Models\TournamentType::RANKING_HEAD_TO_HEAD => self::cmpHeadToHead(
                     (int) $a['team_id'],
                     (int) $b['team_id'],
                     $matches
                 ),
+                // ✅ FIX: Bật GOALS_SCORED (rule 7) — sort theo tổng điểm ghi được (points_for DESC)
+                \App\Models\TournamentType::RANKING_GOALS_SCORED => self::cmpScalar($a, $b, 'points_for'),
                 \App\Models\TournamentType::RANKING_RANDOM_DRAW => ((int) $a['team_id']) <=> ((int) $b['team_id']),
                 default => 0,
             };
@@ -353,6 +385,9 @@ class GroupStandingRanker
             'points_for' => 0,
             'points_against' => 0,
             'point_diff' => 0,
+            'sets_won' => 0,        // ✅ NEW: tổng hiệp thắng (cho SETS_WON)
+            'sets_lost' => 0,       // ✅ NEW: tổng hiệp thua
+            'sets_diff' => 0,       // ✅ NEW: hiệu số hiệp (sets_won - sets_lost)
             'win_rate' => 0.0,
         ];
     }

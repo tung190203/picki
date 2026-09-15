@@ -12,6 +12,7 @@ class MatchResult extends Model
     protected $fillable = [
         'match_id',
         'team_id',
+        'participant_id',
         'score',
         'set_number',
         'won_match',
@@ -22,6 +23,7 @@ class MatchResult extends Model
     ];
 
     protected $casts = [
+        'participant_id' => 'integer',
         'score' => 'integer',
         'set_number' => 'integer',
         'team_score' => 'integer',
