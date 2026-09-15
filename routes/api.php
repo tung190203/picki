@@ -514,6 +514,11 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/store', [TournamentController::class, 'store']);
         Route::post('/update/{id}', [TournamentController::class, 'update']);
         Route::post('/delete', [TournamentController::class, 'destroy']);
+
+        // ✅ Bracket background (cho modal sơ đồ thi đấu BracketMixedPreview)
+        Route::get('/{id}/bracket-background', [TournamentController::class, 'getBracketBackground']);
+        Route::post('/{id}/bracket-background', [TournamentController::class, 'updateBracketBackground']);
+
         // Participant check-in / absent (organizer / club staff)
         Route::post('/{id}/participants/{participantId}/mark-check-in', [TournamentController::class, 'markParticipantCheckIn']);
         Route::post('/{id}/participants/{participantId}/mark-absent', [TournamentController::class, 'markParticipantAbsent']);
