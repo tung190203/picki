@@ -1,22 +1,22 @@
 <template>
-  <div class="flex min-h-screen overflow-x-hidden" style="background-color: var(--surface-bright, #fff8f7); color: var(--on-surface, #271716);">
+  <div class="flex min-h-screen bg-[#f7f9fb] font-body text-slate-800 overflow-x-hidden">
     <!-- SideNavBar -->
     <AdminSidebar />
 
     <!-- Main Content Area -->
-    <main class="flex-1 md:ml-64 min-h-screen" style="background-color: var(--surface-bright, #fff8f7);">
-    <AdminHeader />
+    <main class="flex-1 md:ml-64 min-h-screen bg-[#f7f9fb] pb-16">
+      <AdminHeader />
 
       <!-- Loading State -->
       <div v-if="loading" class="p-8 max-w-[1400px] mx-auto">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div v-for="i in 4" :key="i" class="h-28 rounded-xl animate-pulse" style="background-color: var(--surface-container-low, #fff0ef);"></div>
+          <div v-for="i in 4" :key="i" class="h-28 rounded-2xl animate-pulse bg-white border border-slate-200/80 shadow-sm"></div>
         </div>
       </div>
 
       <!-- Error State -->
       <div v-else-if="error" class="p-8">
-        <div class="p-6 rounded-xl text-center" style="background-color: var(--error-container, #ffdad6); color: var(--on-error-container, #93000a);">
+        <div class="p-6 rounded-2xl text-center bg-red-50 text-red-700 border border-red-200">
           {{ error }}
         </div>
       </div>
@@ -26,54 +26,47 @@
         <!-- Hero Stats -->
         <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div v-for="stat in topStats" :key="stat.label"
-            class="rounded-xl p-6 transition-all border-l-4 shadow-sm"
-            style="background-color: var(--surface-container-low, #fff0ef);"
+            class="bg-white rounded-2xl p-6 transition-all border-l-4 border-y border-r border-slate-200/80 shadow-sm"
             :class="stat.borderColor"
           >
-            <p class="text-[11px] font-bold uppercase tracking-widest mb-2" style="color: var(--on-surface-variant, #5b403d); font-family: 'Inter', sans-serif;">{{ stat.label }}</p>
+            <p class="text-[11px] font-bold uppercase tracking-widest mb-2 text-slate-500 font-body">{{ stat.label }}</p>
             <div class="flex items-baseline gap-3">
               <h2 class="text-3xl font-extrabold" style="font-family: 'Manrope', sans-serif;" :style="{ color: stat.valueColor }">{{ stat.value }}</h2>
-              <span v-if="stat.trend" class="text-xs font-bold flex items-center" style="color: var(--tertiary, #00627d);">
+              <span v-if="stat.trend" class="text-xs font-bold flex items-center text-sky-700">
                 <span class="material-symbols-outlined text-xs mr-0.5">trending_up</span>
                 {{ stat.trend }}
               </span>
-              <span v-else-if="stat.subtext" class="text-[10px] font-medium" style="color: var(--on-surface-variant, #5b403d);">{{ stat.subtext }}</span>
+              <span v-else-if="stat.subtext" class="text-[10px] font-medium text-slate-400">{{ stat.subtext }}</span>
             </div>
           </div>
         </section>
 
         <!-- Urgent Alerts -->
         <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div class="p-5 rounded-xl flex items-center justify-between border shadow-sm"
-            style="background-color: rgba(255,210,207,0.4); border-color: rgba(186,26,26,0.1);">
+          <div class="p-5 rounded-2xl flex items-center justify-between border border-red-200 bg-red-50/50 shadow-sm">
             <div class="flex items-center gap-4">
-              <div class="w-12 h-12 rounded-full flex items-center justify-center shadow-md text-white"
-                style="background-color: var(--error, #ba1a1a);">
+              <div class="w-12 h-12 rounded-full flex items-center justify-center shadow-md text-white bg-red-600">
                 <span class="material-symbols-outlined icon-fill">gavel</span>
               </div>
               <div>
-                <h3 class="font-bold" style="font-family: 'Manrope', sans-serif; color: var(--on-error-container, #93000a);">{{ disputeAlert?.count ?? 0 }} Kết quả đang Tranh chấp</h3>
-                <p class="text-sm" style="color: rgba(147,0,10,0.7);">Yêu cầu can thiệp ngay lập tức.</p>
+                <h3 class="font-bold text-red-950" style="font-family: 'Manrope', sans-serif;">{{ disputeAlert?.count ?? 0 }} Kết quả đang Tranh chấp</h3>
+                <p class="text-sm text-red-700">Yêu cầu can thiệp ngay lập tức.</p>
               </div>
             </div>
-            <button class="px-4 py-2 rounded-lg text-sm font-bold shadow-lg text-white transition-all hover:opacity-90 active:scale-95"
-              style="background-color: var(--error, #ba1a1a);">Xử lý ngay</button>
+            <button class="px-4 py-2 rounded-xl text-sm font-bold shadow-md text-white transition-all hover:opacity-90 active:scale-95 bg-red-600">Xử lý ngay</button>
           </div>
 
-          <div class="p-5 rounded-xl flex items-center justify-between border shadow-sm"
-            style="background-color: var(--surface-container-low, #fff0ef); border-color: rgba(228,190,186,0.3);">
+          <div class="p-5 rounded-2xl flex items-center justify-between border border-slate-200/80 bg-white shadow-sm">
             <div class="flex items-center gap-4">
-              <div class="w-12 h-12 rounded-full flex items-center justify-center"
-                style="background-color: var(--surface-container-high, #ffe2de); color: var(--on-surface-variant, #5b403d);">
+              <div class="w-12 h-12 rounded-full flex items-center justify-center bg-amber-50 text-amber-600">
                 <span class="material-symbols-outlined">report</span>
               </div>
               <div>
-                <h3 class="font-bold" style="font-family: 'Manrope', sans-serif; color: var(--on-surface, #271716);">{{ reportAlert?.count ?? 0 }} Report Vi phạm & Toxic</h3>
-                <p class="text-sm" style="color: var(--on-surface-variant, #5b403d);">Kiểm tra lịch sử chat và hành vi người dùng.</p>
+                <h3 class="font-bold text-slate-800" style="font-family: 'Manrope', sans-serif;">{{ reportAlert?.count ?? 0 }} Report Vi phạm & Toxic</h3>
+                <p class="text-sm text-slate-500">Kiểm tra lịch sử chat và hành vi người dùng.</p>
               </div>
             </div>
-            <button class="px-4 py-2 rounded-lg text-sm font-bold transition-all hover:opacity-80 active:scale-95"
-              style="background-color: var(--surface-variant, #fadcd9); color: var(--on-surface-variant, #5b403d);">Review</button>
+            <button class="px-4 py-2 rounded-xl text-sm font-bold transition-all hover:bg-slate-200 active:scale-95 bg-slate-100 text-slate-700">Review</button>
           </div>
         </section>
 
@@ -82,15 +75,13 @@
           <!-- New Users -->
           <section class="xl:col-span-1 space-y-4">
             <div class="flex items-center justify-between px-2">
-              <h3 class="font-bold text-lg" style="font-family: 'Manrope', sans-serif; color: var(--on-surface, #271716);">User Mới Đăng Ký</h3>
+              <h3 class="font-bold text-lg text-slate-800" style="font-family: 'Manrope', sans-serif;">User Mới Đăng Ký</h3>
               <router-link :to="{ name: 'admin.moderation', query: { tab: 'users' } }"
-                class="text-xs font-bold uppercase tracking-tight hover:underline cursor-pointer"
-                style="color: var(--primary, #b3111b);">Xem tất cả</router-link>
+                class="text-xs font-bold uppercase tracking-tight hover:underline cursor-pointer text-[#b3111b]">Xem tất cả</router-link>
             </div>
             <div class="grid grid-cols-1 gap-4">
               <div v-for="user in mappedNewUsers" :key="user.id"
-                class="flex items-center gap-4 p-3 rounded-2xl transition-all cursor-pointer group"
-                style="background-color: var(--surface-container-lowest, #ffffff);">
+                class="flex items-center gap-4 p-3 rounded-2xl transition-all cursor-pointer group bg-white border border-slate-200/80 shadow-sm hover:border-slate-300">
                 <div class="relative flex-shrink-0">
                   <div class="w-16 h-16 rounded-full overflow-hidden border-2 border-white shadow-sm">
                     <img :src="user.avatar_url" alt="Avatar" class="w-full h-full object-cover" />
@@ -100,12 +91,11 @@
                   <div class="absolute bottom-0 -right-0.5 w-5 h-5 rounded-full border-2 border-white shadow-sm" style="background-color: #00B16A;"></div>
                 </div>
                 <div class="flex flex-col justify-center gap-0.5">
-                  <h4 class="font-bold text-[17px] leading-tight transition-colors group-hover:text-[#b3111b]"
-                    style="color: #373A40;">{{ user.full_name }}</h4>
-                  <p class="text-[13px] font-medium" style="color: #9BA4B5;">Tham gia {{ user.joinedDaysAgo }}</p>
+                  <h4 class="font-bold text-[17px] leading-tight transition-colors group-hover:text-[#b3111b] text-slate-800">{{ user.full_name }}</h4>
+                  <p class="text-[13px] font-medium text-slate-400">Tham gia {{ user.joinedDaysAgo }}</p>
                 </div>
               </div>
-              <div v-if="mappedNewUsers.length === 0" class="text-center py-8" style="color: var(--on-surface-variant, #5b403d);">
+              <div v-if="mappedNewUsers.length === 0" class="text-center py-8 text-slate-400">
                 Chưa có user mới đăng ký.
               </div>
             </div>
@@ -114,15 +104,14 @@
           <!-- Active Matches -->
           <section class="xl:col-span-2 space-y-4">
             <div class="flex items-center justify-between px-2">
-              <h3 class="font-bold text-lg" style="font-family: 'Manrope', sans-serif; color: var(--on-surface, #271716);">Kèo mới đang mở</h3>
+              <h3 class="font-bold text-lg text-slate-800" style="font-family: 'Manrope', sans-serif;">Kèo mới đang mở</h3>
               <router-link :to="{ name: 'admin.moderation', query: { tab: 'matches' } }"
-                class="text-xs font-bold uppercase tracking-tight hover:underline cursor-pointer"
-                style="color: var(--primary, #b3111b);">Xem tất cả</router-link>
+                class="text-xs font-bold uppercase tracking-tight hover:underline cursor-pointer text-[#b3111b]">Xem tất cả</router-link>
             </div>
-            <div class="rounded-xl shadow-sm border" style="background-color: var(--surface-container-low, #fff0ef); border-color: rgba(228,190,186,0.1);">
+            <div class="rounded-2xl shadow-sm border border-slate-200/80 bg-white overflow-hidden">
               <table class="w-full text-left border-collapse">
                 <thead>
-                  <tr style="background-color: var(--surface-container-high, #ffe2de);">
+                  <tr class="bg-slate-50 border-b border-slate-200">
                     <th class="table-head">Thời gian</th>
                     <th class="table-head">Kèo</th>
                     <th class="table-head">Địa điểm</th>
@@ -130,22 +119,21 @@
                     <th class="table-head text-right">Trạng thái</th>
                   </tr>
                 </thead>
-                <tbody class="divide-y" style="border-color: rgba(228,190,186,0.1);">
+                <tbody class="divide-y divide-slate-100">
                   <tr v-for="match in openMatches" :key="match.id"
-                    class="transition-colors group cursor-pointer"
-                    style="background-color: rgba(255,240,239,0.5);">
+                    class="transition-colors group cursor-pointer hover:bg-slate-50/80">
                     <td class="px-6 py-4">
-                      <div class="font-bold text-sm" style="color: var(--on-surface, #271716);">{{ match.time }}</div>
-                      <div class="text-[10px]" style="color: var(--on-surface-variant, #5b403d);">{{ match.date }}</div>
+                      <div class="font-bold text-sm text-slate-800">{{ match.time }}</div>
+                      <div class="text-[10px] text-slate-400">{{ match.date }}</div>
                     </td>
                     <td class="px-6 py-4">
-                      <div class="font-bold text-sm" style="color: var(--on-surface, #271716);">{{ match.title }}</div>
+                      <div class="font-bold text-sm text-slate-800">{{ match.title }}</div>
                     </td>
                     <td class="px-6 py-4">
-                      <span class="text-sm font-medium" style="color: var(--on-surface-variant, #5b403d);">{{ match.location || '—' }}</span>
+                      <span class="text-sm font-medium text-slate-600">{{ match.location || '—' }}</span>
                     </td>
                     <td class="px-6 py-4">
-                      <span class="text-sm font-medium" style="color: var(--on-surface-variant, #5b403d);">
+                      <span class="text-sm font-medium text-slate-600">
                         {{ match.players_count }}/4 người
                       </span>
                     </td>
@@ -154,7 +142,7 @@
                     </td>
                   </tr>
                   <tr v-if="openMatches.length === 0">
-                    <td colspan="5" class="px-6 py-8 text-center" style="color: var(--on-surface-variant, #5b403d);">Không có kèo nào đang mở.</td>
+                    <td colspan="5" class="px-6 py-8 text-center text-slate-400">Không có kèo nào đang mở.</td>
                   </tr>
                 </tbody>
               </table>
@@ -164,16 +152,14 @@
 
         <!-- Tournaments section -->
         <section class="space-y-4">
-            <div class="flex items-center justify-between px-2">
-              <h3 class="font-bold text-lg" style="font-family: 'Manrope', sans-serif; color: var(--on-surface, #271716);">Giải đấu mới</h3>
-              <router-link :to="{ name: 'admin.moderation', query: { tab: 'tournaments' } }"
-                class="text-xs font-bold uppercase tracking-tight hover:underline cursor-pointer"
-                style="color: var(--primary, #b3111b);">Xem tất cả</router-link>
-            </div>
+          <div class="flex items-center justify-between px-2">
+            <h3 class="font-bold text-lg text-slate-800" style="font-family: 'Manrope', sans-serif;">Giải đấu mới</h3>
+            <router-link :to="{ name: 'admin.moderation', query: { tab: 'tournaments' } }"
+              class="text-xs font-bold uppercase tracking-tight hover:underline cursor-pointer text-[#b3111b]">Xem tất cả</router-link>
+          </div>
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div v-for="t in openTournaments" :key="t.id"
-              class="group rounded-xl overflow-hidden transition-all duration-300 transform hover:-translate-y-1 shadow-sm"
-              style="background-color: var(--surface-container-low, #fff0ef); border: 1px solid rgba(228,190,186,0.1);">
+              class="group rounded-2xl overflow-hidden transition-all duration-300 transform hover:-translate-y-1 shadow-sm bg-white border border-slate-200/80">
               <div class="relative h-48 overflow-hidden">
                 <img :src="t.image" alt="Banner giải đấu" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 <div class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/80 to-transparent"></div>
@@ -182,20 +168,18 @@
                 </div>
               </div>
               <div class="p-5 space-y-4">
-                <div class="flex justify-between items-center text-xs" style="color: var(--on-surface-variant, #5b403d);">
+                <div class="flex justify-between items-center text-xs text-slate-500">
                   <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">calendar_today</span>{{ t.dates }}</span>
                   <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">location_on</span>{{ t.location }}</span>
                 </div>
-                <div class="flex items-center gap-3 py-2 border-y" style="border-color: rgba(228,190,186,0.1); color: var(--on-surface-variant, #5b403d);">
-                  <div class="w-6 h-6 rounded-full border border-white flex items-center justify-center text-[8px] font-bold shadow-sm"
-                    style="background-color: var(--surface-container-high, #ffe2de);">{{ t.regCount }}</div>
+                <div class="flex items-center gap-3 py-2 border-y border-slate-100 text-slate-500">
+                  <div class="w-6 h-6 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center text-[8px] font-bold text-slate-700 shadow-sm">{{ t.regCount }}</div>
                   <span class="text-[10px] font-medium">{{ t.regText }}</span>
                 </div>
-                <button class="w-full py-2.5 rounded-xl font-bold text-sm shadow-md transition-all hover:opacity-90 active:scale-95 text-white"
-                  style="background-color: var(--primary, #b3111b);">Register Now</button>
+                <button class="w-full py-2.5 rounded-xl font-bold text-sm shadow-md transition-all hover:opacity-90 active:scale-95 text-white bg-[#b3111b]">Register Now</button>
               </div>
             </div>
-            <div v-if="openTournaments.length === 0" class="col-span-full text-center py-8" style="color: var(--on-surface-variant, #5b403d);">
+            <div v-if="openTournaments.length === 0" class="col-span-full text-center py-8 text-slate-400">
               Không có giải đấu nào đang mở.
             </div>
           </div>
@@ -633,12 +617,10 @@ const openTournaments = computed(() => {
 <style scoped>
 .font-manrope { font-family: 'Manrope', sans-serif; }
 .table-head {
-  @apply px-6 py-4 text-[11px] font-bold uppercase tracking-widest;
-  color: var(--on-surface-variant, #5b403d);
+  @apply px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-500;
 }
 
 .nav-btn {
-  background-color: var(--surface-container-high, #ffe2de);
-  @apply w-8 h-8 rounded-full flex items-center justify-center hover:bg-primary hover:text-white transition-colors duration-200;
+  @apply w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 text-slate-700 hover:bg-[#b3111b] hover:text-white transition-colors duration-200;
 }
 </style>

@@ -9,25 +9,25 @@
 
         <!-- Ranking Modal - Full Screen -->
         <Teleport to="body">
-            <Transition name="modal">
+                <Transition name="modal">
                 <div
                     v-if="showRankingModal"
                     class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
                     @click.self="showRankingModal = false"
                 >
                     <div
-                        class="bg-white rounded-lg w-full h-full overflow-auto p-8"
+                        class="bg-white dark:bg-[#161F33] rounded-lg w-full h-full overflow-auto p-8"
                     >
                         <div class="flex justify-between items-center mb-6">
-                            <h2 class="text-2xl font-bold text-gray-800">
+                            <h2 class="text-2xl font-bold text-gray-800 dark:text-slate-100">
                                 Bảng xếp hạng chi tiết
                             </h2>
                             <button
                                 @click="showRankingModal = false"
-                                class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors"
+                                class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
                             >
                                 <svg
-                                    class="w-6 h-6 text-gray-600"
+                                    class="w-6 h-6 text-gray-600 dark:text-slate-300"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -44,7 +44,7 @@
 
                         <div
                             v-if="!hasAnyRanking"
-                            class="py-12 text-center text-gray-500 text-lg"
+                            class="py-12 text-center text-gray-500 dark:text-slate-400 text-lg"
                         >
                             Chưa có dữ liệu bảng xếp hạng
                         </div>
@@ -56,7 +56,11 @@
                             <div
                                 v-for="group in rank.group_rankings"
                                 :key="group.group_id"
-                                class="bg-gray-100 rounded-lg shadow-lg overflow-hidden"
+                                class="bg-gray-100 dark:bg-[#161F33] rounded-lg shadow-lg overflow-hidden transition-all duration-300"
+                                :class="{
+                                    'border-2 border-yellow-400 dark:border-yellow-500 ring-2 ring-yellow-300/50 dark:ring-yellow-600/30': group.need_draw_lots === true,
+                                    'border border-gray-200 dark:border-slate-700': group.need_draw_lots !== true,
+                                }"
                             >
                                 <template
                                     v-if="
@@ -65,29 +69,64 @@
                                 >
                                     <!-- Table Header -->
                                     <div
-                                        class="grid grid-cols-[40px_1fr_70px_70px] bg-gray-200 px-4 py-2 text-gray-600 font-semibold text-sm"
+                                        class="grid grid-cols-[40px_1fr_70px_70px] bg-gray-200 dark:bg-slate-700 px-4 py-2 text-gray-600 dark:text-slate-200 font-semibold text-sm"
+                                        :class="{
+                                            'bg-yellow-100 dark:bg-yellow-900/40': group.need_draw_lots === true,
+                                        }"
                                     >
                                         <span>#</span>
-                                        <span>{{ group.group_name }}</span>
+                                        <span class="flex items-center gap-2">
+                                            {{ group.group_name }}
+                                            <!-- ✅ Badge: cần bốc thăm -->
+                                            <span
+                                                v-if="group.need_draw_lots === true"
+                                                class="inline-flex items-center px-1.5 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 text-[10px] font-bold uppercase animate-pulse"
+                                            >
+                                                ⚡ Cần bốc thăm
+                                            </span>
+                                            <!-- ✅ Badge: đang thi đấu -->
+                                            <span
+                                                v-else-if="group.need_draw_lots === null"
+                                                class="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 text-[10px] font-medium uppercase"
+                                            >
+                                                Đang thi đấu
+                                            </span>
+                                        </span>
                                         <span class="text-center">Điểm</span>
                                         <span class="text-center">Hiệu số</span>
                                     </div>
 
+                                    <!-- ✅ Banner: bốc thăm -->
+                                    <div
+                                        v-if="group.need_draw_lots === true"
+                                        class="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/30 dark:to-orange-900/20 px-3 py-2 text-center"
+                                    >
+                                        <button
+                                            @click="openManualTiebreaker(group)"
+                                            class="w-full px-3 py-1.5 text-xs font-semibold rounded bg-[#D72D36] hover:bg-red-700 text-white transition-colors shadow-sm"
+                                        >
+                                            🎲 Bốc thăm cho bảng này
+                                        </button>
+                                    </div>
+
                                     <!-- Teams -->
-                                    <div class="divide-y divide-gray-200">
+                                    <div class="divide-y divide-gray-200 dark:divide-slate-700">
                                         <div
                                             v-for="(
                                                 team, index
                                             ) in group.rankings"
                                             :key="team.team_id"
-                                            class="grid grid-cols-[40px_1fr_70px_70px] items-center px-4 py-3 bg-white hover:bg-blue-50 transition-colors duration-200"
+                                            class="grid grid-cols-[40px_1fr_70px_70px] items-center px-4 py-3 bg-white dark:bg-[#161F33] hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors duration-200"
+                                            :class="{
+                                                'bg-yellow-50/60 dark:bg-yellow-900/15': team.pending_tie,
+                                            }"
                                         >
                                             <span
                                                 class="font-bold text-lg"
                                                 :class="{
                                                     'text-yellow-500':
                                                         index === 0,
-                                                    'text-gray-400':
+                                                    'text-gray-400 dark:text-slate-500':
                                                         index === 1,
                                                     'text-orange-500':
                                                         index === 2,
@@ -103,27 +142,34 @@
                                                         team.team_avatar ||
                                                         `https://placehold.co/40x40/BBBFCC/3E414C?text=${getTeamInitials(team.team_name)}`
                                                     "
-                                                    class="w-10 h-10 rounded-full border-2 border-gray-300 flex-shrink-0"
+                                                    class="w-10 h-10 rounded-full border-2 border-gray-300 dark:border-slate-600 flex-shrink-0"
                                                 />
                                                 <p
-                                                    class="text-sm font-medium truncate"
+                                                    class="text-sm font-medium text-gray-800 dark:text-slate-100 truncate"
                                                 >
                                                     {{ team.team_name }}
                                                 </p>
+                                                <!-- ✅ Badge: đồng hạng -->
+                                                <span
+                                                    v-if="team.pending_tie"
+                                                    class="inline-flex items-center px-1.5 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 text-[10px] font-semibold flex-shrink-0"
+                                                >
+                                                    Đồng hạng
+                                                </span>
                                             </div>
 
                                             <span
-                                                class="text-center font-bold text-lg text-blue-600"
+                                                class="text-center font-bold text-lg text-blue-600 dark:text-blue-400"
                                                 >{{ team.points }}</span
                                             >
                                             <span
                                                 class="text-center font-semibold"
                                                 :class="{
-                                                    'text-green-600':
+                                                    'text-green-600 dark:text-green-400':
                                                         team.point_diff > 0,
-                                                    'text-red-600':
+                                                    'text-red-600 dark:text-red-400':
                                                         team.point_diff < 0,
-                                                    'text-gray-600':
+                                                    'text-gray-600 dark:text-slate-400':
                                                         team.point_diff === 0,
                                                 }"
                                             >
@@ -148,25 +194,25 @@
             <div class="p-4 space-y-4">
                 <!-- Header -->
                 <div
-                    class="flex justify-between items-center p-4 bg-[#EDEEF2] rounded-md"
+                    class="flex justify-between items-center p-4 bg-gray-100 dark:bg-[#161F33] border border-gray-200 dark:border-slate-700 rounded-md"
                 >
-                    <h2 class="text-lg font-bold text-gray-800">
+                    <h2 class="text-lg font-bold text-gray-700 dark:text-slate-100">
                         Bảng xếp hạng
                     </h2>
                     <div class="flex gap-4">
                         <button
                             @click="showRankingModal = true"
-                            class="w-9 h-9 rounded-full shadow-lg flex items-center justify-center border border-[#BBBFCC] transition-colors duration-200 hover:bg-gray-100 hover:border-[#838799]"
+                            class="w-9 h-9 rounded-full shadow-lg flex items-center justify-center border border-gray-300 dark:border-slate-600 transition-colors duration-200 hover:bg-gray-200 dark:hover:bg-slate-700 hover:border-gray-400 dark:hover:border-slate-500"
                         >
                             <ArrowsPointingOutIcon
-                                class="w-5 h-5 text-[#838799] transition-colors duration-200 hover:text-black"
+                                class="w-5 h-5 text-gray-500 dark:text-slate-400 transition-colors duration-200 hover:text-gray-700 dark:hover:text-slate-200"
                             />
                         </button>
                         <button
-                            class="w-9 h-9 rounded-full shadow-lg flex items-center justify-center border border-[#BBBFCC] transition-colors duration-200 hover:bg-gray-100 hover:border-[#838799]"
+                            class="w-9 h-9 rounded-full shadow-lg flex items-center justify-center border border-gray-300 dark:border-slate-600 transition-colors duration-200 hover:bg-gray-200 dark:hover:bg-slate-700 hover:border-gray-400 dark:hover:border-slate-500"
                         >
                             <PencilIcon
-                                class="w-5 h-5 text-[#838799] transition-colors duration-200 hover:text-black"
+                                class="w-5 h-5 text-gray-500 dark:text-slate-400 transition-colors duration-200 hover:text-gray-700 dark:hover:text-slate-200"
                             />
                         </button>
                     </div>
@@ -175,7 +221,7 @@
                 <!-- Groups -->
                 <div
                     v-if="!hasAnyRanking"
-                    class="py-2 text-center text-gray-500"
+                    class="py-2 text-center text-gray-500 dark:text-slate-400"
                 >
                     Chưa có dữ liệu bảng xếp hạng
                 </div>
@@ -184,37 +230,98 @@
                     <div
                         v-for="group in rank.group_rankings"
                         :key="group.group_id"
-                        class="bg-gray-100 rounded-lg shadow overflow-hidden mb-4"
+                        class="bg-gray-100 dark:bg-[#161F33] rounded-lg shadow overflow-hidden mb-4 transition-all duration-300"
+                        :class="{
+                            'border-2 border-yellow-400 dark:border-yellow-500 shadow-yellow-200/50 dark:shadow-yellow-900/30 shadow-lg': group.need_draw_lots === true,
+                            'border border-gray-200 dark:border-slate-700': group.need_draw_lots !== true,
+                        }"
                     >
-                        <template
-                            v-if="group.rankings && group.rankings.length"
-                        >
+                        <template v-if="group.rankings && group.rankings.length">
                             <!-- Group Header -->
                             <div
-                                class="grid grid-cols-[20px_1fr_60px_60px] bg-gray-200 px-4 py-2 text-gray-600 font-semibold text-sm"
+                                class="grid grid-cols-[20px_1fr_60px_60px] bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-slate-100 px-4 py-2 font-semibold text-sm border-b border-gray-300 dark:border-slate-500"
+                                :class="{
+                                    'border-b-yellow-300 dark:border-b-yellow-600': group.need_draw_lots === true,
+                                }"
                             >
                                 <span>#</span>
-                                <span>{{ group.group_name }}</span>
+                                <span class="flex items-center gap-2">
+                                    {{ group.group_name }}
+                                    <!-- ✅ Badge: group cần bốc thăm (chỉ khi vòng bảng đã kết thúc + need_draw_lots === true) -->
+                                    <span
+                                        v-if="group.need_draw_lots === true"
+                                        class="inline-flex items-center px-1.5 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 text-[10px] font-semibold uppercase animate-pulse"
+                                    >
+                                        ⚡ Cần bốc thăm
+                                    </span>
+                                    <!-- ✅ Badge: chưa kết thúc vòng bảng -->
+                                    <span
+                                        v-else-if="group.need_draw_lots === null"
+                                        class="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 text-[10px] font-medium uppercase"
+                                    >
+                                        Đang thi đấu
+                                    </span>
+                                </span>
                                 <span class="text-center">Điểm</span>
-                                <span class="text-center">Hiệu số</span>
+                                <span class="text-center">
+                                    <span>Hiệu số</span>
+                                </span>
+                            </div>
+
+                            <!-- ✅ Banner: Bốc thăm (chỉ hiện khi need_draw_lots === true) -->
+                            <div
+                                v-if="group.need_draw_lots === true"
+                                class="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/30 dark:to-orange-900/20 border-b border-yellow-200 dark:border-yellow-800/50 px-4 py-3"
+                            >
+                                <div class="flex items-center justify-between flex-wrap gap-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-lg">🎲</span>
+                                        <div>
+                                            <p class="text-xs font-semibold text-yellow-800 dark:text-yellow-200">
+                                                Bảng "{{ group.group_name }}" cần bốc thăm để chọn đội vào vòng tiếp theo
+                                            </p>
+                                            <p class="text-[10px] text-yellow-600 dark:text-yellow-400 mt-0.5">
+                                                Có {{ group.rankings.filter(t => t.pending_tie).length }} đội đang đồng hạng tại ranh giới đi tiếp
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        @click="openManualTiebreaker(group)"
+                                        class="px-3 py-1.5 text-xs font-semibold rounded bg-[#D72D36] hover:bg-red-700 text-white transition-colors shadow-sm"
+                                    >
+                                        🎲 Mở bốc thăm
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- ✅ Toolbar: Đồng hạng không ở ranh giới (pending_tie nhưng need_draw_lots === false) -->
+                            <div
+                                v-else-if="group.rankings.some(t => t.pending_tie) && group.need_draw_lots === false"
+                                class="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800/50 px-4 py-2"
+                            >
+                                <span class="text-xs text-blue-700 dark:text-blue-300">
+                                    💡 Có {{ group.rankings.filter(t => t.pending_tie).length }} đội đồng hạng (không ảnh hưởng ranh giới đi tiếp)
+                                </span>
                             </div>
 
                             <!-- Teams -->
-                            <div class="divide-y divide-gray-200">
+                            <div class="divide-y divide-gray-200 dark:divide-slate-700">
                                 <div
                                     v-for="(team, index) in group.rankings"
                                     :key="team.team_id"
-                                    class="grid grid-cols-[20px_1fr_60px_60px] items-center px-4 py-3 bg-white hover:bg-blue-50 transition-colors duration-200"
+                                    class="grid grid-cols-[20px_1fr_60px_60px] items-center px-4 py-3 bg-white dark:bg-[#161F33] hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors duration-200"
+                                    :class="{
+                                        'bg-yellow-50/60 dark:bg-yellow-900/15': team.pending_tie,
+                                    }"
                                 >
                                     <span
                                         class="font-bold text-lg"
                                         :class="{
                                             'text-yellow-500': index === 0,
-                                            'text-gray-400': index === 1,
+                                            'text-gray-400 dark:text-slate-500': index === 1,
                                             'text-orange-500': index === 2,
                                         }"
-                                        >{{ index + 1 }}</span
-                                    >
+                                        >{{ index + 1 }}</span>
 
                                     <div class="flex items-center gap-2">
                                         <img
@@ -222,26 +329,34 @@
                                                 team.team_avatar ||
                                                 `https://placehold.co/40x40/BBBFCC/3E414C?text=${getTeamInitials(team.team_name)}`
                                             "
-                                            class="w-8 h-8 rounded-full border"
+                                            class="w-8 h-8 rounded-full border border-gray-300 dark:border-slate-600"
                                         />
                                         <p
-                                            class="text-sm font-medium max-w-[180px] whitespace-normal break-all"
+                                            class="text-sm font-medium text-gray-800 dark:text-slate-100 max-w-[180px] whitespace-normal break-all"
                                         >
                                             {{ team.team_name }}
                                         </p>
+                                        <!-- ✅ Badge: team này đang đồng hạng -->
+                                        <span
+                                            v-if="team.pending_tie"
+                                            class="inline-flex items-center px-1.5 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 text-[10px] font-semibold"
+                                            title="Đội này đang đồng hạng — cần bốc thăm/kéo-thả"
+                                        >
+                                            Đồng hạng
+                                        </span>
                                     </div>
 
                                     <span
-                                        class="text-center font-bold text-lg text-blue-600"
+                                        class="text-center font-bold text-lg text-blue-600 dark:text-blue-400"
                                         >{{ team.points }}</span
                                     >
                                     <span
                                         class="text-center font-semibold"
                                         :class="{
-                                            'text-green-600':
+                                            'text-green-600 dark:text-green-400':
                                                 team.point_diff > 0,
-                                            'text-red-600': team.point_diff < 0,
-                                            'text-gray-600':
+                                            'text-red-600 dark:text-red-400': team.point_diff < 0,
+                                            'text-gray-600 dark:text-slate-400':
                                                 team.point_diff === 0,
                                         }"
                                     >
@@ -259,13 +374,13 @@
         <!-- Cột bracket - Chiếm phần còn lại -->
         <div class="p-4 pt-0">
             <!-- Branch Switcher cho Vòng Tái sinh -->
-            <div v-if="hasResurrectionBracket" class="flex gap-2 mb-4 bg-gray-100 p-1.5 rounded-xl border border-gray-200 w-fit">
+            <div v-if="hasResurrectionBracket" class="flex gap-2 mb-4 bg-gray-100 dark:bg-[#1E293B] p-1.5 rounded-xl border border-gray-200 dark:border-slate-700 w-fit">
                 <button @click="activeBranch = 'main'"
-                    :class="['px-4 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer', activeBranch === 'main' ? 'bg-white text-[#D72D36] shadow-sm' : 'text-gray-600 hover:text-gray-900']">
+                    :class="['px-4 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer', activeBranch === 'main' ? 'bg-white dark:bg-[#161F33] text-[#D72D36] shadow-sm' : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white']">
                     {{ mainBracketName }}
                 </button>
                 <button @click="activeBranch = 'sub'"
-                    :class="['px-4 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer', activeBranch === 'sub' ? 'bg-white text-[#D72D36] shadow-sm' : 'text-gray-600 hover:text-gray-900']">
+                    :class="['px-4 py-2 rounded-lg font-bold text-xs transition-all cursor-pointer', activeBranch === 'sub' ? 'bg-white dark:bg-[#161F33] text-[#D72D36] shadow-sm' : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white']">
                     {{ subBracketName }}
                 </button>
             </div>
@@ -281,22 +396,22 @@
                         >
                             <div
                                 :class="roundHeaderClass(group.group_name, true)"
-                                class="flex justify-between items-center w-full mb-4 bg-[#EDEEF2] p-4"
+                                class="flex justify-between items-center w-full mb-4 bg-gray-100 dark:bg-[#161F33] border border-gray-200 dark:border-slate-700 p-4"
                             >
                                 <h2
-                                    class="font-bold text-[#3E414C] whitespace-nowrap"
+                                    class="font-bold text-gray-700 dark:text-slate-100 whitespace-nowrap"
                                 >
                                     {{ group.group_name }}
                                 </h2>
                                 <div class="flex items-center gap-2">
-                                    <span class="text-sm text-[#838799]"
+                                    <span class="text-sm text-gray-500 dark:text-slate-400"
                                         >Chưa xác định</span
                                     >
                                     <button
-                                        class="w-9 h-9 rounded-full flex items-center justify-center border border-[#BBBFCC] transition-colors duration-200 hover:bg-gray-100 hover:border-[#838799]"
+                                        class="w-9 h-9 rounded-full flex items-center justify-center border border-gray-300 dark:border-slate-600 transition-colors duration-200 hover:bg-gray-200 dark:hover:bg-slate-700 hover:border-gray-400 dark:hover:border-slate-500"
                                     >
                                         <PencilIcon
-                                            class="w-5 h-5 text-[#838799] transition-colors duration-200 hover:text-black"
+                                            class="w-5 h-5 text-gray-500 dark:text-slate-400 transition-colors duration-200 hover:text-gray-700 dark:hover:text-slate-200"
                                         />
                                     </button>
                                 </div>
@@ -333,10 +448,10 @@
                             :class="
                                 roundHeaderClass(roundData.round_name, false)
                             "
-                            class="flex justify-between items-center w-full mb-4 bg-[#EDEEF2] p-4"
+                            class="flex justify-between items-center w-full mb-4 bg-gray-100 dark:bg-[#161F33] border border-gray-200 dark:border-slate-700 p-4"
                         >
                             <h2
-                                class="font-bold text-[#3E414C] whitespace-nowrap"
+                                class="font-bold text-gray-700 dark:text-slate-100 whitespace-nowrap"
                             >
                                 {{
                                     roundData.matches.some(
@@ -347,14 +462,14 @@
                                 }}
                             </h2>
                             <div class="flex items-center gap-2">
-                                <span class="text-sm text-[#838799]"
+                                <span class="text-sm text-gray-500 dark:text-slate-400"
                                     >Chưa xác định</span
                                 >
                                 <button
-                                    class="w-9 h-9 rounded-full flex items-center justify-center border border-[#BBBFCC] transition-colors duration-200 hover:bg-gray-100 hover:border-[#838799]"
+                                    class="w-9 h-9 rounded-full flex items-center justify-center border border-gray-300 dark:border-slate-600 transition-colors duration-200 hover:bg-gray-200 dark:hover:bg-slate-700 hover:border-gray-400 dark:hover:border-slate-500"
                                 >
                                     <PencilIcon
-                                        class="w-5 h-5 text-[#838799] transition-colors duration-200 hover:text-black"
+                                        class="w-5 h-5 text-gray-500 dark:text-slate-400 transition-colors duration-200 hover:text-gray-700 dark:hover:text-slate-200"
                                     />
                                 </button>
                             </div>
@@ -378,6 +493,16 @@
                 </div>
             </div>
         </div>
+
+        <!-- ✅ Manual Tiebreaker Modal (Bốc thăm thủ công) -->
+        <ManualTiebreakerModal
+            v-if="tiebreakerContext.groupId && currentTournamentTypeId"
+            v-model="showManualTiebreakerModal"
+            :tournament-type-id="currentTournamentTypeId"
+            :group-id="tiebreakerContext.groupId"
+            :group-name="tiebreakerContext.groupName"
+            @saved="onTiebreakerSaved"
+        />
     </div>
 </template>
 
@@ -389,6 +514,7 @@ import {
 } from "@heroicons/vue/24/solid";
 import CreateMatch from "@/components/molecules/CreateMatch.vue";
 import PoolStageMatchCard from "@/components/molecules/PoolStageMatchCard.vue";
+import ManualTiebreakerModal from "@/components/molecules/ManualTiebreakerModal.vue";
 import * as MatchesService from "@/service/match.js";
 import { toast } from "vue3-toastify";
 
@@ -415,6 +541,10 @@ const draggedTeam = ref(null);
 const dropTargetMatch = ref(null);
 const dropTargetPosition = ref(null);
 const showRankingModal = ref(false);
+
+// ✅ Manual tiebreaker state
+const showManualTiebreakerModal = ref(false);
+const tiebreakerContext = ref({ groupId: null, groupName: '', tournamentTypeId: null });
 
 const activeBranch = ref('main');
 
@@ -516,6 +646,33 @@ const hasAnyRanking = computed(() => {
         (g) => g.rankings && g.rankings.length > 0,
     );
 });
+
+// ✅ Manual tiebreaker — tổng số team đang đồng hạng để hiển thị badge
+const hasPendingTies = computed(() => {
+    return props.rank?.group_rankings?.some((g) =>
+        g.rankings?.some((t) => t.pending_tie),
+    );
+});
+
+// ✅ Lấy tournament_type_id từ props.tournament
+const currentTournamentTypeId = computed(() => {
+    return props.tournament?.tournament_types?.[0]?.id || null;
+});
+
+// ✅ Mở modal bốc thăm cho 1 group cụ thể
+const openManualTiebreaker = (group) => {
+    tiebreakerContext.value = {
+        groupId: group.group_id,
+        groupName: group.group_name,
+        tournamentTypeId: currentTournamentTypeId.value,
+    };
+    showManualTiebreakerModal.value = true;
+};
+
+// ✅ Callback khi lưu xong → refresh rank
+const onTiebreakerSaved = () => {
+    emit('refresh');
+};
 
 const handleDragLeave = ({ event }) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -631,10 +788,10 @@ const roundHeaderClass = (roundName, isPoolStage) => {
     } else if (index === 0) {
         return "rounded-tl-md rounded-bl-md";
     } else if (index === keys.length - 1) {
-        return "rounded-tr-md rounded-br-md border-l border-white";
+        return "rounded-tr-md rounded-br-md border-l border-white dark:border-slate-700";
     }
 
-    return "border-l border-white";
+    return "border-l border-white dark:border-slate-700";
 };
 
 /* ===========================

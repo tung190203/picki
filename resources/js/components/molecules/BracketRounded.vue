@@ -4,19 +4,19 @@
 
     <div class="col-span-3">
   <div class="p-4 space-y-4 max-w-[450px]">
-    <!-- Header -->
-    <div class="flex justify-between items-center p-4 bg-[#EDEEF2] rounded-md shadow">
-      <h2 class="text-lg font-bold text-gray-800">Bảng xếp hạng</h2>
+        <!-- Header -->
+    <div class="flex justify-between items-center p-4 bg-gray-100 dark:bg-[#1E293B] rounded-md shadow">
+      <h2 class="text-lg font-bold text-gray-700 dark:text-slate-100">Bảng xếp hạng</h2>
       <button
-        class="w-9 h-9 rounded-full shadow-lg flex items-center justify-center border border-[#BBBFCC] transition-colors duration-200 hover:bg-gray-100 hover:border-[#838799]">
-        <PencilIcon class="w-5 h-5 text-[#838799] transition-colors duration-200 hover:text-black" />
+        class="w-9 h-9 rounded-full shadow-lg flex items-center justify-center border border-gray-300 dark:border-slate-600 transition-colors duration-200 hover:bg-gray-200 dark:hover:bg-slate-700 hover:border-gray-400 dark:hover:border-slate-500">
+        <PencilIcon class="w-5 h-5 text-gray-500 dark:text-slate-400 transition-colors duration-200 hover:text-gray-700 dark:hover:text-slate-200" />
       </button>
     </div>
 
     <!-- Rankings -->
-    <div class="bg-gray-100 rounded-lg shadow overflow-hidden">
+    <div class="bg-gray-100 dark:bg-[#1E293B] rounded-lg shadow overflow-hidden">
       <!-- Header Row -->
-      <div class="grid grid-cols-[40px_1fr_80px_80px] bg-gray-200 px-4 py-2 text-gray-600 font-semibold text-sm">
+      <div class="grid grid-cols-[40px_1fr_80px_80px] bg-gray-200 dark:bg-slate-700 px-4 py-2 text-gray-600 dark:text-slate-200 font-semibold text-sm">
         <span>#</span>
         <span>Đội</span>
         <span class="text-center">Điểm</span>
@@ -24,36 +24,36 @@
       </div>
 
       <!-- Teams -->
-      <div class="divide-y divide-gray-200">
+      <div class="divide-y divide-gray-200 dark:divide-slate-700">
         <!-- Có dữ liệu -->
         <template v-if="rank.rankings && rank.rankings.length">
           <div v-for="(team, index) in rank.rankings" :key="team.team_id"
-            class="grid grid-cols-[40px_1fr_80px_80px] items-center px-4 py-3 bg-white hover:bg-blue-50 transition-colors duration-200 cursor-pointer">
+            class="grid grid-cols-[40px_1fr_80px_80px] items-center px-4 py-3 bg-white dark:bg-[#161F33] hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors duration-200 cursor-pointer">
             <!-- Rank -->
-            <span class="text-gray-700 font-medium">{{ index + 1 }}</span>
+            <span class="text-gray-700 dark:text-slate-200 font-medium">{{ index + 1 }}</span>
 
             <!-- Team -->
             <div class="flex items-center gap-2">
-              <img :src="team.team_avatar || `https://placehold.co/40x40/BBBFCC/3E414C?text=${getTeamInitials(team.team_name)}`" alt="logo team" class="w-8 h-8 rounded-full border border-gray-300" />
-              <p class="text-gray-800 font-medium text-sm">
+              <img :src="team.team_avatar || `https://placehold.co/40x40/BBBFCC/3E414C?text=${getTeamInitials(team.team_name)}`" alt="logo team" class="w-8 h-8 rounded-full border border-gray-300 dark:border-slate-600" />
+              <p class="text-gray-800 dark:text-slate-100 font-medium text-sm">
                 {{ team.team_name }}
               </p>
             </div>
 
             <!-- Points -->
-            <span class="text-center font-semibold text-gray-700">
+            <span class="text-center font-semibold text-gray-700 dark:text-slate-200">
               {{ team.points }}
             </span>
 
             <!-- Point diff -->
-            <span class="text-center font-semibold text-gray-700">
+            <span class="text-center font-semibold text-gray-700 dark:text-slate-200">
               {{ team.point_diff }}
             </span>
           </div>
         </template>
 
         <!-- Không có dữ liệu -->
-        <div v-else class="px-4 py-6 text-center text-gray-400 italic">
+        <div v-else class="px-4 py-6 text-center text-gray-400 dark:text-slate-500 italic">
           Chưa có dữ liệu bảng xếp hạng
         </div>
       </div>
@@ -68,13 +68,13 @@
             class="round-column flex flex-col items-center pt-4 min-w-[280px]">
             
             <div :class="roundHeaderClass(roundData.round_name, bracket.bracket.map(r => r.round_name))"
-              class="flex justify-between items-center w-full mb-4 bg-[#EDEEF2] p-4">
-              <h2 class="font-bold text-[#3E414C] whitespace-nowrap">{{ roundData.round_name }}</h2>
+              class="flex justify-between items-center w-full mb-4 bg-gray-100 dark:bg-[#1E293B] p-4">
+              <h2 class="font-bold text-gray-700 dark:text-slate-100 whitespace-nowrap">{{ roundData.round_name }}</h2>
               <div class="flex items-center gap-2">
-                <span class="text-sm text-[#838799]">8:00</span>
+                <span class="text-sm text-gray-500 dark:text-slate-400">8:00</span>
                 <button
-                  class="w-9 h-9 rounded-full flex items-center justify-center border border-[#BBBFCC] transition-colors duration-200 hover:bg-gray-100 hover:border-[#838799]">
-                  <PencilIcon class="w-5 h-5 text-[#838799] transition-colors duration-200 hover:text-black" />
+                  class="w-9 h-9 rounded-full flex items-center justify-center border border-gray-300 dark:border-slate-600 transition-colors duration-200 hover:bg-gray-200 dark:hover:bg-slate-700 hover:border-gray-400 dark:hover:border-slate-500">
+                  <PencilIcon class="w-5 h-5 text-gray-500 dark:text-slate-400 transition-colors duration-200 hover:text-gray-700 dark:hover:text-slate-200" />
                 </button>
               </div>
             </div>
@@ -83,27 +83,27 @@
               :class="[matchCardWrapperClass(match),
                 { 'opacity-50': isDragging && draggedTeam?.matchId === match.match_id }
               ]"
-              class="match-card bg-[#dcdee6] rounded-lg mb-4 w-64 flex flex-col transition-all shadow-sm border"
+              class="match-card bg-gray-200 dark:bg-slate-700 rounded-lg mb-4 w-64 flex flex-col transition-all shadow-sm border"
             >
               
               <div :class="matchHeaderContentClass(match)"
-                class="flex justify-between items-center text-xs font-medium px-4 py-2 bg-[#dcdee6] rounded-tl-md rounded-tr-md">
+                class="flex justify-between items-center text-xs font-medium px-4 py-2 bg-gray-200 dark:bg-slate-700 rounded-tl-md rounded-tr-md">
                 <span class="uppercase">SÂN {{ match.legs?.[0]?.court || 1 }}</span>
                 <div class="flex items-center gap-2">
                   <span v-if="match.status === 'in_progress'" class="text-white font-bold text-xs flex items-center">
                     <VideoCameraIcon class="w-4 h-4 mr-1" /> Trực tiếp
                   </span>
-                  <span class="text-xs">{{ formatTime(match.legs?.[0]?.scheduled_at) }}</span>
+                  <span class="text-xs text-gray-500 dark:text-slate-400">{{ formatTime(match.legs?.[0]?.scheduled_at) }}</span>
                 </div>
               </div>
 
-              <div class="flex flex-col gap-3 rounded-lg shadow-md border border-[#dcdee6] bg-[#EDEEF2] px-4 py-3">
+              <div class="flex flex-col gap-3 rounded-lg shadow-md border border-gray-200 dark:border-slate-600 bg-gray-100 dark:bg-[#1E293B] px-4 py-3">
                 
                 <div v-tooltip="match.home_team.name"
                   class="flex justify-between items-center px-2 -mx-2 rounded transition-all"
                   :class="{
-                    'bg-blue-100 ring-2 ring-blue-400': isDropTarget(match.match_id, 'home'),
-                    'cursor-move hover:bg-gray-100': canDrag(match, roundData.round),
+                    'bg-blue-100 dark:bg-blue-900/40 ring-2 ring-blue-400 dark:ring-blue-500': isDropTarget(match.match_id, 'home'),
+                    'cursor-move hover:bg-gray-200 dark:hover:bg-slate-700': canDrag(match, roundData.round),
                     'cursor-pointer': !canDrag(match, roundData.round)
                   }"
                   :draggable="canDrag(match, roundData.round) ? 'true' : 'false'"
@@ -118,7 +118,7 @@
                     <img
                       :src="match.home_team.team_avatar || `https://placehold.co/40x40/BBBFCC/3E414C?text=${getTeamInitials(match.home_team.name)}`"
                       class="w-8 h-8 rounded-full" :alt="match.home_team.name" />
-                    <p class="text-sm font-semibold text-[#3E414C] truncate w-32">{{ match.home_team.name }}</p>
+                    <p class="text-sm font-semibold text-gray-700 dark:text-slate-100 truncate w-32">{{ match.home_team.name }}</p>
                   </div>
                   <span :class="scoreClass(match, 'home')" class="font-bold text-lg pointer-events-none">
                     {{ match.aggregate_score?.home ?? 0 }}
@@ -128,8 +128,8 @@
                 <div v-tooltip="match.away_team.name"
                   class="flex justify-between items-center px-2 -mx-2 rounded transition-all"
                   :class="{
-                    'bg-blue-100 ring-2 ring-blue-400': isDropTarget(match.match_id, 'away'),
-                    'cursor-move hover:bg-gray-100': canDrag(match, roundData.round),
+                    'bg-blue-100 dark:bg-blue-900/40 ring-2 ring-blue-400 dark:ring-blue-500': isDropTarget(match.match_id, 'away'),
+                    'cursor-move hover:bg-gray-200 dark:hover:bg-slate-700': canDrag(match, roundData.round),
                     'cursor-pointer': !canDrag(match, roundData.round)
                   }"
                   :draggable="canDrag(match, roundData.round) ? 'true' : 'false'"
@@ -144,7 +144,7 @@
                     <img
                       :src="match.away_team.team_avatar || `https://placehold.co/40x40/BBBFCC/3E414C?text=${getTeamInitials(match.away_team.name)}`"
                       class="w-8 h-8 rounded-full" :alt="match.away_team.name" />
-                    <p class="text-sm font-semibold text-[#3E414C] truncate w-32">{{ match.away_team.name }}</p>
+                    <p class="text-sm font-semibold text-gray-700 dark:text-slate-100 truncate w-32">{{ match.away_team.name }}</p>
                   </div>
                   <span :class="scoreClass(match, 'away')" class="font-bold text-lg pointer-events-none">
                     {{ match.aggregate_score?.away ?? 0 }}
@@ -286,36 +286,36 @@ const roundHeaderClass = (roundName, stageRounds) => {
   const index = stageRounds.indexOf(roundName);
 
   if (stageRounds.length === 1) {
-    return 'rounded-md border';
+    return 'rounded-md border border-gray-200 dark:border-slate-600';
   } else if (index === 0) {
     return 'rounded-tl-md rounded-bl-md';
   } else if (index === stageRounds.length - 1) {
     return 'rounded-tr-md rounded-br-md';
   } else {
-    return 'border-l border-r border-white';
+    return 'border-l border-r border-white dark:border-slate-700';
   }
 };
 
 const matchCardWrapperClass = (match) => {
     if (match.status === 'completed') return "border-green-500 bg-green-500";
     const hasStarted = match.legs?.some(l => l.status === 'completed');
-    if (hasStarted) return "border-yellow-500 bg-yellow-50";
-    return "border-gray-200";
+    if (hasStarted) return "border-amber-500 dark:border-amber-400 bg-amber-50 dark:bg-amber-900/20";
+    return "border-gray-200 dark:border-slate-600";
 };
 
 const matchHeaderContentClass = (match) => {
     if (match.status === 'completed') return 'text-white bg-green-500';
-    if (match.legs?.some(l => l.status === 'completed')) return 'text-white bg-yellow-500';
-    return 'text-[#838799]';
+    if (match.legs?.some(l => l.status === 'completed')) return 'text-white bg-amber-500';
+    return 'text-gray-500 dark:text-slate-300';
 };
 
 const scoreClass = (match, position) => {
   const s = match.aggregate_score;
-  if (!s || match.status !== 'completed') return 'text-[#3E414C]';
-  if (s.home === s.away) return 'text-[#3E414C]';
+  if (!s || match.status !== 'completed') return 'text-gray-700 dark:text-slate-100';
+  if (s.home === s.away) return 'text-gray-700 dark:text-slate-100';
   const isHomeWin = s.home > s.away;
-  if (position === 'home') return isHomeWin ? 'text-green-700' : 'text-red-700';
-  return isHomeWin ? 'text-red-700' : 'text-green-700';
+  if (position === 'home') return isHomeWin ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+  return isHomeWin ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400';
 };
 
 /* ===========================

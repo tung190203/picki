@@ -9,44 +9,44 @@
       <div class="p-8">
         <!-- Loading State -->
         <div v-if="dashboardLoading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-          <div v-for="i in 4" :key="i" class="h-28 rounded-xl animate-pulse" style="background-color: var(--surface-container-low, #fff0ef);"></div>
+          <div v-for="i in 4" :key="i" class="h-28 rounded-2xl animate-pulse bg-white border border-slate-200/80 shadow-sm"></div>
         </div>
 
         <!-- Error State -->
-        <div v-else-if="error" class="mb-8 p-6 rounded-xl text-center" style="background-color: var(--error-container, #ffdad6); color: var(--on-error-container, #93000a);">
+        <div v-else-if="error" class="mb-8 p-6 rounded-2xl text-center bg-red-50 text-red-700 border border-red-200">
           {{ error }}
         </div>
 
         <!-- Performance Insights -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-          <div class="insight-card bg-primary/5 border-primary/10 rounded-xl">
+          <div class="insight-card bg-white border border-slate-200/80 rounded-2xl shadow-sm">
             <span class="material-symbols-outlined text-primary text-4xl mb-4">groups</span>
-            <h4 class="font-headline font-bold text-lg mb-1 text-on-surface">Tổng Users</h4>
+            <h4 class="font-headline font-bold text-lg mb-1 text-slate-800">Tổng Users</h4>
             <p class="text-3xl font-headline font-extrabold text-primary">{{ dashboardStats?.user_growth?.total?.toLocaleString() ?? '...' }}</p>
-            <p class="text-xs text-on-surface-variant mt-2">+{{ dashboardStats?.user_growth?.new_this_week ?? 0 }} tuần này</p>
+            <p class="text-xs text-slate-500 mt-2">+{{ dashboardStats?.user_growth?.new_this_week ?? 0 }} tuần này</p>
           </div>
-          <div class="insight-card bg-surface-container-low border-outline-variant/10 rounded-xl">
-            <span class="material-symbols-outlined text-secondary text-4xl mb-4">sports_tennis</span>
-            <h4 class="font-headline font-bold text-lg mb-1 text-on-surface">Kèo Active</h4>
-            <p class="text-3xl font-headline font-extrabold text-on-surface">{{ dashboardStats?.mini_tournament_growth?.active_today ?? '...' }}</p>
-            <p class="text-xs text-on-surface-variant mt-2">{{ dashboardStats?.mini_tournament_growth?.growth_percent > 0 ? '+' : '' }}{{ dashboardStats?.mini_tournament_growth?.growth_percent ?? 0 }}% so với tuần trước</p>
+          <div class="insight-card bg-white border border-slate-200/80 rounded-2xl shadow-sm">
+            <span class="material-symbols-outlined text-[#af101a] text-4xl mb-4">sports_tennis</span>
+            <h4 class="font-headline font-bold text-lg mb-1 text-slate-800">Kèo Active</h4>
+            <p class="text-3xl font-headline font-extrabold text-slate-800">{{ dashboardStats?.mini_tournament_growth?.active_today ?? '...' }}</p>
+            <p class="text-xs text-slate-500 mt-2">{{ dashboardStats?.mini_tournament_growth?.growth_percent > 0 ? '+' : '' }}{{ dashboardStats?.mini_tournament_growth?.growth_percent ?? 0 }}% so với tuần trước</p>
           </div>
-          <div class="insight-card bg-tertiary-fixed-dim/20 border-tertiary/10 rounded-xl">
-            <span class="material-symbols-outlined text-tertiary text-4xl mb-4">emoji_events</span>
-            <h4 class="font-headline font-bold text-lg mb-1 text-on-surface">Giải Đấu</h4>
-            <p class="text-3xl font-headline font-extrabold text-tertiary">{{ dashboardStats?.tournaments_this_month ?? '...' }}</p>
-            <p class="text-xs text-on-surface-variant mt-2">Trong tháng này</p>
+          <div class="insight-card bg-white border border-slate-200/80 rounded-2xl shadow-sm">
+            <span class="material-symbols-outlined text-sky-600 text-4xl mb-4">emoji_events</span>
+            <h4 class="font-headline font-bold text-lg mb-1 text-slate-800">Giải Đấu</h4>
+            <p class="text-3xl font-headline font-extrabold text-sky-600">{{ dashboardStats?.tournaments_this_month ?? '...' }}</p>
+            <p class="text-xs text-slate-500 mt-2">Trong tháng này</p>
           </div>
-          <div class="insight-card bg-error-container/30 border-error/10 rounded-xl">
-            <span class="material-symbols-outlined text-error text-4xl mb-4">analytics</span>
-            <h4 class="font-headline font-bold text-lg mb-1 text-on-surface">Tỷ lệ tranh chấp</h4>
-            <p class="text-3xl font-headline font-extrabold text-error">{{ dashboardStats?.dispute_rate ?? '...' }}%</p>
-            <p class="text-xs text-on-surface-variant mt-2">{{ dashboardStats?.dispute_rate_change > 0 ? '↑' : '↓' }} {{ Math.abs(dashboardStats?.dispute_rate_change ?? 0) }}% so với tuần trước</p>
+          <div class="insight-card bg-white border border-slate-200/80 rounded-2xl shadow-sm">
+            <span class="material-symbols-outlined text-amber-500 text-4xl mb-4">analytics</span>
+            <h4 class="font-headline font-bold text-lg mb-1 text-slate-800">Tỷ lệ tranh chấp</h4>
+            <p class="text-3xl font-headline font-extrabold text-amber-600">{{ dashboardStats?.dispute_rate ?? '...' }}%</p>
+            <p class="text-xs text-slate-500 mt-2">{{ dashboardStats?.dispute_rate_change > 0 ? '↑' : '↓' }} {{ Math.abs(dashboardStats?.dispute_rate_change ?? 0) }}% so với tuần trước</p>
           </div>
         </div>
 
         <!-- Tab Navigation -->
-        <div class="flex items-center gap-1 mb-8 bg-surface-container-low rounded-2xl p-1.5 w-fit border border-outline-variant/10 shadow-sm">
+        <div class="flex items-center gap-1 mb-8 bg-white rounded-2xl p-1.5 w-fit border border-slate-200/80 shadow-sm">
           <button
             v-for="tab in tabs"
             :key="tab.key"
@@ -68,18 +68,18 @@
               <input
                 v-model="userSearch"
                 @input="onUserSearchInput"
-                class="bg-surface-container-low border-none rounded-xl py-2 pl-10 pr-4 text-sm w-64 focus:ring-2 focus:ring-secondary/20 transition-all outline-none"
+                class="bg-white border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-sm w-64 focus:border-primary transition-all outline-none shadow-sm text-slate-800 placeholder-slate-400"
                 placeholder="Tìm kiếm theo tên, email, SĐT..."
                 type="text"
               />
-              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
             </div>
           </div>
 
-          <div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm border border-outline-variant/5">
+          <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200/80">
             <table class="w-full text-left border-collapse">
               <thead>
-                <tr class="bg-surface-container-high">
+                <tr class="bg-slate-50 border-b border-slate-200">
                   <th class="table-head">Người dùng</th>
                   <th class="table-head">Liên hệ</th>
                   <th class="table-head">Badge</th>
@@ -90,16 +90,16 @@
                   <th class="table-head text-right text-right-important">Hành động</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-outline-variant/5">
-                <tr v-for="user in paginatedUsers" :key="user.id" class="hover:bg-surface-container-low transition-colors group">
+              <tbody class="divide-y divide-slate-100">
+                <tr v-for="user in paginatedUsers" :key="user.id" class="hover:bg-slate-50/80 transition-colors group">
                   <td class="px-6 py-4">
                     <div class="flex items-center gap-3">
-                      <div class="relative">
+                      <div class="relative flex-shrink-0">
                         <img :src="user.avatar" class="w-10 h-10 rounded-full object-cover shadow-sm" />
-                        <span v-if="user.is_online" class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-tertiary border-2 border-surface-container-lowest rounded-full"></span>
+                        <span v-if="user.is_online" class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-tertiary border-2 border-white rounded-full"></span>
                       </div>
                       <div>
-                        <p class="font-bold text-sm text-on-surface flex items-center gap-1.5">
+                        <p class="font-bold text-sm text-slate-800 flex items-center gap-1.5">
                           {{ user.name }}
                           <span v-if="user.is_super_admin" class="material-symbols-outlined text-xs text-primary" title="Super Admin">shield_person</span>
                         </p>
@@ -213,20 +213,20 @@
                         </button>
                         <div
                           v-if="openUserMenu === user.id"
-                          class="absolute right-0 mt-1 w-44 bg-surface-container-lowest border border-outline-variant/10 rounded-xl shadow-lg z-20 py-1"
+                          class="absolute right-0 mt-1 w-44 bg-white border border-slate-200/80 rounded-xl shadow-lg z-20 py-1"
                           @click.stop
                         >
                           <button
                             @click="resetRating(user)"
-                            class="w-full text-left px-3 py-2 text-xs hover:bg-surface-container-low transition-colors flex items-center gap-2"
+                            class="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 transition-colors flex items-center gap-2 text-slate-700"
                           >
-                            <span class="material-symbols-outlined text-base text-on-surface-variant">restart_alt</span>
+                            <span class="material-symbols-outlined text-base text-slate-400">restart_alt</span>
                             Reset rating
                           </button>
                           <button
                             v-if="!user.has_picki"
                             @click="grantPicki(user)"
-                            class="w-full text-left px-3 py-2 text-xs hover:bg-surface-container-low transition-colors flex items-center gap-2"
+                            class="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 transition-colors flex items-center gap-2 text-slate-700"
                           >
                             <span class="material-symbols-outlined text-base text-primary">workspace_premium</span>
                             Cấp Picki
@@ -234,7 +234,7 @@
                           <button
                             v-else
                             @click="revokePicki(user)"
-                            class="w-full text-left px-3 py-2 text-xs hover:bg-surface-container-low transition-colors flex items-center gap-2"
+                            class="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 transition-colors flex items-center gap-2 text-slate-700"
                           >
                             <span class="material-symbols-outlined text-base text-error">workspace_premium</span>
                             Thu hồi Picki
@@ -257,18 +257,18 @@
             <h3 class="font-headline font-bold text-xl">Quản lý kèo đấu</h3>
             <div class="relative">
               <input
-                class="bg-surface-container-low border-none rounded-xl py-2 pl-10 pr-4 text-sm w-64 focus:ring-2 focus:ring-secondary/20 transition-all outline-none"
+                class="bg-white border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-sm w-64 focus:border-primary transition-all outline-none shadow-sm text-slate-800 placeholder-slate-400"
                 placeholder="Tìm kiếm kèo..."
                 type="text"
               />
-              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
             </div>
           </div>
 
-          <div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm border border-outline-variant/5">
+          <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200/80">
             <table class="w-full text-left border-collapse">
               <thead>
-                <tr class="bg-surface-container-high">
+                <tr class="bg-slate-50 border-b border-slate-200">
                   <th class="table-head">Thời gian</th>
                   <th class="table-head">Sân & Địa điểm</th>
                   <th class="table-head">Người tạo</th>
@@ -277,15 +277,15 @@
                   <th class="table-head text-right text-right-important">Hành động</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-outline-variant/5">
-                <tr v-for="match in paginatedMatches" :key="match.id" class="hover:bg-surface-container-low transition-colors group">
+              <tbody class="divide-y divide-slate-100">
+                <tr v-for="match in paginatedMatches" :key="match.id" class="hover:bg-slate-50/80 transition-colors group">
                   <td class="px-6 py-4">
-                    <div class="font-bold text-sm text-on-surface">{{ match.time }}</div>
-                    <div class="text-[10px] text-on-surface-variant">{{ match.date }}</div>
+                    <div class="font-bold text-sm text-slate-800">{{ match.time }}</div>
+                    <div class="text-[10px] text-slate-400">{{ match.date }}</div>
                   </td>
                   <td class="px-6 py-4">
-                    <div class="font-bold text-sm text-on-surface">{{ match.court }}</div>
-                    <div class="text-[10px] text-on-surface-variant flex items-center gap-1">
+                    <div class="font-bold text-sm text-slate-800">{{ match.court }}</div>
+                    <div class="text-[10px] text-slate-500 flex items-center gap-1">
                       <span class="material-symbols-outlined text-xs">location_on</span> {{ match.location }}
                     </div>
                   </td>
@@ -293,14 +293,14 @@
                     <div class="flex items-center gap-2">
                       <img :src="match.creatorAvatar" class="w-8 h-8 rounded-full object-cover shadow-sm" />
                       <div>
-                        <p class="font-bold text-sm text-on-surface">{{ match.creator }}</p>
+                        <p class="font-bold text-sm text-slate-800">{{ match.creator }}</p>
                       </div>
                     </div>
                   </td>
                   <td class="px-6 py-4">
                     <div class="flex -space-x-2">
-                      <img v-for="(p, pi) in match.players" :key="pi" :src="p" class="w-7 h-7 rounded-full border-2 border-surface-container-low object-cover" />
-                      <div v-if="match.extra" class="w-7 h-7 rounded-full border-2 border-surface-container-low bg-surface-container-high flex items-center justify-center text-[10px] font-bold">+{{ match.extra }}</div>
+                      <img v-for="(p, pi) in match.players" :key="pi" :src="p" class="w-7 h-7 rounded-full border-2 border-white object-cover" />
+                      <div v-if="match.extra" class="w-7 h-7 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-700">+{{ match.extra }}</div>
                     </div>
                   </td>
                   <td class="px-6 py-4">
@@ -353,16 +353,16 @@
             <h3 class="font-headline font-bold text-xl">Quản lý giải đấu</h3>
             <div class="relative">
               <input
-                class="bg-surface-container-low border-none rounded-xl py-2 pl-10 pr-4 text-sm w-64 focus:ring-2 focus:ring-secondary/20 transition-all outline-none"
+                class="bg-white border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-sm w-64 focus:border-primary transition-all outline-none shadow-sm text-slate-800 placeholder-slate-400"
                 placeholder="Tìm kiếm giải đấu..."
                 type="text"
               />
-              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
             </div>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div v-for="t in paginatedTournaments" :key="t.id" class="group bg-surface-container-lowest rounded-xl overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 border border-outline-variant/10 shadow-sm">
+            <div v-for="t in paginatedTournaments" :key="t.id" class="group bg-white rounded-2xl overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-slate-200/80 shadow-sm">
               <div class="relative h-48 overflow-hidden">
                 <img :src="t.image" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 <div class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/80 to-transparent"></div>
@@ -375,12 +375,12 @@
                 </div>
               </div>
               <div class="p-5 space-y-4">
-                <div class="flex justify-between items-center text-on-surface-variant text-xs">
+                <div class="flex justify-between items-center text-slate-500 text-xs">
                   <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">calendar_today</span>{{ t.dates }}</span>
                   <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">location_on</span>{{ t.location }}</span>
                 </div>
-                <div class="flex items-center gap-3 py-2 border-y border-outline-variant/10 text-on-surface-variant">
-                  <div class="w-6 h-6 rounded-full bg-surface-container-high border border-white flex items-center justify-center text-[8px] font-bold shadow-sm">{{ t.regCount }}</div>
+                <div class="flex items-center gap-3 py-2 border-y border-slate-100 text-slate-500">
+                  <div class="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[8px] font-bold text-slate-700 shadow-sm">{{ t.regCount }}</div>
                   <span class="text-[10px] font-medium">{{ t.regText }}</span>
                 </div>
                 <div class="flex flex-wrap gap-2">
@@ -426,18 +426,18 @@
               <input
                 v-model="clubSearch"
                 @input="onClubSearchInput"
-                class="bg-surface-container-low border-none rounded-xl py-2 pl-10 pr-4 text-sm w-64 focus:ring-2 focus:ring-secondary/20 transition-all outline-none"
+                class="bg-white border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-sm w-64 focus:border-primary transition-all outline-none shadow-sm text-slate-800 placeholder-slate-400"
                 placeholder="Tìm kiếm câu lạc bộ..."
                 type="text"
               />
-              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
             </div>
           </div>
 
-          <div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm border border-outline-variant/5">
+          <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200/80">
             <table class="w-full text-left border-collapse">
               <thead>
-                <tr class="bg-surface-container-high">
+                <tr class="bg-slate-50 border-b border-slate-200">
                   <th class="table-head">Câu lạc bộ</th>
                   <th class="table-head">Quản trị viên</th>
                   <th class="table-head">Thành viên</th>
@@ -447,26 +447,26 @@
                   <th class="table-head text-right text-right-important">Hành động</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-outline-variant/5">
-                <tr v-for="club in paginatedClubs" :key="club.id" class="hover:bg-surface-container-low transition-colors group">
+              <tbody class="divide-y divide-slate-100">
+                <tr v-for="club in paginatedClubs" :key="club.id" class="hover:bg-slate-50/80 transition-colors group">
                   <td class="px-6 py-4">
                     <div class="flex items-center gap-3">
                       <img :src="club.avatar" class="w-10 h-10 rounded-full object-cover shadow-sm" />
                       <div>
-                        <p class="font-bold text-sm text-on-surface">{{ club.name }}</p>
-                        <p class="text-xs text-on-surface-variant truncate max-w-[200px]">{{ club.address }}</p>
+                        <p class="font-bold text-sm text-slate-800">{{ club.name }}</p>
+                        <p class="text-xs text-slate-500 truncate max-w-[200px]">{{ club.address }}</p>
                       </div>
                     </div>
                   </td>
                   <td class="px-6 py-4">
                     <div v-if="club.admin" class="flex items-center gap-2">
                       <img :src="club.adminAvatar" class="w-7 h-7 rounded-full object-cover shadow-sm" />
-                      <span class="text-sm text-on-surface font-medium">{{ club.admin.name }}</span>
+                      <span class="text-sm text-slate-800 font-medium">{{ club.admin.name }}</span>
                     </div>
-                    <span v-else class="text-xs text-on-surface-variant">—</span>
+                    <span v-else class="text-xs text-slate-400">—</span>
                   </td>
                   <td class="px-6 py-4">
-                    <span class="text-sm font-manrope font-bold text-on-surface">{{ club.membersCount }}</span>
+                    <span class="text-sm font-manrope font-bold text-slate-800">{{ club.membersCount }}</span>
                   </td>
                   <td class="px-6 py-4">
                     <span class="text-sm font-manrope font-bold text-secondary">{{ club.activeMatchesCount }}</span>
@@ -482,11 +482,14 @@
                       <button
                         :disabled="togglingId === club.id"
                         @click="toggleClubStatus(club)"
+                        class="h-8 px-3 rounded-lg text-xs font-bold transition-colors inline-flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
                         :class="club.isBanned
-                          ? 'px-3 py-1 bg-tertiary text-white rounded-lg text-xs font-bold shadow-md hover:bg-tertiary/90 transition-colors'
-                          : 'px-3 py-1 bg-error text-white rounded-lg text-xs font-bold shadow-lg shadow-error/20 hover:bg-error/90 transition-colors'"
+                          ? 'bg-tertiary hover:bg-tertiary/90 text-white'
+                          : 'bg-error hover:bg-error/90 text-white shadow-error/20'"
                       >
-                        {{ togglingId === club.id ? '...' : (club.isBanned ? 'Mở khóa' : 'Khoá') }}
+                        <span v-if="togglingId === club.id" class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                        <span v-else class="material-symbols-outlined text-sm">{{ club.isBanned ? 'lock_open' : 'block' }}</span>
+                        <span>{{ togglingId === club.id ? '...' : (club.isBanned ? 'Mở khóa' : 'Khoá') }}</span>
                       </button>
                     </div>
                   </td>
@@ -500,24 +503,34 @@
 
         <!-- ==================== TAB: VENUES ==================== -->
         <div v-if="activeTab === 'venues'">
-          <div class="flex items-center justify-between mb-6">
-            <h3 class="font-headline font-bold text-xl">Quản lý sân thi đấu</h3>
-            <div class="relative">
-              <input
-                v-model="venueSearch"
-                @input="onVenueSearchInput"
-                class="bg-surface-container-low border-none rounded-xl py-2 pl-10 pr-4 text-sm w-64 focus:ring-2 focus:ring-secondary/20 transition-all outline-none"
-                placeholder="Tìm kiếm sân thi đấu..."
-                type="text"
-              />
-              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <h3 class="font-headline font-bold text-xl text-slate-800">Quản lý sân thi đấu</h3>
+            <div class="flex items-center gap-3">
+              <div class="relative">
+                <input
+                  v-model="venueSearch"
+                  @input="onVenueSearchInput"
+                  class="bg-white border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-sm w-64 focus:border-primary transition-all outline-none shadow-sm text-slate-800 placeholder-slate-400"
+                  placeholder="Tìm kiếm sân thi đấu..."
+                  type="text"
+                />
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+              </div>
+              <button
+                type="button"
+                @click="openCreateVenueModal"
+                class="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-bold shadow-md shadow-primary/20 flex items-center gap-1.5 transition-all whitespace-nowrap"
+              >
+                <span class="material-symbols-outlined text-base">add</span>
+                Thêm sân thi đấu
+              </button>
             </div>
           </div>
 
-          <div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm border border-outline-variant/5">
+          <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200/80">
             <table class="w-full text-left border-collapse">
               <thead>
-                <tr class="bg-surface-container-high">
+                <tr class="bg-slate-50 border-b border-slate-200">
                   <th class="table-head">Sân thi đấu</th>
                   <th class="table-head">Địa chỉ</th>
                   <th class="table-head">Môn thể thao</th>
@@ -527,29 +540,29 @@
                   <th class="table-head text-right text-right-important">Hành động</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-outline-variant/5">
-                <tr v-for="venue in paginatedVenues" :key="venue.id" class="hover:bg-surface-container-low transition-colors group">
+              <tbody class="divide-y divide-slate-100">
+                <tr v-for="venue in paginatedVenues" :key="venue.id" class="hover:bg-slate-50/80 transition-colors group">
                   <td class="px-6 py-4">
                     <div class="flex items-center gap-3">
                       <img v-if="venue.imageUrl" :src="venue.imageUrl" class="w-10 h-10 rounded-lg object-cover shadow-sm" />
-                      <div v-else class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center">
-                        <span class="material-symbols-outlined text-on-surface-variant text-lg">stadium</span>
+                      <div v-else class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-slate-400 text-lg">stadium</span>
                       </div>
                       <div>
-                        <p class="font-bold text-sm text-on-surface">{{ venue.name }}</p>
-                        <p class="text-xs text-on-surface-variant">{{ venue.summary }}</p>
+                        <p class="font-bold text-sm text-slate-800">{{ venue.name }}</p>
+                        <p class="text-xs text-slate-500">{{ venue.summary }}</p>
                       </div>
                     </div>
                   </td>
                   <td class="px-6 py-4">
-                    <span class="text-xs text-on-surface-variant max-w-[180px] truncate block">{{ venue.address }}</span>
+                    <span class="text-xs text-slate-600 max-w-[180px] truncate block">{{ venue.address }}</span>
                   </td>
                   <td class="px-6 py-4">
                     <div class="flex flex-wrap gap-1">
-                      <span v-for="sport in venue.sports.slice(0, 2)" :key="sport.id" class="px-2 py-0.5 bg-surface-container-high text-on-surface-variant text-[10px] font-bold rounded-full">
+                      <span v-for="sport in venue.sports.slice(0, 2)" :key="sport.id" class="px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold rounded-full">
                         {{ sport.name }}
                       </span>
-                      <span v-if="venue.sports.length > 2" class="px-2 py-0.5 bg-surface-container-high text-on-surface-variant text-[10px] font-bold rounded-full">
+                      <span v-if="venue.sports.length > 2" class="px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold rounded-full">
                         +{{ venue.sports.length - 2 }}
                       </span>
                     </div>
@@ -564,15 +577,27 @@
                     <span :class="venue.statusClass">{{ venue.statusLabel }}</span>
                   </td>
                   <td class="px-6 py-4 text-right">
-                    <div class="flex justify-end gap-2">
+                    <div class="flex justify-end items-center gap-2">
+                      <button
+                        type="button"
+                        @click="openEditVenueModal(venue)"
+                        class="h-8 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors inline-flex items-center justify-center gap-1.5 border border-slate-200 shadow-sm"
+                        title="Chỉnh sửa sân thi đấu"
+                      >
+                        <span class="material-symbols-outlined text-sm">edit</span>
+                        <span>Sửa</span>
+                      </button>
                       <button
                         :disabled="togglingId === venue.id"
                         @click="toggleVenueStatus(venue)"
+                        class="h-8 px-3 rounded-lg text-xs font-bold transition-colors inline-flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
                         :class="venue.isBanned
-                          ? 'px-3 py-1 bg-tertiary text-white rounded-lg text-xs font-bold shadow-md hover:bg-tertiary/90 transition-colors'
-                          : 'px-3 py-1 bg-error text-white rounded-lg text-xs font-bold shadow-lg shadow-error/20 hover:bg-error/90 transition-colors'"
+                          ? 'bg-tertiary hover:bg-tertiary/90 text-white'
+                          : 'bg-error hover:bg-error/90 text-white shadow-error/20'"
                       >
-                        {{ togglingId === venue.id ? '...' : (venue.isBanned ? 'Mở khóa' : 'Khoá') }}
+                        <span v-if="togglingId === venue.id" class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                        <span v-else class="material-symbols-outlined text-sm">{{ venue.isBanned ? 'lock_open' : 'block' }}</span>
+                        <span>{{ togglingId === venue.id ? '...' : (venue.isBanned ? 'Mở khóa' : 'Khoá') }}</span>
                       </button>
                     </div>
                   </td>
@@ -600,6 +625,13 @@
       :confirm-button-class="confirmModal.confirmClass"
       @confirm="onConfirmModalConfirm"
     />
+
+    <!-- Venue Add/Edit Modal -->
+    <AdminVenueModal
+      v-model="showVenueModal"
+      :venue="selectedVenueForEdit"
+      @success="onVenueSaved"
+    />
   </div>
 </template>
 
@@ -613,6 +645,7 @@ import { get, post } from '@/utils/httpRequest.js'
 import { formatedDate } from '@/composables/formatedDate.js'
 import { toast } from 'vue3-toastify'
 import DeleteConfirmationModal from '@/components/molecules/DeleteConfirmationModal.vue'
+import AdminVenueModal from '@/components/organisms/AdminVenueModal.vue'
 import {
   updateMiniTournamentStatus,
   adminDeleteMiniTournament,
@@ -1033,22 +1066,51 @@ const paginatedVenues = computed(() => {
     const isBanned = v.is_banned ?? v.status === 'banned'
     return {
       id: v.id,
+      location_id: v.location_id || v.location?.id || null,
+      location: v.location,
       name: v.name,
       image: v.image || null,
       address: v.address || '—',
+      phone: v.phone || '',
+      opening_time: v.opening_time || '',
+      closing_time: v.closing_time || '',
+      latitude: v.latitude,
+      longitude: v.longitude,
+      website: v.website || '',
+      note_booking: v.note_booking || '',
       activeMatchesCount: v.active_matches_count ?? 0,
       activeTournamentsCount: v.active_tournaments_count ?? 0,
       summary: v.summary || '',
       sports: v.sports ?? [],
+      facilities: v.facilities ?? [],
+      yards: v.yards ?? [],
       isBanned,
       statusLabel: isBanned ? 'Banned' : 'Active',
       statusClass: isBanned
         ? 'px-3 py-1 bg-error text-on-error rounded-lg text-xs font-bold shadow-lg shadow-error/20'
         : 'px-3 py-1 bg-tertiary-container text-on-tertiary-container rounded-lg text-xs font-bold',
-      imageUrl: v.image || (v.name ? 'https://ui-avatars.com/api/?name=' + encodeURIComponent(v.name) + '&background=random' : null),
+      imageUrl: v.image_url || (v.image ? (v.image.startsWith('http') ? v.image : '/storage/' + v.image.replace(/^storage\//, '')) : null) || (v.name ? 'https://ui-avatars.com/api/?name=' + encodeURIComponent(v.name) + '&background=random' : null),
     }
   })
 })
+
+// Venue Modal state & handlers
+const showVenueModal = ref(false)
+const selectedVenueForEdit = ref(null)
+
+const openCreateVenueModal = () => {
+  selectedVenueForEdit.value = null
+  showVenueModal.value = true
+}
+
+const openEditVenueModal = (venue) => {
+  selectedVenueForEdit.value = venue
+  showVenueModal.value = true
+}
+
+const onVenueSaved = async () => {
+  await fetchVenues(venuesMeta.value.current_page)
+}
 
 const toggleClubStatus = async (club) => {
   const nextBanned = !club.isBanned
@@ -1292,16 +1354,16 @@ const deleteTournamentFromAdmin = (t) => {
 .font-body { font-family: 'Inter', sans-serif; }
 
 .tab-btn {
-  @apply flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200 cursor-pointer;
-  color: var(--on-surface-variant, #5b403d);
+  @apply flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200 cursor-pointer text-slate-600;
 }
 
 .tab-btn:hover {
-  background-color: var(--surface-container-high, #ffe2de);
+  background-color: #f1f5f9;
+  color: #0f172a;
 }
 
 .tab-btn-active {
-  @apply bg-[#af101a] text-white shadow-lg shadow-red-900/15 hover:bg-[#af101a];
+  @apply bg-[#af101a] text-white shadow-lg shadow-red-900/15 hover:bg-[#af101a] hover:text-white;
 }
 
 .tab-badge {
@@ -1309,9 +1371,8 @@ const deleteTournamentFromAdmin = (t) => {
 }
 
 .table-head {
-  @apply px-6 py-4 text-[10px] uppercase tracking-wider font-extrabold;
+  @apply px-6 py-4 text-[10px] uppercase tracking-wider font-extrabold text-slate-500;
   font-family: 'Inter', sans-serif;
-  color: var(--on-surface-variant, #5b403d);
 }
 
 .text-right-important {
@@ -1331,14 +1392,13 @@ const deleteTournamentFromAdmin = (t) => {
 }
 
 .action-btn {
-  @apply p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center;
-  background-color: var(--surface-container-low, #fff0ef);
+  @apply p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center bg-slate-100 text-slate-700;
 }
 .action-btn:hover:not(:disabled) {
-  background-color: var(--surface-container-high, #ffe2de);
+  background-color: #e2e8f0;
 }
 .action-btn:disabled {
-  background-color: var(--surface-container-low, #fff0ef);
+  background-color: #f8fafc;
 }
 .action-verify {
   color: var(--secondary, #76584c);

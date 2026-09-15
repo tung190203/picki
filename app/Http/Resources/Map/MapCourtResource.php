@@ -16,8 +16,11 @@ class MapCourtResource extends JsonResource
             'latitude'        => $this->latitude,
             'longitude'       => $this->longitude,
             'address'         => $this->address,
+            'phone'           => $this->phone,
             'opening_time'    => $this->opening_time,
             'closing_time'    => $this->closing_time,
+            'note_booking'    => $this->note_booking,
+            'website'         => $this->website,
             'number_of_yards' => $this->whenLoaded('competitionLocationYards', fn() => $this->competitionLocationYards->count()),
             'sport'           => $this->whenLoaded('sports', function () {
                 $sport = $this->sports->first();
@@ -27,7 +30,7 @@ class MapCourtResource extends JsonResource
                     'icon' => $sport->icon,
                 ] : null;
             }),
-            'distance'     => $this->when(isset($this->distance), round($this->distance, 1)),
+            'distance'     => $this->when(isset($this->distance), fn() => round($this->distance, 1)),
             'marker_type'  => 'court',
         ];
     }

@@ -530,6 +530,37 @@ class MiniTournamentService
                     }
                 }
 
+                // Cập nhật start_time cho cả chuỗi: giữ nguyên ngày của từng occurrence,
+                // chỉ thay đổi giờ/phút từ start_time mới (giống logic generateOccurrenceStartTimesForPeriod).
+                // Áp dụng cho TẤT CẢ kèo trong chuỗi, kể cả đã diễn ra.
+                if (array_key_exists('start_time', $data) && !empty($data['start_time'])) {
+                    $newStart = $data['start_time'] instanceof Carbon
+                        ? $data['start_time']->copy()
+                        : Carbon::parse($data['start_time']);
+                    $newTimeString = $newStart->format('H:i:s');
+
+                    if ($t->start_time) {
+                        $oldStart = $t->start_time instanceof Carbon
+                            ? $t->start_time->copy()
+                            : Carbon::parse($t->start_time);
+                        // Giữ ngày của occurrence hiện tại, chỉ đổi giờ/phút/giây
+                        $shifted = $oldStart->copy()->startOfDay()->setTimeFromTimeString($newTimeString);
+                        $updateData['start_time'] = $shifted;
+
+                        // end_time: dịch theo cùng delta để giữ nguyên duration
+                        if ($t->end_time) {
+                            $oldEnd = $t->end_time instanceof Carbon
+                                ? $t->end_time->copy()
+                                : Carbon::parse($t->end_time);
+                            $deltaInSeconds = $shifted->getTimestamp() - $oldStart->getTimestamp();
+                            $updateData['end_time'] = $oldEnd->copy()->addSeconds($deltaInSeconds);
+                        }
+                    } else {
+                        // Không có start_time cũ thì set thẳng
+                        $updateData['start_time'] = $newStart;
+                    }
+                }
+
                 // Sync session fields when match_format changes
                 if (array_key_exists('match_format', $data)) {
                     $matchFormat = $data['match_format'];
@@ -551,7 +582,9 @@ class MiniTournamentService
                 // Cập nhật duration nếu có thay đổi
                 if (isset($data['duration'])) {
                     $updateData['duration'] = $data['duration'];
-                    $startTime = $t->start_time;
+                    // Ưu tiên start_time vừa tính ở bước trên (nếu có),
+                    // nếu không thì dùng start_time hiện tại của occurrence
+                    $startTime = $updateData['start_time'] ?? $t->start_time;
                     if ($startTime) {
                         $startCarbon = $startTime instanceof Carbon ? $startTime : Carbon::parse($startTime);
                         $updateData['end_time'] = $startCarbon->copy()->addMinutes($data['duration']);

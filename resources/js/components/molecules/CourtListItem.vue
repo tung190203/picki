@@ -29,7 +29,7 @@
             </span>
           </div>
 
-          <div class="flex items-center gap-1.5">
+          <div v-if="court.phone" class="flex items-center gap-1.5">
             <PhoneIcon class="w-5 h-5 text-[#4392E0]" />
             <span>{{ court.phone }}</span>
           </div>

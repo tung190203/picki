@@ -91,3 +91,22 @@ export const rebuildKnockoutPairing = async (tournamentTypeId, data) => {
   return axiosInstance.post(`${tournamentTypeEndpoint}/${tournamentTypeId}/knockout-rebuild-pairing`, data)
     .then((response) => response.data.data);
 }
+
+// ✅ Manual Tiebreaker (Bốc thăm / kéo-thả thủ công khi đội đồng hạng)
+// Lấy các cụm team đồng hạng cần bốc thăm
+export const getPendingTies = async (tournamentTypeId, groupId) => {
+  return axiosInstance.get(`${tournamentTypeEndpoint}/${tournamentTypeId}/groups/${groupId}/pending-ties`)
+    .then((response) => response.data.data);
+}
+
+// Lưu manual ranks (intra-group, sau khi BTC kéo-thả)
+export const storeManualTiebreaker = async (tournamentTypeId, groupId, rankings) => {
+  return axiosInstance.post(`${tournamentTypeEndpoint}/${tournamentTypeId}/groups/${groupId}/manual-tiebreaker`, { rankings })
+    .then((response) => response.data);
+}
+
+// Reset manual ranks
+export const resetManualTiebreaker = async (tournamentTypeId, groupId) => {
+  return axiosInstance.delete(`${tournamentTypeEndpoint}/${tournamentTypeId}/groups/${groupId}/manual-tiebreaker`)
+    .then((response) => response.data);
+}
