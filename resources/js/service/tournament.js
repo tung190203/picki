@@ -45,6 +45,40 @@ export const getBracketByTournamentId = async (tournamentId) => {
     .then((response) => response.data.data);
 }
 
+/**
+ * Lấy ảnh background hiện tại của bracket modal cho giải đấu.
+ * Trả về { bracket_background_url } - null nếu chưa có (sẽ dùng ảnh mặc định).
+ */
+export const getBracketBackground = async (tournamentId) => {
+  return axiosInstance.get(`${tournamentEndpoint}/${tournamentId}/bracket-background`)
+    .then((response) => response.data.data);
+}
+
+/**
+ * Upload ảnh background mới cho bracket modal của giải đấu.
+ * @param {number} tournamentId
+ * @param {File} file - File ảnh (jpg/jpeg/png/webp, max 5MB)
+ * @returns Promise<{ tournament_id, bracket_background_url, message }>
+ */
+export const updateBracketBackground = async (tournamentId, file) => {
+  const formData = new FormData();
+  formData.append('bracket_background', file);
+  return axiosInstance.post(`${tournamentEndpoint}/${tournamentId}/bracket-background`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((response) => response.data.data);
+}
+
+/**
+ * Xoá ảnh background bracket (về mặc định).
+ */
+export const removeBracketBackground = async (tournamentId) => {
+  const formData = new FormData();
+  formData.append('remove_background', '1');
+  return axiosInstance.post(`${tournamentEndpoint}/${tournamentId}/bracket-background`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((response) => response.data.data);
+}
+
 // Templates
 const tournamentTemplateEndpoint = '/tournament-templates';
 

@@ -426,7 +426,9 @@
 
                     <div class="flex-1 overflow-hidden">
                         <BracketMixedPreview v-if="data?.tournament_types?.[0]?.format === 1" :tournamentId="data?.id"
-                            :bracketData="mixedBracket" :rankData="rank" @close="showRankingModal = false" />
+                            :bracketData="mixedBracket" :rankData="rank" :isCreator="isCreator"
+                            :bracketBackgroundUrl="data?.bracket_background_url || null"
+                            @close="showRankingModal = false" />
                     </div>
                 </div>
             </div>
@@ -512,26 +514,102 @@ const getMatches = async (tournamentId) => {
             // Xử lý knockout stage từ response
             const knockoutStage = response.knockout_stage || [];
 
-            // Nếu không có leftSide/rightSide, dùng knockout_stage làm leftSide (cho BracketMixedPreview)
-            // BracketMixedPreview cần leftSide/rightSide để hiển thị
-            let leftSide = response.leftSide || response.left_side || [];
-            let rightSide = response.rightSide || response.right_side || [];
+            // ✅ Ưu tiên dùng data gốc từ `knockout_stage` của API để chia left/right
+            // vì backend chia leftSide/rightSide theo logic next_position có thể sai bố cục
+            // Logic chia: với mỗi round, một nửa đầu matches là leftSide, một nửa sau là rightSide
+            const computedLeftSide = [];
+            const computedRightSide = [];
+            let computedFinalMatch = null;
+            let computedThirdPlaceMatch = null;
 
-            // Nếu không có leftSide/rightSide nhưng có knockout_stage, dùng knockout_stage
-            if (leftSide.length === 0 && rightSide.length === 0 && knockoutStage.length > 0) {
-                leftSide = knockoutStage;
-            }
+            // Tìm round cuối cùng (chứa final match)
+            const maxRound = Math.max(...knockoutStage.map(r => r.round || 0), 0);
+
+            knockoutStage.forEach((roundData) => {
+                const round = roundData.round || 0;
+                const roundName = roundData.round_name;
+                const matches = roundData.matches || [];
+
+                // Tách third place match (luôn tách ra, bất kể round nào)
+                const thirdPlaceData = matches.find(
+                    (m) => m.is_third_place === true || m.is_third_place === 1,
+                );
+
+                // Nếu là round cuối, tách final match và third place match
+                if (round === maxRound) {
+                    if (!computedFinalMatch) {
+                        const finalMatchData = matches.find(
+                            (m) => m.is_third_place !== true && m.is_third_place !== 1,
+                        );
+                        computedFinalMatch = finalMatchData || null;
+                    }
+                    if (!computedThirdPlaceMatch && thirdPlaceData) {
+                        computedThirdPlaceMatch = thirdPlaceData;
+                    }
+                    // Round cuối không thuộc left/right (trừ khi là third place đã tách)
+                    return;
+                }
+
+                // Với các round khác, tách third place nếu có (phòng trường hợp third place không nằm ở round cuối)
+                if (thirdPlaceData) {
+                    if (!computedThirdPlaceMatch) {
+                        computedThirdPlaceMatch = thirdPlaceData;
+                    }
+                    // Loại bỏ third place match khỏi danh sách để chia left/right
+                    const nonThirdPlaceMatches = matches.filter(
+                        (m) => m.is_third_place !== true && m.is_third_place !== 1,
+                    );
+                    if (nonThirdPlaceMatches.length === 0) return;
+                    // Chia đều: nửa đầu = left, nửa sau = right
+                    const mid = Math.ceil(nonThirdPlaceMatches.length / 2);
+                    computedLeftSide.push({
+                        round: round,
+                        round_name: roundName,
+                        matches: nonThirdPlaceMatches.slice(0, mid),
+                    });
+                    computedRightSide.push({
+                        round: round,
+                        round_name: roundName,
+                        matches: nonThirdPlaceMatches.slice(mid),
+                    });
+                    return;
+                }
+
+                // Chia đều: nửa đầu = left, nửa sau = right
+                const mid = Math.ceil(matches.length / 2);
+
+                if (matches.slice(0, mid).length > 0) {
+                    computedLeftSide.push({
+                        round: round,
+                        round_name: roundName,
+                        matches: matches.slice(0, mid),
+                    });
+                }
+
+                if (matches.slice(mid).length > 0) {
+                    computedRightSide.push({
+                        round: round,
+                        round_name: roundName,
+                        matches: matches.slice(mid),
+                    });
+                }
+            });
+
+            // Ưu tiên dùng leftSide/rightSide từ data đã tính từ knockout_stage
+            // (vì logic backend chia theo next_position có thể sai)
+            const leftSide = computedLeftSide.length > 0 ? computedLeftSide : (response.leftSide || response.left_side || []);
+            const rightSide = computedRightSide.length > 0 ? computedRightSide : (response.rightSide || response.right_side || []);
+            const finalMatch = computedFinalMatch || response.finalMatch || response.final_match || null;
+            const thirdPlaceMatch = computedThirdPlaceMatch || response.thirdPlaceMatch || response.third_place_match || null;
 
             mixedBracket.value = {
                 poolStage: normalizedPoolStage,
                 leftSide: leftSide,
                 rightSide: rightSide,
-                finalMatch: response.finalMatch || response.final_match || null,
-                thirdPlaceMatch:
-                    response.thirdPlaceMatch ||
-                    response.third_place_match ||
-                    null,
-                knockout_stage: knockoutStage, // Thêm knockout_stage để dùng cho navigation
+                finalMatch: finalMatch,
+                thirdPlaceMatch: thirdPlaceMatch,
+                knockout_stage: knockoutStage, // Giữ lại knockout_stage để dùng cho navigation
+                has_third_place_match: response.has_third_place_match,
             };
 
             currentMixedStage.value = "pool";
