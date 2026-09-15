@@ -6,6 +6,7 @@ use App\Exceptions\BusinessException;
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
 use App\Models\Group;
+use App\Models\Matches;
 use App\Models\ManualTiebreakerRank;
 use App\Models\TournamentType;
 use App\Services\Permission\TournamentPermission;
@@ -42,18 +43,18 @@ class TiebreakerController extends Controller
      * GET .../pending-ties
      * Trả các cụm team đang đồng hạng trên TẤT CẢ ranking keys (bỏ qua H2H + RANDOM).
      */
-    public function pendingTies(Request $request, TournamentType $type, Group $group)
+    public function pendingTies(Request $request, TournamentType $tournamentType, Group $group)
     {
-        $this->ensureCanEdit($type, $request);
+        $this->ensureCanEdit($tournamentType, $request);
 
-        $rankingRules = $this->extractRankingRules($type);
+        $rankingRules = $this->extractRankingRules($tournamentType);
         $standings = GroupStandingRanker::rank($group, $rankingRules);
 
         // Lấy các cụm đồng hạng (>=2 team cùng stats trên các key thực sự)
         $clusters = $this->manualService->findTiedClusters($standings, $rankingRules);
 
         // Kiểm tra BTC đã set manual chưa
-        $existingManual = ManualTiebreakerRank::where('tournament_type_id', $type->id)
+        $existingManual = ManualTiebreakerRank::where('tournament_type_id', $tournamentType->id)
             ->where('group_id', $group->id)
             ->whereNull('candidate_type')
             ->get()
@@ -73,9 +74,9 @@ class TiebreakerController extends Controller
     /**
      * POST .../manual-tiebreaker (intra-group)
      */
-    public function store(Request $request, TournamentType $type, Group $group)
+    public function store(Request $request, TournamentType $tournamentType, Group $group)
     {
-        $this->ensureCanEdit($type, $request);
+        $this->ensureCanEdit($tournamentType, $request);
 
         $data = $request->validate([
             'rankings' => 'required|array|min:2',
@@ -83,33 +84,44 @@ class TiebreakerController extends Controller
             'rankings.*.manual_rank' => 'required|integer|min:1',
         ]);
 
-        $rankingRules = $this->extractRankingRules($type);
+        $rankingRules = $this->extractRankingRules($tournamentType);
         $standings = GroupStandingRanker::rank($group, $rankingRules);
 
         // Validate: các team trong rankings phải nằm trong cùng 1 cụm đồng hạng
         $this->validateClusterForGroup($standings, $data['rankings'], $rankingRules);
 
-        $this->manualService->storeForGroup(
-            $type,
-            $group,
-            $data['rankings'],
-            (int) $request->user()->id
-        );
+        DB::transaction(function () use ($tournamentType, $group, $data, $request) {
+            $this->manualService->storeForGroup(
+                $tournamentType,
+                $group,
+                $data['rankings'],
+                (int) $request->user()->id
+            );
+
+            // ✅ Trigger fill round 2 ngay sau khi lưu manual — có áp dụng manual ranks.
+            $this->triggerPoolAdvancement($tournamentType);
+        });
 
         return ResponseHelper::success([
             'message' => 'Đã lưu thứ hạng thủ công',
             'group_id' => $group->id,
-            'tournament_type_id' => $type->id,
+            'tournament_type_id' => $tournamentType->id,
         ]);
     }
 
     /**
      * DELETE .../manual-tiebreaker (reset intra-group + cross-group)
      */
-    public function destroy(Request $request, TournamentType $type, Group $group)
+    public function destroy(Request $request, TournamentType $tournamentType, Group $group)
     {
-        $this->ensureCanEdit($type, $request);
-        $this->manualService->resetForGroup($type, $group);
+        $this->ensureCanEdit($tournamentType, $request);
+
+        DB::transaction(function () use ($tournamentType, $group) {
+            $this->manualService->resetForGroup($tournamentType, $group);
+
+            // ✅ Trigger re-fill round 2 sau khi reset manual — knockout sẽ dùng stats thường
+            $this->triggerPoolAdvancement($tournamentType);
+        });
 
         return ResponseHelper::success([
             'message' => 'Đã reset manual ranks',
@@ -121,9 +133,9 @@ class TiebreakerController extends Controller
      * POST .../manual-tiebreaker/cross
      * Lưu manual ranks cho cross-group candidates (Nhì/Ba).
      */
-    public function storeCross(Request $request, TournamentType $type, Group $group)
+    public function storeCross(Request $request, TournamentType $tournamentType, Group $group)
     {
-        $this->ensureCanEdit($type, $request);
+        $this->ensureCanEdit($tournamentType, $request);
 
         $data = $request->validate([
             'candidate_type' => 'required|in:runner_up,third_place',
@@ -132,13 +144,18 @@ class TiebreakerController extends Controller
             'rankings.*.manual_rank' => 'required|integer|min:1',
         ]);
 
-        $this->manualService->storeForCandidates(
-            $type,
-            $group,
-            $data['candidate_type'],
-            $data['rankings'],
-            (int) $request->user()->id
-        );
+        DB::transaction(function () use ($tournamentType, $group, $data, $request) {
+            $this->manualService->storeForCandidates(
+                $tournamentType,
+                $group,
+                $data['candidate_type'],
+                $data['rankings'],
+                (int) $request->user()->id
+            );
+
+            // ✅ Trigger fill round 2 ngay sau khi lưu cross-group manual
+            $this->triggerPoolAdvancement($tournamentType);
+        });
 
         return ResponseHelper::success([
             'message' => 'Đã lưu manual ranks cho cross-group',
@@ -150,19 +167,24 @@ class TiebreakerController extends Controller
     /**
      * DELETE .../manual-tiebreaker/cross
      */
-    public function destroyCross(Request $request, TournamentType $type, Group $group)
+    public function destroyCross(Request $request, TournamentType $tournamentType, Group $group)
     {
-        $this->ensureCanEdit($type, $request);
+        $this->ensureCanEdit($tournamentType, $request);
 
         $data = $request->validate([
             'candidate_type' => 'required|in:runner_up,third_place',
         ]);
 
-        $this->manualService->resetForCandidateType(
-            $type,
-            $group,
-            $data['candidate_type']
-        );
+        DB::transaction(function () use ($tournamentType, $group, $data) {
+            $this->manualService->resetForCandidateType(
+                $tournamentType,
+                $group,
+                $data['candidate_type']
+            );
+
+            // ✅ Trigger re-fill slot ảo sau khi reset cross-group manual
+            $this->triggerPoolAdvancement($tournamentType);
+        });
 
         return ResponseHelper::success([
             'message' => 'Đã reset cross-group manual ranks',
@@ -175,10 +197,10 @@ class TiebreakerController extends Controller
     // INTERNAL HELPERS
     // ============================================
 
-    private function ensureCanEdit(TournamentType $type, Request $request): void
+    private function ensureCanEdit(TournamentType $tournamentType, Request $request): void
     {
         $userId = (int) $request->user()->id;
-        $tournament = $type->tournament;
+        $tournament = $tournamentType->tournament;
         if (! $tournament) {
             throw new BusinessException('Không tìm thấy giải đấu', 404);
         }
@@ -190,9 +212,9 @@ class TiebreakerController extends Controller
     /**
      * Trích xuất ranking rules đã chuẩn hóa (đồng bộ với TournamentTypeController::extractRankingRules).
      */
-    private function extractRankingRules(TournamentType $type): array
+    private function extractRankingRules(TournamentType $tournamentType): array
     {
-        $config = $type->format_specific_config ?? [];
+        $config = $tournamentType->format_specific_config ?? [];
         if (is_array($config) && isset($config[0])) {
             $config = $config[0];
         }
@@ -249,6 +271,35 @@ class TiebreakerController extends Controller
         $manualRanks = collect($rankings)->pluck('manual_rank')->map(fn($r) => (int) $r);
         if ($manualRanks->count() !== $manualRanks->unique()->count()) {
             throw new BusinessException('manual_rank phải là duy nhất', 422);
+        }
+    }
+
+    /**
+     * Trigger fill round 2 sau khi lưu / reset manual ranks.
+     *
+     * Logic:
+     *  1. Gọi applyPoolAdvancement() — fill Nhất/Nhì/Ba (real rules) vào round 2
+     *     có áp dụng manual ranks.
+     *  2. Gọi resolveVirtualPoolAdvancementRules() — fill slot ảo (Nhì tốt nhất)
+     *     từ cross-group comparison đã áp dụng manual.
+     *
+     * @param TournamentType $tournamentType
+     */
+    private function triggerPoolAdvancement(TournamentType $tournamentType): void
+    {
+        $typeController = app(\App\Http\Controllers\TournamentTypeController::class);
+
+        // 1. Fill real rules (Nhất/Nhì/Ba từ mỗi bảng) vào round 2
+        $typeController->applyPoolAdvancement($tournamentType);
+
+        // 2. Fill slot ảo (Nhì tốt nhất) từ cross-group
+        $virtualEntries = $typeController->resolveVirtualPoolAdvancementRules($tournamentType);
+        foreach ($virtualEntries as $entry) {
+            Matches::where('id', $entry['next_match_id'])
+                ->update([
+                    $entry['next_position'] . '_team_id' => $entry['team_id'],
+                    'status' => 'pending',
+                ]);
         }
     }
 }

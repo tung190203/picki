@@ -4,6 +4,7 @@ namespace App\Services\TournamentType;
 
 use App\Models\Group;
 use App\Models\ManualTiebreakerRank;
+use App\Models\Matches;
 use App\Models\TournamentType;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -301,6 +302,19 @@ class ManualTiebreakerService
     // ============================================
     // INTERNAL HELPERS
     // ============================================
+
+    /**
+     * Kiểm tra vòng bảng đã kết thúc chưa (tất cả trận đều completed).
+     */
+    public function isGroupFinished(Group $group): bool
+    {
+        $total = $group->matches()->count();
+        if ($total === 0) {
+            return false;
+        }
+        $completed = $group->matches()->where('status', Matches::STATUS_COMPLETED)->count();
+        return $total === $completed;
+    }
 
     /**
      * 2 team có cùng stats trên TẤT CẢ ranking keys thực sự?

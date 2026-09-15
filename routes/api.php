@@ -590,7 +590,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     });
 
     // ✅ Manual tiebreaker routes (bốc thăm / kéo-thả thủ công khi đội đồng hạng)
-    Route::middleware(['auth:api'])->prefix('tournament-types/{tournamentType}/groups/{group}')->group(function () {
+    Route::middleware(['auth:api'])->prefix('tournament-types/{tournamentType}/groups/{group}')->whereNumber('group')->group(function () {
         Route::get('/pending-ties', [\App\Http\Controllers\Api\TiebreakerController::class, 'pendingTies']);
         Route::post('/manual-tiebreaker', [\App\Http\Controllers\Api\TiebreakerController::class, 'store']);
         Route::delete('/manual-tiebreaker', [\App\Http\Controllers\Api\TiebreakerController::class, 'destroy']);

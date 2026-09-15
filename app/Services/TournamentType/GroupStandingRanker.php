@@ -90,12 +90,20 @@ class GroupStandingRanker
         )->values();
 
         // ✅ A.6 — Đánh dấu team thuộc cụm đồng hạng (cho FE hiển thị badge + modal)
-        $tiedClusters = $manualService->findTiedClusters($sorted, $rankingRules);
-        $tiedTeamIds = [];
-        foreach ($tiedClusters as $cluster) {
-            foreach ($cluster['team_ids'] as $tid) {
-                $tiedTeamIds[$tid] = true;
+        // Chỉ xét đồng hạng khi VÒNG BẢNG ĐÃ KẾT THÚC.
+        // Nếu còn trận chưa đá xong → pending_tie luôn = false (chưa xác định được).
+        $isGroupFinished = app(ManualTiebreakerService::class)->isGroupFinished($group);
+
+        if ($isGroupFinished) {
+            $tiedClusters = $manualService->findTiedClusters($sorted, $rankingRules);
+            $tiedTeamIds = [];
+            foreach ($tiedClusters as $cluster) {
+                foreach ($cluster['team_ids'] as $tid) {
+                    $tiedTeamIds[$tid] = true;
+                }
             }
+        } else {
+            $tiedTeamIds = [];
         }
 
         // Gắn rank (1-based) + cờ pending_tie

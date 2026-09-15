@@ -638,7 +638,7 @@ class CrossGroupComparisonService
         // ✅ B.7 — Áp dụng manual tiebreaker trước khi gán rank
         $sorted = app(ManualTiebreakerService::class)->applyManualToCandidates(
             $sorted,
-            (int) ($candidates->first()['group']->tournament_type_id ?? 0),
+            (int) $type->id,
             $rankingRules
         );
 
