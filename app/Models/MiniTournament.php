@@ -420,7 +420,7 @@ class MiniTournament extends Model
     public function staff()
     {
         return $this->belongsToMany(User::class, 'mini_tournament_staff')
-            ->withPivot('role', 'id', 'mini_tournament_id')
+            ->withPivot('role', 'mini_tournament_id')
             ->withTimestamps();
     }
 

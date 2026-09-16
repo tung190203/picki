@@ -498,7 +498,17 @@ class ClubActivityController extends Controller
                     $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
                 },
                 'fundCollection.assignedMembers' => function ($q) {
-                    $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender', 'is_super_admin']);
+                    // NOTE: Khi eager load belongsToMany với select() không prefix,
+                    // cột 'id' sẽ ambiguous vì bảng pivot cũng có cột 'id'.
+                    // Luôn dùng table prefix để tránh lỗi.
+                    $q->select(
+                        'users.id',
+                        'users.full_name',
+                        'users.avatar_url',
+                        'users.email',
+                        'users.gender',
+                        'users.is_super_admin',
+                    );
                 },
             ])
             ->withSum(self::ACTIVITY_COLLECTED_SUM, 'amount')
