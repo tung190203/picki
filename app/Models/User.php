@@ -654,7 +654,8 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                 !empty($filters['keyword']),
                 fn($query) => $query->where(function ($q) use ($filters) {
                     $q->where('full_name', 'like', '%' . $filters['keyword'] . '%')
-                        ->orWhere('email', 'like', '%' . $filters['keyword'] . '%');
+                        ->orWhere('email', 'like', '%' . $filters['keyword'] . '%')
+                        ->orWhere('phone', 'like', '%' . $filters['keyword'] . '%');
                 })
             )
             ->when(
