@@ -20,6 +20,83 @@ class UserManagementService
         protected AuditLogService $auditLogService
     ) {}
 
+    /**
+     * Strip Vietnamese diacritics from a string.
+     * Converts: ắ→a, ă→a, ấ→a, â→a, etc.
+     */
+    public function stripVietnameseDiacritics(string $text): string
+    {
+        $map = [
+            // Ạ-ạ (A)
+            'Ạ' => 'A', 'ạ' => 'a',
+            'Ắ' => 'A', 'ắ' => 'a',
+            'Ằ' => 'A', 'ằ' => 'a',
+            'Ẳ' => 'A', 'ẳ' => 'a',
+            'Ẵ' => 'A', 'ẵ' => 'a',
+            'Ặ' => 'A', 'ặ' => 'a',
+            'Ầ' => 'A', 'ầ' => 'a',
+            'Ấ' => 'A', 'ấ' => 'a',
+            'Ẩ' => 'A', 'ẩ' => 'a',
+            'Ẫ' => 'A', 'ẫ' => 'a',
+            'Ậ' => 'A', 'ậ' => 'a',
+            'Ả' => 'A', 'ả' => 'a',
+            // Ă
+            'Ă' => 'A', 'ă' => 'a',
+            // Â
+            'Â' => 'A', 'â' => 'a',
+            // Đ
+            'Đ' => 'D', 'đ' => 'd',
+            // Ẹ-ẹ (E)
+            'Ẹ' => 'E', 'ẹ' => 'e',
+            'Ẻ' => 'E', 'ẻ' => 'e',
+            'Ẽ' => 'E', 'ẽ' => 'e',
+            'Ề' => 'E', 'ề' => 'e',
+            'Ế' => 'E', 'ế' => 'e',
+            'Ể' => 'E', 'ể' => 'e',
+            'Ễ' => 'E', 'ễ' => 'e',
+            'Ệ' => 'E', 'ệ' => 'e',
+            // Ê
+            'Ê' => 'E', 'ê' => 'e',
+            // Ị-ị (I)
+            'Ị' => 'I', 'ị' => 'i',
+            'Ỉ' => 'I', 'ỉ' => 'i',
+            'Ĩ' => 'I', 'ĩ' => 'i',
+            // Ơ-ơ (O)
+            'Ơ' => 'O', 'ơ' => 'o',
+            'Ọ' => 'O', 'ọ' => 'o',
+            'Ỏ' => 'O', 'ỏ' => 'o',
+            'Ố' => 'O', 'ố' => 'o',
+            'Ồ' => 'O', 'ồ' => 'o',
+            'Ổ' => 'O', 'ổ' => 'o',
+            'Ỗ' => 'O', 'ỗ' => 'o',
+            'Ộ' => 'O', 'ộ' => 'o',
+            'Ờ' => 'O', 'ờ' => 'o',
+            'Ớ' => 'O', 'ớ' => 'o',
+            'Ở' => 'O', 'ở' => 'o',
+            'Ỡ' => 'O', 'ỡ' => 'o',
+            'Ợ' => 'O', 'ợ' => 'o',
+            // Ô
+            'Ô' => 'O', 'ô' => 'o',
+            // Ụ-ụ (U)
+            'Ụ' => 'U', 'ụ' => 'u',
+            'Ủ' => 'U', 'ủ' => 'u',
+            'Ũ' => 'U', 'ũ' => 'u',
+            // Ư-ư (U)
+            'Ư' => 'U', 'ư' => 'u',
+            'Ừ' => 'U', 'ừ' => 'u',
+            'Ử' => 'U', 'ử' => 'u',
+            'Ữ' => 'U', 'ữ' => 'u',
+            'Ự' => 'U', 'ự' => 'u',
+            // Y
+            'Ỳ' => 'Y', 'ỳ' => 'y',
+            'Ỵ' => 'Y', 'ỵ' => 'y',
+            'Ỷ' => 'Y', 'ỷ' => 'y',
+            'Ỹ' => 'Y', 'ỹ' => 'y',
+        ];
+
+        return strtr($text, $map);
+    }
+
     public function search(int $page, int $limit, ?string $keyword, ?string $status): LengthAwarePaginator
     {
         $query = User::query()
@@ -56,10 +133,30 @@ class UserManagementService
         }
 
         if ($keyword) {
-            $query->where(function ($q) use ($keyword) {
-                $q->where('full_name', 'like', "%{$keyword}%")
-                    ->orWhere('phone', 'like', "%{$keyword}%")
-                    ->orWhere('email', 'like', "%{$keyword}%");
+            // Strip all diacritics from keyword to match against DB-normalized full_name
+            $keywordAscii = $this->stripVietnameseDiacritics(mb_strtolower($keyword));
+
+            $query->where(function ($q) use ($keyword, $keywordAscii) {
+                // Use nested REGEXP_REPLACE to strip Vietnamese diacritics from full_name
+                // Pattern groups: A-vowels, E-vowels, I, O-vowels, U, Y/Đ
+                $q->whereRaw(
+                    "REGEXP_REPLACE(
+                        REGEXP_REPLACE(
+                            REGEXP_REPLACE(
+                                REGEXP_REPLACE(
+                                    REGEXP_REPLACE(
+                                        REGEXP_REPLACE(
+                                            LOWER(full_name), '[àáạảãâầấậẩẫăằắặẳẵ]', 'a'),
+                                        '[èéẹẻẽêềếệểễ]', 'e'),
+                                    '[ìíịỉĩ]', 'i'),
+                                '[òóọỏõôồốộổỗơờớợởỡ]', 'o'),
+                            '[ùúụủũưừứựửữ]', 'u'),
+                        '[ỳýỵỷỹđ]', 'd')
+                     LIKE ?",
+                    ['%' . $keywordAscii . '%']
+                )
+                    ->orWhereRaw("phone COLLATE utf8mb4_bin LIKE ?", ["%{$keyword}%"])
+                    ->orWhereRaw("email COLLATE utf8mb4_bin LIKE ?", ["%{$keyword}%"]);
             });
         }
 

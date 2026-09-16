@@ -653,9 +653,32 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             ->when(
                 !empty($filters['keyword']),
                 fn($query) => $query->where(function ($q) use ($filters) {
-                    $q->where('full_name', 'like', '%' . $filters['keyword'] . '%')
-                        ->orWhere('email', 'like', '%' . $filters['keyword'] . '%')
-                        ->orWhere('phone', 'like', '%' . $filters['keyword'] . '%');
+                    $keyword = $filters['keyword'];
+                    $keywordNoTone = \App\Helpers\StringHelper::removeVietnameseTones($keyword);
+                    
+                    // Search với keyword gốc
+                    $q->where('full_name', 'like', '%' . $keyword . '%')
+                        ->orWhere('email', 'like', '%' . $keyword . '%')
+                        ->orWhere('phone', 'like', '%' . $keyword . '%');
+                    
+                    // Build SQL REPLACE chain for Vietnamese characters để search không dấu
+                    $replaceChain = "full_name";
+                    $vnChars = [
+                        'à'=>'a','á'=>'a','ạ'=>'a','ả'=>'a','ã'=>'a','â'=>'a','ầ'=>'a','ấ'=>'a','ậ'=>'a','ẩ'=>'a','ẫ'=>'a',
+                        'ă'=>'a','ằ'=>'a','ắ'=>'a','ặ'=>'a','ẳ'=>'a','ẵ'=>'a',
+                        'è'=>'e','é'=>'e','ẹ'=>'e','ẻ'=>'e','ẽ'=>'e','ê'=>'e','ề'=>'e','ế'=>'e','ệ'=>'e','ể'=>'e','ễ'=>'e',
+                        'ì'=>'i','í'=>'i','ị'=>'i','ỉ'=>'i','ĩ'=>'i',
+                        'ò'=>'o','ó'=>'o','ọ'=>'o','ỏ'=>'o','õ'=>'o','ô'=>'o','ồ'=>'o','ố'=>'o','ộ'=>'o','ổ'=>'o','ỗ'=>'o',
+                        'ơ'=>'o','ờ'=>'o','ớ'=>'o','ợ'=>'o','ở'=>'o','ỡ'=>'o',
+                        'ù'=>'u','ú'=>'u','ụ'=>'u','ủ'=>'u','ũ'=>'u','ư'=>'u','ừ'=>'u','ứ'=>'u','ự'=>'u','ử'=>'u','ữ'=>'u',
+                        'ỳ'=>'y','ý'=>'y','ỵ'=>'y','ỷ'=>'y','ỹ'=>'y','đ'=>'d','Đ'=>'d'
+                    ];
+                    foreach ($vnChars as $from => $to) {
+                        $replaceChain = "REPLACE($replaceChain, '$from', '$to')";
+                    }
+                    
+                    // Luôn search cả full_name không dấu (để "hai dang" match "Hải Đăng")
+                    $q->orWhereRaw("LOWER($replaceChain) LIKE ?", ['%' . strtolower($keywordNoTone) . '%']);
                 })
             )
             ->when(
