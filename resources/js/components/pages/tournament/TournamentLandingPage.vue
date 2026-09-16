@@ -230,50 +230,170 @@
 
         <!-- Teams Tab -->
         <div v-else-if="activeTab === 'teams'" class="space-y-4">
-          <div v-if="participants.length === 0" class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
-            <UsersIcon class="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p class="text-gray-500">Chưa có đội/nhóm tham gia nào.</p>
+          <!-- Loading state -->
+          <div v-if="isLoadingTeams" class="flex justify-center py-8">
+            <div class="w-8 h-8 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
           </div>
+          <!-- Empty state -->
+          <div v-else-if="teams.length === 0" class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+            <UsersIcon class="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p class="text-gray-500">Chưa có đội tham gia nào.</p>
+          </div>
+          <!-- Teams grid -->
           <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            <div v-for="participant in participants" :key="participant.id" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center hover:shadow-md transition">
+            <div v-for="team in teams" :key="team.id" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center hover:shadow-md transition">
               <div class="w-16 h-16 rounded-full bg-[#FFF5F5] mx-auto mb-3 flex items-center justify-center overflow-hidden">
-                <img v-if="getParticipantAvatar(participant)" :src="getParticipantAvatar(participant)" class="w-full h-full object-cover" :alt="getParticipantName(participant)" />
+                <img v-if="team.avatar" :src="team.avatar" class="w-full h-full object-cover" :alt="team.name" />
                 <UsersIcon v-else class="w-6 h-6 text-[#D72D36]" />
               </div>
-              <p class="font-semibold text-gray-900 text-sm truncate">{{ getParticipantName(participant) }}</p>
-              <p class="text-xs text-gray-400 mt-1">{{ participant.user?.full_name || '' }}</p>
-              <span class="inline-block mt-2 text-xs px-2 py-0.5 rounded-full" :class="getParticipantStatusClass(participant)">
-                {{ getParticipantStatusLabel(participant) }}
-              </span>
+              <p class="font-semibold text-gray-900 text-sm truncate" :title="team.name">{{ team.name }}</p>
+              <p class="text-xs text-gray-400 mt-1">{{ team.members?.length || 0 }} thành viên</p>
+              <p v-if="team.members?.length" class="text-xs text-gray-500 mt-1 truncate">
+                {{ team.members[0].full_name || team.members[0].name }}
+              </p>
             </div>
           </div>
         </div>
 
         <!-- Schedule Tab -->
         <div v-else-if="activeTab === 'schedule'" class="space-y-4">
-          <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h2 class="text-lg font-bold text-gray-900 mb-4">Lịch thi đấu</h2>
-            <div v-if="tournament.tournament_types && tournament.tournament_types.length" class="space-y-4">
-              <div v-for="type in tournament.tournament_types" :key="type.id" class="border border-gray-100 rounded-lg p-4">
-                <div class="flex items-center gap-3 mb-3">
-                  <AdjustmentsVerticalIcon class="w-5 h-5 text-[#D72D36]" />
-                  <span class="font-semibold text-gray-900">{{ type.format_label || 'Chưa xác định' }}</span>
-                </div>
-                <div class="grid grid-cols-2 gap-3 text-sm">
-                  <div class="bg-gray-50 rounded-lg p-3">
-                    <p class="text-gray-500">Tổng trận đấu</p>
-                    <p class="font-bold text-gray-900">{{ type.total_matches || 0 }}</p>
+          <!-- Loading state -->
+          <div v-if="isLoadingBracket" class="flex justify-center py-8">
+            <div class="w-8 h-8 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          
+          <template v-else-if="bracketData">
+            <!-- Stage tabs for Mixed format -->
+            <div v-if="tournamentTypeFormat === 1" class="flex justify-start gap-2 mb-4">
+              <button @click="currentMixedStage = 'pool'" :class="[
+                'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                currentMixedStage === 'pool'
+                  ? 'bg-[#D72D36] text-white shadow-md'
+                  : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+              ]">
+                Vòng bảng
+              </button>
+              <button @click="currentMixedStage = 'knockout'" :class="[
+                'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                currentMixedStage === 'knockout'
+                  ? 'bg-[#D72D36] text-white shadow-md'
+                  : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+              ]">
+                Vòng loại trực tiếp
+              </button>
+            </div>
+
+            <!-- Pool Stage (Mixed format) -->
+            <template v-if="tournamentTypeFormat === 1 && currentMixedStage === 'pool'">
+              <div v-if="mixedBracket.poolStage?.length > 0">
+                <div v-for="group in mixedBracket.poolStage" :key="group.group_id" class="mb-6">
+                  <div class="bg-[#EDEEF2] px-4 py-3 rounded-lg mb-4">
+                    <h3 class="font-bold text-[#3E414C]">{{ group.group_name }}</h3>
                   </div>
-                  <div class="bg-gray-50 rounded-lg p-3">
-                    <p class="text-gray-500">Đội vào vòng loại</p>
-                    <p class="font-bold text-gray-900">{{ type.format_specific_config?.[0]?.pool_stage?.num_advancing_teams || '-' }}</p>
+                  <div v-if="group.matches?.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-3 px-2">
+                    <PoolStageMatchCard 
+                      v-for="match in group.matches" 
+                      :key="match.match_id" 
+                      :match="normalizeMatchForCard(match)"
+                      :enable-drag-drop="false"
+                      :fillAvailable="true" />
+                  </div>
+                  <div v-else class="text-center text-gray-500 py-4">
+                    Chưa có trận đấu trong {{ group.group_name }}
                   </div>
                 </div>
               </div>
-            </div>
-            <div v-else class="text-center py-8 text-gray-400">
-              <p>Lịch thi đấu đang được cập nhật.</p>
-            </div>
+              <div v-else class="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
+                <p class="text-gray-500">Chưa có trận đấu vòng bảng.</p>
+              </div>
+            </template>
+
+            <!-- Knockout Stage (Mixed format) -->
+            <template v-if="tournamentTypeFormat === 1 && currentMixedStage === 'knockout'">
+              <div v-if="currentKnockoutRound" class="mb-6">
+                <div class="flex justify-between items-center mb-4 px-2">
+                  <p class="text-sm font-semibold text-gray-700">
+                    {{ currentKnockoutRound.round_name }} • {{ currentKnockoutRound.matches.length }} trận đấu
+                  </p>
+                  <p class="text-sm font-semibold text-gray-500">
+                    {{ getKnockoutStatusText(currentKnockoutRound.matches) }}
+                  </p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-2">
+                  <PoolStageMatchCard 
+                    v-for="match in currentKnockoutRound.matches" 
+                    :key="match.match_id" 
+                    :match="normalizeMatchForCard(match)"
+                    :enable-drag-drop="false" />
+                </div>
+              </div>
+
+              <!-- Navigation for knockout rounds -->
+              <div v-if="bracketData.knockout_stage?.length > 1" class="flex justify-center items-center gap-4 mt-4">
+                <button @click="previousKnockoutRound" :disabled="!hasPreviousKnockoutRound" :class="[
+                  'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                  hasPreviousKnockoutRound
+                    ? 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200 cursor-pointer'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed border'
+                ]">
+                  ← Vòng trước
+                </button>
+                <span class="text-sm text-gray-600">Vòng {{ currentKnockoutRoundIndex + 1 }} / {{ bracketData.knockout_stage.length }}</span>
+                <button @click="nextKnockoutRound" :disabled="!hasNextKnockoutRound" :class="[
+                  'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                  hasNextKnockoutRound
+                    ? 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200 cursor-pointer'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed border'
+                ]">
+                  Vòng sau →
+                </button>
+              </div>
+            </template>
+
+            <!-- Elimination format -->
+            <template v-if="tournamentTypeFormat === 2">
+              <div v-if="currentEliminationRound" class="mb-6">
+                <div class="flex justify-between items-center mb-4 px-2">
+                  <p class="text-sm font-semibold text-gray-700">
+                    {{ currentEliminationRound.round_name }} • {{ currentEliminationRound.matches.length }} trận đấu
+                  </p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-2">
+                  <PoolStageMatchCard 
+                    v-for="match in currentEliminationRound.matches" 
+                    :key="match.match_id" 
+                    :match="normalizeMatchForCard(match)"
+                    :enable-drag-drop="false" />
+                </div>
+              </div>
+            </template>
+
+            <!-- Round Robin / Other formats -->
+            <template v-if="tournamentTypeFormat === 3 || !tournamentTypeFormat">
+              <div v-if="bracketData.bracket?.length > 0" class="space-y-4">
+                <div v-for="round in bracketData.bracket" :key="round.round" class="mb-6">
+                  <div class="bg-[#EDEEF2] px-4 py-3 rounded-lg mb-4">
+                    <h3 class="font-bold text-[#3E414C]">Vòng {{ round.round }}</h3>
+                  </div>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-2">
+                    <PoolStageMatchCard 
+                      v-for="match in round.matches" 
+                      :key="match.match_id || match.id" 
+                      :match="normalizeMatchForCard(match)"
+                      :enable-drag-drop="false" />
+                  </div>
+                </div>
+              </div>
+              <div v-else class="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
+                <p class="text-gray-500">Chưa có trận đấu nào.</p>
+              </div>
+            </template>
+          </template>
+
+          <!-- Empty/Error state -->
+          <div v-else class="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
+            <AdjustmentsVerticalIcon class="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p class="text-gray-500">Lịch thi đấu đang được cập nhật.</p>
           </div>
         </div>
       </div>
@@ -345,8 +465,11 @@ import {
   ShareIcon,
 } from '@heroicons/vue/24/outline'
 import * as TournamentService from '@/service/tournament.js'
+import * as TeamService from '@/service/team.js'
+import * as TournamentTypeService from '@/service/tournamentType.js'
 import { useFormatDate, formatEventDate } from '@/composables/formatDatetime.js'
 import { LOCAL_STORAGE_KEY } from '@/constants/index.js'
+import PoolStageMatchCard from '@/components/molecules/PoolStageMatchCard.vue'
 import ShareCard from './shared/ShareCard.vue'
 
 const route = useRoute()
@@ -360,6 +483,18 @@ const activeTab = ref('overview')
 const countdown = ref([])
 let countdownInterval = null
 const showShareModal = ref(false)
+
+// Teams state
+const teams = ref([])
+const isLoadingTeams = ref(false)
+
+// Bracket/Schedule state
+const bracketData = ref(null)
+const isLoadingBracket = ref(false)
+const scheduleActiveTab = ref('matches') // 'matches' or 'ranking'
+const currentMixedStage = ref('pool') // 'pool' or 'knockout'
+const currentKnockoutRoundIndex = ref(0)
+const currentEliminationRoundIndex = ref(0)
 
 const tournamentId = computed(() => route.params.id)
 
@@ -530,11 +665,257 @@ async function fetchTournament() {
     const response = await TournamentService.getTournamentById(id)
     tournament.value = response
     updateCountdown()
+    // Fetch teams after tournament is loaded
+    await fetchTeams()
+    // Fetch bracket data after tournament types are loaded
+    if (response.tournament_types?.length) {
+      await fetchBracket()
+    }
   } catch (err) {
     error.value = true
     console.error('Error fetching tournament:', err)
   } finally {
     isLoading.value = false
+  }
+}
+
+async function fetchTeams() {
+  if (!tournamentId.value) return
+  isLoadingTeams.value = true
+  try {
+    const response = await TeamService.getTeamsByTournamentId(tournamentId.value)
+    // Response shape: { teams: [...] } - normalize to array
+    if (Array.isArray(response)) {
+      teams.value = response
+    } else if (response && Array.isArray(response.teams)) {
+      teams.value = response.teams
+    } else {
+      teams.value = []
+    }
+  } catch (err) {
+    console.error('Error fetching teams:', err)
+    teams.value = []
+  } finally {
+    isLoadingTeams.value = false
+  }
+}
+
+async function fetchBracket() {
+  const tournamentTypeId = tournament.value?.tournament_types?.[0]?.id
+  if (!tournamentTypeId) return
+  
+  isLoadingBracket.value = true
+  try {
+    const response = await TournamentTypeService.getBracketByTournamentTypeId(tournamentTypeId)
+    bracketData.value = response
+  } catch (err) {
+    console.error('Error fetching bracket:', err)
+    bracketData.value = null
+  } finally {
+    isLoadingBracket.value = false
+  }
+}
+
+// Schedule tab computed properties
+const tournamentTypeFormat = computed(() => {
+  return tournament.value?.tournament_types?.[0]?.format
+})
+
+const mixedBracket = computed(() => {
+  if (!bracketData.value) return { poolStage: [], leftSide: [], rightSide: [], finalMatch: null }
+  
+  const poolStage = bracketData.value.pool_stage || []
+  const knockoutStage = bracketData.value.knockout_stage || []
+  
+  // Compute leftSide/rightSide from knockout_stage
+  const leftSide = []
+  const rightSide = []
+  let finalMatch = null
+  let thirdPlaceMatch = null
+  
+  const maxRound = Math.max(...knockoutStage.map(r => r.round || 0), 0)
+  
+  knockoutStage.forEach(roundData => {
+    const round = roundData.round || 0
+    const matches = roundData.matches || []
+    
+    // Find third place match
+    const thirdPlaceData = matches.find(m => m.is_third_place === true || m.is_third_place === 1)
+    
+    if (round === maxRound) {
+      // Final round - extract final match
+      if (!finalMatch) {
+        finalMatch = matches.find(m => m.is_third_place !== true && m.is_third_place !== 1)
+      }
+      if (!thirdPlaceMatch && thirdPlaceData) {
+        thirdPlaceMatch = thirdPlaceData
+      }
+      return
+    }
+    
+    // Split matches between left/right
+    const nonThirdMatches = matches.filter(m => m.is_third_place !== true && m.is_third_place !== 1)
+    if (nonThirdMatches.length === 0) return
+    
+    const mid = Math.ceil(nonThirdMatches.length / 2)
+    
+    if (nonThirdMatches.slice(0, mid).length > 0) {
+      leftSide.push({ round, round_name: roundData.round_name, matches: nonThirdMatches.slice(0, mid) })
+    }
+    if (nonThirdMatches.slice(mid).length > 0) {
+      rightSide.push({ round, round_name: roundData.round_name, matches: nonThirdMatches.slice(mid) })
+    }
+  })
+  
+  return {
+    poolStage,
+    leftSide,
+    rightSide,
+    finalMatch,
+    thirdPlaceMatch
+  }
+})
+
+const eliminationBracket = computed(() => {
+  return bracketData.value?.bracket || []
+})
+
+const currentEliminationRound = computed(() => {
+  return eliminationBracket.value[currentEliminationRoundIndex.value] || null
+})
+
+const currentKnockoutRound = computed(() => {
+  const roundsMap = new Map()
+  
+  // Build rounds from knockout_stage
+  if (bracketData.value?.knockout_stage) {
+    bracketData.value.knockout_stage.forEach(round => {
+      const roundNum = round.round || 0
+      roundsMap.set(roundNum, {
+        round: roundNum,
+        round_name: round.round_name || `Vòng ${roundNum}`,
+        matches: round.matches || []
+      })
+    })
+  }
+  
+  // Add final match
+  if (mixedBracket.value.finalMatch) {
+    roundsMap.set(999, {
+      round: 999,
+      round_name: mixedBracket.value.finalMatch.round_name || 'Chung kết',
+      matches: [mixedBracket.value.finalMatch]
+    })
+  }
+  
+  const sortedRounds = Array.from(roundsMap.values()).sort((a, b) => (a.round || 0) - (b.round || 0))
+  return sortedRounds[currentKnockoutRoundIndex.value] || sortedRounds[0] || null
+})
+
+const hasPreviousKnockoutRound = computed(() => {
+  const roundsCount = bracketData.value?.knockout_stage?.length || 0
+  return currentKnockoutRoundIndex.value > 0
+})
+
+const hasNextKnockoutRound = computed(() => {
+  const roundsCount = bracketData.value?.knockout_stage?.length || 0
+  return currentKnockoutRoundIndex.value < roundsCount - 1
+})
+
+const previousKnockoutRound = () => {
+  if (hasPreviousKnockoutRound.value) currentKnockoutRoundIndex.value--
+}
+
+const nextKnockoutRound = () => {
+  if (hasNextKnockoutRound.value) currentKnockoutRoundIndex.value++
+}
+
+const getKnockoutStatusText = (matches) => {
+  if (!matches || matches.length === 0) return 'Chưa có trận đấu'
+  const completedCount = matches.filter(m => m.status === 'completed').length
+  const pendingCount = matches.filter(m => m.status === 'pending').length
+  if (completedCount === matches.length) return `Hoàn thành`
+  return `Đang diễn ra • ${completedCount}/${matches.length}`
+}
+
+const normalizeMatchForCard = (match) => {
+  const homeTeamId = match.home_team?.id
+  const awayTeamId = match.away_team?.id
+  
+  // Normalize legs
+  if (match.legs && Array.isArray(match.legs) && match.legs.length > 0) {
+    const normalizedLegs = match.legs.map(leg => {
+      if (leg.sets && typeof leg.sets === 'object' && !Array.isArray(leg.sets)) {
+        return leg
+      }
+      
+      let sets = {}
+      if (leg.sets && Array.isArray(leg.sets)) {
+        leg.sets.forEach((set, index) => {
+          const key = `set_${index + 1}`
+          sets[key] = Array.isArray(set) ? set : [set]
+        })
+      } else if (leg.results && Array.isArray(leg.results)) {
+        leg.results.forEach(result => {
+          const setNum = result.set_number || 1
+          const key = `set_${setNum}`
+          if (!sets[key]) sets[key] = []
+          sets[key].push({ team_id: result.team_id, score: result.score || 0 })
+        })
+      } else if (leg.home_score !== undefined && leg.away_score !== undefined) {
+        sets = {
+          set_1: [
+            { team_id: homeTeamId, score: leg.home_score || 0 },
+            { team_id: awayTeamId, score: leg.away_score || 0 }
+          ]
+        }
+      }
+      
+      return { ...leg, sets }
+    })
+    
+    return { ...match, match_id: match.match_id || match.id, legs: normalizedLegs }
+  }
+  
+  // Create legs from match data
+  let sets = {}
+  if (match.results && Array.isArray(match.results)) {
+    match.results.forEach(result => {
+      const setNum = result.set_number || 1
+      const key = `set_${setNum}`
+      if (!sets[key]) sets[key] = []
+      sets[key].push({ team_id: result.team_id, score: result.score || 0 })
+    })
+  } else if (match.home_score !== undefined && match.away_score !== undefined) {
+    sets = {
+      set_1: [
+        { team_id: homeTeamId, score: match.home_score || 0 },
+        { team_id: awayTeamId, score: match.away_score || 0 }
+      ]
+    }
+  }
+  
+  const legs = [{
+    id: match.id || match.match_id,
+    leg: 1,
+    court: match.court || 1,
+    status: match.status || (match.is_completed ? 'completed' : 'pending'),
+    scheduled_at: match.scheduled_at,
+    is_completed: match.is_completed || match.status === 'completed',
+    sets
+  }]
+  
+  return {
+    ...match,
+    match_id: match.match_id || match.id,
+    status: match.status || (match.is_completed ? 'completed' : 'pending'),
+    legs,
+    aggregate_score: match.aggregate_score || { home: match.home_score || 0, away: match.away_score || 0 },
+    winner_team_id: match.winner_team_id || (
+      match.is_completed && match.home_score > match.away_score
+        ? homeTeamId
+        : (match.is_completed && match.away_score > match.home_score ? awayTeamId : null)
+    )
   }
 }
 
