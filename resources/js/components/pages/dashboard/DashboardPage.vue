@@ -845,6 +845,8 @@ function navigateTo(route) {
   }
 }
 onMounted(async () => {
+  // Fetch user data first to get latest settings including leaderboard_scope
+  await userStore.fetchMe();
   await getHomeData();
 });
 
