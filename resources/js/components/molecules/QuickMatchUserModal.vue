@@ -3,21 +3,21 @@
         <Transition name="modal">
             <div
                 v-if="isOpen"
-                class="fixed inset-0 bg-black backdrop-blur-[1px] bg-opacity-50 flex items-center justify-center z-50 p-4"
+                class="fixed inset-0 bg-black backdrop-blur-[1px] bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4"
                 @click.self="closeModal"
             >
-                <div class="bg-white rounded-lg shadow-xl w-full max-w-lg h-[90%] flex flex-col">
+                <div class="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[95vh] sm:max-h-[90vh] sm:h-[90%] flex flex-col">
 
                     <!-- Header -->
-                    <div class="flex items-center justify-between p-6 pb-4">
-                        <h2 class="text-xl font-semibold text-gray-800">{{ title }}</h2>
+                    <div class="flex items-center justify-between p-4 sm:p-6 pb-3 sm:pb-4 flex-shrink-0">
+                        <h2 class="text-base sm:text-xl font-semibold text-gray-800">{{ title }}</h2>
                         <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
-                            <XMarkIcon class="w-6 h-6" />
+                            <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
                         </button>
                     </div>
 
                     <!-- Tabs -->
-                    <div class="px-6 pb-4">
+                    <div class="px-4 sm:px-6 pb-3 sm:pb-4 flex-shrink-0">
                         <Swiper
                             :slides-per-view="'auto'"
                             :space-between="8"
@@ -43,7 +43,7 @@
                     </div>
 
                     <!-- Area tab controls -->
-                    <div v-if="activeTab === 'area'" class="px-6 pb-4 space-y-3">
+                    <div v-if="activeTab === 'area'" class="px-4 sm:px-6 pb-3 sm:pb-4 space-y-3">
                         <!-- Radius Slider -->
                         <div>
                             <div class="flex items-center justify-between mb-2">

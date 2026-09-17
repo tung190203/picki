@@ -9,16 +9,16 @@
   >
     <div
       v-if="modelValue"
-      class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      class="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-sm"
       @click.self="close"
     >
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative z-[10000] overflow-hidden animate-in fade-in zoom-in duration-300 max-h-[85vh] flex flex-col">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative z-[10000] overflow-hidden animate-in fade-in zoom-in duration-300 max-h-[95vh] sm:max-h-[90vh] flex flex-col">
         <!-- Fixed Header -->
-        <div class="p-6 pb-4 border-b">
+        <div class="p-4 sm:p-6 pb-3 sm:pb-4 border-b flex-shrink-0">
           <div class="flex items-center justify-between">
-            <h3 class="text-2xl font-bold text-gray-800">Quản lý mẫu thông báo</h3>
+            <h3 class="text-lg sm:text-2xl font-bold text-gray-800">Quản lý mẫu thông báo</h3>
             <button @click="close" class="text-gray-400 hover:text-gray-600 transition-colors">
-              <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-6 h-6 sm:w-8 sm:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -26,12 +26,12 @@
         </div>
 
         <!-- Tabs -->
-        <div class="flex border-b px-6">
+        <div class="flex border-b px-4 sm:px-6 overflow-x-auto flex-shrink-0">
           <button
             v-for="tab in tabs"
             :key="tab.key"
             @click="activeTab = tab.key"
-            class="px-4 py-3 font-semibold text-sm transition-colors border-b-2 -mb-px"
+            class="px-3 sm:px-4 py-3 font-semibold text-sm transition-colors border-b-2 -mb-px whitespace-nowrap"
             :class="activeTab === tab.key
               ? 'text-[#D72D36] border-[#D72D36]'
               : 'text-gray-500 border-transparent hover:text-gray-700'"
@@ -41,7 +41,7 @@
         </div>
 
         <!-- Content -->
-        <div class="flex-1 overflow-y-auto p-6">
+        <div class="flex-1 overflow-y-auto p-4 sm:p-6">
           <!-- Tab: Danh sách mẫu -->
           <div v-if="activeTab === 'list'">
             <div v-if="isLoading" class="flex items-center justify-center py-12">

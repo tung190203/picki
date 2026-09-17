@@ -1,28 +1,28 @@
 <template>
   <Teleport to="body">
     <Transition name="modal">
-      <div v-if="modelValue" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" @click.self="closeModal">
-        <div class="bg-white rounded-2xl w-full max-w-md overflow-hidden">
+      <div v-if="modelValue" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-3 sm:p-4" @click.self="closeModal">
+        <div class="bg-white rounded-2xl w-full max-w-md max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col">
           <!-- Header -->
-          <div class="p-6 pb-4 border-b border-gray-100 flex items-center justify-between">
-            <h3 class="text-xl font-bold text-gray-900">Quảng bá</h3>
+          <div class="p-4 sm:p-6 pb-3 sm:pb-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+            <h3 class="text-lg sm:text-xl font-bold text-gray-900">Quảng bá</h3>
             <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors" :disabled="sending">
-              <XMarkIcon class="w-6 h-6" />
+              <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
           </div>
 
           <!-- Body -->
-          <div class="p-6">
-            <p class="text-gray-600">
+          <div class="p-4 sm:p-6 overflow-y-auto flex-1">
+            <p class="text-gray-600 text-sm sm:text-base">
               Bạn có chắc muốn quảng bá tới 50 người (bạn bè + gần khu vực) để tìm người chơi / thành viên?
             </p>
           </div>
 
           <!-- Footer -->
-          <div class="p-6 pt-4 border-t border-gray-100 flex gap-3 justify-end">
+          <div class="p-4 sm:p-6 pt-3 sm:pt-4 border-t border-gray-100 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 sm:justify-end flex-shrink-0">
             <button
               type="button"
-              class="px-6 py-2.5 font-semibold rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              class="w-full sm:w-auto px-6 py-2.5 font-semibold rounded border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
               @click="closeModal"
               :disabled="sending"
             >
@@ -30,7 +30,7 @@
             </button>
             <button
               type="button"
-              class="px-6 py-2.5 font-semibold rounded bg-[#D72D36] hover:bg-[#c9252e] text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              class="w-full sm:w-auto px-6 py-2.5 font-semibold rounded bg-[#D72D36] hover:bg-[#c9252e] text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               @click="handleSend"
               :disabled="sending"
             >

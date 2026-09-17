@@ -4,18 +4,18 @@
       <div v-if="isOpen"
         class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
         @click.self="closeModal">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-scaleIn relative">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[95vh] sm:max-h-[90vh] overflow-hidden animate-scaleIn relative flex flex-col">
 
           <!-- Header -->
-          <div class="px-6 pt-5 flex items-center justify-between border-b border-gray-100">
-            <h2 class="text-[18px] font-bold text-[#374151]">Xóa người bảo lãnh</h2>
+          <div class="px-4 sm:px-6 pt-4 sm:pt-5 flex items-center justify-between border-b border-gray-100 flex-shrink-0">
+            <h2 class="text-base sm:text-[18px] font-bold text-[#374151]">Xóa người bảo lãnh</h2>
             <button @click="closeModal" class="p-2 text-gray-500 hover:text-gray-700 transition-colors">
-              <XMarkIcon class="w-6 h-6" />
+              <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
           </div>
 
           <!-- Content -->
-          <div class="px-6 pb-6 pt-4">
+          <div class="px-4 sm:px-6 pb-4 sm:pb-6 pt-3 sm:pt-4 overflow-y-auto flex-1">
 
             <!-- Staff info -->
             <div class="flex items-center gap-3 mb-4 p-3 bg-gray-50 rounded-xl">

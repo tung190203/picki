@@ -1,23 +1,23 @@
 <template>
-    <div v-if="isOpen" class="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+    <div v-if="isOpen" class="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4">
         <!-- Backdrop with blur -->
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="$emit('close')"></div>
 
         <div
-            class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl relative z-[10000] overflow-hidden animate-in fade-in zoom-in duration-300 h-[calc(100vh-7rem)] flex flex-col">
+            class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl relative z-[10000] overflow-hidden animate-in fade-in zoom-in duration-300 h-[calc(100vh-3rem)] sm:h-[calc(100vh-7rem)] max-h-[95vh] sm:max-h-[90vh] flex flex-col">
 
             <!-- Header -->
-            <div class="p-6 pb-4">
+            <div class="p-4 sm:p-6 pb-3 sm:pb-4 flex-shrink-0">
                 <div class="flex items-center justify-between">
-                    <h3 class="text-[28px] font-bold text-[#3E414C]">Lịch đấu</h3>
+                    <h3 class="text-lg sm:text-[28px] font-bold text-[#3E414C]">Lịch đấu</h3>
                     <button @click="$emit('close')" class="text-gray-400 hover:text-gray-600 transition-colors">
-                        <XMarkIcon class="w-8 h-8" stroke-width="2.5" />
+                        <XMarkIcon class="w-6 h-6 sm:w-8 sm:h-8" stroke-width="2.5" />
                     </button>
                 </div>
             </div>
 
             <!-- Featured Card (Dynamic) -->
-            <div class="px-6 pb-4" v-if="nextMatch">
+            <div class="px-4 sm:px-6 pb-4 flex-shrink-0" v-if="nextMatch">
                 <div class="relative w-full rounded-2xl overflow-hidden shadow-md cursor-pointer hover:opacity-95 transition-opacity" @click="$emit('click-card', nextMatch, 'next')">
                     <div class="absolute inset-0 bg-[#D72D36]" :style="{ backgroundImage: `url(${thumbnail})` }">
                     </div>

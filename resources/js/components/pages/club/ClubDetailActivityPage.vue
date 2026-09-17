@@ -1,11 +1,11 @@
 <template>
-  <div class="p-4 md:p-6 min-h-[calc(100vh-5rem)] bg-[#F8F9FA] dark:bg-[#0B1120]">
+  <div class="p-3 sm:p-4 md:p-6 min-h-[calc(100vh-5rem)] bg-[#F8F9FA] dark:bg-[#0B1120]">
     <!-- Header -->
-    <div class="flex items-center mb-6">
-      <button @click="goBack" class="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-colors mr-2">
-        <ArrowLeftIcon class="w-6 h-6 text-[#3E414C] dark:text-slate-200" />
+    <div class="flex items-center mb-4 sm:mb-6">
+      <button @click="goBack" class="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-colors mr-2">
+        <ArrowLeftIcon class="w-5 h-5 sm:w-6 sm:h-6 text-[#3E414C] dark:text-slate-200" />
       </button>
-      <h1 class="text-xl font-semibold text-[#3E414C] dark:text-slate-100">Chi tiết sự kiện</h1>
+      <h1 class="text-lg sm:text-xl font-semibold text-[#3E414C] dark:text-slate-100">Chi tiết sự kiện</h1>
     </div>
 
     <!-- Skeleton Loader -->
@@ -49,162 +49,167 @@
     <!-- Content -->
     <div v-else-if="!isLoading && activity.title">
       <!-- Page Title & Actions -->
-      <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-8">
+      <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6 sm:mb-8">
         <div class="flex-1">
-          <div class="flex items-center gap-3 mb-2">
-            <h2 class="text-2xl font-semibold text-[#3E414C] dark:text-slate-100">{{ activity.title }}</h2>
-            <span class="px-3 py-1 bg-[#F2F7FC] dark:bg-sky-950/60 text-sm font-semibold rounded-[4px]" :class="activity.is_private ? 'text-[#4392E0] dark:text-sky-400' : 'text-[#00B377] dark:text-emerald-400'">
+          <div class="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+            <h2 class="text-xl sm:text-2xl font-semibold text-[#3E414C] dark:text-slate-100">{{ activity.title }}</h2>
+            <span class="px-2 sm:px-3 py-1 bg-[#F2F7FC] dark:bg-sky-950/60 text-xs sm:text-sm font-semibold rounded-[4px]" :class="activity.is_private ? 'text-[#4392E0] dark:text-sky-400' : 'text-[#00B377] dark:text-emerald-400'">
               {{ activity.is_private ? 'Private' : 'Public' }}
             </span>
           </div>
-          <p class="text-[#838799] dark:text-slate-400 whitespace-pre-line">{{ activity.summary }}</p>
+          <p class="text-sm sm:text-base text-[#838799] dark:text-slate-400 whitespace-pre-line">{{ activity.summary }}</p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3">
           <Button
             v-if="isOwner && !isFinished && activity.status !== 'completed' && activity.status !== 'cancelled'"
-            size="lg"
+            size="md"
             color="primary"
-            class="px-4 py-1 rounded-[4px] font-semibold shadow-lg shadow-blue-100 dark:shadow-none"
+            class="px-3 py-2 sm:px-4 sm:py-2 rounded-[4px] font-semibold text-sm sm:text-base shadow-lg shadow-blue-100 dark:shadow-none w-full sm:w-auto"
             @click="updateEvent"
           >
             <div class="flex items-center gap-2">
-              <WrenchIcon class="w-5 h-5" />
-              Cập nhật
+              <WrenchIcon class="w-4 h-4 sm:w-5 sm:h-5" />
+              <span class="hidden sm:inline">Cập nhật</span>
+              <span class="sm:hidden">Sửa</span>
             </div>
           </Button>
           <Button
             v-if="registrationButtonState.showAbsent"
-            size="lg"
+            size="md"
             color="white"
-            class="px-4 py-1 rounded-[4px] font-semibold border border-[#DCDEE6] dark:border-slate-700 bg-[#EDEEF2] dark:bg-slate-800 text-[#3E414C] dark:text-slate-200 shadow-sm transition-all hover:bg-gray-50 dark:hover:bg-slate-700"
+            class="px-3 py-2 sm:px-4 sm:py-2 rounded-[4px] font-semibold text-sm sm:text-base border border-[#DCDEE6] dark:border-slate-700 bg-[#EDEEF2] dark:bg-slate-800 text-[#3E414C] dark:text-slate-200 shadow-sm transition-all hover:bg-gray-50 dark:hover:bg-slate-700 w-full sm:w-auto"
             @click="handleSelfAbsentActivity"
           >
             <div class="flex items-center gap-2">
-              <XMarkIcon class="w-5 h-5" />
-              Báo vắng
+              <XMarkIcon class="w-4 h-4 sm:w-5 sm:h-5" />
+              <span class="hidden sm:inline">Báo vắng</span>
+              <span class="sm:hidden">Vắng</span>
             </div>
           </Button>
           <Button
-            size="lg"
+            size="md"
             :color="registrationButtonState.color"
-            class="px-4 py-1 rounded-[4px] font-semibold"
+            class="px-3 py-2 sm:px-4 sm:py-2 rounded-[4px] font-semibold text-sm sm:text-base w-full sm:w-auto"
             :class="registrationButtonState.shadowClass"
             :disabled="registrationButtonState.disabled"
             @click="registrationButtonState.action"
           >
             <div class="flex items-center gap-2">
-              <component :is="registrationButtonState.icon" class="w-5 h-5" />
+              <component :is="registrationButtonState.icon" class="w-4 h-4 sm:w-5 sm:h-5" />
               {{ registrationButtonState.text }}
             </div>
           </Button>
           <Button
             v-if="isOwner && !isFinished && activity.status !== 'completed' && activity.status !== 'cancelled'"
-            size="lg"
+            size="md"
             color="danger"
-            class="px-4 py-1 rounded-[4px] font-semibold shadow-lg shadow-red-100 dark:shadow-none"
+            class="px-3 py-2 sm:px-4 sm:py-2 rounded-[4px] font-semibold text-sm sm:text-base shadow-lg shadow-red-100 dark:shadow-none w-full sm:w-auto"
             @click="shareEvent"
           >
             <div class="flex items-center gap-2">
-              <ShareIcon class="w-5 h-5" />
-              Chia sẻ
+              <ShareIcon class="w-4 h-4 sm:w-5 sm:h-5" />
+              <span class="hidden sm:inline">Chia sẻ</span>
+              <span class="sm:hidden">Share</span>
             </div>
           </Button>
           <Button
             v-if="isOwner && !isFinished && activity.status !== 'completed' && activity.status !== 'cancelled'"
-            size="lg"
+            size="md"
             color="white"
-            class="px-4 py-1 rounded-[4px] font-semibold border border-[#D72D36] dark:border-red-600 bg-[#FFF5F5] dark:bg-red-950/60 text-[#D72D36] dark:text-red-300 shadow-sm transition-all hover:bg-[#FFEBEB] dark:hover:bg-red-900/60"
+            class="px-3 py-2 sm:px-4 sm:py-2 rounded-[4px] font-semibold text-sm sm:text-base border border-[#D72D36] dark:border-red-600 bg-[#FFF5F5] dark:bg-red-950/60 text-[#D72D36] dark:text-red-300 shadow-sm transition-all hover:bg-[#FFEBEB] dark:hover:bg-red-900/60 w-full sm:w-auto"
             @click="openPromotionModal"
           >
             <div class="flex items-center gap-2">
-              <MegaphoneIcon class="w-5 h-5" />
-              Quảng bá
+              <MegaphoneIcon class="w-4 h-4 sm:w-5 sm:h-5" />
+              <span class="hidden sm:inline">Quảng bá</span>
             </div>
           </Button>
           <Button
             v-if="isOwner && !isFinished && activity.status !== 'completed' && activity.status !== 'cancelled'"
-            size="lg"
+            size="md"
             color="white"
-            class="px-4 py-1 rounded-[4px] font-semibold border border-[#DCDEE6] dark:border-slate-700 bg-[#EDEEF2] dark:bg-slate-800 text-[#3E414C] dark:text-slate-200 shadow-sm transition-all hover:bg-gray-50 dark:hover:bg-slate-700"
+            class="px-3 py-2 sm:px-4 sm:py-2 rounded-[4px] font-semibold text-sm sm:text-base border border-[#DCDEE6] dark:border-slate-700 bg-[#EDEEF2] dark:bg-slate-800 text-[#3E414C] dark:text-slate-200 shadow-sm transition-all hover:bg-gray-50 dark:hover:bg-slate-700 w-full sm:w-auto"
             @click="cancelEvent"
           >
             <div class="flex items-center gap-2">
-              <XMarkIcon class="w-5 h-5" />
-              Huỷ sự kiện
+              <XMarkIcon class="w-4 h-4 sm:w-5 sm:h-5" />
+              <span class="hidden sm:inline">Huỷ sự kiện</span>
+              <span class="sm:hidden">Huỷ</span>
             </div>
           </Button>
           <Button
             v-if="!isOwner && !isFinished && activity.status !== 'completed' && activity.status !== 'cancelled'"
-            size="lg"
+            size="md"
             color="white"
-            class="px-4 py-1 rounded-[4px] font-semibold border border-[#DCDEE6] dark:border-slate-700 bg-[#EDEEF2] dark:bg-slate-800 text-[#3E414C] dark:text-slate-200 shadow-sm transition-all hover:bg-gray-50 dark:hover:bg-slate-700"
+            class="px-3 py-2 sm:px-4 sm:py-2 rounded-[4px] font-semibold text-sm sm:text-base border border-[#DCDEE6] dark:border-slate-700 bg-[#EDEEF2] dark:bg-slate-800 text-[#3E414C] dark:text-slate-200 shadow-sm transition-all hover:bg-gray-50 dark:hover:bg-slate-700 w-full sm:w-auto"
             @click="shareEvent"
           >
             <div class="flex items-center gap-2">
-              <ShareIcon class="w-5 h-5" />
-              Chia sẻ
+              <ShareIcon class="w-4 h-4 sm:w-5 sm:h-5" />
+              <span class="hidden sm:inline">Chia sẻ</span>
+              <span class="sm:hidden">Share</span>
             </div>
           </Button>
         </div>
       </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 md:gap-8">
       <!-- Left Column (Main Info) -->
-      <div class="lg:col-span-8 space-y-6">
+      <div class="lg:col-span-12 xl:col-span-8 space-y-4 sm:space-y-6">
         <!-- Event Quick Info Cards -->
-        <div class="bg-white dark:bg-[#161F33] rounded-[16px] p-6 shadow-sm border border-gray-50 dark:border-slate-800">
-          <div class="flex flex-wrap gap-4 bg-[#FBEAEB] dark:bg-red-950/40 border border-transparent dark:border-red-900/60 rounded-lg p-4">
+        <div class="bg-white dark:bg-[#161F33] rounded-[16px] p-4 sm:p-5 md:p-6 shadow-sm border border-gray-50 dark:border-slate-800">
+          <div class="flex flex-wrap gap-3 sm:gap-4 bg-[#FBEAEB] dark:bg-red-950/40 border border-transparent dark:border-red-900/60 rounded-lg p-3 sm:p-4">
             <!-- Time Card -->
-            <div class="flex-1 min-w-[200px] flex items-center gap-4">
-              <div class="w-12 h-12 bg-white dark:bg-slate-800 rounded-lg shadow-sm flex items-center justify-center text-[#D72D36] dark:text-red-400">
-                <ClockIcon class="w-6 h-6" />
+            <div class="flex-1 min-w-[180px] sm:min-w-[200px] flex items-center gap-3 sm:gap-4">
+              <div class="w-10 h-10 sm:w-12 sm:h-12 bg-white dark:bg-slate-800 rounded-lg shadow-sm flex items-center justify-center text-[#D72D36] dark:text-red-400">
+                <ClockIcon class="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
               <div>
-                <div class="flex items-center gap-2">
-                  <div class="font-semibold text-[#3E414C] dark:text-slate-100">{{ formatTimeRange(activity.start_time, activity.end_time) }}</div>
-                  <span class="px-2 py-0.5 bg-[#D72D36] text-white text-[11px] rounded-[4px] font-bold">
+                <div class="flex flex-wrap items-center gap-2">
+                  <div class="font-semibold text-sm sm:text-base text-[#3E414C] dark:text-slate-100">{{ formatTimeRange(activity.start_time, activity.end_time) }}</div>
+                  <span class="px-1.5 sm:px-2 py-0.5 bg-[#D72D36] text-white text-[10px] sm:text-[11px] rounded-[4px] font-bold">
                     {{ diffTimeText(activity.start_time, activity.end_time) }}
                   </span>
                 </div>
-                <div class="text-sm text-[#838799] dark:text-slate-400 font-medium">{{ formatDate(activity.start_time) }}</div>
+                <div class="text-xs sm:text-sm text-[#838799] dark:text-slate-400 font-medium">{{ formatDate(activity.start_time) }}</div>
               </div>
             </div>
 
             <!-- Location Card -->
-            <div class="flex-1 min-w-[200px] flex items-center gap-4">
-              <div class="w-12 h-12 bg-white dark:bg-slate-800 rounded-lg shadow-sm flex items-center justify-center text-[#D72D36] dark:text-red-400">
-                <MapPinIcon class="w-6 h-6" />
+            <div class="flex-1 min-w-[180px] sm:min-w-[200px] flex items-center gap-3 sm:gap-4">
+              <div class="w-10 h-10 sm:w-12 sm:h-12 bg-white dark:bg-slate-800 rounded-lg shadow-sm flex items-center justify-center text-[#D72D36] dark:text-red-400">
+                <MapPinIcon class="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
               <div>
-                <div class="font-semibold text-[#3E414C] dark:text-slate-100 truncate max-w-[200px]" v-tooltip="activity.location">{{ activity.location }}</div>
+                <div class="font-semibold text-sm sm:text-base text-[#3E414C] dark:text-slate-100 truncate max-w-[150px] sm:max-w-[200px]" v-tooltip="activity.location">{{ activity.location }}</div>
               </div>
             </div>
 
             <!-- Frequency Card -->
-            <div class="flex-1 min-w-[200px] flex items-center gap-4">
-              <div class="w-12 h-12 bg-white dark:bg-slate-800 rounded-lg shadow-sm flex items-center justify-center text-[#D72D36] dark:text-red-400">
-                <ArrowPathRoundedSquareIcon class="w-6 h-6" />
+            <div class="flex-1 min-w-[180px] sm:min-w-[200px] flex items-center gap-3 sm:gap-4">
+              <div class="w-10 h-10 sm:w-12 sm:h-12 bg-white dark:bg-slate-800 rounded-lg shadow-sm flex items-center justify-center text-[#D72D36] dark:text-red-400">
+                <ArrowPathRoundedSquareIcon class="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <div class="font-semibold text-[#3E414C] dark:text-slate-100">{{ recurringText }}</div>
+              <div class="font-semibold text-sm sm:text-base text-[#3E414C] dark:text-slate-100">{{ recurringText }}</div>
             </div>
           </div>
 
           <!-- Secondary Detailed Cards -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mt-4 sm:mt-6">
             <!-- Cost Card -->
-            <div class="border border-gray-100 dark:border-slate-800 bg-[#F9FAFB] dark:bg-[#1E293B] rounded-2xl p-5 hover:border-[#D72D36]/20 transition-colors">
-              <div class="flex items-center gap-3 mb-4">
-                <div class="w-8 h-8 bg-[#D72D36] rounded-full p-2 flex items-center justify-center text-white">
-                  <PriceCheckIcon class="w-5 h-5" />
+            <div class="border border-gray-100 dark:border-slate-800 bg-[#F9FAFB] dark:bg-[#1E293B] rounded-2xl p-4 sm:p-5 hover:border-[#D72D36]/20 transition-colors">
+              <div class="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div class="w-7 h-7 sm:w-8 sm:h-8 bg-[#D72D36] rounded-full p-1.5 sm:p-2 flex items-center justify-center text-white">
+                  <PriceCheckIcon class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
-                <h4 class="font-semibold text-[#3E414C] dark:text-slate-100 text-xl">Chia tiền</h4>
+                <h4 class="font-semibold text-base sm:text-xl text-[#3E414C] dark:text-slate-100">Chia tiền</h4>
               </div>
               <div class="space-y-2">
-                <div class="flex justify-between items-center text-sm">
+                <div class="flex justify-between items-center text-xs sm:text-sm">
                   <span class="text-[#3E414C] dark:text-slate-300">Cơ chế chia tiền</span>
                   <span class="font-semibold text-[#D72D36] dark:text-red-400">{{ feeSplitLabel }}</span>
                 </div>
-                <div class="flex justify-between items-center text-sm">
+                <div class="flex justify-between items-center text-xs sm:text-sm">
                   <span class="text-[#3E414C] dark:text-slate-300">Thu khách vãng lai</span>
                   <span v-if="activity.guest_fee > 0" class="font-semibold text-[#D72D36] dark:text-red-400">{{ formatCurrency(activity.guest_fee) }}/người</span>
                   <span v-else class="font-semibold text-[#D72D36] dark:text-red-400">Không thu</span>
@@ -213,19 +218,19 @@
             </div>
 
             <!-- Regulation Card -->
-            <div class="border border-gray-100 dark:border-slate-800 bg-[#F9FAFB] dark:bg-[#1E293B] rounded-2xl p-5 hover:border-[#D72D36]/20 transition-colors">
-              <div class="flex items-center gap-3 mb-4">
-                <div class="w-8 h-8 bg-[#D72D36] rounded-full p-2 flex items-center justify-center text-white">
-                  <RuleIcon class="w-5 h-5" />
+            <div class="border border-gray-100 dark:border-slate-800 bg-[#F9FAFB] dark:bg-[#1E293B] rounded-2xl p-4 sm:p-5 hover:border-[#D72D36]/20 transition-colors">
+              <div class="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div class="w-7 h-7 sm:w-8 sm:h-8 bg-[#D72D36] rounded-full p-1.5 sm:p-2 flex items-center justify-center text-white">
+                  <RuleIcon class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
-                <h4 class="font-semibold text-[#3E414C] dark:text-slate-100 text-xl">Quy định</h4>
+                <h4 class="font-semibold text-base sm:text-xl text-[#3E414C] dark:text-slate-100">Quy định</h4>
               </div>
               <div class="space-y-2">
-                <div class="flex justify-between items-center text-sm">
+                <div class="flex justify-between items-center text-xs sm:text-sm">
                   <span class="text-[#3E414C] dark:text-slate-300">Hạn chót hủy kèo</span>
                   <span class="font-semibold text-[#D72D36] dark:text-red-400">Trước {{ activity.cancellation_deadline_hours }} Tiếng</span>
                 </div>
-                <div class="flex justify-between items-center text-sm">
+                <div class="flex justify-between items-center text-xs sm:text-sm">
                   <span class="text-[#3E414C] dark:text-slate-300">Phạt hủy muộn</span>
                   <span v-if="activity.penalty_amount > 0" class="font-semibold text-[#D72D36] dark:text-red-400">{{ formatCurrency(activity.penalty_amount) }}/người</span>
                   <span v-else class="font-semibold text-[#D72D36] dark:text-red-400">Không có</span>
@@ -235,9 +240,9 @@
           </div>
 
           <!-- Description Section -->
-          <div class="mt-8">
-            <h4 class="font-semibold text-[#838799] dark:text-slate-400 uppercase tracking-wider mb-4">Mô tả chi tiết</h4>
-            <div class="text-[#3E414C] dark:text-slate-200 leading-relaxed whitespace-pre-line">
+          <div class="mt-6 sm:mt-8">
+            <h4 class="font-semibold text-xs sm:text-sm text-[#838799] dark:text-slate-400 uppercase tracking-wider mb-3 sm:mb-4">Mô tả chi tiết</h4>
+            <div class="text-sm sm:text-base text-[#3E414C] dark:text-slate-200 leading-relaxed whitespace-pre-line">
               {{ activity.description }}
             </div>
           </div>
@@ -245,43 +250,43 @@
       </div>
 
       <!-- Right Column (Sidebar) -->
-      <div class="lg:col-span-4 space-y-6">
+      <div class="lg:col-span-12 xl:col-span-4 space-y-4 sm:space-y-6">
         <!-- Join Request Card -->
         <div class="bg-white dark:bg-[#161F33] rounded-[24px] shadow-sm border border-gray-50 dark:border-slate-800 overflow-hidden" v-if="isOwner">
-           <div class="p-5 flex items-center justify-between">
+           <div class="p-4 sm:p-5 flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <div class="w-8 h-8 bg-[#D72D36] rounded-full p-2 flex items-center justify-center text-white">
-                <PlusCircleIcon class="w-5 h-5" />
+              <div class="w-7 h-7 sm:w-8 sm:h-8 bg-[#D72D36] rounded-full p-1 sm:p-2 flex items-center justify-center text-white">
+                <PlusCircleIcon class="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <h3 class="font-semibold text-[#3E414C] dark:text-slate-100">Yêu cầu tham gia</h3>
+              <h3 class="font-semibold text-sm sm:text-base text-[#3E414C] dark:text-slate-100">Yêu cầu tham gia</h3>
             </div>
             <button @click="isJoinRequestExpanded = !isJoinRequestExpanded" class="p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-transform duration-300" :class="{ 'rotate-180': !isJoinRequestExpanded }">
-              <ChevronDownIcon class="w-5 h-5 text-gray-400 dark:text-slate-400" />
+              <ChevronDownIcon class="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-slate-400" />
             </button>
           </div>
 
           <div class="grid transition-all duration-300 ease-in-out" :class="isJoinRequestExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'">
             <div class="overflow-hidden">
-              <div class="px-8 py-4 flex flex-col items-center" v-if="joinActivityRequests.length === 0">
-                <p class="text-[#838799] dark:text-slate-400 text-sm">Không có yêu cầu tham gia</p>
+              <div class="px-4 sm:px-8 py-3 sm:py-4 flex flex-col items-center" v-if="joinActivityRequests.length === 0">
+                <p class="text-[#838799] dark:text-slate-400 text-xs sm:text-sm">Không có yêu cầu tham gia</p>
               </div>
               <template v-else>
-                <div v-for="request in joinActivityRequests" :key="request.id" class="px-8 py-4 border-t border-gray-50 dark:border-slate-800">
-                  <div class="flex items-center justify-between gap-3">
+                <div v-for="request in joinActivityRequests" :key="request.id" class="px-4 sm:px-8 py-3 sm:py-4 border-t border-gray-50 dark:border-slate-800">
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div class="flex items-center gap-3">
-                      <img :src="request.user.avatar_url" class="w-14 h-14 rounded-full" />
-                      <div class="font-semibold text-[#3E414C] dark:text-slate-100">{{ request.user.full_name }}</div>
+                      <img :src="request.user.avatar_url" class="w-12 h-12 sm:w-14 sm:h-14 rounded-full" />
+                      <div class="font-semibold text-sm sm:text-base text-[#3E414C] dark:text-slate-100">{{ request.user.full_name }}</div>
                     </div>
                     <div class="flex items-center space-x-3">
                         <button
-                          class="w-10 h-10 rounded-full bg-[#D72D36] flex items-center justify-center hover:bg-[#c4252e] transition-colors"
+                          class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#D72D36] flex items-center justify-center hover:bg-[#c4252e] transition-colors"
                           @click="rejectJoinActivityRequest(request.id)">
-                          <XMarkIcon class="w-5 h-5 text-white" stroke-width="2.5" />
+                          <XMarkIcon class="w-4 h-4 sm:w-5 sm:h-5 text-white" stroke-width="2.5" />
                         </button>
                         <button
-                          class="w-10 h-10 rounded-full bg-[#00B377] flex items-center justify-center hover:bg-[#00a16b] transition-colors"
+                          class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#00B377] flex items-center justify-center hover:bg-[#00a16b] transition-colors"
                           @click="approveJoinActivityRequest(request.id)">
-                          <CheckIcon class="w-5 h-5 text-white" stroke-width="2.5" />
+                          <CheckIcon class="w-4 h-4 sm:w-5 sm:h-5 text-white" stroke-width="2.5" />
                         </button>
                       </div>
                   </div>
@@ -292,82 +297,82 @@
         </div>
         <!-- Participants Card -->
         <div class="bg-white dark:bg-[#161F33] rounded-[24px] shadow-sm border border-gray-50 dark:border-slate-800 overflow-hidden">
-            <div class="p-5 flex items-center justify-between">
+            <div class="p-4 sm:p-5 flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <div class="w-8 h-8 bg-[#D72D36] rounded-full p-2 flex items-center justify-center text-white">
-                  <UsersIcon class="w-5 h-5" />
+                <div class="w-7 h-7 sm:w-8 sm:h-8 bg-[#D72D36] rounded-full p-1 sm:p-2 flex items-center justify-center text-white">
+                  <UsersIcon class="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <h3 class="font-semibold text-[#3E414C] dark:text-slate-100">Thành viên tham gia</h3>
-                <span class="w-1 h-1 rounded-full bg-[#3E414C] dark:bg-slate-500"></span>
-                <span class="px-2 py-0.5 bg-gray-100 dark:bg-slate-800 text-[#838799] dark:text-slate-300 text-xs font-bold rounded-full">
+                <h3 class="font-semibold text-sm sm:text-base text-[#3E414C] dark:text-slate-100">Thành viên tham gia</h3>
+                <span class="w-1 h-1 rounded-full bg-[#3E414C] dark:bg-slate-500 hidden sm:inline"></span>
+                <span class="px-1.5 sm:px-2 py-0.5 bg-gray-100 dark:bg-slate-800 text-[#838799] dark:text-slate-300 text-xs font-bold rounded-full">
                   {{ participants.filter(p => p.status !== 'pending').length }}/{{ activity.max_participants || '∞' }}
                 </span>
               </div>
               <button @click="isParticipantsExpanded = !isParticipantsExpanded" class="p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-transform duration-300" :class="{ 'rotate-180': !isParticipantsExpanded }">
-                <ChevronDownIcon class="w-5 h-5 text-gray-400 dark:text-slate-400" />
+                <ChevronDownIcon class="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-slate-400" />
               </button>
             </div>
 
           <div class="grid transition-all duration-300 ease-in-out" :class="isParticipantsExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'">
             <div class="overflow-hidden">
-              <div class="px-6 pb-6 pt-2">
-                <h4 class="font-bold text-[#8E95A2] dark:text-slate-400 text-[13px] uppercase tracking-[0.2em] mb-6">NGƯỜI TẠO</h4>
+              <div class="px-4 sm:px-6 pb-4 sm:pb-6 pt-2">
+                <h4 class="font-bold text-[#8E95A2] dark:text-slate-400 text-xs sm:text-[13px] uppercase tracking-[0.2em] mb-4 sm:mb-6">NGƯỜI TẠO</h4>
                 <!-- Creator -->
-                <div class="flex items-center gap-5 mb-10">
+                <div class="flex items-center gap-4 sm:gap-5 mb-8 sm:mb-10">
                   <div class="relative">
-                      <img :src="creator.avatar || defaultAvatar" class="w-14 h-14 rounded-full border-[2px] border-[#4392E0] shadow-sm object-cover" />
+                      <img :src="creator.avatar || defaultAvatar" class="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-[2px] border-[#4392E0] shadow-sm object-cover" />
                       <div class="absolute -bottom-0.5 -right-0.5 p-1 bg-[#4392E0] rounded-full ring-2 ring-white dark:ring-slate-800">
-                        <ShieldCheckIcon class="w-3 h-3 text-white" />
+                        <ShieldCheckIcon class="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
                       </div>
                   </div>
                   <div class="flex-1">
                     <div class="flex items-center gap-2 mb-1">
-                        <span class="font-bold text-[#3E414C] dark:text-slate-100 text-[17px]">{{ creator.name }}</span>
-                        <span class="px-2 py-0.5 bg-[#4392E0] text-white text-[11px] font-bold rounded-md uppercase">Admin</span>
+                        <span class="font-bold text-[#3E414C] dark:text-slate-100 text-base sm:text-[17px]">{{ creator.name }}</span>
+                        <span class="px-1.5 sm:px-2 py-0.5 bg-[#4392E0] text-white text-[10px] sm:text-[11px] font-bold rounded-md uppercase">Admin</span>
                     </div>
-                    <div class="text-[14px] text-[#8E95A2] dark:text-slate-400 font-medium leading-tight">
+                    <div class="text-[12px] sm:text-[14px] text-[#8E95A2] dark:text-slate-400 font-medium leading-tight">
                         {{ formatScore(creator.level) }} PICKI <span class="mx-1">•</span> Chủ kèo
                     </div>
                   </div>
                 </div>
-                  <div class="flex items-center gap-2 mb-4">
-                    <h4 class="font-bold text-[#8E95A2] dark:text-slate-400 text-[13px] uppercase tracking-[0.2em]">THÀNH VIÊN</h4>
+                  <div class="flex items-center gap-2 mb-3 sm:mb-4">
+                    <h4 class="font-bold text-[#8E95A2] dark:text-slate-400 text-xs sm:text-[13px] uppercase tracking-[0.2em]">THÀNH VIÊN</h4>
                     <span class="w-1 h-1 rounded-full bg-[#3E414C] dark:bg-slate-500"></span>
-                    <span class="px-2 py-0.5 text-[#838799] dark:text-slate-400 text-[13px] font-bold uppercase tracking-[0.2rem]">
+                    <span class="px-1.5 sm:px-2 text-[#838799] dark:text-slate-400 text-[11px] sm:text-[13px] font-bold uppercase tracking-[0.2rem]">
                       Đã check-in ({{ totalParticipantAttended }})
                     </span>
                   </div>
                 <div class="space-y-0" v-if="participants && participants.filter(p => p.status !== 'pending').length">
                   <div v-for="(user, index) in participants.filter(p => p.status !== 'pending')" :key="user.id"
-                    class="flex items-center py-5 group cursor-pointer gap-5" @click="goToProfile(user.userId)"
+                    class="flex items-center py-4 sm:py-5 group cursor-pointer gap-4 sm:gap-5" @click="goToProfile(user.userId)"
                     :class="{ 'border-t border-[#F0F2F5] dark:border-slate-800': index !== 0 }">
                     <div class="relative flex-shrink-0">
-                      <img :src="user.avatar || defaultAvatar" class="w-14 h-14 rounded-full bg-[#F2F4F7] dark:bg-slate-800 object-cover" />
-                      <div class="absolute -left-1 -bottom-0.5 w-5 h-5 bg-[#4392E0] text-white text-[8px] font-semibold flex items-center justify-center rounded-full ring-2 ring-white dark:ring-slate-800">
+                      <img :src="user.avatar || defaultAvatar" class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#F2F4F7] dark:bg-slate-800 object-cover" />
+                      <div class="absolute -left-1 -bottom-0.5 w-4 h-4 sm:w-5 sm:h-5 bg-[#4392E0] text-white text-[7px] sm:text-[8px] font-semibold flex items-center justify-center rounded-full ring-2 ring-white dark:ring-slate-800">
                         {{ formatScore(user.level) }}
                       </div>
                     </div>
                     <div class="min-w-0 flex-1">
-                      <div class="flex items-center justify-between gap-4 mb-1">
-                        <div class="font-bold text-[#3E414C] dark:text-slate-100 text-[17px] truncate">{{ user.name }}</div>
+                      <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+                        <div class="font-bold text-[#3E414C] dark:text-slate-100 text-base sm:text-[17px] truncate">{{ user.name }}</div>
                         <div class="flex-shrink-0">
-                          <span v-if="user.has_checked_in" class="px-2.5 py-1.5 bg-[#E9FBF3] dark:bg-emerald-950/60 text-[#00B377] dark:text-emerald-400 text-[10px] font-bold rounded-[8px] uppercase border border-[#00B377]/10 whitespace-nowrap tracking-wide leading-tight">
+                          <span v-if="user.has_checked_in" class="px-2 py-1 sm:px-2.5 sm:py-1.5 bg-[#E9FBF3] dark:bg-emerald-950/60 text-[#00B377] dark:text-emerald-400 text-[9px] sm:text-[10px] font-bold rounded-[8px] uppercase border border-[#00B377]/10 whitespace-nowrap tracking-wide leading-tight">
                             ĐÃ CHECK-IN
                           </span>
-                          <span v-else-if="user.is_absent" class="px-2.5 py-1.5 bg-[#FFF5F5] dark:bg-red-950/60 text-[#D72D36] dark:text-red-400 text-[10px] font-bold rounded-[8px] uppercase border border-[#D72D36]/10 whitespace-nowrap tracking-wide leading-tight">
+                          <span v-else-if="user.is_absent" class="px-2 py-1 sm:px-2.5 sm:py-1.5 bg-[#FFF5F5] dark:bg-red-950/60 text-[#D72D36] dark:text-red-400 text-[9px] sm:text-[10px] font-bold rounded-[8px] uppercase border border-[#D72D36]/10 whitespace-nowrap tracking-wide leading-tight">
                             VẮNG
                           </span>
-                          <span v-else class="px-2.5 py-1.5 bg-[#F8F9FA] dark:bg-slate-800 text-[#838799] dark:text-slate-300 text-[10px] font-bold rounded-[8px] uppercase border border-gray-100 dark:border-slate-700 whitespace-nowrap tracking-wide leading-tight">
+                          <span v-else class="px-2 py-1 sm:px-2.5 sm:py-1.5 bg-[#F8F9FA] dark:bg-slate-800 text-[#838799] dark:text-slate-300 text-[9px] sm:text-[10px] font-bold rounded-[8px] uppercase border border-gray-100 dark:border-slate-700 whitespace-nowrap tracking-wide leading-tight">
                             CHƯA CHECK-IN
                           </span>
                         </div>
                       </div>
-                      <div class="text-[14px] text-[#A4B0C1] dark:text-slate-400 font-medium truncate">{{ user.joined_at || 'Tham gia 3 ngày trước' }}</div>
+                      <div class="text-[12px] sm:text-[14px] text-[#A4B0C1] dark:text-slate-400 font-medium truncate">{{ user.joined_at || 'Tham gia 3 ngày trước' }}</div>
                     </div>
                   </div>
                 </div>
-                <div v-else class="text-center py-8">
-                  <p class="text-[#8E95A2] dark:text-slate-400 text-[14px]">Chưa có thành viên tham gia sự kiện</p>
+                <div v-else class="text-center py-6 sm:py-8">
+                  <p class="text-[#8E95A2] dark:text-slate-400 text-xs sm:text-[14px]">Chưa có thành viên tham gia sự kiện</p>
                 </div>
               </div>
             </div>
@@ -376,49 +381,49 @@
 
         <!-- QR Code Card -->
         <div class="bg-white dark:bg-[#161F33] rounded-[24px] shadow-sm border border-gray-50 dark:border-slate-800 overflow-hidden">
-           <div class="p-5 flex items-center justify-between">
+           <div class="p-4 sm:p-5 flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <div class="w-8 h-8 bg-[#D72D36] rounded-full p-2 flex items-center justify-center text-white">
-                <QrcodeIcon class="w-5 h-5" />
+              <div class="w-7 h-7 sm:w-8 sm:h-8 bg-[#D72D36] rounded-full p-1 sm:p-2 flex items-center justify-center text-white">
+                <QrcodeIcon class="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <h3 class="font-semibold text-[#3E414C] dark:text-slate-100">Mã QR hoạt động</h3>
+              <h3 class="font-semibold text-sm sm:text-base text-[#3E414C] dark:text-slate-100">Mã QR hoạt động</h3>
             </div>
             <button @click="isQRExpanded = !isQRExpanded" class="p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-transform duration-300" :class="{ 'rotate-180': !isQRExpanded }">
-              <ChevronDownIcon class="w-5 h-5 text-gray-400 dark:text-slate-400" />
+              <ChevronDownIcon class="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-slate-400" />
             </button>
           </div>
 
           <div class="grid transition-all duration-300 ease-in-out" :class="isQRExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'">
             <div class="overflow-hidden">
-              <div class="p-8 flex flex-col items-center">
-                <div ref="qrcodeContainer" class="p-4 mb-6 border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-[12px]">
-                  <div class="space-y-2 mb-4">
-                    <p class="text-center font-semibold text-[#3E414C] dark:text-slate-100">{{ activity.title }}</p>
+              <div class="p-4 sm:p-8 flex flex-col items-center">
+                <div ref="qrcodeContainer" class="p-3 sm:p-4 mb-4 sm:mb-6 border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-[12px]">
+                  <div class="space-y-1 sm:space-y-2 mb-3 sm:mb-4">
+                    <p class="text-center font-semibold text-sm sm:text-base text-[#3E414C] dark:text-slate-100">{{ activity.title }}</p>
                     <p class="text-center text-[#3E414C] dark:text-slate-300 text-xs">{{ club.name }}</p>
-                    <p class="text-center text-[#3E414C] dark:text-slate-300 text-xs">{{ formatTimeRange(activity.start_time, activity.end_time) }}, {{ formatDate(activity.start_time) }}</p>
+                    <p class="text-center text-[#3E414C] dark:text-slate-300 text-[10px] sm:text-xs">{{ formatTimeRange(activity.start_time, activity.end_time) }}, {{ formatDate(activity.start_time) }}</p>
                   </div>
-                  <qrcode-vue :value="pageUrl" :size="200" level="H" class="rounded-[4px]" />
+                  <qrcode-vue :value="pageUrl" :size="160" level="H" class="rounded-[4px]" />
                 </div>
-                <div class="mb-6 w-full text-center">
-                  <span class="text-sm text-[#4392E0] break-all">{{ pageUrl }}</span>
+                <div class="mb-4 sm:mb-6 w-full text-center">
+                  <span class="text-xs sm:text-sm text-[#4392E0] break-all">{{ pageUrl }}</span>
                 </div>
-                <div class="flex items-center gap-3 w-full">
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full">
                   <Button
                       size="md"
                       color="white"
-                      class="flex-1 bg-white text-[#D72D36] border border-[#D72D36] font-bold py-3 hover:bg-[#FFF5F5] flex items-center justify-center"
+                      class="flex-1 bg-white text-[#D72D36] border border-[#D72D36] font-bold py-2.5 sm:py-3 text-sm hover:bg-[#FFF5F5] flex items-center justify-center"
                       @click="copyLink"
                   >
-                    <LinkIcon class="w-5 h-5 mr-2" />
+                    <LinkIcon class="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                     Sao chép link
                   </Button>
                   <Button
                       size="md"
                       color="danger"
-                      class="flex-1 bg-[#D72D36] text-white border border-[#D72D36] font-bold py-3 hover:bg-[#c4252e] flex items-center justify-center"
+                      class="flex-1 bg-[#D72D36] text-white border border-[#D72D36] font-bold py-2.5 sm:py-3 text-sm hover:bg-[#c4252e] flex items-center justify-center"
                       @click="downloadQR"
                   >
-                    <ArrowDownTrayIcon class="w-5 h-5 mr-2" />
+                    <ArrowDownTrayIcon class="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                     Lưu mã QR
                   </Button>
                 </div>

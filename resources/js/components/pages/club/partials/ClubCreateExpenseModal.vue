@@ -1,11 +1,11 @@
 <template>
     <Transition name="fade">
-        <div v-if="isOpen" 
-            class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+        <div v-if="isOpen"
+            class="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm"
             @click.self="close">
             <Transition name="scale">
-                <div v-if="isOpen" 
-                    class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-[24px] w-full max-w-[500px] max-h-[90vh] transition-all duration-300 flex flex-col p-6 relative shadow-2xl overflow-hidden">
+                <div v-if="isOpen"
+                    class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-[24px] w-full max-w-[500px] max-h-[95vh] sm:max-h-[90vh] transition-all duration-300 flex flex-col p-4 sm:p-6 relative shadow-2xl overflow-hidden">
                     <!-- Modal Close -->
                     <button 
                         @click="close"
@@ -91,10 +91,10 @@
 
                     <!-- Modal Footer -->
                     <div class="pt-6 border-t border-[#F2F3F5] dark:border-slate-800 mt-auto">
-                        <button 
+                        <button
                             @click="submitCreateExpense"
                             :disabled="isSubmitting"
-                            class="w-full bg-[#E36C72] text-white py-4 rounded-[4px] font-bold text-lg hover:bg-[#d05a60] transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                            class="w-full bg-[#E36C72] text-white py-3 sm:py-4 rounded-[4px] font-bold text-base sm:text-lg hover:bg-[#d05a60] transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                         >
                             <template v-if="isSubmitting">
                                 <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

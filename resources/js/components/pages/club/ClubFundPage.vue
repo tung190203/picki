@@ -1,48 +1,48 @@
 <template>
-    <div class="m-4 max-w-8xl rounded-md flex flex-col relative">
+    <div class="m-3 sm:m-4 md:m-6 max-w-8xl rounded-md flex flex-col relative">
         <ClubFundSkeleton v-if="isInitialLoading" />
 
         <template v-else>
             <!-- Header Section -->
-            <div class="bg-club-default text-white rounded-[16px] shadow-lg p-8 relative overflow-hidden flex flex-col justify-between"
+            <div class="bg-club-default text-white rounded-[16px] shadow-lg p-4 sm:p-6 md:p-8 relative overflow-hidden flex flex-col justify-between"
                 :style="{ backgroundImage: `url(${Background})` }">
-                <div class="flex items-center justify-between mb-8">
-                    <div class="flex items-center space-x-3">
-                        <ArrowLeftIcon class="w-6 h-6 cursor-pointer text-white" @click="goBack" />
-                        <p class="text-2xl font-semibold">Thu Chi</p>
+                <div class="flex items-center justify-between mb-6 sm:mb-8">
+                    <div class="flex items-center space-x-2 sm:space-x-3">
+                        <ArrowLeftIcon class="w-5 h-5 sm:w-6 sm:h-6 cursor-pointer text-white" @click="goBack" />
+                        <p class="text-lg sm:text-xl md:text-2xl font-semibold">Thu Chi</p>
                     </div>
-                    <div class="flex items-center space-x-1 relative rounded-[8px] bg-[#3E414C] p-3 cursor-pointer" @click="showQRModal = true">
-                        <QRCodeIcon class="w-6 h-6 text-white" />
+                    <div class="flex items-center space-x-1 relative rounded-[8px] bg-[#3E414C] p-2 sm:p-3 cursor-pointer" @click="showQRModal = true">
+                        <QRCodeIcon class="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                     </div>
                 </div>
                 
-                <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-8 lg:gap-0">
+                <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4 sm:gap-6 md:gap-8 lg:gap-0">
                     <div>
-                        <p class="text-sm font-medium text-white opacity-60 mb-1">Quỹ chung hiện có</p>
+                        <p class="text-xs sm:text-sm font-medium text-white opacity-60 mb-1">Quỹ chung hiện có</p>
                         <div class="flex items-baseline space-x-2">
-                            <p class="text-4xl md:text-5xl lg:text-[64px] font-bold leading-tight">{{ formatCurrency(fundOverview.balance) }}</p>
-                            <p class="text-xs font-semibold text-[#00B377]">VND</p>
+                            <p class="text-3xl sm:text-4xl md:text-5xl lg:text-[64px] font-bold leading-tight">{{ formatCurrency(fundOverview.balance) }}</p>
+                            <p class="text-[10px] sm:text-xs font-semibold text-[#00B377]">VND</p>
                         </div>
                     </div>
                     
-                    <div class="flex flex-col md:flex-row items-center justify-between gap-4 lg:gap-6">
-                        <div class="flex flex-col items-start bg-[#3E414C]/80 backdrop-blur-sm p-6 rounded-2xl w-full md:w-[280px] space-y-2 border border-white/10">
-                            <div class="flex items-center space-x-2 text-[#4ADE80] font-semibold text-sm">
-                                <ArrowDownIcon class="w-4 h-4" />
+                    <div class="flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4 md:gap-6">
+                        <div class="flex flex-col items-start bg-[#3E414C]/80 backdrop-blur-sm p-4 sm:p-6 rounded-2xl w-full md:w-[280px] space-y-2 border border-white/10">
+                            <div class="flex items-center space-x-2 text-[#4ADE80] font-semibold text-xs sm:text-sm">
+                                <ArrowDownIcon class="w-3 h-3 sm:w-4 sm:h-4" />
                                 <p>Thu tháng này</p>
                             </div>
                             <div class="flex items-baseline space-x-1">
-                                <p class="text-2xl md:text-3xl font-bold">{{ formatSpecialCurrency(fundOverview.total_income) }}</p>
+                                <p class="text-xl sm:text-2xl md:text-3xl font-bold">{{ formatSpecialCurrency(fundOverview.total_income) }}</p>
                             </div>
                         </div>
                         
-                        <div class="flex flex-col items-start bg-[#3E414C]/80 backdrop-blur-sm p-6 rounded-2xl w-full md:w-[280px] space-y-2 border border-white/10">
-                            <div class="flex items-center space-x-2 text-[#F87171] font-semibold text-sm">
-                                <ArrowUpIcon class="w-4 h-4" />
+                        <div class="flex flex-col items-start bg-[#3E414C]/80 backdrop-blur-sm p-4 sm:p-6 rounded-2xl w-full md:w-[280px] space-y-2 border border-white/10">
+                            <div class="flex items-center space-x-2 text-[#F87171] font-semibold text-xs sm:text-sm">
+                                <ArrowUpIcon class="w-3 h-3 sm:w-4 sm:h-4" />
                                 <p>Chi tháng này</p>
                             </div>
                             <div class="flex items-baseline space-x-1">
-                                <p class="text-2xl md:text-3xl font-bold">{{ formatSpecialCurrency(fundOverview.total_expense) }}</p>
+                                <p class="text-xl sm:text-2xl md:text-3xl font-bold">{{ formatSpecialCurrency(fundOverview.total_expense) }}</p>
                             </div>
                         </div>
                     </div>
@@ -51,42 +51,42 @@
 
             <!-- Content Grid -->
             <!-- Content Grid: Admin / Secretary / Treasurer -->
-            <div class="grid grid-cols-12 gap-6 py-6 flex-1" v-if="hasAnyRole(['admin', 'secretary', 'treasurer'])">
+            <div class="grid grid-cols-12 gap-3 sm:gap-4 md:gap-6 py-4 sm:py-6 flex-1" v-if="hasAnyRole(['admin', 'secretary', 'treasurer'])">
                 <!-- Left Column: ĐỢT THU & XÁC NHẬN -->
-                <div class="col-span-12 lg:col-span-4 flex flex-col">
+                <div class="col-span-12 lg:col-span-12 xl:col-span-4 flex flex-col">
                     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col">
                         <template v-if="fundCollections.length > 0">
                             <div v-for="collection in fundCollections.slice(0, 1)" :key="collection.id" class="flex flex-col">
                                 <!-- ĐỢT THU ĐANG MỞ -->
-                                <div class="p-6 border-b border-gray-100">
-                                    <div class="flex items-center justify-between mb-6">
-                                        <h2 class="text-[#838799] font-bold text-[13px] tracking-wider uppercase">ĐỢT THU ĐANG MỞ</h2>
+                                <div class="p-4 sm:p-6 border-b border-gray-100">
+                                    <div class="flex items-center justify-between mb-4 sm:mb-6">
+                                        <h2 class="text-xs sm:text-[13px] font-bold text-[#838799] tracking-wider uppercase">ĐỢT THU ĐANG MỞ</h2>
                                         <button 
                                             @click="handleOpenCollectionDetail(collection.id)"
-                                            class="text-[#D72D36] text-[13px] font-bold"
+                                            class="text-[#D72D36] text-xs sm:text-[13px] font-bold"
                                         >
                                             Xem chi tiết
                                         </button>
                                     </div>
 
-                                    <div class="space-y-4">
-                                        <div class="flex justify-between items-start">
-                                            <h3 class="text-[17px] font-bold text-[#1F2937] flex-1 min-w-[120px] break-words line-clamp-1 mr-4" v-tooltip="collection.title">{{ collection.title }}</h3>
+                                    <div class="space-y-3 sm:space-y-4">
+                                        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
+                                            <h3 class="text-base sm:text-[17px] font-bold text-[#1F2937] flex-1 min-w-[120px] break-words line-clamp-1" v-tooltip="collection.title">{{ collection.title }}</h3>
                                             <div class="text-right flex-shrink-0 max-w-[50%]">
-                                                <p class="text-[17px] font-bold text-[#1F2937] truncate whitespace-nowrap" v-tooltip="formatCurrency(collection.amount_per_member) + ' ' + collection.currency">
+                                                <p class="text-base sm:text-[17px] font-bold text-[#1F2937] truncate whitespace-nowrap" v-tooltip="formatCurrency(collection.amount_per_member) + ' ' + collection.currency">
                                                     {{ formatCurrency(collection.amount_per_member) + ' ' + collection.currency }}
                                                 </p>
-                                                <p class="text-[12px] text-[#838799]">/người</p>
+                                                <p class="text-[11px] sm:text-[12px] text-[#838799]">/người</p>
                                             </div>
                                         </div>
                                         
-                                        <p class="text-[13px] text-[#838799]">Hạn chót: {{ formatDatetime(collection.end_date, '/') }}</p>
+                                        <p class="text-xs sm:text-[13px] text-[#838799]">Hạn chót: {{ formatDatetime(collection.end_date, '/') }}</p>
 
                                         <div class="space-y-2">
                                             <div class="w-full h-2 bg-[#F2F3F5] rounded-full overflow-hidden">
                                                 <div class="h-full bg-[#D72D36] rounded-full" :style="{ width: (collection.progress_percentage) + '%' }"></div>
                                             </div>
-                                            <div class="flex justify-between items-center text-[13px]">
+                                            <div class="flex flex-wrap justify-between items-center text-xs sm:text-[13px] gap-1">
                                                 <span class="text-[#1F2937] font-medium">Đã thu: {{ collection.confirmed_count }}/{{ collection.assigned_members_count }} người</span>
                                                 <span class="text-[#1F2937] font-bold">{{ Number(collection.progress_percentage).toFixed(2) }}%</span>
                                             </div>
@@ -95,9 +95,9 @@
                                 </div>
 
                                 <!-- Cần xác nhận -->
-                                <div class="flex flex-col overflow-hidden p-6" v-if="collection.pending_count > 0">
-                                    <div class="mb-4">
-                                        <div class="flex items-center space-x-2 text-[#838799] font-bold text-[15px] tracking-wider">
+                                <div class="flex flex-col overflow-hidden p-4 sm:p-6" v-if="collection.pending_count > 0">
+                                    <div class="mb-3 sm:mb-4">
+                                        <div class="flex items-center space-x-2 text-[#838799] font-bold text-xs sm:text-[15px] tracking-wider">
                                             <span>Cần xác nhận</span>
                                             <span>•</span>
                                             <span class="text-[#D72D36]">({{ collection.pending_count }})</span>
@@ -105,61 +105,61 @@
                                     </div>
 
                                     <div class="overflow-y-auto">
-                                        <div v-for="(tr, idx) in collection.pending_contributions" :key="idx" class="flex items-center justify-between py-4 border-b border-[#F2F3F5] last:border-b-0">
+                                        <div v-for="(tr, idx) in collection.pending_contributions" :key="idx" class="flex flex-col sm:flex-row sm:items-center sm:justify-between py-3 sm:py-4 border-b border-[#F2F3F5] last:border-b-0 gap-2">
                                             <div class="flex items-center space-x-3">
-                                                <div class="w-10 h-10 rounded-full bg-gray-100 overflow-hidden">
+                                                <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gray-100 overflow-hidden flex-shrink-0">
                                                     <img :src="tr.user?.avatar_url || `https://ui-avatars.com/api/?name=${tr.user?.full_name}&background=random`" alt="avatar" />
                                                 </div>
                                                 <span class="font-bold text-[#1F2937] text-sm">{{ tr.user?.full_name }}</span>
                                             </div>
                                             <button 
                                                 @click="handleApproveContribution(collection.id, tr.id)"
-                                                class="bg-[#10B981] text-white px-4 py-1.5 rounded-[4px] text-[9px] font-bold hover:bg-[#059669] transition-colors"
+                                                class="bg-[#10B981] text-white px-3 sm:px-4 py-1.5 rounded-[4px] text-[9px] sm:text-[9px] font-bold hover:bg-[#059669] transition-colors w-full sm:w-auto"
                                             >
                                                 Duyệt
                                             </button>
                                         </div>
                                     </div>
                                 </div>
-                                <div v-else class="flex flex-col items-center justify-center p-6 text-center">
-                                    <p class="text-[#838799] text-[13px]">Không có giao dịch chờ duyệt</p>
+                                <div v-else class="flex flex-col items-center justify-center p-6 sm:p-12 text-center">
+                                    <p class="text-[#838799] text-xs sm:text-sm font-medium">Không có giao dịch chờ duyệt</p>
                                 </div>
                             </div>
                         </template>
-                        <div v-else class="flex flex-col items-center justify-center p-12 text-center">
-                            <p class="text-[#838799] text-sm font-medium">Hiện không có khoản thu nào</p>
+                        <div v-else class="flex flex-col items-center justify-center p-6 sm:p-12 text-center">
+                            <p class="text-[#838799] text-xs sm:text-sm font-medium">Hiện không có khoản thu nào</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Right Column: LỊCH SỬ THU CHI -->
-                <div class="col-span-12 lg:col-span-8 flex flex-col h-full">
+                <div class="col-span-12 lg:col-span-12 xl:col-span-8 flex flex-col h-full">
                     <div class="bg-white rounded-[24px] shadow-sm border border-gray-50 flex-1 flex flex-col">
                         <!-- Section Header -->
-                        <div class="px-6 pt-6 pb-2 mb-2 flex items-center justify-between">
-                            <div class="text-[#838799] font-bold text-[15px] tracking-wider uppercase">
+                        <div class="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 mb-2 flex items-center justify-between">
+                            <div class="text-xs sm:text-[15px] font-bold text-[#838799] tracking-wider uppercase">
                                 Lịch sử thu chi
                             </div>
-                            <button class="text-[#D72D36] text-[13px] font-bold">Xem tất cả</button>
+                            <button class="text-[#D72D36] text-xs sm:text-[13px] font-bold">Xem tất cả</button>
                         </div>
                         
                         <!-- Search & Filter -->
-                        <div class="px-6 py-4">
+                        <div class="px-4 sm:px-6 py-4">
                             <div class="relative w-full">
                                 <div class="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                                    <MagnifyingGlassIcon class="w-5 h-5 text-[#838799]" />
+                                    <MagnifyingGlassIcon class="w-4 h-4 sm:w-5 sm:h-5 text-[#838799]" />
                                 </div>
                                 <input 
                                     v-model="searchQuery"
                                     type="text" 
                                     placeholder="Tìm kiếm lịch sử giao dịch"
                                     @input="handleSearch"
-                                    class="w-full bg-[#EDEEF2] border-none rounded-md py-3.5 pl-12 pr-12 text-sm focus:ring-0 placeholder:text-[#9EA2B3] placeholder:font-normal"
+                                    class="w-full bg-[#EDEEF2] border-none rounded-md py-3 px-4 pl-10 sm:pl-12 pr-12 text-sm focus:ring-0 placeholder:text-[#9EA2B3] placeholder:font-normal"
                                 />
                                 <div class="absolute inset-y-0 right-4 flex items-center">
                                     <div class="relative">
                                         <FunnelIcon 
-                                            class="w-5 h-5 text-[#838799] cursor-pointer hover:text-[#D72D36] transition-colors" 
+                                            class="w-4 h-4 sm:w-5 sm:h-5 text-[#838799] cursor-pointer hover:text-[#D72D36] transition-colors" 
                                             @click.stop="showFilterDropdown = !showFilterDropdown"
                                         />
                                         <div v-if="activeFilterCount > 0" class="absolute -top-1 -right-1 w-2 h-2 bg-[#D72D36] rounded-full"></div>
@@ -285,28 +285,28 @@
                         </div>
 
                         <!-- History List -->
-                        <div class="flex-1 overflow-y-auto px-6">
+                        <div class="flex-1 overflow-y-auto px-4 sm:px-6">
                             <!-- Transaction Item -->
-                            <div v-if="transactions.length === 0" class="text-center py-12">
-                                <p class="text-[#838799] text-sm">Chưa có giao dịch nào</p>
+                            <div v-if="transactions.length === 0" class="text-center py-8 sm:py-12">
+                                <p class="text-[#838799] text-xs sm:text-sm">Chưa có giao dịch nào</p>
                             </div>
-                            <div class="flex items-center justify-between py-5 border-b border-[#F2F3F5] hover:bg-gray-50/30 transition-colors cursor-pointer last:border-b-0"
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between py-4 sm:py-5 border-b border-[#F2F3F5] hover:bg-gray-50/30 transition-colors cursor-pointer last:border-b-0 gap-2"
                                 v-for="(item, index) in transactions" :key="index">
-                                <div class="flex items-center space-x-4">
+                                <div class="flex items-center space-x-4 flex-1 min-w-0">
                                     <div>
-                                        <p class="font-bold text-[#1F2937] text-[15px] whitespace-pre-line">{{ item.description || 'Chưa có mô tả' }}</p>
-                                        <p class="text-[12px] text-[#838799] font-normal mt-0.5">
+                                        <p class="font-bold text-[#1F2937] text-sm sm:text-[15px] whitespace-pre-line">{{ item.description || 'Chưa có mô tả' }}</p>
+                                        <p class="text-[11px] sm:text-[12px] text-[#838799] font-normal mt-0.5">
                                             {{ item.direction === 'in' ? 'Thu' : 'Chi' }} ngày {{ formatDatetime(item.created_at, '/') }}
                                         </p>
                                     </div>
                                 </div>
-                                <span :class="['font-bold text-[16px]', item.direction === 'out' ? 'text-[#D72D36]' : 'text-[#10B981]']">
+                                <span :class="['font-bold text-sm sm:text-[16px] flex-shrink-0', item.direction === 'out' ? 'text-[#D72D36]' : 'text-[#10B981]']">
                                    <span>{{ item.direction === 'out' ? '-' : '+' }}</span> {{ formatCurrency(item.amount) }}
                                 </span>
                             </div>
 
                             <!-- Pagination -->
-                            <div class="px-6 pb-6">
+                            <div class="px-4 sm:px-6 pb-6">
                                 <Pagination 
                                     :meta="{ current_page: currentPage, last_page: lastPage }" 
                                     @page-change="handlePageChange" 
@@ -318,12 +318,12 @@
             </div>
 
             <!-- Content Grid: Member / Manager -->
-            <div class="grid grid-cols-12 gap-6 py-6 flex-1" v-else>
+            <div class="grid grid-cols-12 gap-3 sm:gap-4 md:gap-6 py-4 sm:py-6 flex-1" v-else>
                 <!-- Left Column: CẦN THANH TOÁN -->
-                <div class="col-span-12 lg:col-span-4 flex flex-col" v-if="hasAnyRole(['manager', 'member'])">
+                <div class="col-span-12 lg:col-span-12 xl:col-span-4 flex flex-col" v-if="hasAnyRole(['manager', 'member'])">
                     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col">
                         <!-- Section Header -->
-                        <div class="p-6 pb-4">
+                        <div class="p-4 sm:p-6 pb-4">
                             <div class="flex items-center space-x-2 text-[#838799] font-semibold tracking-wide">
                                 <span>CẦN THANH TOÁN</span>
                                 <span class="text-[#838799]">•</span>
@@ -334,63 +334,63 @@
                         <!-- Items Container -->
                         <div class="flex flex-col flex-1 overflow-hidden">
                             <!-- Need Payment List -->
-                            <div class="max-h-[350px] overflow-y-auto overflow-x-hidden px-6 pb-4 space-y-6 custom-scrollbar border-b border-gray-100">
+                            <div class="max-h-[300px] sm:max-h-[350px] overflow-y-auto overflow-x-hidden px-4 sm:px-6 pb-4 space-y-4 sm:space-y-6 custom-scrollbar border-b border-gray-100">
                                 <template v-if="myTransactions.need_payment && myTransactions.need_payment.length > 0">
                                     <!-- Actionable Payment Item -->
-                                    <div class="space-y-4 border-b border-[#dcdee6] pb-4" v-for="(item, index) in myTransactions.need_payment" :key="index">
-                                        <div class="flex justify-between items-start">
+                                    <div class="space-y-3 sm:space-y-4 border-b border-[#dcdee6] pb-4" v-for="(item, index) in myTransactions.need_payment" :key="index">
+                                        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
                                             <div>
-                                                <h3 class="font-semibold text-[#1F2937] whitespace-pre-line">{{ item.description }}</h3>
+                                                <h3 class="font-semibold text-[#1F2937] whitespace-pre-line text-sm sm:text-base">{{ item.description }}</h3>
                                                 <div class="flex items-center space-x-1.5 mt-1 text-[#D72D36]">
-                                                    <CalendarIcon class="w-4 h-4" />
-                                                    <span class="text-sm font-semibold">Hạn chót: {{ formatDatetime(item.end_date, '/') }}</span>
+                                                    <CalendarIcon class="w-3 h-3 sm:w-4 sm:h-4" />
+                                                    <span class="text-xs sm:text-sm font-semibold">Hạn chót: {{ formatDatetime(item.end_date, '/') }}</span>
                                                 </div>
                                             </div>
-                                            <span class="text-[#D72D36] font-semibold">{{ formatCurrency(item.amount_due) + 'đ' }}</span>
+                                            <span class="text-[#D72D36] font-semibold text-sm sm:text-base flex-shrink-0">{{ formatCurrency(item.amount_due) + 'đ' }}</span>
                                         </div>
-                                        <div class="grid grid-cols-2 gap-3">
+                                        <div class="grid grid-cols-2 gap-2 sm:gap-3">
                                             <button 
                                                 @click="handleViewDetail(item)"
-                                                class="py-2.5 px-4 bg-[#F2F3F5] text-[#2D3139] rounded-[4px] font-bold text-sm hover:bg-gray-200 transition-colors"
+                                                class="py-2 px-3 sm:py-2.5 sm:px-4 bg-[#F2F3F5] text-[#2D3139] rounded-[4px] font-bold text-xs sm:text-sm hover:bg-gray-200 transition-colors"
                                             >
                                                 Chi tiết
                                             </button>
                                             <button 
                                                 @click="handlePayNow(item)"
-                                                class="py-2.5 px-4 bg-[#2D3139] text-white rounded-[4px] font-bold text-sm hover:bg-black transition-colors"
+                                                class="py-2 px-3 sm:py-2.5 sm:px-4 bg-[#2D3139] text-white rounded-[4px] font-bold text-xs sm:text-sm hover:bg-black transition-colors"
                                             >
                                                 Thanh toán ngay
                                             </button>
                                         </div>
                                     </div>
                                 </template>
-                                <div v-else class="flex flex-col items-center justify-center py-8 text-center">
-                                    <p class="text-[#838799] text-sm font-medium">Không có khoản thu cần thanh toán</p>
+                                <div v-else class="flex flex-col items-center justify-center py-6 sm:py-8 text-center">
+                                    <p class="text-[#838799] text-xs sm:text-sm font-medium">Không có khoản thu cần thanh toán</p>
                                 </div>
                             </div>
 
                             <!-- Pending Approval Section -->
                             <div class="flex flex-col flex-1 overflow-hidden mt-2">
-                                <div class="max-h-[300px] overflow-y-auto overflow-x-hidden px-6 pb-6 space-y-4 custom-scrollbar">
+                                <div class="max-h-[250px] sm:max-h-[300px] overflow-y-auto overflow-x-hidden px-4 sm:px-6 pb-4 sm:pb-6 space-y-3 sm:space-y-4 custom-scrollbar">
                                     <template v-if="myTransactions.pending && myTransactions.pending.length > 0">
                                         <!-- Pending Approval Card (Sample) -->
-                                        <div class="bg-[#FDF2E2] rounded-lg p-4 border-l-[3px] border-[#F0AC3A] relative flex flex-col space-y-4 shadow-sm" v-for="(item, index) in myTransactions.pending" :key="index">
-                                            <div class="flex justify-between items-start">
-                                                <h3 class="font-semibold text-[#1F2937] whitespace-pre-line">{{ item.description }}</h3>
-                                                <span class="text-[#1F2937] font-semibold">{{ formatCurrency(item.my_contribution?.amount) + 'đ' }}</span>
+                                        <div class="bg-[#FDF2E2] rounded-lg p-3 sm:p-4 border-l-[3px] border-[#F0AC3A] relative flex flex-col space-y-3 sm:space-y-4 shadow-sm" v-for="(item, index) in myTransactions.pending" :key="index">
+                                            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
+                                                <h3 class="font-semibold text-[#1F2937] whitespace-pre-line text-sm sm:text-base">{{ item.description }}</h3>
+                                                <span class="text-[#1F2937] font-semibold text-sm sm:text-base flex-shrink-0">{{ formatCurrency(item.my_contribution?.amount) + 'đ' }}</span>
                                             </div>
                                             <div class="flex items-center justify-between">
-                                                <div class="flex items-center text-[12px] text-[#A6753A] font-medium">
+                                                <div class="flex items-center text-[10px] sm:text-[12px] text-[#A6753A] font-medium">
                                                     <span>Đã chuyển khoản</span>
-                                                    <span class="mx-1.5 text-[#A6753A]">•</span>
+                                                    <span class="mx-1 sm:mx-1.5 text-[#A6753A]">•</span>
                                                     <span>Chờ admin xác nhận</span>
                                                 </div>
-                                                <div class="bg-[#F0A31D] text-white px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider">Chờ duyệt</div>
+                                                <div class="bg-[#F0A31D] text-white px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[9px] sm:text-[10px] font-bold uppercase tracking-wider">Chờ duyệt</div>
                                             </div>
                                         </div>
                                     </template>
-                                    <div v-else class="flex flex-col items-center justify-center py-8 text-center">
-                                        <p class="text-[#838799] text-sm font-medium">Không có khoản thu nào cần chờ xác nhận</p>
+                                    <div v-else class="flex flex-col items-center justify-center py-6 sm:py-8 text-center">
+                                        <p class="text-[#838799] text-xs sm:text-sm font-medium">Không có khoản thu nào cần chờ xác nhận</p>
                                     </div>
                                 </div>
                             </div>
@@ -401,33 +401,33 @@
                 <!-- Right Column: LỊCH SỬ CỦA TÔI -->
                 <div :class="[
                     'flex flex-col h-full',
-                    hasAnyRole(['manager', 'member']) ? 'col-span-12 lg:col-span-8' : 'col-span-12'
+                    hasAnyRole(['manager', 'member']) ? 'col-span-12 lg:col-span-12 xl:col-span-8' : 'col-span-12'
                 ]">
                     <div class="bg-white rounded-[24px] shadow-sm border border-gray-50 flex-1 flex flex-col">
                         <!-- Section Header -->
-                        <div class="px-6 pt-6 pb-2">
-                            <div class="text-[#838799] font-bold text-[15px] tracking-wide uppercase">
+                        <div class="px-4 sm:px-6 pt-4 sm:pt-6 pb-2">
+                            <div class="text-xs sm:text-[15px] font-bold text-[#838799] tracking-wide uppercase">
                                 Lịch sử của tôi
                             </div>
                         </div>
                         
                         <!-- Search & Filter -->
-                        <div class="px-6 py-4">
+                        <div class="px-4 sm:px-6 py-4">
                             <div class="relative w-full">
                                 <div class="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                                    <MagnifyingGlassIcon class="w-5 h-5 text-[#838799]" />
+                                    <MagnifyingGlassIcon class="w-4 h-4 sm:w-5 sm:h-5 text-[#838799]" />
                                 </div>
                                 <input 
                                     v-model="searchQuery"
                                     type="text" 
                                     placeholder="Tìm kiếm lịch sử giao dịch"
                                     @input="handleSearch"
-                                    class="w-full bg-[#EDEEF2] border-none rounded-md py-3.5 pl-12 pr-12 text-sm focus:ring-0 placeholder:text-[#9EA2B3] placeholder:font-normal"
+                                    class="w-full bg-[#EDEEF2] border-none rounded-md py-3 px-4 pl-10 sm:pl-12 pr-12 text-sm focus:ring-0 placeholder:text-[#9EA2B3] placeholder:font-normal"
                                 />
                                 <div class="absolute inset-y-0 right-4 flex items-center">
                                     <div class="relative">
                                         <FunnelIcon 
-                                            class="w-5 h-5 text-[#838799] cursor-pointer hover:text-[#D72D36] transition-colors" 
+                                            class="w-4 h-4 sm:w-5 sm:h-5 text-[#838799] cursor-pointer hover:text-[#D72D36] transition-colors" 
                                             @click.stop="showFilterDropdown = !showFilterDropdown"
                                         />
                                         <div v-if="activeFilterCount > 0" class="absolute -top-1 -right-1 w-2 h-2 bg-[#D72D36] rounded-full"></div>
@@ -554,22 +554,22 @@
 
                         <!-- History List -->
                         <div class="flex-1 overflow-y-auto">
-                            <div v-if="transactions.length === 0" class="text-center py-12">
-                                <p class="text-[#838799] text-sm">Chưa có giao dịch nào</p>
+                            <div v-if="transactions.length === 0" class="text-center py-8 sm:py-12">
+                                <p class="text-[#838799] text-xs sm:text-sm">Chưa có giao dịch nào</p>
                             </div>
                             <div v-for="(item, i) in transactions" :key="i" 
-                                class="flex items-center justify-between mx-6 py-5 border-b border-[#dcdee6] hover:bg-gray-50/30 transition-colors cursor-pointer last:border-b-0">
-                                <div class="flex items-center space-x-4">
+                                class="flex flex-col sm:flex-row sm:items-center sm:justify-between mx-4 sm:mx-6 py-4 sm:py-5 border-b border-[#dcdee6] hover:bg-gray-50/30 transition-colors cursor-pointer last:border-b-0 gap-2">
+                                <div class="flex items-center space-x-4 flex-1 min-w-0">
                                     <div>
-                                        <p class="font-bold text-[#1F2937] text-[15px] whitespace-pre-line">{{ item.description || 'Chưa có mô tả' }}</p>
-                                        <p class="text-[12px] text-[#10B981] font-normal mt-0.5">Hoàn tất: {{ formatDatetime(item.created_at, '/') }}</p>
+                                        <p class="font-bold text-[#1F2937] text-sm sm:text-[15px] whitespace-pre-line">{{ item.description || 'Chưa có mô tả' }}</p>
+                                        <p class="text-[11px] sm:text-[12px] text-[#10B981] font-normal mt-0.5">Hoàn tất: {{ formatDatetime(item.created_at, '/') }}</p>
                                     </div>
                                 </div>
-                                <span class="font-bold text-[#1F2937] text-[15px]">{{ formatCurrency(item.amount) + item.currency }}</span>
+                                <span class="font-bold text-[#1F2937] text-sm sm:text-[15px] flex-shrink-0">{{ formatCurrency(item.amount) + item.currency }}</span>
                             </div>
 
                             <!-- Pagination -->
-                            <div class="px-6 pb-6">
+                            <div class="px-4 sm:px-6 pb-6">
                                 <Pagination 
                                     :meta="{ current_page: currentPage, last_page: lastPage }" 
                                     @page-change="handlePageChange" 
@@ -782,18 +782,18 @@
 
 
             <!-- Floating Action Buttons -->
-            <div class="fixed bottom-8 right-8 flex flex-col space-y-4" v-if="hasAnyRole(['admin', 'secretary', 'treasurer'])">
+            <div class="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 flex flex-col space-y-3 sm:space-y-4" v-if="hasAnyRole(['admin', 'secretary', 'treasurer'])">
                 <button 
                     @click="showCreateExpenseModal = true"
-                    class="w-12 h-12 bg-[#2D3139] text-white rounded-full flex items-center justify-center shadow-lg hover:bg-black transition-all"
+                    class="w-11 h-11 sm:w-12 sm:h-12 bg-[#2D3139] text-white rounded-full flex items-center justify-center shadow-lg hover:bg-black transition-all"
                 >
-                    <MinusIcon class="w-6 h-6" />
+                    <MinusIcon class="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
                 <button 
                     @click="openCreateFundModal"
-                    class="w-12 h-12 bg-[#E36C72] text-white rounded-full flex items-center justify-center shadow-lg hover:bg-[#d05a60] transition-all"
+                    class="w-11 h-11 sm:w-12 sm:h-12 bg-[#E36C72] text-white rounded-full flex items-center justify-center shadow-lg hover:bg-[#d05a60] transition-all"
                 >
-                    <PlusIcon class="w-6 h-6" />
+                    <PlusIcon class="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
             </div>
         </template>

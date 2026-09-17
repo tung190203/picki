@@ -3,32 +3,32 @@
         <Transition name="modal-fade">
             <div
                 v-if="modelValue"
-                class="fixed inset-0 z-[10010] flex items-start justify-center p-4 bg-gray-900 bg-opacity-50 backdrop-blur-sm overflow-y-auto"
+                class="fixed inset-0 z-[10010] flex items-center justify-center p-3 sm:p-4 bg-gray-900 bg-opacity-50 backdrop-blur-sm overflow-y-auto"
                 @click.self="closeModal"
             >
-                <div class="bg-white dark:bg-[#161F33] rounded-xl shadow-2xl w-full max-w-2xl transform transition-all duration-300 my-8">
+                <div class="bg-white dark:bg-[#161F33] rounded-xl shadow-2xl w-full max-w-2xl transform transition-all duration-300 my-auto max-h-[95vh] sm:max-h-[90vh] flex flex-col">
                     <!-- Header -->
-                    <div class="p-5 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between sticky top-0 bg-white dark:bg-[#161F33] rounded-t-xl z-10">
+                    <div class="p-4 sm:p-5 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between sticky top-0 bg-white dark:bg-[#161F33] rounded-t-xl z-10 flex-shrink-0">
                         <div>
-                            <h3 class="text-xl font-semibold text-gray-900 dark:text-slate-100">
+                            <h3 class="text-lg sm:text-xl font-semibold text-gray-900 dark:text-slate-100">
                                 Bốc thăm thủ công
                             </h3>
-                            <p class="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                            <p class="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-1">
                                 {{ groupName }} — Kéo thả để sắp xếp thứ tự các đội đồng hạng
                             </p>
                         </div>
                         <button
                             @click="closeModal"
-                            class="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors p-1"
+                            class="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors p-1 flex-shrink-0"
                         >
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
                     </div>
 
                     <!-- Content -->
-                    <div class="p-5">
+                    <div class="p-4 sm:p-5 overflow-y-auto flex-1">
                         <!-- Info Banner -->
                         <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-5 flex items-start gap-2">
                             <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -133,23 +133,23 @@
                         </div>
 
                         <!-- Actions -->
-                        <div class="flex justify-end gap-2 pt-4 border-t border-gray-100 dark:border-slate-700">
+                        <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 border-t border-gray-100 dark:border-slate-700">
                             <button
                                 @click="onReset"
-                                class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-200 bg-white dark:bg-[#1E293B] border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+                                class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-200 bg-white dark:bg-[#1E293B] border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
                             >
                                 Reset
                             </button>
                             <button
                                 @click="closeModal"
-                                class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-200 bg-white dark:bg-[#1E293B] border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+                                class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-200 bg-white dark:bg-[#1E293B] border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
                             >
                                 Hủy
                             </button>
                             <button
                                 @click="onSave"
                                 :disabled="isSaving || orderedTeams.length < 2"
-                                class="px-4 py-2 text-sm font-medium text-white bg-[#D72D36] hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-[#D72D36] hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {{ isSaving ? 'Đang lưu...' : 'Lưu thứ hạng' }}
                             </button>

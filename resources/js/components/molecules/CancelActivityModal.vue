@@ -4,19 +4,19 @@
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900 bg-opacity-50 backdrop-blur-sm"
       @click.self="closeModal">
 
-      <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 overflow-hidden"
+      <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-xl shadow-2xl w-full max-w-md max-h-[95vh] sm:max-h-[90vh] transform transition-all duration-300 overflow-hidden flex flex-col"
         role="dialog" aria-modal="true">
 
-        <div class="p-5 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
-          <h3 class="text-xl font-semibold text-gray-900 dark:text-slate-100">
+        <div class="p-4 sm:p-5 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between flex-shrink-0">
+          <h3 class="text-lg sm:text-xl font-semibold text-gray-900 dark:text-slate-100">
             Huỷ sự kiện
           </h3>
           <button @click="closeModal" class="text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white transition-colors">
-            <XMarkIcon class="w-6 h-6" />
+            <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </div>
 
-        <div class="p-5 space-y-4">
+        <div class="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
           <div>
             <div class="flex items-center justify-between">
                 <label class="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">Lý do huỷ sự kiện</label>
@@ -52,9 +52,9 @@
           </p>
         </div>
 
-        <div class="px-5 py-4 bg-gray-50 dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 flex justify-end gap-3">
+        <div class="px-4 sm:px-5 py-3 sm:py-4 bg-gray-50 dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 flex-shrink-0">
           <button @click="closeModal"
-            class="px-5 py-2 text-sm font-medium text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+            class="w-full sm:w-auto px-5 py-2 text-sm font-medium text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
             Đóng
           </button>
           <button @click="handleConfirm"
