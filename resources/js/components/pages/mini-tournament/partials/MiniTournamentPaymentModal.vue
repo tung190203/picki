@@ -2,13 +2,13 @@
   <Transition name="fade">
     <div
       v-if="isOpen"
-      class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      class="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm"
       @click.self="closeModal"
     >
       <Transition name="scale">
         <div
           v-if="isOpen"
-          class="bg-[#F8F9FD] dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl w-full max-w-[960px] h-[90vh] max-h-[760px] transition-all duration-300 flex flex-col relative shadow-2xl overflow-hidden"
+          class="bg-[#F8F9FD] dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl w-full max-w-[960px] max-h-[95vh] sm:max-h-[760px] sm:h-[90vh] transition-all duration-300 flex flex-col relative shadow-2xl overflow-hidden"
         >
           <!-- Header -->
           <div class="p-6 px-8 flex items-center justify-between border-b border-gray-100 dark:border-slate-800 bg-white dark:bg-[#1E293B] flex-shrink-0">

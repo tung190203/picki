@@ -90,6 +90,10 @@ class MiniMatch extends Model
 
     public function isEditable(): bool
     {
+        // BYEE matches luôn xóa được (không có kết quả thực sự)
+        if ($this->is_bye) {
+            return true;
+        }
         return $this->status !== self::STATUS_COMPLETED;
     }
 

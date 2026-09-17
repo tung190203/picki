@@ -1,11 +1,11 @@
 <template>
     <Transition name="fade">
-        <div v-if="isOpen" 
-            class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+        <div v-if="isOpen"
+            class="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm"
             @click.self="close">
             <Transition name="scale">
-                <div v-if="isOpen" 
-                    class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-[24px] w-full max-w-[850px] max-h-[90vh] transition-all duration-300 flex flex-col p-6 md:p-6 relative shadow-2xl overflow-hidden">
+                <div v-if="isOpen"
+                    class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-[24px] w-full max-w-[850px] max-h-[95vh] sm:max-h-[90vh] transition-all duration-300 flex flex-col p-4 sm:p-6 md:p-6 relative shadow-2xl overflow-hidden">
                     <!-- Modal Close -->
                     <button 
                         @click="close"
@@ -187,17 +187,17 @@
                     </div>
 
                     <!-- Modal Footer -->
-                    <div class="pt-6 md:pt-6 border-t border-[#F2F3F5] dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div class="pt-4 md:pt-6 border-t border-[#F2F3F5] dark:border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 md:gap-4">
                         <div>
                             <p class="text-sm font-normal text-[#6B6F80] dark:text-slate-400 tracking-wider mb-1">Tổng thu dự kiến</p>
                             <div class="flex items-baseline space-x-1">
-                                <span class="text-[28px] font-bold text-[#1F2937] dark:text-slate-100">{{ totalExpectedAmount }}</span>
-                                <span class="text-[20px] font-bold text-[#1F2937] dark:text-slate-100">đ</span>
+                                <span class="text-2xl md:text-[28px] font-bold text-[#1F2937] dark:text-slate-100">{{ totalExpectedAmount }}</span>
+                                <span class="text-lg md:text-[20px] font-bold text-[#1F2937] dark:text-slate-100">đ</span>
                             </div>
                         </div>
-                        <button 
+                        <button
                             @click="submitCreateFund"
-                            class="bg-[#D72D36] dark:bg-[#D72D36] text-white px-10 py-4 rounded-[4px] font-semibold hover:bg-red-700 transition-all shadow-lg active:scale-[0.98]"
+                            class="w-full md:w-auto bg-[#D72D36] dark:bg-[#D72D36] text-white px-6 md:px-10 py-3 md:py-4 rounded-[4px] font-semibold hover:bg-red-700 transition-all shadow-lg active:scale-[0.98]"
                         >
                             Gửi yêu cầu
                         </button>

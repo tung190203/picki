@@ -10,11 +10,11 @@
     >
       <div
         v-if="modelValue"
-        class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto"
+          class="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto"
         @click.self="closeModal"
       >
         <div
-          class="bg-white rounded-2xl shadow-2xl border border-slate-200/80 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200 my-auto"
+          class="bg-white rounded-2xl shadow-2xl border border-slate-200/80 w-full max-w-3xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh] animate-in fade-in zoom-in-95 duration-200 my-auto"
         >
           <!-- Header -->
           <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50 sticky top-0 z-10">
@@ -406,7 +406,7 @@
           </form>
 
           <!-- Footer Actions -->
-          <div class="px-6 py-4 border-t border-slate-200 bg-slate-50/50 flex items-center justify-end gap-3 sticky bottom-0 z-10">
+          <div class="px-4 sm:px-6 py-4 border-t border-slate-200 bg-slate-50/50 flex flex-col-reverse sm:flex-row items-center justify-end gap-2 sm:gap-3 sticky bottom-0 z-10">
             <button
               type="button"
               @click="closeModal"

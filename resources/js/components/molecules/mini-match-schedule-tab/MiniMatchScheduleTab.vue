@@ -101,7 +101,73 @@ export default {
         const showMatchSuggestionModal = ref(false)
 
         const selectedRoundData = computed(() => {
-            return sessionSchedule.value.find(r => r.round_number === currentRound.value) || null
+            const found = sessionSchedule.value.find(r => r.round_number === currentRound.value) || null
+            console.log('[MiniMatchScheduleTab] selectedRoundData computed:', {
+                currentRound: currentRound.value,
+                scheduleLength: sessionSchedule.value.length,
+                found: found
+            })
+            return found
+        })
+
+        // Kiểm tra có bất kỳ trận nào trong toàn bộ session schedule không
+        const hasAnyMatchInSchedule = computed(() => {
+            if (!Array.isArray(sessionSchedule.value)) return false
+            return sessionSchedule.value.some(round => Array.isArray(round?.matches) && round.matches.length > 0)
+        })
+
+        // Mở modal tạo trận cho vòng hiện tại (dùng khi session ongoing nhưng rounds trống)
+        const openCreateMatchForCurrentRound = () => {
+            // Lấy round hiện tại để truyền roundNumber
+            const round = selectedRoundData.value
+            if (round?.round_number) {
+                currentRound.value = round.round_number
+            }
+            showCreateMiniMatchModal.value = true
+        }
+
+        // Kiểm tra có trận nào đã có kết quả được lưu thực sự trong session
+        // Khi đã có kết quả thật (không phải status mặc định) thì không nên cho đổi thể thức.
+        // Tiêu chí: phải có score thực sự (> 0) trong results_by_sets hoặc score_1/score_2.
+        // KHÔNG dựa vào match.status vì backend có thể set status mặc định khi tạo trận.
+        const hasCompletedMatchInSession = computed(() => {
+            if (!Array.isArray(sessionSchedule.value) || sessionSchedule.value.length === 0) return false
+            return sessionSchedule.value.some(round => {
+                if (!Array.isArray(round?.matches) || round.matches.length === 0) return false
+                return round.matches.some(match => {
+                    // Có results_by_sets với dữ liệu thực sự (ít nhất 1 score > 0)
+                    if (match.results_by_sets && Object.keys(match.results_by_sets).length > 0) {
+                        for (const set of Object.values(match.results_by_sets)) {
+                            if (Array.isArray(set)) {
+                                for (const r of set) {
+                                    if (r?.score != null && Number(r.score) > 0) return true
+                                }
+                            }
+                        }
+                    }
+                    // Có score_1 hoặc score_2 thực sự > 0
+                    const s1 = match.score_1
+                    const s2 = match.score_2
+                    if ((s1 != null && Number(s1) > 0) || (s2 != null && Number(s2) > 0)) {
+                        return true
+                    }
+                    return false
+                })
+            })
+        })
+
+        // Có thể đổi thể thức không?
+        // - Chưa có format: luôn cho đổi (chọn lần đầu)
+        // - Session FINISHED: KHÔNG cho đổi
+        // - Session ONGOING: chỉ cho đổi khi chưa có trận nào có kết quả
+        // - Session PENDING_GROUP/READY/null: luôn cho đổi
+        const canChangeMatchFormat = computed(() => {
+            if (!props.data?.match_format) return true
+            if (effectiveSessionStatus.value === SESSION_STATUS.FINISHED) return false
+            if (effectiveSessionStatus.value === SESSION_STATUS.ONGOING) {
+                return !hasCompletedMatchInSession.value
+            }
+            return true
         })
 
         const selectedSessionMatch = ref(null)
@@ -432,7 +498,9 @@ export default {
             }
         }
 
-        watch(sessionSubTab, () => {
+        watch(sessionSubTab, async () => {
+            console.log('[MiniMatchScheduleTab] sessionSubTab changed to:', sessionSubTab.value)
+            
             if (pagination.value) {
                 pagination.value.current_page = 1
             }
@@ -441,9 +509,11 @@ export default {
             if (!props.data?.id) return
 
             if (sessionSubTab.value === 'schedule') {
-                loadSessionSchedule(props.data.id)
+                console.log('[MiniMatchScheduleTab] Loading schedule for tournament:', props.data.id)
+                await loadSessionSchedule(props.data.id)
             } else if (sessionSubTab.value === 'leaderboard') {
-                loadSessionLeaderboard(props.data.id)
+                console.log('[MiniMatchScheduleTab] Loading leaderboard for tournament:', props.data.id)
+                await loadSessionLeaderboard(props.data.id)
             }
         })
 
@@ -475,17 +545,36 @@ export default {
             try {
                 isLoadingSchedule.value = true
                 const res = await MiniMatchService.getListMiniMatches(id, {})
-                if (res.data?.rounds) {
-                    sessionSchedule.value = res.data.rounds
-                    const activeRound = res.data.rounds.find(r => r.status === 'active')
-                    const upcomingRound = res.data.rounds.find(r => r.status === 'upcoming')
-                    const firstRound = res.data.rounds[0]?.round_number ?? 1
-                    currentRound.value = activeRound
-                        ? activeRound.round_number
-                        : (upcomingRound ? upcomingRound.round_number : firstRound)
+                console.log('[MiniMatchScheduleTab] loadSessionSchedule response:', res)
+
+                if (res.data?.rounds && Array.isArray(res.data.rounds)) {
+                    // Normalize: chấp nhận cả round_number và round làm key cho số vòng
+                    const normalizedRounds = res.data.rounds.map((r, idx) => ({
+                        ...r,
+                        round_number: r.round_number ?? r.round ?? (idx + 1),
+                    }))
+                    sessionSchedule.value = normalizedRounds
+                    console.log('[MiniMatchScheduleTab] Session schedule loaded:', sessionSchedule.value)
+
+                    // Ưu tiên current_round từ backend nếu có
+                    const backendCurrentRound = Number(res.data.current_round)
+                    const activeRound = normalizedRounds.find(r => r.status === 'active')
+                    const upcomingRound = normalizedRounds.find(r => r.status === 'upcoming')
+                    const firstRound = normalizedRounds[0]?.round_number ?? 1
+                    if (Number.isFinite(backendCurrentRound) && normalizedRounds.some(r => r.round_number === backendCurrentRound)) {
+                        currentRound.value = backendCurrentRound
+                    } else {
+                        currentRound.value = activeRound
+                            ? activeRound.round_number
+                            : (upcomingRound ? upcomingRound.round_number : firstRound)
+                    }
+                } else {
+                    console.log('[MiniMatchScheduleTab] No rounds data found in response')
+                    sessionSchedule.value = []
                 }
-            } catch (_e) {
-                // No schedule yet or error — silently ignore
+            } catch (e) {
+                console.error('[MiniMatchScheduleTab] Error loading session schedule:', e)
+                sessionSchedule.value = []
             } finally {
                 isLoadingSchedule.value = false
             }
@@ -517,22 +606,28 @@ export default {
         // Watch data changes to detect session-related fields
         watch(() => props.data, async (newData) => {
             if (newData) {
+                console.log('[MiniMatchScheduleTab] Data changed:', {
+                    match_format: newData.match_format,
+                    session_status: newData.session_status,
+                    id: newData.id
+                })
+                
                 if (newData.match_format && newData.match_format !== MATCH_FORMAT.STANDARD) {
                     await loadSessionSchedule(newData.id)
                     await loadSessionLeaderboard(newData.id)
+                    
                     // Init session sub-tab based on status
                     if (newData.session_status === SESSION_STATUS.ONGOING) {
+                        console.log('[MiniMatchScheduleTab] Session ONGOING, showing schedule tab')
                         sessionSubTab.value = 'schedule'
                     } else if (newData.session_status === SESSION_STATUS.FINISHED) {
+                        console.log('[MiniMatchScheduleTab] Session FINISHED, showing leaderboard tab')
                         sessionSubTab.value = 'leaderboard'
                     } else {
-                        // partner_rotation → schedule tab (no grouping needed)
-                        // mixed_gender / rank_pairing → group tab (needs grouping)
-                        if (newData.match_format === MATCH_FORMAT.PARTNER_ROTATION) {
-                            sessionSubTab.value = 'schedule'
-                        } else {
-                            sessionSubTab.value = 'group'
-                        }
+                        console.log('[MiniMatchScheduleTab] Session PENDING/NEW, showing format tab')
+                        // PENDING_GROUP hoặc chưa có session_status → hiển thị tab format
+                        // Để người dùng có thể bắt đầu session hoặc phân nhóm
+                        sessionSubTab.value = 'format'
                     }
                 }
                 if (newData.match_format === MATCH_FORMAT.MIXED_GENDER || newData.match_format === MATCH_FORMAT.RANK_PAIRING) {
@@ -541,8 +636,10 @@ export default {
             }
         }, { immediate: true })
 
-        // Reset sub-tabs when match_format changes (e.g. after API update via confirmFormatSelection)
-        watch(() => props.data?.match_format, async (newFormat) => {
+// Reset sub-tabs when match_format changes (e.g. after API update via confirmFormatSelection)
+// Lưu ý: watch này KHÔNG nên ghi đè sessionSubTab khi session đang ONGOING/FINISHED
+// (đã được watch ở trên xử lý đúng dựa trên session_status).
+watch(() => props.data?.match_format, async (newFormat, oldFormat) => {
             if (!newFormat) {
                 // No format selected yet — show format selection
                 sessionSubTab.value = 'format'
@@ -564,7 +661,17 @@ export default {
                 }
             } else {
                 // Session format selected
-                sessionSubTab.value = 'format'
+                // Nếu session đang chạy (ONGOING/FINISHED), KHÔNG ghi đè sessionSubTab đã set ở watch trên
+                const sessionStatus = props.data?.session_status
+                const isSessionActive = sessionStatus === SESSION_STATUS.ONGOING ||
+                    sessionStatus === SESSION_STATUS.FINISHED
+                // Chỉ set 'format' khi session chưa active (PENDING_GROUP / null).
+                // Nếu session đã active thì watch ở trên đã set đúng tab rồi.
+                // Khi oldFormat = undefined (lần đầu mount), vẫn set 'format' vì chưa có session thực sự chạy.
+                const shouldSetFormatTab = !isSessionActive
+                if (shouldSetFormatTab) {
+                    sessionSubTab.value = 'format'
+                }
                 if (newFormat === MATCH_FORMAT.PARTNER_ROTATION) {
                     loadSessionSchedule(props.data.id)
                 }
@@ -707,12 +814,55 @@ export default {
             }
             isConfirmingFormat.value = true
             try {
+                const previousFormat = props.data?.match_format
+
+                // Reset state trước khi đổi format để tránh hiển thị data cũ
+                sessionSchedule.value = []
+                sessionLeaderboardData.value = {}
+                currentRound.value = 1
+                playerGroups.value = {}
+                miniMatches.value = []
+                scheduledMyMiniMatches.value = []
+                selectedMiniMatches.value = []
+
+                // Xóa matches của format cũ trước khi đổi sang format mới
+                // Backend validation `canUpdateMatchFormat` chặn khi còn matches trong DB,
+                // nên phải xóa TẤT CẢ matches cũ TRƯỚC khi update match_format.
+                // Lưu ý: response structure khác nhau giữa standard (matches[]) và session (rounds[])
+                if (previousFormat && props.data?.id && previousFormat !== selectedFormat.value) {
+                    const allRes = await MiniMatchService.getListMiniMatches(props.data.id, { page: 1 })
+                    let allMatches = []
+
+                    // Standard format: trả { matches: [...] } (flat)
+                    if (Array.isArray(allRes?.matches) && allRes.matches.length > 0) {
+                        allMatches = allRes.matches
+                    }
+                    // Session format (mixed_gender/rank_pairing/partner_rotation): trả { rounds: [{ matches: [...] }] }
+                    else if (Array.isArray(allRes?.rounds) && allRes.rounds.length > 0) {
+                        for (const round of allRes.rounds) {
+                            if (Array.isArray(round?.matches)) {
+                                allMatches.push(...round.matches)
+                            }
+                        }
+                    }
+
+                    if (allMatches.length > 0) {
+                        const idsToDelete = allMatches.map(m => m?.id).filter(Boolean)
+                        if (idsToDelete.length > 0) {
+                            // Gọi deleteMiniMatches - throw lỗi nếu backend reject
+                            await MiniMatchService.deleteMiniMatches({ ids: idsToDelete })
+                            console.log('[confirmFormatSelection] Deleted', idsToDelete.length, 'matches from previous format', previousFormat)
+                        }
+                    }
+                }
+
                 await updateMiniTournamentByClub(props.clubId, props.data.id, { match_format: selectedFormat.value })
 
                 // Switch tab based on new format after successful update
                 if (selectedFormat.value === MATCH_FORMAT.STANDARD) {
                     // Standard format - switch to match tab and load matches
                     subActiveTab.value = 'match'
+                    sessionSubTab.value = 'format' // Reset session sub-tab
                     // Reset pagination and load matches
                     if (pagination.value) {
                         pagination.value.current_page = 1
@@ -955,6 +1105,10 @@ export default {
             isLoadingSchedule,
             isCreatingSchedule,
             selectedRoundData,
+            hasAnyMatchInSchedule,
+            openCreateMatchForCurrentRound,
+            hasCompletedMatchInSession,
+            canChangeMatchFormat,
             playerGroups,
             isSessionFormat,
             sessionStatus,

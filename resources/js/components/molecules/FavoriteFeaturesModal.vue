@@ -1,9 +1,9 @@
 <template>
     <Transition name="modal">
-        <div v-if="isOpen" class="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+        <div v-if="isOpen" class="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4">
             <div class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" @click="close"></div>
-            
-            <div class="relative w-full max-w-xl bg-white dark:bg-[#161F33] rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-800 p-6 z-10 overflow-hidden flex flex-col max-h-[90vh]">
+
+            <div class="relative w-full max-w-xl bg-white dark:bg-[#161F33] rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-800 p-4 sm:p-6 z-10 overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh]">
                 <!-- Header -->
                 <div class="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-800">
                     <div>
@@ -15,7 +15,7 @@
                         </p>
                     </div>
                     <button @click="close" class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-white rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition">
-                        <XMarkIcon class="w-5 h-5" />
+                        <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
                     </button>
                 </div>
 
@@ -113,17 +113,17 @@
                 </div>
 
                 <!-- Footer Actions -->
-                <div class="pt-4 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between gap-3">
-                    <button 
+                <div class="pt-4 border-t border-gray-100 dark:border-slate-800 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
+                    <button
                         @click="resetToDefault"
-                        class="px-4 py-2 text-xs font-semibold text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 transition"
+                        class="w-full sm:w-auto px-4 py-2 text-xs font-semibold text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 transition"
                     >
                         Đặt lại mặc định
                     </button>
-                    <button 
+                    <button
                         @click="save"
                         :disabled="activeCount === 0"
-                        class="px-6 py-2.5 bg-[#D72D36] hover:bg-[#c22830] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl shadow-md transition"
+                        class="w-full sm:w-auto px-4 sm:px-6 py-2.5 bg-[#D72D36] hover:bg-[#c22830] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl shadow-md transition"
                     >
                         Lưu cài đặt
                     </button>

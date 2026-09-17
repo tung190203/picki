@@ -4,19 +4,19 @@
             <div v-if="isOpen"
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
                 @click.self="closeModal">
-                <div class="bg-white rounded-lg shadow-xl w-full max-w-sm overflow-hidden animate-scaleIn">
+                <div class="bg-white rounded-lg shadow-xl w-full max-w-sm max-h-[95vh] sm:max-h-[90vh] overflow-hidden animate-scaleIn flex flex-col">
                     <!-- Header -->
-                    <header class="flex items-center justify-between p-4 border-b">
-                        <h2 class="text-lg font-semibold text-gray-800">
+                    <header class="flex items-center justify-between p-4 border-b flex-shrink-0">
+                        <h2 class="text-base sm:text-lg font-semibold text-gray-800">
                             Thông tin thành viên
                         </h2>
                         <button @click="closeModal" class="text-gray-400 hover:text-gray-600">
-                            <XMarkIcon class="w-6 h-6" />
+                            <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
                         </button>
                     </header>
 
                     <!-- Member Info -->
-                    <section class="p-5">
+                    <section class="p-4 sm:p-5 overflow-y-auto flex-1">
                         <div class="flex flex-col items-center text-center mb-5">
                             <div class="relative mb-3">
                                 <img :src="memberAvatar" :alt="memberName"

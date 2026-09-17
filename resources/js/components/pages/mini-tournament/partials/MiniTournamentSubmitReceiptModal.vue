@@ -2,16 +2,16 @@
   <Transition name="fade">
     <div
       v-if="isOpen"
-      class="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      class="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm"
       @click.self="close"
     >
       <Transition name="scale">
         <div
           v-if="isOpen"
-          class="bg-white rounded-[16px] w-full max-w-[480px] transition-all duration-300 flex flex-col p-6 relative shadow-2xl overflow-hidden"
+          class="bg-white rounded-[16px] w-full max-w-[480px] max-h-[95vh] sm:max-h-[90vh] transition-all duration-300 flex flex-col p-4 sm:p-6 relative shadow-2xl overflow-hidden"
         >
           <!-- Nội dung -->
-          <div class="flex flex-col items-center justify-center w-full mb-4 mt-2">
+          <div class="flex flex-col items-center justify-center w-full mb-4 mt-2 flex-shrink-0">
             <p class="text-[14px] font-bold text-[#1F2937] text-center mb-2 px-4">
               {{ titleText }}
             </p>

@@ -9,12 +9,12 @@
   >
     <div
       v-if="modelValue"
-      class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      class="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-sm"
       @click.self="close"
     >
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative z-[10000] overflow-hidden animate-in fade-in zoom-in duration-300 max-h-[85vh] flex flex-col">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative z-[10000] overflow-hidden animate-in fade-in zoom-in duration-300 max-h-[95vh] sm:max-h-[85vh] flex flex-col">
         <!-- Header -->
-        <div class="p-6 pb-4 border-b flex items-start justify-between">
+        <div class="p-4 sm:p-6 pb-3 sm:pb-4 border-b flex items-start justify-between sticky top-0 bg-white z-10 flex-shrink-0">
           <div class="flex-1 pr-4">
             <div class="flex items-center gap-2 mb-1">
               <span
@@ -33,14 +33,14 @@
             </h3>
           </div>
           <button @click="close" class="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
-            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
         <!-- Body -->
-        <div class="flex-1 overflow-y-auto p-6 space-y-5">
+        <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
           <!-- Loading -->
           <div v-if="isLoading" class="flex items-center justify-center py-12">
             <div class="w-8 h-8 border-4 border-[#D72D36] border-t-transparent rounded-full animate-spin"></div>
@@ -159,10 +159,10 @@
         </div>
 
         <!-- Footer -->
-        <div class="p-4 border-t flex justify-end">
+        <div class="p-4 sm:p-6 border-t flex justify-end flex-shrink-0">
           <button
             @click="close"
-            class="px-5 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+            class="w-full sm:w-auto px-5 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
           >
             Đóng
           </button>

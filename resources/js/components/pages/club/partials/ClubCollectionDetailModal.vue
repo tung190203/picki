@@ -1,25 +1,25 @@
 <template>
     <Transition name="fade">
         <div v-if="isOpen" 
-            class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            class="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm"
             @click.self="closeModal">
             <Transition name="scale">
-                <div v-if="isOpen" 
-                    class="bg-[#F8F9FD] rounded-2xl w-full max-w-[1000px] h-[90vh] max-h-[800px] transition-all duration-300 flex flex-col relative shadow-2xl overflow-hidden">
-                    
+                <div v-if="isOpen"
+                    class="bg-[#F8F9FD] rounded-2xl w-full max-w-[1000px] max-h-[95vh] sm:max-h-[800px] sm:h-[90vh] transition-all duration-300 flex flex-col relative shadow-2xl overflow-hidden">
+
                     <!-- Modal Header -->
-                    <div class="p-6 px-8 flex items-center justify-between border-b border-gray-100 bg-white flex-shrink-0">
-                        <h2 class="text-xl font-bold text-[#2D3139]">Chi Tiết Đợt Thu</h2>
-                        <button 
+                    <div class="p-4 sm:p-6 px-4 sm:px-8 flex items-center justify-between border-b border-gray-100 bg-white flex-shrink-0">
+                        <h2 class="text-base sm:text-xl font-bold text-[#2D3139]">Chi Tiết Đợt Thu</h2>
+                        <button
                             @click="closeModal"
-                            class="text-gray-400 hover:text-gray-600 transition-colors">
-                            <XMarkIcon class="w-6 h-6" />
+                            class="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
+                            <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
                         </button>
                     </div>
 
-                    <div class="flex flex-1 min-h-0">
+                    <div class="flex flex-1 min-h-0 flex-col sm:flex-row">
                         <!-- Left Sidebar: Collections List -->
-                        <div v-if="fundCollections && fundCollections.length > 0" class="w-[320px] bg-white border-r border-gray-100 flex flex-col overflow-hidden">
+                        <div v-if="fundCollections && fundCollections.length > 0" class="w-full sm:w-[320px] bg-white sm:border-r border-b sm:border-b-0 border-gray-100 flex flex-col overflow-hidden sm:max-h-full max-h-[200px]">
                             <div class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                                 <div 
                                     v-for="collection in fundCollections" 
