@@ -40,6 +40,8 @@ export default {
         roundNumber: { type: Number, default: null }
     },
 
+    emits: ['update:modelValue', 'created'],
+
     setup(props, {emit}) {
         const isSaving = ref(false)
         const miniMatchName = ref('')

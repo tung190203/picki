@@ -1166,8 +1166,23 @@ class MiniTournament extends Model
             return true;
         }
 
+        // Check if any matches exist (regardless of current format)
+        $hasMatches = $this->matches()->exists();
+        
+        // If no matches at all, allow changing format
+        if (!$hasMatches) {
+            return true;
+        }
+
+        // Has matches: apply format-specific rules
         if ($this->match_format === self::MATCH_FORMAT_STANDARD) {
-            return $this->is_session_started !== true;
+            // Chỉ chặn nếu CÓ trận đấu có kết quả thực sự (team_win_id != null)
+            // Không tính BYEE matches vì không có kết quả thực
+            $hasRealResults = $this->matches()
+                ->where('team_win_id', '!=', null)
+                ->where('is_bye', false)
+                ->exists();
+            return !$hasRealResults;
         }
 
         if (in_array($this->match_format, [
@@ -1175,12 +1190,14 @@ class MiniTournament extends Model
             self::MATCH_FORMAT_MIXED_GENDER,
             self::MATCH_FORMAT_RANK_PAIRING,
         ], true)) {
+            // Only allow if no completed match has results
             return !$this->matches()
                 ->where('status', MiniMatch::STATUS_COMPLETED)
                 ->whereHas('results')
                 ->exists();
         }
 
+        // For unknown formats, allow if no matches exist (already checked above)
         return false;
     }
 }

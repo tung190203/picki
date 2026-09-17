@@ -51,7 +51,7 @@ export default {
         },
     },
 
-    emit: ['update:modelValue', 'updated'],
+    emits: ['update:modelValue', 'updated'],
 
     setup(props, { emit }) {
         const scores = ref([])
