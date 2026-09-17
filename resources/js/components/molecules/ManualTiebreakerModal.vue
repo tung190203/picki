@@ -210,7 +210,7 @@ watch(activeClusterIdx, () => {
 async function loadClusters() {
     try {
         const data = await getPendingTies(props.tournamentTypeId, props.groupId)
-        clusters.value = data.pending_ties || []
+        clusters.value = data.clusters || []
         activeClusterIdx.value = 0
         syncOrderedTeams()
     } catch (err) {
