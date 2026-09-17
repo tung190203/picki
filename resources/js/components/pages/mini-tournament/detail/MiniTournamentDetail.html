@@ -529,10 +529,10 @@
     </div>
 
     <!-- Invite Group Modal -->
-    <InviteGroup v-model="showInviteModal" :data="inviteGroupData" :clubs="clubs" :active-scope="activeScope"
-                 :selected-club="selectedClub" :search-query="searchQuery" :current-radius="currentRadius" :current-club-id="selectedClub"
-                 :tournament-max-players="mini.max_players"
-                 :current-participants-count="allParticipants.length"
+    <InviteGroup v-model="showInviteModal" :data="inviteGroupData || []" :clubs="clubs || []" :active-scope="activeScope"
+                 :selected-club="selectedClub" :search-query="searchQuery || ''" :current-radius="currentRadius || 10" :current-club-id="selectedClub"
+                 :tournament-max-players="mini?.max_players || 0"
+                 :current-participants-count="allParticipants?.length || 0"
                  :competition-location="competitionLocation"
                  :tournament-id="id"
                  @update:radius="onRadiusChange" @update:searchQuery="onSearchChange"
@@ -546,12 +546,12 @@
            :miniId="mini.id"
            :canManage="isCreator"
        />
-       <MiniTournamentSubmitReceiptModal
-           v-model:isOpen="showSubmitPaymentModal"
-           :miniId="mini.id"
-           :hasFee="mini?.has_fee"
-           @success="handlePaymentSubmitSuccess"
-       />
+<MiniTournamentSubmitReceiptModal
+          v-model:isOpen="showSubmitPaymentModal"
+          :miniId="mini.id"
+          :hasFee="Boolean(mini?.has_fee)"
+          @success="handlePaymentSubmitSuccess"
+      />
        <AddGuestModal
            v-model:isOpen="showAddGuestModal"
            :miniTournament="mini"

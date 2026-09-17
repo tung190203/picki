@@ -1,21 +1,21 @@
 <template>
     <Teleport to="body">
         <Transition name="modal-fade">
-            <div v-if="modelValue" class="fixed inset-0 z-[10010] flex items-start justify-center p-4 bg-gray-900 bg-opacity-50 backdrop-blur-sm overflow-y-auto" @click.self="closeModal">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl transform transition-all duration-300 my-8">
+            <div v-if="modelValue" class="fixed inset-0 z-[10010] flex items-start sm:items-center justify-center p-3 sm:p-4 bg-gray-900 bg-opacity-50 backdrop-blur-sm overflow-y-auto" @click.self="closeModal">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl transform transition-all duration-300 my-auto max-h-[95vh] sm:max-h-[90vh] flex flex-col">
                     <!-- Header -->
-                    <div class="p-5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white rounded-t-xl z-10">
+                    <div class="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white rounded-t-xl z-10 flex-shrink-0">
                         <div>
-                            <h3 class="text-xl font-semibold text-gray-900">Ghép cặp thủ công</h3>
-                            <p class="text-sm text-gray-500 mt-1">Kéo thả hoặc nhấn vào đội để đưa vào cặp đấu</p>
+                            <h3 class="text-lg sm:text-xl font-semibold text-gray-900">Ghép cặp thủ công</h3>
+                            <p class="text-xs sm:text-sm text-gray-500 mt-1">Kéo thả hoặc nhấn vào đội để đưa vào cặp đấu</p>
                         </div>
                         <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors p-1">
-                            <XMarkIcon class="w-6 h-6" />
+                            <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
                         </button>
                     </div>
 
                     <!-- Content -->
-                    <div class="p-5 max-h-[calc(100vh-200px)] overflow-y-auto">
+                    <div class="p-4 sm:p-5 overflow-y-auto flex-1">
                         <!-- Info Banner -->
                         <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-5 flex items-start gap-2">
                             <InformationCircleIcon class="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
@@ -183,14 +183,14 @@
                     </div>
 
                     <!-- Footer -->
-                    <div class="px-5 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3 rounded-b-xl">
+                    <div class="px-4 sm:px-5 py-4 bg-gray-50 border-t border-gray-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 rounded-b-xl flex-shrink-0">
                         <button @click="closeModal"
-                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                            class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                             Hủy
                         </button>
                         <button @click="applyPairing"
                             :disabled="!isValid"
-                            class="px-4 py-2 text-sm font-medium text-white bg-[#D72D36] rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-[#D72D36] rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                             Áp dụng
                         </button>
                     </div>

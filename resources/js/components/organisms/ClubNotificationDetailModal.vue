@@ -9,7 +9,7 @@
   >
     <div 
       v-if="modelValue" 
-      class="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md transform-gpu" 
+      class="fixed inset-0 z-[10001] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md transform-gpu" 
       @click.self="close"
     >
       <Transition
@@ -22,10 +22,10 @@
       >
         <div 
           v-if="modelValue && notification"
-          class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl relative overflow-hidden flex flex-col max-h-[90vh]"
+          class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl relative overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh]"
         >
           <!-- Header Strip with Icon -->
-          <div :class="['h-24 flex items-center px-8 relative overflow-hidden', currentColors.cardBg]">
+          <div :class="['h-20 sm:h-24 flex items-center px-4 sm:px-8 relative overflow-hidden', currentColors.cardBg]">
              <div class="absolute inset-0 opacity-10 pointer-events-none">
                 <div class="absolute inset-0 bg-repeat bg-center opacity-10"
                     style="background-image: url('data:image/svg+xml,%3Csvg width=&quot;20&quot; height=&quot;20&quot; viewBox=&quot;0 0 20 20&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot;%3E%3Cpath d=&quot;M0 0h10v10H0zM10 10h10v10H10z&quot; fill=&quot;%23000000&quot; fill-opacity=&quot;1&quot;/%3E%3C/svg%3E')">

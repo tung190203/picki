@@ -1,15 +1,15 @@
 <template>
     <Transition name="modal">
-        <div v-if="modelValue" class="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+        <div v-if="modelValue" class="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4">
             <Transition name="backdrop">
                 <div v-if="modelValue" class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="close"></div>
             </Transition>
             <Transition name="modal-content">
-                <div v-if="modelValue" class="relative bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-auto z-10">
+                <div v-if="modelValue" class="relative bg-white rounded-2xl shadow-2xl p-4 sm:p-6 max-w-md w-full mx-auto z-10 max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
                     <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
-                        <h3 class="text-xl font-bold text-[#3E414C]">Thêm thành viên</h3>
+                        <h3 class="text-lg sm:text-xl font-bold text-[#3E414C]">Thêm thành viên</h3>
                         <button @click="close" class="text-gray-400 hover:text-gray-600 transition-colors">
-                            <XMarkIcon class="w-6 h-6" />
+                            <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
                         </button>
                     </div>
 

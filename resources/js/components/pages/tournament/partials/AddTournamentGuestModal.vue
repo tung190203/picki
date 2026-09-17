@@ -2,16 +2,16 @@
   <Transition name="fade">
     <div
       v-if="isOpen"
-      class="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      class="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm"
       @click.self="close"
     >
       <Transition name="scale">
         <div
           v-if="isOpen"
-          class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-[16px] w-full max-w-[480px] max-h-[90vh] overflow-y-auto transition-all duration-300 flex flex-col p-6 relative shadow-2xl"
+          class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-[16px] w-full max-w-[480px] max-h-[95vh] sm:max-h-[90vh] overflow-y-auto transition-all duration-300 flex flex-col p-4 sm:p-6 relative shadow-2xl"
         >
           <div class="flex items-center justify-between mb-5 flex-shrink-0">
-            <h2 class="text-lg font-bold text-[#2D3139] dark:text-slate-100">Thêm khách mời (Guest)</h2>
+            <h2 class="text-base sm:text-lg font-bold text-[#2D3139] dark:text-slate-100">Thêm khách mời (Guest)</h2>
             <button
               type="button"
               @click="close"

@@ -1,18 +1,18 @@
 <template>
   <Teleport to="body">
     <Transition name="modal">
-      <div v-if="modelValue" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" @click.self="closeModal">
-        <div class="bg-white rounded-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+      <div v-if="modelValue" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-3 sm:p-4" @click.self="closeModal">
+        <div class="bg-white rounded-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh]">
           <!-- Header -->
-          <div class="p-6 pb-4 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
-            <h3 class="text-xl font-bold text-gray-900">Báo cáo câu lạc bộ</h3>
+          <div class="p-4 sm:p-6 pb-3 sm:pb-4 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10 flex-shrink-0">
+            <h3 class="text-lg sm:text-xl font-bold text-gray-900">Báo cáo câu lạc bộ</h3>
             <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
-              <XMarkIcon class="w-6 h-6" />
+              <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
           </div>
 
           <!-- Body -->
-          <div class="p-6 overflow-y-auto custom-scrollbar space-y-6">
+          <div class="p-4 sm:p-6 overflow-y-auto custom-scrollbar space-y-6">
             <!-- Reason Type -->
             <div class="relative" ref="typeDropdownRef">
               <label class="block font-semibold text-[#3E414C] mb-2">Lý do báo cáo <span class="text-red-500">*</span></label>

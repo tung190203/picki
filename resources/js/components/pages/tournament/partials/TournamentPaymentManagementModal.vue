@@ -2,18 +2,18 @@
   <Transition name="fade">
     <div
       v-if="isOpen"
-      class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      class="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm"
       @click.self="closeModal"
     >
       <Transition name="scale">
         <div
           v-if="isOpen"
-          class="bg-[#F8F9FD] rounded-2xl w-full max-w-[960px] h-[90vh] max-h-[760px] transition-all duration-300 flex flex-col relative shadow-2xl overflow-hidden"
+          class="bg-[#F8F9FD] rounded-2xl w-full max-w-[960px] max-h-[95vh] sm:max-h-[760px] sm:h-[90vh] transition-all duration-300 flex flex-col relative shadow-2xl overflow-hidden"
         >
           <!-- Header -->
-          <div class="p-6 px-8 flex items-center justify-between border-b border-gray-100 bg-white flex-shrink-0">
-            <div>
-              <h2 class="text-xl font-bold text-[#2D3139]">
+          <div class="p-4 sm:p-6 px-4 sm:px-8 flex items-center justify-between border-b border-gray-100 bg-white flex-shrink-0">
+            <div class="min-w-0 flex-1 mr-3">
+              <h2 class="text-base sm:text-xl font-bold text-[#2D3139]">
                 Quản lý thanh toán giải đấu
               </h2>
               <p class="text-xs text-[#6B6F80] mt-1">
@@ -22,14 +22,14 @@
             </div>
             <button
               @click="closeModal"
-              class="text-gray-400 hover:text-gray-600 transition-colors"
+              class="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
             >
-              <XMarkIcon class="w-6 h-6" />
+              <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
           </div>
 
           <!-- Body -->
-          <div class="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
+          <div class="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4">
             <!-- Payment config & summary -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <!-- Config -->

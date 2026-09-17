@@ -1,5 +1,5 @@
 <template>
-    <div class="p-4 mx-auto w-full max-w-8xl rounded-md flex flex-col overflow-y-auto">
+    <div class="p-3 sm:p-4 md:p-6 mx-auto w-full max-w-8xl rounded-md flex flex-col overflow-y-auto">
         <!-- Loading Skeleton -->
         <ClubDetailSkeleton v-if="isInitialLoading" />
 
@@ -10,113 +10,113 @@
             </div>
             <!-- Admin/Staff View -->
             <div v-if="hasAnyRole(['admin', 'manager', 'secretary', 'treasurer'])"
-                class=" text-white rounded-[8px] shadow-lg px-6 pt-4 pb-6 relative flex flex-col justify-between aspect-[4/1] bg-cover bg-center"
+                class=" text-white rounded-[8px] shadow-lg px-3 sm:px-4 md:px-6 pt-3 sm:pt-4 md:pt-4 pb-4 sm:pb-6 relative flex flex-col justify-between aspect-[4/1] sm:aspect-[5/2] bg-cover bg-center"
                 :style="{ backgroundImage: `url(${club.profile?.cover_image_url || Background})` }">
                 <!-- Overlay to improve readability on white backgrounds -->
                 <div class="absolute inset-0 backdrop-blur-[1px] z-10 rounded-[8px]"
                     style="background: linear-gradient(to bottom, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.38))"></div>
 
                 <div class="flex items-center justify-between relative z-40">
-                    <div class="flex items-center space-x-4">
-                        <div class="bg-white/10 p-2 rounded-full cursor-pointer hover:bg-white/20 transition-colors"
+                    <div class="flex items-center space-x-3 sm:space-x-4">
+                        <div class="bg-white/10 p-1.5 sm:p-2 rounded-full cursor-pointer hover:bg-white/20 transition-colors"
                             @click="goBack">
-                            <ArrowLeftIcon class="w-6 h-6 text-white" />
+                            <ArrowLeftIcon class="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                         </div>
 
                         <!-- Logo Container -->
                         <div class="relative">
                             <img v-if="club.logo_url" :src="club.logo_url"
-                                class="w-16 h-16 rounded-full object-cover border-2 border-white/20 shadow-sm" />
+                                class="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full object-cover border-2 border-white/20 shadow-sm" />
                             <div v-else
-                                class="w-16 h-16 rounded-full bg-red-100 text-[#D72D36] flex items-center justify-center font-bold text-2xl border-2 border-white/20">
+                                class="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full bg-red-100 text-[#D72D36] flex items-center justify-center font-bold text-xl sm:text-2xl border-2 border-white/20">
                                 {{ club.name?.charAt(0).toUpperCase() }}
                             </div>
                             <!-- Verify Badge -->
                             <div v-if="club.is_verified"
                                 class="absolute bottom-0 right-0 bg-[#4392E0] rounded-full p-0.5 border border-white shadow-sm">
-                                <VerifyIcon class="w-4 h-4 text-white" />
+                                <VerifyIcon class="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                             </div>
                         </div>
 
                         <div class="flex flex-col">
-                            <h1 class="text-4xl font-bold leading-tight">{{ club.name }}</h1>
-                            <p class="text-white text-sm font-medium bg-black/40 px-4 py-1 rounded-md w-fit">{{ getRoleName(currentUserRole) }}</p>
+                            <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight">{{ club.name }}</h1>
+                            <p class="text-white text-xs sm:text-sm font-medium bg-black/40 px-3 py-1 sm:px-4 sm:py-1 rounded-md w-fit">{{ getRoleName(currentUserRole) }}</p>
                         </div>
                     </div>
 
-                    <div class="flex items-center">
-                        <div class="p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors"
+                    <div class="flex items-center flex-wrap gap-1">
+                        <div class="p-1.5 sm:p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors"
                             @click="toggleChangeClub" v-if="myClubs.length > 0">
-                            <ChangeCircleIcon class="w-6 h-6 text-white" />
+                            <ChangeCircleIcon class="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                         </div>
-                        <div v-else class="text-white/70 text-sm font-medium px-2">
+                        <div v-else class="text-white/70 text-xs sm:text-sm font-medium px-2">
                             Chưa có CLB nào
                         </div>
-                        <div class="p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors"
+                        <div class="p-1.5 sm:p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors"
                             @click="inviteMembers">
-                            <UserPlusIcon class="w-6 h-6 text-white" />
+                            <UserPlusIcon class="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                         </div>
-                        <div class="p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors"
+                        <div class="p-1.5 sm:p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors"
                             @click="shareClub">
-                            <ShareIcon class="w-6 h-6 text-white" />
+                            <ShareIcon class="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                         </div>
-                        <div class="p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors"
+                        <div class="p-1.5 sm:p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors"
                             @click="handleCampaign">
-                            <CampaignIcon class="w-6 h-6 text-white" />
+                            <CampaignIcon class="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                         </div>
-                        <div class="p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors"
+                        <div class="p-1.5 sm:p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors"
                             @click="toggleMenu">
-                            <EllipsisVerticalIcon class="w-6 h-6 text-white" />
+                            <EllipsisVerticalIcon class="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                         </div>
 
                         <div v-if="isMenuOpen"
-                            class="absolute right-0 top-14 w-56 bg-white rounded-xl shadow-2xl py-2 z-50 text-gray-800 border border-gray-100 animate-in fade-in zoom-in duration-200">
+                            class="absolute right-0 top-12 sm:top-14 w-56 bg-white rounded-xl shadow-2xl py-2 z-50 text-gray-800 border border-gray-100 animate-in fade-in zoom-in duration-200">
                             <!-- Add admin specific menu items if needed, for now reuse existing -->
                             <button v-if="hasAnyRole(['admin', 'secretary'])"
-                                class="w-full flex items-center space-x-3 px-4 py-3 hover:bg-gray-100 transition-colors"
+                                class="w-full flex items-center space-x-3 px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base hover:bg-gray-100 transition-colors"
                                 @click="openEditModal">
-                                <EditNoteIcon class="w-5 h-5 text-gray-500" />
+                                <EditNoteIcon class="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
                                 <span class="font-medium">Chỉnh sửa</span>
                             </button>
                             <button
-                                class="w-full flex items-center space-x-3 px-4 py-3 hover:bg-gray-100 transition-colors"
+                                class="w-full flex items-center space-x-3 px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base hover:bg-gray-100 transition-colors"
                                 @click="openZaloModal">
-                                <ZaloIcon class="w-5 h-5 text-gray-500" />
+                                <ZaloIcon class="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
                                 <span class="font-medium">Thêm nhóm Zalo</span>
                             </button>
                             <button v-if="currentUserRole === 'admin' && adminCount === 1"
-                                class="w-full flex items-center space-x-3 px-4 py-3 hover:bg-gray-100 transition-colors"
+                                class="w-full flex items-center space-x-3 px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base hover:bg-gray-100 transition-colors"
                                 @click="openTransferModal">
-                                <CompareArrowsIcon class="w-5 h-5 text-gray-500" />
+                                <CompareArrowsIcon class="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
                                 <span class="font-medium">Nhượng CLB</span>
                             </button>
                             <button
                                 v-if="(currentUserRole === 'admin' && adminCount > 1) || hasAnyRole(['manager', 'secretary', 'treasurer'])"
-                                class="w-full flex items-center space-x-3 px-4 py-3 hover:bg-[#FBEAEA] transition-colors"
+                                class="w-full flex items-center space-x-3 px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base hover:bg-[#FBEAEA] transition-colors"
                                 @click="leaveClub">
-                                <ArrowRightOnRectangleIcon class="w-5 h-5 text-[#D72D36]" />
+                                <ArrowRightOnRectangleIcon class="w-4 h-4 sm:w-5 sm:h-5 text-[#D72D36]" />
                                 <span class="font-medium text-[#D72D36]">Rời CLB</span>
                             </button>
                             <button v-if="hasAnyRole(['admin'])"
-                                class="w-full flex items-center space-x-3 px-4 py-3 hover:bg-[#FBEAEA] transition-colors"
+                                class="w-full flex items-center space-x-3 px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base hover:bg-[#FBEAEA] transition-colors"
                                 @click="deleteClub">
-                                <TrashIcon class="w-5 h-5 text-[#D72D36]" />
+                                <TrashIcon class="w-4 h-4 sm:w-5 sm:h-5 text-[#D72D36]" />
                                 <span class="font-medium text-[#D72D36]">Xoá CLB</span>
                             </button>
                         </div>
                         <div v-if="isChangeClubOpen"
-                            class="absolute right-0 top-14 w-56 bg-white rounded-xl shadow-2xl z-50 text-gray-800 border border-gray-100 animate-in fade-in zoom-in duration-200">
+                            class="absolute right-0 top-12 sm:top-14 w-56 bg-white rounded-xl shadow-2xl z-50 text-gray-800 border border-gray-100 animate-in fade-in zoom-in duration-200">
                             <div class="py-2 max-h-48 overflow-y-auto custom-scrollbar">
                                 <template v-for="item in myClubs" :key="item.id">
-                                    <div class="flex items-center space-x-3 px-4 py-3 hover:bg-gray-100 transition-colors cursor-pointer"
+                                    <div class="flex items-center space-x-3 px-3 py-2 sm:px-4 sm:py-3 hover:bg-gray-100 transition-colors cursor-pointer"
                                         @click="changeClub(item)">
                                         <img v-if="item.logo_url" :src="item.logo_url" alt=""
-                                            class="w-8 h-8 rounded-full object-cover">
+                                            class="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover">
                                         <div v-else
-                                            class="w-8 h-8 rounded-full bg-red-100 text-[#D72D36] flex items-center justify-center font-bold text-xs">
+                                            class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-red-100 text-[#D72D36] flex items-center justify-center font-bold text-xs">
                                             {{ item.name.charAt(0).toUpperCase() }}
                                         </div>
-                                        <span class="font-medium truncate" v-tooltip="item.name">{{ item.name }}</span>
+                                        <span class="font-medium text-sm sm:text-base truncate" v-tooltip="item.name">{{ item.name }}</span>
                                         <span v-if="item.id == clubId"
                                             class="ml-auto text-[10px] bg-green-50 text-green-600 px-1.5 py-0.5 rounded-full font-bold uppercase whitespace-nowrap">
                                             hiện tại
@@ -129,13 +129,13 @@
                 </div>
 
                 <!-- Stats Cards -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8 relative z-20">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mt-8 relative z-20">
                     <div v-for="(stat, index) in statsAdmin" :key="index"
-                        class="bg-[#3E414C]/80 backdrop-blur-md rounded-2xl p-4 sm:p-6 border border-white/5 shadow-inner">
-                        <p class="text-sm font-semibold text-gray-300 mb-2 uppercase tracking-wide">{{ stat.label }}</p>
+                        class="bg-[#3E414C]/80 backdrop-blur-md rounded-2xl p-3 sm:p-4 md:p-6 border border-white/5 shadow-inner">
+                        <p class="text-xs sm:text-sm font-semibold text-gray-300 mb-2 uppercase tracking-wide">{{ stat.label }}</p>
                         <div class="flex items-baseline space-x-1">
-                            <span class="text-4xl font-bold">{{ stat.value }}</span>
-                            <span class="text-sm font-medium opacity-60 ml-2" :class="stat.unitClass">{{ stat.unit
+                            <span class="text-2xl sm:text-3xl md:text-4xl font-bold">{{ stat.value }}</span>
+                            <span class="text-xs sm:text-sm font-medium opacity-60 ml-2" :class="stat.unitClass">{{ stat.unit
                             }}</span>
                         </div>
                     </div>
@@ -151,7 +151,7 @@
 
             <!-- Member/Guest View (Existing) -->
             <div v-else
-                class="bg-club-default text-white rounded-[8px] shadow-lg p-6 relative flex flex-col justify-between aspect-[4/1] bg-cover bg-center"
+                class="bg-club-default text-white rounded-[8px] shadow-lg p-3 sm:p-4 md:p-6 relative flex flex-col justify-between aspect-[4/1] sm:aspect-[5/2] bg-cover bg-center"
                 :style="{ backgroundImage: `url(${club.profile?.cover_image_url || Background})` }">
                 <!-- Overlay for readability -->
                 <div class="absolute inset-0 backdrop-blur-[1px] z-10 rounded-[8px]"
@@ -159,33 +159,33 @@
 
                 <div class="flex items-center justify-between relative z-40">
                     <div>
-                        <ArrowLeftIcon class="w-6 h-6 cursor-pointer text-white" @click="goBack" />
+                        <ArrowLeftIcon class="w-5 h-5 sm:w-6 sm:h-6 cursor-pointer text-white" @click="goBack" />
                     </div>
                     <div class="flex items-center space-x-1 relative">
-                        <ShareIcon class="w-6 h-6 cursor-pointer text-white" @click="shareClub" />
-                        <EllipsisVerticalIcon class="w-9 h-9 cursor-pointer text-white" @click="toggleMenu" />
+                        <ShareIcon class="w-5 h-5 sm:w-6 sm:h-6 cursor-pointer text-white" @click="shareClub" />
+                        <EllipsisVerticalIcon class="w-7 h-7 sm:w-9 sm:h-9 cursor-pointer text-white" @click="toggleMenu" />
 
                         <!-- Dropdown Menu -->
                         <div v-if="isMenuOpen"
-                            class="absolute right-0 top-10 w-56 bg-white rounded-xl shadow-2xl py-2 z-50 text-gray-800 border border-gray-100 animate-in fade-in zoom-in duration-200">
+                            class="absolute right-0 top-10 sm:top-12 w-56 bg-white rounded-xl shadow-2xl py-2 z-50 text-gray-800 border border-gray-100 animate-in fade-in zoom-in duration-200">
                             <button
-                                class="w-full flex items-center space-x-3 px-4 py-3 hover:bg-gray-100 transition-colors"
+                                class="w-full flex items-center space-x-3 px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base hover:bg-gray-100 transition-colors"
                                 @click="openNotification" v-if="is_joined">
-                                <BellIcon class="w-5 h-5 text-gray-500" />
+                                <BellIcon class="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
                                 <span class="font-medium">Thông báo</span>
                             </button>
                             <button
-                                class="w-full flex items-center space-x-3 px-4 py-3 hover:bg-gray-100 transition-colors" @click="handleReportClub">
-                                <InformationCircleIcon class="w-5 h-5 text-gray-500" />
+                                class="w-full flex items-center space-x-3 px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base hover:bg-gray-100 transition-colors" @click="handleReportClub">
+                                <InformationCircleIcon class="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
                                 <span class="font-medium">Báo cáo CLB</span>
                             </button>
                             <div class="h-px bg-gray-100 my-1 mx-2"></div>
-                            <button class="w-full flex items-center space-x-3 px-4 py-3 transition-colors rounded-lg"
+                            <button class="w-full flex items-center space-x-3 px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base transition-colors rounded-lg"
                                 @click="leaveClub" :class="is_joined
                                     ? 'hover:bg-red-50 text-red-600 cursor-pointer'
                                     : 'text-gray-400 bg-gray-100 cursor-not-allowed'
                                     " :disabled="!is_joined">
-                                <ArrowLeftOnRectangleIcon class="w-5 h-5"
+                                <ArrowLeftOnRectangleIcon class="w-4 h-4 sm:w-5 sm:h-5"
                                     :class="is_joined ? 'text-red-600' : 'text-gray-400'" />
                                 <span class="font-medium">
                                     Rời câu lạc bộ
@@ -198,72 +198,72 @@
                     <div>
                         <div v-if="club.profile?.address"
                             class="flex items-center space-x-2 relative rounded-full overflow-hidden bg-white w-fit text-black py-1 px-2 mb-2">
-                            <MapPinIcon class="w-5 h-5" />
-                            <div class="text-sm font-semibold">{{ club.profile.address }}</div>
+                            <MapPinIcon class="w-4 h-4 sm:w-5 sm:h-5" />
+                            <div class="text-xs sm:text-sm font-semibold">{{ club.profile.address }}</div>
                         </div>
-                        <div class="flex items-center space-x-4 mb-2">
+                        <div class="flex items-center space-x-3 sm:space-x-4 mb-2">
                              <!-- Logo Container -->
                             <div class="relative">
                                 <img v-if="club.logo_url" :src="club.logo_url"
-                                    class="w-16 h-16 rounded-full object-cover border-2 border-white/20 shadow-sm" />
+                                    class="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full object-cover border-2 border-white/20 shadow-sm" />
                                 <div v-else
-                                    class="w-16 h-16 rounded-full bg-red-100 text-[#D72D36] flex items-center justify-center font-bold text-2xl border-2 border-white/20">
+                                    class="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full bg-red-100 text-[#D72D36] flex items-center justify-center font-bold text-xl sm:text-2xl border-2 border-white/20">
                                     {{ club.name?.charAt(0).toUpperCase() }}
                                 </div>
                                 <!-- Verify Badge -->
                                 <div v-if="club.is_verified"
                                     class="absolute bottom-0 right-0 bg-[#4392E0] rounded-full p-0.5 border border-white shadow-sm">
-                                    <VerifyIcon class="w-4 h-4 text-white" />
+                                    <VerifyIcon class="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                                 </div>
                             </div>
 
                             <div class="flex flex-col">
-                                <h1 class="text-3xl sm:text-4xl lg:text-[44px] font-bold leading-tight">{{ club.name }}</h1>
-                                <p class="text-white/70 text-sm font-medium">{{ is_joined ? getRoleName(currentUserRole) : 'Khách' }}</p>
+                                <h1 class="text-2xl sm:text-3xl md:text-4xl lg:text-[44px] font-bold leading-tight">{{ club.name }}</h1>
+                                <p class="text-white/70 text-xs sm:text-sm font-medium">{{ is_joined ? getRoleName(currentUserRole) : 'Khách' }}</p>
                             </div>
                         </div>
-                        <div class="flex items-center space-x-2" v-if="!is_joined">
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto" v-if="!is_joined">
                             <template v-if="club.has_invitation">
                                 <Button size="md" color="success"
-                                    class="px-6 sm:px-12 md:px-[35px] bg-[#00B377] border border-[#00B377] text-white hover:bg-[#009664] hover:border-[#009664] flex gap-2"
+                                    class="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-[#00B377] border border-[#00B377] text-white hover:bg-[#009664] hover:border-[#009664] flex gap-2"
                                     @click.stop="acceptJoinClubInvitation">
                                     Đồng ý
                                 </Button>
                                 <Button size="md" color="danger"
-                                    class="px-6 sm:px-12 md:px-[35px] bg-[#D72D36] border border-[#D72D36] text-white hover:bg-[#b5222a] hover:border-[#b5222a] flex gap-2"
+                                    class="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-[#D72D36] border border-[#D72D36] text-white hover:bg-[#b5222a] hover:border-[#b5222a] flex gap-2"
                                     @click.stop="rejectJoinClubInvitation">
                                     Từ chối
                                 </Button>
                             </template>
                             <template v-else-if="!club.has_pending_request">
                                 <Button size="md" color="danger"
-                                    class="px-6 sm:px-12 md:px-[75px] bg-[#D72D36] border border-[#D72D36] text-white hover:bg-white hover:text-[#D72D36] flex gap-2"
+                                    class="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-[#D72D36] border border-[#D72D36] text-white hover:bg-white hover:text-[#D72D36] flex gap-2"
                                     @click.stop="joinClubRequest">
-                                    <PlusIcon class="w-5 h-5" />
+                                    <PlusIcon class="w-4 h-4 sm:w-5 sm:h-5" />
                                     Tham gia CLB
                                 </Button>
                             </template>
                             <template v-else>
                                 <Button size="md" color="danger"
-                                    class="px-6 sm:px-12 md:px-[75px] bg-[#D72D36] border border-[#D72D36] text-white hover:bg-white hover:text-[#D72D36] flex gap-2"
+                                    class="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-[#D72D36] border border-[#D72D36] text-white hover:bg-white hover:text-[#D72D36] flex gap-2"
                                     @click.stop="cancelJoinRequest">
                                     Hủy tham gia
                                 </Button>
                             </template>
                             <Button v-if="club.profile?.qr_zalo_enabled || club.profile?.zalo_link_enabled" size="md"
-                                color="white" class="bg-[#FBEAEB] rounded-full p-2" @click="openClubChat">
-                                <MessageIcon class="w-6.5 h-6.5 text-[#D72D36]" />
+                                color="white" class="w-full sm:w-auto bg-[#FBEAEB] rounded-full p-2 sm:p-2.5" @click="openClubChat">
+                                <MessageIcon class="w-5 h-5 sm:w-6 sm:h-6 text-[#D72D36]" />
                             </Button>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="grid grid-cols-12 gap-4 py-4">
+            <div class="grid grid-cols-12 gap-3 sm:gap-4 md:gap-6 py-3 sm:py-4 md:py-4">
                 <div class="col-span-12 lg:col-span-8 order-2 lg:order-1">
                     <div v-if="is_joined">
-                        <div class="flex items-baseline justify-between">
-                            <h2 class="text-2xl text-[#838799] font-semibold uppercase mb-4">Thông báo</h2>
-                            <p class="text-[#D72D36] font-semibold cursor-pointer" @click="openNotification">Xem tất cả
+                        <div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 sm:gap-0">
+                            <h2 class="text-lg sm:text-xl md:text-2xl text-[#838799] font-semibold uppercase mb-2 sm:mb-4">Thông báo</h2>
+                            <p class="text-[#D72D36] text-sm sm:text-base font-semibold cursor-pointer" @click="openNotification">Xem tất cả
                             </p>
                         </div>
                         <template v-if="pinnedNotifications.length > 0">
@@ -274,14 +274,14 @@
                                 @pin="handlePinNotification"
                                 @click="handleNotificationClick(notification)" />
                         </template>
-                        <div v-else class="p-4 text-center">
-                            <p class="text-[#838799]">Hiện chưa có thông báo ghim nào</p>
+                        <div v-else class="p-3 sm:p-4 text-center">
+                            <p class="text-sm sm:text-base text-[#838799]">Hiện chưa có thông báo ghim nào</p>
                         </div>
                     </div>
                     <div v-if="is_joined">
-                        <div class="flex items-baseline justify-between">
-                            <h2 class="text-2xl text-[#838799] font-semibold uppercase mb-4">Lịch hoạt động</h2>
-                            <p class="text-[#D72D36] font-semibold cursor-pointer" @click="openActivityModal">Xem tất cả
+                        <div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 sm:gap-0">
+                            <h2 class="text-lg sm:text-xl md:text-2xl text-[#838799] font-semibold uppercase mb-2 sm:mb-4">Lịch hoạt động</h2>
+                            <p class="text-[#D72D36] text-sm sm:text-base font-semibold cursor-pointer" @click="openActivityModal">Xem tất cả
                             </p>
                         </div>
                         <template v-if="activities.length > 0">
@@ -293,8 +293,8 @@
                                 @self-absent="handleSelfAbsentActivity(club.id, item.id)"
                                 @check-in="handleSelfCheckInActivity(club.id, item.id)" />
                         </template>
-                        <div v-else class="p-4 text-center">
-                            <p class="text-[#838799]">Hiện chưa có lịch thi đấu</p>
+                        <div v-else class="p-3 sm:p-4 text-center">
+                            <p class="text-sm sm:text-base text-[#838799]">Hiện chưa có lịch thi đấu</p>
                         </div>
                     </div>
                     <ClubInfoTabs :club="club" :isJoined="is_joined" :currentUserRole="currentUserRole"
@@ -306,56 +306,56 @@
                 </div>
                 <div class="col-span-12 lg:col-span-4 space-y-4 order-1 lg:order-2">
                     <div class="max-w-3xl mx-auto" v-if="!hasAnyRole(['admin', 'manager', 'secretary', 'treasurer'])">
-                        <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl shadow-md px-6 py-5">
+                        <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl shadow-md p-3 sm:p-4 md:p-6">
                             <div class="grid grid-cols-3 divide-x divide-gray-200 dark:divide-slate-800 text-center">
                                 <div v-for="(stat, index) in clubStats" :key="index"
                                     class="flex flex-col items-center gap-2">
-                                    <div class="text-[#D72D36] dark:text-red-400 h-12 flex items-center justify-center">
-                                        <component :is="stat.icon" class="w-12 h-12" />
+                                    <div class="text-[#D72D36] dark:text-red-400 h-10 sm:h-12 flex items-center justify-center">
+                                        <component :is="stat.icon" class="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12" />
                                     </div>
-                                    <div class="font-semibold text-gray-800 dark:text-slate-100">{{ statsValue[stat.key] }}</div>
-                                    <div class="text-sm text-[#838799] dark:text-slate-400">{{ stat.label }}</div>
+                                    <div class="text-sm sm:text-base font-semibold text-gray-800 dark:text-slate-100">{{ statsValue[stat.key] }}</div>
+                                    <div class="text-xs sm:text-sm text-[#838799] dark:text-slate-400">{{ stat.label }}</div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="max-w-3xl mx-auto"
                         v-if="hasAnyRole(['admin', 'manager', 'secretary', 'treasurer', 'member'])">
-                        <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl shadow-md px-2 py-5">
+                        <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl shadow-md px-2 py-3 sm:px-2 sm:py-5">
                             <div class="grid text-center"
                                 :class="filteredClubModules.length === 4 ? 'grid-cols-4' : 'grid-cols-3'">
                                 <div v-for="(module, index) in filteredClubModules" :key="index"
                                     class="flex flex-col items-center gap-2">
-                                    <div class="text-[#D72D36] dark:text-red-400 rounded-md bg-[#FBEAEB] dark:bg-[#D72D36]/20 p-4 cursor-pointer relative"
+                                    <div class="text-[#D72D36] dark:text-red-400 rounded-md bg-[#FBEAEB] dark:bg-[#D72D36]/20 p-3 sm:p-4 cursor-pointer relative"
                                         @click="handleModuleClick(module)">
-                                        <component :is="module.icon" class="w-6 h-6" />
+                                        <component :is="module.icon" class="w-5 h-5 sm:w-6 sm:h-6" />
                                         <!-- Notification Badge -->
                                         <div v-if="module.key === 'notification' && hasUnreadNotifications"
                                             class="absolute -bottom-1 -right-1 w-5 h-5 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center animate-bounce-subtle shadow-sm">
                                             <div class="w-3.5 h-3.5 bg-[#D72D36] rounded-full"></div>
                                         </div>
                                     </div>
-                                    <div class="text-sm text-[#3E414C] dark:text-slate-300">{{ module.label }}</div>
+                                    <div class="text-xs sm:text-sm text-[#3E414C] dark:text-slate-300 text-center px-1">{{ module.label }}</div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="max-w-3xl mx-auto" v-if="hasAnyRole(['admin', 'secretary'])">
-                        <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl shadow-md p-6">
-                            <div class="flex items-center gap-2 mb-6">
-                                <p class="uppercase font-bold text-[#838799] dark:text-slate-400 text-sm">Yêu cầu tham gia</p>
+                        <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl shadow-md p-3 sm:p-4 md:p-6">
+                            <div class="flex items-center gap-2 mb-4 sm:mb-6">
+                                <p class="uppercase font-bold text-[#838799] dark:text-slate-400 text-xs sm:text-sm">Yêu cầu tham gia</p>
                                 <span class="w-1 h-1 rounded-full bg-[#3E414C] dark:bg-slate-500"></span>
-                                <span class="font-bold text-[#D72D36] dark:text-red-400 text-sm">({{ joiningRequests.length }})</span>
+                                <span class="font-bold text-[#D72D36] dark:text-red-400 text-xs sm:text-sm">({{ joiningRequests.length }})</span>
                             </div>
 
-                            <div v-if="joiningRequests.length > 0" class="space-y-6">
+                            <div v-if="joiningRequests.length > 0" class="space-y-4 sm:space-y-6">
                                 <template v-for="(request, index) in joiningRequests" :key="request.id">
-                                    <div class="flex items-center justify-between">
-                                        <div class="flex items-center space-x-4">
+                                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2">
+                                        <div class="flex items-center space-x-3 sm:space-x-4">
                                             <img :src="request.user.avatar_url" alt="Avatar"
-                                                class="w-12 h-12 rounded-full object-cover border border-gray-100 dark:border-slate-700" />
+                                                class="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover border border-gray-100 dark:border-slate-700" />
                                             <div>
-                                                <h4 class="font-bold text-[#3E414C] dark:text-slate-100 text-base">{{ request.user.full_name
+                                                <h4 class="font-bold text-[#3E414C] dark:text-slate-100 text-sm sm:text-base">{{ request.user.full_name
                                                     }}</h4>
                                                 <p class="text-xs text-[#838799] dark:text-slate-400 mt-1">
                                                     Trình {{
@@ -366,22 +366,22 @@
                                         </div>
                                         <div class="flex items-center space-x-3">
                                             <button
-                                                class="w-10 h-10 rounded-full bg-[#D72D36] flex items-center justify-center hover:bg-[#c4252e] transition-colors"
+                                                class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#D72D36] flex items-center justify-center hover:bg-[#c4252e] transition-colors"
                                                 @click="rejectJoinRequest(request.id)">
-                                                <XMarkIcon class="w-5 h-5 text-white" stroke-width="2.5" />
+                                                <XMarkIcon class="w-4 h-4 sm:w-5 sm:h-5 text-white" stroke-width="2.5" />
                                             </button>
                                             <button
-                                                class="w-10 h-10 rounded-full bg-[#00B377] flex items-center justify-center hover:bg-[#00a16b] transition-colors"
+                                                class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#00B377] flex items-center justify-center hover:bg-[#00a16b] transition-colors"
                                                 @click="approveJoinRequest(request.id)">
-                                                <CheckIcon class="w-5 h-5 text-white" stroke-width="2.5" />
+                                                <CheckIcon class="w-4 h-4 sm:w-5 sm:h-5 text-white" stroke-width="2.5" />
                                             </button>
                                         </div>
                                     </div>
                                     <div v-if="index < joiningRequests.length - 1" class="h-px bg-gray-100 dark:bg-slate-800"></div>
                                 </template>
                             </div>
-                            <div v-else class="p-4 text-center">
-                                <p class="text-[#838799] dark:text-slate-400">Hiện chưa có yêu cầu tham gia nào</p>
+                            <div v-else class="p-3 sm:p-4 text-center">
+                                <p class="text-sm sm:text-base text-[#838799] dark:text-slate-400">Hiện chưa có yêu cầu tham gia nào</p>
                             </div>
                         </div>
                     </div>
@@ -463,18 +463,18 @@
                     </Transition>
                     <Transition name="modal-content">
                         <div v-if="isZaloQRModalOpen"
-                            class="relative bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 z-10">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-xl font-bold text-[#3E414C]">Mã QR nhóm Zalo</h3>
+                            class="relative bg-white rounded-2xl shadow-2xl p-4 sm:p-5 md:p-6 max-w-md w-full mx-4 z-10">
+                            <div class="flex items-center justify-between mb-3 sm:mb-4">
+                                <h3 class="text-lg sm:text-xl font-bold text-[#3E414C]">Mã QR nhóm Zalo</h3>
                                 <button @click="isZaloQRModalOpen = false"
                                     class="text-gray-400 hover:text-gray-600 transition-colors">
-                                    <XMarkIcon class="w-6 h-6" />
+                                    <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
                                 </button>
                             </div>
                             <div class="flex flex-col items-center">
                                 <img :src="club.profile?.qr_code_image_url" alt="Zalo QR Code"
-                                    class="w-64 h-64 object-contain rounded-lg border border-gray-200" />
-                                <p class="text-sm text-[#838799] mt-4 text-center">Quét mã QR để tham gia nhóm Zalo của
+                                    class="w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 object-contain rounded-lg border border-gray-200" />
+                                <p class="text-xs sm:text-sm text-[#838799] mt-3 sm:mt-4 text-center">Quét mã QR để tham gia nhóm Zalo của
                                     câu lạc bộ
                                 </p>
                             </div>
@@ -503,13 +503,13 @@
                             <div class="mb-6">
                                 <p class="text-[#838799] text-center">Bạn có muốn mở nhóm Zalo của câu lạc bộ không?</p>
                             </div>
-                            <div class="flex items-center gap-3">
+                            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
                                 <button @click="isZaloLinkConfirmModalOpen = false"
-                                    class="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 text-[#3E414C] font-medium hover:bg-gray-50 transition-colors">
+                                    class="w-full sm:flex-1 px-4 py-2 sm:px-4 sm:py-2.5 rounded-lg border border-gray-300 text-[#3E414C] font-medium text-sm sm:text-base hover:bg-gray-50 transition-colors">
                                     Hủy
                                 </button>
                                 <button @click="confirmOpenZaloLink"
-                                    class="flex-1 px-4 py-2.5 rounded-lg bg-[#D72D36] text-white font-medium hover:bg-[#c4252e] transition-colors">
+                                    class="w-full sm:flex-1 px-4 py-2 sm:px-4 sm:py-2.5 rounded-lg bg-[#D72D36] text-white font-medium text-sm sm:text-base hover:bg-[#c4252e] transition-colors">
                                     Xác nhận
                                 </button>
                             </div>

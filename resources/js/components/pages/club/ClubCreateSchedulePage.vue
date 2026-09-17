@@ -1,40 +1,40 @@
 <template>
   <div class="max-w-8xl rounded-md flex flex-col overflow-hidden">
     <!-- Header -->
-    <div class="bg-transparent backdrop-blur-md px-6 py-4 flex items-center justify-between sticky top-0 z-20">
-      <div class="flex items-center gap-4">
+    <div class="bg-transparent backdrop-blur-md px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex items-center justify-between sticky top-0 z-20">
+      <div class="flex items-center gap-3 sm:gap-4">
         <button @click="goBack" class="hover:bg-gray-100 rounded-full transition-colors p-1">
-          <ArrowLeftIcon class="w-6 h-6 text-[#3E414C]" stroke-width="2.5" />
+          <ArrowLeftIcon class="w-5 h-5 sm:w-6 sm:h-6 text-[#3E414C]" stroke-width="2.5" />
         </button>
-        <h1 class="text-xl font-bold text-[#3E414C]">Tạo lịch sinh hoạt</h1>
+        <h1 class="text-base sm:text-lg md:text-xl font-bold text-[#3E414C]">Tạo lịch sinh hoạt</h1>
         <div
-          class="px-3 py-1 bg-[#FBEAEB] text-[#D72D36] rounded-full text-sm font-semibold flex items-center gap-1.5 border border-[#FBEAEB] cursor-pointer hover:bg-[#F7D5D7] transition-colors">
-          <FolderSpecialIcon class="w-4 h-4" />
+          class="hidden sm:flex px-2 sm:px-3 py-1 bg-[#FBEAEB] text-[#D72D36] rounded-full text-xs sm:text-sm font-semibold items-center gap-1 sm:gap-1.5 border border-[#FBEAEB] cursor-pointer hover:bg-[#F7D5D7] transition-colors">
+          <FolderSpecialIcon class="w-3 h-3 sm:w-4 sm:h-4" />
           <span>Mẫu</span>
         </div>
       </div>
     </div>
 
     <!-- Scrollable Content -->
-    <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
-      <div class="grid grid-cols-12 gap-6">
+    <div class="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4 md:p-6">
+      <div class="grid grid-cols-12 gap-3 sm:gap-4 md:gap-6">
         <!-- Left Column -->
-        <div class="col-span-12 lg:col-span-8 space-y-6">
-          <div class="bg-white rounded-2xl p-8 shadow-sm border border-gray-50">
-            <div class="flex items-center gap-3 mb-8">
+        <div class="col-span-12 lg:col-span-8 space-y-4 sm:space-y-6">
+          <div class="bg-white rounded-2xl p-4 sm:p-6 md:p-8 shadow-sm border border-gray-50">
+            <div class="flex items-center gap-2 sm:gap-3 mb-6 sm:mb-8">
               <div
-                class="w-10 h-10 bg-[#D72D36] rounded-full flex items-center justify-center text-white shadow-red-200 shadow-md">
-                <IdentificationIcon class="w-5 h-5 text-white" stroke-width="2.5" />
+                class="w-8 h-8 sm:w-10 sm:h-10 bg-[#D72D36] rounded-full flex items-center justify-center text-white shadow-red-200 shadow-md">
+                <IdentificationIcon class="w-4 h-4 sm:w-5 sm:h-5 text-white" stroke-width="2.5" />
               </div>
-              <h2 class="text-xl font-bold text-[#3E414C]">Thông tin cơ bản</h2>
+              <h2 class="text-base sm:text-lg md:text-xl font-bold text-[#3E414C]">Thông tin cơ bản</h2>
             </div>
 
-            <div class="space-y-6">
+            <div class="space-y-4 sm:space-y-6">
               <!-- Event Name -->
               <div>
-                <label class="block text-sm font-bold text-[#838799] uppercase mb-2 tracking-wider">TÊN SỰ KIỆN</label>
+                <label class="block text-xs sm:text-sm font-bold text-[#838799] uppercase mb-2 tracking-wider">TÊN SỰ KIỆN</label>
                 <input v-model="form.title" type="text"
-                  class="w-full px-5 py-3 bg-[#F0F2F5] border-none rounded-[8px] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/20 transition-all placeholder:text-[#9EA2B3] font-semibold text-gray-900"
+                  class="w-full px-4 sm:px-5 py-2.5 sm:py-3 bg-[#F0F2F5] border-none rounded-[8px] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/20 transition-all placeholder:text-[#9EA2B3] font-semibold text-sm sm:text-base text-gray-900"
                   :class="{ 'ring-2 ring-red-500/50 bg-red-50': errors.title }" placeholder="VD: Kèo cố định 3-5-7"
                   @input="errors.title = ''" />
                 <span v-if="errors.title" class="text-red-500 text-xs mt-1">{{ errors.title }}</span>
@@ -43,11 +43,11 @@
               <!-- Description -->
               <div>
                 <div class="flex justify-between mb-2">
-                  <label class="text-sm font-bold text-[#838799] uppercase tracking-wider">GHI CHÚ</label>
-                  <span class="text-xs text-[#838799] font-medium">{{ form.description?.length || 0 }}/300</span>
+                  <label class="text-xs sm:text-sm font-bold text-[#838799] uppercase tracking-wider">GHI CHÚ</label>
+                  <span class="text-[10px] sm:text-xs text-[#838799] font-medium">{{ form.description?.length || 0 }}/300</span>
                 </div>
                 <textarea v-model="form.description" rows="4" maxlength="300"
-                  class="w-full px-5 py-4 bg-[#F0F2F5] border-none rounded-[8px] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/20 transition-all resize-none placeholder:text-[#9EA2B3] font-medium text-gray-900"
+                  class="w-full px-4 sm:px-5 py-3 sm:py-4 bg-[#F0F2F5] border-none rounded-[8px] focus:outline-none focus:ring-2 focus:ring-[#D72D36]/20 transition-all resize-none placeholder:text-[#9EA2B3] font-medium text-sm sm:text-base text-gray-900"
                   placeholder="Chia sẻ về sự kiện này"></textarea>
               </div>
 
@@ -111,46 +111,46 @@
 
               <!-- Time Section -->
               <div class="space-y-4">
-                <h3 class="text-sm font-bold text-[#838799] uppercase tracking-wider">THỜI GIAN</h3>
+                <h3 class="text-xs sm:text-sm font-bold text-[#838799] uppercase tracking-wider">THỜI GIAN</h3>
 
-                <div class="grid grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                   <div>
-                    <label class="block text-xs font-bold text-[#3E414C] mb-2">Ngày bắt đầu</label>
+                    <label class="block text-[10px] sm:text-xs font-bold text-[#3E414C] mb-2">Ngày bắt đầu</label>
                     <VueDatePicker v-model="start_date" :locale="'vi'" auto-apply :format="'dd/MM/yyyy'" :clearable="false"
                       :enable-time-picker="false" class="custom-datepicker-icon"
                       input-class-name="!bg-white !border-gray-200 !text-[#3E414C] !font-bold !py-2.5 !rounded-[8px]">
                       <template #input-icon>
                         <div class="p-2.5">
-                          <CalendarIcon class="w-5 h-5 text-[#D72D36]" />
+                          <CalendarIcon class="w-4 h-4 sm:w-5 sm:h-5 text-[#D72D36]" />
                         </div>
                       </template>
                     </VueDatePicker>
                   </div>
                   <div>
-                    <label class="block text-xs font-bold text-[#3E414C] mb-2">Giờ bắt đầu</label>
+                    <label class="block text-[10px] sm:text-xs font-bold text-[#3E414C] mb-2">Giờ bắt đầu</label>
                     <VueDatePicker v-model="start_time_picker" time-picker auto-apply :clearable="false"
                       class="custom-datepicker-icon"
                       input-class-name="!bg-white !border-gray-200 !text-[#3E414C] !font-bold !py-2.5 !rounded-[8px]">
                       <template #input-icon>
                         <div class="p-2.5">
-                          <ClockIcon class="w-5 h-5 text-[#D72D36]" />
+                          <ClockIcon class="w-4 h-4 sm:w-5 sm:h-5 text-[#D72D36]" />
                         </div>
                       </template>
                     </VueDatePicker>
                   </div>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                   <div>
-                    <label class="block text-xs font-bold text-[#3E414C] my-3">Thời lượng</label>
-                    <div class="flex gap-3">
+                    <label class="block text-[10px] sm:text-xs font-bold text-[#3E414C] my-3">Thời lượng</label>
+                    <div class="flex gap-2 sm:gap-3">
                       <button v-for="duration in [1, 2, 3]" :key="duration" @click="form.duration = duration"
-                        class="flex-1 py-2.5 rounded-[4px] border font-bold transition-all text-sm"
+                        class="flex-1 py-2 sm:py-2.5 rounded-[4px] border font-bold transition-all text-xs sm:text-sm"
                         :class="form.duration === duration ? 'bg-[#D72D36] border-[#D72D36] text-white shadow-md shadow-red-100' : 'bg-white border-gray-200 text-[#838799] hover:border-gray-300'">
                         {{ duration }}H
                       </button>
                       <button @click="form.duration = 'custom'"
-                        class="flex-1 py-2.5 rounded-[4px] border font-bold transition-all uppercase text-sm"
+                        class="flex-1 py-2 sm:py-2.5 rounded-[4px] border font-bold transition-all uppercase text-[10px] sm:text-sm"
                         :class="form.duration === 'custom' ? 'bg-[#D72D36] border-[#D72D36] text-white shadow-md shadow-red-100' : 'bg-white border-gray-200 text-[#838799] hover:border-gray-300'">
                         TÙY CHỈNH
                       </button>
@@ -197,16 +197,16 @@
           </div>
 
           <!-- Action Buttons (Desktop only) -->
-          <div class="hidden lg:flex items-center gap-2 mt-4">
+          <div class="hidden lg:flex items-center gap-2 sm:gap-3 mt-4">
             <Button color="danger"
-              class="w-44 py-3 font-bold text-white rounded-[8px] shadow-lg shadow-red-200 hover:shadow-red-300 transition-all active:scale-95"
+              class="w-full sm:w-44 py-2.5 sm:py-3 font-bold text-white rounded-[8px] shadow-lg shadow-red-200 hover:shadow-red-300 transition-all active:scale-95 text-sm sm:text-base"
               @click="handleSubmit" :disabled="isLoading">
               <div v-if="isLoading"
                 class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto"></div>
               <span v-else>Tạo lịch sinh hoạt</span>
             </Button>
             <Button color="white"
-              class="w-44 py-3 font-bold text-[#3E414C] bg-[#F0F2F5] rounded-[8px] border-none hover:bg-gray-200 transition-colors"
+              class="w-full sm:w-44 py-2.5 sm:py-3 font-bold text-[#3E414C] bg-[#F0F2F5] rounded-[8px] border-none hover:bg-gray-200 transition-colors text-sm sm:text-base"
               @click="saveAsTemplate">
               Lưu mẫu
             </Button>
@@ -214,47 +214,47 @@
         </div>
 
         <!-- Right Column -->
-        <div class="col-span-12 lg:col-span-4 space-y-6">
+        <div class="col-span-12 lg:col-span-4 space-y-3 sm:space-y-4 md:space-y-6">
           <!-- Privacy -->
-          <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-50">
-            <h3 class="text-sm font-bold text-[#838799] uppercase tracking-wider mb-4">QUYỀN RIÊNG TƯ</h3>
+          <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-50">
+            <h3 class="text-xs sm:text-sm font-bold text-[#838799] uppercase tracking-wider mb-3 sm:mb-4">QUYỀN RIÊNG TƯ</h3>
             <div class="flex bg-[#EDEEF2] p-1 rounded-[8px] mb-3">
               <button @click="form.is_public = true"
-                class="flex-1 py-2 text-xs font-bold rounded-[6px] transition-all flex items-center justify-center gap-2"
+                class="flex-1 py-1.5 sm:py-2 text-xs sm:text-sm font-bold rounded-[6px] transition-all flex items-center justify-center gap-2"
                 :class="form.is_public ? 'bg-[#D72D36] text-white shadow-sm' : 'text-[#838799] hover:text-[#3E414C]'">
-                <GlobeAsiaAustraliaIcon class="w-4 h-4" />
+                <GlobeAsiaAustraliaIcon class="w-3 h-3 sm:w-4 sm:h-4" />
                 <span>Mở rộng</span>
               </button>
               <button @click="form.is_public = false"
-                class="flex-1 py-2 text-xs font-bold rounded-[6px] transition-all flex items-center justify-center gap-2"
+                class="flex-1 py-1.5 sm:py-2 text-xs sm:text-sm font-bold rounded-[6px] transition-all flex items-center justify-center gap-2"
                 :class="!form.is_public ? 'bg-[#D72D36] text-white shadow-sm' : 'text-[#838799] hover:text-[#3E414C]'">
-                <LockClosedIcon class="w-4 h-4" />
+                <LockClosedIcon class="w-3 h-3 sm:w-4 sm:h-4" />
                 <span>Riêng tư</span>
               </button>
             </div>
-            <p class="text-sm font-medium italic text-[#00B377]" v-if="form.is_public">
+            <p class="text-[11px] sm:text-sm font-medium italic text-[#00B377]" v-if="form.is_public">
               *Cho phép thành viên mời thêm khách mời
             </p>
-            <p class="text-sm font-medium italic text-[#D72D36]" v-else>
+            <p class="text-[11px] sm:text-sm font-medium italic text-[#D72D36]" v-else>
               *Không cho phép thành viên mời thêm khách mời
             </p>
           </div>
 
           <!-- Payment -->
-          <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-50">
-            <div class="flex items-center gap-3 mb-6">
+          <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-50">
+            <div class="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
               <div
-                class="w-10 h-10 bg-[#D72D36] rounded-full flex items-center justify-center text-white shadow-red-200 shadow-md">
-                <PriceCheckIcon class="w-5 h-5 text-white" />
+                class="w-8 h-8 sm:w-10 sm:h-10 bg-[#D72D36] rounded-full flex items-center justify-center text-white shadow-red-200 shadow-md">
+                <PriceCheckIcon class="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
-              <h2 class="text-lg font-bold text-[#3E414C]">Cơ chế chia tiền</h2>
+              <h2 class="text-base sm:text-lg font-bold text-[#3E414C]">Cơ chế chia tiền</h2>
             </div>
 
-            <div class="space-y-6">
+            <div class="space-y-4 sm:space-y-6">
               <!-- Type Tabs -->
               <div class="flex bg-[#EDEEF2] p-1 rounded-[8px]">
                 <button v-for="type in splitTypes" :key="type.value" @click="form.fee_split_type = type.value"
-                  class="flex-1 py-1.5 text-xs font-bold rounded-[6px] transition-all"
+                  class="flex-1 py-1 sm:py-1.5 text-[10px] sm:text-xs font-bold rounded-[6px] transition-all"
                   :class="form.fee_split_type === type.value ? 'bg-white text-[#3E414C] shadow-sm' : 'text-[#838799]'">
                   {{ type.label }}
                 </button>
@@ -262,33 +262,33 @@
 
               <!-- Amount -->
               <div>
-                <label class="block text-xs font-bold text-[#838799] uppercase mb-2 tracking-widest">
+                <label class="block text-[10px] sm:text-xs font-bold text-[#838799] uppercase mb-2 tracking-widest">
                   {{ form.fee_split_type === 'fixed' ? 'THU CỐ ĐỊNH' : 'TỔNG SỐ TIỀN' }}
                 </label>
                 <div
-                  class="relative bg-[#F8F9FA] rounded-[8px] h-14 flex items-center px-4 border border-[#EDEEF2] group focus-within:border-[#D72D36]/30 transition-all">
-                  <span class="text-xs font-bold text-[#838799] mr-2">VNĐ</span>
+                  class="relative bg-[#F8F9FA] rounded-[8px] h-12 sm:h-14 flex items-center px-4 border border-[#EDEEF2] group focus-within:border-[#D72D36]/30 transition-all">
+                  <span class="text-[10px] sm:text-xs font-bold text-[#838799] mr-2">VNĐ</span>
                   <input v-model="formattedTotalAmount" type="text"
-                    class="bg-transparent border-none focus:outline-none flex-1 font-bold text-[#D72D36] text-xl"
+                    class="bg-transparent border-none focus:outline-none flex-1 font-bold text-[#D72D36] text-lg sm:text-xl"
                     placeholder="0" />
-                  <span v-if="form.fee_split_type === 'fixed'" class="text-xs font-medium text-[#838799]">/người</span>
+                  <span v-if="form.fee_split_type === 'fixed'" class="text-[10px] sm:text-xs font-medium text-[#838799]">/người</span>
                 </div>
               </div>
 
               <!-- QR Upload -->
               <div v-if="form.fee_split_type !== 'fund'">
-                <label class="block text-xs font-bold text-[#838799] uppercase mb-2 tracking-widest">MÃ QR</label>
+                <label class="block text-[10px] sm:text-xs font-bold text-[#838799] uppercase mb-2 tracking-widest">MÃ QR</label>
 
                 <!-- Khi đã có preview (file mới hoặc cached) -->
                 <div v-if="form.qr_image" class="relative">
-                  <div class="border-2 border-dashed border-[#EDEEF2] rounded-[12px] h-40 flex items-center justify-center bg-[#FAFAFA] overflow-hidden">
+                  <div class="border-2 border-dashed border-[#EDEEF2] rounded-[12px] h-32 sm:h-40 flex items-center justify-center bg-[#FAFAFA] overflow-hidden">
                     <img :src="form.qr_image" class="w-full h-full object-contain p-2 rounded-xl" />
                   </div>
                   <button @click="form.qr_image = null; form.qr_file = null; useCachedQr = false"
-                    class="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg">
-                    <XMarkIcon class="w-4 h-4" />
+                    class="absolute top-2 right-2 p-1 sm:p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg">
+                    <XMarkIcon class="w-3 h-3 sm:w-4 sm:h-4" />
                   </button>
-                  <p v-if="useCachedQr" class="text-center text-xs text-green-600 mt-1 font-medium">
+                  <p v-if="useCachedQr" class="text-center text-[10px] sm:text-xs text-green-600 mt-1 font-medium">
                     Đang dùng mã QR đã lưu
                   </p>
                 </div>
@@ -296,15 +296,15 @@
                 <!-- Khi chưa có preview: cho chọn upload HOẶC dùng cached -->
                 <div v-else class="space-y-2">
                   <div @click="triggerQrUpload"
-                    class="border-2 border-dashed border-[#EDEEF2] rounded-[12px] h-40 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors group bg-[#FAFAFA]">
+                    class="border-2 border-dashed border-[#EDEEF2] rounded-[12px] h-32 sm:h-40 flex flex-col items-center justify-center gap-2 sm:gap-3 cursor-pointer hover:bg-gray-50 transition-colors group bg-[#FAFAFA]">
                     <input ref="qrInput" type="file" @change="handleQrUpload" class="hidden" accept="image/*" />
                     <div
-                      class="w-10 h-10 bg-[#EDEEF2] rounded-full flex items-center justify-center text-[#838799] group-hover:bg-white group-hover:shadow-sm transition-all">
-                      <PhotoIcon class="w-5 h-5" />
+                      class="w-8 h-8 sm:w-10 sm:h-10 bg-[#EDEEF2] rounded-full flex items-center justify-center text-[#838799] group-hover:bg-white group-hover:shadow-sm transition-all">
+                      <PhotoIcon class="w-4 h-4 sm:w-5 sm:h-5" />
                     </div>
                     <div class="text-center">
-                      <p class="text-sm font-bold text-[#3E414C]">Nhấn để tải ảnh lên</p>
-                      <p class="text-[10px] text-[#A1A5B7]">PNG, JPG, GIF (Tối đa 5MB)</p>
+                      <p class="text-xs sm:text-sm font-bold text-[#3E414C]">Nhấn để tải ảnh lên</p>
+                      <p class="text-[9px] sm:text-[10px] text-[#A1A5B7]">PNG, JPG, GIF (Tối đa 5MB)</p>
                     </div>
                   </div>
 
@@ -360,32 +360,32 @@
           </div>
 
           <!-- Rules -->
-          <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-50">
-            <div class="flex items-center gap-3 mb-6">
+          <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-50">
+            <div class="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
               <div
-                class="w-10 h-10 bg-[#D72D36] rounded-full flex items-center justify-center text-white shadow-red-200 shadow-md">
-                <RuleIcon class="w-5 h-5 text-white" />
+                class="w-8 h-8 sm:w-10 sm:h-10 bg-[#D72D36] rounded-full flex items-center justify-center text-white shadow-red-200 shadow-md">
+                <RuleIcon class="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
-              <h2 class="text-lg font-bold text-[#3E414C]">Quy định & Kỷ luật</h2>
+              <h2 class="text-base sm:text-lg font-bold text-[#3E414C]">Quy định & Kỷ luật</h2>
             </div>
 
-            <div class="space-y-6">
+            <div class="space-y-4 sm:space-y-6">
               <div class="flex items-center justify-between">
                 <div>
-                  <label class="block text-sm font-bold text-[#3E414C]">Hạn chót hủy kèo</label>
-                  <p class="text-[11px] text-[#838799] mt-0.5">Trước giờ bắt đầu</p>
+                  <label class="block text-xs sm:text-sm font-bold text-[#3E414C]">Hạn chót hủy kèo</label>
+                  <p class="text-[10px] sm:text-[11px] text-[#838799] mt-0.5">Trước giờ bắt đầu</p>
                 </div>
                 <div class="relative" v-click-outside="() => isDeadlineDropdownOpen = false">
                   <button @click="isDeadlineDropdownOpen = !isDeadlineDropdownOpen"
-                    class="flex items-center gap-1 font-bold text-[#3E414C] hover:text-[#D72D36] transition-colors">
+                    class="flex items-center gap-1 font-bold text-[#3E414C] hover:text-[#D72D36] transition-colors text-sm">
                     <span>{{ form.cancellation_deadline_hours }} Tiếng</span>
                     <ChevronDownIcon class="w-4 h-4 transition-transform duration-200"
                       :class="{ 'rotate-180': isDeadlineDropdownOpen }" stroke-width="2.5" />
                   </button>
                   <div v-if="isDeadlineDropdownOpen"
-                    class="absolute right-0 mt-2 w-32 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50 animate-in fade-in zoom-in duration-200 max-h-32 overflow-y-auto custom-scrollbar">
+                    class="absolute right-0 mt-2 w-28 sm:w-32 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50 animate-in fade-in zoom-in duration-200 max-h-32 overflow-y-auto custom-scrollbar">
                     <button v-for="h in [1, 2, 4, 6, 12, 24, 48]" :key="h" @click="selectDeadline(h)"
-                      class="w-full px-4 py-2 text-left text-sm hover:bg-[#FBEAEB] hover:text-[#D72D36] font-semibold transition-colors"
+                      class="w-full px-3 sm:px-4 py-2 text-left text-xs sm:text-sm hover:bg-[#FBEAEB] hover:text-[#D72D36] font-semibold transition-colors"
                       :class="{ 'text-[#D72D36] bg-[#FBEAEB]': form.cancellation_deadline_hours === h }">
                       {{ h }} Tiếng
                     </button>
@@ -393,19 +393,19 @@
                 </div>
               </div>
 
-              <div class="space-y-4">
+              <div class="space-y-3 sm:space-y-4">
                 <div class="flex items-center justify-between">
                   <div>
-                    <label class="block text-sm font-bold text-[#3E414C]">Phạt hủy muộn</label>
-                    <p class="text-[11px] text-[#838799] mt-0.5">Số tiền phạt sẽ được tự động tạo đến người vi phạm dưới dạng khoản thu</p>
+                    <label class="block text-xs sm:text-sm font-bold text-[#3E414C]">Phạt hủy muộn</label>
+                    <p class="text-[10px] sm:text-[11px] text-[#838799] mt-0.5">Số tiền phạt sẽ được tự động tạo đến người vi phạm dưới dạng khoản thu</p>
                   </div>
                   <Toggle v-model="has_cancel_penalty" />
                 </div>
                 <div v-if="has_cancel_penalty"
                   class="relative bg-[#F8F9FA] rounded-[8px] h-12 flex items-center px-4 animate-in fade-in slide-in-from-top-1">
-                  <span class="text-xs font-bold text-[#838799] mr-2">VNĐ</span>
+                  <span class="text-[10px] sm:text-xs font-bold text-[#838799] mr-2">VNĐ</span>
                   <input v-model="formattedCancelPenaltyAmount" type="text"
-                    class="bg-transparent border-none focus:outline-none flex-1 font-bold text-[#D72D36] text-lg"
+                    class="bg-transparent border-none focus:outline-none flex-1 font-bold text-[#D72D36] text-base sm:text-lg"
                     placeholder="0" />
                 </div>
               </div>
@@ -414,16 +414,16 @@
         </div>
 
         <!-- Action Buttons (Mobile/Tablet only) -->
-        <div class="col-span-12 lg:hidden flex flex-col sm:flex-row items-center gap-4 mt-4">
+        <div class="col-span-12 lg:hidden flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 mt-4">
           <Button color="danger"
-            class="w-full py-3.5 font-bold text-white rounded-[8px] shadow-lg shadow-red-200 hover:shadow-red-300 transition-all active:scale-95"
+            class="w-full py-3 sm:py-3.5 font-bold text-white rounded-[8px] shadow-lg shadow-red-200 hover:shadow-red-300 transition-all active:scale-95 text-sm sm:text-base"
             @click="handleSubmit" :disabled="isLoading">
             <div v-if="isLoading"
               class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto"></div>
             <span v-else>Tạo lịch sinh hoạt</span>
           </Button>
           <Button color="white"
-            class="w-full py-3.5 font-bold text-[#3E414C] bg-[#F0F2F5] rounded-[8px] border-none hover:bg-gray-200 transition-colors"
+            class="w-full py-3 sm:py-3.5 font-bold text-[#3E414C] bg-[#F0F2F5] rounded-[8px] border-none hover:bg-gray-200 transition-colors text-sm sm:text-base"
             @click="saveAsTemplate">
             Lưu mẫu
           </Button>

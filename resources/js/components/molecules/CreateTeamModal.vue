@@ -2,16 +2,16 @@
     <Teleport to="body">
         <Transition name="modal">
             <div v-if="isOpen"
-                class="fixed inset-0 bg-black backdrop-blur-[1px] bg-opacity-50 flex items-center justify-center z-50 p-4"
+                class="fixed inset-0 bg-black backdrop-blur-[1px] bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4"
                 @click.self="closeModal">
-                <div class="bg-white rounded-lg shadow-xl w-full max-w-lg h-fit flex flex-col">
-                    <div class="flex items-center justify-between p-6">
-                        <h2 class="text-xl font-semibold text-gray-800">Tạo đội mới</h2>
+                <div class="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[95vh] sm:max-h-[90vh] h-fit flex flex-col">
+                    <div class="flex items-center justify-between p-4 sm:p-6 flex-shrink-0">
+                        <h2 class="text-base sm:text-xl font-semibold text-gray-800">Tạo đội mới</h2>
                         <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
-                            <XMarkIcon class="w-6 h-6" />
+                            <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
                         </button>
                     </div>
-                    <div class="flex-1 overflow-y-auto px-6 pb-6 mt-4">
+                    <div class="flex-1 overflow-y-auto px-4 sm:px-6 pb-4 sm:pb-6 mt-4">
                         <label class="block text-gray-700 font-medium">Tên đội:</label>
                         <input type="text" v-model="teamData.name"
                             class="w-full mt-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#D72D36]"
@@ -45,11 +45,11 @@
                         </div>
                     </div>
 
-                    <div class="p-4 border-t flex justify-start gap-2">
+                    <div class="p-3 sm:p-4 border-t flex flex-col-reverse sm:flex-row sm:justify-start gap-2 flex-shrink-0">
                         <button @click="handleCreate"
                                 :disabled="isCreating || !teamData.name.trim()"
                                 :class="[isCreating || !teamData.name.trim() ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#D72D36] hover:bg-red-700']"
-                                class="px-4 py-2 text-white rounded-lg transition-colors flex items-center">
+                                class="w-full sm:w-auto px-4 py-2 text-white rounded-lg transition-colors flex items-center justify-center">
                             <svg v-if="isCreating" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -57,7 +57,7 @@
                             {{ isCreating ? 'Đang tạo...' : 'Tạo đội' }}
                         </button>
                         <button @click="closeModal"
-                                class="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors">
+                                class="w-full sm:w-auto px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors">
                             Hủy
                         </button>
                     </div>

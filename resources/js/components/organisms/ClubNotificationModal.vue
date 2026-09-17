@@ -9,18 +9,18 @@
     >
         <div
             v-if="modelValue"
-            class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm transform-gpu"
+            class="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-sm transform-gpu"
             @click.self="close"
         >
             <div
-                class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg relative z-[10000] overflow-hidden animate-in fade-in zoom-in duration-300 h-[calc(100vh-7rem)] flex flex-col">
+                class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg relative z-[10000] overflow-hidden animate-in fade-in zoom-in duration-300 h-[calc(100vh-5rem)] sm:h-[calc(100vh-7rem)] max-h-[95vh] sm:max-h-[90vh] flex flex-col">
                 <!-- Fixed Header -->
-                <div class="p-6 pb-2">
+                <div class="p-4 sm:p-6 pb-2 flex-shrink-0">
                     <div class="flex items-center justify-between mb-2">
-                        <h3 class="text-[28px] font-bold text-[#3E414C] dark:text-slate-100">Thông báo</h3>
+                        <h3 class="text-lg sm:text-[28px] font-bold text-[#3E414C] dark:text-slate-100">Thông báo</h3>
                         <button @click="close"
                             class="text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white transition-colors">
-                            <XMarkIcon class="w-8 h-8" stroke-width="2.5" />
+                            <XMarkIcon class="w-6 h-6 sm:w-8 sm:h-8" stroke-width="2.5" />
                         </button>
                     </div>
                     <div class="flex items-center justify-end">
@@ -34,7 +34,7 @@
                 </div>
 
                 <!-- Scrollable Content -->
-                <div class="p-6 pt-3 flex-1 overflow-y-auto custom-scrollbar" v-else>
+                <div class="p-4 sm:p-6 pt-3 flex-1 overflow-y-auto custom-scrollbar" v-else>
                     <div class="mb-8">
                         <div class="space-y-2">
                             <div v-for="(notification, index) in notifications" class="cursor-pointer"
