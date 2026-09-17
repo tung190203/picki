@@ -273,6 +273,14 @@ const scopeMap = {
   friend: "friend",
 };
 
+// Reverse map để chuyển scope về tab
+const tabFromScope = {
+  all: "all",
+  allClubs: "allClubs",
+  club: "clubMembers",
+  friend: "friend",
+};
+
 const activeTab = ref("all");
 const items = ref([]);
 const meta = ref({ page: 1, last_page: 1, per_page: 10, total: 0 });
@@ -281,6 +289,7 @@ const myClubs = inject('myClubs', ref([]));
 const clubSelectorLoaded = ref(false);
 const selectedClubId = ref("");
 const avatarFailed = ref({});
+const isInitialLoad = ref(true); // Flag to detect first load vs user interaction
 
 const emptyMessage = computed(() => {
   if (activeTab.value === "friend") return "Bạn chưa có bạn bè nào để hiển thị bảng xếp hạng.";
@@ -338,6 +347,7 @@ const fetchLeaderboard = async (page = 1) => {
 };
 
 const switchTab = (tab) => {
+  isInitialLoad.value = false; // User manually switched, not restoration
   activeTab.value = tab;
 };
 
@@ -411,14 +421,30 @@ watch(activeTab, (val) => {
   items.value = [];
   meta.value = { page: 1, last_page: 1 };
   avatarFailed.value = {};
-  if (val === "friend") {
-    fetchLeaderboard(1);
-  } else {
+  // Only fetch if not initial load (i.e., user manually switched tab)
+  if (!isInitialLoad.value) {
     fetchLeaderboard(1);
   }
 });
 
-onMounted(() => {
-  fetchLeaderboard(1);
+// Watch user data để khôi phục scope khi user data đã load
+watch(() => getUser.value?.settings?.leaderboard_scope, (savedScope) => {
+  console.log('User settings loaded, leaderboard_scope:', savedScope);
+  if (savedScope && tabFromScope[savedScope]) {
+    // Khôi phục tab đã lưu
+    activeTab.value = tabFromScope[savedScope];
+    console.log('Restored tab to:', activeTab.value);
+  }
+}, { immediate: true });
+
+onMounted(async () => {
+  // Fetch user data first to get latest settings including leaderboard_scope
+  await userStore.fetchMe();
+  
+  // Đợi một chút để watcher settings chạy trước
+  setTimeout(() => {
+    isInitialLoad.value = false;
+    fetchLeaderboard(1);
+  }, 100);
 });
 </script>

@@ -1089,8 +1089,27 @@ class MiniMatchController extends Controller
             }
         }
 
+        // Khi số set thắng bằng nhau → xác định winner bằng hiệu số điểm tổng
         if ($team1WonSets === $team2WonSets) {
-            return "Hòa số set ({$team1WonSets}-{$team2WonSets}), không xác định được đội thắng";
+            $team1TotalScore = 0;
+            $team2TotalScore = 0;
+
+            foreach ($allResults as $sNum => $setResults) {
+                $teamA = $setResults->firstWhere('team_id', $team1Id);
+                $teamB = $setResults->firstWhere('team_id', $team2Id);
+                $team1TotalScore += (int) $teamA->score;
+                $team2TotalScore += (int) $teamB->score;
+            }
+
+            // Xác định winner dựa trên tổng điểm
+            if ($team1TotalScore > $team2TotalScore) {
+                $team1WonSets++; // Coi như thắng thêm set decisive
+            } elseif ($team2TotalScore > $team1TotalScore) {
+                $team2WonSets++; // Coi như thắng thêm set decisive
+            } else {
+                // True draw - cả tổng điểm bằng nhau
+                return "Trận đấu hòa ({$team1TotalScore}-{$team2TotalScore}), không xác định được đội thắng";
+            }
         }
 
         $totalSets = $allResults->count();
@@ -1117,7 +1136,23 @@ class MiniMatchController extends Controller
         $team1WonSets = $wins->get($match->team1_id, 0);
         $team2WonSets = $wins->get($match->team2_id, 0);
 
-        $match->team_win_id = $winnerTeams->count() === 1 ? $winnerTeams->first() : null;
+        // Khi hòa số set → xác định winner bằng tổng điểm
+        if ($winnerTeams->count() > 1 && $team1WonSets === $team2WonSets) {
+            $scores = $match->results->groupBy('team_id')->map->sum('score');
+            $team1TotalScore = (int) $scores->get($match->team1_id, 0);
+            $team2TotalScore = (int) $scores->get($match->team2_id, 0);
+
+            if ($team1TotalScore > $team2TotalScore) {
+                $match->team_win_id = $match->team1_id;
+            } elseif ($team2TotalScore > $team1TotalScore) {
+                $match->team_win_id = $match->team2_id;
+            } else {
+                // True draw - không xác định được winner
+                $match->team_win_id = null;
+            }
+        } else {
+            $match->team_win_id = $winnerTeams->count() === 1 ? $winnerTeams->first() : null;
+        }
         $match->team_1_score = $team1WonSets;
         $match->team_2_score = $team2WonSets;
 
