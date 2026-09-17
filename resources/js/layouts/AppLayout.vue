@@ -1,15 +1,20 @@
 <template>
     <div class="flex h-screen overflow-hidden relative bg-gray-50">
-        <Sidebar ref="sidebarRef" :isMobile="isMobile" />
+        <!-- Sidebar: desktop = fixed, mobile = drawer -->
+        <Sidebar 
+            ref="sidebarRef" 
+            :isMobile="isMobile" 
+            :isDrawerOpen="isMobileSidebarOpen"
+            @close="closeMobileSidebar"
+        />
         <div
             class="flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out"
             :style="mainStyle"
         >
-            <Header />
+            <Header @toggle-mobile-menu="toggleMobileSidebar" />
             <main class="flex-1 overflow-y-auto">
                 <router-view :key="$route.fullPath" />
             </main>
-            <ChatGroup />
         </div>
     </div>
 </template>
@@ -18,22 +23,44 @@
 import { computed, ref, onMounted, onBeforeUnmount } from "vue";
 import Header from "@/components/organisms/Header.vue";
 import Sidebar from "@/components/organisms/Sidebar.vue";
-import ChatGroup from "@/components/molecules/ChatGroup.vue";
 
 const sidebarRef = ref(null);
 const isMobile = ref(window.innerWidth <= 1024);
+const isMobileSidebarOpen = ref(false);
 
 const onResize = () => {
     isMobile.value = window.innerWidth <= 1024;
+    // Đóng sidebar khi resize về desktop
+    if (!isMobile.value) {
+        isMobileSidebarOpen.value = false;
+    }
+};
+
+const toggleMobileSidebar = () => {
+    isMobileSidebarOpen.value = !isMobileSidebarOpen.value;
+};
+
+const closeMobileSidebar = () => {
+    isMobileSidebarOpen.value = false;
 };
 
 onMounted(() => window.addEventListener("resize", onResize));
 onBeforeUnmount(() => window.removeEventListener("resize", onResize));
 
 const collapsedPx = "4rem";
-const mainStyle = computed(() => ({
-    // Luôn giữ khoảng 4rem để tránh sidebar đè
-    marginLeft: collapsedPx,
-    width: `calc(100% - ${collapsedPx})`,
-}));
+const mainStyle = computed(() => {
+    // Trên mobile: không cần margin vì sidebar là drawer overlay
+    if (isMobile.value) {
+        return {
+            marginLeft: '0',
+            width: '100%',
+        };
+    }
+    
+    // Trên desktop: giữ khoảng 4rem để tránh sidebar đè
+    return {
+        marginLeft: collapsedPx,
+        width: `calc(100% - ${collapsedPx})`,
+    };
+});
 </script>

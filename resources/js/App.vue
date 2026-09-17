@@ -2,6 +2,7 @@
   <div>
     <SplashScreen v-if="showSplash" />
     <template v-else>
+      <AppInstallBanner v-if="showAppBanner" />
       <router-view />
       <ScrollToTop />
       <ChatWidget v-if="showChatWidget" />
@@ -15,10 +16,13 @@ import { useRoute } from 'vue-router'
 import ScrollToTop from './components/atoms/ScrollToTop.vue'
 import SplashScreen from './components/atoms/SplashScreen.vue'
 import ChatWidget from './components/chatbot/ChatWidget.vue'
+import AppInstallBanner from './components/molecules/AppInstallBanner.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
+import { useMobileDetect } from '@/composables/useMobileDetect'
 
 const route = useRoute()
 const showSplash = ref(true)
+const { isMobileBrowser } = useMobileDetect()
 
 const unauthRouteNames = [
   'login',
@@ -70,6 +74,34 @@ const showChatWidget = computed(() => {
   }
 
   // Kiểm tra nếu route dùng AuthLayout
+  const usesAuthLayout = route.matched?.some(
+    (record) =>
+      record.components?.default === AuthLayout ||
+      record.component === AuthLayout
+  )
+  if (usesAuthLayout) {
+    return false
+  }
+
+  return true
+})
+
+const showAppBanner = computed(() => {
+  if (!isMobileBrowser.value) {
+    return false
+  }
+
+  const path = route.path || ''
+  const name = route.name ? String(route.name) : ''
+
+  if (unauthRouteNames.includes(name)) {
+    return false
+  }
+
+  if (unauthPathPrefixes.some((prefix) => path.startsWith(prefix))) {
+    return false
+  }
+
   const usesAuthLayout = route.matched?.some(
     (record) =>
       record.components?.default === AuthLayout ||

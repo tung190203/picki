@@ -1,18 +1,18 @@
 <template>
     <div>
-        <!-- Backdrop overlay when expanded (desktop/mobile) -->
+        <!-- Backdrop overlay: mobile drawer backdrop hoặc desktop hover backdrop -->
         <div
-            v-if="isExpanded"
-            class="fixed inset-0 bg-black/10 backdrop-blur-[1px] z-40"
-            @click="collapseOnBackdrop"
+            v-if="isMobile ? isDrawerOpen : isExpanded"
+            class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+            @click="handleBackdropClick"
         ></div>
 
         <!-- Actual sidebar -->
         <aside
             class="bg-white shadow-lg flex flex-col justify-between py-4 transition-all duration-300 ease-in-out z-50 h-screen fixed left-0 top-0"
-            :class="isExpanded ? 'w-64' : 'w-16'"
-            @mouseenter="expand(true)"
-            @mouseleave="expand(false)"
+            :class="sidebarClass"
+            @mouseenter="!isMobile && expand(true)"
+            @mouseleave="!isMobile && expand(false)"
         >
             <!-- Top Section (Logo) -->
             <div class="px-3">
@@ -40,7 +40,7 @@
             <nav class="lg:hidden flex flex-col space-y-1 px-2 flex-1 mt-6 overflow-y-auto">
                 <!-- Player -->
                 <template v-if="activeMenu === ROLE.PLAYER">
-                    <RouterLink to="/" :class="mobileLinkClass('/')">
+                    <RouterLink to="/" :class="mobileLinkClass('/')" @click="handleMobileLinkClick">
                         <HomeIcon class="w-5 h-5 flex-shrink-0" />
                         <span
                             class="font-medium whitespace-nowrap overflow-hidden transition-all duration-300"
@@ -54,7 +54,7 @@
                         </span>
                     </RouterLink>
 
-                    <RouterLink to="/friends" :class="mobileLinkClass('/friends')">
+                    <RouterLink to="/friends" :class="mobileLinkClass('/friends')" @click="handleMobileLinkClick">
                         <UsersIcon class="w-5 h-5 flex-shrink-0" />
                         <span
                             class="font-medium whitespace-nowrap overflow-hidden transition-all duration-300"
@@ -71,6 +71,7 @@
                     <RouterLink
                         to="/mini-tournament/create"
                         :class="mobileLinkClass('/mini-tournament/create')"
+                        @click="handleMobileLinkClick"
                     >
                         <PlusCircleIcon class="w-5 h-5 flex-shrink-0" />
                         <span
@@ -87,6 +88,7 @@
                     <RouterLink
                         to="/tournament/create"
                         :class="mobileLinkClass('/tournament/create')"
+                        @click="handleMobileLinkClick"
                     >
                         <PlusCircleIcon class="w-5 h-5 flex-shrink-0" />
                         <span
@@ -101,7 +103,7 @@
                         </span>
                     </RouterLink>
 
-                    <RouterLink to="/map" :class="mobileLinkClass('/map')">
+                    <RouterLink to="/map" :class="mobileLinkClass('/map')" @click="handleMobileLinkClick">
                         <BriefcaseIcon class="w-5 h-5 flex-shrink-0" />
                         <span
                             class="font-medium whitespace-nowrap overflow-hidden transition-all duration-300"
@@ -121,6 +123,7 @@
                     <RouterLink
                         to="/referee/dashboard"
                         :class="mobileLinkClass('/referee/dashboard')"
+                        @click="handleMobileLinkClick"
                     >
                         <HomeIcon class="w-5 h-5 flex-shrink-0" />
                         <span
@@ -138,6 +141,7 @@
                     <RouterLink
                         to="/referee/tournaments"
                         :class="mobileLinkClass('/referee/tournaments')"
+                        @click="handleMobileLinkClick"
                     >
                         <BriefcaseIcon class="w-5 h-5 flex-shrink-0" />
                         <span
@@ -155,6 +159,7 @@
                     <RouterLink
                         to="/referee/reports"
                         :class="mobileLinkClass('/referee/reports')"
+                        @click="handleMobileLinkClick"
                     >
                         <UsersIcon class="w-5 h-5 flex-shrink-0" />
                         <span
@@ -324,7 +329,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useUserStore } from "@/store/auth";
 import { storeToRefs } from "pinia";
@@ -345,6 +350,21 @@ import {
     ShieldCheckIcon,
 } from "@heroicons/vue/24/outline";
 
+// Props
+const props = defineProps({
+    isMobile: {
+        type: Boolean,
+        default: false
+    },
+    isDrawerOpen: {
+        type: Boolean,
+        default: false
+    }
+});
+
+// Emits
+const emit = defineEmits(['close']);
+
 const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
@@ -354,17 +374,49 @@ const defaultAvatar = "/images/default-avatar.png";
 const isExpanded = ref(false);
 const hasNotification = ref(true);
 
+// Đồng bộ isExpanded với isMobile: trên mobile luôn expanded để hiển thị text
+watch(
+    () => props.isMobile,
+    (newVal) => {
+        if (newVal) {
+            isExpanded.value = true;
+        }
+    },
+    { immediate: true }
+);
+
+// Computed class cho sidebar dựa trên mobile/desktop
+const sidebarClass = computed(() => {
+    if (props.isMobile) {
+        // Mobile: drawer style
+        return props.isDrawerOpen 
+            ? 'w-64 translate-x-0' 
+            : 'w-64 -translate-x-full';
+    } else {
+        // Desktop: hover expand style
+        return isExpanded.value ? 'w-64' : 'w-16';
+    }
+});
+
 const activeMenu = computed(() => {
     if (getRole.value === ROLE.ADMIN) return ROLE.PLAYER;
     return getRole.value;
 });
 
 const expand = (state) => {
-    isExpanded.value = state;
+    if (!props.isMobile) {
+        isExpanded.value = state;
+    }
 };
 
-const collapseOnBackdrop = () => {
-    isExpanded.value = false;
+const handleBackdropClick = () => {
+    if (props.isMobile) {
+        // Mobile: đóng drawer
+        emit('close');
+    } else {
+        // Desktop: collapse sidebar
+        isExpanded.value = false;
+    }
 };
 
 const goToDashboard = () => {
@@ -412,6 +464,13 @@ const mobileLinkClass = (path) => {
     const isActive = path === "/" ? route.path === "/" : route.path.startsWith(path);
 
     return isActive ? `${base} ${active}` : `${base} ${normal}`;
+};
+
+// Đóng drawer sau khi click link trên mobile
+const handleMobileLinkClick = () => {
+    if (props.isMobile) {
+        emit('close');
+    }
 };
 
 const goToProfile = (id) => {

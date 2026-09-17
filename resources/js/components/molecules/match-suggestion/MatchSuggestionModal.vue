@@ -1,11 +1,11 @@
 <template>
     <Teleport to="body">
         <Transition name="modal">
-            <div v-if="modelValue" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="close">
-                <div class="bg-white dark:bg-[#161F33] rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden mx-4">
+            <div v-if="modelValue" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4" @click.self="close">
+                <div class="bg-white dark:bg-[#161F33] rounded-xl shadow-2xl w-full max-w-3xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden mx-0 flex flex-col">
                     <!-- Header -->
-                    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700">
-                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    <div class="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-slate-700 flex-shrink-0 sticky top-0 bg-white dark:bg-[#161F33] z-10">
+                        <h2 class="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
                             Gợi ý trận đấu tiếp theo
                         </h2>
                         <div class="flex items-center gap-3">
@@ -16,7 +16,7 @@
                                 </svg>
                             </button>
                             <button @click="close" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                 </svg>
                             </button>
@@ -24,7 +24,7 @@
                     </div>
 
                     <!-- Content -->
-                    <div class="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+                    <div class="p-4 sm:p-6 overflow-y-auto flex-1">
                         <!-- Loading State -->
                         <div v-if="isLoading" class="flex flex-col items-center justify-center py-12">
                             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
@@ -110,15 +110,15 @@
                     </div>
 
                     <!-- Footer -->
-                    <div class="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
-                        <button @click="regenerate" :disabled="isLoading" class="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-lg disabled:opacity-50">
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3 px-4 sm:px-6 py-4 border-t border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 flex-shrink-0">
+                        <button @click="regenerate" :disabled="isLoading" class="w-full sm:w-auto px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-lg disabled:opacity-50">
                             Thêm gợi ý khác
                         </button>
-                        <div class="flex gap-3">
-                            <button @click="close" class="px-6 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700">
+                        <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                            <button @click="close" class="w-full sm:w-auto px-4 sm:px-6 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700">
                                 Đóng
                             </button>
-                            <button @click="accept" :disabled="!currentSuggestion || isLoading" class="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <button @click="accept" :disabled="!currentSuggestion || isLoading" class="w-full sm:w-auto px-4 sm:px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed">
                                 Đồng ý tạo trận
                             </button>
                         </div>

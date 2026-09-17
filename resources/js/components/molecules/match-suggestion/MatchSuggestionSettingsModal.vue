@@ -2,23 +2,23 @@
     <Teleport to="body">
         <Transition name="modal">
             <div v-if="modelValue"
-                 class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[10001] p-4"
+                 class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[10001] p-3 sm:p-4"
                  @click.self="close">
-                <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+                <div class="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
                     <!-- Header -->
-                    <div class="flex items-center justify-between p-6 border-b border-gray-200">
-                        <h3 class="text-xl font-semibold text-gray-800">
+                    <div class="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 flex-shrink-0 sticky top-0 bg-white z-10">
+                        <h3 class="text-lg sm:text-xl font-semibold text-gray-800">
                             Cài đặt gợi ý trận
                         </h3>
                         <button @click="close" class="text-gray-400 hover:text-gray-600 transition-colors">
-                            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                             </svg>
                         </button>
                     </div>
 
                     <!-- Settings List -->
-                    <div class="p-6 space-y-4">
+                    <div class="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
                         <!-- fair_play -->
                         <div class="flex items-center justify-between">
                             <span class="text-sm text-gray-700">
