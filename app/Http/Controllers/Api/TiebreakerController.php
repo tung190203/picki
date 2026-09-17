@@ -61,13 +61,15 @@ class TiebreakerController extends Controller
             ->keyBy('team_id');
 
         return ResponseHelper::success([
+            'tournament_type_id' => $tournamentType->id,
             'group_id' => $group->id,
-            'pending_ties' => $clusters->values(),
-            'has_manual_rank' => $existingManual->isNotEmpty(),
-            'manual_ranks' => $existingManual->map(fn($r) => [
-                'team_id' => (int) $r->team_id,
-                'manual_rank' => (int) $r->manual_rank,
-            ])->values(),
+            'group_finished' => $this->manualService->isGroupFinished($group),
+            'num_advancing' => $this->extractNumAdvancing($tournamentType),
+            'ranking_rules' => $rankingRules,
+            'existing_manual' => $existingManual->isEmpty() 
+                ? (object)[] 
+                : $existingManual->mapWithKeys(fn($r) => [$r->team_id => $r->manual_rank]),
+            'clusters' => $clusters->values(),
         ]);
     }
 
@@ -231,6 +233,18 @@ class TiebreakerController extends Controller
         }
 
         return $rules;
+    }
+
+    /**
+     * Trích xuất num_advancing_teams từ config của tournament type.
+     */
+    private function extractNumAdvancing(TournamentType $tournamentType): int
+    {
+        $config = $tournamentType->format_specific_config ?? [];
+        if (is_array($config) && isset($config[0])) {
+            $config = $config[0];
+        }
+        return (int) ($config['pool_stage']['num_advancing_teams'] ?? 2);
     }
 
     /**

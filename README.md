@@ -196,3 +196,90 @@ Truyền thêm 2 props cho `BracketMixedPreview`:
 #### TournamentResource
 File: `app/Http/Resources/TournamentResource.php`
 Thêm `bracket_background_url` vào response để frontend có thể lấy được URL qua API `GET /api/tournaments/{id}`.
+
+---
+
+## Lưu và khôi phục Leaderboard Scope
+
+### Mô tả
+Khi user chọn scope (tab) trong bảng xếp hạng (all/allClubs/club/friend), hệ thống sẽ tự động lưu lựa chọn này. Khi user load lại trang, scope được khôi phục về lựa chọn cuối cùng.
+
+### Backend
+
+#### AuthController.php
+File: `app/Http/Controllers/AuthController.php`
+
+API `/me` trả về `settings.leaderboard_scope` trong user data.
+
+#### LeaderboardController.php
+File: `app/Http/Controllers/LeaderboardController.php`
+
+Method `getLeaderboard()` (line 358-429):
+- Tự động lưu scope vào `user->settings['leaderboard_scope']` mỗi khi gọi API (line 370-379)
+- Scope được lưu: `all`, `allClubs`, `club`, `friend`
+
+### Frontend
+
+#### LeaderboardSection.vue
+File: `resources/js/components/pages/dashboard/LeaderboardSection.vue`
+
+**Thay đổi:**
+1. Thêm `tabFromScope` map để chuyển đổi scope → tab:
+```javascript
+const tabFromScope = {
+  all: "all",
+  allClubs: "allClubs",
+  club: "clubMembers",
+  friend: "friend",
+};
+```
+
+2. Sử dụng `watch()` để khôi phục scope khi user data load:
+```javascript
+// Watch user data để khôi phục scope khi user data đã load
+watch(() => getUser.value?.settings?.leaderboard_scope, (savedScope) => {
+  if (savedScope && tabFromScope[savedScope] && activeTab.value === "all") {
+    // Chỉ khôi phục nếu vẫn đang ở tab mặc định (chưa user thay đổi)
+    activeTab.value = tabFromScope[savedScope];
+  }
+}, { immediate: true });
+```
+
+#### LeaderboardPage.vue (mới)
+File: `resources/js/components/pages/leader-board/LeaderboardPage.vue`
+
+Component mới thay thế `Leaderboard.vue` (fake data) bằng API thật:
+- Tương tự `LeaderboardSection.vue` nhưng full-page với table layout
+- Hỗ trợ 4 tabs: Top 50 Việt Nam, BXH CLB, Thành viên CLB, BXH Bạn bè
+- Hiển thị avatar, badges, clubs, VNDUPR score, weekly change
+- Pagination đầy đủ
+- Tự động khôi phục scope từ user settings khi mount
+
+#### Router
+File: `resources/js/router/router.js`
+
+Cập nhật route `/leaderboard` để dùng `LeaderboardPage.vue` thay vì `Leaderboard.vue`
+
+### Flow hoạt động
+1. **Lần đầu**: User chọn tab → API lưu scope vào database
+2. **Load lại**: 
+   - Frontend watch `user.settings.leaderboard_scope` (reactive)
+   - Khi user data load xong từ `/me`, watcher tự động khôi phục tab đã chọn
+   - Chỉ khôi phục nếu user chưa thay đổi tab (vẫn ở tab mặc định "all")
+3. **Tự động**: Mỗi lần gọi API, backend tự động update scope mới
+
+### Lưu ý kỹ thuật
+- **QUAN TRỌNG**: Các component sử dụng leaderboard PHẢI gọi `await userStore.fetchMe()` trong `onMounted()` trước khi load data
+- User store load từ localStorage khi khởi tạo, nhưng `settings` mới nhất cần được fetch từ server qua `/me`
+- Sử dụng `watch(() => getUser.value?.settings?.leaderboard_scope)` với `immediate: true` để khôi phục scope
+- Điều này đảm bảo khôi phục scope ngay khi user data từ `/me` load xong, không bị race condition
+- Watcher chỉ trigger khi user data thay đổi, tránh conflict với user manually chọn tab
+
+### Components đã cập nhật
+1. **DashboardPage.vue**: Thêm `await userStore.fetchMe()` trong `onMounted()`
+2. **LeaderboardSection.vue**: Thêm `await userStore.fetchMe()` trong `onMounted()`
+3. **LeaderboardPage.vue**: Thêm `await userStore.fetchMe()` trong `onMounted()`
+
+### API Endpoint
+- `GET /api/leaderboard?scope={all|allClubs|club|friend}&club_id={id}&page={page}&per_page={limit}`
+- Backend tự động save scope vào user settings mỗi lần gọi

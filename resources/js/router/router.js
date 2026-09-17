@@ -9,7 +9,7 @@ import VerifyPage from '@/components/pages/auth/verify/VerifyPage.vue'
 import ProfilePage from '@/components/pages/profile/ProfilePage.vue'
 import ForgotPasswordPage from '@/components/pages/auth/password/ForgotPasswordPage.vue'
 import ResetPasswordPage from '@/components/pages/auth/password/ResetPasswordPage.vue'
-import Leaderboard from '@/components/pages/leader-board/Leaderboard.vue'
+import LeaderboardPage from '@/components/pages/leader-board/LeaderboardPage.vue'
 import ClubPage from '@/components/pages/club/ClubPage.vue'
 import ClubFundPage from '@/components/pages/club/ClubFundPage.vue'
 import CreateClubPage from '@/components/pages/club/CreateClubPage.vue'
@@ -195,7 +195,7 @@ export const route = [
       {
         path: '/leaderboard',
         name: 'leaderboard',
-        component: Leaderboard,
+        component: LeaderboardPage,
         meta: {
           role: [ROLE.PLAYER, ROLE.ADMIN]
         }

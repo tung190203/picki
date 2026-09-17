@@ -10,7 +10,7 @@ export const autoAssignTeams = async (tournamentId) => {
 
 export const getTeamsByTournamentId = async (tournamentId, data) => {
   return axiosInstance.get(`${teamEndPoint}/index/${tournamentId}`, { params: data })
-    .then((response) => response?.data?.data || []);
+    .then((response) => response?.data?.data || { teams: [] });
 }
 
 export const updateTeam = async (teamId, teamData) => {
