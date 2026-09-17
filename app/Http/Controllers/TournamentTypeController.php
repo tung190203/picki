@@ -3261,7 +3261,7 @@ class TournamentTypeController extends Controller
         return [
             'group_id' => $group->id,
             'group_name' => $group->name,
-            'need_draw_lots' => $this->computeNeedDrawLots($rankings, $numAdvancingForGroup, $rankingRules),
+            'need_draw_lots' => $this->computeNeedDrawLots($rankings, $numAdvancingForGroup, $rankingRules, (int) $type->id, (int) $group->id),
             'advanced_team_ids' => $this->computeAdvancedTeamIds($rankings, $numAdvancingForGroup),
             'rankings' => $rankings,
         ];
@@ -3524,17 +3524,64 @@ class TournamentTypeController extends Controller
      * true khi team ở vị trí num_advancing-1 (0-based) và num_advancing (ranh giới)
      * hoặc 2 team liên tiếp khác cùng stats — đặc biệt là ở ranh giới N/N+1.
      *
+     * Nếu cụm đồng hạng đã được BTC set đủ manual_rank cho TẤT CẢ team → coi như
+     * đã giải quyết → không còn cần bốc thăm (need_draw_lots = false).
+     *
      * @param  Collection $rankings         Danh sách đã sort + đã gắn rank
      * @param  int        $numAdvancing      Số đội đi tiếp (num_advancing_teams)
      * @param  array      $rankingRules
+     * @param  int        $tournamentTypeId  Để query manual ranks đã lưu
+     * @param  int        $groupId           Để query manual ranks của group
      * @return bool
      */
-    private function computeNeedDrawLots(Collection $rankings, int $numAdvancing, array $rankingRules): bool
-    {
+    private function computeNeedDrawLots(
+        Collection $rankings,
+        int $numAdvancing,
+        array $rankingRules,
+        int $tournamentTypeId,
+        int $groupId
+    ): bool {
         $count = $rankings->count();
         if ($count <= $numAdvancing) {
             return false;
         }
+
+        // ✅ Lấy manual ranks đã BTC set cho group (intra-group)
+        $manualTeamIds = \App\Models\ManualTiebreakerRank::where('tournament_type_id', $tournamentTypeId)
+            ->where('group_id', $groupId)
+            ->whereNull('candidate_type')
+            ->pluck('team_id')
+            ->map(fn($id) => (int) $id)
+            ->toArray();
+        $hasManual = fn(int $teamId): bool => in_array($teamId, $manualTeamIds, true);
+
+        // Tìm các cụm đồng hạng đã được resolve bằng manual (đủ rank cho tất cả team trong cụm)
+        $resolvedIndices = [];
+        $i = 0;
+        while ($i < $count - 1) {
+            $j = $i + 1;
+            while ($j < $count && $this->areRankerStatsEqual($rankings[$i], $rankings[$j], $rankingRules)) {
+                $j++;
+            }
+            // Cụm là các index [i, j-1] nếu j - i > 1
+            if ($j - $i > 1) {
+                $allHaveManual = true;
+                for ($k = $i; $k < $j; $k++) {
+                    if (! $hasManual((int) ($rankings[$k]['team_id'] ?? 0))) {
+                        $allHaveManual = false;
+                        break;
+                    }
+                }
+                if ($allHaveManual) {
+                    for ($k = $i; $k < $j; $k++) {
+                        $resolvedIndices[$k] = true;
+                    }
+                }
+            }
+            $i = $j;
+        }
+
+        $isResolved = fn(int $idx) => isset($resolvedIndices[$idx]);
 
         // Check ranh giới chính: vị trí $numAdvancing - 1 (cuối nhóm đi tiếp) và $numAdvancing (đầu nhóm ở lại)
         $cutoffIdx = $numAdvancing - 1; // 0-based index của vị trí cuối nhóm đi tiếp
@@ -3542,6 +3589,10 @@ class TournamentTypeController extends Controller
         $next = $rankings->get($numAdvancing);
 
         if ($cutoff && $next && $this->areRankerStatsEqual($cutoff, $next, $rankingRules)) {
+            // Nếu cả 2 phía ranh giới thuộc cùng cụm đã resolve → return false
+            if ($isResolved($cutoffIdx) && $isResolved($numAdvancing)) {
+                return false;
+            }
             return true;
         }
 
@@ -3550,6 +3601,10 @@ class TournamentTypeController extends Controller
             $cur = $rankings->get($i);
             $next2 = $rankings->get($i + 1);
             if ($cur && $next2 && $this->areRankerStatsEqual($cur, $next2, $rankingRules)) {
+                // Cụm trong nhóm đi tiếp đã resolve hết → OK
+                if ($isResolved($i) && $isResolved($i + 1)) {
+                    continue;
+                }
                 return true;
             }
         }
