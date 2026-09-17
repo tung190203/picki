@@ -2,17 +2,17 @@
   <Transition name="fade">
     <div
       v-if="isOpen"
-      class="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      class="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm"
       @click.self="close"
     >
       <Transition name="scale">
         <div
           v-if="isOpen"
-          class="bg-white rounded-[16px] w-full max-w-[480px] transition-all duration-300 flex flex-col p-6 relative shadow-2xl overflow-hidden"
+          class="bg-white rounded-[16px] w-full max-w-[480px] max-h-[95vh] sm:max-h-[90vh] transition-all duration-300 flex flex-col p-4 sm:p-6 relative shadow-2xl overflow-hidden"
         >
           <!-- Header -->
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-[16px] font-bold text-[#2D3139]">
+          <div class="flex items-center justify-between mb-4 flex-shrink-0">
+            <h3 class="text-base sm:text-[16px] font-bold text-[#2D3139]">
               {{ titleText }}
             </h3>
             <button @click="close" class="text-gray-400 hover:text-gray-600 transition-colors">

@@ -4,19 +4,19 @@
             <div v-if="isOpen"
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
                 @click.self="closeModal">
-                <div class="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-scaleIn">
+                <div class="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[95vh] sm:max-h-[90vh] overflow-hidden animate-scaleIn flex flex-col">
                     <!-- Header -->
-                    <header class="flex items-center justify-between p-4 border-b">
-                        <h2 class="text-lg font-semibold text-gray-800">
+                    <header class="flex items-center justify-between p-4 border-b flex-shrink-0">
+                        <h2 class="text-base sm:text-lg font-semibold text-gray-800">
                             Chụp ảnh tạm thời
                         </h2>
                         <button @click="closeModal" class="text-gray-400 hover:text-gray-600">
-                            <XMarkIcon class="w-6 h-6" />
+                            <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
                         </button>
                     </header>
 
                     <!-- Content -->
-                    <section class="p-5">
+                    <section class="p-4 sm:p-5 overflow-y-auto flex-1">
                         <p class="text-sm text-gray-600 mb-4">
                             Ảnh tạm thời sẽ chỉ hiển thị trong kèo đấu này, ra khỏi kèo sẽ trở về avatar cũ.
                         </p>
@@ -53,7 +53,7 @@
                         </div>
 
                         <!-- Actions -->
-                        <div class="flex gap-3">
+                        <div class="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
                             <button @click="closeModal"
                                 class="flex-1 py-2.5 px-4 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition font-medium text-sm">
                                 Hủy

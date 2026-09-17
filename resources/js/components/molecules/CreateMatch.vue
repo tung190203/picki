@@ -2,19 +2,19 @@
     <Teleport to="body">
         <Transition name="modal">
             <div v-if="isOpen"
-                class="fixed inset-0 bg-black backdrop-blur-[1px] bg-opacity-50 flex items-center justify-center z-50 p-4"
+                class="fixed inset-0 bg-black backdrop-blur-[1px] bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4"
                 @click.self="closeModal">
-                <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[85vh] max-h-[95vh] flex flex-col">
-                    <div class="flex items-center justify-between p-6 border-b border-gray-200">
-                        <h2 class="text-2xl font-semibold text-gray-800">{{ data.round_name || 'Trận đấu' }}</h2>
-                        <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
-                            <XMarkIcon class="w-6 h-6" />
+                <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[95vh] sm:h-[85vh] max-h-[95vh] flex flex-col">
+                    <div class="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 flex-shrink-0">
+                        <h2 class="text-lg sm:text-2xl font-semibold text-gray-800 pr-2">{{ data.round_name || 'Trận đấu' }}</h2>
+                        <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
+                            <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
                         </button>
                     </div>
-                    <div v-if="data.legs?.length > 1" class="px-6 pt-3 ">
-                        <div class="flex gap-2">
+                    <div v-if="data.legs?.length > 1" class="px-4 sm:px-6 pt-2 sm:pt-3">
+                        <div class="flex gap-1.5 sm:gap-2 overflow-x-auto pb-2">
                             <button v-for="(leg, index) in data.legs" :key="leg.id" @click="selectedLegIndex = index"
-                                class="px-4 py-2 rounded-md text-sm font-semibold transition" :class="selectedLegIndex === index
+                                class="px-3 sm:px-4 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-semibold transition flex-shrink-0" :class="selectedLegIndex === index
                                     ? 'bg-red-500 text-white'
                                     : 'bg-white border text-gray-600 hover:bg-gray-100'">
                                 Lượt {{ leg.leg }}
@@ -22,79 +22,79 @@
                         </div>
                     </div>
 
-                    <div class="p-6 overflow-y-auto flex-1">
-                        <div class="grid grid-cols-[2fr_3fr] gap-6">
-                            <div class="space-y-4">
+                    <div class="p-4 sm:p-6 overflow-y-auto flex-1">
+                        <div class="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-4 sm:gap-6">
+                            <div class="space-y-3 sm:space-y-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Chọn sân</label>
-                                    <div class="flex items-center justify-between gap-3">
-                                        <div class="flex items-center gap-2">
-                                            <ClipboardIcon class="w-6 h-6" />
-                                            <span class="text-gray-700">Sân số</span>
+                                    <label class="block text-xs sm:text-sm font-medium text-gray-700 dark:text-slate-300 mb-1 sm:mb-2">Chọn sân</label>
+                                    <div class="flex items-center justify-between gap-2 sm:gap-3">
+                                        <div class="flex items-center gap-1.5 sm:gap-2">
+                                            <ClipboardIcon class="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+                                            <span class="text-sm sm:text-base text-gray-700">Sân số</span>
                                         </div>
-                                        <div class="flex items-center gap-2">
+                                        <div class="flex items-center gap-1.5 sm:gap-2">
                                             <button @click="decrementCourt"
-                                                class="w-8 h-8 flex items-center justify-center bg-gray-800 text-white rounded hover:bg-gray-700 transition-colors">
-                                                <span class="text-lg">−</span>
+                                                class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-gray-800 text-white rounded hover:bg-gray-700 transition-colors flex-shrink-0">
+                                                <span class="text-base sm:text-lg">−</span>
                                             </button>
                                             <input v-model.number="courtNumber" type="text"
-                                                class="w-16 text-center border border-gray-300 rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                                class="w-12 sm:w-16 text-center border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" />
                                             <button @click="incrementCourt"
-                                                class="w-8 h-8 flex items-center justify-center bg-gray-800 text-white rounded hover:bg-gray-700 transition-colors">
-                                                <span class="text-lg">+</span>
+                                                class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-gray-800 text-white rounded hover:bg-gray-700 transition-colors flex-shrink-0">
+                                                <span class="text-base sm:text-lg">+</span>
                                             </button>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="flex items-center gap-2 text-gray-700 mb-1">
-                                    <CalendarDaysIcon class="w-5 h-5" />
-                                    <span>{{ formatEventDate(tournament.start_date) }}</span>
+                                <div class="flex items-center gap-2 text-sm sm:text-base text-gray-700 mb-1">
+                                    <CalendarDaysIcon class="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                                    <span class="break-words">{{ formatEventDate(tournament.start_date) }}</span>
                                 </div>
 
-                                <div class="flex items-center gap-2 text-gray-700">
-                                    <MapPinIcon class="w-5 h-5" />
-                                    <span class="truncate w-64">{{ tournament.competition_location?.name }}</span>
+                                <div class="flex items-center gap-2 text-sm sm:text-base text-gray-700">
+                                    <MapPinIcon class="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                                    <span class="break-words">{{ tournament.competition_location?.name }}</span>
                                 </div>
 
                                 <div>
-                                    <p class="text-sm text-gray-600 mb-3">
+                                    <p class="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">
                                         Kết quả kèo đấu được ghi nhận khi tất cả người chơi đã quét mã QR
                                     </p>
-                                    <div class="w-full h-auto p-3 rounded-lg flex items-center justify-center">
-                                        <qrcode-vue :value="qrCodeUrl" :size="250" level="H" />
+                                    <div class="w-full h-auto p-2 sm:p-3 rounded-lg flex items-center justify-center">
+                                        <qrcode-vue :value="qrCodeUrl" :size="200" level="H" class="w-full max-w-[200px] sm:max-w-[250px]" />
                                     </div>
                                 </div>
                             </div>
 
                             <div>
-                                <label class="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">Chọn đội</label>
-                                <div class="grid grid-cols-[2fr_1fr_2fr] gap-4 items-stretch mb-6">
+                                <label class="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2 sm:mb-3">Chọn đội</label>
+                                <div class="grid grid-cols-[1.5fr_auto_1.5fr] sm:grid-cols-[2fr_1fr_2fr] gap-2 sm:gap-4 items-stretch mb-4 sm:mb-6">
                                     <div
-                                        class="border border-1 border-[#DCDEE6] dark:border-slate-700/60 bg-[#F2F7FC] dark:bg-[#1E293B] rounded-lg p-3 flex flex-col">
-                                        <p class="text-center mb-4 font-semibold text-gray-800 dark:text-slate-200">{{ data.home_team?.name || 'Team A' }}</p>
-                                        <div class="flex gap-2 justify-around items-stretch">
+                                        class="border border-1 border-[#DCDEE6] dark:border-slate-700/60 bg-[#F2F7FC] dark:bg-[#1E293B] rounded-lg p-2 sm:p-3 flex flex-col min-w-0">
+                                        <p class="text-center mb-2 sm:mb-4 font-semibold text-xs sm:text-sm text-gray-800 dark:text-slate-200 break-words">{{ data.home_team?.name || 'Team A' }}</p>
+                                        <div class="flex gap-1 sm:gap-2 justify-around items-stretch flex-wrap">
                                             <UserCard v-for="member in data.home_team?.members || []" :key="member.id"
                                                 :showHoverDelete="false" :name="member.name" :avatar="member.avatar"
-                                                :size="12" :badgeSize="5" class="cursor-pointer" />
+                                                :size="10" :badgeSize="4" class="cursor-pointer" />
                                             <UserCard v-for="n in emptySlots('home')" :key="'empty-home-' + n" empty
-                                                :size="12" :badgeSize="5" class="cursor-pointer" />
+                                                :size="10" :badgeSize="4" class="cursor-pointer" />
                                         </div>
                                     </div>
 
-                                    <div class="flex justify-center items-center">
-                                        <span class="text-sm font-bold text-gray-700 dark:text-slate-300">VS</span>
+                                    <div class="flex justify-center items-center px-1">
+                                        <span class="text-xs sm:text-sm font-bold text-gray-700 dark:text-slate-300">VS</span>
                                     </div>
 
                                     <div
-                                        class="border border-1 border-[#DCDEE6] dark:border-slate-700/60 bg-[#F2F7FC] dark:bg-[#1E293B] rounded-lg p-3 flex flex-col">
-                                        <p class="text-center mb-4 font-semibold text-gray-800 dark:text-slate-200">{{ data.away_team?.name || 'Team B' }}</p>
-                                        <div class="flex gap-2 justify-around items-stretch">
+                                        class="border border-1 border-[#DCDEE6] dark:border-slate-700/60 bg-[#F2F7FC] dark:bg-[#1E293B] rounded-lg p-2 sm:p-3 flex flex-col min-w-0">
+                                        <p class="text-center mb-2 sm:mb-4 font-semibold text-xs sm:text-sm text-gray-800 dark:text-slate-200 break-words">{{ data.away_team?.name || 'Team B' }}</p>
+                                        <div class="flex gap-1 sm:gap-2 justify-around items-stretch flex-wrap">
                                             <UserCard v-for="member in data.away_team?.members || []" :key="member.id"
                                                 :showHoverDelete="false" :name="member.name" :avatar="member.avatar"
-                                                :size="12" :badgeSize="5" class="cursor-pointer" />
+                                                :size="10" :badgeSize="4" class="cursor-pointer" />
                                             <UserCard v-for="n in emptySlots('away')" :key="'empty-away-' + n" empty
-                                                :size="12" :badgeSize="5" class="cursor-pointer" />
+                                                :size="10" :badgeSize="4" class="cursor-pointer" />
                                         </div>
                                     </div>
                                 </div>
@@ -131,17 +131,17 @@
                         </div>
                     </div>
 
-                    <div class="px-4 py-4 bg-white rounded-b-lg border-t">
-                        <div class="flex gap-3">
+                    <div class="px-3 sm:px-4 py-3 sm:py-4 bg-white rounded-b-lg border-t flex-shrink-0">
+                        <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
                             <button @click="saveMatch" :disabled="isSaving"
-                                class="px-12 py-3 bg-red-500 text-white rounded font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                class="w-full sm:w-auto px-6 sm:px-12 py-2.5 sm:py-3 bg-red-500 text-white rounded font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base">
                                 {{ isSaving && !canConfirmMatch ? 'Đang lưu...' : 'Lưu' }}
                             </button>
                             <button v-if="isCreator || isReferee" @click="confirmMatchResult"
                                 :disabled="isSaving || !canConfirmMatch || currentLeg.status === 'completed'"
-                                class="flex items-center justify-center gap-2 px-12 py-3 bg-green-500 text-white rounded font-medium hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                class="w-full sm:w-auto flex items-center justify-center gap-2 px-6 sm:px-12 py-2.5 sm:py-3 bg-green-500 text-white rounded font-medium hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base">
                                 <template v-if="currentLeg.status === 'completed'">
-                                    <CheckBadgeIcon class="w-6 h-6 text-white" />
+                                    <CheckBadgeIcon class="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                                     <span>Đã xác nhận</span>
                                 </template>
                                 <template v-else>
@@ -149,7 +149,7 @@
                                 </template>
                             </button>
                             <button @click="closeModal" :disabled="isSaving"
-                                class="px-12 py-3 bg-gray-200 text-gray-700 rounded font-medium hover:bg-gray-300 transition-colors disabled:opacity-50">
+                                class="w-full sm:w-auto px-6 sm:px-12 py-2.5 sm:py-3 bg-gray-200 text-gray-700 rounded font-medium hover:bg-gray-300 transition-colors disabled:opacity-50 text-sm sm:text-base">
                                 Hủy
                             </button>
                         </div>

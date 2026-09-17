@@ -1,17 +1,17 @@
 <template>
   <Teleport to="body">
-    <div v-if="isOpen" class="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
+    <div v-if="isOpen" class="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh]">
             <!-- Header -->
-            <div class="flex items-center justify-between p-4 border-b">
-                <h3 class="text-lg font-semibold text-gray-800">Chỉnh sửa ảnh</h3>
+            <div class="flex items-center justify-between p-4 border-b flex-shrink-0">
+                <h3 class="text-base sm:text-lg font-semibold text-gray-800">Chỉnh sửa ảnh</h3>
                 <button @click="$emit('close')" class="text-gray-500 hover:text-gray-700 p-1">
-                    <XMarkIcon class="w-6 h-6" />
+                    <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
             </div>
 
             <!-- Cropper Area -->
-            <div class="flex-1 overflow-hidden bg-gray-100 min-h-[300px] flex items-center justify-center relative">
+            <div class="flex-1 overflow-hidden bg-gray-100 min-h-[240px] sm:min-h-[300px] flex items-center justify-center relative">
                 <cropper
                     ref="cropperRef"
                     class="h-full w-full object-contain"
@@ -24,15 +24,15 @@
             </div>
 
             <!-- Footer -->
-            <div class="p-4 border-t flex justify-end gap-3">
-                <button 
+            <div class="p-3 sm:p-4 border-t flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 flex-shrink-0">
+                <button
                     @click="$emit('close')"
-                    class="px-6 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors">
+                    class="w-full sm:w-auto px-6 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors">
                     Hủy
                 </button>
-                <button 
+                <button
                     @click="cropImage"
-                    class="px-6 py-2 rounded-lg bg-[#4392E0] text-white hover:bg-[#3476B8] transition-colors font-medium">
+                    class="w-full sm:w-auto px-6 py-2 rounded-lg bg-[#4392E0] text-white hover:bg-[#3476B8] transition-colors font-medium">
                     Lưu
                 </button>
             </div>

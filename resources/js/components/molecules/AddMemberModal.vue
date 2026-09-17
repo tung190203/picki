@@ -2,18 +2,18 @@
     <Teleport to="body">
         <Transition name="modal">
             <div v-if="isOpen"
-                class="fixed inset-0 bg-black backdrop-blur-[1px] bg-opacity-50 flex items-center justify-center z-50 p-4"
+                class="fixed inset-0 bg-black backdrop-blur-[1px] bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4"
                 @click.self="closeModal">
-                <div class="bg-white rounded-lg shadow-xl w-full max-w-lg h-[90%] flex flex-col">
+                <div class="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[95vh] sm:max-h-[90vh] sm:h-[90%] flex flex-col">
                     <!-- Header -->
-                    <div class="flex items-center justify-between p-6">
-                        <h2 class="text-xl font-semibold text-gray-800">{{ title }}</h2>
+                    <div class="flex items-center justify-between p-4 sm:p-6 flex-shrink-0">
+                        <h2 class="text-base sm:text-xl font-semibold text-gray-800">{{ title }}</h2>
                         <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
-                            <XMarkIcon class="w-6 h-6" />
+                            <XMarkIcon class="w-5 h-5 sm:w-6 sm:h-6" />
                         </button>
                     </div>
                     <!-- Search and Filter -->
-                    <div class="grid grid-cols-1 gap-3 px-6">
+                    <div class="grid grid-cols-1 gap-3 px-4 sm:px-6">
                         <div class="relative flex items-center">
                             <MagnifyingGlassIcon class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2" />
                             <input v-model="searchQuery" type="text" placeholder="Tìm kiếm" @input="onSearch"
@@ -22,7 +22,7 @@
                     </div>
 
                     <!-- User List -->
-                    <div class="flex-1 overflow-y-auto px-6 pb-6" v-if="filteredUsers.length > 0">
+                    <div class="flex-1 overflow-y-auto px-4 sm:px-6 pb-4 sm:pb-6" v-if="filteredUsers.length > 0">
                         <div v-for="user in filteredUsers" :key="user.id"
                             class="flex items-center gap-3 py-3 border-b border-gray-100 last:border-b-0 cursor-pointer hover:bg-gray-50">
                             <!-- Avatar -->
