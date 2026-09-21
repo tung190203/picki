@@ -369,6 +369,16 @@ class LeaderboardController extends Controller
 
         // Auto-save leaderboard scope preference
         $user = $request->user();
+        if (!$user) {
+            $token = $request->bearerToken();
+            if ($token) {
+                try {
+                    $user = \Tymon\JWTAuth\Facades\JWTAuth::parseToken()->authenticate();
+                } catch (\Throwable $e) {
+                    $user = null;
+                }
+            }
+        }
         if ($user) {
             $settings = $user->settings ?? [];
             $needsSave = false;
@@ -384,6 +394,9 @@ class LeaderboardController extends Controller
                     $settings['leaderboard_club_id'] = (string) $validated['club_id'];
                     $needsSave = true;
                 }
+            } elseif ($scope !== 'club' && array_key_exists('leaderboard_club_id', $settings)) {
+                unset($settings['leaderboard_club_id']);
+                $needsSave = true;
             }
 
             if ($needsSave) {
@@ -411,30 +424,30 @@ class LeaderboardController extends Controller
         }
 
         if ($scope === 'top50') {
-            $leaderboardData = $this->getSystemLeaderboard($sportId, 50, 1);
+            $leaderboardData = $this->getSystemLeaderboard($sportId, $perPage, $page);
 
             return ResponseHelper::success([
                 'scope'       => $scope,
                 'leaderboard' => $leaderboardData['items'],
                 'meta'        => [
                     'total'     => $leaderboardData['total'],
-                    'per_page'  => 50,
-                    'page'      => 1,
+                    'per_page'  => $perPage,
+                    'page'      => $page,
                     'last_page' => $leaderboardData['last_page'],
                 ],
             ], 'Lấy bảng xếp hạng thành công');
         }
 
         if ($scope === 'top100') {
-            $leaderboardData = $this->getSystemLeaderboard($sportId, 100, 1);
+            $leaderboardData = $this->getSystemLeaderboard($sportId, $perPage, $page, 100);
 
             return ResponseHelper::success([
                 'scope'       => $scope,
                 'leaderboard' => $leaderboardData['items'],
                 'meta'        => [
                     'total'     => $leaderboardData['total'],
-                    'per_page'  => 100,
-                    'page'      => 1,
+                    'per_page'  => $perPage,
+                    'page'      => $page,
                     'last_page' => $leaderboardData['last_page'],
                 ],
             ], 'Lấy bảng xếp hạng thành công');
@@ -472,11 +485,10 @@ class LeaderboardController extends Controller
         ], 'Lấy bảng xếp hạng thành công');
     }
 
-    private function getSystemLeaderboard(int $sportId, int $perPage, int $page): array
+    private function getSystemLeaderboard(int $sportId, int $perPage, int $page, int $maxTotal = 50): array
     {
         $rankingMatches = (int) SystemSetting::where('key', 'ranking_matches')->first()?->value ?: 10;
         $excludedEmail = 'vrplus2018@gmail.com';
-        $maxTotal = 50;
 
         // OPTIMIZED: Cache the total count for 5 minutes instead of counting every request
         $cacheKey = "leaderboard_total:{$sportId}:{$rankingMatches}:{$maxTotal}";

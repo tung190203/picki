@@ -225,7 +225,7 @@
       </div>
 
       <!-- Pagination -->
-      <div v-if="meta.last_page > 1" class="mt-4 flex items-center justify-center gap-2">
+      <div v-if="isPaginated && meta.last_page > 1" class="mt-4 flex items-center justify-center gap-2">
         <button
           @click="changePage(Number(meta.page) - 1)"
           :disabled="Number(meta.page) <= 1"
@@ -269,7 +269,7 @@ const tabs = [
 
 const scopeMap = {
   top50: "top50",
-  all: "all",
+  top100: "top100",
   allClubs: "allClubs",
   clubMembers: "club",
   friend: "friend",
@@ -278,7 +278,7 @@ const scopeMap = {
 // Reverse map để chuyển scope về tab
 const tabFromScope = {
   top50: "top50",
-  all: "all",
+  top100: "top100",
   allClubs: "allClubs",
   club: "clubMembers",
   friend: "friend",
@@ -293,6 +293,9 @@ const clubSelectorLoaded = ref(false);
 const selectedClubId = ref("");
 const avatarFailed = ref({});
 const isInitialLoad = ref(true); // Flag to detect first load vs user interaction
+
+// Tabs with pagination (top50/top100 are fixed, no pagination)
+const isPaginated = computed(() => true);
 
 const emptyMessage = computed(() => {
   if (activeTab.value === "friend") return "Bạn chưa có bạn bè nào để hiển thị bảng xếp hạng.";
@@ -397,9 +400,9 @@ const goToItem = (item) => {
 };
 
 const getWeeklyChangeClass = (change) => {
-  if (change < 0) return 'bg-green-100 text-green-700'; // Cải thiện rank
-  if (change > 0) return 'bg-red-100 text-red-700';    // Tụt rank
-  return 'bg-gray-100 text-gray-500';                  // Không đổi
+  if (change > 0) return 'bg-green-100 text-green-700'; // Tăng hạng (số rank giảm)
+  if (change < 0) return 'bg-red-100 text-red-700';    // Tụt hạng (số rank tăng)
+  return 'bg-gray-100 text-gray-500';                   // Không đổi
 };
 
 const navigateTo = (route) => {
@@ -434,33 +437,40 @@ watch(activeTab, (val) => {
   }
 });
 
-// Watch user data để khôi phục scope khi user data đã load
+// Watch user data để khôi phục scope khi user data đã load (chỉ chạy 1 lần khi mount)
 watch(() => getUser.value?.settings?.leaderboard_scope, (savedScope) => {
-  console.log('User settings loaded, leaderboard_scope:', savedScope);
-  if (savedScope && tabFromScope[savedScope]) {
-    // Khôi phục tab đã lưu
-    activeTab.value = tabFromScope[savedScope];
-    console.log('Restored tab to:', activeTab.value);
+  if (!isInitialLoad.value) return; // Đã load xong, bỏ qua mọi thay đổi settings
+  if (!savedScope || !tabFromScope[savedScope]) return;
 
-    // Nếu khôi phục về clubMembers, khôi phục luôn club_id
-    if (savedScope === 'club') {
-      const savedClubId = getUser.value?.settings?.leaderboard_club_id;
-      if (savedClubId) {
-        selectedClubId.value = savedClubId;
-        console.log('Restored club_id to:', savedClubId);
-      }
+  // Khôi phục tab đã lưu
+  activeTab.value = tabFromScope[savedScope];
+
+  // Nếu khôi phục về clubMembers, khôi phục luôn club_id
+  if (savedScope === 'club') {
+    const savedClubId = getUser.value?.settings?.leaderboard_club_id;
+    if (savedClubId) {
+      selectedClubId.value = savedClubId;
     }
   }
-}, { immediate: true });
+}, { immediate: false });
 
 onMounted(async () => {
   // Fetch user data first to get latest settings including leaderboard_scope
   await userStore.fetchMe();
-  
-  // Đợi một chút để watcher settings chạy trước
-  setTimeout(() => {
-    isInitialLoad.value = false;
-    fetchLeaderboard(1);
-  }, 100);
+
+  // Sau khi fetchMe xong, áp dụng saved scope (nếu có) rồi mới load data
+  const savedScope = getUser.value?.settings?.leaderboard_scope;
+  if (savedScope && tabFromScope[savedScope]) {
+    activeTab.value = tabFromScope[savedScope];
+    if (savedScope === 'club') {
+      const savedClubId = getUser.value?.settings?.leaderboard_club_id;
+      if (savedClubId) {
+        selectedClubId.value = savedClubId;
+      }
+    }
+  }
+
+  isInitialLoad.value = false;
+  fetchLeaderboard(1);
 });
 </script>
