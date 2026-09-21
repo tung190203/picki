@@ -260,13 +260,15 @@ const { getUser } = storeToRefs(userStore);
 const BASE_STORAGE_URL = "http://localhost:8000/storage/";
 
 const tabs = [
-  { label: "Top 50", value: "all" },
+  { label: "Top 50", value: "top50" },
+  { label: "Top 100", value: "all" },
   { label: "BXH CLB", value: "allClubs" },
   { label: "Thành viên CLB", value: "clubMembers" },
   { label: "BXH Bạn bè", value: "friend" },
 ];
 
 const scopeMap = {
+  top50: "top50",
   all: "all",
   allClubs: "allClubs",
   clubMembers: "club",
@@ -275,6 +277,7 @@ const scopeMap = {
 
 // Reverse map để chuyển scope về tab
 const tabFromScope = {
+  top50: "top50",
   all: "all",
   allClubs: "allClubs",
   club: "clubMembers",
@@ -405,6 +408,10 @@ const navigateTo = (route) => {
 
 watch(myClubs, (val) => {
   clubSelectorLoaded.value = true;
+  // Auto-select first club when myClubs loads and tab is clubMembers
+  if (val && val.length > 0 && activeTab.value === 'clubMembers' && !selectedClubId.value) {
+    selectedClubId.value = val[0].id;
+  }
 });
 
 watch(selectedClubId, () => {
@@ -434,6 +441,15 @@ watch(() => getUser.value?.settings?.leaderboard_scope, (savedScope) => {
     // Khôi phục tab đã lưu
     activeTab.value = tabFromScope[savedScope];
     console.log('Restored tab to:', activeTab.value);
+
+    // Nếu khôi phục về clubMembers, khôi phục luôn club_id
+    if (savedScope === 'club') {
+      const savedClubId = getUser.value?.settings?.leaderboard_club_id;
+      if (savedClubId) {
+        selectedClubId.value = savedClubId;
+        console.log('Restored club_id to:', savedClubId);
+      }
+    }
   }
 }, { immediate: true });
 

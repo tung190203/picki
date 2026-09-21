@@ -357,7 +357,7 @@ class LeaderboardController extends Controller
     public function getLeaderboard(Request $request)
     {
         $validated = $request->validate([
-            'scope'    => 'required|in:all,club,friend,allClubs',
+            'scope'    => 'required|in:all,club,friend,allClubs,top50,top100',
             'club_id'  => 'required_if:scope,club|integer|exists:clubs,id',
             'per_page' => 'sometimes|integer|min:1|max:100',
             'page'     => 'sometimes|integer|min:1',
@@ -371,8 +371,22 @@ class LeaderboardController extends Controller
         $user = $request->user();
         if ($user) {
             $settings = $user->settings ?? [];
+            $needsSave = false;
+
             if (!isset($settings['leaderboard_scope']) || $settings['leaderboard_scope'] !== $scope) {
                 $settings['leaderboard_scope'] = $scope;
+                $needsSave = true;
+            }
+
+            if ($scope === 'club' && !empty($validated['club_id'])) {
+                $savedClubId = $settings['leaderboard_club_id'] ?? null;
+                if ($savedClubId !== (string) $validated['club_id']) {
+                    $settings['leaderboard_club_id'] = (string) $validated['club_id'];
+                    $needsSave = true;
+                }
+            }
+
+            if ($needsSave) {
                 $user->settings = $settings;
                 $user->save();
             }
@@ -391,6 +405,36 @@ class LeaderboardController extends Controller
                     'total'     => $leaderboardData['total'],
                     'per_page'  => $perPage,
                     'page'      => $page,
+                    'last_page' => $leaderboardData['last_page'],
+                ],
+            ], 'Lấy bảng xếp hạng thành công');
+        }
+
+        if ($scope === 'top50') {
+            $leaderboardData = $this->getSystemLeaderboard($sportId, 50, 1);
+
+            return ResponseHelper::success([
+                'scope'       => $scope,
+                'leaderboard' => $leaderboardData['items'],
+                'meta'        => [
+                    'total'     => $leaderboardData['total'],
+                    'per_page'  => 50,
+                    'page'      => 1,
+                    'last_page' => $leaderboardData['last_page'],
+                ],
+            ], 'Lấy bảng xếp hạng thành công');
+        }
+
+        if ($scope === 'top100') {
+            $leaderboardData = $this->getSystemLeaderboard($sportId, 100, 1);
+
+            return ResponseHelper::success([
+                'scope'       => $scope,
+                'leaderboard' => $leaderboardData['items'],
+                'meta'        => [
+                    'total'     => $leaderboardData['total'],
+                    'per_page'  => 100,
+                    'page'      => 1,
                     'last_page' => $leaderboardData['last_page'],
                 ],
             ], 'Lấy bảng xếp hạng thành công');
