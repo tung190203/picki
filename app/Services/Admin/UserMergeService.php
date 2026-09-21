@@ -21,6 +21,7 @@ use App\Models\UserSport;
 use App\Models\VnduprHistory;
 use App\Services\Admin\AuditLogService;
 use App\Services\Admin\UserMerge\DuplicateMatchDetector;
+use App\Support\MergedContactSuffix;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -306,6 +307,10 @@ class UserMergeService
             $mergedUser->update([
                 'is_merged' => true,
                 'merged_into_user_id' => $survivorUserId,
+                'email' => MergedContactSuffix::email($mergedUser->email, $userMerge->id),
+                'phone' => MergedContactSuffix::phone($mergedUser->phone, $userMerge->id),
+                'google_id' => null,
+                'apple_id' => null,
             ]);
 
             $mergedUser->delete();
