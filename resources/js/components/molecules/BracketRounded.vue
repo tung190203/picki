@@ -30,7 +30,7 @@
           <div v-for="(team, index) in rank.rankings" :key="team.team_id"
             class="grid grid-cols-[80px_1fr_80px_80px] items-center px-4 py-3 bg-white dark:bg-[#161F33] hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors duration-200 cursor-pointer">
             <!-- Rank -->
-            <span class="text-gray-700 dark:text-slate-200 font-medium">{{ team.rank_display ?? (team.rank ?? (index + 1)) }}</span>
+            <span class="text-gray-700 dark:text-slate-200 font-medium">{{ team.rank_label ?? (team.rank ?? (index + 1)) }}</span>
 
             <!-- Team -->
             <div class="flex items-center gap-2">

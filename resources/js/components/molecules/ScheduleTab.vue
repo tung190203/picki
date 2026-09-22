@@ -66,7 +66,7 @@
                                 'text-yellow-500': index === 0,
                                 'text-gray-400': index === 1,
                                 'text-orange-500': index === 2,
-                            }">{{ team.rank_display ?? (team.rank ?? (index + 1)) }}</span>
+                            }">{{ team.rank_label ?? (team.rank ?? (index + 1)) }}</span>
                             <div class="flex items-center gap-2">
                                 <img :src="team.team_avatar ||
                                     `https://placehold.co/40x40/BBBFCC/3E414C?text=${getTeamInitials(team.team_name)}`
@@ -164,7 +164,7 @@
                                 'text-yellow-500': index === 0,
                                 'text-gray-400': index === 1,
                                 'text-orange-500': index === 2,
-                            }">{{ team.rank_display ?? (team.overall_rank ?? (index + 1)) }}</span>
+                            }">{{ team.rank_label ?? (team.overall_rank ?? (index + 1)) }}</span>
                             <div class="flex items-center gap-2">
                                 <img :src="team.team_avatar ||
                                     `https://placehold.co/40x40/BBBFCC/3E414C?text=${getTeamInitials(team.team_name)}`

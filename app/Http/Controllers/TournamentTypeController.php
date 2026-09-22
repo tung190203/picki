@@ -3115,7 +3115,7 @@ class TournamentTypeController extends Controller
                 })->values();
             }
 
-            // ✅ GÁN RANK + rank_display
+            // ✅ GÁN RANK + rank_label
             $hasThirdPlace = Matches::where('tournament_type_id', $type->id)
                 ->where('is_third_place', true)
                 ->where('status', 'completed')
@@ -3129,7 +3129,7 @@ class TournamentTypeController extends Controller
                 foreach ($rankItems as &$item) {
                     $rankIndex++;
                     $item['rank'] = $this->computeOverallRank($rankIndex, $item, $results) ?? $rankIndex;
-                    $item['rank_display'] = $this->getOverallRankDisplay(
+                    $item['rank_label'] = $this->getOverallRankLabel(
                         (int) $item['rank'],
                         (int) $type->format,
                         (bool) $hasThirdPlace,
@@ -3143,7 +3143,7 @@ class TournamentTypeController extends Controller
                 foreach ($rankItems as &$item) {
                     $rankIndex++;
                     $item['rank'] = $rankIndex;
-                    $item['rank_display'] = "Hạng {$rankIndex}";
+                    $item['rank_label'] = "Hạng {$rankIndex}";
                 }
                 unset($item);
             }
@@ -3456,7 +3456,7 @@ class TournamentTypeController extends Controller
             })->values();
         }
 
-        // ✅ GÁN overall_rank + rank_display
+        // ✅ GÁN overall_rank + rank_label
         $results = $isKnockoutFormat ? $this->buildTournamentResults((int) $type->id) : [];
 
         if ($isKnockoutFormat) {
@@ -3492,11 +3492,11 @@ class TournamentTypeController extends Controller
                 $rankedItems[] = $item;
             }
 
-            // ✅ Bước 3: gán rank_display cho tất cả
+            // ✅ Bước 3: gán rank_label cho tất cả
             foreach ($rankedItems as &$item) {
                 // Phân biệt team trong bracket (đã có rank trong results) và team ngoài bracket
                 $isInBracket = $this->isTeamInBracketProgression($item, $results);
-                $item['rank_display'] = $this->getOverallRankDisplay(
+                $item['rank_label'] = $this->getOverallRankLabel(
                     (int) $item['overall_rank'],
                     (int) $type->format,
                     (bool) $hasThirdPlace,
@@ -3513,7 +3513,7 @@ class TournamentTypeController extends Controller
             $overallRankings = $overallRankings->map(function ($item) use (&$rankIndex) {
                 $rankIndex++;
                 $item['overall_rank'] = $rankIndex;
-                $item['rank_display'] = "Hạng {$rankIndex}";
+                $item['rank_label'] = "Hạng {$rankIndex}";
                 return $item;
             });
         }
@@ -3845,7 +3845,7 @@ class TournamentTypeController extends Controller
      * - Mixed/Elimination (team NGOÀI bracket - chỉ đá vòng bảng):
      *     → "Hạng N" (số thứ tự theo group_rank)
      */
-    private function getOverallRankDisplay(int $overallRank, int $format, bool $hasThirdPlace, int $tournamentTypeId, bool $isInBracket = true): string
+    private function getOverallRankLabel(int $overallRank, int $format, bool $hasThirdPlace, int $tournamentTypeId, bool $isInBracket = true): string
     {
         if ($format === TournamentType::FORMAT_ROUND_ROBIN) {
             return "Hạng {$overallRank}";
