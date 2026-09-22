@@ -2418,12 +2418,12 @@ initMap(handleBoundsChange, handleBoundsChange);
     background: transparent !important;
 }
 
-.leaflet-marker-icon:hover {
+.goongjs-marker:hover {
     transform: scale(1.1);
     transition: transform 0.2s ease;
 }
 
-.leaflet-popup-content-wrapper {
+.goongjs-popup-content-wrapper {
     cursor: pointer !important;
 }
 

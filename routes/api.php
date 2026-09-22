@@ -87,6 +87,7 @@ use App\Http\Controllers\QuickMatchController;
 use App\Http\Controllers\MatchSuggestionController;
 use App\Http\Controllers\ChatbotController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\MapProviderConfigController;
 use Illuminate\Support\Facades\Broadcast;
 
 /*
@@ -103,6 +104,9 @@ use Illuminate\Support\Facades\Broadcast;
 Route::post('/broadcasting/auth', function () {
     return Broadcast::auth(request());
 })->middleware('auth:api');
+
+// Public map provider config (no auth needed - map tiles key is public)
+Route::get('/map/public-config', [MapProviderConfigController::class, 'config']);
 
 Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])->middleware(['turnstile', 'throttle:auth-strict']);
@@ -420,6 +424,7 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
 
     Route::get('/settings', [SettingsController::class, 'index']);
     Route::put('/settings', [SettingsController::class, 'update']);
+    Route::get('/settings/map-provider', [SettingsController::class, 'mapProvider']);
 
     Route::get('/broadcast', [BroadcastController::class, 'index']);
     Route::post('/broadcast', [BroadcastController::class, 'send']);

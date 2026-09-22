@@ -45,6 +45,8 @@ export const API_ENDPOINT = {
   PROMOTION: '/promotion',
   SEARCH_V2: '/search',
   NOTIFICATION_TEMPLATE: '/admin/notification-templates',
+  SEARCH_LOCATION: '/search-location',
+  LOCATION_DETAIL: '/location-detail',
 };
 
 export const TOURNAMENT_STATUS = {
