@@ -4,6 +4,7 @@ namespace App\Services\Admin;
 
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\Geocoding\GoongKeyResolver;
 use Illuminate\Support\Facades\Cache;
 
 class SettingsService
@@ -26,6 +27,20 @@ class SettingsService
                 'online_payment' => true,
                 'maintenance_mode' => false,
             ],
+        ];
+    }
+
+    /**
+     * Get map provider settings (keys masked for security).
+     */
+    public function getMapProvider(): array
+    {
+        $apiKeyRow = SystemSetting::where('key', 'goong.api_key')->first();
+        $mapKeyRow = SystemSetting::where('key', 'goong.map_key')->first();
+
+        return [
+            'goong_api_key' => $this->maskValue($apiKeyRow?->value),
+            'goong_map_key' => $this->maskValue($mapKeyRow?->value),
         ];
     }
 
@@ -59,17 +74,31 @@ class SettingsService
             $changes['features'] = $data['features'];
         }
 
-        $auditLogService = app(AuditLogService::class);
-        $auditLogService->log(
-            $admin,
-            'update_settings',
-            SystemSetting::class,
-            null,
-            $oldSettings,
-            $changes
-        );
+        // Handle Goong map provider keys
+        if (isset($data['goong_api_key']) || isset($data['goong_map_key'])) {
+            $this->upsertSetting('goong.api_key', $data['goong_api_key'] ?? '', 'string');
+            $this->upsertSetting('goong.map_key', $data['goong_map_key'] ?? '', 'string');
 
-        Cache::forget('system_settings');
+            // Invalidate Goong key cache so new keys take effect immediately
+            app(GoongKeyResolver::class)->forgetCache();
+
+            $changes['goong_api_key'] = $this->maskValue($data['goong_api_key'] ?? '');
+            $changes['goong_map_key'] = $this->maskValue($data['goong_map_key'] ?? '');
+        }
+
+        if (! empty($changes)) {
+            $auditLogService = app(AuditLogService::class);
+            $auditLogService->log(
+                $admin,
+                'update_settings',
+                SystemSetting::class,
+                null,
+                $oldSettings,
+                $changes
+            );
+
+            Cache::forget('system_settings');
+        }
 
         return $this->get();
     }
@@ -80,5 +109,23 @@ class SettingsService
             ['key' => $key],
             ['value' => $value, 'type' => $type]
         );
+    }
+
+    /**
+     * Mask a sensitive value for display: show first 4 and last 4 chars.
+     * Returns empty string if value is empty/null.
+     */
+    private function maskValue(?string $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        $len = mb_strlen($value);
+        if ($len <= 8) {
+            return str_repeat('*', $len);
+        }
+
+        return mb_substr($value, 0, 4) . str_repeat('*', max(0, $len - 8)) . mb_substr($value, $len - 4);
     }
 }
