@@ -261,7 +261,7 @@ const BASE_STORAGE_URL = "http://localhost:8000/storage/";
 
 const tabs = [
   { label: "Top 50", value: "top50" },
-  { label: "Top 100", value: "all" },
+  { label: "Top 100", value: "top100" },
   { label: "BXH CLB", value: "allClubs" },
   { label: "Thành viên CLB", value: "clubMembers" },
   { label: "BXH Bạn bè", value: "friend" },
