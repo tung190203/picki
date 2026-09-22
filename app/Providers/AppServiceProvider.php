@@ -28,6 +28,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(\App\Services\UserSportMatchCounter::class);
         $this->app->singleton(\App\Services\Club\ClubDetailAssembler::class);
+        $this->app->singleton(\App\Services\Geocoding\GeocodingManager::class);
+        $this->app->singleton(\App\Services\Geocoding\GoongKeyResolver::class);
     }
 
     /**

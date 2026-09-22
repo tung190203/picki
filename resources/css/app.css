@@ -314,36 +314,30 @@ html.dark .bg-\[\#FFF5F5\] span {
 }
 
 /* ==========================================================================
-   Leaflet Map Controls Exemption (Keep Original Light Design System-Wide)
+   Goong Map Controls
    ========================================================================== */
-.leaflet-control,
-.leaflet-bar,
-.leaflet-bar a,
-.leaflet-control-custom,
-.leaflet-control-layers,
-.leaflet-control-zoom,
-html.dark .leaflet-control,
-html.dark .leaflet-bar,
-html.dark .leaflet-bar a,
-html.dark .leaflet-control-custom,
-html.dark .leaflet-control-layers,
-html.dark .leaflet-control-zoom {
+.goong-control-group,
+.goong-control-group button,
+.goongjs-ctrl button,
+.goongjs-ctrl-group button,
+html.dark .goong-control-group,
+html.dark .goong-control-group button,
+html.dark .goongjs-ctrl button,
+html.dark .goongjs-ctrl-group button {
     background-color: #FFFFFF !important;
     color: #334155 !important;
     border-color: #E2E8F0 !important;
     filter: none !important;
 }
 
-.leaflet-control svg,
-.leaflet-bar a svg,
-.leaflet-control-custom svg,
-.leaflet-control-layers svg,
-.leaflet-control-zoom svg,
-html.dark .leaflet-control svg,
-html.dark .leaflet-bar a svg,
-html.dark .leaflet-control-custom svg,
-html.dark .leaflet-control-layers svg,
-html.dark .leaflet-control-zoom svg {
+.goong-control-group svg,
+.goong-control-group button svg,
+.goongjs-ctrl svg,
+.goongjs-ctrl-group svg,
+html.dark .goong-control-group svg,
+html.dark .goong-control-group button svg,
+html.dark .goongjs-ctrl svg,
+html.dark .goongjs-ctrl-group svg {
     stroke: #334155 !important;
     color: #334155 !important;
     filter: none !important;

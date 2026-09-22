@@ -18,7 +18,10 @@
         "vite": "^5.4.19"
     },
     "dependencies": {
+        "@goongmaps/goong-js": "^1.0.9",
+        "@goongmaps/goong-sdk": "^1.0.7",
         "@heroicons/vue": "^2.2.0",
+        "@mapbox/polyline": "^1.2.1",
         "@vitejs/plugin-vue": "^6.0.0",
         "@vuelidate/core": "^2.0.3",
         "@vuelidate/validators": "^2.0.4",
@@ -31,8 +34,6 @@
         "html2canvas": "^1.4.1",
         "html5-qrcode": "^2.3.8",
         "laravel-echo": "^2.2.6",
-        "leaflet": "^1.9.4",
-        "leaflet.markercluster": "^1.5.3",
         "lodash.debounce": "^4.0.8",
         "lottie-web": "^5.13.0",
         "pinia": "^3.0.3",
