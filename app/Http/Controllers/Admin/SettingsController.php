@@ -16,7 +16,7 @@ class SettingsController extends Controller
     public function index()
     {
         $settings = $this->settingsService->get();
-        return ResponseHelper::single($settings, 'Lấy settings thành công');
+        return ResponseHelper::single($settings, 'Lay settings thanh cong');
     }
 
     public function update(Request $request)
@@ -30,11 +30,23 @@ class SettingsController extends Controller
             'features.ai_assistant' => 'nullable|boolean',
             'features.online_payment' => 'nullable|boolean',
             'features.maintenance_mode' => 'nullable|boolean',
+            // Map provider keys
+            'goong_api_key' => 'nullable|string|max:500',
+            'goong_map_key' => 'nullable|string|max:500',
         ]);
 
         $admin = auth()->user();
         $settings = $this->settingsService->update($validated, $admin);
 
-        return ResponseHelper::success($settings, 'Update settings thành công');
+        return ResponseHelper::success($settings, 'Update settings thanh cong');
+    }
+
+    /**
+     * Get map provider settings (keys masked).
+     */
+    public function mapProvider()
+    {
+        $data = $this->settingsService->getMapProvider();
+        return ResponseHelper::success($data, 'Lay map provider settings thanh cong');
     }
 }

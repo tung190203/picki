@@ -109,6 +109,68 @@
           </div>
         </section>
 
+        <!-- Section 2: Map Provider (Goong) -->
+        <section class="col-span-12 lg:col-span-12">
+          <div class="flex items-center gap-3 mb-6">
+            <span class="material-symbols-outlined text-primary icon-fill">map</span>
+            <h3 class="text-xl font-headline font-bold text-slate-800">Map Provider (Goong)</h3>
+          </div>
+
+          <div class="bg-white rounded-2xl p-8 border border-slate-200/80 shadow-sm space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Goong REST API Key -->
+              <div>
+                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Goong REST API Key</label>
+                <div class="relative">
+                  <input
+                    :type="showApiKey ? 'text' : 'password'"
+                    v-model="goongApiKey"
+                    placeholder="Diền key REST API từ goong.io"
+                    class="w-full bg-slate-50 rounded-xl px-4 py-3 pr-12 text-sm font-medium text-slate-800 border border-slate-200 focus:border-primary focus:bg-white focus:outline-none transition-all"
+                  />
+                  <button
+                    type="button"
+                    @click="showApiKey = !showApiKey"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <span class="material-symbols-outlined text-lg">{{ showApiKey ? 'visibility_off' : 'visibility' }}</span>
+                  </button>
+                </div>
+                <p class="text-xs text-slate-400 mt-2">Key REST API — server-side only, không gửi xuống trình duyệt. Lấy từ <a href="https://account.goong.io" target="_blank" class="text-primary underline">account.goong.io</a>.</p>
+                <p v-if="goongApiKeyMask" class="text-xs text-slate-400 mt-1">Hiện tại: <span class="font-mono bg-slate-100 px-1 rounded">{{ goongApiKeyMask }}</span></p>
+              </div>
+
+              <!-- Goong Map Tiles Key -->
+              <div>
+                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Goong Map Tiles Key</label>
+                <div class="relative">
+                  <input
+                    :type="showMapKey ? 'text' : 'password'"
+                    v-model="goongMapKey"
+                    placeholder="Diền key tiles từ goong.io"
+                    class="w-full bg-slate-50 rounded-xl px-4 py-3 pr-12 text-sm font-medium text-slate-800 border border-slate-200 focus:border-primary focus:bg-white focus:outline-none transition-all"
+                  />
+                  <button
+                    type="button"
+                    @click="showMapKey = !showMapKey"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <span class="material-symbols-outlined text-lg">{{ showMapKey ? 'visibility_off' : 'visibility' }}</span>
+                  </button>
+                </div>
+                <p class="text-xs text-slate-400 mt-2">Key tiles — public, gửi xuống trình duyệt. Nên restrict referrer trên dashboard Goong.</p>
+                <p v-if="goongMapKeyMask" class="text-xs text-slate-400 mt-1">Hiện tại: <span class="font-mono bg-slate-100 px-1 rounded">{{ goongMapKeyMask }}</span></p>
+              </div>
+            </div>
+
+            <!-- Status -->
+            <div v-if="mapStatus" class="flex items-center gap-2 text-sm" :class="mapStatus === 'configured' ? 'text-green-600' : 'text-amber-600'">
+              <span class="material-symbols-outlined text-lg">{{ mapStatus === 'configured' ? 'check_circle' : 'warning' }}</span>
+              <span>{{ mapStatus === 'configured' ? 'Map provider đã được cấu hình.' : 'Map provider chưa được cấu hình — bản đồ sẽ không hoạt động.' }}</span>
+            </div>
+          </div>
+        </section>
+
         <!-- Section 2: Feature Flags -->
         <section class="col-span-12 lg:col-span-12 xl:col-span-5">
           <div class="flex items-center gap-3 mb-6">
@@ -166,6 +228,15 @@ const serviceFee = ref(5.5)
 const autoConfirmTime = ref(24)
 const rankingMatches = ref(10)
 
+// Map provider
+const goongApiKey = ref('')
+const goongMapKey = ref('')
+const goongApiKeyMask = ref('')
+const goongMapKeyMask = ref('')
+const showApiKey = ref(false)
+const showMapKey = ref(false)
+const mapStatus = ref(null)
+
 const featureFlags = ref([
   {
     key: 'ai_assistant',
@@ -210,6 +281,18 @@ const fetchSettings = async () => {
       ...flag,
       enabled: features[flag.key] ?? false
     }))
+
+    // Fetch map provider settings
+    try {
+      const mapRes = await get('/admin/settings/map-provider')
+      const mapData = mapRes.data.data
+      goongApiKeyMask.value = mapData.goong_api_key ?? ''
+      goongMapKeyMask.value = mapData.goong_map_key ?? ''
+      mapStatus.value = (mapData.goong_api_key || mapData.goong_map_key) ? 'configured' : 'missing'
+    } catch (mapErr) {
+      console.warn('Could not fetch map provider settings:', mapErr)
+      mapStatus.value = null
+    }
   } catch (e) {
     error.value = 'Không thể tải cấu hình.'
     console.error('Settings error:', e)
@@ -227,13 +310,30 @@ const saveConfig = async () => {
       features[flag.key] = flag.enabled
     })
 
-    await put('/admin/settings', {
+    const payload = {
       k_factor: kFactor.value,
       service_fee_percent: serviceFee.value,
       auto_confirm_hours: autoConfirmTime.value,
       ranking_matches: rankingMatches.value,
-      features: features
-    })
+      features: features,
+    }
+
+    // Only include map keys if user typed something (don't clear if empty)
+    if (goongApiKey.value.trim()) {
+      payload.goong_api_key = goongApiKey.value.trim()
+    }
+    if (goongMapKey.value.trim()) {
+      payload.goong_map_key = goongMapKey.value.trim()
+    }
+
+    await put('/admin/settings', payload)
+
+    // Clear input fields after successful save
+    goongApiKey.value = ''
+    goongMapKey.value = ''
+
+    // Re-fetch to update masks
+    await fetchSettings()
 
     toast.success('Cấu hình đã được lưu thành công!', {
       position: 'bottom-right'

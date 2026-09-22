@@ -14,7 +14,7 @@
         </button>
 
         <!-- Search -->
-        <div class="flex items-center flex-1 lg:w-72 bg-[#EDEEF2] rounded-md px-2 py-3">
+        <div class="flex items-center w-full lg:w-72 bg-[#EDEEF2] rounded-md px-3 py-2">
             <MagnifyingGlassIcon
                 class="w-5 h-5 text-gray-700 mr-2 cursor-pointer"
             />
