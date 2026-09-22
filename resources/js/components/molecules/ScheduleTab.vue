@@ -66,7 +66,7 @@
                                 'text-yellow-500': index === 0,
                                 'text-gray-400': index === 1,
                                 'text-orange-500': index === 2,
-                            }">{{ index + 1 }}</span>
+                            }">{{ team.rank_display ?? (team.rank ?? (index + 1)) }}</span>
                             <div class="flex items-center gap-2">
                                 <img :src="team.team_avatar ||
                                     `https://placehold.co/40x40/BBBFCC/3E414C?text=${getTeamInitials(team.team_name)}`
@@ -149,8 +149,8 @@
                 </div>
                 <div class="bg-gray-100 rounded-lg shadow overflow-hidden">
                     <div
-                        class="grid grid-cols-[40px_1fr_80px_80px_80px] bg-gray-200 px-4 py-2 text-gray-600 font-semibold text-sm">
-                        <span>#</span>
+                        class="grid grid-cols-[80px_1fr_80px_80px_80px] bg-gray-200 px-4 py-2 text-gray-600 font-semibold text-sm">
+                        <span>Hạng</span>
                         <span>Đội</span>
                         <span class="text-center">Trận</span>
                         <span class="text-center">Điểm</span>
@@ -159,12 +159,12 @@
 
                     <div class="divide-y divide-gray-200">
                         <div v-for="(team, index) in rank.overall_rankings" :key="team.team_id"
-                            class="grid grid-cols-[40px_1fr_80px_80px_80px] items-center px-4 py-3 bg-white hover:bg-blue-50 transition-colors duration-200 cursor-pointer">
+                            class="grid grid-cols-[80px_1fr_80px_80px_80px] items-center px-4 py-3 bg-white hover:bg-blue-50 transition-colors duration-200 cursor-pointer">
                             <span class="font-bold text-lg" :class="{
                                 'text-yellow-500': index === 0,
                                 'text-gray-400': index === 1,
                                 'text-orange-500': index === 2,
-                            }">{{ team.overall_rank ?? (index + 1) }}</span>
+                            }">{{ team.rank_display ?? (team.overall_rank ?? (index + 1)) }}</span>
                             <div class="flex items-center gap-2">
                                 <img :src="team.team_avatar ||
                                     `https://placehold.co/40x40/BBBFCC/3E414C?text=${getTeamInitials(team.team_name)}`

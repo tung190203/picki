@@ -3023,76 +3023,114 @@ class TournamentTypeController extends Controller
             // ✅ LẤY TẤT CẢ ĐỘI THAM GIA GIẢI
             $allTeams = $type->tournament->teams()->with('members')->get();
 
-            // Tính stats cho từng đội
+            // Tính stats + tournament progress cho từng đội
             $rankings = $allTeams->map(function ($team) use ($type) {
                 $stats = $this->getTeamStats($team->id, $type->id);
+                $progress = $this->getTeamTournamentProgress($team->id, $type->id);
                 return array_merge([
                     'team_id' => $team->id,
                     'team_name' => $team->name ?? 'Unknown',
                     'team_avatar' => $team->avatar ?? '',
-                ], $stats);
+                ], $stats, $progress);
             });
 
-            // ✅ SẮP XẾP THEO rankingRules (1,4,5...) giống TeamRanking, có dùng đối đầu
-            $rankings = $rankings->sort(function ($a, $b) use ($rankingRules, $allMatches) {
-                // Đội đã đánh luôn đứng trên đội chưa đánh
-                if (($a['played'] ?? 0) == 0 && ($b['played'] ?? 0) > 0) return 1;
-                if (($b['played'] ?? 0) == 0 && ($a['played'] ?? 0) > 0) return -1;
+            // ✅ Chọn cách sắp xếp theo format
+            $isKnockoutFormat = in_array((int) $type->format, [
+                TournamentType::FORMAT_ELIMINATION,
+                TournamentType::FORMAT_MIXED,
+            ], true);
 
-                foreach ($rankingRules as $ruleId) {
-                    switch ($ruleId) {
-                        case TournamentType::RANKING_WIN_DRAW_LOSE_POINTS: // 1
-                            if ($a['points'] !== $b['points']) {
-                                return $b['points'] <=> $a['points'];
-                            }
-                            break;
-                        case TournamentType::RANKING_WIN_RATE: // 2
-                            if (($a['win_rate'] ?? 0) !== ($b['win_rate'] ?? 0)) {
-                                return ($b['win_rate'] ?? 0) <=> ($a['win_rate'] ?? 0);
-                            }
-                            break;
-                        case TournamentType::RANKING_SETS_WON: // 3
-                            // ✅ BẬT: so theo hiệu số hiệp (sets_diff DESC)
-                            if (($a['sets_diff'] ?? 0) !== ($b['sets_diff'] ?? 0)) {
-                                return ($b['sets_diff'] ?? 0) <=> ($a['sets_diff'] ?? 0);
-                            }
-                            break;
-                        case TournamentType::RANKING_POINTS_WON: // 4
-                            if ($a['point_diff'] !== $b['point_diff']) {
-                                return $b['point_diff'] <=> $a['point_diff'];
-                            }
-                            break;
-                        case TournamentType::RANKING_HEAD_TO_HEAD: // 5
-                            $h2h = $this->getHeadToHeadResultForRank(
-                                $a['team_id'],
-                                $b['team_id'],
-                                $allMatches
-                            );
-                            if ($h2h !== 0) {
-                                return $h2h;
-                            }
-                            break;
-                        case TournamentType::RANKING_RANDOM_DRAW: // 6
-                            return $a['team_id'] <=> $b['team_id'];
-                        case TournamentType::RANKING_GOALS_SCORED: // 7
-                            // ✅ NEW: so theo tổng điểm ghi được (points_for DESC)
-                            if (($a['points_for'] ?? 0) !== ($b['points_for'] ?? 0)) {
-                                return ($b['points_for'] ?? 0) <=> ($a['points_for'] ?? 0);
-                            }
-                            break;
+            if ($isKnockoutFormat) {
+                // ✅ FIX: Xếp theo THÀNH TÍCH TRONG TOURNAMENT (round đã vào), không xếp theo điểm
+                $rankings = $rankings->sort(function ($a, $b) {
+                    // Tier thấp hơn = xếp trên (1=Vô địch, 2=Á quân, 3=Hạng 3, ...)
+                    if ($a['progress_tier'] !== $b['progress_tier']) {
+                        return $a['progress_tier'] <=> $b['progress_tier'];
                     }
-                }
+                    // Cùng tier >= 5: round cao hơn (vào sâu hơn) đứng trước
+                    if ($a['progress_tier'] >= 5 && $a['highest_round'] !== $b['highest_round']) {
+                        return $b['highest_round'] <=> $a['highest_round'];
+                    }
+                    // Fallback: điểm, hiệu số, id
+                    if (($a['points'] ?? 0) !== ($b['points'] ?? 0)) {
+                        return ($b['points'] ?? 0) <=> ($a['points'] ?? 0);
+                    }
+                    if (($a['point_diff'] ?? 0) !== ($b['point_diff'] ?? 0)) {
+                        return ($b['point_diff'] ?? 0) <=> ($a['point_diff'] ?? 0);
+                    }
+                    return $a['team_id'] <=> $b['team_id'];
+                })->values();
+            } else {
+                // ✅ Round Robin: giữ nguyên logic điểm/thắng/thua như cũ
+                $rankings = $rankings->sort(function ($a, $b) use ($rankingRules, $allMatches) {
+                    // Đội đã đánh luôn đứng trên đội chưa đánh
+                    if (($a['played'] ?? 0) == 0 && ($b['played'] ?? 0) > 0) return 1;
+                    if (($b['played'] ?? 0) == 0 && ($a['played'] ?? 0) > 0) return -1;
 
-                // Fallback cuối cùng: hiệu số điểm rồi id
-                if ($a['point_diff'] !== $b['point_diff']) {
-                    return $b['point_diff'] <=> $a['point_diff'];
-                }
-                return $a['team_id'] <=> $b['team_id'];
-            })->values();
+                    foreach ($rankingRules as $ruleId) {
+                        switch ($ruleId) {
+                            case TournamentType::RANKING_WIN_DRAW_LOSE_POINTS: // 1
+                                if ($a['points'] !== $b['points']) {
+                                    return $b['points'] <=> $a['points'];
+                                }
+                                break;
+                            case TournamentType::RANKING_WIN_RATE: // 2
+                                if (($a['win_rate'] ?? 0) !== ($b['win_rate'] ?? 0)) {
+                                    return ($b['win_rate'] ?? 0) <=> ($a['win_rate'] ?? 0);
+                                }
+                                break;
+                            case TournamentType::RANKING_SETS_WON: // 3
+                                if (($a['sets_diff'] ?? 0) !== ($b['sets_diff'] ?? 0)) {
+                                    return ($b['sets_diff'] ?? 0) <=> ($a['sets_diff'] ?? 0);
+                                }
+                                break;
+                            case TournamentType::RANKING_POINTS_WON: // 4
+                                if ($a['point_diff'] !== $b['point_diff']) {
+                                    return $b['point_diff'] <=> $a['point_diff'];
+                                }
+                                break;
+                            case TournamentType::RANKING_HEAD_TO_HEAD: // 5
+                                $h2h = $this->getHeadToHeadResultForRank(
+                                    $a['team_id'],
+                                    $b['team_id'],
+                                    $allMatches
+                                );
+                                if ($h2h !== 0) {
+                                    return $h2h;
+                                }
+                                break;
+                            case TournamentType::RANKING_RANDOM_DRAW: // 6
+                                return $a['team_id'] <=> $b['team_id'];
+                            case TournamentType::RANKING_GOALS_SCORED: // 7
+                                if (($a['points_for'] ?? 0) !== ($b['points_for'] ?? 0)) {
+                                    return ($b['points_for'] ?? 0) <=> ($a['points_for'] ?? 0);
+                                }
+                                break;
+                        }
+                    }
 
-            // ✅ GÁN RANK SAU KHI ĐÃ SẮP XẾP
-            $rankings = $rankings->map(function ($item, $index) {
-                $item['rank'] = $index + 1;
+                    if ($a['point_diff'] !== $b['point_diff']) {
+                        return $b['point_diff'] <=> $a['point_diff'];
+                    }
+                    return $a['team_id'] <=> $b['team_id'];
+                })->values();
+            }
+
+            // ✅ GÁN RANK + rank_display SAU KHI ĐÃ SẮP XẾP
+            $hasThirdPlace = Matches::where('tournament_type_id', $type->id)
+                ->where('is_third_place', true)
+                ->exists();
+            $rankIndex = 0;
+            $rankings = $rankings->map(function ($item) use (&$rankIndex, $type, $hasThirdPlace) {
+                $rankIndex++;
+                $item['rank'] = $rankIndex;
+                $item['rank_display'] = $this->getOverallRankDisplay(
+                    $rankIndex,
+                    $item,
+                    (int) $type->format,
+                    (bool) $hasThirdPlace,
+                    (int) $type->id
+                );
                 return $item;
             });
 
@@ -3268,18 +3306,51 @@ class TournamentTypeController extends Controller
         });
 
         // ✅ TÍNH OVERALL RANKINGS (bảng xếp hạng tổng)
+        // ✅ FIX: Với format Mixed/Elimination: xếp theo THÀNH TÍCH TRONG TOURNAMENT
+        // (round đã vào: chung kết > bán kết > tứ kết > ...), không xếp theo điểm.
+        // Với format Round Robin: giữ nguyên logic xếp theo điểm.
+        $hasThirdPlace = Matches::where('tournament_type_id', $type->id)
+            ->where('is_third_place', true)
+            ->exists();
+
         $overallRankings = $type->tournament->teams()
             ->with('members')
             ->get()
             ->map(function ($team) use ($type) {
                 $stats = $this->getTeamStats($team->id, $type->id);
+                $progress = $this->getTeamTournamentProgress($team->id, $type->id);
                 return array_merge([
                     'team_id' => $team->id,
                     'team_name' => $team->name ?? 'Unknown',
                     'team_avatar' => $team->avatar ?? '',
-                ], $stats);
-            })
-            ->sort(function ($a, $b) use ($rankingRules, $allMatches) {
+                ], $stats, $progress);
+            });
+
+        $isKnockoutFormat = in_array((int) $type->format, [
+            TournamentType::FORMAT_ELIMINATION,
+            TournamentType::FORMAT_MIXED,
+        ], true);
+
+        if ($isKnockoutFormat) {
+            // ✅ Xếp theo round đã vào: chung kết > bán kết > tứ kết > ...
+            $overallRankings = $overallRankings->sort(function ($a, $b) {
+                if ($a['progress_tier'] !== $b['progress_tier']) {
+                    return $a['progress_tier'] <=> $b['progress_tier'];
+                }
+                if ($a['progress_tier'] >= 5 && $a['highest_round'] !== $b['highest_round']) {
+                    return $b['highest_round'] <=> $a['highest_round'];
+                }
+                if (($a['points'] ?? 0) !== ($b['points'] ?? 0)) {
+                    return ($b['points'] ?? 0) <=> ($a['points'] ?? 0);
+                }
+                if (($a['point_diff'] ?? 0) !== ($b['point_diff'] ?? 0)) {
+                    return ($b['point_diff'] ?? 0) <=> ($a['point_diff'] ?? 0);
+                }
+                return $a['team_id'] <=> $b['team_id'];
+            })->values();
+        } else {
+            // ✅ Round Robin: giữ nguyên logic điểm như cũ
+            $overallRankings = $overallRankings->sort(function ($a, $b) use ($rankingRules, $allMatches) {
                 if (($a['played'] ?? 0) == 0 && ($b['played'] ?? 0) > 0) return 1;
                 if (($b['played'] ?? 0) == 0 && ($a['played'] ?? 0) > 0) return -1;
 
@@ -3296,7 +3367,6 @@ class TournamentTypeController extends Controller
                             }
                             break;
                         case TournamentType::RANKING_SETS_WON:
-                            // ✅ BẬT: so theo hiệu số hiệp (sets_diff DESC)
                             if (($a['sets_diff'] ?? 0) !== ($b['sets_diff'] ?? 0)) {
                                 return ($b['sets_diff'] ?? 0) <=> ($a['sets_diff'] ?? 0);
                             }
@@ -3315,7 +3385,6 @@ class TournamentTypeController extends Controller
                         case TournamentType::RANKING_RANDOM_DRAW:
                             return $a['team_id'] <=> $b['team_id'];
                         case TournamentType::RANKING_GOALS_SCORED:
-                            // ✅ NEW: so theo tổng điểm ghi được (points_for DESC)
                             if (($a['points_for'] ?? 0) !== ($b['points_for'] ?? 0)) {
                                 return ($b['points_for'] ?? 0) <=> ($a['points_for'] ?? 0);
                             }
@@ -3326,14 +3395,164 @@ class TournamentTypeController extends Controller
                     return $b['point_diff'] <=> $a['point_diff'];
                 }
                 return $a['team_id'] <=> $b['team_id'];
-            })
-            ->values()
-            ->map(fn($item, $index) => array_merge($item, ['overall_rank' => $index + 1]));
+            })->values();
+        }
+
+        $rankIndex = 0;
+        $overallRankings = $overallRankings->map(function ($item) use (&$rankIndex, $type, $hasThirdPlace) {
+            $rankIndex++;
+            $item['overall_rank'] = $rankIndex;
+            $item['rank_display'] = $this->getOverallRankDisplay(
+                $rankIndex,
+                $item,
+                (int) $type->format,
+                (bool) $hasThirdPlace,
+                (int) $type->id
+            );
+            return $item;
+        });
 
         return ResponseHelper::success([
             'group_rankings' => $groupRankings,
             'overall_rankings' => $overallRankings,
         ]);
+    }
+
+    /**
+     * ✅ Lấy thông tin tiến trình của team trong tournament (cho BXH tổng).
+     *
+     * Trả về:
+     *   - highest_round: round cao nhất team đã THI ĐẤU (đã completed)
+     *   - is_third_place_winner: có thắng trận tranh hạng 3 không
+     *   - is_third_place_loser: có thua trận tranh hạng 3 không
+     *   - is_final_winner: thắng trận chung kết (round cao nhất)
+     *   - is_final_loser: thua trận chung kết
+     *   - progress_tier: tier để sort
+     *       1 = Vô địch (thắng chung kết)
+     *       2 = Á quân (thua chung kết)
+     *       3 = Hạng 3 (thắng tranh hạng 3)
+     *       4 = Hạng 4 (thua tranh hạng 3)
+     *       5 = Còn lại (sort phụ theo highest_round DESC)
+     *       999 = Chưa thi đấu
+     */
+    private function getTeamTournamentProgress(int $teamId, int $tournamentTypeId): array
+    {
+        $matches = Matches::where('tournament_type_id', $tournamentTypeId)
+            ->where('status', 'completed')
+            ->where(function ($q) use ($teamId) {
+                $q->where('home_team_id', $teamId)->orWhere('away_team_id', $teamId);
+            })
+            ->get();
+
+        if ($matches->isEmpty()) {
+            return [
+                'highest_round' => 0,
+                'is_third_place_winner' => false,
+                'is_third_place_loser' => false,
+                'is_final_winner' => false,
+                'is_final_loser' => false,
+                'progress_tier' => 999,
+            ];
+        }
+
+        $maxRound = (int) $matches->max('round');
+
+        // Tìm trận chung kết = round cao nhất, KHÔNG phải is_third_place
+        $finalMatch = $matches->first(function ($m) use ($maxRound) {
+            return (int) $m->round === $maxRound && !($m->is_third_place ?? false);
+        });
+
+        $isFinalWinner = $finalMatch && (int) $finalMatch->winner_id === $teamId;
+        $isFinalLoser = $finalMatch
+            && (int) $finalMatch->winner_id !== $teamId
+            && ((int) $finalMatch->home_team_id === $teamId || (int) $finalMatch->away_team_id === $teamId);
+
+        // Tìm trận tranh hạng 3 của team (nếu có)
+        $thirdPlaceMatch = $matches->first(function ($m) {
+            return ($m->is_third_place ?? false) === true;
+        });
+        $isThirdWinner = $thirdPlaceMatch && (int) $thirdPlaceMatch->winner_id === $teamId;
+        $isThirdLoser = $thirdPlaceMatch
+            && (int) $thirdPlaceMatch->winner_id !== $teamId
+            && ((int) $thirdPlaceMatch->home_team_id === $teamId || (int) $thirdPlaceMatch->away_team_id === $teamId);
+
+        // Tính tier để sắp xếp
+        if ($isFinalWinner) {
+            $tier = 1;
+        } elseif ($isFinalLoser) {
+            $tier = 2;
+        } elseif ($isThirdWinner) {
+            $tier = 3;
+        } elseif ($isThirdLoser) {
+            $tier = 4;
+        } else {
+            // Thua ở vòng thường → tier 5, sort phụ theo highest_round DESC
+            $tier = 5;
+        }
+
+        return [
+            'highest_round' => $maxRound,
+            'is_third_place_winner' => $isThirdWinner,
+            'is_third_place_loser' => $isThirdLoser,
+            'is_final_winner' => $isFinalWinner,
+            'is_final_loser' => $isFinalLoser,
+            'progress_tier' => $tier,
+        ];
+    }
+
+    /**
+     * ✅ Trả về text hiển thị cho hạng tổng.
+     *
+     * - Round Robin: "Hạng 1", "Hạng 2", ...
+     * - Mixed/Elimination CÓ trận tranh hạng 3: "Vô địch", "Á quân", "Hạng 3", "Hạng 4", "Tứ kết", ...
+     * - Mixed/Elimination KHÔNG CÓ trận tranh hạng 3: "Vô địch", "Á quân", "Đồng hạng 3", "Tứ kết", ...
+     *   (bỏ trống vị trí thứ 4, cấp huy hiệu đồng hạng 3 cho cả 2 đội)
+     */
+    private function getOverallRankDisplay(
+        int $rank,
+        array $item,
+        int $format,
+        bool $hasThirdPlace,
+        int $tournamentTypeId
+    ): string {
+        if ($format === TournamentType::FORMAT_ROUND_ROBIN) {
+            return "Hạng {$rank}";
+        }
+
+        $tier = (int) ($item['progress_tier'] ?? 999);
+        $highestRound = (int) ($item['highest_round'] ?? 0);
+
+        if ($tier === 1) return 'Vô địch';
+        if ($tier === 2) return 'Á quân';
+        if ($tier === 3) return 'Hạng 3';
+        if ($tier === 4) return 'Hạng 4';
+
+        // tier >= 5: các đội cùng thua ở round (đã sort theo highest_round DESC ở bước sort)
+        // Lấy finalRound từ matches để xác định tên round
+        $finalRound = (int) Matches::where('tournament_type_id', $tournamentTypeId)
+            ->where('is_third_place', '!=', true)
+            ->max('round');
+
+        if ($finalRound === 0) {
+            return "Vòng {$highestRound}";
+        }
+
+        $distanceFromFinal = $finalRound - $highestRound;
+
+        // Trường hợp KHÔNG có trận tranh hạng 3: 2 đội thua bán kết đều là "Đồng hạng 3"
+        // Đây là trường hợp đặc biệt: thua bán kết (distance = 1) + không có is_third_place
+        if (! $hasThirdPlace && $distanceFromFinal === 1) {
+            return 'Đồng hạng 3';
+        }
+
+        return match ($distanceFromFinal) {
+            0 => 'Chung kết',
+            1 => 'Bán kết',
+            2 => 'Tứ kết',
+            3 => 'Vòng 1/8',
+            4 => 'Vòng 1/16',
+            default => "Vòng {$highestRound}",
+        };
     }
 
     /**
