@@ -18,6 +18,7 @@ use App\Models\TournamentType;
 use App\Models\User;
 use App\Models\UserSportScore;
 use App\Services\BadgeService;
+use App\Services\TournamentType\TournamentRankService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +26,10 @@ use Illuminate\Support\Facades\Auth;
 
 class LeaderboardController extends Controller
 {
+    public function __construct(
+        private TournamentRankService $rankService,
+    ) {}
+
     public function index(Request $request, ?int $tournamentId = null)
     {
         $validated = $request->validate([
@@ -58,6 +63,25 @@ class LeaderboardController extends Controller
         $isFinal = $tournament && $tournament->status === Tournament::CLOSED;
         $hasFee = $tournament && $tournament->has_fee;
 
+        // ✅ Dùng TournamentRankService để lấy rank + label chuẩn theo logic getRank
+        $allRankData = [];
+        foreach ($tournamentTypeIds as $typeId) {
+            $rankData = $this->rankService->rankLabelsByTeam((int) $typeId);
+            foreach ($rankData as $teamId => $labelData) {
+                if (!isset($allRankData[$teamId])) {
+                    $allRankData[$teamId] = $labelData;
+                } else {
+                    // Team có nhiều hơn 1 type → lấy rank tốt nhất (số nhỏ nhất)
+                    if ($labelData['overall_rank'] !== null
+                        && ($allRankData[$teamId]['overall_rank'] === null
+                            || $labelData['overall_rank'] < $allRankData[$teamId]['overall_rank'])) {
+                        $allRankData[$teamId] = $labelData;
+                    }
+                }
+            }
+        }
+
+        // ✅ Build leaderboard với rank + rank_label mới
         $rankings = TeamRanking::with(['team.members'])
             ->whereIn('tournament_type_id', $tournamentTypeIds)
             ->get();
@@ -72,8 +96,7 @@ class LeaderboardController extends Controller
             $tournamentId
         );
 
-        // Preload participant records cho tất cả members thuộc các team trong leaderboard
-        // Filter by payment_status nếu tournament có thu phí
+        // Preload participant records
         $allMemberIds = $rankings
             ->pluck('team.members')
             ->flatten()
@@ -93,27 +116,19 @@ class LeaderboardController extends Controller
 
         $currentUserId = Auth::id();
 
-        $athleteChampionTeamIds = collect($tournamentTypeIds)
-            ->mapWithKeys(fn ($typeId) => [
-                $typeId => $this->getChampionTeamId((int) $typeId),
-            ])
-            ->filter()
-            ->all();
-
         $leaderboard = $rankings
             ->groupBy('team_id')
-            ->map(function ($teamRankings, $teamId) use ($teamStats, $sportId, $participants, $currentUserId, $athleteChampionTeamIds) {
+            ->map(function ($teamRankings, $teamId) use ($teamStats, $participants, $currentUserId, $allRankData) {
                 $firstRanking = $teamRankings->first();
                 $team = $firstRanking->team;
                 $stats = $teamStats[$teamId] ?? ['total_matches' => 0, 'win_rate' => 0, 'total_vndupr' => 0, 'last_round' => null];
                 $lastRound = $stats['last_round'] ?? null;
 
-                $isChampion = $teamRankings->contains(
-                    fn ($r) => isset($athleteChampionTeamIds[(int) $r->tournament_type_id])
-                        && (int) $athleteChampionTeamIds[(int) $r->tournament_type_id] === (int) $teamId
-                );
-
-                $rank = $isChampion ? 1 : $this->resolveFinalRank($teamRankings);
+                // ✅ Lấy rank từ service (đã tính chuẩn)
+                $rankInfo = $allRankData[(int) $teamId] ?? ['overall_rank' => null, 'rank_label' => null, 'is_champion' => false];
+                $rank = $rankInfo['overall_rank'] ?? 1;
+                $rankLabel = $rankInfo['rank_label'] ?? null;
+                $isChampion = $rankInfo['is_champion'] ?? false;
 
                 $tournamentTypes = $teamRankings->map(fn($r) => [
                     'id'   => $r->tournamentType->id,
@@ -144,6 +159,7 @@ class LeaderboardController extends Controller
                 return [
                     'team' => $team,
                     'rank' => $rank,
+                    'rank_label' => $rankLabel,
                     'total_matches' => $stats['total_matches'],
                     'win_rate' => $stats['win_rate'],
                     'last_round' => $lastRound,
@@ -159,7 +175,7 @@ class LeaderboardController extends Controller
                 if ($item['is_champion']) {
                     return 0;
                 }
-                return $item['rank'];
+                return $item['rank'] ?? 999;
             })
             ->values()
             ->map(function ($item, $index) {
@@ -169,11 +185,11 @@ class LeaderboardController extends Controller
                     'id'            => $item['team']->id,
                     'name'          => $item['team']->name,
                     'avatar'        => $item['avatar'],
-                    'total_vndupr'    => $item['total_vndupr'],
+                    'total_vndupr' => $item['total_vndupr'],
                     'members'       => $item['members'],
                     'tournament_types' => $item['tournament_types'],
                     'is_my_team'    => $item['is_my_team'],
-                ], $finalRank, $item['total_matches'], $item['win_rate'], $item['last_round']);
+                ], $finalRank, $item['total_matches'], $item['win_rate'], $item['last_round'], $item['rank_label']);
             })
             ->take($perPage);
 
@@ -229,47 +245,7 @@ class LeaderboardController extends Controller
         $this->loadVnduprAvg($stats, $teamIds, $sportId, $tournamentId);
 
         return $stats;
-    }
-
-    private function resolveFinalRank($teamRankings): int
-    {
-        $rankingsByType = $teamRankings->groupBy(fn($r) => $r->tournamentType->format);
-
-        if (isset($rankingsByType[TournamentType::FORMAT_MIXED]) && $rankingsByType[TournamentType::FORMAT_MIXED]->count() > 1) {
-            // Lấy rank TỐT NHẤT (số nhỏ nhất = thứ hạng cao nhất)
-            return $rankingsByType[TournamentType::FORMAT_MIXED]->min('rank');
-        }
-
-        return $teamRankings->min('rank');
-    }
-
-    private function getChampionTeamId(int $tournamentTypeId): ?int
-    {
-        $finalMatch = Matches::where('tournament_type_id', $tournamentTypeId)
-            ->where('status', 'completed')
-            ->whereNotNull('winner_id')
-            ->where(function ($q) {
-                $q->where('is_third_place', false)
-                  ->orWhereNull('is_third_place');
-            })
-            ->orderByDesc('round')
-            ->orderByDesc('id')
-            ->first();
-
-        if (!$finalMatch) {
-            return null;
-        }
-
-        $winnerId = (int) $finalMatch->winner_id;
-        if ($winnerId !== (int) $finalMatch->home_team_id
-            && $winnerId !== (int) $finalMatch->away_team_id) {
-            return null;
-        }
-
-        return $winnerId;
-    }
-
-    private function loadVnduprAvg(array &$stats, $teamIds, int $sportId, int $tournamentId): void
+    }    private function loadVnduprAvg(array &$stats, $teamIds, int $sportId, int $tournamentId): void
     {
         if (empty($stats)) return;
 
