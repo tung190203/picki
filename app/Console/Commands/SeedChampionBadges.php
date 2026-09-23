@@ -173,6 +173,19 @@ class SeedChampionBadges extends Command
             $this->line("    👑 Winner Team: {$team->name} (ID: {$team->id})");
 
             foreach ($members as $member) {
+                // Skip if member not a valid user (soft-deleted, invalid, etc.)
+                if (!$member->id) {
+                    $this->line("      ⚠️  Member has no ID - skipping");
+                    continue;
+                }
+
+                // Double-check user exists (may be soft-deleted or missing)
+                $userExists = \App\Models\User::withTrashed()->find($member->id);
+                if (!$userExists) {
+                    $this->line("      ⚠️  User ID={$member->id} ({$member->full_name}) not found in users table - skipping");
+                    continue;
+                }
+
                 $alreadyHasBadge = $badgeService->hasBadge($member->id, BadgeType::CHAMPION);
 
                 if ($alreadyHasBadge && !$force) {
@@ -182,8 +195,16 @@ class SeedChampionBadges extends Command
                     if ($dryRun) {
                         $this->line("      🎯 {$member->full_name} (ID: {$member->id}) - WOULD be awarded CHAMPION badge");
                     } else {
-                        $badgeService->grant_champion($member->id, $tournament->created_by);
-                        $this->line("      ✅ {$member->full_name} (ID: {$member->id}) - Awarded CHAMPION badge");
+                        try {
+                            // created_by user might not exist on this environment → fallback to null
+                            $creatorExists = \App\Models\User::withTrashed()->find($tournament->created_by);
+                            $createdBy = $creatorExists ? $tournament->created_by : null;
+                            $badgeService->grant_champion($member->id, $createdBy);
+                            $this->line("      ✅ {$member->full_name} (ID: {$member->id}) - Awarded CHAMPION badge");
+                        } catch (\Throwable $e) {
+                            $this->line("      ❌ {$member->full_name} (ID: {$member->id}) - ERROR: " . $e->getMessage());
+                            continue;
+                        }
                     }
                     $result['awarded']++;
                 }

@@ -327,8 +327,15 @@ class TournamentService
         }
 
         foreach ($winnerTeam->members as $member) {
+            if (!$member->id) continue;
+            // Skip if user not found (may be soft-deleted)
+            $user = \App\Models\User::withTrashed()->find($member->id);
+            if (!$user) continue;
+            // created_by user might not exist on this environment → fallback to null
+            $creatorExists = \App\Models\User::withTrashed()->find($tournament->created_by);
+            $createdBy = $creatorExists ? $tournament->created_by : null;
             // members relation returns User instances → use $member->id
-            app(\App\Services\BadgeService::class)->grant_champion((int) $member->id, $tournament->created_by);
+            app(\App\Services\BadgeService::class)->grant_champion((int) $member->id, $createdBy);
         }
     }
 
