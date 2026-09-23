@@ -29,3 +29,19 @@ export const addMiniTournamentReferee = async (miniTournamentId, userId) => {
 export const removeMiniTournamentStaff = async (miniTournamentId, staffId) => {
   return axiosInstance.delete(`${miniTournamentStaffEndpoint}/${miniTournamentId}/${staffId}`)
 }
+
+/**
+ * Chuyển role cho 1 staff đã có trong kèo.
+ *
+ * RBAC v2: new_role = 1 (Admin), 2 (BTC), 3 (Trọng tài).
+ *
+ * @param {Number} miniTournamentId
+ * @param {Number} staffId - user_id của thành viên
+ * @param {Number} newRole - 1|2|3
+ */
+export const updateMiniTournamentStaffRole = async (miniTournamentId, staffId, newRole) => {
+  return axiosInstance.patch(`${miniTournamentStaffEndpoint}/update/${miniTournamentId}`, {
+    staff_id: staffId,
+    new_role: newRole,
+  }).then((response) => response.data)
+}
