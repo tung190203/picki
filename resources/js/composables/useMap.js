@@ -289,18 +289,12 @@ export function useMap() {
       window.addEventListener('resize', resizeHandler);
     });
 
-    // Auto-switch map style when theme changes (only if user hasn't picked a custom layer)
+    // Auto-switch map style when theme changes
     watch(isDark, (dark) => {
       if (!map) return;
-      // Skip if user explicitly picked dark/night layer (those are theme-locked)
-      if (activeLayerId === 'dark' || activeLayerId === 'navigation') {
-        const current = activeLayerId === 'dark' ? MAP_STYLES.dark : (dark ? MAP_STYLES.navigationNight : MAP_STYLES.navigation);
-        map.setStyle(current);
-        map.once('styledata', () => {
-          Object.values(goongMarkers).forEach((m) => m.addTo(map));
-        });
-        return;
-      }
+      // Skip if user explicitly picked a locked dark/night layer
+      if (activeLayerId === 'dark' || activeLayerId === 'navigationNight') return;
+
       const newStyle = dark ? MAP_STYLES.dark : MAP_STYLES.street;
       map.setStyle(newStyle);
       map.once('styledata', () => {
@@ -373,8 +367,9 @@ export function useMap() {
     if (!map) return;
     const layers = [
       { id: 'street', label: 'Mặc định', icon: '🗺️', style: () => MAP_STYLES.street },
-      { id: 'navigation', label: 'Bản đồ đường', icon: '🚗', style: () => (isDark.value ? MAP_STYLES.navigationNight : MAP_STYLES.navigation) },
-      { id: 'dark', label: 'Ban đêm', icon: '🌙', style: () => MAP_STYLES.dark },
+      { id: 'navigation', label: 'Đường ban ngày', icon: '🚗', style: () => MAP_STYLES.navigation },
+      { id: 'navigationNight', label: 'Đường ban đêm', icon: '🌙', style: () => MAP_STYLES.navigationNight },
+      { id: 'dark', label: 'Ban đêm', icon: '🌑', style: () => MAP_STYLES.dark },
     ];
 
     let open = false;
