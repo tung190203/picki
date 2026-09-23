@@ -16,8 +16,8 @@
     <!-- Rankings -->
     <div class="bg-gray-100 dark:bg-[#1E293B] rounded-lg shadow overflow-hidden">
       <!-- Header Row -->
-      <div class="grid grid-cols-[40px_1fr_80px_80px] bg-gray-200 dark:bg-slate-700 px-4 py-2 text-gray-600 dark:text-slate-200 font-semibold text-sm">
-        <span>#</span>
+      <div class="grid grid-cols-[80px_1fr_80px_80px] bg-gray-200 dark:bg-slate-700 px-4 py-2 text-gray-600 dark:text-slate-200 font-semibold text-sm">
+        <span>Hạng</span>
         <span>Đội</span>
         <span class="text-center">Điểm</span>
         <span class="text-center">Hiệu số</span>
@@ -28,9 +28,9 @@
         <!-- Có dữ liệu -->
         <template v-if="rank.rankings && rank.rankings.length">
           <div v-for="(team, index) in rank.rankings" :key="team.team_id"
-            class="grid grid-cols-[40px_1fr_80px_80px] items-center px-4 py-3 bg-white dark:bg-[#161F33] hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors duration-200 cursor-pointer">
+            class="grid grid-cols-[80px_1fr_80px_80px] items-center px-4 py-3 bg-white dark:bg-[#161F33] hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors duration-200 cursor-pointer">
             <!-- Rank -->
-            <span class="text-gray-700 dark:text-slate-200 font-medium">{{ index + 1 }}</span>
+            <span class="text-gray-700 dark:text-slate-200 font-medium">{{ team.rank_label ?? (team.rank ?? (index + 1)) }}</span>
 
             <!-- Team -->
             <div class="flex items-center gap-2">

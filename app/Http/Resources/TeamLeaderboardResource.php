@@ -11,14 +11,16 @@ class TeamLeaderboardResource extends JsonResource
     private int $totalMatches;
     private float $winRate;
     private int|null $lastRound;
+    private string|null $rankLabel;
 
-    public function __construct(array $data, int $rank, int $totalMatches, float $winRate, int|null $lastRound = null)
+    public function __construct(array $data, int $rank, int $totalMatches, float $winRate, int|null $lastRound = null, ?string $rankLabel = null)
     {
         parent::__construct($data);
         $this->rank = $rank;
         $this->totalMatches = $totalMatches;
         $this->winRate = $winRate;
         $this->lastRound = $lastRound;
+        $this->rankLabel = $rankLabel;
     }
 
     private function formatLastRound(int|null $round): string|null
@@ -44,11 +46,12 @@ class TeamLeaderboardResource extends JsonResource
             'id'               => $team['id'],
             'name'             => $team['name'],
             'avatar_url'       => $team['avatar'],
-            'total_vndupr'       => $team['total_vndupr'],
+            'total_vndupr'     => $team['total_vndupr'],
             'members'          => $team['members'],
             'tournament_types' => $team['tournament_types'] ?? [],
             'is_my_team'       => $team['is_my_team'] ?? false,
             'rank'             => $this->rank,
+            'rank_label'       => $this->rankLabel,
             'total_matches'    => $this->totalMatches,
             'win_rate'         => round($this->winRate, 2),
             'last_round'       => $this->formatLastRound($this->lastRound),
@@ -57,7 +60,7 @@ class TeamLeaderboardResource extends JsonResource
 
     public function __get($key)
     {
-        if (in_array($key, ['rank', 'totalMatches', 'winRate', 'lastRound'])) {
+        if (in_array($key, ['rank', 'totalMatches', 'winRate', 'lastRound', 'rankLabel'])) {
             return $this->$key;
         }
         return $this->resource[$key] ?? null;
