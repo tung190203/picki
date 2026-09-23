@@ -72,11 +72,37 @@
                                     <XCircleIcon v-else class="w-5 h-5" />
                                     {{ props.member?.is_absent ? 'Đã báo vắng' : 'Báo vắng' }}
                                 </button>
-                                <button v-if="!props.member?.is_guest" @click="handleModifyAvatar"
+                            <button v-if="!props.member?.is_guest" @click="handleModifyAvatar"
                                     class="w-full py-2.5 px-4 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition flex items-center justify-center gap-2 font-medium text-sm">
-                                    <CameraIcon class="w-5 h-5" />
-                                    Chụp ảnh tạm thời
+                                <CameraIcon class="w-5 h-5" />
+                                Chụp ảnh tạm thời
+                            </button>
+
+                            <!-- Set role trong kèo (admin / btc / trọng tài) -->
+                            <div v-if="!props.member?.is_guest && canSetRole" class="pt-3 mt-1 border-t border-gray-100">
+                                <p class="text-xs uppercase tracking-wider font-semibold text-gray-500 mb-2">
+                                    Vai trò trong kèo
+                                </p>
+                                <div class="grid grid-cols-3 gap-2 mb-2">
+                                    <button v-for="opt in roleOptions" :key="opt.value"
+                                        type="button"
+                                        @click="selectedRole = opt.value"
+                                        class="py-2 px-2 rounded-lg border text-xs font-semibold transition"
+                                        :class="selectedRole === opt.value
+                                            ? 'bg-[#D72D36] text-white border-[#D72D36]'
+                                            : 'bg-white text-gray-700 border-gray-300 hover:border-[#D72D36] hover:text-[#D72D36]'">
+                                        {{ opt.label }}
+                                    </button>
+                                </div>
+                                <p v-if="!props.member?.current_staff_role" class="text-[11px] text-gray-500 italic mb-2">
+                                    Thành viên này chưa có vai trò trong kèo. Chọn vai trò rồi bấm Thêm.
+                                </p>
+                                <button @click="handleSetRole" :disabled="isSettingRole || !selectedRole || selectedRole === props.member?.current_staff_role"
+                                    class="w-full py-2.5 px-4 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 font-medium text-sm">
+                                    <ShieldCheckIcon class="w-5 h-5" />
+                                    {{ props.member?.current_staff_role ? 'Cập nhật vai trò' : 'Thêm vào ban tổ chức' }}
                                 </button>
+                            </div>
                             </template>
 
                             <!-- Participant actions: Tự check-in / Tự báo vắng (chỉ khi chính mình) -->
@@ -105,10 +131,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { toast } from 'vue3-toastify'
 import {
-    XMarkIcon, UserIcon, CheckIcon, CheckBadgeIcon, XCircleIcon, CameraIcon
+    XMarkIcon, UserIcon, CheckIcon, CheckBadgeIcon, XCircleIcon, CameraIcon, ShieldCheckIcon
 } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
@@ -121,7 +147,7 @@ const props = defineProps({
     miniTournamentId: { type: [Number, String], default: null },
 })
 
-const emit = defineEmits(['update:modelValue', 'view-profile', 'check-in', 'absent', 'self-check-in', 'self-absent', 'admin-confirm', 'modify-avatar'])
+const emit = defineEmits(['update:modelValue', 'view-profile', 'check-in', 'absent', 'self-check-in', 'self-absent', 'admin-confirm', 'modify-avatar', 'set-role'])
 
 const isOpen = computed({
     get: () => props.modelValue,
@@ -255,6 +281,42 @@ const handleAdminConfirm = () => {
 
 const handleModifyAvatar = () => {
     emit('modify-avatar', props.member)
+}
+
+// === Set role (admin / btc / trọng tài) ===
+
+const roleOptions = [
+    { value: 1, label: 'Admin' },
+    { value: 2, label: 'BTC' },
+    { value: 3, label: 'Trọng tài' },
+]
+
+const selectedRole = ref(null)
+const isSettingRole = ref(false)
+
+watch(
+    () => [props.member?.id, props.member?.current_staff_role, props.modelValue],
+    ([, role]) => {
+        // Có role hiện tại → chọn sẵn role đó. Chưa có role → KHÔNG chọn sẵn (null),
+        // buộc admin phải chủ động chọn trước khi bấm Thêm.
+        selectedRole.value = role ?? null
+    },
+    { immediate: true }
+)
+
+const canSetRole = computed(() => props.isCurrentUserOrganizer)
+
+const handleSetRole = async () => {
+    if (!selectedRole.value) {
+        toast.info('Vui lòng chọn vai trò trước.')
+        return
+    }
+    isSettingRole.value = true
+    try {
+        emit('set-role', { member: props.member, role: selectedRole.value })
+    } finally {
+        isSettingRole.value = false
+    }
 }
 </script>
 
