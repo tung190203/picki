@@ -557,14 +557,6 @@
            :miniTournament="mini"
            @success="handleAddGuestSuccess"
        />
-      <DeleteStaffModal
-          v-model="showDeleteStaffModal"
-          :staffId="deleteStaffData.staffId"
-          :guarantor="deleteStaffData.guarantor"
-          :guests="deleteStaffData.guests"
-          :candidates="deleteStaffData.candidates"
-          @confirm="handleConfirmDeleteStaff"
-      />
       <MemberActionModal
           v-model="showMemberActionModal"
           :member="selectedMember"
@@ -580,6 +572,7 @@
           @self-absent="handleMemberSelfAbsent"
           @admin-confirm="handleMemberAdminConfirm"
           @modify-avatar="openUploadAvatarModal"
+          @set-role="handleMemberSetRole"
       />
       <UploadAvatarModal
           v-model="showUploadAvatarModal"
