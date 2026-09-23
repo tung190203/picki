@@ -11,6 +11,10 @@ use Illuminate\Support\Facades\DB;
 
 class TournamentService
 {
+    public function __construct(
+        private \App\Services\TournamentType\TournamentRankService $rankService,
+    ) {}
+
     /**
      * Tính bảng xếp hạng cho một group
      */
@@ -292,6 +296,7 @@ class TournamentService
 
     /**
      * Xác định và cấp CHAMPION badge cho đội vô địch.
+     * Dùng TournamentRankService để xác định champion đúng (cho cả Elimination, Mixed, Round Robin).
      */
     private function awardChampionBadge(Tournament $tournament): void
     {
@@ -300,24 +305,16 @@ class TournamentService
             return;
         }
 
-        $tournamentType->load('groups.matches');
+        // ✅ Dùng TournamentRankService để lấy champion team_id
+        $labels = $this->rankService->rankLabelsByTeam((int) $tournamentType->id);
 
-        if ($tournamentType->isElimination()) {
-            $finalMatch = $tournamentType->groups
-                ->flatMap->matches
-                ->where('round', 4)
-                ->where('status', 'completed')
-                ->first();
-
-            if (!$finalMatch || !$finalMatch->winner_id) {
-                return;
+        // Tìm team có is_champion = true
+        $championTeamId = null;
+        foreach ($labels as $teamId => $info) {
+            if (!empty($info['is_champion'])) {
+                $championTeamId = (int) $teamId;
+                break;
             }
-            $championTeamId = $finalMatch->winner_id;
-        } else {
-            $allMatches = $tournamentType->groups->flatMap->matches;
-            $standings = TournamentService::calculateGroupStandings($allMatches);
-            $championRank = $standings->first();
-            $championTeamId = $championRank['team']['id'] ?? null;
         }
 
         if (!$championTeamId) {
@@ -330,7 +327,8 @@ class TournamentService
         }
 
         foreach ($winnerTeam->members as $member) {
-            app(BadgeService::class)->grant_champion($member->user_id, $tournament->created_by);
+            // members relation returns User instances → use $member->id
+            app(\App\Services\BadgeService::class)->grant_champion((int) $member->id, $tournament->created_by);
         }
     }
 

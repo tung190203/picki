@@ -4,10 +4,10 @@ namespace App\Console\Commands;
 
 use App\Enums\BadgeType;
 use App\Models\Team;
-use App\Models\TeamRanking;
 use App\Models\Tournament;
 use App\Models\TournamentType;
 use App\Services\BadgeService;
+use App\Services\TournamentType\TournamentRankService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -33,7 +33,7 @@ class SeedChampionBadges extends Command
     /**
      * Execute the console command.
      */
-    public function handle(BadgeService $badgeService): int
+    public function handle(BadgeService $badgeService, TournamentRankService $rankService): int
     {
         $dryRun = $this->option('dry-run');
         $tournamentId = $this->option('tournament');
@@ -70,8 +70,8 @@ class SeedChampionBadges extends Command
         $totalNoRanking = 0;
 
         foreach ($tournaments as $tournament) {
-            $result = $this->processTournament($tournament, $badgeService, $dryRun, $force);
-            
+            $result = $this->processTournament($tournament, $badgeService, $rankService, $dryRun, $force);
+
             $totalChampionsAwarded += $result['awarded'];
             $totalAlreadyAwarded += $result['already_awarded'];
             $totalNoRanking += $result['no_ranking'];
@@ -108,15 +108,16 @@ class SeedChampionBadges extends Command
 
     /**
      * Process a single tournament and award champion badges.
-     * 
-     * Uses the same logic as /tournaments/{id}/leaderboard API:
-     * - Get tournament_type_ids from tournament
-     * - Get teams with rank = 1 from team_rankings
-     * - Award badges to all members of winning teams
+     *
+     * Uses TournamentRankService (same logic as /tournament-types/{id}/rank):
+     * - Get tournament_type_id from tournament
+     * - Use rankLabelsByTeam() to identify champion (is_champion = true)
+     * - Award badges to all members of winning team
      */
     protected function processTournament(
         Tournament $tournament,
         BadgeService $badgeService,
+        TournamentRankService $rankService,
         bool $dryRun,
         bool $force
     ): array {
@@ -135,15 +136,19 @@ class SeedChampionBadges extends Command
             return $result;
         }
 
-        // Get teams with rank = 1 (winners) from team_rankings
-        // This is the same logic as the leaderboard API
-        $winnerRankings = TeamRanking::with(['team.members'])
-            ->whereIn('tournament_type_id', $tournamentTypeIds)
-            ->where('rank', 1)
-            ->get();
+        // ✅ Dùng TournamentRankService để lấy champion team đúng theo logic bracket
+        $winnerTeams = collect();
+        foreach ($tournamentTypeIds as $typeId) {
+            $labels = $rankService->rankLabelsByTeam((int) $typeId);
+            foreach ($labels as $teamId => $info) {
+                if (!empty($info['is_champion'])) {
+                    $winnerTeams->push((int) $teamId);
+                }
+            }
+        }
 
-        if ($winnerRankings->isEmpty()) {
-            $this->line("  ⚠️  Tournament #{$tournament->id} ({$tournament->name}): No ranking data (rank=1 teams)");
+        if ($winnerTeams->isEmpty()) {
+            $this->line("  ⚠️  Tournament #{$tournament->id} ({$tournament->name}): No champion team found");
             $result['no_ranking']++;
             return $result;
         }
@@ -151,8 +156,8 @@ class SeedChampionBadges extends Command
         $this->newLine();
         $this->line("  🏆 Tournament: {$tournament->name} (ID: {$tournament->id})");
 
-        foreach ($winnerRankings as $ranking) {
-            $team = $ranking->team;
+        foreach ($winnerTeams as $teamId) {
+            $team = Team::with('members')->find($teamId);
 
             if (!$team) {
                 continue;
@@ -177,7 +182,7 @@ class SeedChampionBadges extends Command
                     if ($dryRun) {
                         $this->line("      🎯 {$member->full_name} (ID: {$member->id}) - WOULD be awarded CHAMPION badge");
                     } else {
-                        $badgeService->grant_champion($member->id);
+                        $badgeService->grant_champion($member->id, $tournament->created_by);
                         $this->line("      ✅ {$member->full_name} (ID: {$member->id}) - Awarded CHAMPION badge");
                     }
                     $result['awarded']++;

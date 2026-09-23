@@ -45,7 +45,6 @@ import PromotionModal from '@/components/organisms/PromotionModal.vue'
 import MiniTournamentPaymentModal from '@/components/pages/mini-tournament/partials/MiniTournamentPaymentModal.vue'
 import MiniTournamentSubmitReceiptModal from '@/components/pages/mini-tournament/partials/MiniTournamentSubmitReceiptModal.vue'
 import AddGuestModal from '@/components/pages/mini-tournament/partials/AddGuestModal.vue'
-import DeleteStaffModal from '@/components/molecules/DeleteStaffModal.vue'
 import MemberActionModal from '@/components/molecules/MemberActionModal.vue'
 import UploadAvatarModal from '@/components/molecules/UploadAvatarModal.vue'
 import {
@@ -92,7 +91,6 @@ export default {
         MiniTournamentPaymentModal,
         MiniTournamentSubmitReceiptModal,
         AddGuestModal,
-        DeleteStaffModal,
         MegaphoneIcon,
         MemberActionModal,
         UploadAvatarModal,
@@ -133,16 +131,9 @@ export default {
         const showPaymentModal = ref(false)
         const showSubmitPaymentModal = ref(false)
         const showAddGuestModal = ref(false)
-        const showDeleteStaffModal = ref(false)
         const showShareCardModal = ref(false)
         const showUploadAvatarModal = ref(false)
         const selectedMemberForAvatar = ref(null)
-        const deleteStaffData = ref({
-            staffId: null,
-            guarantor: null,
-            guests: [],
-            candidates: [],
-        })
 
         const isDescriptionChanged = computed(() => {
             return descriptionModel.value !== mini.value.description;
@@ -435,12 +426,49 @@ export default {
                     is_absent: param.is_absent || false,
                     is_guest: isGuest,
                     is_virtual: Boolean(param.is_virtual),
+                    current_staff_role: lookupCurrentStaffRole(realUserId),
                     user: realUserId ? { id: realUserId, full_name: param.user?.full_name || param.name, avatar_url: param.user?.avatar_url || param.avatar } : null
                 }
             } else {
                 selectedMember.value = { id: param, participant_id: param }
             }
             showMemberActionModal.value = true
+        }
+
+        // Tra cứu role hiện tại của user trong staff list (organizer/staff/referee)
+        const lookupCurrentStaffRole = (userId) => {
+            if (!userId || !mini.value?.staff) return null
+            const all = [
+                ...(mini.value.staff.organizer ?? []),
+                ...(mini.value.staff.staff ?? []),
+                ...(mini.value.staff.referee ?? []),
+            ]
+            const row = all.find((s) => s?.user?.id === userId)
+            return row?.role ?? null
+        }
+
+        const handleMemberSetRole = async ({ member, role }) => {
+            if (!member || !role) return
+            const targetUserId = member.user?.id || member.userId
+            if (!targetUserId) {
+                toast.error('Không xác định được user cần gán vai trò.')
+                return
+            }
+            try {
+                if (member.current_staff_role) {
+                    // Đã là staff → cập nhật role
+                    await MiniTournamentStaffService.updateMiniTournamentStaffRole(id, targetUserId, role)
+                    toast.success('Đã cập nhật vai trò thành công')
+                } else {
+                    // Chưa là staff → thêm mới
+                    await MiniTournamentStaffService.addMiniTournamentStaff(id, targetUserId, role)
+                    toast.success('Đã thêm vào ban tổ chức')
+                }
+                showMemberActionModal.value = false
+                await detailMiniTournament(id)
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Cập nhật vai trò thất bại')
+            }
         }
 
         const handleMemberViewProfile = (member) => {
@@ -674,29 +702,20 @@ export default {
         }
 
         const handleRemoveStaff = async (staffId, staffUserId, staffName, staffAvatar) => {
-            try {
-                const response = await MiniParticipantService.deleteStaff(staffId);
-                // Nếu staff có guest bảo lãnh, API trả về thông tin để hiển thị modal
-                if (response?.data?.has_guaranteed_guests) {
-                    const data = response.data;
-                    deleteStaffData.value = {
-                        staffId,
-                        guarantor: {
-                            full_name: data.guarantor_name,
-                            avatar_url: staffAvatar,
-                        },
-                        guests: data.guaranteed_guests || [],
-                        candidates: data.guarantor_candidates || [],
-                    };
-                    showDeleteStaffModal.value = true;
-                    return;
-                }
-                toast.success('Đã xóa người tổ chức khỏi kèo đấu');
-                await detailMiniTournament(id);
-            } catch (error) {
-                toast.error(error.response?.data?.message || 'Xóa người tổ chức thất bại');
+            // Xoá role trong kèo (không xoá user khỏi participant list).
+            // staffId ở đây là MiniTournamentStaff.id (pivot row id) từ UserCard :id="item.id".
+            if (!staffId) {
+                toast.error('Không xác định được thành viên ban tổ chức cần xoá.')
+                return
             }
-        };
+            try {
+                await MiniTournamentStaffService.removeMiniTournamentStaff(id, staffId)
+                toast.success(`Đã xoá ${staffName || 'thành viên'} khỏi ban tổ chức`)
+                await detailMiniTournament(id)
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Xoá vai trò thất bại')
+            }
+        }
 
         const handleRemoveUser = async (data) => {
             // Support both old format (id only) and new format (object)
@@ -707,17 +726,6 @@ export default {
                 await detailMiniTournament(id);
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Xóa người chơi thất bại');
-            }
-        };
-
-        const handleConfirmDeleteStaff = async ({ staffId, action, newGuarantorUserId }) => {
-            try {
-                await MiniParticipantService.deleteStaff(staffId, action, newGuarantorUserId);
-                toast.success('Đã xóa người tổ chức khỏi kèo đấu');
-                showDeleteStaffModal.value = false;
-                await detailMiniTournament(id);
-            } catch (error) {
-                toast.error(error.response?.data?.message || 'Xóa người tổ chức thất bại');
             }
         };
 
@@ -1175,9 +1183,6 @@ export default {
             openSubmitPaymentModal,
             showAddGuestModal,
             openAddGuestModal,
-            showDeleteStaffModal,
-            deleteStaffData,
-            handleConfirmDeleteStaff,
             handlePaymentButtonClick,
             toast,
             allParticipants,
@@ -1207,6 +1212,7 @@ export default {
             handleMemberSelfCheckIn,
             handleMemberSelfAbsent,
             handleMemberAdminConfirm,
+            handleMemberSetRole,
             isCurrentUserParticipant,
             showUploadAvatarModal,
             selectedMemberForAvatar,
