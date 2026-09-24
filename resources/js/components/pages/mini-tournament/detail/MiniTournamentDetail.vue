@@ -337,16 +337,29 @@ export default {
             return mini.value.participants.filter(p => p.is_absent && !p.is_declined)
         })
 
-        // Người tham gia: tất cả user + guest đã thanh toán (payment_status = confirmed) - dùng cho hiển thị
+        // Người tham gia: đã thanh toán (hoặc kèo không thu phí) - dùng cho hiển thị
+        // Tránh overlap với unpaidParticipants: chỉ hiển thị user đã thanh toán
         const displayedParticipants = computed(() => {
-            return allParticipants.value
+            if (!mini.value?.participants) return []
+            return mini.value.participants.filter(
+                p => p.is_confirmed === true
+                && p.payment_status === 'confirmed'
+                && !p.checked_in_at
+                && !p.is_absent
+                && !p.is_declined
+            )
         })
 
-        // Chưa thanh toán: user và guest đã tham gia (is_confirmed) nhưng chưa thanh toán
+        // Chưa thanh toán: user đã xác nhận tham gia nhưng chưa thanh toán VÀ chưa check-in
+        // Tránh overlap với displayedParticipants/checkedInParticipants: loại trừ đã check-in
         const unpaidParticipants = computed(() => {
             if (!mini.value?.participants) return []
             return mini.value.participants.filter(
-                p => p.is_confirmed === true && p.payment_status !== 'confirmed' && !p.is_declined
+                p => p.is_confirmed === true
+                && p.payment_status !== 'confirmed'
+                && !p.checked_in_at
+                && !p.is_absent
+                && !p.is_declined
             )
         })
 
@@ -406,6 +419,52 @@ export default {
 
         const showMemberActionModal = ref(false)
         const selectedMember = ref(null)
+
+        // Dialog xác nhận xóa tất cả
+        const showDeleteAllConfirm = ref(false)
+        const deleteAllTarget = ref([])
+        const deleteAllCount = ref(0)
+        const isDeletingAll = ref(false)
+
+        const openDeleteAllConfirm = (participants) => {
+            if (!participants || participants.length === 0) {
+                toast.warning('Không có người chơi nào để xóa')
+                return
+            }
+            deleteAllTarget.value = participants
+            deleteAllCount.value = participants.length
+            showDeleteAllConfirm.value = true
+        }
+
+        const closeDeleteAllConfirm = () => {
+            if (isDeletingAll.value && deleteAllTarget.value.length > 0) return
+            showDeleteAllConfirm.value = false
+            deleteAllTarget.value = []
+            deleteAllCount.value = 0
+            isDeletingAll.value = false
+        }
+
+        const confirmDeleteAll = async () => {
+            isDeletingAll.value = true
+            const participantIds = deleteAllTarget.value.map(p => p.id)
+            try {
+                await MiniTournamnetService.deleteAllParticipants(participantIds)
+                toast.success(`Đã xóa ${participantIds.length} người chơi`)
+                showDeleteAllConfirm.value = false
+                deleteAllTarget.value = []
+                deleteAllCount.value = 0
+                isDeletingAll.value = false
+            } catch (error) {
+                toast.error(error.response?.data?.message || 'Xóa thất bại')
+                isDeletingAll.value = false
+                return
+            }
+            try {
+                await detailMiniTournament(id)
+            } catch (e) {
+                // bỏ qua lỗi refresh
+            }
+        }
 
         const openMemberActionModal = (param) => {
             if (param && typeof param === 'object') {
@@ -1038,24 +1097,8 @@ export default {
             }
         }
 
-        const handleDeleteAll = async (participants) => {
-            if (!participants || participants.length === 0) {
-                toast.warning('Không có người chơi nào để xóa')
-                return
-            }
-            
-            if (!confirm(`Bạn có chắc muốn xóa ${participants.length} người chơi?`)) {
-                return
-            }
-            
-            try {
-                const participantIds = participants.map(p => p.id)
-                await MiniTournamnetService.deleteAllParticipants(participantIds)
-                toast.success(`Đã xóa ${participantIds.length} người chơi`)
-                await detailMiniTournament(id)
-            } catch (error) {
-                toast.error(error.response?.data?.message || 'Xóa thất bại')
-            }
+        const handleDeleteAll = (participants) => {
+            openDeleteAllConfirm(participants)
         }
 
         onMounted(async () => {
@@ -1208,6 +1251,11 @@ export default {
             openMemberActionModal,
             handleMemberViewProfile,
             handleMemberCheckIn,
+            showDeleteAllConfirm,
+            deleteAllCount,
+            isDeletingAll,
+            closeDeleteAllConfirm,
+            confirmDeleteAll,
             handleMemberAbsent,
             handleMemberSelfCheckIn,
             handleMemberSelfAbsent,
