@@ -809,8 +809,8 @@ class TournamentRankService
                 $wins++;
                 $totalPoints += 2;
             } else {
+                // ponytail: thua = 0 điểm xếp hạng (giống GroupStandingRanker)
                 $losses++;
-                $totalPoints += max(0, $totalPoints);
             }
         }
 
