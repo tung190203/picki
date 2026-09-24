@@ -366,17 +366,17 @@ export function useMap() {
   function setupLayerSwitcher() {
     if (!map) return;
     const layers = [
-      { id: 'street', label: 'Mặc định', icon: '🗺️', style: () => MAP_STYLES.street },
-      { id: 'navigation', label: 'Đường ban ngày', icon: '🚗', style: () => MAP_STYLES.navigation },
-      { id: 'navigationNight', label: 'Đường ban đêm', icon: '🌙', style: () => MAP_STYLES.navigationNight },
-      { id: 'dark', label: 'Ban đêm', icon: '🌑', style: () => MAP_STYLES.dark },
-    ];
+      { id: 'street', label: 'Mặc định' },
+      { id: 'navigation', label: 'Đường ban ngày' },
+      { id: 'navigationNight', label: 'Đường ban đêm' },
+      { id: 'dark', label: 'Ban đêm' },
+    ].map((l) => ({ ...l, icon: '', style: () => MAP_STYLES[l.id] }));
 
     let open = false;
     let menuEl = null;
 
     const fab = document.createElement('button');
-    fab.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#334155" style="width: 20px; height: 20px; margin: auto; display: block;"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 9l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" /></svg>`;
+    fab.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#334155" style="width: 20px; height: 20px; margin: auto; display: block;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" /></svg>`;
     fab.title = 'Chọn lớp bản đồ';
     fab.style.cssText = buttonBaseStyle;
     fab.onmouseenter = () => (fab.style.backgroundColor = '#f1f5f9');
@@ -403,7 +403,7 @@ export function useMap() {
         const row = document.createElement('button');
         const isActive = l.id === activeLayerId;
         row.style.cssText = `display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; background: ${isActive ? '#fef2f2' : 'white'}; border: none; cursor: pointer; font-size: 13px; color: ${isActive ? '#af101a' : '#374151'}; text-align: left; font-weight: ${isActive ? '600' : '500'};`;
-        row.innerHTML = `<span style="font-size: 16px;">${l.icon}</span><span>${l.label}</span>${isActive ? '<span style="margin-left: auto; color: #af101a;">✓</span>' : ''}`;
+        row.innerHTML = `<span>${l.label}</span>${isActive ? '<span style="margin-left: auto; color: #af101a;">✓</span>' : ''}`;
         row.onmouseenter = () => { if (!isActive) row.style.backgroundColor = '#f1f5f9'; };
         row.onmouseleave = () => { row.style.backgroundColor = isActive ? '#fef2f2' : 'white'; };
         row.onclick = () => {
@@ -464,7 +464,7 @@ export function useMap() {
       currentLocationMarker = null;
     }
     if (map) {
-      map.flyTo(DEFAULT_CENTER, DEFAULT_ZOOM, { duration: 800 });
+      map.flyTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM, duration: 800 });
     }
   };
 
@@ -479,7 +479,7 @@ export function useMap() {
         const lng = position.coords.longitude;
         const lat = position.coords.latitude;
 
-        if (map) map.flyTo([lng, lat], 16, { duration: 800 });
+        if (map) map.flyTo({ center: [lng, lat], zoom: 16, duration: 800 });
 
         if (currentLocationMarker) {
           currentLocationMarker.remove();
@@ -561,7 +561,7 @@ export function useMap() {
       isFocusing = true;
       isUserInteraction = false;
       const lngLat = marker.getLngLat();
-      map.flyTo([lngLat.lng, lngLat.lat], 17, { duration: 800 });
+      map.flyTo({ center: [lngLat.lng, lngLat.lat], zoom: 17, duration: 800 });
       setTimeout(() => {
         if (marker.getPopup()) marker.togglePopup();
       }, 900);
@@ -576,7 +576,7 @@ export function useMap() {
       isFocusing = true;
       isUserInteraction = false;
       const lngLat = marker.getLngLat();
-      if (map) map.flyTo([lngLat.lng, lngLat.lat], 17, { duration: 800 });
+      if (map) map.flyTo({ center: [lngLat.lng, lngLat.lat], zoom: 17, duration: 800 });
       setTimeout(() => {
         if (marker.getPopup()) marker.togglePopup();
       }, 900);
