@@ -84,9 +84,11 @@ class TournamentRankService
     {
         $result = $this->compute($tournamentTypeId);
         $out = [];
-        // overall_rankings đã sorted đúng thứ tự → dùng position làm rank
+        $prevRank = 0;
+        // overall_rankings đã sorted đúng thứ tự - dùng rank đã tính sẵn
+        // (rankPos + 1 chỉ là position, không tính đồng hạng skip)
         foreach ($result['overall_rankings'] as $rankPos => $r) {
-            $actualRank = $rankPos + 1;
+            $actualRank = (int) ($r['overall_rank'] ?? ($rankPos + 1));
             $out[(int) $r['team_id']] = [
                 'overall_rank' => $actualRank,
                 'rank_label' => $r['rank_label'] ?? "Hạng {$actualRank}",
@@ -363,6 +365,7 @@ class TournamentRankService
 
             // Gán overall_rank: bracket teams dùng computeOverallRank, non-bracket gán sau
             $maxBracketRank = 0;
+            $bracketRanks = []; // đếm đồng hạng: nếu có N teams cùng rank R thì next phải là R + N (Olympic convention)
             $nonBracketTeams = [];
             $rankedItems = [];
 
@@ -371,6 +374,7 @@ class TournamentRankService
                 if ($rank !== null) {
                     $item['overall_rank'] = $rank;
                     $maxBracketRank = max($maxBracketRank, $rank);
+                    $bracketRanks[] = $rank;
                     $rankedItems[] = $item;
                 } else {
                     $nonBracketTeams[] = [
@@ -384,7 +388,11 @@ class TournamentRankService
             }
             unset($item);
 
-            $nonBracketAssignments = $this->assignRanksForNonBracketTeams($nonBracketTeams, $maxBracketRank + 1);
+            // ✅ Olympic convention: nếu 2 teams đồng hạng 3, next rank = 5 (skip 4)
+            // Nếu chỉ 1 team ở maxBracketRank, next = maxBracketRank + 1
+            $tieCount = count(array_filter($bracketRanks, fn($r) => $r === $maxBracketRank));
+            $startRank = $maxBracketRank + $tieCount;
+            $nonBracketAssignments = $this->assignRanksForNonBracketTeams($nonBracketTeams, $startRank);
 
             foreach ($nonBracketTeams as $nb) {
                 $rank = $nonBracketAssignments[(int) $nb['team_id']] ?? 999;

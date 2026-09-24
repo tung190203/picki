@@ -47,7 +47,8 @@ return [
                 'activity_timeout' => 30000,
             ],
             'client_options' => [
-                // Guzzle client options: https://docs.guzzlephp.org/en/stable/request-options.html
+                // Fix SSL certificate issue on Windows local dev (cURL error 60)
+                'verify' => env('CURL_CERT_PATH') ?: true,
             ],
         ],
 
