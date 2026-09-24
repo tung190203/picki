@@ -17,6 +17,17 @@
                             <h2 class="text-lg font-bold text-gray-900 leading-7">Nhập điểm trọng tài</h2>
                             <p class="text-xs text-gray-500 truncate uppercase font-medium tracking-wide">TỨ KẾT: {{ tournamentLabel }}</p>
                         </div>
+                        <button
+                            v-if="isLive && matchId"
+                            @click="refreshFromServer"
+                            :disabled="isRefreshing"
+                            class="absolute right-4 text-gray-600 hover:text-[#5493E3] transition-colors p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+                            title="Refresh điểm"
+                        >
+                            <svg :class="['w-5 h-5', isRefreshing && 'animate-spin']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                        </button>
                     </div>
 
                     <!-- Body -->
@@ -376,6 +387,7 @@ import Ball from '@/assets/images/ball.svg'
 import Hourglass from '@/assets/images/hourglass.svg'
 import { useUserStore } from '@/store/auth'
 import * as ScoreApi from '@/service/scoreApi.js'
+import { detailMatches } from '@/service/match.js'
 
 const userStore = useUserStore()
 const { getUser } = storeToRefs(userStore)
@@ -454,6 +466,7 @@ const liveStatus = ref('waiting')
 
 // Echo subscription
 let echoChannel = null
+const isRefreshing = ref(false)
 
 const canStartMatch = computed(() => {
     const team = servingTeam.value
@@ -653,6 +666,42 @@ const syncFromRemote = (remoteData) => {
                 }
             }
         })
+    }
+}
+
+// Manual refresh from server (fallback when Echo fails)
+const refreshFromServer = async () => {
+    if (!props.matchId || isRefreshing.value) return
+
+    isRefreshing.value = true
+    try {
+        const data = await detailMatches(props.matchId)
+        if (data.results) {
+            const sets = data.results
+                .filter(r => r.team_id === props.team1?.id || r.team_id === props.team1?.team_id)
+                .sort((a, b) => a.set_number - b.set_number)
+                .map(r => ({
+                    team1: Number(r.team_score),
+                    team2: Number(r.opponent_score),
+                }))
+            if (sets.length > 0) {
+                allSets.value = sets
+                currentSetIndex.value = sets.length - 1
+                activeSetIndex.value = currentSetIndex.value
+            }
+        }
+        if (data.live_status) {
+            liveStatus.value = data.live_status
+        }
+        if (data.serving_team_id) {
+            servingTeam.value = (data.serving_team_id == (props.team1?.id || props.team1?.team_id)) ? 'team1' : 'team2'
+        }
+        toast.success('Đã cập nhật điểm mới nhất')
+    } catch (err) {
+        console.error('[Refresh] Lỗi khi refresh:', err)
+        toast.error('Không thể cập nhật điểm')
+    } finally {
+        isRefreshing.value = false
     }
 }
 
@@ -891,7 +940,14 @@ const setupEcho = () => {
     if (!props.isLive || !props.matchId || !window.Echo) return
 
     echoChannel = window.Echo.private(`match.${props.matchId}`)
+
+    // Log trạng thái kết nối
+    echoChannel
+        .subscribed(() => console.log('[Echo] Đã kết nối channel trận đấu', props.matchId))
+        .error((err) => console.error('[Echo] Lỗi kết nối:', err))
+
     echoChannel.listen('match.score_updated', (data) => {
+        console.log('[Echo] Nhận cập nhật điểm từ server:', data)
         syncFromRemote(data)
     })
 }
