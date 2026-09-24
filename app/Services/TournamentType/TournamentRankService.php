@@ -807,7 +807,7 @@ class TournamentRankService
                 $draws++;
             } elseif ((int) $leg->winner_id === (int) $teamId) {
                 $wins++;
-                $totalPoints += 2;
+                $totalPoints += 3;
             } else {
                 // ponytail: thua = 0 điểm xếp hạng (giống GroupStandingRanker)
                 $losses++;
