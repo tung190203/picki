@@ -17,8 +17,8 @@ class SponsorResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'logo_url' => $this->logo_url,
-            'logo_dark_url' => $this->logo_dark_url,
+            'logo_url' => $this->formatImageUrl($this->logo_url),
+            'logo_dark_url' => $this->formatImageUrl($this->logo_dark_url),
             'website_url' => $this->website_url,
             'display_order' => $this->display_order,
             'is_active' => (bool) $this->is_active,
@@ -29,5 +29,21 @@ class SponsorResource extends JsonResource
                 'full_name' => $this->creator->full_name,
             ] : null,
         ];
+    }
+
+    /**
+     * Trả về URL đầy đủ cho ảnh logo
+     */
+    private function formatImageUrl(?string $url): ?string
+    {
+        if (empty($url)) {
+            return null;
+        }
+
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            return $url;
+        }
+
+        return asset('storage/' . ltrim($url, '/'));
     }
 }

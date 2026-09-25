@@ -616,8 +616,23 @@ const buildPayload = (statusOverride) => ({
     live_status: statusOverride ?? liveStatus.value,
 })
 
-// Call API and update live status on success
-const callUpdate = async (payload) => {
+// Call API and update live status on success.
+// Debounced 250ms để gộp các cú click nhanh (đặc biệt khi user bấm +1 liên tục)
+// → giảm số broadcast event xuống BE + giảm tải Pusher.
+let _callUpdateTimer = null
+let _lastCallUpdatePayload = null
+const callUpdate = (payload) => {
+    _lastCallUpdatePayload = payload
+    if (_callUpdateTimer) return
+    _callUpdateTimer = setTimeout(() => {
+        _callUpdateTimer = null
+        const p = _lastCallUpdatePayload
+        _lastCallUpdatePayload = null
+        if (p) _callUpdate(p)
+    }, 250)
+}
+
+const _callUpdate = async (payload) => {
     if (!props.matchId) return
     try {
         let res
@@ -935,18 +950,21 @@ const goBack = () => {
     }
 }
 
-// Setup Echo subscription for live updates
+// Setup Echo subscription for live updates.
+// Channel match.{id} là PUBLIC (routes/channels.php return true) → dùng .channel(),
+// không cần Bearer token. Đổi từ .private() → .channel() để:
+//   1. Không gọi /api/broadcasting/auth (gây 401 + reconnect loop khi chưa login)
+//   2. Tránh nhầm pattern listen (cần dấu chấm prefix khi channel public)
 const setupEcho = () => {
     if (!props.isLive || !props.matchId || !window.Echo) return
 
-    echoChannel = window.Echo.private(`match.${props.matchId}`)
+    echoChannel = window.Echo.channel(`match.${props.matchId}`)
 
-    // Log trạng thái kết nối
     echoChannel
         .subscribed(() => console.log('[Echo] Đã kết nối channel trận đấu', props.matchId))
         .error((err) => console.error('[Echo] Lỗi kết nối:', err))
 
-    echoChannel.listen('match.score_updated', (data) => {
+    echoChannel.listen('.match.score_updated', (data) => {
         console.log('[Echo] Nhận cập nhật điểm từ server:', data)
         syncFromRemote(data)
     })
@@ -954,7 +972,7 @@ const setupEcho = () => {
 
 const cleanupEcho = () => {
     if (echoChannel) {
-        echoChannel.stopListening('match.score_updated')
+        echoChannel.stopListening('.match.score_updated')
         window.Echo.leave(`match.${props.matchId}`)
         echoChannel = null
     }
@@ -997,5 +1015,14 @@ onMounted(() => {
 onBeforeUnmount(() => {
     cleanupEcho()
     if (timeoutInterval) clearInterval(timeoutInterval)
+    if (_callUpdateTimer) {
+        clearTimeout(_callUpdateTimer)
+        _callUpdateTimer = null
+        // flush pending update khi thoát
+        if (_lastCallUpdatePayload) {
+            _callUpdate(_lastCallUpdatePayload)
+            _lastCallUpdatePayload = null
+        }
+    }
 })
 </script>

@@ -507,7 +507,12 @@ onMounted(async () => {
 
     tickStart.value = Date.now()
 
-    // Echo real-time subscription for public view (no auth required)
+    // Echo real-time subscription for public view (no auth required).
+    // match.{id} được broadcast trên Channel (public) — không cần auth.
+    // Nếu bootstrap chưa tạo Echo (user chưa login), khởi tạo không gửi Bearer header.
+    if (!window.Echo && typeof window.initEcho === 'function') {
+        window.initEcho(null)
+    }
     if (matchId && window.Echo) {
         echoChannel = window.Echo.channel(`match.${matchId}`)
         echoChannel.listen('.match.score_updated', (data) => {
@@ -519,13 +524,12 @@ onMounted(async () => {
                 serving_team_id: data.serving_team_id,
                 team1_timeout_used: data.team1_timeout_used,
                 team2_timeout_used: data.team2_timeout_used,
-                elapsed_seconds: data.elapsed_seconds ?? matchData.value.elapsed_seconds,
                 version: data.version,
                 sets: data.sets || [],
-                updated_at: data.updated_at || new Date().toISOString(),
-                home_team_confirm: data.home_team_confirm ?? matchData.value.home_team_confirm,
-                away_team_confirm: data.away_team_confirm ?? matchData.value.away_team_confirm,
-                status: data.status ?? matchData.value.status,
+                // elapsed_seconds chỉ dùng để reset baseline tick; nếu BE không gửi (đã tối ưu payload) -> giữ nguyên
+                elapsed_seconds: typeof data.elapsed_seconds === 'number'
+                    ? data.elapsed_seconds
+                    : matchData.value.elapsed_seconds,
             }
             // Reset local tick baseline so we add seconds on top of fresh BE value
             if (typeof data.elapsed_seconds === 'number') {

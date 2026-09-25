@@ -44,13 +44,21 @@ function initEcho(token) {
     });
 }
 
-// Initialize Echo only if a valid token exists
+// Initialize Echo only if a valid token exists.
+// Lý do: bootstrap ban đầu luôn gọi initEcho(null) cho public pages, khiến Echo
+// được tạo với Authorization header "Bearer null". Khi user click vào trang
+// subscribe private channel (match.{id}, chat.{id}, ...), Echo sẽ gọi
+// /api/broadcasting/auth với Bearer null → 401, Pusher reconnect loop → UI chậm.
+// Sửa: chỉ init Echo khi có token hợp lệ. Trang public (live-score) subscribe
+// public channel qua window.Echo.channel() — nếu chưa có Echo, tự khởi tạo
+// không cần auth (xem ensurePublicEcho() ở các trang public).
 const storedToken = localStorage.getItem('access_token');
 if (storedToken && storedToken.trim() !== '') {
     initEcho(storedToken);
 } else {
-    // Initialize Echo for public pages (no auth required)
-    initEcho(null);
+    // Không có token -> KHÔNG init Echo ngay. Trang nào cần public channel
+    // sẽ tự gọi window.initEcho(null) trước khi subscribe.
+    window.initEcho = initEcho;
 }
 
 // Re-init Echo when the token changes (e.g., after login/register)
