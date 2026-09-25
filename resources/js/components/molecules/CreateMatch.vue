@@ -290,15 +290,18 @@ const fetchLiveScore = async () => {
 const setupEchoLiveScore = () => {
     if (!currentLeg.value?.id || !window.Echo) return
     cleanupEchoLiveScore()
-    echoChannel = window.Echo.private(`match.${currentLeg.value.id}`)
-    echoChannel.listen('match.score_updated', (data) => {
+    // Channel match.{id} được đăng ký public trong routes/channels.php
+    // → dùng .channel() (không gọi /broadcasting/auth) để khỏi 401 khi user chưa login
+    // và tránh reconnect loop của Pusher.
+    echoChannel = window.Echo.channel(`match.${currentLeg.value.id}`)
+    echoChannel.listen('.match.score_updated', (data) => {
         liveScore.value = data
     })
 }
 
 const cleanupEchoLiveScore = () => {
     if (echoChannel) {
-        echoChannel.stopListening('match.score_updated')
+        echoChannel.stopListening('.match.score_updated')
         window.Echo.leave(`match.${currentLeg.value?.id}`)
         echoChannel = null
     }

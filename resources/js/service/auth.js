@@ -1,5 +1,5 @@
 import axiosInstance from "@/utils/httpRequest.js";
-import {API_ENDPOINT} from "@/constants/index.js";
+import {API_ENDPOINT, LOCAL_STORAGE_KEY} from "@/constants/index.js";
 
 const authEndpoint = API_ENDPOINT.AUTH;
 const userEndpoint = API_ENDPOINT.USER;
@@ -77,5 +77,11 @@ export const getUserData = async (params = {}) => {
 }
 
 export const getMe = async () => {
-  return axiosInstance.get('/me').then((response) => response.data.data);
+    // Tránh gọi /me khi không có token (trang public như /live-score/tournament/10443)
+    // → 401 không cần thiết, interceptor axios sẽ clear localStorage và redirect login.
+    const token = localStorage.getItem(LOCAL_STORAGE_KEY.LOGIN_TOKEN);
+    if (!token) {
+        return null;
+    }
+    return axiosInstance.get('/me').then((response) => response.data.data);
 }
