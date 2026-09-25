@@ -446,6 +446,14 @@ const handleLogout = async () => {
 };
 
 const loadData = async () => {
+  // Guest (không có token) -> skip. Trang public như /live-score/tournament/10443
+  // có Sidebar nhưng user chưa login. Nếu cứ gọi API sẽ bị 401 → axios interceptor
+  // clear localStorage + redirect login (sai UX).
+  const token = localStorage.getItem('access_token');
+  if (!token) {
+    hasNotification.value = false;
+    return;
+  }
   try {
     const res = await NotificationService.getNotifications({
       type: 'all',
