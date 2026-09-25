@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Events\MatchScoreUpdated;
 use App\Events\MatchScorePublicUpdated;
 use App\Models\MatchResult;
 use App\Models\Matches;
@@ -43,15 +42,14 @@ class MatchScoreService
             );
 
             $match->refresh();
-            $match->load([
-                'homeTeam',
-                'awayTeam',
-                'results' => fn ($q) => $q->where('set_number', $match->current_set),
-                'referee',
-            ]);
+            // Load 'results' cho set 1 để broadcast event có dữ liệu.
+            // Bỏ load homeTeam/awayTeam/referee vì broadcast gọn chỉ cần điểm.
+            $results = $match->results()->where('set_number', 1)->get();
 
-            event(new MatchScoreUpdated($match, $match->results));
-            event(new MatchScorePublicUpdated($match, $match->results));
+            // Chỉ broadcast 1 event (public channel) — ShouldBroadcastNow, sync, không queue.
+            // Trước đây gọi cả MatchScoreUpdated (private) + MatchScorePublicUpdated (public) → 2 broadcast,
+            // cùng tên channel + cùng broadcastAs → FE nhận 2 lần, queue DB chậm 30s+ khi worker lag.
+            event(new MatchScorePublicUpdated($match, $results));
 
             return $this->formatMatchResponse($match);
         });
@@ -103,16 +101,15 @@ class MatchScoreService
 
             $match->update($updateFields);
 
-            $match->refresh();
-            $match->load([
-                'homeTeam',
-                'awayTeam',
-                'results' => fn ($q) => $q->where('set_number', $setNumber),
-                'referee',
-            ]);
+            // Chỉ load 'results' cho set hiện tại — broadcast event chỉ cần điểm số.
+            // Bỏ load homeTeam/awayTeam/referee vì event đã bỏ qua các field này.
+            // Trước đây load đầy đủ → thừa 3 query/click khi user nhập điểm liên tục.
+            $results = $match->results()->where('set_number', $setNumber)->get();
 
-            event(new MatchScoreUpdated($match, $match->results));
-            event(new MatchScorePublicUpdated($match, $match->results));
+            // Chỉ broadcast 1 event (public channel) — ShouldBroadcastNow, sync, không queue.
+            // Trước đây gọi cả MatchScoreUpdated (private) + MatchScorePublicUpdated (public) → 2 broadcast,
+            // cùng tên channel + cùng broadcastAs → FE nhận 2 lần, queue DB chậm 30s+ khi worker lag.
+            event(new MatchScorePublicUpdated($match, $results));
 
             return [
                 'match_id' => $matchId,
