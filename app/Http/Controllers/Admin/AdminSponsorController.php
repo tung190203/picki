@@ -64,8 +64,8 @@ class AdminSponsorController extends Controller
             'is_active' => 'nullable|boolean',
         ]);
 
-        $logoPath = $validated['logo_url'] ?? null;
-        $logoDarkPath = $validated['logo_dark_url'] ?? null;
+        $logoPath = $this->normalizeStoragePath($validated['logo_url'] ?? null);
+        $logoDarkPath = $this->normalizeStoragePath($validated['logo_dark_url'] ?? null);
 
         // Xử lý logo dương bản (nền sáng)
         if ($request->hasFile('logo')) {
@@ -165,13 +165,11 @@ class AdminSponsorController extends Controller
             $path = $file->storeAs('sponsors', $filename, 'public');
 
             // Xóa file cũ
-            if (!empty($sponsor->logo_url) && !str_starts_with($sponsor->logo_url, 'http')) {
-                Storage::disk('public')->delete($sponsor->logo_url);
-            }
+            $this->deleteStorageFile($sponsor->logo_url);
 
             $data['logo_url'] = $path;
         } elseif (!empty($validated['logo_url'])) {
-            $data['logo_url'] = $validated['logo_url'];
+            $data['logo_url'] = $this->normalizeStoragePath($validated['logo_url']);
         }
 
         // Cập nhật logo âm bản (nền tối)
@@ -182,21 +180,17 @@ class AdminSponsorController extends Controller
             $darkPath = $darkFile->storeAs('sponsors', $darkFilename, 'public');
 
             // Xóa file âm bản cũ nếu có
-            if (!empty($sponsor->logo_dark_url) && !str_starts_with($sponsor->logo_dark_url, 'http')) {
-                Storage::disk('public')->delete($sponsor->logo_dark_url);
-            }
+            $this->deleteStorageFile($sponsor->logo_dark_url);
 
             $data['logo_dark_url'] = $darkPath;
         } elseif ($request->exists('logo_dark_url')) {
             $darkVal = $validated['logo_dark_url'] ?? null;
             if (empty($darkVal)) {
                 // Xóa ảnh âm bản cũ nếu admin muốn gỡ
-                if (!empty($sponsor->logo_dark_url) && !str_starts_with($sponsor->logo_dark_url, 'http')) {
-                    Storage::disk('public')->delete($sponsor->logo_dark_url);
-                }
+                $this->deleteStorageFile($sponsor->logo_dark_url);
                 $data['logo_dark_url'] = null;
             } else {
-                $data['logo_dark_url'] = $darkVal;
+                $data['logo_dark_url'] = $this->normalizeStoragePath($darkVal);
             }
         }
 
@@ -248,16 +242,45 @@ class AdminSponsorController extends Controller
      */
     public function destroy(Sponsor $sponsor)
     {
-        if (!empty($sponsor->logo_url) && !str_starts_with($sponsor->logo_url, 'http')) {
-            Storage::disk('public')->delete($sponsor->logo_url);
-        }
-
-        if (!empty($sponsor->logo_dark_url) && !str_starts_with($sponsor->logo_dark_url, 'http')) {
-            Storage::disk('public')->delete($sponsor->logo_dark_url);
-        }
+        $this->deleteStorageFile($sponsor->logo_url);
+        $this->deleteStorageFile($sponsor->logo_dark_url);
 
         $sponsor->delete();
 
         return ResponseHelper::success(null, 'Đã xóa nhãn hàng tài trợ thành công');
+    }
+
+    /**
+     * Chuẩn hoá đường dẫn ảnh về relative path nếu là link local storage
+     */
+    private function normalizeStoragePath(?string $url): ?string
+    {
+        if (empty($url)) {
+            return null;
+        }
+
+        $trimmed = trim($url);
+
+        if (preg_match('#(?:https?://[^/]+)?/storage/(.+)$#i', $trimmed, $matches)) {
+            return ltrim($matches[1], '/');
+        }
+
+        return $trimmed;
+    }
+
+    /**
+     * Xóa file khỏi disk public nếu là file local storage
+     */
+    private function deleteStorageFile(?string $path): void
+    {
+        if (empty($path)) {
+            return;
+        }
+
+        $relativePath = $this->normalizeStoragePath($path);
+
+        if (!empty($relativePath) && !str_starts_with($relativePath, 'http://') && !str_starts_with($relativePath, 'https://')) {
+            Storage::disk('public')->delete($relativePath);
+        }
     }
 }

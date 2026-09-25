@@ -329,8 +329,8 @@ Có 2 cách để lấy danh sách nhãn hàng đang hoạt động (`is_active 
       {
         "id": 1,
         "name": "Wilson Pickleball",
-        "logo_url": "sponsors/sponsor_pos_1725450000_66d8.png",
-        "logo_dark_url": "sponsors/sponsor_neg_1725450000_66d8.png",
+        "logo_url": "https://vpick.app/storage/sponsors/sponsor_pos_1725450000_66d8.png",
+        "logo_dark_url": "https://vpick.app/storage/sponsors/sponsor_neg_1725450000_66d8.png",
         "website_url": "https://www.wilson.com",
         "display_order": 1,
         "is_active": true
@@ -338,7 +338,7 @@ Có 2 cách để lấy danh sách nhãn hàng đang hoạt động (`is_active 
       {
         "id": 2,
         "name": null,
-        "logo_url": "sponsors/sponsor_pos_1725450001_66d9.png",
+        "logo_url": "https://vpick.app/storage/sponsors/sponsor_pos_1725450001_66d9.png",
         "logo_dark_url": null,
         "website_url": null,
         "display_order": 2,
@@ -361,8 +361,8 @@ Có 2 cách để lấy danh sách nhãn hàng đang hoạt động (`is_active 
     {
       "id": 1,
       "name": "Wilson Pickleball",
-      "logo_url": "sponsors/sponsor_pos_1725450000_66d8.png",
-      "logo_dark_url": "sponsors/sponsor_neg_1725450000_66d8.png",
+      "logo_url": "https://vpick.app/storage/sponsors/sponsor_pos_1725450000_66d8.png",
+      "logo_dark_url": "https://vpick.app/storage/sponsors/sponsor_neg_1725450000_66d8.png",
       "website_url": "https://www.wilson.com",
       "display_order": 1,
       "is_active": true,
@@ -376,8 +376,8 @@ Có 2 cách để lấy danh sách nhãn hàng đang hoạt động (`is_active 
 *Mô tả các trường trong Sponsor Object:*
 - `id` *(number)*: ID nhãn hàng.
 - `name` *(string | null)*: Tên nhãn hàng (Tùy chọn / Optional). Nếu không đặt tên sẽ trả về `null`.
-- `logo_url` *(string)*: Đường dẫn ảnh logo dương bản (dành cho nền sáng / Light Mode). Nối với base storage URL: `https://domain.com/storage/{logo_url}`.
-- `logo_dark_url` *(string | null)*: Đường dẫn ảnh logo âm bản (dành cho nền tối / Dark Mode). Nếu nhãn hàng chưa thiết lập ảnh âm bản riêng thì trường này trả về `null`. Nối với base storage URL: `https://domain.com/storage/{logo_dark_url}`.
+- `logo_url` *(string)*: Đường dẫn đầy đủ (Full URL) ảnh logo dương bản (dành cho nền sáng / Light Mode). Client chỉ việc gán trực tiếp vào thẻ `img.src` mà không cần nối thêm domain/prefix.
+- `logo_dark_url` *(string | null)*: Đường dẫn đầy đủ (Full URL) ảnh logo âm bản (dành cho nền tối / Dark Mode). Nếu nhãn hàng chưa thiết lập ảnh âm bản riêng thì trường này trả về `null`.
 - `website_url` *(string | null)*: Đường dẫn liên kết ngoài app / website của nhà tài trợ (Tùy chọn / Optional). Nếu không có sẽ trả về `null`.
 - `display_order` *(number)*: Thứ tự hiển thị ưu tiên (số nhỏ hơn đứng trước).
 - `is_active` *(boolean)*: Trạng thái hiển thị (`true` = Đang hiển thị, `false` = Đang ẩn).
