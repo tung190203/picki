@@ -186,6 +186,14 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
     Route::get('/auth/biometric/list', [AuthController::class, 'listBiometrics']);
     Route::delete('/auth/biometric/{id}', [AuthController::class, 'deleteBiometric']);
 
+    // Chat CLB (phải nằm trong group có auth:api)
+    Route::prefix('clubs/{clubId}/chat')->group(function () {
+        Route::get('/conversation', \App\Http\Controllers\ClubChatController::class.'@conversation');
+        Route::get('/messages', \App\Http\Controllers\ClubChatController::class.'@index');
+        Route::post('/messages', \App\Http\Controllers\ClubChatController::class.'@store');
+    });
+});
+
 Route::prefix('clubs')->middleware(['performance'])->group(function () {
     Route::get('/', [ClubController::class, 'index']);
     Route::post('/', [ClubController::class, 'store']);
@@ -374,7 +382,6 @@ Route::prefix('clubs')->middleware(['performance'])->group(function () {
             });
         });
     });
-});
 
 // Admin routes - requires super_admin middleware
 Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function () {

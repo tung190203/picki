@@ -5,7 +5,7 @@
 
         <template v-else>
             <!-- Global Backdrop for menu closing -->
-            <div v-if="isMenuOpen || isChangeClubOpen" class="fixed inset-0 z-[35]"
+            <div v-if="isMenuOpen || isChangeClubOpen || isCreateActivityMenuOpen" class="fixed inset-0 z-[35]"
                 @click="closeMenu">
             </div>
             <!-- Admin/Staff View -->
@@ -281,8 +281,34 @@
                     <div v-if="is_joined">
                         <div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 sm:gap-0">
                             <h2 class="text-lg sm:text-xl md:text-2xl text-[#838799] font-semibold uppercase mb-2 sm:mb-4">Lịch hoạt động</h2>
-                            <p class="text-[#D72D36] text-sm sm:text-base font-semibold cursor-pointer" @click="openActivityModal">Xem tất cả
-                            </p>
+                            <div class="relative flex items-center gap-3">
+                                <p class="text-[#D72D36] text-sm sm:text-base font-semibold cursor-pointer" @click="openActivityModal">Xem tất cả
+                                </p>
+                                <button v-if="hasAnyRole(['admin', 'manager', 'secretary'])"
+                                    class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#D72D36] text-white text-xs sm:text-sm font-semibold hover:bg-[#c4252e] transition-colors"
+                                    @click="toggleCreateActivityMenu">
+                                    <PlusIcon class="w-4 h-4" />
+                                    Tạo hoạt động
+                                </button>
+                                <div v-if="isCreateActivityMenuOpen"
+                                    class="absolute right-0 top-10 w-56 bg-white rounded-xl shadow-2xl py-2 z-50 text-gray-800 border border-gray-100">
+                                    <button class="w-full flex items-center space-x-3 px-3 py-2 sm:px-4 sm:py-2.5 text-sm hover:bg-gray-100 transition-colors"
+                                        @click="goToCreate('activity')">
+                                        <CalendarDaysIcon class="w-4 h-4 text-gray-500" />
+                                        <span class="font-medium">Tạo hoạt động câu lạc bộ</span>
+                                    </button>
+                                    <button class="w-full flex items-center space-x-3 px-3 py-2 sm:px-4 sm:py-2.5 text-sm hover:bg-gray-100 transition-colors"
+                                        @click="goToCreate('tournament')">
+                                        <TrophyIcon class="w-4 h-4 text-gray-500" />
+                                        <span class="font-medium">Tạo giải</span>
+                                    </button>
+                                    <button class="w-full flex items-center space-x-3 px-3 py-2 sm:px-4 sm:py-2.5 text-sm hover:bg-gray-100 transition-colors"
+                                        @click="goToCreate('mini_tournament')">
+                                        <BoltIcon class="w-4 h-4 text-gray-500" />
+                                        <span class="font-medium">Tạo kèo</span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         <template v-if="activities.length > 0">
                             <ActivityScheduleCard v-for="(item, index) in activities" :key="index" v-bind="item"
@@ -555,6 +581,9 @@ import {
     CheckIcon,
     TrashIcon,
     ArrowRightOnRectangleIcon,
+    CalendarDaysIcon,
+    TrophyIcon,
+    BoltIcon,
 } from '@heroicons/vue/24/outline'
 import CampaignIcon from "@/assets/images/campaign.svg";
 import { useRouter, useRoute } from 'vue-router'
@@ -618,6 +647,7 @@ const isSubmittingTransfer = ref(false)
 const isUnpinModalOpen = ref(false)
 const isPinModalOpen = ref(false)
 const isDeleteNotificationModalOpen = ref(false)
+const isCreateActivityMenuOpen = ref(false)
 const notificationToUnpin = ref(null)
 const notificationToPin = ref(null)
 const notificationToDelete = ref(null)
@@ -1046,6 +1076,21 @@ const handleEditActivity = (activity) => {
         name: 'club-activity-edit',
         params: { id: clubId.value, activityId: activity.id }
     })
+}
+
+const toggleCreateActivityMenu = () => {
+    isCreateActivityMenuOpen.value = !isCreateActivityMenuOpen.value
+}
+
+const goToCreate = (kind) => {
+    isCreateActivityMenuOpen.value = false
+    if (kind === 'activity') {
+        router.push({ name: 'club-create-activity', params: { id: clubId.value } })
+    } else if (kind === 'mini_tournament') {
+        router.push({ name: 'create-mini-tournament', query: { club_id: clubId.value } })
+    } else if (kind === 'tournament') {
+        router.push({ name: 'create-tournament', query: { club_id: clubId.value } })
+    }
 }
 
 const goToContentDetail = (rawItem, data) => {

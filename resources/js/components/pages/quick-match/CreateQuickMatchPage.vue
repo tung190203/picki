@@ -111,6 +111,24 @@
                     </button>
                 </div>
 
+                <!-- Liên kết CLB -->
+                <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-5">
+                    <h3 class="font-bold text-[#838799] text-[14px] uppercase tracking-wide mb-3">Liên kết CLB</h3>
+                    <select v-model="selectedClubId"
+                        class="w-full px-3 py-2 border rounded focus:outline-none bg-[#EDEEF2] text-sm">
+                        <option :value="null">-- Không thuộc CLB --</option>
+                        <option v-for="club in myClubsList" :key="club.id" :value="club.id">
+                            {{ club.name }}
+                        </option>
+                    </select>
+                    <p v-if="selectedClubId" class="text-xs text-green-600 mt-2">
+                        ✓ Kèo này sẽ thuộc CLB
+                    </p>
+                    <p v-else class="text-xs text-gray-400 mt-2">
+                        Đây là kèo thường (không thuộc CLB)
+                    </p>
+                </div>
+
                 <!-- Team Selection -->
                 <div class="bg-white rounded-[12px] border border-[#DCDEE6] p-4">
                     <p class="text-[14px] font-bold text-[#838799] uppercase tracking-[-0.25px] mb-4">Chọn đội</p>
@@ -457,7 +475,7 @@
 
 <script setup>
 import { ref, computed, reactive, watch, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { toast } from 'vue3-toastify'
 import QrcodeVue from 'qrcode.vue'
 import QuickMatchUserModal from '@/components/molecules/QuickMatchUserModal.vue'
@@ -465,8 +483,10 @@ import RefereeScoringScreen from '@/components/molecules/referee-scoring/Referee
 import { useUserStore } from '@/store/auth'
 import { storeToRefs } from 'pinia'
 import { quickMatchService } from '@/service/quickMatch.js'
+import * as ClubService from '@/service/club.js'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 // Use storeToRefs for reactive state + direct access for computed getUser
 // In script: userStore.getUser.value gives the actual User object
@@ -517,6 +537,30 @@ const showQrModal = ref(false)
 const showRefereeScreen = ref(false)
 const createdMatch = ref(null)
 const isConfirming = ref(false)
+
+// Liên kết CLB
+const myClubsList = ref([])
+const selectedClubId = ref(null)
+
+const fetchMyClubs = async () => {
+    try {
+        myClubsList.value = await ClubService.myClubs()
+        if (route.query.club_id) {
+            const incomingId = Number(route.query.club_id)
+            const exists = myClubsList.value.some(c => c.id === incomingId)
+            if (exists) selectedClubId.value = incomingId
+        }
+    } catch (error) {
+        console.error('Error fetching clubs:', error)
+    }
+}
+
+watch(() => route.query.club_id, (newVal) => {
+    if (!newVal) return
+    const incomingId = Number(newVal)
+    const exists = myClubsList.value.some(c => c.id === incomingId)
+    if (exists) selectedClubId.value = incomingId
+})
 
 const isMatchDone = computed(() => {
     return createdMatch.value?.status === 'completed'
@@ -662,6 +706,8 @@ onUnmounted(() => {
     }
 })
 
+fetchMyClubs()
+
 const submitMatch = async () => {
     if (teamAUsers.value.length === 0) {
         toast.error('Team A phải có ít nhất 1 người chơi')
@@ -685,6 +731,7 @@ const submitMatch = async () => {
                 team_a: scoreSets.value.map(s => s.team_a),
                 team_b: scoreSets.value.map(s => s.team_b),
             },
+            club_id: selectedClubId.value || undefined,
         }
 
         const res = await quickMatchService.create(payload)
