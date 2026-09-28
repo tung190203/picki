@@ -16,6 +16,8 @@ class ClubChatMessageResource extends JsonResource
             'conversation_id' => $this->conversation_id,
             'content' => $this->content,
             'type' => $this->type,
+            'attachment_type' => $this->attachment_type,
+            'attachment_meta' => $this->attachment_meta,
             'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
             'sender' => $user ? [
                 'id' => $user->id,

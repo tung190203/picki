@@ -191,6 +191,9 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
         Route::get('/conversation', \App\Http\Controllers\ClubChatController::class.'@conversation');
         Route::get('/messages', \App\Http\Controllers\ClubChatController::class.'@index');
         Route::post('/messages', \App\Http\Controllers\ClubChatController::class.'@store');
+        Route::post('/upload', \App\Http\Controllers\ClubChatController::class.'@upload');
+        Route::post('/read', \App\Http\Controllers\ClubChatController::class.'@markRead');
+        Route::get('/reads', \App\Http\Controllers\ClubChatController::class.'@reads');
     });
 });
 

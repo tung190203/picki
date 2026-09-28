@@ -11,7 +11,11 @@ class ClubChatMessage extends Model
     use SoftDeletes;
 
     protected $table = 'club_chat_messages';
-    protected $fillable = ['conversation_id', 'user_id', 'content', 'type'];
+    protected $fillable = ['conversation_id', 'user_id', 'content', 'type', 'attachment_type', 'attachment_meta'];
+
+    protected $casts = [
+        'attachment_meta' => 'array',
+    ];
 
     public function conversation()
     {
