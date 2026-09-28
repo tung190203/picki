@@ -29,10 +29,36 @@ export const getParticipantsNonTeam = async(tournamentId) => {
   .then((response) => response?.data?.data);
 }
 
-export const getTournamentInviteGroups = async(tournamentId, payload) => {
-  return axiosInstance.post(`${participantEndpoint}/candidates/${tournamentId}`, payload)
-  .then((response) => response?.data?.data);
-}
+export const searchUsersForInvite = async ({ keyword = '', subTab = 'all', clubId = null, page = 1, perPage = 20 } = {}) => {
+  const params = {
+    tab: 'user',
+    sub_tab: subTab,
+    per_page: perPage,
+    page,
+  };
+  if (keyword) params.keyword = keyword;
+  if (subTab === 'same_club' && clubId) params.club_id = clubId;
+
+  const res = await axiosInstance.get('/search', { params });
+  // ResponseHelper shape: { status, message, data: { data: [...], meta: {...} } }
+  const inner = res?.data?.data || {};
+  const data = Array.isArray(inner) ? inner : (inner.data || []);
+  const meta = inner.meta || {};
+
+  // Map search response → same shape as old candidates ({ result: [...] })
+  const result = (data || []).map((u) => ({
+    id: u.id,
+    name: u.full_name ?? u.name,
+    avatar_url: u.avatar_url,
+    gender: u.gender,
+    gender_text: u.gender_text,
+    sports: u.sports || [],
+    is_friend: u.is_friend ?? false,
+    invited: false,
+  }));
+
+  return { result, meta };
+};
 
 export const deleteParticipant = async(participantId) => {
   return axiosInstance.post(`${participantEndpoint}/delete/${participantId}`)

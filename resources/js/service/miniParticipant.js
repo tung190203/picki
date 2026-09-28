@@ -1,19 +1,41 @@
 import axiosInstance from "@/utils/httpRequest.js";
-import {API_ENDPOINT} from "@/constants/index.js";
-
-const miniParticipantEndpoint = API_ENDPOINT.MINI_PARTICIPANT;
 
 export const sendInvitation = async (miniTournamentId, userIds, isInviteAround = false) => {
-    return axiosInstance.post(`${miniParticipantEndpoint}/invite/${miniTournamentId}`, {
+    return axiosInstance.post(`/mini-participants/invite/${miniTournamentId}`, {
         user_ids: userIds,
         is_invite_around: isInviteAround,
     }).then((response) => response.data.data)
 };
 
-export const getMiniTournamentInviteGroups = async(miniTournamentId, payload) => {
-  return axiosInstance.post(`${miniParticipantEndpoint}/candidates/${miniTournamentId}`, payload)
-  .then((response) => response?.data?.data);
-}
+export const searchUsersForInvite = async ({ keyword = '', subTab = 'all', clubId = null, page = 1, perPage = 20 } = {}) => {
+  const params = {
+    tab: 'user',
+    sub_tab: subTab,
+    per_page: perPage,
+    page,
+  };
+  if (keyword) params.keyword = keyword;
+  if (subTab === 'same_club' && clubId) params.club_id = clubId;
+
+  const res = await axiosInstance.get('/search', { params });
+  // ResponseHelper shape: { status, message, data: { data: [...], meta: {...} } }
+  const inner = res?.data?.data || {};
+  const data = Array.isArray(inner) ? inner : (inner.data || []);
+  const meta = inner.meta || {};
+
+  const result = (data || []).map((u) => ({
+    id: u.id,
+    name: u.full_name ?? u.name,
+    avatar_url: u.avatar_url,
+    gender: u.gender,
+    gender_text: u.gender_text,
+    sports: u.sports || [],
+    is_friend: u.is_friend ?? false,
+    invited: false,
+  }));
+
+  return { result, meta };
+};
 
 export const deleteStaff = async(staffId, action = null, newGuarantorUserId = null) => {
     const payload = {};

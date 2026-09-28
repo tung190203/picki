@@ -114,11 +114,13 @@ export default {
         const inviteType = ref('participant')
         const selectedStaffRole = ref(3) // RBAC v2: mặc định mời Trọng tài
         const activeScope = ref('all');
-        const inviteGroupData = ref([]);
+        const inviteGroupData = ref({ result: [] });
         const selectedClub = ref(null);
         const clubs = ref([])
-        const currentRadius = ref(10);
         const showQRCodeModal = ref(false);
+        const invitePage = ref(1);
+        const isLoadingMoreInvite = ref(false);
+        const hasMoreInvite = ref(true);
         const miniTournamentLink = window.location.href;
         const descriptionModel = ref('');
         const isEditingDescription = ref(false);
@@ -145,7 +147,6 @@ export default {
         };
 
         const handleInvite = async (user) => {
-            const isAreaInvite = activeScope.value === 'area'
             if (user?.is_virtual) {
                 try {
                     await addGuest(id, {
@@ -165,7 +166,7 @@ export default {
                 await inviteStaff(user.id, Number(selectedStaffRole.value) || 3)
             } else {
                 // Mời từ tab người tham gia - thêm vào danh sách participants
-                await invite([user.id], isAreaInvite);
+                await invite([user.id]);
             }
             await detailMiniTournament(id);
         }
@@ -173,11 +174,6 @@ export default {
         const copyLink = () => {
             showShareCardModal.value = true
         }
-
-        const onRadiusChange = debounce(async (radius) => {
-            currentRadius.value = radius;
-            await getInviteGroupData();
-        }, 300);
 
         const goToEditPage = () => {
             router.push({
@@ -323,6 +319,18 @@ export default {
         const allParticipants = computed(() => {
             if (!mini.value?.participants) return []
             return mini.value.participants.filter(p => p.is_confirmed && !p.checked_in_at && !p.is_absent && !p.is_declined)
+        })
+
+        // User ids already participating or with a pending invite — used to gray out invite button.
+        const invitedUserIds = computed(() => {
+            if (!mini.value?.participants) return []
+            const ids = new Set()
+            for (const p of mini.value.participants) {
+                if (p.is_declined) continue
+                const uid = p.user?.id ?? p.user_id
+                if (uid != null) ids.add(Number(uid))
+            }
+            return Array.from(ids)
         })
 
         // Đã check-in (confirmed + checked_in + not absent)
@@ -672,34 +680,59 @@ export default {
 
         const openInviteModalArea = async () => {
             inviteType.value = 'participant'
-            activeScope.value = 'area'
-            currentRadius.value = 10
+            activeScope.value = 'all'
             await getInviteGroupData()
             showInviteModal.value = true
         }
 
-        const getInviteGroupData = async () => {
+        const getInviteGroupData = async ({ loadMore = false } = {}) => {
             if (activeScope.value === 'club' && !selectedClub.value) {
-                inviteGroupData.value = [];
+                inviteGroupData.value = { result: [] };
                 return;
             }
 
-            const payload = {
-                scope: activeScope.value,
-                per_page: 50,
-                ...(activeScope.value === 'club' ? { club_id: selectedClub.value } : {}),
-                ...(searchQuery.value ? { search: searchQuery.value } : {})
-            };
-            if (activeScope.value === 'area') {
-                payload.lat = mini.value.competition_location.latitude
-                payload.lng = mini.value.competition_location.longitude
-                payload.radius = currentRadius.value
+            if (isLoadingMoreInvite.value) return;
+
+            if (!loadMore) {
+                invitePage.value = 1;
+                hasMoreInvite.value = true;
             }
+            if (!hasMoreInvite.value) return;
+
+            isLoadingMoreInvite.value = true;
+
+            const subTabMap = { all: 'all', club: 'same_club', friends: 'friends' };
+            const subTab = subTabMap[activeScope.value] || 'all';
+
             try {
-                const resp = await MiniParticipantService.getMiniTournamentInviteGroups(id, payload);
-                inviteGroupData.value = resp || [];
+                const { result, meta } = await MiniParticipantService.searchUsersForInvite({
+                    keyword: searchQuery.value || '',
+                    subTab,
+                    clubId: activeScope.value === 'club' ? selectedClub.value : null,
+                    page: invitePage.value,
+                    perPage: 20,
+                });
+
+                if (loadMore) {
+                    inviteGroupData.value = {
+                        result: [...(inviteGroupData.value?.result || []), ...result],
+                    };
+                } else {
+                    inviteGroupData.value = { result };
+                }
+
+                const lastPage = meta?.last_page ?? null;
+                if (result.length < 20 || (lastPage && invitePage.value >= lastPage)) {
+                    hasMoreInvite.value = false;
+                } else {
+                    invitePage.value++;
+                }
             } catch (e) {
-                inviteGroupData.value = [];
+                if (!loadMore) {
+                    inviteGroupData.value = { result: [] };
+                }
+            } finally {
+                isLoadingMoreInvite.value = false;
             }
         };
 
@@ -721,23 +754,27 @@ export default {
 
         const onSearchChange = debounce(async (query) => {
             searchQuery.value = query;
-            await getInviteGroupData();
+            await getInviteGroupData({ loadMore: false });
         }, 300);
 
         const onScopeChange = async (scope) => {
             activeScope.value = scope;
-            await getInviteGroupData();
+            await getInviteGroupData({ loadMore: false });
         };
 
         const onClubChange = async (clubId) => {
             selectedClub.value = clubId;
-            await getInviteGroupData();
+            await getInviteGroupData({ loadMore: false });
         };
 
-        const invite = async (friendId, isAreaInvite = false) => {
+        const loadMoreInviteUsers = async () => {
+            await getInviteGroupData({ loadMore: true });
+        };
+
+        const invite = async (friendId) => {
             const targetId = Array.isArray(friendId) ? friendId : [friendId];
             try {
-                await MiniParticipantService.sendInvitation(id, targetId, isAreaInvite);
+                await MiniParticipantService.sendInvitation(id, targetId);
                 toast.success('Đã gửi lời mời thành công!');
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi gửi lời mời.');
@@ -1180,6 +1217,9 @@ export default {
             selectedClub,
             searchQuery,
             onSearchChange,
+            isLoadingMoreInvite,
+            hasMoreInvite,
+            loadMoreInviteUsers,
             showQRCodeModal,
             showShareCardModal,
             miniTournamentLink,
@@ -1219,7 +1259,6 @@ export default {
             confirmDelineMiniParticipant,
             declineMiniTournament,
             showDelineMiniParticipantModal,
-            onRadiusChange,
             showPaymentModal,
             openPaymentModal,
             showSubmitPaymentModal,
@@ -1270,7 +1309,6 @@ export default {
             handleMarkPaidAll,
             handleConfirmAll,
             handleDeleteAll,
-            competitionLocation: computed(() => mini.value?.competition_location ?? null),
             tournamentMaxPlayers: computed(() => mini.value?.max_players ?? null),
             tournamentId: computed(() => mini.value?.id ?? null),
             detailMiniTournament,

@@ -785,10 +785,10 @@
     <InviteGroup
   v-model="showInviteModal"
   :data="inviteGroupData"
+  :invited-user-ids="invitedUserIds"
   :clubs="clubs"
   :active-scope="activeScope"
   :search-query="searchQuery"
-  :current-radius="currentRadius"
   :current-club-id="selectedClub"
   :is-loading-more="isLoadingMoreInvite"
   :has-more="hasMoreInvite"
@@ -797,7 +797,6 @@
   @update:searchQuery="onSearchChange"
   @change-scope="onScopeChange"
   @change-club="onClubChange"
-  @update:radius="onRadiusChange"
   @invite="handleInviteAction"
   @load-more="loadMoreInviteUsers"
 />
@@ -1332,9 +1331,6 @@ const activeScope = ref('all');
 const selectedClub = ref(null);
 const searchQuery = ref('')
 const showQRCodeModal = ref(false);
-const currentRadius = ref(10);
-const userLatitude = ref(null);
-const userLongitude = ref(null);
 const invitePage = ref(1)
 const isLoadingMoreInvite = ref(false)
 const hasMoreInvite = ref(true)
@@ -1373,6 +1369,20 @@ const refereesList = computed(() => {
 
 // Computed properties for VDV tab - filter participants by status
 const allParticipants = computed(() => tournament.value?.tournament_participants || [])
+
+// User ids that are already participants or have a pending invite.
+// Used to gray out the "Invite" button in InviteGroup.
+const invitedUserIds = computed(() => {
+    const ids = new Set();
+    for (const p of allParticipants.value) {
+        const uid = p.user?.id ?? p.user_id;
+        if (uid != null) ids.add(Number(uid));
+    }
+    for (const inv of listHasInvite.value || []) {
+        if (inv?.id != null) ids.add(Number(inv.id));
+    }
+    return Array.from(ids);
+});
 
 const waitingConfirmationParticipants = computed(() => {
   return allParticipants.value.filter(p => !p.is_confirmed && !p.is_guest)
@@ -1681,7 +1691,7 @@ const handleRemoveMember = async (data, teamId) => {
 
 const getInviteGroupData = async ({ loadMore = false } = {}) => {
   if (activeScope.value === 'club' && !selectedClub.value) {
-    inviteGroupData.value = []
+    inviteGroupData.value = { result: [] }
     return
   }
 
@@ -1696,40 +1706,33 @@ const getInviteGroupData = async ({ loadMore = false } = {}) => {
 
   isLoadingMoreInvite.value = true
 
-  const payload = {
-    scope: activeScope.value,
-    per_page: 20,
-    page: invitePage.value,
-    ...(activeScope.value === 'club' ? { club_id: selectedClub.value } : {}),
-    ...(activeScope.value === 'area'
-      ? {
-          lat: userLatitude.value,
-          lng: userLongitude.value,
-          radius: currentRadius.value
-        }
-      : {}),
-    ...(searchQuery.value ? { search: searchQuery.value } : {})
-  }
+  // Map scope -> search sub_tab (area removed; use 'all' as fallback if any leftover)
+  const subTabMap = { all: 'all', club: 'same_club', friends: 'friends' }
+  const subTab = subTabMap[activeScope.value] || 'all'
 
   try {
-    const resp = await ParticipantService.getTournamentInviteGroups(id, payload)
-
-    const newData = resp?.result || []
+    const { result, meta } = await ParticipantService.searchUsersForInvite({
+      keyword: searchQuery.value || '',
+      subTab,
+      clubId: activeScope.value === 'club' ? selectedClub.value : null,
+      page: invitePage.value,
+      perPage: 20,
+    })
 
     if (loadMore) {
-      inviteGroupData.value.result.push(...newData)
+      inviteGroupData.value.result.push(...result)
     } else {
-      inviteGroupData.value = resp
+      inviteGroupData.value = { result }
     }
 
-    if (newData.length < 20) {
+    if (result.length < 20 || (meta.last_page && invitePage.value >= meta.last_page)) {
       hasMoreInvite.value = false
     } else {
       invitePage.value++
     }
   } catch (e) {
     if (!loadMore) {
-      inviteGroupData.value = []
+      inviteGroupData.value = { result: [] }
     }
   } finally {
     isLoadingMoreInvite.value = false
@@ -1743,11 +1746,6 @@ const onSearchChange = debounce(async (query) => {
 
 const onScopeChange = async (scope) => {
   activeScope.value = scope
-
-  if (scope === 'area') {
-    await initializeUserLocation()
-  }
-
   await getInviteGroupData({ loadMore: false })
 }
 
@@ -1757,34 +1755,9 @@ const onClubChange = async (clubId) => {
   await getInviteGroupData({ loadMore: false })
 }
 
-const onRadiusChange = debounce(async (radius) => {
-  currentRadius.value = radius
-  await getInviteGroupData({ loadMore: false })
-}, 300)
-
 const loadMoreInviteUsers = async () => {
   await getInviteGroupData({ loadMore: true })
 }
-
-
-const initializeUserLocation = async () => {
-  if (getUser.value?.latitude && getUser.value?.longitude) {
-    userLatitude.value = getUser.value.latitude;
-    userLongitude.value = getUser.value.longitude;
-  } else {
-    try {
-      const position = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject);
-      });
-      userLatitude.value = position.coords.latitude;
-      userLongitude.value = position.coords.longitude;
-    } catch (error) {
-      toast.error('Không thể lấy vị trí hiện tại. Vui lòng cho phép truy cập vị trí.');
-      userLatitude.value = null;
-      userLongitude.value = null;
-    }
-  }
-};
 
 const getRanks = async () => {
   try {

@@ -551,9 +551,9 @@
         </template>
     </div>
     <InviteGroup v-model="showInviteModal" :data="inviteGroupData" :clubs="clubs" :active-scope="activeScope"
-        :search-query="searchQuery" :current-radius="currentRadius" :current-club-id="selectedClub"
+        :search-query="searchQuery" :current-club-id="selectedClub"
         :is-loading-more="isLoadingMoreInvite" :has-more="hasMoreInvite" @update:searchQuery="onSearchChange"
-        @change-scope="onScopeChange" @change-club="onClubChange" @update:radius="onRadiusChange"
+        @change-scope="onScopeChange" @change-club="onClubChange"
         @invite="handleInviteAction" @load-more="loadMoreInviteUsers" title="Mời thành viên" />
     <ClubReportModal v-model="isReportModalOpen" :is-loading="isReportingClub" @submit="submitClubReport" />
     <PromotionModal
