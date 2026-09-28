@@ -1,4 +1,7 @@
 import axiosInstance from "@/utils/httpRequest.js";
+import { API_ENDPOINT } from '@/constants';
+
+const miniParticipantEndpoint = API_ENDPOINT.MINI_PARTICIPANT;
 
 export const sendInvitation = async (miniTournamentId, userIds, isInviteAround = false) => {
     return axiosInstance.post(`/mini-participants/invite/${miniTournamentId}`, {

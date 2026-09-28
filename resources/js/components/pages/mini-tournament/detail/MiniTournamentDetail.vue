@@ -815,7 +815,7 @@ export default {
 
         const handleRemoveUser = async (data) => {
             // Support both old format (id only) and new format (object)
-            const miniParticipantId = typeof data === 'object' ? data.id : data;
+            const miniParticipantId = typeof data === 'object' ? data?.id : data;
             try {
                 await MiniParticipantService.deleteMiniParticipant(miniParticipantId);
                 toast.success('Đã xóa người chơi khỏi kèo đấu');
