@@ -620,9 +620,15 @@ class ParticipantController extends Controller
     public function inviteUsers(Request $request, $tournamentId)
     {
         $validated = $request->validate([
-            'user_ids' => 'required|array|min:1',
+            'user_ids' => 'sometimes|array|min:1',
             'user_ids.*' => 'exists:users,id',
+            'virtual_ids' => 'sometimes|array|min:1',
+            'virtual_ids.*' => 'exists:club_virtual_members,id',
         ]);
+
+        if (empty($validated['user_ids']) && empty($validated['virtual_ids'])) {
+            return ResponseHelper::error('Cần chọn ít nhất 1 người chơi hoặc thành viên ảo để mời.', 422);
+        }
 
         $tournament = Tournament::findOrFail($tournamentId);
         $organizer = Auth::user();
@@ -637,88 +643,136 @@ class ParticipantController extends Controller
         }
 
         $participantType = $tournament->participant;
-        if ($participantType === 'user') {
-            if ($tournament->participants()->where('is_confirmed', true)->count() >= ($tournament->player_per_team * $tournament->max_team)) {
-                return ResponseHelper::error('Số lượng người tham gia đã đạt giới hạn.', 422);
-            }
-        } else {
-            if ($tournament->participants()->where('is_confirmed', true)->count() >= ($tournament->max_team * $tournament->player_per_team)) {
-                return ResponseHelper::error('Số lượng người tham gia đã đạt giới hạn.', 422);
-            }
+        $currentConfirmed = $tournament->participants()->where('is_confirmed', true)->count();
+        $maxSlots = $participantType === 'user'
+            ? ($tournament->player_per_team * $tournament->max_team)
+            : ($tournament->max_team * $tournament->player_per_team);
+
+        // Count distinct ids (FE may pass the same id in both user_ids and virtual_ids)
+        $allRequestedIds = array_unique(array_merge(
+            $validated['user_ids'] ?? [],
+            $validated['virtual_ids'] ?? [],
+        ));
+        $totalRequested = count($allRequestedIds);
+        if ($currentConfirmed + $totalRequested > $maxSlots) {
+            return ResponseHelper::error('Số lượng người tham gia đã đạt giới hạn.', 422);
         }
 
-        // Chỉ check user đã có participant là member (không phải guest)
-        $existingMemberIds = Participant::where('tournament_id', $tournament->id)
-            ->where('is_guest', false)
-            ->whereIn('user_id', $validated['user_ids'])
-            ->pluck('user_id')
-            ->toArray();
-
-        $newUserIds = array_diff($validated['user_ids'], $existingMemberIds);
-
-        if (empty($newUserIds)) {
-            $message = count($validated['user_ids']) === 1
-                ? 'Người chơi đã được mời hoặc đã tham gia.'
-                : 'Tất cả người chơi đã được mời hoặc đã tham gia.';
-            return ResponseHelper::error($message, 422);
+        // ──────── Handle real users ────────
+        $invitedResources = [];
+        $realUserIds = $validated['user_ids'] ?? [];
+        // If FE passes the same id in both arrays (virtual member id may collide with a real user id),
+        // prefer the virtual-member interpretation — the FE has already marked the entry as `is_virtual`.
+        if (!empty($validated['virtual_ids'])) {
+            $realUserIds = array_values(array_diff($realUserIds, $validated['virtual_ids']));
         }
 
-        // Xác định payment_status cho invited user
-        $paymentStatus = TournamentParticipantPayment::STATUS_CONFIRMED;
-        if ($tournament->has_financial_management && $tournament->has_fee && !$tournament->use_club_fund && !$tournament->auto_split_fee) {
-            $paymentStatus = TournamentParticipantPayment::STATUS_PENDING;
-        }
+        if (!empty($realUserIds)) {
+            $existingMemberIds = Participant::where('tournament_id', $tournament->id)
+                ->where('is_guest', false)
+                ->whereIn('user_id', $realUserIds)
+                ->pluck('user_id')
+                ->toArray();
 
-        $insertData = array_map(function ($invitedUserId) use ($tournament, $isSuperAdmin, $paymentStatus) {
-            return [
-                'tournament_id' => $tournament->id,
-                'user_id' => $invitedUserId,
-                'is_confirmed' => $isSuperAdmin,
-                'self_confirmed' => !$isSuperAdmin,
-                'self_registered' => false,
-                'created_at' => now(),
-                'updated_at' => now(),
-                'payment_status' => $paymentStatus,
-            ];
-        }, $newUserIds);
+            $newUserIds = array_diff($realUserIds, $existingMemberIds);
 
-        $tournament->participants()->insert($insertData);
+            if (!empty($newUserIds)) {
+                $paymentStatus = TournamentParticipantPayment::STATUS_CONFIRMED;
+                if ($tournament->has_financial_management && $tournament->has_fee && !$tournament->use_club_fund && !$tournament->auto_split_fee) {
+                    $paymentStatus = TournamentParticipantPayment::STATUS_PENDING;
+                }
 
-        // Tạo TournamentParticipantPayment cho invited users có phí cố định
-        if ($tournament->has_financial_management && $tournament->has_fee && !$tournament->use_club_fund && !$tournament->auto_split_fee) {
-            $feePerPerson = $tournament->fee_amount;
-            $newParticipants = Participant::where('tournament_id', $tournament->id)
-                ->whereIn('user_id', $newUserIds)
-                ->get();
-
-            foreach ($newParticipants as $participant) {
-                TournamentParticipantPayment::firstOrCreate(
-                    [
+                $insertData = array_map(function ($invitedUserId) use ($tournament, $isSuperAdmin, $paymentStatus) {
+                    return [
                         'tournament_id' => $tournament->id,
-                        'participant_id' => $participant->id,
-                    ],
-                    [
-                        'user_id' => $participant->user_id,
-                        'amount' => $feePerPerson,
-                        'status' => TournamentParticipantPayment::STATUS_PENDING,
-                    ]
-                );
+                        'user_id' => $invitedUserId,
+                        'is_confirmed' => $isSuperAdmin,
+                        'self_confirmed' => !$isSuperAdmin,
+                        'self_registered' => false,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                        'payment_status' => $paymentStatus,
+                    ];
+                }, $newUserIds);
+
+                $tournament->participants()->insert($insertData);
+
+                if ($tournament->has_financial_management && $tournament->has_fee && !$tournament->use_club_fund && !$tournament->auto_split_fee) {
+                    $feePerPerson = $tournament->fee_amount;
+                    $newParticipants = Participant::where('tournament_id', $tournament->id)
+                        ->whereIn('user_id', $newUserIds)
+                        ->get();
+
+                    foreach ($newParticipants as $participant) {
+                        TournamentParticipantPayment::firstOrCreate(
+                            [
+                                'tournament_id' => $tournament->id,
+                                'participant_id' => $participant->id,
+                            ],
+                            [
+                                'user_id' => $participant->user_id,
+                                'amount' => $feePerPerson,
+                                'status' => TournamentParticipantPayment::STATUS_PENDING,
+                            ]
+                        );
+                    }
+                }
+
+                $invitedUsers = User::whereIn('id', $newUserIds)->get();
+
+                foreach ($invitedUsers as $user) {
+                    $user->notify(new TournamentInvitationNotification($tournament));
+                }
+
+                $participants = Participant::where('tournament_id', $tournament->id)
+                    ->whereIn('user_id', $newUserIds)
+                    ->get();
+
+                foreach ($participants as $p) {
+                    $invitedResources[] = new ParticipantResource($p);
+                }
             }
         }
 
-        $invitedUsers = User::whereIn('id', $newUserIds)->get();
+        // ──────── Handle club virtual members (no real user row; snapshot name+avatar as guest) ────────
+        if (!empty($validated['virtual_ids'])) {
+            $virtualMembers = \App\Models\Club\ClubVirtualMember::whereIn('id', $validated['virtual_ids'])->get();
 
-        foreach ($invitedUsers as $user) {
-            $user->notify(new TournamentInvitationNotification($tournament));
+            foreach ($virtualMembers as $vm) {
+                $alreadyAdded = Participant::where('tournament_id', $tournament->id)
+                    ->where('is_guest', true)
+                    ->where('guest_name', $vm->name)
+                    ->exists();
+                if ($alreadyAdded) {
+                    continue;
+                }
+
+                $paymentStatus = $tournament->has_financial_management && $tournament->has_fee && !$tournament->use_club_fund && !$tournament->auto_split_fee
+                    ? TournamentParticipantPayment::STATUS_PENDING
+                    : TournamentParticipantPayment::STATUS_CONFIRMED;
+
+                $participant = $tournament->participants()->create([
+                    'is_guest' => true,
+                    'guest_name' => $vm->name,
+                    'guest_avatar' => $vm->avatar_url,
+                    'guarantor_user_id' => $organizer->id,
+                    'is_confirmed' => $isSuperAdmin,
+                    'self_confirmed' => !$isSuperAdmin,
+                    'self_registered' => false,
+                    'payment_status' => $paymentStatus,
+                ]);
+
+                $invitedResources[] = new ParticipantResource($participant);
+            }
         }
 
-        $participants = Participant::where('tournament_id', $tournament->id)
-            ->whereIn('user_id', $newUserIds)
-            ->get();
+        if (empty($invitedResources)) {
+            return ResponseHelper::error('Tất cả người chơi đã được mời hoặc đã tham gia.', 422);
+        }
 
         return ResponseHelper::success(
-            ParticipantResource::collection($participants),
-            'Đã gửi lời mời thành công cho ' . count($newUserIds) . ' người chơi.'
+            $invitedResources,
+            'Đã gửi lời mời thành công cho ' . count($invitedResources) . ' người chơi.'
         );
     }
 

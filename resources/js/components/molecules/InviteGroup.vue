@@ -106,6 +106,7 @@
                                             class="w-full h-full object-cover"
                                         />
                                         <div
+                                            v-if="!user.is_virtual"
                                             class="absolute -bottom-1 -left-1 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border border-white dark:border-slate-800"
                                         >
                                             <span class="text-white text-[9px] font-bold">
@@ -125,14 +126,21 @@
 
                                 <!-- Info -->
                                 <div class="flex-1 min-w-0 pr-2">
-                                    <div class="w-full">
+                                    <div class="w-full flex items-center gap-2">
                                         <div class="font-semibold text-gray-800 dark:text-slate-100 truncate" :title="user.name || user.full_name">
-                                            {{ user.name || user.full_name }}
+                                            {{ user.name || user.full_name || 'Thành viên ảo' }}
                                         </div>
+                                        <span
+                                            v-if="user.is_virtual"
+                                            class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 flex-shrink-0"
+                                            title="Thành viên ảo của CLB"
+                                        >
+                                            Ảo
+                                        </span>
                                     </div>
                                     <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 mt-0.5">
-                                        <component :is="user.gender == 1 ? maleIcon : femaleIcon" class="w-4 h-4 flex-shrink-0" />
-                                        <span class="truncate">{{ user.gender_text }}</span>
+                                        <component v-if="!user.is_virtual" :is="user.gender == 1 ? maleIcon : femaleIcon" class="w-4 h-4 flex-shrink-0" />
+                                        <span class="truncate">{{ user.is_virtual ? 'Thành viên ảo' : (user.gender_text || '') }}</span>
                                     </div>
                                 </div>
 
@@ -144,10 +152,12 @@
                                         'px-4 py-2 rounded-lg text-sm font-semibold transition',
                                         user.invited
                                             ? 'bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500 cursor-not-allowed'
-                                            : 'bg-blue-500 text-white hover:bg-blue-600'
+                                            : (user.is_virtual
+                                                ? 'bg-purple-500 text-white hover:bg-purple-600'
+                                                : 'bg-blue-500 text-white hover:bg-blue-600')
                                     ]"
                                 >
-                                    {{ user.invited ? 'Đã mời' : 'Mời bạn' }}
+                                    {{ user.invited ? 'Đã mời' : (user.is_virtual ? 'Thêm' : 'Mời bạn') }}
                                 </button>
                             </div>
 

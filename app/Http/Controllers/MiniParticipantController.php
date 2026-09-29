@@ -198,8 +198,10 @@ class MiniParticipantController extends Controller
         $isInviteAround = $request->boolean('is_invite_around', false);
 
         $validated = $request->validate([
-            'user_ids'         => 'required|array|min:1',
-            'user_ids.*'       => 'required|exists:users,id',
+            'user_ids'         => 'sometimes|array|min:1',
+            'user_ids.*'       => 'required_with:user_ids|exists:users,id',
+            'virtual_ids'      => 'sometimes|array|min:1',
+            'virtual_ids.*'    => 'required_with:virtual_ids|exists:club_virtual_members,id',
             'is_invite_around' => 'sometimes|boolean',
         ]);
 
@@ -210,7 +212,18 @@ class MiniParticipantController extends Controller
             );
         }
 
+        if (empty($validated['user_ids']) && empty($validated['virtual_ids'])) {
+            return ResponseHelper::error('Cần chọn ít nhất 1 người chơi hoặc thành viên ảo để mời.', 422);
+        }
+
         $userIds = $validated['user_ids'] ?? [];
+        $virtualIds = $validated['virtual_ids'] ?? [];
+
+        // If FE passes the same id in both arrays (virtual member id may collide with a real user id),
+        // prefer the virtual-member interpretation — the FE has already marked the entry as `is_virtual`.
+        if (!empty($virtualIds)) {
+            $userIds = array_values(array_diff($userIds, $virtualIds));
+        }
 
         $this->checkMaxPlayers($miniTournament);
 
@@ -277,6 +290,48 @@ class MiniParticipantController extends Controller
                 $invited[] = new MiniParticipantResource($participant->loadFullRelations());
             } catch (\Exception $e) {
                 $failed[] = ['user_id' => $userId, 'reason' => 'Lỗi khi tạo lời mời.'];
+            }
+        }
+
+        // Handle virtual members (ClubVirtualMember) — create a guest-style MiniParticipant
+        // without a real User row. Same payment rules as guest invited by organizer.
+        if (!empty($virtualIds)) {
+            $virtualMembers = \App\Models\Club\ClubVirtualMember::whereIn('id', $virtualIds)->get();
+            $organizerId = Auth::id();
+            $isSuperAdmin = Auth::user()?->is_super_admin ?? false;
+
+            foreach ($virtualMembers as $vm) {
+                $existingVm = $miniTournament->participants()
+                    ->where('is_guest', true)
+                    ->where('guest_name', $vm->name)
+                    ->exists();
+
+                if ($existingVm) {
+                    $failed[] = ['virtual_id' => $vm->id, 'reason' => 'Thành viên ảo đã có trong kèo đấu.'];
+                    continue;
+                }
+
+                try {
+                    $paymentStatus = PaymentStatusEnum::CONFIRMED;
+                    if ($miniTournament->has_fee && !$miniTournament->use_club_fund && !$miniTournament->auto_split_fee) {
+                        $paymentStatus = PaymentStatusEnum::PENDING;
+                    }
+
+                    $participant = $miniTournament->participants()->create([
+                        'is_guest' => true,
+                        'guest_name' => $vm->name,
+                        'guest_avatar' => $vm->avatar_url,
+                        'is_confirmed' => $isSuperAdmin && !$isInviteAround,
+                        'is_invited' => true,
+                        'invited_by' => $organizerId,
+                        'guarantor_user_id' => $organizerId,
+                        'payment_status' => $paymentStatus,
+                    ]);
+
+                    $invited[] = new MiniParticipantResource($participant->loadFullRelations());
+                } catch (\Exception $e) {
+                    $failed[] = ['virtual_id' => $vm->id, 'reason' => 'Lỗi khi thêm thành viên ảo.'];
+                }
             }
         }
 

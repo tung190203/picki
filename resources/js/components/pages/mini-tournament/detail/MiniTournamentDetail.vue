@@ -147,26 +147,14 @@ export default {
         };
 
         const handleInvite = async (user) => {
-            if (user?.is_virtual) {
-                try {
-                    await addGuest(id, {
-                        guest_name: user.name || user.full_name,
-                        guest_avatar: user.avatar_url,
-                        guarantor_user_id: getUser.value?.id
-                    });
-                    toast.success(`Đã thêm thành viên ảo "${user.name}" vào kèo đấu!`);
-                    await detailMiniTournament(id);
-                } catch (e) {
-                    toast.error(e.response?.data?.message || 'Có lỗi khi thêm thành viên ảo vào kèo đấu');
-                }
-                return;
-            }
             if (inviteType.value === 'staff') {
                 // Mời từ sidebar "Mời nhóm" - thêm vào ban tổ chức với role từ selectedStaffRole
-                await inviteStaff(user.id, Number(selectedStaffRole.value) || 3)
+                // User ảo: truyền virtualId; user thật: truyền userId.
+                await inviteStaff(user.id, Number(selectedStaffRole.value) || 3, user?.is_virtual ? user.id : null)
             } else {
-                // Mời từ tab người tham gia - thêm vào danh sách participants
-                await invite([user.id]);
+                // Mời từ tab người tham gia - gom user thật vào user_ids, user ảo vào virtual_ids rồi gọi 1 lần
+                const isVirtual = Boolean(user?.is_virtual);
+                await invite([user.id], isVirtual ? [user.id] : []);
             }
             await detailMiniTournament(id);
         }
@@ -709,6 +697,7 @@ export default {
                     keyword: searchQuery.value || '',
                     subTab,
                     clubId: activeScope.value === 'club' ? selectedClub.value : null,
+                    miniTournamentId: id,
                     page: invitePage.value,
                     perPage: 20,
                 });
@@ -771,22 +760,26 @@ export default {
             await getInviteGroupData({ loadMore: true });
         };
 
-        const invite = async (friendId) => {
+        const invite = async (friendId, virtualIds = []) => {
             const targetId = Array.isArray(friendId) ? friendId : [friendId];
+            const vIds = Array.isArray(virtualIds) ? virtualIds : [virtualIds].filter(Boolean);
             try {
-                await MiniParticipantService.sendInvitation(id, targetId);
+                await MiniParticipantService.sendInvitation(id, targetId, false, vIds);
                 toast.success('Đã gửi lời mời thành công!');
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi gửi lời mời.');
             }
         };
 
-        const inviteStaff = async (userId) => {
+        const inviteStaff = async (userId, role, virtualId = null) => {
             try {
                 // RBAC v2: role bắt buộc (1=Admin, 2=BTC, 3=Trọng tài)
                 // Mặc định lấy từ selectedStaffRole; fallback 3 (Trọng tài).
-                const role = Number(selectedStaffRole.value) || 3
-                await MiniTournamentStaffService.addMiniTournamentStaff(id, userId, role)
+                const roleNum = Number(role ?? selectedStaffRole.value) || 3
+                // User ảo: truyền virtualId (không truyền userId).
+                // User thật: truyền userId.
+                const staffId = virtualId != null ? null : userId
+                await MiniTournamentStaffService.addMiniTournamentStaff(id, staffId, roleNum, virtualId)
                 toast.success('Thêm thành công')
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi thêm.');

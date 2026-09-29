@@ -3,14 +3,16 @@ import { API_ENDPOINT } from '@/constants';
 
 const miniParticipantEndpoint = API_ENDPOINT.MINI_PARTICIPANT;
 
-export const sendInvitation = async (miniTournamentId, userIds, isInviteAround = false) => {
-    return axiosInstance.post(`/mini-participants/invite/${miniTournamentId}`, {
-        user_ids: userIds,
-        is_invite_around: isInviteAround,
-    }).then((response) => response.data.data)
+export const sendInvitation = async (miniTournamentId, userIds, isInviteAround = false, virtualIds = []) => {
+    const payload = {};
+    if (userIds?.length) payload.user_ids = userIds;
+    if (virtualIds?.length) payload.virtual_ids = virtualIds;
+    payload.is_invite_around = isInviteAround;
+    return axiosInstance.post(`/mini-participants/invite/${miniTournamentId}`, payload)
+        .then((response) => response.data.data)
 };
 
-export const searchUsersForInvite = async ({ keyword = '', subTab = 'all', clubId = null, page = 1, perPage = 20 } = {}) => {
+export const searchUsersForInvite = async ({ keyword = '', subTab = 'all', clubId = null, miniTournamentId = null, page = 1, perPage = 20 } = {}) => {
   const params = {
     tab: 'user',
     sub_tab: subTab,
@@ -18,7 +20,10 @@ export const searchUsersForInvite = async ({ keyword = '', subTab = 'all', clubI
     page,
   };
   if (keyword) params.keyword = keyword;
-  if (subTab === 'same_club' && clubId) params.club_id = clubId;
+  if (subTab === 'same_club') {
+    if (clubId) params.club_id = clubId;
+    if (miniTournamentId) params.mini_tournament_id = miniTournamentId;
+  }
 
   const res = await axiosInstance.get('/search', { params });
   // ResponseHelper shape: { status, message, data: { data: [...], meta: {...} } }
@@ -34,6 +39,7 @@ export const searchUsersForInvite = async ({ keyword = '', subTab = 'all', clubI
     gender_text: u.gender_text,
     sports: u.sports || [],
     is_friend: u.is_friend ?? false,
+    is_virtual: Boolean(u.is_virtual),
     invited: false,
   }));
 

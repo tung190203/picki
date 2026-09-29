@@ -1630,22 +1630,14 @@ const handleRemoveStaff = async (data) => {
 
 // Hàm xử lý thống nhất
 const handleInviteAction = async (user) => {
-  if (user?.is_virtual) {
-    try {
-      await addTournamentGuest(id, {
-        guest_name: user.name || user.full_name,
-        guest_avatar: user.avatar_url,
-        guarantor_user_id: getUser.value?.id
-      })
-      toast.success(`Đã thêm thành viên ảo "${user.name}" vào giải đấu!`)
-    } catch (e) {
-      toast.error(e.response?.data?.message || 'Có lỗi khi thêm thành viên ảo vào giải đấu')
-    }
-  } else if (inviteType.value === 'staff') {
+  if (inviteType.value === 'staff') {
     // RBAC v2: truyền role số (1/2/3) — lấy từ selectedStaffRole
-    await inviteStaff(user.id, Number(selectedStaffRole.value) || 1)
+    // User ảo: truyền virtualId; user thật: truyền userId.
+    await inviteStaff(user.id, Number(selectedStaffRole.value) || 1, user?.is_virtual ? user.id : null)
   } else {
-    await invite(user.id);
+    // Gom user thật vào user_ids, user ảo vào virtual_ids rồi gọi 1 lần
+    const isVirtual = Boolean(user?.is_virtual)
+    await invite(user.id, isVirtual ? [user.id] : [])
   }
   await detailTournament(id);
 }
@@ -1715,6 +1707,7 @@ const getInviteGroupData = async ({ loadMore = false } = {}) => {
       keyword: searchQuery.value || '',
       subTab,
       clubId: activeScope.value === 'club' ? selectedClub.value : null,
+      tournamentId: id,
       page: invitePage.value,
       perPage: 20,
     })
@@ -2270,25 +2263,28 @@ const autoAssign = async () => {
   }
 }
 
-const invite = async (friendId) => {
+const invite = async (friendId, virtualIds = []) => {
   try {
-    await ParticipantService.sendInvitation(id, [friendId]);
+    const vIds = Array.isArray(virtualIds) ? virtualIds : [virtualIds].filter(Boolean)
+    await ParticipantService.sendInvitation(id, [friendId], vIds);
     toast.success('Đã gửi lời mời thành công!');
   } catch (error) {
     toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi gửi lời mời.');
   }
 };
 
-const inviteStaff = async (userId, role = 1) => {
+const inviteStaff = async (userId, role = 1, virtualId = null) => {
   try {
     // RBAC v2: role là số 1/2/3
     const roleNum = Number(role) || 1
+    // User ảo: truyền virtualId (không truyền userId).
+    const realUserId = virtualId != null ? null : userId
     let response
     if (roleNum === 3) {
       // Trọng tài — backward-compat endpoint
-      response = await TournamentStaffService.addReferee(id, userId)
+      response = await TournamentStaffService.addReferee(id, realUserId, null, virtualId)
     } else {
-      response = await TournamentStaffService.addTournamentStaff(id, userId, roleNum)
+      response = await TournamentStaffService.addTournamentStaff(id, realUserId, roleNum, null, virtualId)
     }
     toast.success(response?.message || 'Thêm thành công')
   } catch (error) {
