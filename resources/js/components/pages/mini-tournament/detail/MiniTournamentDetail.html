@@ -553,14 +553,15 @@
     </div>
 
     <!-- Invite Group Modal -->
-    <InviteGroup v-model="showInviteModal" :data="inviteGroupData || []" :clubs="clubs || []" :active-scope="activeScope"
-                 :selected-club="selectedClub" :search-query="searchQuery || ''" :current-radius="currentRadius || 10" :current-club-id="selectedClub"
+    <InviteGroup v-model="showInviteModal" :data="inviteGroupData || { result: [] }" :invited-user-ids="invitedUserIds || []" :clubs="clubs || []" :active-scope="activeScope"
+                 :selected-club="selectedClub" :search-query="searchQuery || ''" :current-club-id="selectedClub"
                  :tournament-max-players="mini?.max_players || 0"
                  :current-participants-count="allParticipants?.length || 0"
-                 :competition-location="competitionLocation"
+                 :is-loading-more="isLoadingMoreInvite" :has-more="hasMoreInvite"
                  :tournament-id="id"
-                 @update:radius="onRadiusChange" @update:searchQuery="onSearchChange"
-                 @change-scope="onScopeChange" @change-club="onClubChange" @invite="handleInvite" @invite-complete="inviteComplete" />
+                 @update:searchQuery="onSearchChange"
+                 @change-scope="onScopeChange" @change-club="onClubChange" @invite="handleInvite" @invite-complete="inviteComplete"
+                 @load-more="loadMoreInviteUsers" />
     <DeleteConfirmationModal v-model="showDeleteModal" title="Xác nhận hủy bỏ kèo đấu" message="Thao tác này không thể hoàn tác." confirmButtonText="Xác nhận" @confirm="removeMiniTournament" />
     <CancelRecurrenceModal v-model="showCancelRecurrenceModal" @cancelSingle="showDeleteModal = true" @cancelSeries="cancelRecurrenceSeries" />
     <DeleteConfirmationModal v-model="showDelineMiniParticipantModal" title="Xác nhận từ chối tham gia kèo đấu" message="Thao tác này không thể hoàn tác." confirmButtonText="Xác nhận" @confirm="declineMiniTournament" />

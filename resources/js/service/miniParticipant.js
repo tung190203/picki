@@ -1,19 +1,50 @@
 import axiosInstance from "@/utils/httpRequest.js";
-import {API_ENDPOINT} from "@/constants/index.js";
+import { API_ENDPOINT } from '@/constants';
 
 const miniParticipantEndpoint = API_ENDPOINT.MINI_PARTICIPANT;
 
-export const sendInvitation = async (miniTournamentId, userIds, isInviteAround = false) => {
-    return axiosInstance.post(`${miniParticipantEndpoint}/invite/${miniTournamentId}`, {
-        user_ids: userIds,
-        is_invite_around: isInviteAround,
-    }).then((response) => response.data.data)
+export const sendInvitation = async (miniTournamentId, userIds, isInviteAround = false, virtualIds = []) => {
+    const payload = {};
+    if (userIds?.length) payload.user_ids = userIds;
+    if (virtualIds?.length) payload.virtual_ids = virtualIds;
+    payload.is_invite_around = isInviteAround;
+    return axiosInstance.post(`/mini-participants/invite/${miniTournamentId}`, payload)
+        .then((response) => response.data.data)
 };
 
-export const getMiniTournamentInviteGroups = async(miniTournamentId, payload) => {
-  return axiosInstance.post(`${miniParticipantEndpoint}/candidates/${miniTournamentId}`, payload)
-  .then((response) => response?.data?.data);
-}
+export const searchUsersForInvite = async ({ keyword = '', subTab = 'all', clubId = null, miniTournamentId = null, page = 1, perPage = 20 } = {}) => {
+  const params = {
+    tab: 'user',
+    sub_tab: subTab,
+    per_page: perPage,
+    page,
+  };
+  if (keyword) params.keyword = keyword;
+  if (subTab === 'same_club') {
+    if (clubId) params.club_id = clubId;
+    if (miniTournamentId) params.mini_tournament_id = miniTournamentId;
+  }
+
+  const res = await axiosInstance.get('/search', { params });
+  // ResponseHelper shape: { status, message, data: { data: [...], meta: {...} } }
+  const inner = res?.data?.data || {};
+  const data = Array.isArray(inner) ? inner : (inner.data || []);
+  const meta = inner.meta || {};
+
+  const result = (data || []).map((u) => ({
+    id: u.id,
+    name: u.full_name ?? u.name,
+    avatar_url: u.avatar_url,
+    gender: u.gender,
+    gender_text: u.gender_text,
+    sports: u.sports || [],
+    is_friend: u.is_friend ?? false,
+    is_virtual: Boolean(u.is_virtual),
+    invited: false,
+  }));
+
+  return { result, meta };
+};
 
 export const deleteStaff = async(staffId, action = null, newGuarantorUserId = null) => {
     const payload = {};

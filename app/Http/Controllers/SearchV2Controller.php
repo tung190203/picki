@@ -10,6 +10,7 @@ use App\Http\Resources\Map\MapMiniTournamentResource;
 use App\Http\Resources\Map\MapTournamentResource;
 use App\Http\Resources\Map\MapUserResource;
 use App\Models\Club\Club;
+use App\Models\Club\ClubVirtualMember;
 use App\Models\CompetitionLocation;
 use App\Models\MiniTournament;
 use App\Models\Tournament;
@@ -248,7 +249,7 @@ class SearchV2Controller extends Controller
             $resourceClass = $this->searchService->resolveListResourceClass($tab);
 
             return [
-                'data' => $resourceClass::collection($items),
+                'data' => $this->renderItems($items, $tab, $resourceClass, $params),
                 'meta' => [
                     'current_page' => 1,
                     'last_page'    => 1,
@@ -274,7 +275,7 @@ class SearchV2Controller extends Controller
         $resourceClass = $this->searchService->resolveListResourceClass($params['tab']);
 
         return [
-            'data' => $resourceClass::collection($paginator->getCollection()),
+            'data' => $this->renderItems($paginator->getCollection(), $tab, $resourceClass, $params),
             'meta' => [
                 'current_page' => $paginator->currentPage(),
                 'last_page'    => $paginator->lastPage(),
@@ -305,7 +306,7 @@ class SearchV2Controller extends Controller
             : $this->searchService->resolveResourceClass($tab);
 
         return ResponseHelper::success([
-            'data'   => $resourceClass::collection($items),
+            'data'   => $this->renderItems($items, $tab, $resourceClass, $params),
             'bounds' => $bounds,
             'meta'   => [
                 'total'    => $items->count(),
@@ -339,7 +340,7 @@ class SearchV2Controller extends Controller
             );
 
             return ResponseHelper::success([
-                'data' => $resourceClass::collection($items),
+                'data' => $this->renderItems($items, $tab, $resourceClass, $params),
                 'meta' => [
                     'current_page' => 1,
                     'last_page'    => 1,
@@ -374,7 +375,7 @@ class SearchV2Controller extends Controller
         );
 
         return ResponseHelper::success([
-            'data' => $resourceClass::collection($paginator->getCollection()),
+            'data' => $this->renderItems($paginator->getCollection(), $tab, $resourceClass, $params),
             'meta' => [
                 'current_page' => $paginator->currentPage(),
                 'last_page'    => $paginator->lastPage(),
@@ -382,6 +383,81 @@ class SearchV2Controller extends Controller
                 'total'        => $paginator->total(),
             ],
         ], 'Tìm kiếm thành công', 200);
+    }
+
+    /**
+     * Render a collection of items, appending club virtual members for tab=user sub_tab=same_club.
+     * Centralizes the virtual-member rendering so every entry path (paginate, map, timeline-week)
+     * applies the same rule. Real users go through the resource class; virtual members are
+     * transformed inline so their shape stays compatible with what the FE invite flow expects.
+     */
+    private function renderItems($items, string $tab, string $resourceClass, array $params): array
+    {
+        if ($tab !== SearchFilterConfig::TAB_USER
+            || ($params['sub_tab'] ?? null) !== 'same_club'
+            || empty($params['club_id'])
+        ) {
+            return $resourceClass::collection($items)->toArray(request());
+        }
+
+        // Virtual members only get appended to the first page (default or explicit page=1)
+        // so they don't get duplicated across paginated loads.
+        $page = (int) ($params['page'] ?? 1);
+        if ($page !== 1) {
+            return $resourceClass::collection($items)->toArray(request());
+        }
+
+        $virtualArrays = $this->buildVirtualMemberArrays((int) $params['club_id'], $params['keyword'] ?? null);
+
+        return array_merge(
+            $resourceClass::collection($items)->toArray(request()),
+            $virtualArrays,
+        );
+    }
+
+    /**
+     * Build JSON-shaped arrays for ClubVirtualMember records of a given club.
+     * Shape mirrors SearchPlayerResource so the FE search invite UI shows them uniformly.
+     * Marker `is_virtual: true` + `id = club_virtual_members.id` lets downstream invite
+     * endpoints route through the virtual-member code path.
+     */
+    private function buildVirtualMemberArrays(int $clubId, ?string $keyword): array
+    {
+        $query = ClubVirtualMember::where('club_id', $clubId);
+        if (!empty($keyword)) {
+            $query->where('name', 'like', '%' . $keyword . '%');
+        }
+        $vms = $query->orderBy('name')->get();
+
+        $out = [];
+        foreach ($vms as $vm) {
+            $out[] = [
+                'id'           => $vm->id,
+                'full_name'    => $vm->name,
+                'name'         => $vm->name,
+                'avatar_url'   => $vm->avatar_url,
+                'gender'       => null,
+                'gender_text'  => null,
+                'age_group'    => null,
+                'visibility'   => null,
+                'address'      => null,
+                'is_online'    => false,
+                'primary_badge' => null,
+                'vn_rank'      => null,
+                'vndupr_score' => null,
+                'win_rate'     => 0.0,
+                'total_matches' => 0,
+                'distance'     => null,
+                'latitude'     => null,
+                'longitude'    => null,
+                'sports'       => [],
+                'clubs'        => [],
+                'is_follow'    => false,
+                'marker_type'  => 'user',
+                'is_virtual'   => true,
+            ];
+        }
+        return $out;
     }
 
     private function logSearch(?int $userId, string $tab, ?string $keyword, ?array $filters, ?string $subTab, int $resultCount): void

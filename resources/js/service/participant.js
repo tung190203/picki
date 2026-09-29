@@ -3,10 +3,11 @@ import {API_ENDPOINT} from "@/constants/index.js";
 
 const participantEndpoint = API_ENDPOINT.PARTICIPANT;
 
-export const sendInvitation = async (tournamentId, userIds) => {
-  return axiosInstance.post(`${participantEndpoint}/invite-user/${tournamentId}`, {
-    user_ids: userIds,
-  }).then((response) => response.data.data)
+export const sendInvitation = async (tournamentId, userIds, virtualIds = []) => {
+  const payload = {};
+  if (userIds?.length) payload.user_ids = userIds;
+  if (virtualIds?.length) payload.virtual_ids = virtualIds;
+  return axiosInstance.post(`${participantEndpoint}/invite-user/${tournamentId}`, payload).then((response) => response.data.data)
 };
 
 export const inviteStaffs = async (tournamentId, data) => {
@@ -29,10 +30,40 @@ export const getParticipantsNonTeam = async(tournamentId) => {
   .then((response) => response?.data?.data);
 }
 
-export const getTournamentInviteGroups = async(tournamentId, payload) => {
-  return axiosInstance.post(`${participantEndpoint}/candidates/${tournamentId}`, payload)
-  .then((response) => response?.data?.data);
-}
+export const searchUsersForInvite = async ({ keyword = '', subTab = 'all', clubId = null, tournamentId = null, page = 1, perPage = 20 } = {}) => {
+  const params = {
+    tab: 'user',
+    sub_tab: subTab,
+    per_page: perPage,
+    page,
+  };
+  if (keyword) params.keyword = keyword;
+  if (subTab === 'same_club') {
+    if (clubId) params.club_id = clubId;
+    if (tournamentId) params.tournament_id = tournamentId;
+  }
+
+  const res = await axiosInstance.get('/search', { params });
+  // ResponseHelper shape: { status, message, data: { data: [...], meta: {...} } }
+  const inner = res?.data?.data || {};
+  const data = Array.isArray(inner) ? inner : (inner.data || []);
+  const meta = inner.meta || {};
+
+  // Map search response → same shape as old candidates ({ result: [...] })
+  const result = (data || []).map((u) => ({
+    id: u.id,
+    name: u.full_name ?? u.name,
+    avatar_url: u.avatar_url,
+    gender: u.gender,
+    gender_text: u.gender_text,
+    sports: u.sports || [],
+    is_friend: u.is_friend ?? false,
+    is_virtual: Boolean(u.is_virtual),
+    invited: false,
+  }));
+
+  return { result, meta };
+};
 
 export const deleteParticipant = async(participantId) => {
   return axiosInstance.post(`${participantEndpoint}/delete/${participantId}`)

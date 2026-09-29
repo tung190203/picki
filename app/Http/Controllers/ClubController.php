@@ -87,6 +87,7 @@ class ClubController extends Controller
 
         try {
             $club = $this->clubService->createClub($request->validated(), $userId);
+            \App\Models\Club\ClubChatConversation::forClub($club->id, $club->name);
 
             $message = $club->status === ClubStatus::Draft
                 ? 'Lưu bản nháp CLB thành công'

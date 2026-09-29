@@ -620,9 +620,15 @@ class ParticipantController extends Controller
     public function inviteUsers(Request $request, $tournamentId)
     {
         $validated = $request->validate([
-            'user_ids' => 'required|array|min:1',
+            'user_ids' => 'sometimes|array|min:1',
             'user_ids.*' => 'exists:users,id',
+            'virtual_ids' => 'sometimes|array|min:1',
+            'virtual_ids.*' => 'exists:club_virtual_members,id',
         ]);
+
+        if (empty($validated['user_ids']) && empty($validated['virtual_ids'])) {
+            return ResponseHelper::error('Cần chọn ít nhất 1 người chơi hoặc thành viên ảo để mời.', 422);
+        }
 
         $tournament = Tournament::findOrFail($tournamentId);
         $organizer = Auth::user();
@@ -637,88 +643,136 @@ class ParticipantController extends Controller
         }
 
         $participantType = $tournament->participant;
-        if ($participantType === 'user') {
-            if ($tournament->participants()->where('is_confirmed', true)->count() >= ($tournament->player_per_team * $tournament->max_team)) {
-                return ResponseHelper::error('Số lượng người tham gia đã đạt giới hạn.', 422);
-            }
-        } else {
-            if ($tournament->participants()->where('is_confirmed', true)->count() >= ($tournament->max_team * $tournament->player_per_team)) {
-                return ResponseHelper::error('Số lượng người tham gia đã đạt giới hạn.', 422);
-            }
+        $currentConfirmed = $tournament->participants()->where('is_confirmed', true)->count();
+        $maxSlots = $participantType === 'user'
+            ? ($tournament->player_per_team * $tournament->max_team)
+            : ($tournament->max_team * $tournament->player_per_team);
+
+        // Count distinct ids (FE may pass the same id in both user_ids and virtual_ids)
+        $allRequestedIds = array_unique(array_merge(
+            $validated['user_ids'] ?? [],
+            $validated['virtual_ids'] ?? [],
+        ));
+        $totalRequested = count($allRequestedIds);
+        if ($currentConfirmed + $totalRequested > $maxSlots) {
+            return ResponseHelper::error('Số lượng người tham gia đã đạt giới hạn.', 422);
         }
 
-        // Chỉ check user đã có participant là member (không phải guest)
-        $existingMemberIds = Participant::where('tournament_id', $tournament->id)
-            ->where('is_guest', false)
-            ->whereIn('user_id', $validated['user_ids'])
-            ->pluck('user_id')
-            ->toArray();
-
-        $newUserIds = array_diff($validated['user_ids'], $existingMemberIds);
-
-        if (empty($newUserIds)) {
-            $message = count($validated['user_ids']) === 1
-                ? 'Người chơi đã được mời hoặc đã tham gia.'
-                : 'Tất cả người chơi đã được mời hoặc đã tham gia.';
-            return ResponseHelper::error($message, 422);
+        // ──────── Handle real users ────────
+        $invitedResources = [];
+        $realUserIds = $validated['user_ids'] ?? [];
+        // If FE passes the same id in both arrays (virtual member id may collide with a real user id),
+        // prefer the virtual-member interpretation — the FE has already marked the entry as `is_virtual`.
+        if (!empty($validated['virtual_ids'])) {
+            $realUserIds = array_values(array_diff($realUserIds, $validated['virtual_ids']));
         }
 
-        // Xác định payment_status cho invited user
-        $paymentStatus = TournamentParticipantPayment::STATUS_CONFIRMED;
-        if ($tournament->has_financial_management && $tournament->has_fee && !$tournament->use_club_fund && !$tournament->auto_split_fee) {
-            $paymentStatus = TournamentParticipantPayment::STATUS_PENDING;
-        }
+        if (!empty($realUserIds)) {
+            $existingMemberIds = Participant::where('tournament_id', $tournament->id)
+                ->where('is_guest', false)
+                ->whereIn('user_id', $realUserIds)
+                ->pluck('user_id')
+                ->toArray();
 
-        $insertData = array_map(function ($invitedUserId) use ($tournament, $isSuperAdmin, $paymentStatus) {
-            return [
-                'tournament_id' => $tournament->id,
-                'user_id' => $invitedUserId,
-                'is_confirmed' => $isSuperAdmin,
-                'self_confirmed' => !$isSuperAdmin,
-                'self_registered' => false,
-                'created_at' => now(),
-                'updated_at' => now(),
-                'payment_status' => $paymentStatus,
-            ];
-        }, $newUserIds);
+            $newUserIds = array_diff($realUserIds, $existingMemberIds);
 
-        $tournament->participants()->insert($insertData);
+            if (!empty($newUserIds)) {
+                $paymentStatus = TournamentParticipantPayment::STATUS_CONFIRMED;
+                if ($tournament->has_financial_management && $tournament->has_fee && !$tournament->use_club_fund && !$tournament->auto_split_fee) {
+                    $paymentStatus = TournamentParticipantPayment::STATUS_PENDING;
+                }
 
-        // Tạo TournamentParticipantPayment cho invited users có phí cố định
-        if ($tournament->has_financial_management && $tournament->has_fee && !$tournament->use_club_fund && !$tournament->auto_split_fee) {
-            $feePerPerson = $tournament->fee_amount;
-            $newParticipants = Participant::where('tournament_id', $tournament->id)
-                ->whereIn('user_id', $newUserIds)
-                ->get();
-
-            foreach ($newParticipants as $participant) {
-                TournamentParticipantPayment::firstOrCreate(
-                    [
+                $insertData = array_map(function ($invitedUserId) use ($tournament, $isSuperAdmin, $paymentStatus) {
+                    return [
                         'tournament_id' => $tournament->id,
-                        'participant_id' => $participant->id,
-                    ],
-                    [
-                        'user_id' => $participant->user_id,
-                        'amount' => $feePerPerson,
-                        'status' => TournamentParticipantPayment::STATUS_PENDING,
-                    ]
-                );
+                        'user_id' => $invitedUserId,
+                        'is_confirmed' => $isSuperAdmin,
+                        'self_confirmed' => !$isSuperAdmin,
+                        'self_registered' => false,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                        'payment_status' => $paymentStatus,
+                    ];
+                }, $newUserIds);
+
+                $tournament->participants()->insert($insertData);
+
+                if ($tournament->has_financial_management && $tournament->has_fee && !$tournament->use_club_fund && !$tournament->auto_split_fee) {
+                    $feePerPerson = $tournament->fee_amount;
+                    $newParticipants = Participant::where('tournament_id', $tournament->id)
+                        ->whereIn('user_id', $newUserIds)
+                        ->get();
+
+                    foreach ($newParticipants as $participant) {
+                        TournamentParticipantPayment::firstOrCreate(
+                            [
+                                'tournament_id' => $tournament->id,
+                                'participant_id' => $participant->id,
+                            ],
+                            [
+                                'user_id' => $participant->user_id,
+                                'amount' => $feePerPerson,
+                                'status' => TournamentParticipantPayment::STATUS_PENDING,
+                            ]
+                        );
+                    }
+                }
+
+                $invitedUsers = User::whereIn('id', $newUserIds)->get();
+
+                foreach ($invitedUsers as $user) {
+                    $user->notify(new TournamentInvitationNotification($tournament));
+                }
+
+                $participants = Participant::where('tournament_id', $tournament->id)
+                    ->whereIn('user_id', $newUserIds)
+                    ->get();
+
+                foreach ($participants as $p) {
+                    $invitedResources[] = new ParticipantResource($p);
+                }
             }
         }
 
-        $invitedUsers = User::whereIn('id', $newUserIds)->get();
+        // ──────── Handle club virtual members (no real user row; snapshot name+avatar as guest) ────────
+        if (!empty($validated['virtual_ids'])) {
+            $virtualMembers = \App\Models\Club\ClubVirtualMember::whereIn('id', $validated['virtual_ids'])->get();
 
-        foreach ($invitedUsers as $user) {
-            $user->notify(new TournamentInvitationNotification($tournament));
+            foreach ($virtualMembers as $vm) {
+                $alreadyAdded = Participant::where('tournament_id', $tournament->id)
+                    ->where('is_guest', true)
+                    ->where('guest_name', $vm->name)
+                    ->exists();
+                if ($alreadyAdded) {
+                    continue;
+                }
+
+                $paymentStatus = $tournament->has_financial_management && $tournament->has_fee && !$tournament->use_club_fund && !$tournament->auto_split_fee
+                    ? TournamentParticipantPayment::STATUS_PENDING
+                    : TournamentParticipantPayment::STATUS_CONFIRMED;
+
+                $participant = $tournament->participants()->create([
+                    'is_guest' => true,
+                    'guest_name' => $vm->name,
+                    'guest_avatar' => $vm->avatar_url,
+                    'guarantor_user_id' => $organizer->id,
+                    'is_confirmed' => $isSuperAdmin,
+                    'self_confirmed' => !$isSuperAdmin,
+                    'self_registered' => false,
+                    'payment_status' => $paymentStatus,
+                ]);
+
+                $invitedResources[] = new ParticipantResource($participant);
+            }
         }
 
-        $participants = Participant::where('tournament_id', $tournament->id)
-            ->whereIn('user_id', $newUserIds)
-            ->get();
+        if (empty($invitedResources)) {
+            return ResponseHelper::error('Tất cả người chơi đã được mời hoặc đã tham gia.', 422);
+        }
 
         return ResponseHelper::success(
-            ParticipantResource::collection($participants),
-            'Đã gửi lời mời thành công cho ' . count($newUserIds) . ' người chơi.'
+            $invitedResources,
+            'Đã gửi lời mời thành công cho ' . count($invitedResources) . ' người chơi.'
         );
     }
 
@@ -795,321 +849,7 @@ class ParticipantController extends Controller
 
         return ResponseHelper::success($data, 'Lấy danh sách người chơi thành công');
     }
-    /**
-     * Lọc theo độ tuổi
-     */
-    private function filterByAge($query, $ageGroup)
-    {
-        $today = Carbon::today();
-
-        switch ($ageGroup) {
-            case Tournament::YOUTH: // Dưới 18
-                $minDate = $today->copy()->subYears(18);
-                $query->where('date_of_birth', '>', $minDate);
-                break;
-
-            case Tournament::ADULT: // 18-55
-                $minDate = $today->copy()->subYears(55);
-                $maxDate = $today->copy()->subYears(18);
-                $query->whereBetween('date_of_birth', [$minDate, $maxDate]);
-                break;
-
-            case Tournament::SENIOR: // Trên 55
-                $maxDate = $today->copy()->subYears(55);
-                $query->where('date_of_birth', '<', $maxDate);
-                break;
-
-            case Tournament::ALL_AGES:
-            default:
-                // Không lọc
-                break;
-        }
-
-        return $query;
-    }
-
-    /**
-     * Lọc theo giới tính
-     */
-    private function filterByGender($query, $genderPolicy)
-    {
-        if ($genderPolicy === Tournament::MALE) {
-            $query->where('gender', Tournament::MALE);
-        } elseif ($genderPolicy === Tournament::FEMALE) {
-            $query->where('gender', Tournament::FEMALE);
-        }
-        // MIXED: không lọc
-
-        return $query;
-    }
-
-
-    public function getCandidates(Request $request, $tournamentId)
-    {
-        $tournament = Tournament::withFullRelations()->findOrFail($tournamentId);
-        $user = Auth::user();
-
-        $validated = $request->validate([
-            'scope' => 'required|in:club,friends,area,all',
-            'club_id' => 'required_if:scope,club|exists:clubs,id',
-            'search' => 'sometimes|string|max:255',
-            'per_page' => 'sometimes|integer|min:1|max:200',
-            'lat' => 'required_if:scope,area|numeric',
-            'lng' => 'required_if:scope,area|numeric',
-            'radius' => 'required_if:scope,area|numeric|min:0.1|max:200',
-        ]);
-
-        $perPage = $validated['per_page'] ?? 20;
-        $scope = $validated['scope'];
-        $lat = $validated['lat'] ?? null;
-        $lng = $validated['lng'] ?? null;
-
-        // 🧮 Tính mid level cho sorting
-        $midLevel = null;
-        if ($tournament->min_level !== null && $tournament->max_level !== null) {
-            $midLevel = (float)(($tournament->min_level + $tournament->max_level) / 2);
-        }
-
-        // 🎯 Tùy theo phạm vi (scope)
-        switch ($scope) {
-            case 'club':
-                $query = User::withFullRelations()
-                    ->whereHas('clubs', fn($q) => $q->where('clubs.id', $validated['club_id']));
-                break;
-
-            case 'friends':
-                $query = User::withFullRelations()
-                    ->where(function ($q) use ($user) {
-                        $q->whereExists(function ($sub) use ($user) {
-                            $sub->select(DB::raw(1))
-                                ->from('follows as f1')
-                                ->whereColumn('f1.followable_id', 'users.id')
-                                ->where('f1.user_id', $user->id)
-                                ->where('f1.followable_type', User::class);
-                        })
-                        ->whereExists(function ($sub) use ($user) {
-                            $sub->select(DB::raw(1))
-                                ->from('follows as f2')
-                                ->whereColumn('f2.user_id', 'users.id')
-                                ->where('f2.followable_id', $user->id)
-                                ->where('f2.followable_type', User::class);
-                        });
-                    })
-                    ->orWhere(function ($q) use ($user) {
-                        $q->where('users.id', '!=', $user->id)
-                            ->whereExists(function ($sub) use ($user) {
-                                $sub->select(DB::raw(1))
-                                    ->from('club_members as cm1')
-                                    ->join('club_members as cm2', 'cm1.club_id', '=', 'cm2.club_id')
-                                    ->whereColumn('cm1.user_id', 'users.id')
-                                    ->where('cm1.user_id', '!=', $user->id)
-                                    ->where('cm1.membership_status', 'joined')
-                                    ->where('cm1.status', 'active')
-                                    ->where('cm2.user_id', $user->id)
-                                    ->where('cm2.membership_status', 'joined')
-                                    ->where('cm2.status', 'active');
-                            });
-                    });
-                break;
-
-            case 'area':
-                $lat = $validated['lat'];
-                $lng = $validated['lng'];
-                $radius = $validated['radius'];
-
-                $haversine = "6371 * acos(
-                        cos(radians(?))
-                        * cos(radians(users.latitude))
-                        * cos(radians(users.longitude) - radians(?))
-                        + sin(radians(?))
-                        * sin(radians(users.latitude))
-                    )";
-
-                $query = User::withFullRelations()
-                    ->whereNotNull('users.latitude')
-                    ->whereNotNull('users.longitude')
-                    ->whereRaw("$haversine <= ?", [
-                        $lat,
-                        $lng,
-                        $lat,
-                        $radius,
-                    ])
-                    ->orderByRaw("$haversine asc", [
-                        $lat,
-                        $lng,
-                        $lat,
-                    ]);
-                break;
-            case 'all':
-                $query = User::withFullRelations();
-                break;
-        }
-
-        // 🔐 Visibility filter (trừ scope 'all')
-        if ($scope !== 'all') {
-            $query->whereIn('users.visibility', [
-                User::VISIBILITY_PUBLIC,
-                User::VISIBILITY_FRIEND_ONLY
-            ]);
-        } else {
-            $query->whereIn('users.visibility', [User::VISIBILITY_PUBLIC]);
-        }
-
-        // ⚽ Filter theo setting của giải (chỉ áp dụng khi scope !== 'all')
-        if ($scope !== 'all') {
-            // 1. Có môn thể thao phù hợp
-            $query->whereHas('sports', function ($q) use ($tournament) {
-                $q->where('sport_id', $tournament->sport_id);
-            });
-
-            // 2. Tuổi
-            $query->tap(fn ($q) => $this->filterByAge($q, $tournament->age_group));
-
-            // 3. Giới tính
-            $query->tap(fn ($q) => $this->filterByGender($q, $tournament->gender_policy));
-        }
-
-        // 4. Loại trừ người đã tham gia (participant) HOẶC đã được mời (staff)
-        $participantUserIds = $tournament->participants->pluck('user_id')->toArray();
-        $staffUserIds = $tournament->tournamentStaffs->pluck('user_id')->toArray();
-
-        // Lấy union (không phải giao) của 2 tập hợp: loại user có trong participant HOẶC staff
-        $excludedUserIds = array_unique(array_merge($participantUserIds, $staffUserIds));
-
-        if (!empty($excludedUserIds)) {
-            $query->whereNotIn('users.id', $excludedUserIds);
-        }
-
-        // 5. Join để lấy level + filter level (chỉ khi scope !== 'all')
-        if ($scope !== 'all') {
-            $query->leftJoin('user_sport', function ($join) use ($tournament) {
-                $join->on('users.id', '=', 'user_sport.user_id')
-                    ->where('user_sport.sport_id', $tournament->sport_id);
-            })
-            ->leftJoin('user_sport_scores', function ($join) {
-                $join->on('user_sport.id', '=', 'user_sport_scores.user_sport_id')
-                    ->where('user_sport_scores.score_type', 'vndupr_score');
-            });
-
-            // 6. Filter level
-            $query->when(
-                $tournament->min_level !== null,
-                fn ($q) => $q->where('user_sport_scores.score_value', '>=', $tournament->min_level)
-            )
-            ->when(
-                $tournament->max_level !== null,
-                fn ($q) => $q->where('user_sport_scores.score_value', '<=', $tournament->max_level)
-            );
-        }
-
-        // 7. Select + Sort (chỉ khi scope !== 'all')
-        if ($scope !== 'all') {
-            $query->selectRaw('users.*')
-                ->selectRaw('user_sport_scores.score_value as level')
-                ->when(
-                    $midLevel !== null,
-                    fn ($q) => $q->selectRaw(
-                        'ABS(user_sport_scores.score_value - ?) as level_diff',
-                        [$midLevel]
-                    )
-                )
-                ->selectRaw(
-                    'CASE WHEN users.location_id = ? THEN 1 ELSE 0 END as same_location',
-                    [$tournament->location_id]
-                )
-                ->when($scope === 'area' && $lat !== null && $lng !== null, fn ($q) => $q->selectRaw(
-                    "6371 * acos(cos(radians(?)) * cos(radians(users.latitude)) * cos(radians(users.longitude) - radians(?)) + sin(radians(?)) * sin(radians(users.latitude))) as distance",
-                    [$lat, $lng, $lat]
-                ))
-                ->orderByDesc('same_location')
-                ->when($midLevel !== null, fn ($q) => $q->orderBy('level_diff'));
-        } else {
-            $query->select('users.*');
-        }
-
-        // 🔍 Tìm kiếm tên người dùng (áp dụng cho tất cả scope)
-        if (!empty($validated['search'])) {
-            $query->where('users.full_name', 'like', '%' . $validated['search'] . '%');
-        }
-
-        // 🧮 Phân trang
-        $paginated = $query->paginate($perPage);
-        $candidates = $paginated->getCollection()->map(function ($u) use ($user, $excludedUserIds, $lat, $lng) {
-
-            return [
-                'id' => $u->id,
-                'name' => $u->full_name,
-                'visibility' => $u->visibility,
-                'age_group' => $u->age_group,
-                'avatar_url' => $u->avatar_url,
-                'thumbnail' => $u->thumbnail,
-                'gender' => $u->gender,
-                'gender_text' => $u->gender_text,
-                'play_times' => [],
-                'distance' => ($lat !== null && $lng !== null && isset($u->latitude, $u->longitude))
-                    ? round($this->haversineDistance((float) $lat, (float) $lng, (float) $u->latitude, (float) $u->longitude), 1)
-                    : null,
-
-                'sports' => $u->sports->map(function ($userSport) use ($u) {
-                    $scores = $userSport->scores()
-                        ->pluck('score_value', 'score_type')
-                        ->toArray();
-
-                    $stats = \App\Models\User::getSportStats($u->id, $userSport->sport_id);
-
-                    return [
-                        'sport_id' => $userSport->sport_id,
-                        'sport_icon' => $userSport->sport?->icon,
-                        'sport_name' => $userSport->sport?->name,
-                        'scores' => [
-                            'personal_score' => $scores['personal_score'] ?? '0.000',
-                            'dupr_score'     => $scores['dupr_score'] ?? '0.000',
-                            'vndupr_score'   => $scores['vndupr_score'] ?? '0.000',
-                        ],
-                        'total_matches'     => $stats['total_matches'],
-                        'total_tournaments' => $stats['total_tournaments'],
-                        'total_mini_tournaments' => $stats['total_mini_tournaments'],
-                        'total_prizes'      => $stats['total_prizes'],
-                        'win_rate'          => $stats['win_rate'],
-                        'performance'       => $stats['performance'],
-                    ];
-                }),
-                'is_friend' => $user->isFriendWith($u),
-                'is_participant' => in_array($u->id, $excludedUserIds),
-            ];
-        });
-
-        if ($scope === 'club' && !empty($validated['club_id'])) {
-            $virtualMembers = \App\Models\Club\ClubVirtualMember::where('club_id', $validated['club_id'])
-                ->when(!empty($validated['search']), fn($q) => $q->where('name', 'like', '%' . $validated['search'] . '%'))
-                ->get()
-                ->map(fn($vm) => [
-                    'id' => null,
-                    'virtual_member_id' => $vm->id,
-                    'is_virtual' => true,
-                    'is_guest' => true,
-                    'full_name' => $vm->name,
-                    'name' => $vm->name,
-                    'avatar_url' => $vm->avatar_url,
-                    'gender_text' => 'Thành viên ảo',
-                    'notes' => $vm->notes,
-                    'invited' => false,
-                ]);
-
-            $candidates = $candidates->concat($virtualMembers);
-        }
-
-        return ResponseHelper::success([
-            'result' => $candidates,
-        ], 'Danh sách ứng viên', 200, [
-            'current_page' => $paginated->currentPage(),
-            'last_page'    => $paginated->lastPage(),
-            'per_page'     => $paginated->perPage(),
-            'total'        => $paginated->total(),
-        ]);
-    }
-
-    private function authorizeAdminConfirm(Tournament $tournament, int $userId): ?\Illuminate\Http\JsonResponse
+    public function authorizeAdminConfirm(Tournament $tournament, int $userId): ?\Illuminate\Http\JsonResponse
     {
         if ($tournament->club_id) {
             $club = Club::find($tournament->club_id);
@@ -1168,15 +908,5 @@ class ParticipantController extends Controller
         foreach ($userIds as $userId) {
             SendPushJob::dispatch($userId, $title, $body, $data);
         }
-    }
-
-    private function haversineDistance(float $lat1, float $lng1, float $lat2, float $lng2): float
-    {
-        $earthRadius = 6371;
-        $dLat = deg2rad($lat2 - $lat1);
-        $dLng = deg2rad($lng2 - $lng1);
-        $a = sin($dLat / 2) ** 2
-            + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
-        return $earthRadius * 2 * asin(sqrt($a));
     }
 }
