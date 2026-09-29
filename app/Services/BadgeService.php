@@ -193,13 +193,12 @@ class BadgeService
     }
 
     /**
-     * Grant CHAMPION badge to a user. Automatically grants ANCHOR if not already present.
+     * Grant CHAMPION badge to a user.
      */
     public function grant_champion(int $userId, ?int $createdBy = null): void
     {
         DB::transaction(function () use ($userId, $createdBy) {
             $this->_create_badge($userId, BadgeType::CHAMPION, $createdBy);
-            $this->grant_anchor($userId, $createdBy);
         });
     }
 
@@ -274,10 +273,6 @@ class BadgeService
         DB::transaction(function () use ($user) {
             if ($user->getRawOriginal('is_verified')) {
                 $this->grant_verified($user->id, $user->id);
-            }
-
-            if ($user->getRawOriginal('is_anchor')) {
-                $this->grant_anchor($user->id, $user->id);
             }
         });
     }

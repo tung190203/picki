@@ -32,6 +32,17 @@ class Team extends Model
         return $this->belongsToMany(User::class, 'team_members', 'team_id', 'user_id')->withTrashed();
     }
 
+    /**
+     * Guest participants (is_guest=true) đã gắn vào team qua team_members.participant_id.
+     * Dùng cho view only — guest không thuộc $team->members vì không có User.
+     */
+    public function guestMembers()
+    {
+        return $this->hasMany(\App\Models\TeamMember::class, 'team_id')
+            ->whereNotNull('participant_id')
+            ->with('participant.user', 'participant.guarantor');
+    }
+
     protected function avatar(): Attribute
     {
         return Attribute::make(

@@ -19,22 +19,41 @@ class TeamResource extends JsonResource
 
     public function toArray(Request $request): array
     {
-        $members = $this->resource?->members ?? collect();
+        // Build members list: real users + guest participants (merge tại response layer)
+        $members = collect();
+
+        foreach (($this->resource?->members ?? collect()) as $member) {
+            $members->push([
+                '__source' => 'user',
+                'model' => $member,
+                'participant' => $member->relationLoaded('tournamentParticipant')
+                    ? $member->tournamentParticipant
+                    : null,
+            ]);
+        }
+        foreach (($this->resource?->guestMembers ?? collect()) as $tm) {
+            if (!$tm->participant) continue;
+            $members->push([
+                '__source' => 'guest',
+                'model' => $tm->participant,
+                'participant' => $tm->participant,
+            ]);
+        }
+
         $scores = [];
-        foreach ($members as $member) {
-            $participant = $member->relationLoaded('tournamentParticipant')
-                ? $member->tournamentParticipant
-                : null;
+        $resources = [];
+        foreach ($members as $entry) {
+            $participant = $entry['participant'];
+            $model = $entry['model'];
 
             if ($participant?->is_guest) {
-                // Guest: use estimated_level from participant record
                 $score = (float) ($participant->estimated_level ?? 0);
                 if ($score > 0) {
                     $scores[] = $score;
                 }
+                $resources[] = new TeamMemberResource($participant);
             } else {
-                // Real user: use vndupr_score from UserSportScore
-                $memberSports = $member->relationLoaded('sports') ? $member->sports : collect();
+                $memberSports = $model->relationLoaded('sports') ? $model->sports : collect();
                 foreach ($memberSports as $sport) {
                     $sportScores = $sport->relationLoaded('scores') ? $sport->scores : collect();
                     $latest = $sportScores->where('score_type', 'vndupr_score')
@@ -44,9 +63,10 @@ class TeamResource extends JsonResource
                         if ($score > 0) {
                             $scores[] = $score;
                         }
-                        break; // one sport per member
+                        break;
                     }
                 }
+                $resources[] = new TeamMemberResource($model);
             }
         }
 
@@ -60,7 +80,7 @@ class TeamResource extends JsonResource
             'tournament_id' => $this->tournament_id,
             'tournament_type_id' => $this->tournament_type_id,
             'avatar' => $this->avatar,
-            'members' => TeamMemberResource::collection($members),
+            'members' => collect($resources)->map(fn($r) => $r->toArray($request))->values(),
             'total_vndupr' => $totalVndupr,
         ];
     }

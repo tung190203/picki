@@ -455,6 +455,7 @@ class SearchV2Controller extends Controller
                 'is_follow'    => false,
                 'marker_type'  => 'user',
                 'is_virtual'   => true,
+                'virtual_member_id' => $vm->id,
             ];
         }
         return $out;
