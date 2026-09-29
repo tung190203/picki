@@ -22,4 +22,8 @@ class TeamMember extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+    public function participant()
+    {
+        return $this->belongsTo(\App\Models\Participant::class, 'participant_id');
+    }
 }

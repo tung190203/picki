@@ -46,7 +46,7 @@ class SearchPlayerResource extends JsonResource
             'vndupr_score' => $vnduprScore?->score_value ?? null,
             'win_rate'   => $stats['win_rate'] ?? 0.0,
             'total_matches' => $stats['total_matches'] ?? 0,
-            'distance'    => $this->when(isset($this->distance), round($this->distance, 1)),
+            'distance'    => is_numeric($this->distance) ? round((float) $this->distance, 1) : null,
             'latitude'    => $this->latitude ?? null,
             'longitude'   => $this->longitude ?? null,
             'sports'      => $this->whenLoaded('sports', fn() =>
@@ -59,6 +59,8 @@ class SearchPlayerResource extends JsonResource
             ])),
             'is_follow' => $isFollow,
             'marker_type' => 'user',
+            'is_virtual' => false,
+            'virtual_member_id' => null,
         ];
     }
 }
