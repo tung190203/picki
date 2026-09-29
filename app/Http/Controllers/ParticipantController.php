@@ -837,11 +837,17 @@ class ParticipantController extends Controller
             ->pluck('team_members.user_id')
             ->unique();
 
-        // Include confirmed real users not in any team, plus all confirmed guests
-        // (guests have null user_id and are never team members).
+        // Include confirmed real users not in any team. Exclude guests already
+        // assigned to any team in this tournament — they're not selectable.
         $nonTeamParticipants = Participant::withFullRelations()
             ->where('tournament_id', $tournamentId)
             ->where('is_confirmed', 1)
+            ->whereNotIn('id', function ($sub) use ($tournamentId) {
+                $sub->select('participant_id')->from('team_members')
+                    ->join('teams', 'team_members.team_id', '=', 'teams.id')
+                    ->where('teams.tournament_id', $tournamentId)
+                    ->whereNotNull('participant_id');
+            })
             ->where(function ($q) use ($user_ids_in_teams) {
                 $q->where(function ($q2) use ($user_ids_in_teams) {
                     $q2->where('is_guest', false)
@@ -850,8 +856,62 @@ class ParticipantController extends Controller
             })
             ->get();
 
+        // Also surface club virtual members (ẩn) that haven't already been
+        // promoted to a guest participant for this tournament.
+        $tournament = Tournament::find($tournamentId);
+        $virtualArrays = [];
+        $vmByName = [];
+        if ($tournament && $tournament->club_id) {
+            $vms = \App\Models\Club\ClubVirtualMember::where('club_id', $tournament->club_id)->orderBy('name')->get();
+            // Lấy TẤT CẢ guest participants đã nằm trong team của giải đấu,
+            // không chỉ trong $nonTeamParticipants (đã bị filter ra).
+            $guestNamesInTeams = Participant::where('tournament_id', $tournamentId)
+                ->where('is_guest', true)
+                ->whereIn('id', function ($sub) use ($tournamentId) {
+                    $sub->select('participant_id')->from('team_members')
+                        ->join('teams', 'team_members.team_id', '=', 'teams.id')
+                        ->where('teams.tournament_id', $tournamentId)
+                        ->whereNotNull('participant_id');
+                })
+                ->pluck('guest_name')
+                ->all();
+            $existingGuestNames = array_merge(
+                $nonTeamParticipants->where('is_guest', true)->pluck('guest_name')->all(),
+                $guestNamesInTeams
+            );
+            foreach ($vms as $vm) {
+                $vmByName[$vm->name] = $vm;
+                if (in_array($vm->name, $existingGuestNames, true)) {
+                    continue;
+                }
+                $virtualArrays[] = [
+                    'id'                       => null,
+                    'is_confirmed'             => false,
+                    'is_guest'                 => true,
+                    'guest_name'               => $vm->name,
+                    'guest_avatar'             => $vm->avatar_url,
+                    'guarantor_user_id'        => null,
+                    'estimated_level'          => null,
+                    'is_pending_confirmation'  => false,
+                    'checked_in_at'            => null,
+                    'is_absent'                => false,
+                    'is_virtual'               => true,
+                    'virtual_member_id'        => $vm->id,
+                ];
+            }
+        }
+
+        $participants = TournamentParticipantResource::collection($nonTeamParticipants)->toArray($request);
+        foreach ($participants as &$p) {
+            if (!empty($p['is_guest']) && isset($vmByName[$p['guest_name'] ?? ''])) {
+                $p['is_virtual'] = true;
+                $p['virtual_member_id'] = $vmByName[$p['guest_name']]->id;
+            }
+        }
+        unset($p);
+
         $data = [
-            'participants' => TournamentParticipantResource::collection($nonTeamParticipants),
+            'participants' => array_merge($participants, $virtualArrays),
         ];
 
         return ResponseHelper::success($data, 'Lấy danh sách người chơi thành công');
