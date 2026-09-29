@@ -81,7 +81,7 @@
 
                 <!-- 3. Tab BXH (Gồm Điểm trình & Thành tích Sao/Cúp) -->
                 <div v-show="activeTab === 'ranking'">
-                    <ClubAchievementRanking 
+                    <ClubAchievementRanking
                         v-if="club?.id"
                         :club-id="club.id"
                         :top-three="topThree"
@@ -90,6 +90,11 @@
                         :loading="leaderboardLoading"
                         @page-change="$emit('leaderboard-page-change', $event)"
                     />
+                </div>
+
+                <!-- 4. Tab Nhóm chat -->
+                <div v-show="activeTab === 'chat'">
+                    <ClubChatTab v-if="club?.id" :club-id="club.id" :club-name="club?.name || 'CLB'" />
                 </div>
             </div>
         </div>
@@ -101,6 +106,7 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { PencilSquareIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import ClubMember from '@/components/molecules/ClubMember.vue'
 import ClubAchievementRanking from '@/components/molecules/ClubAchievementRanking.vue'
+import ClubChatTab from '@/components/molecules/ClubChatTab.vue'
 
 const activeTab = ref('intro')
 const isExpanded = ref(false)
@@ -152,7 +158,8 @@ const emit = defineEmits(['leaderboard-page-change', 'tab-change', 'refresh-club
 const tabs = computed(() => [
     { id: 'intro', name: 'Giới thiệu' },
     { id: 'members', name: `Thành viên (${props.club?.quantity_members || 0})` },
-    { id: 'ranking', name: 'BXH' }
+    { id: 'ranking', name: 'BXH' },
+    { id: 'chat', name: 'Nhóm chat' }
 ])
 
 const setTabRef = (el, id) => {

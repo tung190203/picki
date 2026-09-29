@@ -12,11 +12,13 @@ const miniTournamentStaffEndpoint = API_ENDPOINT.MINI_TOURNAMENT_STAFF;
  * @param {Number} staffId - user_id của người được thêm
  * @param {Number} role - 1|2|3
  */
-export const addMiniTournamentStaff = async (miniTournamentId, staffId, role) => {
-  return axiosInstance.post(`${miniTournamentStaffEndpoint}/add/${miniTournamentId}`, {
-    staff_id: staffId,
-    role: role,
-  }).then((response) => response.data.data)
+export const addMiniTournamentStaff = async (miniTournamentId, staffId, role, virtualId = null) => {
+  const payload = {};
+  if (staffId != null) payload.staff_id = staffId;
+  if (role !== null && role !== undefined) payload.role = role;
+  if (virtualId !== null && virtualId !== undefined) payload.virtual_id = virtualId;
+  return axiosInstance.post(`${miniTournamentStaffEndpoint}/add/${miniTournamentId}`, payload)
+    .then((response) => response.data.data)
 }
 
 /**

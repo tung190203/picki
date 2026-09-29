@@ -52,73 +52,6 @@
                         </Swiper>
                     </div>
 
-                    <!-- Radius & Auto-Invite Controls (area tab only) -->
-                    <div v-if="activeTab === 'area'" class="px-6 pb-4 space-y-3">
-                        <!-- Source Toggle -->
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm font-medium text-gray-700 dark:text-slate-300">Nguồn toạ độ:</span>
-                            <div class="flex rounded-lg border border-gray-300 dark:border-slate-700 overflow-hidden text-xs">
-                                <button
-                                    @click="locationSource = 'venue'"
-                                    :class="[
-                                        'px-3 py-1.5 transition',
-                                        locationSource === 'venue'
-                                            ? 'bg-red-500 text-white'
-                                            : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                                    ]"
-                                >
-                                    Theo sân đấu
-                                </button>
-                                <button
-                                    @click="locationSource = 'user'"
-                                    :class="[
-                                        'px-3 py-1.5 transition',
-                                        locationSource === 'user'
-                                            ? 'bg-red-500 text-white'
-                                            : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                                    ]"
-                                >
-                                    Theo vị trí tôi
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Radius Slider -->
-                        <div>
-                            <div class="flex items-center justify-between mb-2">
-                                <label class="text-sm font-medium text-gray-700 dark:text-slate-300">Bán kính tìm kiếm</label>
-                                <span class="text-sm font-semibold text-red-600 dark:text-red-400">{{ localRadius }} km</span>
-                            </div>
-                            <input
-                                type="range"
-                                v-model.number="localRadius"
-                                @change="onRadiusChange"
-                                min="1"
-                                max="50"
-                                step="1"
-                                class="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-red-600 custom-range"
-                                :style="sliderStyle"
-                            />
-                            <div class="flex justify-between text-xs text-gray-500 dark:text-slate-400 mt-1">
-                                <span>1 km</span>
-                                <span>50 km</span>
-                            </div>
-                        </div>
-
-                        <!-- Friend Only Toggle -->
-                        <div class="flex items-center gap-2">
-                            <input
-                                type="checkbox"
-                                id="friend-only"
-                                v-model="friendOnly"
-                                class="w-4 h-4 text-red-600 border-gray-300 dark:border-slate-700 rounded focus:ring-red-500 cursor-pointer"
-                            />
-                            <label for="friend-only" class="text-sm font-medium text-gray-700 dark:text-slate-300 cursor-pointer select-none">
-                                Chỉ bạn bè (friend only)
-                            </label>
-                        </div>
-                    </div>
-
                     <!-- Search -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 px-6 py-4">
                         <div :class="activeTab === 'club' ? '' : 'md:col-span-2'" class="relative flex items-center">
@@ -173,6 +106,7 @@
                                             class="w-full h-full object-cover"
                                         />
                                         <div
+                                            v-if="!user.is_virtual"
                                             class="absolute -bottom-1 -left-1 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border border-white dark:border-slate-800"
                                         >
                                             <span class="text-white text-[9px] font-bold">
@@ -192,14 +126,21 @@
 
                                 <!-- Info -->
                                 <div class="flex-1 min-w-0 pr-2">
-                                    <div class="w-full">
-                                        <div class="font-semibold text-gray-800 dark:text-slate-100 truncate" :title="user.name">
-                                            {{ user.name }}
+                                    <div class="w-full flex items-center gap-2">
+                                        <div class="font-semibold text-gray-800 dark:text-slate-100 truncate" :title="user.name || user.full_name">
+                                            {{ user.name || user.full_name || 'Thành viên ảo' }}
                                         </div>
+                                        <span
+                                            v-if="user.is_virtual"
+                                            class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 flex-shrink-0"
+                                            title="Thành viên ảo của CLB"
+                                        >
+                                            Ảo
+                                        </span>
                                     </div>
                                     <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 mt-0.5">
-                                        <component :is="user.gender == 1 ? maleIcon : femaleIcon" class="w-4 h-4 flex-shrink-0" />
-                                        <span class="truncate">{{ user.gender_text }}</span>
+                                        <component v-if="!user.is_virtual" :is="user.gender == 1 ? maleIcon : femaleIcon" class="w-4 h-4 flex-shrink-0" />
+                                        <span class="truncate">{{ user.is_virtual ? 'Thành viên ảo' : (user.gender_text || '') }}</span>
                                     </div>
                                 </div>
 
@@ -211,10 +152,12 @@
                                         'px-4 py-2 rounded-lg text-sm font-semibold transition',
                                         user.invited
                                             ? 'bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500 cursor-not-allowed'
-                                            : 'bg-blue-500 text-white hover:bg-blue-600'
+                                            : (user.is_virtual
+                                                ? 'bg-purple-500 text-white hover:bg-purple-600'
+                                                : 'bg-blue-500 text-white hover:bg-blue-600')
                                     ]"
                                 >
-                                    {{ user.invited ? 'Đã mời' : 'Mời bạn' }}
+                                    {{ user.invited ? 'Đã mời' : (user.is_virtual ? 'Thêm' : 'Mời bạn') }}
                                 </button>
                             </div>
 
@@ -253,7 +196,6 @@ const props = defineProps({
     clubs: Array,
     searchQuery: String,
     activeScope: String,
-    currentRadius: Number,
     currentClubId: [String, Number],
     isLoadingMore: Boolean,
     hasMore: {
@@ -280,13 +222,13 @@ const props = defineProps({
         type: Number,
         default: 0
     },
-    competitionLocation: {
-        type: Object,
-        default: null
-    },
     tournamentId: {
         type: [Number, String],
         default: null
+    },
+    invitedUserIds: {
+        type: Array,
+        default: () => []
     },
 })
 
@@ -296,7 +238,6 @@ const emit = defineEmits([
     'change-scope',
     'change-club',
     'update:searchQuery',
-    'update:radius',
     'load-more',
     'invite-complete',
 ])
@@ -311,18 +252,14 @@ const closeModal = () => (isOpen.value = false)
 const tabs = [
     { id: 'all', label: 'Tất cả' },
     { id: 'club', label: 'Trong CLB của bạn' },
-    { id: 'friends', label: 'Bạn bè của bạn' },
-    { id: 'area', label: 'Trong khu vực' }
+    { id: 'friends', label: 'Bạn bè của bạn' }
 ]
 
 const selectedClub = ref(props.currentClubId || '')
 const localSearchQuery = ref(props.searchQuery || '')
-const localRadius = ref(props.currentRadius || 10)
 const scrollContainer = ref(null)
 const activeTab = ref('all')
 const selectedRole = ref('organizer')
-const friendOnly = ref(false)
-const locationSource = ref('venue')
 
 watch(
   () => props.activeScope,
@@ -341,24 +278,23 @@ watch(
 )
 
 watch(() => props.searchQuery, v => (localSearchQuery.value = v))
-watch(() => props.currentRadius, v => (localRadius.value = v))
 watch(() => props.currentClubId, v => (selectedClub.value = v))
 
-const sliderStyle = computed(() => {
-    const percent = ((localRadius.value - 1) / 49) * 100
-    return {
-        background: `linear-gradient(to right,#dc2626 ${percent}%,#e5e7eb ${percent}%)`
-    }
-})
-
-const filteredUsers = computed(() =>
-    (props.data?.result || []).filter(u =>
-        u.name.toLowerCase().includes(localSearchQuery.value.toLowerCase())
-    )
-)
+const filteredUsers = computed(() => {
+    const invitedSet = new Set(
+        (props.invitedUserIds || []).map(id => Number(id))
+    );
+    const q = (localSearchQuery.value || '').toLowerCase();
+    const list = props.data?.result || [];
+    return list
+        .map(u => ({ ...u, invited: u.invited || invitedSet.has(Number(u.id)) }))
+        .filter(u => {
+            const name = (u.name || u.full_name || '').toString().toLowerCase();
+            return name.includes(q);
+        });
+});
 
 const onSearch = () => emit('update:searchQuery', localSearchQuery.value)
-const onRadiusChange = () => emit('update:radius', localRadius.value)
 
 const inviteUser = id => {
     const user = props.data.result.find(u => u.id === id)
