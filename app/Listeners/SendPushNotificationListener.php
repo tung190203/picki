@@ -20,6 +20,12 @@ class SendPushNotificationListener
             return;
         }
 
+        // Skip push notifications in non-production environments (local/dev/staging).
+        // Database notifications are still saved by Laravel before this listener fires.
+        if (in_array(config('app.env'), ['local', 'development', 'dev', 'staging'], true)) {
+            return;
+        }
+
         $payload = $this->resolvePayload($event);
 
         if ($payload === null) {

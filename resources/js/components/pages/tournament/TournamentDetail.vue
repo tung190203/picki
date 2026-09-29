@@ -1893,11 +1893,21 @@ const getNonTeamParticipants = async () => {
   }
 };
 
-const handleAddUserToTeam = async (user) => {
-  if (!selectedTeam.value || !user.id) return;
+const handleAddUserToTeam = async (participant) => {
+  if (!selectedTeam.value || !participant) return;
+  let payload = null;
+  if (participant.is_virtual && participant.virtual_member_id) {
+    payload = { virtual_member_id: participant.virtual_member_id };
+  } else if (participant.is_guest && participant.id) {
+    payload = { participant_id: participant.id };
+  } else {
+    const userId = participant.user?.id ?? participant.user_id;
+    if (!userId) return;
+    payload = { user_id: userId };
+  }
   try {
-    await TeamService.addUserToTeam(selectedTeam.value.id, user.user.id);
-    toast.success(`Đã thêm ${user.user.name} vào đội ${selectedTeam.value.name}!`);
+    await TeamService.addUserToTeam(selectedTeam.value.id, payload);
+    toast.success(`Đã thêm ${participant.guest_name || participant.user?.full_name || ''} vào đội ${selectedTeam.value.name}!`);
     showInviteUserToTeamModal.value = false;
     await getTeams();
     await getNonTeamParticipants();

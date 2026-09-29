@@ -185,7 +185,7 @@ class CrossGroupComparisonService
         $rankingRules = $this->extractRankingRules($type);
         $candidates = $this->buildCandidates($groups, $type, $rankingRules);
         $candidates = $this->buildComparisonStats($candidates, $minimumGroupSize, $rankingRules);
-        return $this->rankCandidates($candidates, $rankingRules);
+        return $this->rankCandidates($type, $candidates, $rankingRules);
     }
 
     /**
@@ -592,7 +592,7 @@ class CrossGroupComparisonService
      *
      * pending_draw = true khi CÙNG candidate_type + cùng tất cả ranking keys đang xét.
      */
-    protected function rankCandidates(Collection $candidates, array $rankingRules): Collection
+    protected function rankCandidates(TournamentType $type, Collection $candidates, array $rankingRules): Collection
     {
         // Tính head-to-head trước (nếu cần)
         $h2hMatrix = in_array(\App\Models\TournamentType::RANKING_HEAD_TO_HEAD, $rankingRules, true)

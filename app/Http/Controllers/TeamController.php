@@ -29,7 +29,7 @@ class TeamController extends Controller
      */
     private function withMembersRelations(): array
     {
-        return ['members.sports.scores', 'members.sports.sport'];
+        return ['members.sports.scores', 'members.sports.sport', 'guestMembers.participant.user', 'guestMembers.participant.guarantor'];
     }
 
     /**
@@ -301,11 +301,14 @@ class TeamController extends Controller
     {
         $request->validate(
             [
-                'user_id' => 'required|exists:participants,user_id',
+                'user_id'           => 'sometimes|nullable|integer',
+                'participant_id'    => 'sometimes|nullable|integer',
+                'virtual_member_id' => 'sometimes|nullable|integer',
             ],
             [
-                'user_id.exists' => 'Người dùng chưa tham gia giải đấu',
-                'user_id.required' => 'Vui lòng chọn người dùng',
+                'user_id.integer'           => 'user_id phải là số nguyên',
+                'participant_id.integer'    => 'participant_id phải là số nguyên',
+                'virtual_member_id.integer' => 'virtual_member_id phải là số nguyên',
             ]
         );
 
@@ -318,32 +321,110 @@ class TeamController extends Controller
         if (!$isOrganizer) {
             return ResponseHelper::error('Bạn không có quyền thêm người vào đội', 400);
         }
-        $participant = Participant::where('user_id', $request->user_id)
-            ->where('tournament_id', $tournament->id)
-            ->where('is_confirmed', true)
-            ->first();
 
+        // Resolve participant: real user / guest đã có / VM (tạo guest mới giống flow add guest)
+        $participant = $this->resolveParticipant($request, $tournament);
         if (!$participant) {
-            return ResponseHelper::error("Người dùng chưa được xác nhận tham gia giải đấu", 422);
+            return ResponseHelper::error('Không tìm thấy người chơi hợp lệ trong giải đấu', 422);
         }
+
+        // Reject nếu participant đã ở team khác cùng tournament
+        $existingElsewhere = \App\Models\TeamMember::where('participant_id', $participant->id)
+            ->whereHas('team', fn ($q) => $q->where('tournament_id', $tournament->id)->where('id', '!=', $team->id))
+            ->exists();
+        if ($existingElsewhere) {
+            return ResponseHelper::error('Người chơi đã nằm trong đội khác của giải đấu', 422);
+        }
+
         $currentCount = $team->members()->count();
         $maxPlayers = $tournament->player_per_team;
-
         if ($maxPlayers && $currentCount >= $maxPlayers) {
             return ResponseHelper::error("Đội đã đủ số lượng tối đa {$maxPlayers} thành viên", 422);
         }
 
-        // tránh thêm trùng
-        if ($team->members()->where('user_id', $request->user_id)->exists()) {
-            return ResponseHelper::error("Người dùng đã nằm trong đội", 422);
+        $alreadyInTeam = \App\Models\TeamMember::where('team_id', $team->id)
+            ->where(function ($q) use ($participant) {
+                if ($participant->user_id) {
+                    $q->where('user_id', $participant->user_id);
+                }
+                $q->orWhere('participant_id', $participant->id);
+            })
+            ->exists();
+        if ($alreadyInTeam) {
+            return ResponseHelper::error('Người chơi đã nằm trong đội', 422);
         }
 
-        $team->members()->attach($request->user_id);
+        \App\Models\TeamMember::create([
+            'team_id'        => $team->id,
+            'user_id'        => $participant->user_id,
+            'participant_id' => $participant->id,
+        ]);
 
         $team->load($this->withMembersRelations());
         TournamentTeamMemberHydrator::hydrateTeam($team, $tournament->id);
 
         return ResponseHelper::success(new TeamResource($team), 'Thêm thành viên vào đội thành công');
+    }
+
+    /**
+     * Resolve Participant từ 1 trong 3 input.
+     * - user_id: real user đã confirmed trong tournament
+     * - participant_id: guest đã tồn tại (confirmed)
+     * - virtual_member_id: ClubVirtualMember → tạo Participant guest mới (giống flow guest)
+     *
+     * Trả về Participant hoặc null nếu không resolve được.
+     */
+    private function resolveParticipant(Request $request, Tournament $tournament): ?Participant
+    {
+        if ($request->filled('user_id')) {
+            return Participant::where('user_id', $request->user_id)
+                ->where('tournament_id', $tournament->id)
+                ->where('is_confirmed', true)
+                ->first();
+        }
+
+        if ($request->filled('participant_id')) {
+            return Participant::where('id', $request->participant_id)
+                ->where('tournament_id', $tournament->id)
+                ->where('is_guest', true)
+                ->where('is_confirmed', true)
+                ->first();
+        }
+
+        if ($request->filled('virtual_member_id')) {
+            if (!$tournament->club_id) return null;
+            $vm = \App\Models\Club\ClubVirtualMember::where('id', $request->virtual_member_id)
+                ->where('club_id', $tournament->club_id)
+                ->first();
+            if (!$vm) return null;
+
+            // Tái sử dụng guest participant đã tồn tại trùng tên (VM ↔ guest 1-1)
+            $existing = Participant::where('tournament_id', $tournament->id)
+                ->where('is_guest', true)
+                ->where('guest_name', $vm->name)
+                ->first();
+            if ($existing) {
+                if (!$existing->is_confirmed) {
+                    $existing->is_confirmed = true;
+                    $existing->save();
+                }
+                return $existing;
+            }
+
+            // Tạo mới — giống flow add guest participant
+            return Participant::create([
+                'tournament_id'            => $tournament->id,
+                'user_id'                  => null,
+                'is_guest'                 => true,
+                'is_confirmed'             => true,
+                'guest_name'               => $vm->name,
+                'guest_avatar'             => $vm->avatar_url,
+                'guarantor_user_id'        => Auth::id(),
+                'is_pending_confirmation'  => false,
+            ]);
+        }
+
+        return null;
     }
 
     public function autoAssignTeams($tournamentId)

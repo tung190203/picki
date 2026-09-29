@@ -23,42 +23,45 @@
 
                     <!-- User List -->
                     <div class="flex-1 overflow-y-auto px-4 sm:px-6 pb-4 sm:pb-6" v-if="filteredUsers.length > 0">
-                        <div v-for="user in filteredUsers" :key="user.id"
+                        <div v-for="item in filteredUsers" :key="entryKey(item)"
                             class="flex items-center gap-3 py-3 border-b border-gray-100 last:border-b-0 cursor-pointer hover:bg-gray-50">
                             <!-- Avatar -->
                             <div class="relative flex-shrink-0">
                                 <div
                                     class="w-16 h-16 bg-red-300 rounded-full flex items-center justify-center overflow-hidden">
-                                    <img :src="user.user.avatar_url"
+                                    <img :src="display(item).avatar_url || defaultAvatar"
                                         alt="User Avatar" class="w-full h-full object-cover" />
                                 </div>
                                 <div
                                     class="absolute -bottom-1 -left-1 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border border-1 border-white">
-                                    <span class="text-white font-bold text-[9px]">{{ convertLevel(user.user?.sports[0]?.scores) }}</span>
+                                    <span class="text-white font-bold text-[9px]">{{ convertLevel(display(item).sportsScores) }}</span>
                                 </div>
                             </div>
 
                             <!-- User Info -->
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-1 flex-wrap">
-                                    <span class="font-semibold text-gray-800">{{user.user.full_name }}</span>
-                                    <span :class="[
+                                    <span class="font-semibold text-gray-800">{{ display(item).full_name }}</span>
+                                    <span v-if="item.is_virtual" class="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                                        Virtual
+                                    </span>
+                                    <span v-else :class="[
                                         'px-2 py-0.5 rounded text-xs font-medium',
-                                        user.user.visibility === 'open'
+                                        display(item).visibility === 'open'
                                             ? 'bg-blue-100 text-blue-700'
                                             : 'bg-green-100 text-green-700'
                                     ]">
-                                        {{ user.user.visibility === 'open' ? 'Open' : 'Friend-Only' }}
+                                        {{ display(item).visibility === 'open' ? 'Open' : 'Friend-Only' }}
                                     </span>
                                 </div>
                                 <div class="flex items-center gap-1 text-sm text-gray-500 mt-0.5">
-                                    <component :is="user.user.gender == 1 ? MaleIcon : FemaleIcon" class="w-4 h-4" />
-                                    <span>{{ user.user.gender_text }}</span>
+                                    <component :is="display(item).gender == 1 ? MaleIcon : FemaleIcon" class="w-4 h-4" />
+                                    <span>{{ display(item).gender_text || '—' }}</span>
                                 </div>
                             </div>
 
                             <!-- Invite Button -->
-                            <button @click="addUser(user.user.id)" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0 bg-blue-500 text-white hover:bg-blue-600">
+                            <button @click="addUser(item)" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0 bg-blue-500 text-white hover:bg-blue-600">
                             Thêm vào đội
                             </button>
                         </div>
@@ -80,14 +83,16 @@ import { XMarkIcon, MagnifyingGlassIcon } from '@heroicons/vue/24/outline'
 import MaleIcon from '@/assets/images/male.svg';
 import FemaleIcon from '@/assets/images/female.svg';
 
+const defaultAvatar = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NjY2NjYyI+PHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPjwvc3ZnPg==';
+
 const props = defineProps({
     modelValue: {
         type: Boolean,
         default: false
     },
     data: {
-        type: Object,
-        default: () => ({})
+        type: Array,
+        default: () => []
     },
     title: {
         type: String,
@@ -123,17 +128,41 @@ const closeModal = () => {
 
 const searchQuery = ref('')
 
+// Build a normalized user-shaped view from a participant entry:
+// - real user       -> participant.user fields
+// - guest           -> guest_name / guest_avatar; user fields absent
+// - virtual member  -> guest_name / guest_avatar from club virtual member
+const display = (item) => {
+    const u = item?.user || {}
+    const name = item?.is_virtual || (!item?.user && item?.guest_name)
+        ? (item?.guest_name || '')
+        : (u.full_name || '')
+    return {
+        full_name: name,
+        avatar_url: u.avatar_url || item?.guest_avatar || null,
+        gender: typeof u.gender === 'number' ? u.gender : null,
+        gender_text: u.gender_text || null,
+        visibility: u.visibility || (item?.is_virtual ? 'open' : 'open'),
+        sportsScores: u?.sports?.[0]?.scores || [],
+    }
+}
+
+const entryKey = (item) => {
+    if (item?.is_virtual && item?.virtual_member_id) return `vm-${item.virtual_member_id}`
+    if (item?.is_guest) return `g-${item.id ?? item.guest_name}`
+    return `u-${item?.user?.id ?? item?.id}`
+}
+
 const filteredUsers = computed(() => {
-    return props.data.filter(user =>
-        user.user.full_name.toLowerCase().includes(searchQuery.value.toLowerCase())
-    )
+    const q = searchQuery.value.toLowerCase()
+    return (Array.isArray(props.data) ? props.data : []).filter(item => {
+        const name = (display(item).full_name || '').toLowerCase()
+        return name.includes(q)
+    })
 })
 
-const addUser = (userId) => {
-    const user = props.data.find(u => u.user.id === userId)
-    if(user) {
-        emit('add', user)
-    }
+const addUser = (item) => {
+    emit('add', item)
 }
 </script>
 

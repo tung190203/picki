@@ -15,7 +15,11 @@ class ListTeamResource extends JsonResource
             'tournament_id' => $this->tournament_id,
             'tournament_type_id' => $this->tournament_type_id,
             'avatar' => $this->avatar,
-            'members' => TeamMemberResource::collection($this->members),
+            'members' => \App\Http\Resources\TeamMemberResource::collection(
+                collect($this->members ?? [])->merge(
+                    ($this->guestMembers ?? collect())->map(fn ($tm) => $tm->participant)->filter()
+                )
+            ),
         ];
     }
 }
