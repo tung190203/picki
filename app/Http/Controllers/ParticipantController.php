@@ -837,10 +837,17 @@ class ParticipantController extends Controller
             ->pluck('team_members.user_id')
             ->unique();
 
+        // Include confirmed real users not in any team, plus all confirmed guests
+        // (guests have null user_id and are never team members).
         $nonTeamParticipants = Participant::withFullRelations()
             ->where('tournament_id', $tournamentId)
             ->where('is_confirmed', 1)
-            ->whereNotIn('user_id', $user_ids_in_teams)
+            ->where(function ($q) use ($user_ids_in_teams) {
+                $q->where(function ($q2) use ($user_ids_in_teams) {
+                    $q2->where('is_guest', false)
+                        ->whereNotIn('user_id', $user_ids_in_teams);
+                })->orWhere('is_guest', true);
+            })
             ->get();
 
         $data = [

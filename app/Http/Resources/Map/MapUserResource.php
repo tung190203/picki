@@ -49,7 +49,7 @@ class MapUserResource extends JsonResource
             'dupr_score'   => $duprScore?->score_value ?? null,
             'win_rate'     => $stats['win_rate'] ?? 0.0,
             'total_matches' => $stats['total_matches'] ?? 0,
-            'distance'     => $this->when(isset($this->distance), round($this->distance, 1)),
+            'distance'     => is_numeric($this->distance) ? round((float) $this->distance, 1) : null,
             'sports'      => $this->whenLoaded('sports', fn() =>
                 UserSportResource::collection($this->sports)
             ),
