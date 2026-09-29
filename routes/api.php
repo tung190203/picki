@@ -186,6 +186,17 @@ Route::middleware(['auth:api', 'update.last_login'])->group(function () {
     Route::get('/auth/biometric/list', [AuthController::class, 'listBiometrics']);
     Route::delete('/auth/biometric/{id}', [AuthController::class, 'deleteBiometric']);
 
+    // Chat CLB (phải nằm trong group có auth:api)
+    Route::prefix('clubs/{clubId}/chat')->group(function () {
+        Route::get('/conversation', \App\Http\Controllers\ClubChatController::class.'@conversation');
+        Route::get('/messages', \App\Http\Controllers\ClubChatController::class.'@index');
+        Route::post('/messages', \App\Http\Controllers\ClubChatController::class.'@store');
+        Route::post('/upload', \App\Http\Controllers\ClubChatController::class.'@upload');
+        Route::post('/read', \App\Http\Controllers\ClubChatController::class.'@markRead');
+        Route::get('/reads', \App\Http\Controllers\ClubChatController::class.'@reads');
+    });
+});
+
 Route::prefix('clubs')->middleware(['performance'])->group(function () {
     Route::get('/', [ClubController::class, 'index']);
     Route::post('/', [ClubController::class, 'store']);
@@ -374,7 +385,6 @@ Route::prefix('clubs')->middleware(['performance'])->group(function () {
             });
         });
     });
-});
 
 // Admin routes - requires super_admin middleware
 Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function () {
@@ -634,7 +644,6 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/delete/{participantId}', [ParticipantController::class, 'delete']);
         Route::match(['get', 'post'], '/list-invite/{tournamentId}', [ParticipantController::class, 'listInvite']);
         Route::match(['get', 'post'], '/list-member/{tournamentId}', [ParticipantController::class, 'getParticipantsNonTeam']);
-        Route::post('/candidates/{tournamentId}', [ParticipantController::class, 'getCandidates']);
     });
 
     Route::prefix('teams')->group(function () {
@@ -901,7 +910,6 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('decline/{participantId}', [MiniParticipantController::class, 'declineInvite']);
         Route::post('/invite/{miniTournamentId}', [MiniParticipantController::class, 'invite']);
         Route::post('/invite-friends/{miniTournamentId}', [MiniParticipantController::class, 'inviteFriends']);
-        Route::match(['get', 'post'], '/candidates/{miniTournamentId}', [MiniParticipantController::class, 'getCandidates']);
         Route::post('/delete/{participantId}', [MiniParticipantController::class, 'delete']);
         Route::post('/delete-all', [MiniParticipantController::class, 'deleteAll']);
         Route::post('/confirm-all', [MiniParticipantController::class, 'confirmAll']);

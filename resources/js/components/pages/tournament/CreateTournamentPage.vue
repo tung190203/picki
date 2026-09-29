@@ -709,7 +709,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import VueDatePicker from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
 import { vi } from 'date-fns/locale'
@@ -1110,10 +1110,27 @@ const fetchSports = async () => {
 const fetchMyClubs = async () => {
     try {
         myClubsList.value = await ClubService.myClubs()
+        // Auto-select club nếu truyền từ ClubDetailPage (chỉ áp dụng khi tạo mới, không phải edit)
+        if (!isEditMode.value && route.query.club_id) {
+            const incomingId = Number(route.query.club_id)
+            const exists = myClubsList.value.some(c => c.id === incomingId)
+            if (exists) {
+                selectedClubId.value = incomingId
+            }
+        }
     } catch (error) {
         console.error('Error fetching clubs:', error)
     }
 }
+
+watch(() => route.query.club_id, (newVal) => {
+    if (isEditMode.value || !newVal) return
+    const incomingId = Number(newVal)
+    const exists = myClubsList.value.some(c => c.id === incomingId)
+    if (exists) {
+        selectedClubId.value = incomingId
+    }
+})
 
 const fetchCompetitionLocations = async (keyword) => {
     if (!keyword || keyword.length < 2) {

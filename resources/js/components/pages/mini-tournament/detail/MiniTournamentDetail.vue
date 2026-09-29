@@ -114,11 +114,13 @@ export default {
         const inviteType = ref('participant')
         const selectedStaffRole = ref(3) // RBAC v2: mặc định mời Trọng tài
         const activeScope = ref('all');
-        const inviteGroupData = ref([]);
+        const inviteGroupData = ref({ result: [] });
         const selectedClub = ref(null);
         const clubs = ref([])
-        const currentRadius = ref(10);
         const showQRCodeModal = ref(false);
+        const invitePage = ref(1);
+        const isLoadingMoreInvite = ref(false);
+        const hasMoreInvite = ref(true);
         const miniTournamentLink = window.location.href;
         const descriptionModel = ref('');
         const isEditingDescription = ref(false);
@@ -145,27 +147,14 @@ export default {
         };
 
         const handleInvite = async (user) => {
-            const isAreaInvite = activeScope.value === 'area'
-            if (user?.is_virtual) {
-                try {
-                    await addGuest(id, {
-                        guest_name: user.name || user.full_name,
-                        guest_avatar: user.avatar_url,
-                        guarantor_user_id: getUser.value?.id
-                    });
-                    toast.success(`Đã thêm thành viên ảo "${user.name}" vào kèo đấu!`);
-                    await detailMiniTournament(id);
-                } catch (e) {
-                    toast.error(e.response?.data?.message || 'Có lỗi khi thêm thành viên ảo vào kèo đấu');
-                }
-                return;
-            }
             if (inviteType.value === 'staff') {
                 // Mời từ sidebar "Mời nhóm" - thêm vào ban tổ chức với role từ selectedStaffRole
-                await inviteStaff(user.id, Number(selectedStaffRole.value) || 3)
+                // User ảo: truyền virtualId; user thật: truyền userId.
+                await inviteStaff(user.id, Number(selectedStaffRole.value) || 3, user?.is_virtual ? user.id : null)
             } else {
-                // Mời từ tab người tham gia - thêm vào danh sách participants
-                await invite([user.id], isAreaInvite);
+                // Mời từ tab người tham gia - gom user thật vào user_ids, user ảo vào virtual_ids rồi gọi 1 lần
+                const isVirtual = Boolean(user?.is_virtual);
+                await invite([user.id], isVirtual ? [user.id] : []);
             }
             await detailMiniTournament(id);
         }
@@ -173,11 +162,6 @@ export default {
         const copyLink = () => {
             showShareCardModal.value = true
         }
-
-        const onRadiusChange = debounce(async (radius) => {
-            currentRadius.value = radius;
-            await getInviteGroupData();
-        }, 300);
 
         const goToEditPage = () => {
             router.push({
@@ -323,6 +307,18 @@ export default {
         const allParticipants = computed(() => {
             if (!mini.value?.participants) return []
             return mini.value.participants.filter(p => p.is_confirmed && !p.checked_in_at && !p.is_absent && !p.is_declined)
+        })
+
+        // User ids already participating or with a pending invite — used to gray out invite button.
+        const invitedUserIds = computed(() => {
+            if (!mini.value?.participants) return []
+            const ids = new Set()
+            for (const p of mini.value.participants) {
+                if (p.is_declined) continue
+                const uid = p.user?.id ?? p.user_id
+                if (uid != null) ids.add(Number(uid))
+            }
+            return Array.from(ids)
         })
 
         // Đã check-in (confirmed + checked_in + not absent)
@@ -672,34 +668,60 @@ export default {
 
         const openInviteModalArea = async () => {
             inviteType.value = 'participant'
-            activeScope.value = 'area'
-            currentRadius.value = 10
+            activeScope.value = 'all'
             await getInviteGroupData()
             showInviteModal.value = true
         }
 
-        const getInviteGroupData = async () => {
+        const getInviteGroupData = async ({ loadMore = false } = {}) => {
             if (activeScope.value === 'club' && !selectedClub.value) {
-                inviteGroupData.value = [];
+                inviteGroupData.value = { result: [] };
                 return;
             }
 
-            const payload = {
-                scope: activeScope.value,
-                per_page: 50,
-                ...(activeScope.value === 'club' ? { club_id: selectedClub.value } : {}),
-                ...(searchQuery.value ? { search: searchQuery.value } : {})
-            };
-            if (activeScope.value === 'area') {
-                payload.lat = mini.value.competition_location.latitude
-                payload.lng = mini.value.competition_location.longitude
-                payload.radius = currentRadius.value
+            if (isLoadingMoreInvite.value) return;
+
+            if (!loadMore) {
+                invitePage.value = 1;
+                hasMoreInvite.value = true;
             }
+            if (!hasMoreInvite.value) return;
+
+            isLoadingMoreInvite.value = true;
+
+            const subTabMap = { all: 'all', club: 'same_club', friends: 'friends' };
+            const subTab = subTabMap[activeScope.value] || 'all';
+
             try {
-                const resp = await MiniParticipantService.getMiniTournamentInviteGroups(id, payload);
-                inviteGroupData.value = resp || [];
+                const { result, meta } = await MiniParticipantService.searchUsersForInvite({
+                    keyword: searchQuery.value || '',
+                    subTab,
+                    clubId: activeScope.value === 'club' ? selectedClub.value : null,
+                    miniTournamentId: id,
+                    page: invitePage.value,
+                    perPage: 20,
+                });
+
+                if (loadMore) {
+                    inviteGroupData.value = {
+                        result: [...(inviteGroupData.value?.result || []), ...result],
+                    };
+                } else {
+                    inviteGroupData.value = { result };
+                }
+
+                const lastPage = meta?.last_page ?? null;
+                if (result.length < 20 || (lastPage && invitePage.value >= lastPage)) {
+                    hasMoreInvite.value = false;
+                } else {
+                    invitePage.value++;
+                }
             } catch (e) {
-                inviteGroupData.value = [];
+                if (!loadMore) {
+                    inviteGroupData.value = { result: [] };
+                }
+            } finally {
+                isLoadingMoreInvite.value = false;
             }
         };
 
@@ -721,35 +743,43 @@ export default {
 
         const onSearchChange = debounce(async (query) => {
             searchQuery.value = query;
-            await getInviteGroupData();
+            await getInviteGroupData({ loadMore: false });
         }, 300);
 
         const onScopeChange = async (scope) => {
             activeScope.value = scope;
-            await getInviteGroupData();
+            await getInviteGroupData({ loadMore: false });
         };
 
         const onClubChange = async (clubId) => {
             selectedClub.value = clubId;
-            await getInviteGroupData();
+            await getInviteGroupData({ loadMore: false });
         };
 
-        const invite = async (friendId, isAreaInvite = false) => {
+        const loadMoreInviteUsers = async () => {
+            await getInviteGroupData({ loadMore: true });
+        };
+
+        const invite = async (friendId, virtualIds = []) => {
             const targetId = Array.isArray(friendId) ? friendId : [friendId];
+            const vIds = Array.isArray(virtualIds) ? virtualIds : [virtualIds].filter(Boolean);
             try {
-                await MiniParticipantService.sendInvitation(id, targetId, isAreaInvite);
+                await MiniParticipantService.sendInvitation(id, targetId, false, vIds);
                 toast.success('Đã gửi lời mời thành công!');
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi gửi lời mời.');
             }
         };
 
-        const inviteStaff = async (userId) => {
+        const inviteStaff = async (userId, role, virtualId = null) => {
             try {
                 // RBAC v2: role bắt buộc (1=Admin, 2=BTC, 3=Trọng tài)
                 // Mặc định lấy từ selectedStaffRole; fallback 3 (Trọng tài).
-                const role = Number(selectedStaffRole.value) || 3
-                await MiniTournamentStaffService.addMiniTournamentStaff(id, userId, role)
+                const roleNum = Number(role ?? selectedStaffRole.value) || 3
+                // User ảo: truyền virtualId (không truyền userId).
+                // User thật: truyền userId.
+                const staffId = virtualId != null ? null : userId
+                await MiniTournamentStaffService.addMiniTournamentStaff(id, staffId, roleNum, virtualId)
                 toast.success('Thêm thành công')
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi thêm.');
@@ -778,7 +808,7 @@ export default {
 
         const handleRemoveUser = async (data) => {
             // Support both old format (id only) and new format (object)
-            const miniParticipantId = typeof data === 'object' ? data.id : data;
+            const miniParticipantId = typeof data === 'object' ? data?.id : data;
             try {
                 await MiniParticipantService.deleteMiniParticipant(miniParticipantId);
                 toast.success('Đã xóa người chơi khỏi kèo đấu');
@@ -1180,6 +1210,9 @@ export default {
             selectedClub,
             searchQuery,
             onSearchChange,
+            isLoadingMoreInvite,
+            hasMoreInvite,
+            loadMoreInviteUsers,
             showQRCodeModal,
             showShareCardModal,
             miniTournamentLink,
@@ -1219,7 +1252,6 @@ export default {
             confirmDelineMiniParticipant,
             declineMiniTournament,
             showDelineMiniParticipantModal,
-            onRadiusChange,
             showPaymentModal,
             openPaymentModal,
             showSubmitPaymentModal,
@@ -1270,7 +1302,6 @@ export default {
             handleMarkPaidAll,
             handleConfirmAll,
             handleDeleteAll,
-            competitionLocation: computed(() => mini.value?.competition_location ?? null),
             tournamentMaxPlayers: computed(() => mini.value?.max_players ?? null),
             tournamentId: computed(() => mini.value?.id ?? null),
             detailMiniTournament,

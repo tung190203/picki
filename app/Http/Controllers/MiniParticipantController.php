@@ -198,8 +198,10 @@ class MiniParticipantController extends Controller
         $isInviteAround = $request->boolean('is_invite_around', false);
 
         $validated = $request->validate([
-            'user_ids'         => 'required|array|min:1',
-            'user_ids.*'       => 'required|exists:users,id',
+            'user_ids'         => 'sometimes|array|min:1',
+            'user_ids.*'       => 'required_with:user_ids|exists:users,id',
+            'virtual_ids'      => 'sometimes|array|min:1',
+            'virtual_ids.*'    => 'required_with:virtual_ids|exists:club_virtual_members,id',
             'is_invite_around' => 'sometimes|boolean',
         ]);
 
@@ -210,7 +212,18 @@ class MiniParticipantController extends Controller
             );
         }
 
+        if (empty($validated['user_ids']) && empty($validated['virtual_ids'])) {
+            return ResponseHelper::error('Cần chọn ít nhất 1 người chơi hoặc thành viên ảo để mời.', 422);
+        }
+
         $userIds = $validated['user_ids'] ?? [];
+        $virtualIds = $validated['virtual_ids'] ?? [];
+
+        // If FE passes the same id in both arrays (virtual member id may collide with a real user id),
+        // prefer the virtual-member interpretation — the FE has already marked the entry as `is_virtual`.
+        if (!empty($virtualIds)) {
+            $userIds = array_values(array_diff($userIds, $virtualIds));
+        }
 
         $this->checkMaxPlayers($miniTournament);
 
@@ -277,6 +290,48 @@ class MiniParticipantController extends Controller
                 $invited[] = new MiniParticipantResource($participant->loadFullRelations());
             } catch (\Exception $e) {
                 $failed[] = ['user_id' => $userId, 'reason' => 'Lỗi khi tạo lời mời.'];
+            }
+        }
+
+        // Handle virtual members (ClubVirtualMember) — create a guest-style MiniParticipant
+        // without a real User row. Same payment rules as guest invited by organizer.
+        if (!empty($virtualIds)) {
+            $virtualMembers = \App\Models\Club\ClubVirtualMember::whereIn('id', $virtualIds)->get();
+            $organizerId = Auth::id();
+            $isSuperAdmin = Auth::user()?->is_super_admin ?? false;
+
+            foreach ($virtualMembers as $vm) {
+                $existingVm = $miniTournament->participants()
+                    ->where('is_guest', true)
+                    ->where('guest_name', $vm->name)
+                    ->exists();
+
+                if ($existingVm) {
+                    $failed[] = ['virtual_id' => $vm->id, 'reason' => 'Thành viên ảo đã có trong kèo đấu.'];
+                    continue;
+                }
+
+                try {
+                    $paymentStatus = PaymentStatusEnum::CONFIRMED;
+                    if ($miniTournament->has_fee && !$miniTournament->use_club_fund && !$miniTournament->auto_split_fee) {
+                        $paymentStatus = PaymentStatusEnum::PENDING;
+                    }
+
+                    $participant = $miniTournament->participants()->create([
+                        'is_guest' => true,
+                        'guest_name' => $vm->name,
+                        'guest_avatar' => $vm->avatar_url,
+                        'is_confirmed' => $isSuperAdmin && !$isInviteAround,
+                        'is_invited' => true,
+                        'invited_by' => $organizerId,
+                        'guarantor_user_id' => $organizerId,
+                        'payment_status' => $paymentStatus,
+                    ]);
+
+                    $invited[] = new MiniParticipantResource($participant->loadFullRelations());
+                } catch (\Exception $e) {
+                    $failed[] = ['virtual_id' => $vm->id, 'reason' => 'Lỗi khi thêm thành viên ảo.'];
+                }
             }
         }
 
@@ -1153,333 +1208,6 @@ class MiniParticipantController extends Controller
         }
     }
 
-    public function getCandidates(Request $request, $tournamentId)
-    {
-        $miniTournament = MiniTournament::withFullRelations()->findOrFail($tournamentId);
-        $user = Auth::user();
-
-        $validated = $request->validate([
-            'scope' => 'required|in:club,friends,area,all',
-            'club_id' => 'required_if:scope,club|exists:clubs,id',
-            'search' => 'sometimes|string|max:255',
-            'per_page' => 'sometimes|integer|min:1|max:200',
-            'lat' => 'required_if:scope,area|numeric',
-            'lng' => 'required_if:scope,area|numeric',
-            'radius' => 'required_if:scope,area|numeric|min:0.1|max:200',
-        ]);
-
-        $perPage = $validated['per_page'] ?? 20;
-        $scope = $validated['scope'];
-        $lat = $validated['lat'] ?? null;
-        $lng = $validated['lng'] ?? null;
-
-        // 🧮 Tính mid level cho sorting (nếu mini tournament có min/max level)
-        $midLevel = null;
-        if (isset($miniTournament->min_level) && isset($miniTournament->max_level)
-            && $miniTournament->min_level !== null && $miniTournament->max_level !== null) {
-            $midLevel = (float)(($miniTournament->min_level + $miniTournament->max_level) / 2);
-        }
-
-        // 🎯 Tùy theo phạm vi (scope)
-        switch ($scope) {
-            case 'club':
-                $query = User::withFullRelations()
-                    ->whereHas('clubs', fn($q) => $q->where('clubs.id', $validated['club_id']));
-                break;
-
-            case 'friends':
-                $query = User::withFullRelations()
-                    ->where(function ($q) use ($user) {
-                        $q->whereExists(function ($sub) use ($user) {
-                            $sub->select(DB::raw(1))
-                                ->from('follows as f1')
-                                ->whereColumn('f1.followable_id', 'users.id')
-                                ->where('f1.user_id', $user->id)
-                                ->where('f1.followable_type', User::class);
-                        })
-                        ->whereExists(function ($sub) use ($user) {
-                            $sub->select(DB::raw(1))
-                                ->from('follows as f2')
-                                ->whereColumn('f2.user_id', 'users.id')
-                                ->where('f2.followable_id', $user->id)
-                                ->where('f2.followable_type', User::class);
-                        });
-                    })
-                    ->orWhere(function ($q) use ($user) {
-                        $q->where('users.id', '!=', $user->id)
-                            ->whereExists(function ($sub) use ($user) {
-                                $sub->select(DB::raw(1))
-                                    ->from('club_members as cm1')
-                                    ->join('club_members as cm2', 'cm1.club_id', '=', 'cm2.club_id')
-                                    ->whereColumn('cm1.user_id', 'users.id')
-                                    ->where('cm1.user_id', '!=', $user->id)
-                                    ->where('cm1.membership_status', 'joined')
-                                    ->where('cm1.status', 'active')
-                                    ->where('cm2.user_id', $user->id)
-                                    ->where('cm2.membership_status', 'joined')
-                                    ->where('cm2.status', 'active');
-                            });
-                    });
-                break;
-
-            case 'area':
-                $lat = $validated['lat'];
-                $lng = $validated['lng'];
-                $radius = $validated['radius'];
-
-                $haversine = "6371 * acos(
-                        cos(radians(?))
-                        * cos(radians(users.latitude))
-                        * cos(radians(users.longitude) - radians(?))
-                        + sin(radians(?))
-                        * sin(radians(users.latitude))
-                    )";
-
-                $query = User::withFullRelations()
-                    ->whereNotNull('users.latitude')
-                    ->whereNotNull('users.longitude')
-                    ->whereRaw("$haversine <= ?", [
-                        $lat,
-                        $lng,
-                        $lat,
-                        $radius,
-                    ])
-                    ->orderByRaw("$haversine asc", [
-                        $lat,
-                        $lng,
-                        $lat,
-                    ]);
-                break;
-
-            case 'all':
-                $query = User::withFullRelations();
-                break;
-        }
-
-        // 🔐 Visibility filter (trừ scope 'all')
-        if ($scope !== 'all') {
-            $query->whereIn('users.visibility', [
-                User::VISIBILITY_PUBLIC,
-                User::VISIBILITY_FRIEND_ONLY
-            ]);
-        } else {
-            $query->whereIn('users.visibility', [User::VISIBILITY_PUBLIC]);
-        }
-
-        // ⚽ Filter theo setting của giải (chỉ áp dụng khi scope !== 'all')
-        if ($scope !== 'all') {
-            // 1. Có môn thể thao phù hợp (nếu mini tournament có sport_id)
-            if (isset($miniTournament->sport_id)) {
-                $query->whereHas('sports', function ($q) use ($miniTournament) {
-                    $q->where('sport_id', $miniTournament->sport_id);
-                });
-            }
-
-            // 2. Tuổi (nếu mini tournament có age_group)
-            if (isset($miniTournament->age_group)) {
-                $query->tap(fn ($q) => $this->filterByAge($q, $miniTournament->age_group));
-            }
-
-            // 3. Giới tính (nếu mini tournament có gender_policy)
-            if (isset($miniTournament->gender_policy)) {
-                $query->tap(fn ($q) => $this->filterByGender($q, $miniTournament->gender_policy));
-            }
-        }
-
-        // 4. Loại trừ người đã tham gia (participant) HOẶC đã được mời (staff)
-        $participantUserIds = $miniTournament->participants->pluck('user_id')->toArray();
-        $staffUserIds = $miniTournament->miniTournamentStaffs->pluck('user_id')->toArray();
-
-        // Lấy union (không phải giao) của 2 tập hợp: loại user có trong participant HOẶC staff
-        $excludedUserIds = array_unique(array_merge($participantUserIds, $staffUserIds));
-
-        if (!empty($excludedUserIds)) {
-            $query->whereNotIn('users.id', $excludedUserIds);
-        }
-
-        // 5. Join để lấy level + filter level (chỉ khi scope !== 'all' và có sport_id)
-        if ($scope !== 'all' && isset($miniTournament->sport_id)) {
-            $query->leftJoin('user_sport', function ($join) use ($miniTournament) {
-                $join->on('users.id', '=', 'user_sport.user_id')
-                    ->where('user_sport.sport_id', $miniTournament->sport_id);
-            })
-            ->leftJoin('user_sport_scores', function ($join) {
-                $join->on('user_sport.id', '=', 'user_sport_scores.user_sport_id')
-                    ->where('user_sport_scores.score_type', 'vndupr_score');
-            });
-
-            // 6. Filter level
-            if (isset($miniTournament->min_level)) {
-                $query->where('user_sport_scores.score_value', '>=', $miniTournament->min_level);
-            }
-            if (isset($miniTournament->max_level)) {
-                $query->where('user_sport_scores.score_value', '<=', $miniTournament->max_level);
-            }
-        }
-
-        // 7. Select + Sort
-        if ($scope !== 'all') {
-            $query->select('users.*');
-
-            if (isset($miniTournament->sport_id)) {
-                $query->selectRaw('user_sport_scores.score_value as level');
-
-                if ($midLevel !== null) {
-                    $query->selectRaw(
-                        'ABS(user_sport_scores.score_value - ?) as level_diff',
-                        [$midLevel]
-                    );
-                }
-            }
-
-            if (isset($miniTournament->location_id)) {
-                $query->selectRaw(
-                    'CASE WHEN users.location_id = ? THEN 1 ELSE 0 END as same_location',
-                    [$miniTournament->location_id]
-                )
-                ->orderByDesc('same_location');
-            }
-
-            if ($midLevel !== null) {
-                $query->orderBy('level_diff');
-            }
-        } else {
-            $query->select('users.*');
-        }
-
-        // 🔍 Tìm kiếm tên người dùng (áp dụng cho tất cả scope)
-        if (!empty($validated['search'])) {
-            $query->where('users.full_name', 'like', '%' . $validated['search'] . '%');
-        }
-
-        // 🧮 Phân trang
-        $paginated = $query->paginate($perPage);
-        $candidates = $paginated->getCollection()->map(function ($u) use ($user, $excludedUserIds, $lat, $lng) {
-            return [
-                'id' => $u->id,
-                'name' => $u->full_name,
-                'visibility' => $u->visibility,
-                'age_group' => $u->age_group,
-                'avatar_url' => $u->avatar_url,
-                'thumbnail' => $u->thumbnail,
-                'gender' => $u->gender,
-                'gender_text' => $u->gender_text,
-                'play_times' => [],
-                'distance' => isset($u->latitude, $u->longitude)
-                    ? round($this->haversineDistance((float) $lat, (float) $lng, (float) $u->latitude, (float) $u->longitude), 1)
-                    : null,
-                'clubs' => $u->clubs->map(fn($c) => [
-                    'id'   => $c->id,
-                    'name' => $c->name,
-                ]),
-
-                'sports' => $u->sports->map(function ($userSport) use ($u) {
-                    $scores = $userSport->scores()
-                        ->pluck('score_value', 'score_type')
-                        ->toArray();
-
-                    $stats = User::getSportStats($u->id, $userSport->sport_id);
-
-                    return [
-                        'sport_id' => $userSport->sport_id,
-                        'sport_icon' => $userSport->sport?->icon,
-                        'sport_name' => $userSport->sport?->name,
-                        'scores' => [
-                            'personal_score' => $scores['personal_score'] ?? '0.000',
-                            'dupr_score'     => $scores['dupr_score'] ?? '0.000',
-                            'vndupr_score'   => $scores['vndupr_score'] ?? '0.000',
-                        ],
-                        'total_matches'     => $stats['total_matches'],
-                        'total_tournaments' => $stats['total_tournaments'],
-                        'total_mini_tournaments' => $stats['total_mini_tournaments'],
-                        'total_prizes'      => $stats['total_prizes'],
-                        'win_rate'          => $stats['win_rate'],
-                        'performance'       => $stats['performance'],
-                    ];
-                }),
-                'is_friend' => ($user instanceof User && $u instanceof User) ? $user->isFriendWith($u) : false,
-                'is_mini_participant' => in_array($u->id, $excludedUserIds),
-            ];
-        });
-
-        if ($scope === 'club' && !empty($validated['club_id'])) {
-            $virtualMembers = \App\Models\Club\ClubVirtualMember::where('club_id', $validated['club_id'])
-                ->when(!empty($validated['search']), fn($q) => $q->where('name', 'like', '%' . $validated['search'] . '%'))
-                ->get()
-                ->map(fn($vm) => [
-                    'id' => null,
-                    'virtual_member_id' => $vm->id,
-                    'is_virtual' => true,
-                    'is_guest' => true,
-                    'full_name' => $vm->name,
-                    'name' => $vm->name,
-                    'avatar_url' => $vm->avatar_url,
-                    'gender_text' => 'Thành viên ảo',
-                    'notes' => $vm->notes,
-                    'invited' => false,
-                ]);
-
-            $candidates = $candidates->concat($virtualMembers);
-        }
-
-        return ResponseHelper::success([
-            'result' => $candidates,
-        ], 'Danh sách ứng viên', 200, [
-            'current_page' => $paginated->currentPage(),
-            'last_page'    => $paginated->lastPage(),
-            'per_page'     => $paginated->perPage(),
-            'total'        => $paginated->total(),
-        ]);
-    }
-
-    /**
-     * Lọc theo độ tuổi
-     */
-    private function filterByAge($query, $ageGroup)
-    {
-        $today = Carbon::today();
-
-        switch ($ageGroup) {
-            case MiniTournament::YOUTH: // Dưới 18
-                $minDate = $today->copy()->subYears(18);
-                $query->where('date_of_birth', '>', $minDate);
-                break;
-
-            case MiniTournament::ADULT: // 18-55
-                $minDate = $today->copy()->subYears(55);
-                $maxDate = $today->copy()->subYears(18);
-                $query->whereBetween('date_of_birth', [$minDate, $maxDate]);
-                break;
-
-            case MiniTournament::SENIOR: // Trên 55
-                $maxDate = $today->copy()->subYears(55);
-                $query->where('date_of_birth', '<', $maxDate);
-                break;
-
-            case MiniTournament::ALL_AGES:
-            default:
-                // Không lọc
-                break;
-        }
-
-        return $query;
-    }
-
-    /**
-     * Lọc theo giới tính
-     */
-    private function filterByGender($query, $genderPolicy)
-    {
-        if ($genderPolicy === MiniTournament::MALE) {
-            $query->where('gender', MiniTournament::MALE);
-        } elseif ($genderPolicy === MiniTournament::FEMALE) {
-            $query->where('gender', MiniTournament::FEMALE);
-        }
-        // MIXED: không lọc
-
-        return $query;
-    }
-
     private function notifyOrganizersJoinRequest(MiniTournament $tournament, MiniParticipant $participant)
     {
         $organizers = $tournament->staff()
@@ -1628,15 +1356,5 @@ class MiniParticipantController extends Controller
         }
 
         return null;
-    }
-
-    private function haversineDistance(float $lat1, float $lng1, float $lat2, float $lng2): float
-    {
-        $earthRadius = 6371;
-        $dLat = deg2rad($lat2 - $lat1);
-        $dLng = deg2rad($lng2 - $lng1);
-        $a = sin($dLat / 2) ** 2
-            + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
-        return $earthRadius * 2 * asin(sqrt($a));
     }
 }
