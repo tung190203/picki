@@ -25,10 +25,31 @@
 
                         <div>
                             <label class="block text-sm font-semibold text-[#3E414C] mb-1">
-                                Link ảnh đại diện (Không bắt buộc)
+                                Ảnh đại diện (Không bắt buộc)
                             </label>
-                            <input v-model="form.avatar_url" type="url" placeholder="https://..."
-                                class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[#3E414C] text-gray-900 font-medium placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/20 focus:border-[#D72D36] transition-colors" />
+                            <div class="group mt-1 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer
+                                    hover:border-[#D72D36] transition-colors p-4 text-center"
+                                @click="fileInput.click()" @dragover.prevent @drop.prevent="handleDrop">
+
+                                <input type="file" ref="fileInput" @change="handleFileChange" accept="image/*"
+                                    class="hidden" />
+
+                                <div v-if="previewUrl" class="flex flex-col items-center">
+                                    <div class="relative w-24 h-24">
+                                        <img :src="previewUrl" alt="Ảnh đại diện xem trước"
+                                            class="w-24 h-24 object-cover rounded-full shadow-md" />
+                                        <button type="button" @click.stop="clearAvatar"
+                                            class="absolute -top-2 -right-2 bg-white rounded-full p-1 shadow-md hover:bg-[#D72D36] hover:text-white transition-colors">
+                                            <XMarkIcon class="w-4 h-4 text-gray-700 hover:text-white" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div v-else>
+                                    <ArrowUpTrayIcon class="w-10 h-10 text-gray-400 mx-auto group-hover:text-[#D72D36] transition-colors" />
+                                    <p class="mt-1 text-sm text-gray-600">Kéo thả ảnh vào đây</p>
+                                    <p class="text-xs text-gray-500">hoặc bấm để chọn file</p>
+                                </div>
+                            </div>
                         </div>
 
                         <div>
@@ -59,6 +80,7 @@
 <script setup>
 import { ref, reactive, watch } from 'vue'
 import { XMarkIcon } from '@heroicons/vue/24/outline'
+import { ArrowUpTrayIcon } from '@heroicons/vue/24/solid'
 
 const props = defineProps({
     modelValue: {
@@ -75,24 +97,81 @@ const emit = defineEmits(['update:modelValue', 'submit'])
 
 const form = reactive({
     name: '',
-    avatar_url: '',
     notes: ''
 })
+
+const fileInput = ref(null)
+const previewUrl = ref(null)
+const avatarFile = ref(null)
 
 const close = () => {
     emit('update:modelValue', false)
 }
 
+const handleFileChange = (event) => {
+    const file = event.target.files[0]
+    if (file) {
+        setAvatar(file)
+    }
+}
+
+const handleDrop = (event) => {
+    const file = event.dataTransfer.files[0]
+    if (file && file.type.startsWith('image/')) {
+        if (fileInput.value) {
+            // Gán file vào input ref để giữ đồng bộ nếu user mở lại picker
+            const dt = new DataTransfer()
+            dt.items.add(file)
+            fileInput.value.files = dt.files
+        }
+        setAvatar(file)
+    }
+}
+
+const setAvatar = (file) => {
+    avatarFile.value = file
+    if (previewUrl.value && previewUrl.value.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrl.value)
+    }
+    previewUrl.value = URL.createObjectURL(file)
+}
+
+const clearAvatar = () => {
+    if (previewUrl.value && previewUrl.value.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrl.value)
+    }
+    previewUrl.value = null
+    avatarFile.value = null
+    if (fileInput.value) {
+        fileInput.value.value = ''
+    }
+}
+
 const submit = () => {
     if (!form.name.trim()) return
-    emit('submit', { ...form })
+
+    // Gửi FormData khi có file upload; ngược lại giữ nguyên JSON cũ (back-compat)
+    if (avatarFile.value) {
+        const payload = new FormData()
+        payload.append('name', form.name.trim())
+        payload.append('avatar', avatarFile.value)
+        if (form.notes.trim()) {
+            payload.append('notes', form.notes.trim())
+        }
+        emit('submit', payload)
+    } else {
+        emit('submit', {
+            name: form.name.trim(),
+            notes: form.notes.trim() || null,
+        })
+    }
 }
 
 watch(() => props.modelValue, (val) => {
     if (val) {
         form.name = ''
-        form.avatar_url = ''
         form.notes = ''
+        clearAvatar()
     }
 })
 </script>
