@@ -51,8 +51,8 @@ class MiniParticipantController extends Controller
         ]);
 
         $query = MiniParticipant::where('mini_tournament_id', $tournamentId)
-            ->whereHas('user')
-            ->withFullRelations();
+            ->withFullRelations()
+            ->with('miniTournament');
 
         if ($request->filled('is_confirmed')) {
             $query->where('is_confirmed', $validated['is_confirmed']);
@@ -198,12 +198,25 @@ class MiniParticipantController extends Controller
         $isInviteAround = $request->boolean('is_invite_around', false);
 
         $validated = $request->validate([
+            // user_ids chấp nhận null cho từng phần tử — FE có thể gửi 1 entry vừa có user_id vừa có virtual_id,
+            // hoặc chỉ virtual_id (user_id = null) khi entry đó là virtual member.
+            // Validation exists sẽ chạy sau, lọc bỏ phần tử null.
             'user_ids'         => 'sometimes|array',
-            'user_ids.*'       => 'required_with:user_ids|exists:users,id',
+            'user_ids.*'       => 'nullable|integer',
             'virtual_ids'      => 'sometimes|array',
             'virtual_ids.*'    => 'required_with:virtual_ids|exists:club_virtual_members,id',
             'is_invite_around' => 'sometimes|boolean',
         ]);
+
+        // Lọc ra các user_id thực (không null, không rỗng) và check exists
+        $rawUserIds = array_values(array_filter($validated['user_ids'] ?? [], fn($id) => $id !== null && $id !== ''));
+        if (!empty($rawUserIds)) {
+            $existing = \App\Models\User::whereIn('id', $rawUserIds)->pluck('id')->all();
+            $invalid = array_diff($rawUserIds, $existing);
+            if (!empty($invalid)) {
+                return ResponseHelper::error('user_id không tồn tại: ' . implode(', ', $invalid), 422);
+            }
+        }
 
         if ($isInviteAround && !Auth::user()->hasAdvancedMiniTournament()) {
             return ResponseHelper::error(
@@ -212,11 +225,11 @@ class MiniParticipantController extends Controller
             );
         }
 
-        if (empty($validated['user_ids']) && empty($validated['virtual_ids'])) {
+        if (empty($rawUserIds) && empty($validated['virtual_ids'])) {
             return ResponseHelper::error('Cần chọn ít nhất 1 người chơi hoặc thành viên ảo để mời.', 422);
         }
 
-        $userIds = $validated['user_ids'] ?? [];
+        $userIds = $rawUserIds;
         $virtualIds = $validated['virtual_ids'] ?? [];
 
         // If FE passes the same id in both arrays (virtual member id may collide with a real user id),

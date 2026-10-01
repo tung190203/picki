@@ -1369,7 +1369,7 @@ import ClubListItem from '@/components/molecules/ClubListItem.vue';
 
 const router = useRouter();
 const { toHourMinute } = useTimeFormat();
-const { initMap, clearAllMarkers, addCourtMarkers, addUserMarkers, addMatchMarkers, addClubMarkers, focusItem } = useMap();
+const { initMap, clearAllMarkers, addCourtMarkers, addUserMarkers, addMiniTournamentMarkers, addTournamentMarkers, addClubMarkers, focusItem } = useMap();
 const userStore = useUserStore();
 const { getUser } = storeToRefs(userStore);
 const currentBounds = ref(null);
@@ -1868,9 +1868,10 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
             mergeData(matchesMap.value, allMatches, !isLoadMore);
             quantityMatches.value = matchesMap.value.size;
 
-            // Update map markers
+            // Update map markers — split mini and tournament so each renders its own popup + route
             clearAllMarkers();
-            addMatchMarkers(matches.value, router, focusItemAuto, !isLoadMore, defaultImage);
+            addMiniTournamentMarkers(matchesMini.value, router, focusItemAuto, !isLoadMore, defaultImage);
+            addTournamentMarkers(matchesTournament.value, router, focusItemAuto, !isLoadMore, defaultImage);
         }
 
         // ---- CLUB TAB ----
@@ -1943,7 +1944,8 @@ watch(activeMatchTab, () => {
     mergeData(matchesMap.value, dataToShow, true);
     quantityMatches.value = matchesMap.value.size;
     clearAllMarkers();
-    addMatchMarkers(matches.value, router, focusItemAuto, true, defaultImage);
+    addMiniTournamentMarkers(matchesMini.value, router, focusItemAuto, true, defaultImage);
+    addTournamentMarkers(matchesTournament.value, router, focusItemAuto, true, defaultImage);
 });
 
 const getListSports = async () => {

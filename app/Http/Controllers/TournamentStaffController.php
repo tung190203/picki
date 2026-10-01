@@ -33,6 +33,9 @@ class TournamentStaffController extends Controller
             'user_id' => 'required|integer|exists:users,id',
             'role' => 'nullable|integer|in:1,2,3',
             'court_id' => 'nullable|integer',
+        ], [
+            'user_id.required' => 'Cần chọn người dùng Picki để thêm vào ban tổ chức.',
+            'user_id.exists'   => 'Chỉ được phép thêm người dùng Picki vào làm BTC/trọng tài của giải.',
         ]);
 
         $tournament = Tournament::findOrFail($tournamentId);
@@ -101,6 +104,9 @@ class TournamentStaffController extends Controller
         $validatedData = $request->validate([
             'user_id' => 'required|integer|exists:users,id',
             'court_id' => 'nullable|integer',
+        ], [
+            'user_id.required' => 'Cần chọn người dùng Picki để thêm làm trọng tài.',
+            'user_id.exists'   => 'Chỉ được phép thêm người dùng Picki vào làm trọng tài của giải.',
         ]);
 
         $tournament = Tournament::findOrFail($tournamentId);
