@@ -60,16 +60,17 @@ class ClubAchievementLeaderboardService
     {
         $scores = [];
 
-        $tournamentsQuery = Tournament::where('club_id', $club->id)
-            ->whereIn('status', [Tournament::CLOSED, 3]);
+        $tournamentsQuery = Tournament::where('club_id', $club->id);
 
         if ($startDate) {
-            // Filter theo end_date (thời điểm kết thúc = final match hoàn thành)
-            $tournamentsQuery->where('end_date', '>=', $startDate);
+            // Filter theo start_date (bao gồm cả giải đang diễn ra)
+            $tournamentsQuery->where('start_date', '>=', $startDate);
         }
 
         $tournaments = $tournamentsQuery->with('tournamentTypes')->get();
 
+        // Bỏ filter status=CLOSED: tournament được tính khi final match completed
+        // (TournamentRankService tự skip khi chưa có rank hợp lệ).
         foreach ($tournaments as $tournament) {
             foreach ($tournament->tournamentTypes as $type) {
                 $rankLabels = $this->rankService->rankLabelsByTeam($type->id);
@@ -153,8 +154,8 @@ class ClubAchievementLeaderboardService
             ->whereIn('status', [\App\Models\MiniTournament::STATUS_CLOSED, 3]);
 
         if ($startDate) {
-            // Filter theo end_time (start_time + duration, đã auto-set trong StoreMiniTournamentRequest)
-            $miniTournamentsQuery->where('end_time', '>=', $startDate);
+            // Filter theo start_time (bao gồm cả kèo đang diễn ra)
+            $miniTournamentsQuery->where('start_time', '>=', $startDate);
         }
 
         $miniTournaments = $miniTournamentsQuery->get();

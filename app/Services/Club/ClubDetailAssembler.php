@@ -58,12 +58,14 @@ class ClubDetailAssembler
             $this->attachUnreadNotificationCount($club, $userId);
         }
 
-        // 1a. Active member count — use withCount from controller if available, else query
+        // 1a. Active member count — use withCount from controller if available, else query.
+        // Cộng thêm club_virtual_members (user ảo của CLB).
         if (isset($club->active_members_count)) {
             // already loaded via withCount('activeMembers') in controller
         } else {
             $club->active_members_count = $club->activeMembers()->count();
         }
+        $club->active_members_count += $club->virtualMembers()->count();
 
         // 2. Calculate rank (cached, ~0ms)
         $club->rank = $this->leaderboardService->calculateClubRank($club);
