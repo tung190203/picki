@@ -153,8 +153,9 @@ export default {
                 await inviteStaff(user.id, Number(selectedStaffRole.value) || 3, user?.is_virtual ? user.id : null)
             } else {
                 // Mời từ tab người tham gia - gom user thật vào user_ids, user ảo vào virtual_ids rồi gọi 1 lần
+                // Khi mời user ảo: CHỈ gửi virtual_ids, KHÔNG gửi user_ids.
                 const isVirtual = Boolean(user?.is_virtual);
-                await invite([user.id], isVirtual ? [user.id] : []);
+                await invite(isVirtual ? null : [user.id], isVirtual ? [user.id] : []);
             }
             await detailMiniTournament(id);
         }
@@ -761,10 +762,11 @@ export default {
         };
 
         const invite = async (friendId, virtualIds = []) => {
-            const targetId = Array.isArray(friendId) ? friendId : [friendId];
             const vIds = Array.isArray(virtualIds) ? virtualIds : [virtualIds].filter(Boolean);
+            // VM: friendId = null → bỏ qua user_ids, chỉ gửi virtual_ids.
+            const uIds = friendId == null ? [] : (Array.isArray(friendId) ? friendId : [friendId]);
             try {
-                await MiniParticipantService.sendInvitation(id, targetId, false, vIds);
+                await MiniParticipantService.sendInvitation(id, uIds, false, vIds);
                 toast.success('Đã gửi lời mời thành công!');
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi gửi lời mời.');
