@@ -480,7 +480,16 @@ class TeamController extends Controller
         $teamMemberCount = array_fill(0, $maxTeams, 0);
 
         foreach ($participants as $participant) {
-            $teams[$teamIndex]->members()->attach($participant->user_id);
+            if ($participant->is_guest) {
+                // Guest/user ảo: không có user_id, gắn qua participant_id.
+                \App\Models\TeamMember::create([
+                    'team_id' => $teams[$teamIndex]->id,
+                    'user_id' => null,
+                    'participant_id' => $participant->id,
+                ]);
+            } else {
+                $teams[$teamIndex]->members()->attach($participant->user_id);
+            }
             $teamMemberCount[$teamIndex]++;
 
             // nếu đội hiện tại đã full thì chuyển sang đội tiếp theo

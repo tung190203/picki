@@ -1333,10 +1333,10 @@ class MatchesController extends Controller
             );
         }
 
-        TournamentMatchUpdated::dispatch($match->fresh(['results', 'tournamentType.tournament', 'homeTeam.members', 'awayTeam.members']));
+        TournamentMatchUpdated::dispatch($match->fresh(['results', 'tournamentType.tournament', 'homeTeam.members', 'homeTeam.guestMembers.participant', 'homeTeam.guestMembers.participant.user', 'homeTeam.guestMembers.participant.guarantor', 'awayTeam.members', 'awayTeam.guestMembers.participant', 'awayTeam.guestMembers.participant.user', 'awayTeam.guestMembers.participant.guarantor']));
 
         return ResponseHelper::success(
-            new MatchesResource($match->fresh(['results', 'tournamentType.tournament', 'homeTeam.members', 'awayTeam.members'])),
+            new MatchesResource($match->fresh(['results', 'tournamentType.tournament', 'homeTeam.members', 'homeTeam.guestMembers.participant', 'homeTeam.guestMembers.participant.user', 'homeTeam.guestMembers.participant.guarantor', 'awayTeam.members', 'awayTeam.guestMembers.participant', 'awayTeam.guestMembers.participant.user', 'awayTeam.guestMembers.participant.guarantor'])),
             'Xác nhận kết quả thành công'
         );
     }

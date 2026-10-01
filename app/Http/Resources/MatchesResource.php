@@ -35,7 +35,8 @@ class MatchesResource extends JsonResource
                         $this->homeTeam->members,
                         $this->tournamentType?->tournament_id,
                         null,
-                        'tournament'
+                        'tournament',
+                        $this->homeTeam->guestMembers ?? null
                     ),
                 ];
             }),
@@ -47,7 +48,8 @@ class MatchesResource extends JsonResource
                         $this->awayTeam->members,
                         $this->tournamentType?->tournament_id,
                         null,
-                        'tournament'
+                        'tournament',
+                        $this->awayTeam->guestMembers ?? null
                     ),
                 ];
             }),

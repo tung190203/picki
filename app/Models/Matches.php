@@ -153,8 +153,14 @@ class Matches extends Model
             'referee',
             'homeTeam.members.sports.scores',
             'homeTeam.members.sports.sport',
+            'homeTeam.guestMembers.participant',
+            'homeTeam.guestMembers.participant.user',
+            'homeTeam.guestMembers.participant.guarantor',
             'awayTeam.members.sports.scores',
             'awayTeam.members.sports.sport',
+            'awayTeam.guestMembers.participant',
+            'awayTeam.guestMembers.participant.user',
+            'awayTeam.guestMembers.participant.guarantor',
             'results',
             'tournamentType.tournament'
         ]);
