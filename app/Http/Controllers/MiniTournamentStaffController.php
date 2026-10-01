@@ -33,6 +33,9 @@ class MiniTournamentStaffController extends Controller
         $validatedData = $request->validate([
             'staff_id' => 'required|integer|exists:users,id',
             'role' => 'required|integer|in:1,2,3',
+        ], [
+            'staff_id.required' => 'Cần chọn người dùng Picki để thêm vào kèo đấu.',
+            'staff_id.exists'   => 'Chỉ được phép thêm người dùng Picki vào làm BTC/trọng tài của kèo.',
         ]);
 
         $tournament = MiniTournament::findOrFail($tournamentId);

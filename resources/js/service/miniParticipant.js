@@ -4,13 +4,16 @@ import { API_ENDPOINT } from '@/constants';
 const miniParticipantEndpoint = API_ENDPOINT.MINI_PARTICIPANT;
 
 export const sendInvitation = async (miniTournamentId, userIds, isInviteAround = false, virtualIds = []) => {
-    // Khớp body app mobile đang gửi: luôn có `type`, `user_ids` (kể cả rỗng), `virtual_ids`, `is_invite_around`.
+    // Body đúng theo yêu cầu BE: VM chỉ gửi `virtual_ids`, không gửi `user_ids` (và ngược lại).
+    // Bỏ luôn field rỗng để payload gọn, BE sẽ tự check `empty($rawUserIds) && empty($virtualIds)`.
+    const uIds = Array.isArray(userIds) ? userIds.filter((x) => x != null) : [];
+    const vIds = Array.isArray(virtualIds) ? virtualIds.filter((x) => x != null) : [];
     const payload = {
         type: 'user',
-        user_ids: Array.isArray(userIds) ? userIds : [],
-        virtual_ids: Array.isArray(virtualIds) ? virtualIds : [],
         is_invite_around: isInviteAround ? 1 : 0,
     };
+    if (uIds.length) payload.user_ids = uIds;
+    if (vIds.length) payload.virtual_ids = vIds;
     return axiosInstance.post(`/mini-participants/invite/${miniTournamentId}`, payload)
         .then((response) => response.data.data)
 };
