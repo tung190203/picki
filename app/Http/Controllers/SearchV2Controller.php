@@ -97,7 +97,9 @@ class SearchV2Controller extends Controller
             SearchFilterConfig::TAB_USER => User::query()
                 ->with(['sports.sport', 'sports.scores', 'clubs'])
                 ->when($userId, fn($q) => $q->withInteractionStatus($userId))
-                ->when($user, fn($q) => $q->visibleFor($user))
+                // same_club bỏ qua visibleFor: ai trong club đó đều thấy nhau bất kể visibility (open/friend-only/private).
+                // whereHas('clubs', $clubId) phía dưới đã tự giới hạn về thành viên club.
+                ->when($user && $subTab !== 'same_club', fn($q) => $q->visibleFor($user))
                 ->filter($filters)
                 ->applyTimeline($subTab, $userId)
                 ->when($subTab === 'same_club', function ($q) use ($params) {
