@@ -1178,9 +1178,15 @@ class MiniMatchController extends Controller
             $hasGuest = $match->team1->members->contains(fn($m) => $m->is_guest)
                 || $match->team2->members->contains(fn($m) => $m->is_guest);
             if ($hasGuest) {
+                // Still mark qualified status (badge presence decides it, guests don't)
+                app(\App\Services\LeaderboardQualifierService::class)->markQualified($match);
                 return;
             }
         }
+
+        // ===== QUALIFIED_FOR_RANKING =====
+        // Single source of truth for "this match counts toward leaderboard".
+        app(\App\Services\LeaderboardQualifierService::class)->markQualified($match);
 
         // ===== ANCHOR MATCH LOGIC =====
         // Anchor count is only incremented for matches that affect rating

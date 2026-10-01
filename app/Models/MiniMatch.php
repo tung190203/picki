@@ -17,6 +17,7 @@ class MiniMatch extends Model
         'participant1_id',
         'participant2_id',
         'status',
+        'qualified_for_ranking',
         'participant_win_id',
         'team_win_id',
         'team1_confirm',
@@ -44,6 +45,7 @@ class MiniMatch extends Model
         'disable_scoring' => 'boolean',
         'team_1_score' => 'integer',
         'team_2_score' => 'integer',
+        'qualified_for_ranking' => 'boolean',
     ];
 
     public function participant1()

@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Models\UserSport;
 use App\Models\UserSportScore;
 use App\Services\Club\ClubService;
+use App\Services\LeaderboardQualifierService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -188,8 +189,8 @@ class HomeController extends Controller
             ->groupBy('user_sport.user_id');
 
         $leaderboard = User::query()
-            ->where('users.total_matches_has_anchor', '>', 5)
             ->where('users.email', '!=', 'vrplus2018@gmail.com')
+            ->whereIn('users.id', app(LeaderboardQualifierService::class)->qualifiedUserIds($sportId))
             ->joinSub($scoreSubQuery, 'scores', function ($join) {
                 $join->on('scores.user_id', '=', 'users.id');
             })
@@ -227,7 +228,9 @@ class HomeController extends Controller
             'sponsors'                  => SponsorResource::collection($sponsors),
             'my_club'                   => ListClubResource::collection($myClub),
             'leaderboard_club'               => ListClubResource::collection($leaderboardClub),
-            'leaderboard' => $leaderboard->map(function($user) use ($weeklyChanges) {
+            'leaderboard' => $leaderboard->map(function($user) use ($weeklyChanges, $sportId) {
+                $isVerify = app(LeaderboardQualifierService::class)->inspectUser($user->id, $sportId)['qualified']
+                    || (bool) $user->total_matches_has_anchor;
                 return [
                     'id' => $user->id,
                     'full_name' => $user->full_name,
@@ -243,7 +246,7 @@ class HomeController extends Controller
                         ];
                     }),
                     'is_anchor' => (bool) $user->is_anchor,
-                    'is_verify' => (bool) ($user->total_matches_has_anchor >= 10)
+                    'is_verify' => $isVerify
                 ];
             }),
         ];

@@ -1615,9 +1615,16 @@ class MatchesController extends Controller
         $hasGuest = $match->homeTeam->members->contains(fn($m) => $m->is_guest)
             || $match->awayTeam->members->contains(fn($m) => $m->is_guest);
         if ($hasGuest) {
+            // Still mark qualified status (badge presence decides it, guests don't)
+            app(\App\Services\LeaderboardQualifierService::class)->markQualified($match);
             $this->checkAndAdvanceFromMultiLeg($match, $setsPerMatch);
             return;
         }
+
+        // ===== QUALIFIED_FOR_RANKING =====
+        // Single source of truth for "this match counts toward leaderboard".
+        // Set before the legacy ANCHOR MATCH LOGIC so both paths stay in sync.
+        app(\App\Services\LeaderboardQualifierService::class)->markQualified($match);
 
         // ===== ANCHOR MATCH LOGIC =====
         $allUsersInMatch = collect()

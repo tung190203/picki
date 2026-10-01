@@ -41,11 +41,13 @@ class Matches extends Model
         'serving_team_id',
         'team1_timeout_used',
         'team2_timeout_used',
+        'qualified_for_ranking',
     ];
 
     protected $casts = [
         'started_at' => 'datetime',
         'scheduled_at' => 'datetime',
+        'qualified_for_ranking' => 'boolean',
     ];
 
     const PER_PAGE = 15;
