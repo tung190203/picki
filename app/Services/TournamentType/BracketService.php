@@ -190,13 +190,32 @@ class BracketService
             ];
         }
 
-        $members = $team->members->map(fn($user) => [
+        $realUsers = $team->members->map(fn($user) => [
             'id' => $user->id,
             'full_name' => $user->full_name,
             'avatar_url' => $user->avatar_url,
             'name' => $user->full_name,
             'avatar' => $user->avatar_url,
         ])->values();
+
+        // Merge guest members (user ảo / guest qua participant_id) để bracket hiển thị đủ
+        $guests = collect($team->guestMembers ?? [])
+            ->map(function ($tm) {
+                $p = $tm->participant;
+                if (!$p) return null;
+                return [
+                    'id' => $p->id,
+                    'full_name' => $p->guest_name ?? 'Thành viên ảo',
+                    'avatar_url' => $p->guest_avatar,
+                    'name' => $p->guest_name ?? 'Thành viên ảo',
+                    'avatar' => $p->guest_avatar,
+                    'is_guest' => true,
+                ];
+            })
+            ->filter()
+            ->values();
+
+        $members = $realUsers->concat($guests)->values();
 
         return [
             'id' => $team->id,

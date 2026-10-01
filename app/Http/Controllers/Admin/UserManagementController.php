@@ -288,8 +288,11 @@ class UserManagementController extends Controller
 
         $this->userManagementService->setAnchor($user, $admin);
 
+        // Refresh: BadgeService updates users.is_anchor; $user model holds stale value.
+        $user->refresh();
+
         return ResponseHelper::success([
-            'is_anchor' => $user->is_anchor,
+            'is_anchor' => (bool) $user->is_anchor,
         ], $user->is_anchor ? 'Đã set anchor' : 'Đã bỏ anchor');
     }
 

@@ -4,15 +4,20 @@ namespace App\Services\Club;
 
 use App\Models\Club\Club;
 use App\Models\Club\ClubVirtualMember;
-use App\Models\MiniParticipant;
-use App\Models\MiniTournament;
-use App\Models\Participant;
 use App\Models\Tournament;
+use App\Models\TournamentType;
+use App\Services\RoundRobinSchedulerService;
+use App\Services\TournamentType\TournamentRankService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 class ClubAchievementLeaderboardService
 {
+    public function __construct(
+        private TournamentRankService $rankService,
+        private RoundRobinSchedulerService $roundRobinService,
+    ) {}
+
     /**
      * Get Achievement Leaderboard (Sao or Cúp) for a Club.
      *
@@ -45,60 +50,48 @@ class ClubAchievementLeaderboardService
     }
 
     /**
-     * Tính BXH Cúp (Giải đấu CLB)
+     * Tính BXH Cúp (Giải đấu CLB).
+     *
+     * Lấy champion/runner-up/third từ TournamentRankService (cùng logic với
+     * GET /api/tournaments/{id}/leaderboard), phân bổ điểm cho từng thành viên
+     * trong team.
      */
     private function calculateCupLeaderboard(Club $club, ?Carbon $startDate): Collection
     {
         $scores = [];
 
-        // Lấy tất cả giải đấu của CLB đã kết thúc (CLOSED = 3)
-        $tournamentsQuery = Tournament::where('club_id', $club->id)
-            ->whereIn('status', [Tournament::CLOSED, 3]);
+        $tournamentsQuery = Tournament::where('club_id', $club->id);
 
         if ($startDate) {
-            $tournamentsQuery->where('updated_at', '>=', $startDate);
+            // Filter theo start_date (bao gồm cả giải đang diễn ra)
+            $tournamentsQuery->where('start_date', '>=', $startDate);
         }
 
-        $tournaments = $tournamentsQuery->get();
+        $tournaments = $tournamentsQuery->with('tournamentTypes')->get();
 
+        // Bỏ filter status=CLOSED: tournament được tính khi final match completed
+        // (TournamentRankService tự skip khi chưa có rank hợp lệ).
         foreach ($tournaments as $tournament) {
-            // Lấy participants có rank_after hoặc position top 3
-            $participants = Participant::where('tournament_id', $tournament->id)
-                ->whereIn('rank_after', [1, 2, 3])
-                ->get();
+            foreach ($tournament->tournamentTypes as $type) {
+                $rankLabels = $this->rankService->rankLabelsByTeam($type->id);
 
-            foreach ($participants as $p) {
-                $isGuest = (bool)($p->is_guest || !$p->user_id || ($p->user && $p->user->is_guest));
-                if ($isGuest) {
-                    $guestName = $p->guest_name ?: ($p->user ? $p->user->full_name : 'Khách');
-                    $key = 'guest_' . md5(mb_strtolower(trim($guestName)));
-                } else {
-                    $key = 'user_' . $p->user_id;
-                }
+                foreach ($rankLabels as $teamId => $rankInfo) {
+                    $rank = (int) ($rankInfo['overall_rank'] ?? 0);
+                    if ($rank < 1 || $rank > 3) {
+                        continue;
+                    }
 
-                if (!isset($scores[$key])) {
-                    $scores[$key] = [
-                        'user_id' => $isGuest ? null : $p->user_id,
-                        'virtual_member_id' => null,
-                        'is_virtual' => $isGuest,
-                        'name' => $isGuest ? ($p->guest_name ?: ($p->user ? $p->user->full_name : 'Khách')) : ($p->user ? $p->user->full_name : 'Khách'),
-                        'avatar_url' => $isGuest ? $p->guest_avatar : ($p->user ? $p->user->avatar_url : null),
-                        'gold' => 0,
-                        'silver' => 0,
-                        'bronze' => 0,
-                        'total_points' => 0,
-                    ];
-                }
+                    $team = \App\Models\Team::with('members')->find($teamId);
+                    if (!$team) {
+                        continue;
+                    }
 
-                if ($p->rank_after == 1) {
-                    $scores[$key]['gold'] += 1;
-                    $scores[$key]['total_points'] += 3;
-                } elseif ($p->rank_after == 2) {
-                    $scores[$key]['silver'] += 1;
-                    $scores[$key]['total_points'] += 2;
-                } elseif ($p->rank_after == 3) {
-                    $scores[$key]['bronze'] += 1;
-                    $scores[$key]['total_points'] += 1;
+                    $this->awardTeamPoints(
+                        $scores,
+                        $team,
+                        $rank,
+                        $club
+                    );
                 }
             }
         }
@@ -107,43 +100,106 @@ class ClubAchievementLeaderboardService
     }
 
     /**
-     * Tính BXH Sao (Kèo đấu CLB)
+     * Phân bổ điểm cup cho từng thành viên của team.
+     */
+    private function awardTeamPoints(array &$scores, \App\Models\Team $team, int $rank, Club $club): void
+    {
+        $points = match ($rank) {
+            1 => ['gold' => 1, 'silver' => 0, 'bronze' => 0, 'total' => 3],
+            2 => ['gold' => 0, 'silver' => 1, 'bronze' => 0, 'total' => 2],
+            3 => ['gold' => 0, 'silver' => 0, 'bronze' => 1, 'total' => 1],
+            default => null,
+        };
+        if ($points === null) {
+            return;
+        }
+
+        $memberIds = $team->members->pluck('id')->all();
+
+        foreach ($memberIds as $userId) {
+            $key = 'user_' . $userId;
+            if (!isset($scores[$key])) {
+                $user = \App\Models\User::find($userId);
+                $scores[$key] = [
+                    'user_id' => $userId,
+                    'virtual_member_id' => null,
+                    'is_virtual' => false,
+                    'name' => $user?->full_name ?? 'Khách',
+                    'avatar_url' => $user?->avatar_url,
+                    'gold' => 0,
+                    'silver' => 0,
+                    'bronze' => 0,
+                    'total_points' => 0,
+                ];
+            }
+
+            $scores[$key]['gold'] += $points['gold'];
+            $scores[$key]['silver'] += $points['silver'];
+            $scores[$key]['bronze'] += $points['bronze'];
+            $scores[$key]['total_points'] += $points['total'];
+        }
+    }
+
+    /**
+     * Tính BXH Sao (Kèo đấu CLB).
+     *
+     * Lấy top 3 từ RoundRobinSchedulerService::calculateLeaderboard() (cùng logic
+     * với GET /api/mini-tournaments/{id}/leaderboard).
      */
     private function calculateStarLeaderboard(Club $club, ?Carbon $startDate): Collection
     {
         $scores = [];
 
-        // Lấy tất cả kèo đấu của CLB đã kết thúc (STATUS_CLOSED = 3)
-        $miniTournamentsQuery = MiniTournament::where('club_id', $club->id)
-            ->whereIn('status', [MiniTournament::STATUS_CLOSED, 3]);
+        $miniTournamentsQuery = \App\Models\MiniTournament::where('club_id', $club->id)
+            ->whereIn('status', [\App\Models\MiniTournament::STATUS_CLOSED, 3]);
 
         if ($startDate) {
-            $miniTournamentsQuery->where('end_time', '>=', $startDate);
+            // Filter theo start_time (bao gồm cả kèo đang diễn ra)
+            $miniTournamentsQuery->where('start_time', '>=', $startDate);
         }
 
         $miniTournaments = $miniTournamentsQuery->get();
 
         foreach ($miniTournaments as $mini) {
-            $participants = MiniParticipant::where('mini_tournament_id', $mini->id)
-                ->whereIn('rank_after', [1, 2, 3])
-                ->get();
+            $result = $this->roundRobinService->calculateLeaderboard($mini->id);
+            $leaderboard = $result['leaderboard'] ?? [];
 
-            foreach ($participants as $p) {
-                $isGuest = (bool)($p->is_guest || !$p->user_id || ($p->user && $p->user->is_guest));
+            $top3 = array_slice($leaderboard, 0, 3);
+
+            foreach ($top3 as $entry) {
+                $rank = (int) ($entry['rank'] ?? 0);
+                if ($rank < 1 || $rank > 3) {
+                    continue;
+                }
+
+                $userId = $entry['user_id'] ?? null;
+                $participantId = $entry['participant_id'] ?? null;
+
+                if (!$userId || !$participantId) {
+                    continue;
+                }
+
+                $participant = \App\Models\MiniParticipant::with('user')->find($participantId);
+                if (!$participant) {
+                    continue;
+                }
+
+                $isGuest = (bool) ($participant->is_guest || !$participant->user_id || ($participant->user && $participant->user->is_guest));
+                $guestName = $participant->guest_name ?: ($participant->user ? $participant->user->full_name : 'Khách');
+
                 if ($isGuest) {
-                    $guestName = $p->guest_name ?: ($p->user ? $p->user->full_name : 'Khách');
                     $key = 'guest_' . md5(mb_strtolower(trim($guestName)));
                 } else {
-                    $key = 'user_' . $p->user_id;
+                    $key = 'user_' . $userId;
                 }
 
                 if (!isset($scores[$key])) {
                     $scores[$key] = [
-                        'user_id' => $isGuest ? null : $p->user_id,
+                        'user_id' => $isGuest ? null : $userId,
                         'virtual_member_id' => null,
                         'is_virtual' => $isGuest,
-                        'name' => $isGuest ? ($p->guest_name ?: ($p->user ? $p->user->full_name : 'Khách')) : ($p->user ? $p->user->full_name : 'Khách'),
-                        'avatar_url' => $isGuest ? $p->guest_avatar : ($p->user ? $p->user->avatar_url : null),
+                        'name' => $guestName,
+                        'avatar_url' => $isGuest ? $participant->guest_avatar : ($participant->user ? $participant->user->avatar_url : null),
                         'gold' => 0,
                         'silver' => 0,
                         'bronze' => 0,
@@ -151,13 +207,13 @@ class ClubAchievementLeaderboardService
                     ];
                 }
 
-                if ($p->rank_after == 1) {
+                if ($rank === 1) {
                     $scores[$key]['gold'] += 1;
                     $scores[$key]['total_points'] += 3;
-                } elseif ($p->rank_after == 2) {
+                } elseif ($rank === 2) {
                     $scores[$key]['silver'] += 1;
                     $scores[$key]['total_points'] += 2;
-                } elseif ($p->rank_after == 3) {
+                } elseif ($rank === 3) {
                     $scores[$key]['bronze'] += 1;
                     $scores[$key]['total_points'] += 1;
                 }

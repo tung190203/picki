@@ -17,6 +17,7 @@ class MiniMatch extends Model
         'participant1_id',
         'participant2_id',
         'status',
+        'qualified_for_ranking',
         'participant_win_id',
         'team_win_id',
         'team1_confirm',
@@ -44,6 +45,7 @@ class MiniMatch extends Model
         'disable_scoring' => 'boolean',
         'team_1_score' => 'integer',
         'team_2_score' => 'integer',
+        'qualified_for_ranking' => 'boolean',
     ];
 
     public function participant1()
@@ -108,6 +110,9 @@ class MiniMatch extends Model
             'team2.members.user.sports.scores',
             'team1.members.user.sports.sport',
             'team2.members.user.sports.sport',
+            // miniTeam needed by MiniTeamMember::miniTournamentParticipant() to find tournament id
+            'team1.members.miniTeam',
+            'team2.members.miniTeam',
             'results.team.members.user',
             'miniTournament.competitionLocation',
             'miniTournament.sport',

@@ -150,6 +150,8 @@ class BadgeService
 
     /**
      * Create a badge for a user (idempotent, uses firstOrCreate).
+     * For ANCHOR also keeps the legacy `users.is_anchor` column in sync
+     * (column is derived state — single source of truth is user_badges).
      */
     private function _create_badge(int $userId, BadgeType $type, ?int $createdBy = null): ?UserBadge
     {
@@ -167,6 +169,10 @@ class BadgeService
             'created_by' => $createdBy,
             'created_at' => now(),
         ]);
+
+        if ($type === BadgeType::ANCHOR) {
+            User::where('id', $userId)->update(['is_anchor' => true]);
+        }
 
         $user = User::find($userId);
         if ($user) {
@@ -220,6 +226,8 @@ class BadgeService
 
     /**
      * Revoke a badge from a user.
+     * For ANCHOR also clears the legacy `users.is_anchor` column so the
+     * derived field stays consistent with the badge source of truth.
      */
     public function revokeBadge(int $userId, BadgeType $type): bool
     {
@@ -229,8 +237,13 @@ class BadgeService
             ->where('badge_type', $type->value)
             ->delete() > 0;
 
-        if ($deleted && $user) {
-            $user->notify(new BadgeRevokedNotification($type));
+        if ($deleted) {
+            if ($type === BadgeType::ANCHOR) {
+                User::where('id', $userId)->update(['is_anchor' => false]);
+            }
+            if ($user) {
+                $user->notify(new BadgeRevokedNotification($type));
+            }
         }
 
         return $deleted;
@@ -267,12 +280,16 @@ class BadgeService
 
     /**
      * Sync badges from legacy is_verified/is_anchor fields.
+     * Idempotent: existing badges are preserved (BadgeService uses firstOrCreate).
      */
     public function syncFromLegacyFields(User $user): void
     {
         DB::transaction(function () use ($user) {
             if ($user->getRawOriginal('is_verified')) {
                 $this->grant_verified($user->id, $user->id);
+            }
+            if ($user->getRawOriginal('is_anchor')) {
+                $this->grant_anchor($user->id, $user->id);
             }
         });
     }
