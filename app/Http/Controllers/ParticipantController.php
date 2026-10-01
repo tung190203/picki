@@ -619,13 +619,25 @@ class ParticipantController extends Controller
     public function inviteUsers(Request $request, $tournamentId)
     {
         $validated = $request->validate([
-            'user_ids' => 'sometimes|array|min:1',
-            'user_ids.*' => 'exists:users,id',
-            'virtual_ids' => 'sometimes|array|min:1',
+            // user_ids chấp nhận null cho từng phần tử — FE có thể gửi 1 entry vừa có user_id vừa có virtual_id,
+            // hoặc chỉ virtual_id (user_id = null) khi entry đó là virtual member.
+            'user_ids' => 'sometimes|array',
+            'user_ids.*' => 'nullable|integer',
+            'virtual_ids' => 'sometimes|array',
             'virtual_ids.*' => 'exists:club_virtual_members,id',
         ]);
 
-        if (empty($validated['user_ids']) && empty($validated['virtual_ids'])) {
+        // Lọc ra các user_id thực (không null, không rỗng) và check exists
+        $rawUserIds = array_values(array_filter($validated['user_ids'] ?? [], fn($id) => $id !== null && $id !== ''));
+        if (!empty($rawUserIds)) {
+            $existing = \App\Models\User::whereIn('id', $rawUserIds)->pluck('id')->all();
+            $invalid = array_diff($rawUserIds, $existing);
+            if (!empty($invalid)) {
+                return ResponseHelper::error('user_id không tồn tại: ' . implode(', ', $invalid), 422);
+            }
+        }
+
+        if (empty($rawUserIds) && empty($validated['virtual_ids'])) {
             return ResponseHelper::error('Cần chọn ít nhất 1 người chơi hoặc thành viên ảo để mời.', 422);
         }
 
@@ -649,7 +661,7 @@ class ParticipantController extends Controller
 
         // Count distinct ids (FE may pass the same id in both user_ids and virtual_ids)
         $allRequestedIds = array_unique(array_merge(
-            $validated['user_ids'] ?? [],
+            $rawUserIds,
             $validated['virtual_ids'] ?? [],
         ));
         $totalRequested = count($allRequestedIds);
@@ -659,7 +671,7 @@ class ParticipantController extends Controller
 
         // ──────── Handle real users ────────
         $invitedResources = [];
-        $realUserIds = $validated['user_ids'] ?? [];
+        $realUserIds = $rawUserIds;
         // If FE passes the same id in both arrays (virtual member id may collide with a real user id),
         // prefer the virtual-member interpretation — the FE has already marked the entry as `is_virtual`.
         if (!empty($validated['virtual_ids'])) {
