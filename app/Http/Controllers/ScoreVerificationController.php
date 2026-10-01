@@ -18,15 +18,6 @@ class ScoreVerificationController extends Controller
     {
         $user = auth()->user();
         $validated = $request->validated();
-        $scoreType = $validated['score_type'];
-
-        if ($this->service->hasPendingRequest($user->id, $scoreType)) {
-            return ResponseHelper::error(
-                'Bạn đang có yêu cầu đang chờ duyệt cho loại điểm này',
-                409,
-                ['code' => 'PENDING_REQUEST_EXISTS']
-            );
-        }
 
         $data = $this->service->createRequest($user->id, $validated);
 

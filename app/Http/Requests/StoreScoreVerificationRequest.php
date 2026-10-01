@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Enums\ScoreType;
+use App\Repositories\ScoreVerificationRepository;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -28,6 +30,32 @@ class StoreScoreVerificationRequest extends FormRequest
         }
 
         return $rules;
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        // Resubmit path: chỉ check pending khi tạo mới (không có id).
+        // Resubmit luôn có id của request REJECTED, không nên bị chặn bởi pending khác.
+        if ($this->filled('id')) {
+            return;
+        }
+
+        $validator->after(function (Validator $v) {
+            $userId = auth()->id();
+            if (!$userId) {
+                return;
+            }
+
+            /** @var ScoreVerificationRepository $repo */
+            $repo = app(ScoreVerificationRepository::class);
+
+            if ($repo->findPendingByUser($userId) !== null) {
+                $v->errors()->add(
+                    'score_type',
+                    'Bạn đang có yêu cầu đang chờ duyệt, vui lòng chờ xử lý trước khi gửi yêu cầu mới.'
+                );
+            }
+        });
     }
 
     public function messages(): array
