@@ -1966,7 +1966,7 @@ class TournamentTypeController extends Controller
     {
         $tournamentId = $type->tournament_id;
         $query = $type->matches()
-            ->with(['homeTeam.members', 'awayTeam.members', 'results', 'referee', 'legReferee']);
+            ->with(['homeTeam.members', 'awayTeam.members', 'homeTeam.guestMembers.participant', 'awayTeam.guestMembers.participant', 'results', 'referee', 'legReferee']);
 
         if ($refereeId) {
             $query->where(function ($q) use ($refereeId) {
@@ -2075,7 +2075,7 @@ class TournamentTypeController extends Controller
     {
         $tournamentId = $type->tournament_id;
         $query = $type->matches()
-            ->with(['homeTeam.members', 'awayTeam.members', 'results', 'referee', 'legReferee'])
+            ->with(['homeTeam.members', 'awayTeam.members', 'homeTeam.guestMembers.participant', 'awayTeam.guestMembers.participant', 'results', 'referee', 'legReferee'])
             ->orderBy('round')
             ->orderBy('leg');
 
@@ -2244,7 +2244,7 @@ class TournamentTypeController extends Controller
 
         // Referee filter for pool stage
         $poolQuery = $type->matches()
-            ->with(['homeTeam.members', 'awayTeam.members', 'group', 'results'])
+            ->with(['homeTeam.members', 'awayTeam.members', 'homeTeam.guestMembers.participant', 'awayTeam.guestMembers.participant', 'group', 'results'])
             ->where('round', 1);
 
         if ($refereeId) {
@@ -2384,7 +2384,7 @@ class TournamentTypeController extends Controller
 
         // ===== KNOCKOUT STAGE =====
         $knockoutQuery = $type->matches()
-            ->with(['homeTeam.members', 'awayTeam.members', 'results', 'referee', 'legReferee'])
+            ->with(['homeTeam.members', 'awayTeam.members', 'homeTeam.guestMembers.participant', 'awayTeam.guestMembers.participant', 'results', 'referee', 'legReferee'])
             ->where('round', '>=', 2)
             ->orderBy('round')
             ->orderBy('leg');
@@ -2631,7 +2631,7 @@ class TournamentTypeController extends Controller
 
         // ===== POOL STAGE (Round 1) =====
         $poolMatches = $type->matches()
-            ->with(['homeTeam.members', 'awayTeam.members', 'group', 'results'])
+            ->with(['homeTeam.members', 'awayTeam.members', 'homeTeam.guestMembers.participant', 'awayTeam.guestMembers.participant', 'group', 'results'])
             ->where('round', 1)
             ->orderBy('group_id')
             ->orderBy('leg')
@@ -2736,7 +2736,7 @@ class TournamentTypeController extends Controller
 
         // ===== KNOCKOUT STAGE (Round >= 2) =====
         $knockoutMatches = $type->matches()
-            ->with(['homeTeam.members', 'awayTeam.members', 'results', 'referee', 'legReferee'])
+            ->with(['homeTeam.members', 'awayTeam.members', 'homeTeam.guestMembers.participant', 'awayTeam.guestMembers.participant', 'results', 'referee', 'legReferee'])
             ->where('round', '>=', 2)
             ->orderBy('round')
             ->orderBy('leg')

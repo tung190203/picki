@@ -1333,10 +1333,10 @@ class MatchesController extends Controller
             );
         }
 
-        TournamentMatchUpdated::dispatch($match->fresh(['results', 'tournamentType.tournament', 'homeTeam.members', 'awayTeam.members']));
+        TournamentMatchUpdated::dispatch($match->fresh(['results', 'tournamentType.tournament', 'homeTeam.members', 'homeTeam.guestMembers.participant', 'homeTeam.guestMembers.participant.user', 'homeTeam.guestMembers.participant.guarantor', 'awayTeam.members', 'awayTeam.guestMembers.participant', 'awayTeam.guestMembers.participant.user', 'awayTeam.guestMembers.participant.guarantor']));
 
         return ResponseHelper::success(
-            new MatchesResource($match->fresh(['results', 'tournamentType.tournament', 'homeTeam.members', 'awayTeam.members'])),
+            new MatchesResource($match->fresh(['results', 'tournamentType.tournament', 'homeTeam.members', 'homeTeam.guestMembers.participant', 'homeTeam.guestMembers.participant.user', 'homeTeam.guestMembers.participant.guarantor', 'awayTeam.members', 'awayTeam.guestMembers.participant', 'awayTeam.guestMembers.participant.user', 'awayTeam.guestMembers.participant.guarantor'])),
             'Xác nhận kết quả thành công'
         );
     }
@@ -1615,9 +1615,16 @@ class MatchesController extends Controller
         $hasGuest = $match->homeTeam->members->contains(fn($m) => $m->is_guest)
             || $match->awayTeam->members->contains(fn($m) => $m->is_guest);
         if ($hasGuest) {
+            // Still mark qualified status (badge presence decides it, guests don't)
+            app(\App\Services\LeaderboardQualifierService::class)->markQualified($match);
             $this->checkAndAdvanceFromMultiLeg($match, $setsPerMatch);
             return;
         }
+
+        // ===== QUALIFIED_FOR_RANKING =====
+        // Single source of truth for "this match counts toward leaderboard".
+        // Set before the legacy ANCHOR MATCH LOGIC so both paths stay in sync.
+        app(\App\Services\LeaderboardQualifierService::class)->markQualified($match);
 
         // ===== ANCHOR MATCH LOGIC =====
         $allUsersInMatch = collect()

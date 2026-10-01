@@ -20,14 +20,14 @@ trait FormatsTeamMembers
      * @param  int|null  $tournamentId
      * @param  int|null  $tournamentTypeId
      * @param  string    $type  'tournament' | 'mini'
+     * @param  \Illuminate\Support\Collection|null $guestMembers  TeamMember collection (có participant) — merge vào output cho nhánh tournament
      * @return \Illuminate\Support\Collection
      */
-    public static function formatMembers($members, ?int $tournamentId = null, ?int $tournamentTypeId = null, string $type = 'tournament')
+    public static function formatMembers($members, ?int $tournamentId = null, ?int $tournamentTypeId = null, string $type = 'tournament', $guestMembers = null)
     {
-        // Build participant lookup: participant.user_id => participant
+        // Build participant lookup cho real users (qua Participant.user_id).
         $participantMap = collect();
         if ($tournamentId && $type === 'tournament') {
-            // Load đủ relations để TeamMemberResource trả nested tournament_participant + sports
             $participantMap = Participant::where('tournament_id', $tournamentId)
                 ->whereIn('user_id', $members->pluck('id'))
                 ->with(['user.sports.scores', 'user.sports.sport', 'guarantor'])
@@ -40,12 +40,11 @@ trait FormatsTeamMembers
                 ->keyBy('user_id');
         }
 
-        return $members->map(function ($member) use ($participantMap, $type) {
+        $realUserEntries = $members->map(function ($member) use ($participantMap, $type) {
             /** @var \App\Models\Participant|\App\Models\MiniParticipant|null $p */
             $p = $participantMap->get($member->id);
             $isGuest = $p?->is_guest;
 
-            // Nhánh mini: giữ cấu trúc cũ
             if ($type === 'mini') {
                 return [
                     'id' => $member->id,
@@ -56,10 +55,9 @@ trait FormatsTeamMembers
                 ];
             }
 
-            // Nhánh tournament: hydrate member với tournamentParticipant rồi serialize qua TeamMemberResource
+            // tournament: hydrate member với tournamentParticipant rồi serialize qua TeamMemberResource
             if ($p) {
                 $member->setRelation('tournamentParticipant', $p);
-                // Ensure sports trên member từ participant->user
                 if (!$member->relationLoaded('sports') && $p->relationLoaded('user')) {
                     $member->setRelation('sports', $p->user?->sports ?? collect());
                 }
@@ -69,5 +67,21 @@ trait FormatsTeamMembers
 
             return (new TeamMemberResource($member))->resolve(request());
         });
+
+        // Merge guest members (TeamMember có participant.user_id = null, is_guest=true)
+        // Serialize qua TeamMemberResource với $this = participant (đã có tournamentParticipant set).
+        if ($type === 'tournament' && $guestMembers && $guestMembers->isNotEmpty()) {
+            $guestEntries = $guestMembers->map(function ($tm) {
+                $participant = $tm->participant;
+                if (!$participant) return null;
+                $participant->setRelation('tournamentParticipant', $participant);
+                $participant->setRelation('sports', collect());
+                return (new TeamMemberResource($participant))->resolve(request());
+            })->filter()->values();
+
+            return $realUserEntries->concat($guestEntries)->values();
+        }
+
+        return $realUserEntries;
     }
 }

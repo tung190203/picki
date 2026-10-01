@@ -834,8 +834,10 @@ class ParticipantController extends Controller
         $user_ids_in_teams = DB::table('team_members')
             ->join('teams', 'team_members.team_id', '=', 'teams.id')
             ->where('teams.tournament_id', $tournamentId)
+            ->whereNotNull('team_members.user_id')
             ->pluck('team_members.user_id')
-            ->unique();
+            ->unique()
+            ->values();
 
         // Include confirmed real users not in any team. Exclude guests already
         // assigned to any team in this tournament — they're not selectable.

@@ -41,11 +41,13 @@ class Matches extends Model
         'serving_team_id',
         'team1_timeout_used',
         'team2_timeout_used',
+        'qualified_for_ranking',
     ];
 
     protected $casts = [
         'started_at' => 'datetime',
         'scheduled_at' => 'datetime',
+        'qualified_for_ranking' => 'boolean',
     ];
 
     const PER_PAGE = 15;
@@ -151,8 +153,14 @@ class Matches extends Model
             'referee',
             'homeTeam.members.sports.scores',
             'homeTeam.members.sports.sport',
+            'homeTeam.guestMembers.participant',
+            'homeTeam.guestMembers.participant.user',
+            'homeTeam.guestMembers.participant.guarantor',
             'awayTeam.members.sports.scores',
             'awayTeam.members.sports.sport',
+            'awayTeam.guestMembers.participant',
+            'awayTeam.guestMembers.participant.user',
+            'awayTeam.guestMembers.participant.guarantor',
             'results',
             'tournamentType.tournament'
         ]);

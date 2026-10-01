@@ -154,7 +154,11 @@ class RoundRobinSchedulerService
         $participants = $participantQuery->get()->keyBy('id');
 
         // Map user_id -> participant_id for quick lookup
-        $userToParticipant = $participants->map(fn($p) => $p->user_id)->flip()->toArray();
+        $userToParticipant = $participants
+            ->filter(fn($p) => $p->user_id !== null)
+            ->map(fn($p) => $p->user_id)
+            ->flip()
+            ->toArray();
 
         // Standard format: matches are created manually without round_number
         // Non-standard formats: round_number is set by scheduler (including bye matches)

@@ -127,8 +127,8 @@ export default {
 
         const resetFormState = () => {
             scores.value = initializeScores()
-            team1Users.value = (props.data?.team1?.members || []).map(m => m?.user ?? m).filter(Boolean)
-            team2Users.value = (props.data?.team2?.members || []).map(m => m?.user ?? m).filter(Boolean)
+            team1Users.value = (props.data?.team1?.members || []).filter(Boolean)
+            team2Users.value = (props.data?.team2?.members || []).filter(Boolean)
             courtNumber.value = props.data?.court_number || null
             showRefereeScreen.value = false
         }
