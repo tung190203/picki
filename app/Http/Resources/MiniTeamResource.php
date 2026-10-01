@@ -23,18 +23,16 @@ class MiniTeamResource extends JsonResource
             'name' => $this->name,
             'members' => $members->map(function ($member) {
                 /** @var \App\Models\MiniParticipant|null $p */
-                $p = $member->relationLoaded('miniTournamentParticipant')
-                    ? $member->miniTournamentParticipant
-                    : null;
+                $p = $member->miniTournamentParticipant();
                 $isGuest = (bool) ($p?->is_guest);
 
                 $user = $member->relationLoaded('user') ? $member->user : null;
 
                 return [
-                    'id' => $member->user_id,
+                    'id' => $p?->id ?? $member->user_id, // MiniParticipant.id (key ổn định cho FE), fallback user_id
                     'team_id' => $this->id,
                     'full_name' => $isGuest
-                        ? ($p->guest_name ?? $user?->full_name)
+                        ? ($p->guest_name ?? $user?->full_name ?? 'Thành viên ảo')
                         : ($user?->full_name ?? ''),
                     'avatar_url' => $isGuest
                         ? ($p->guest_avatar ?? $user?->avatar_url)

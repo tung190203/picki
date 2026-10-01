@@ -4,10 +4,13 @@ import { API_ENDPOINT } from '@/constants';
 const miniParticipantEndpoint = API_ENDPOINT.MINI_PARTICIPANT;
 
 export const sendInvitation = async (miniTournamentId, userIds, isInviteAround = false, virtualIds = []) => {
-    const payload = {};
-    if (userIds?.length) payload.user_ids = userIds;
-    if (virtualIds?.length) payload.virtual_ids = virtualIds;
-    payload.is_invite_around = isInviteAround;
+    // Khớp body app mobile đang gửi: luôn có `type`, `user_ids` (kể cả rỗng), `virtual_ids`, `is_invite_around`.
+    const payload = {
+        type: 'user',
+        user_ids: Array.isArray(userIds) ? userIds : [],
+        virtual_ids: Array.isArray(virtualIds) ? virtualIds : [],
+        is_invite_around: isInviteAround ? 1 : 0,
+    };
     return axiosInstance.post(`/mini-participants/invite/${miniTournamentId}`, payload)
         .then((response) => response.data.data)
 };

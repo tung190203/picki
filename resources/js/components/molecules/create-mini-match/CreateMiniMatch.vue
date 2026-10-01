@@ -83,15 +83,23 @@ export default {
         const confirmedUsers = computed(() =>
             (props.miniTournament?.participants || props.miniTournament?.mini_participants || [])
                 .filter(p => p.is_confirmed)
-                .map(p => p.user || ({
-                    id: p.id ? `guest_${p.id}` : `vm_${p.guest_name}`,
-                    participant_id: p.id,
-                    user_id: p.user_id,
-                    full_name: p.guest_name || 'Khách',
-                    avatar_url: p.guest_avatar || '',
-                    is_guest: Boolean(p.is_guest),
-                    is_virtual: Boolean(p.is_virtual)
-                }))
+                .map(p => {
+                    // Ưu tiên p.user cho user thật — nhưng id dùng p.id (MiniParticipant.id) để BE map đúng.
+                    const userPayload = p.user && typeof p.user === 'object'
+                        ? { ...p.user }
+                        : {
+                            full_name: p.guest_name || 'Khách',
+                            avatar_url: p.guest_avatar || '',
+                        }
+                    return {
+                        ...userPayload,
+                        id: p.id, // MiniParticipant.id — key ổn định cho FE, BE dùng resolveTeamMembers để map
+                        participant_id: p.id,
+                        user_id: p.user_id,
+                        is_guest: Boolean(p.is_guest),
+                        is_virtual: Boolean(p.is_virtual),
+                    }
+                })
                 .filter(Boolean)
         )
 

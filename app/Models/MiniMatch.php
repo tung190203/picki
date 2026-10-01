@@ -110,6 +110,9 @@ class MiniMatch extends Model
             'team2.members.user.sports.scores',
             'team1.members.user.sports.sport',
             'team2.members.user.sports.sport',
+            // miniTeam needed by MiniTeamMember::miniTournamentParticipant() to find tournament id
+            'team1.members.miniTeam',
+            'team2.members.miniTeam',
             'results.team.members.user',
             'miniTournament.competitionLocation',
             'miniTournament.sport',
