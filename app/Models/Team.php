@@ -29,17 +29,24 @@ class Team extends Model
 
     public function members()
     {
-        return $this->belongsToMany(User::class, 'team_members', 'team_id', 'user_id')->withTrashed();
+        // Chỉ lấy user thật (user_id NOT NULL). Guest được tách qua guestMembers().
+        // Trước đây thiếu wherePivot nên row pivot có user_id = NULL (guest)
+        // vẫn được load, gây ra "user rỗng" trong response team.
+        return $this->belongsToMany(User::class, 'team_members', 'team_id', 'user_id')
+            ->wherePivotNotNull('user_id')
+            ->withTrashed();
     }
 
     /**
      * Guest participants (is_guest=true) đã gắn vào team qua team_members.participant_id.
      * Dùng cho view only — guest không thuộc $team->members vì không có User.
+     * Lọc cả user_id IS NULL để không trùng với user thật (members() đã gắn qua user_id).
      */
     public function guestMembers()
     {
         return $this->hasMany(\App\Models\TeamMember::class, 'team_id')
             ->whereNotNull('participant_id')
+            ->whereNull('user_id')
             ->with('participant.user', 'participant.guarantor');
     }
 

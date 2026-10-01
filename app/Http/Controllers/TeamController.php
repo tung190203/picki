@@ -8,6 +8,7 @@ use App\Http\Resources\TeamResource;
 use App\Models\Matches;
 use App\Models\MatchResult;
 use App\Models\Participant;
+use App\Models\TeamMember;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Services\ImageOptimizationService;
@@ -70,11 +71,21 @@ class TeamController extends Controller
         }
 
         if (!empty($validParticipantIds)) {
-            $participantsData = [];
+            // Insert qua TeamMember thay vì attach() của belongsToMany:
+            // - user thật  → ghi user_id
+            // - guest       → user_id = null, ghi participant_id
+            // Tránh key '' (user_id NULL của guest) bị Eloquent ép thành 0 / đè row.
             foreach ($validParticipantIds as $pid) {
-                $participantsData[$participants[$pid]->user_id] = ['participant_id' => $pid];
+                TeamMember::firstOrCreate(
+                    [
+                        'team_id'       => $team->id,
+                        'participant_id' => $pid,
+                    ],
+                    [
+                        'user_id' => $participants[$pid]->user_id,
+                    ]
+                );
             }
-            $team->members()->attach($participantsData);
         }
 
         return $errors;
@@ -126,15 +137,20 @@ class TeamController extends Controller
             return $errors;
         }
 
-        // Xoá toàn bộ bản ghi trong pivot table team_members
-        $team->members()->detach();
+        // Xoá toàn bộ bản ghi trong pivot table team_members (cả user thật và guest)
+        TeamMember::where('team_id', $team->id)->delete();
 
-        // Thêm members mới
-        $participantsData = [];
+        // Thêm members mới: phân biệt user thật vs guest qua TeamMember trực tiếp
         foreach ($participantIds as $pid) {
-            $participantsData[$participants[$pid]->user_id] = ['participant_id' => $pid];
+            if (!isset($participants[$pid])) {
+                continue;
+            }
+            TeamMember::create([
+                'team_id'        => $team->id,
+                'user_id'        => $participants[$pid]->user_id,
+                'participant_id' => $pid,
+            ]);
         }
-        $team->members()->attach($participantsData);
 
         return $errors;
     }
@@ -482,13 +498,18 @@ class TeamController extends Controller
         foreach ($participants as $participant) {
             if ($participant->is_guest) {
                 // Guest/user ảo: không có user_id, gắn qua participant_id.
-                \App\Models\TeamMember::create([
+                TeamMember::create([
                     'team_id' => $teams[$teamIndex]->id,
                     'user_id' => null,
                     'participant_id' => $participant->id,
                 ]);
             } else {
-                $teams[$teamIndex]->members()->attach($participant->user_id);
+                // User thật: gắn cả user_id và participant_id để load đúng.
+                TeamMember::create([
+                    'team_id' => $teams[$teamIndex]->id,
+                    'user_id' => $participant->user_id,
+                    'participant_id' => $participant->id,
+                ]);
             }
             $teamMemberCount[$teamIndex]++;
 
@@ -518,14 +539,33 @@ class TeamController extends Controller
     {
         $request->validate(
             [
-                'user_id' => 'required|exists:participants,user_id',
+                // Frontend có thể gửi user_id (User.id) cho user thật,
+                // hoặc participant.id cho guest (vì response không có User).
+                // Chấp nhận cả 2 — chỉ cần khớp 1 participant thuộc giải.
+                'user_id' => 'required|integer',
             ],
             [
-                'user_id.exists' => 'Người dùng chưa tham gia giải đấu',
                 'user_id.required' => 'Vui lòng chọn người dùng',
             ]
         );
-        $tournament = Team::findOrFail($teamId)->tournament;
+        $team = Team::findOrFail($teamId);
+        $tournament = $team->tournament;
+
+        // Tìm participant: ưu tiên match theo participants.user_id (user thật),
+        // fallback theo participants.id (guest) nếu không thấy.
+        $sentId = (int) $request->user_id;
+        $participant = Participant::where('tournament_id', $tournament->id)
+            ->where(function ($q) use ($sentId) {
+                $q->where('user_id', $sentId)->orWhere('id', $sentId);
+            })
+            ->first();
+
+        if (!$participant) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'user_id' => 'Người dùng chưa tham gia giải đấu',
+            ]);
+        }
+
         if (!$tournament->relationLoaded('staff')) {
             $tournament->load('staff');
         }
@@ -551,7 +591,11 @@ class TeamController extends Controller
                 400
             );
         }
-        $team->members()->detach($request->user_id);
+        // Xoá qua TeamMember theo participant_id để đảm bảo xoá đúng row
+        // dù participant là guest (user_id NULL) hay user thật.
+        TeamMember::where('team_id', $team->id)
+            ->where('participant_id', $participant->id)
+            ->delete();
 
         $team->load($this->withMembersRelations());
         TournamentTeamMemberHydrator::hydrateTeam($team, $team->tournament_id);
@@ -603,7 +647,7 @@ class TeamController extends Controller
 
     private function forceDeleteTeam(Team $team)
     {
-        $team->members()->detach();
+        TeamMember::where('team_id', $team->id)->delete();
         $team->delete();
 
         return ResponseHelper::success(null, 'Xoá đội thành công');
