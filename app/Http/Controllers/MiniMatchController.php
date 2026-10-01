@@ -361,8 +361,8 @@ class MiniMatchController extends Controller
         $data = $request->validate([
             'team1' => 'required|array|min:1',
             'team2' => 'required|array|min:1',
-            'team1.*' => 'exists:users,id',
-            'team2.*' => 'exists:users,id',
+            'team1.*' => 'integer|min:1',
+            'team2.*' => 'integer|min:1',
             'team1_name' => 'nullable|string|max:255',
             'team2_name' => 'nullable|string|max:255',
             'name' => 'nullable|string|max:255',
@@ -398,19 +398,12 @@ class MiniMatchController extends Controller
                 break;
         }
 
-        $allUserIds = array_unique(array_merge($data['team1'], $data['team2']));
-
-        $validParticipants = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
-            ->where('is_confirmed', true)
-            ->whereIn('user_id', $allUserIds)
-            ->pluck('user_id')
-            ->toArray();
-
-        if (count($validParticipants) !== count($allUserIds)) {
-            return ResponseHelper::error(
-                'Có người chơi chưa tham gia hoặc chưa được duyệt trong kèo',
-                422
-            );
+        // Xác thực tất cả id thuộc kèo + đã duyệt (cả user thật lẫn user ảo/guest).
+        try {
+            $this->resolveTeamMembers($miniTournament->id, $data['team1']);
+            $this->resolveTeamMembers($miniTournament->id, $data['team2']);
+        } catch (BusinessException $e) {
+            return ResponseHelper::error($e->getMessage(), $e->getCode() ?: 422);
         }
 
         DB::beginTransaction();
@@ -420,24 +413,18 @@ class MiniMatchController extends Controller
                 'mini_tournament_id' => $miniTournament->id,
                 'name' => $data['team1_name'] ?? $this->buildTeamName($data['team1'], $miniTournament->id),
             ]);
-
-            foreach ($data['team1'] as $userId) {
-                $isGuest = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
-                    ->where('user_id', $userId)
-                    ->value('is_guest') ?? false;
-                $team1->members()->create(['user_id' => $userId, 'is_guest' => $isGuest]);
+            foreach ($this->resolveTeamMembers($miniTournament->id, $data['team1'])['records'] as $r) {
+                $r['mini_team_id'] = $team1->id;
+                $team1->members()->create($r);
             }
 
             $team2 = MiniTeam::create([
                 'mini_tournament_id' => $miniTournament->id,
                 'name' => $data['team2_name'] ?? $this->buildTeamName($data['team2'], $miniTournament->id),
             ]);
-
-            foreach ($data['team2'] as $userId) {
-                $isGuest = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
-                    ->where('user_id', $userId)
-                    ->value('is_guest') ?? false;
-                $team2->members()->create(['user_id' => $userId, 'is_guest' => $isGuest]);
+            foreach ($this->resolveTeamMembers($miniTournament->id, $data['team2'])['records'] as $r) {
+                $r['mini_team_id'] = $team2->id;
+                $team2->members()->create($r);
             }
             $defaultMatchName = $this->generateMatchName($miniTournament);
 
@@ -451,11 +438,15 @@ class MiniMatchController extends Controller
             ]);
 
             DB::commit();
-            $allParticipantIds = array_unique(array_merge($data['team1'], $data['team2']));
-            $users = User::whereIn('id', $allParticipantIds)->get();
-            $users->each(function ($user) use ($match) {
-                $user->notify(new MiniMatchCreatedNotification($match));
-            });
+            $t1 = $this->resolveTeamMembers($miniTournament->id, $data['team1']);
+            $t2 = $this->resolveTeamMembers($miniTournament->id, $data['team2']);
+            $notifyUserIds = array_values(array_unique(array_merge($t1['valid_user_ids'], $t2['valid_user_ids'])));
+            if (!empty($notifyUserIds)) {
+                $users = User::whereIn('id', $notifyUserIds)->get();
+                $users->each(function ($user) use ($match) {
+                    $user->notify(new MiniMatchCreatedNotification($match));
+                });
+            }
 
             return ResponseHelper::success(new MiniMatchResource($match->loadFullRelations()), 'Tạo trận đấu thành công', 201);
         } catch (\Throwable $e) {
@@ -487,8 +478,8 @@ class MiniMatchController extends Controller
         $data = $request->validate([
             'team1' => 'sometimes|array|min:1',
             'team2' => 'sometimes|array|min:1',
-            'team1.*' => 'exists:users,id',
-            'team2.*' => 'exists:users,id',
+            'team1.*' => 'integer|min:1',
+            'team2.*' => 'integer|min:1',
             'team1_name' => 'nullable|string|max:255',
             'team2_name' => 'nullable|string|max:255',
             'name' => 'nullable|string|max:255',
@@ -574,6 +565,7 @@ class MiniMatchController extends Controller
                 'Cập nhật trận đấu thành công'
             );
         } catch (BusinessException $e) {
+            DB::rollBack();
             return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -581,30 +573,86 @@ class MiniMatchController extends Controller
         }
     }
 
-    protected function syncTeamMembers(MiniTeam $team, array $userIds)
+    /**
+     * Map danh sách id đầu vào (FE gửi lên) thành thông tin member phẳng để insert vào mini_team_members.
+     * - Input id có thể là MiniParticipant.id (khuyến nghị) HOẶC User.id (user thật).
+     * - User thật: MiniParticipant.user_id set → lưu user_id.
+     * - Guest/user ảo (ClubVirtualMember): MiniParticipant.user_id null + guest_name → lưu user_id null + guest_name/guest_avatar.
+     * Trả về ['records' => [...], 'valid_user_ids' => [user_id...]] — valid_user_ids dùng cho User::whereIn.
+     *
+     * @throws BusinessException khi id không khớp participant nào trong kèo.
+     */
+    protected function resolveTeamMembers(int $miniTournamentId, array $ids): array
     {
-        $team->members()->delete();
-
-        if (empty($userIds)) {
-            return;
+        if (empty($ids)) {
+            return ['records' => [], 'valid_user_ids' => []];
         }
 
-        // Batch load is_guest flags for all users in one query
-        $guestMap = DB::table('mini_participants')
-            ->where('mini_tournament_id', $team->mini_tournament_id)
-            ->whereIn('user_id', $userIds)
-            ->pluck('is_guest', 'user_id');
+        // Map id input → MiniParticipant (ưu tiên MiniParticipant.id, fallback user_id).
+        // is_confirmed=true bắt buộc — member chưa duyệt không được xếp vào trận.
+        $byParticipantId = MiniParticipant::where('mini_tournament_id', $miniTournamentId)
+            ->where('is_confirmed', true)
+            ->whereIn('id', $ids)
+            ->get()
+            ->keyBy('id');
+
+        $byUserId = collect();
+        $remaining = [];
+        foreach ($ids as $id) {
+            if ($byParticipantId->has($id)) {
+                continue;
+            }
+            $remaining[] = $id;
+        }
+        if (!empty($remaining)) {
+            $byUserId = MiniParticipant::where('mini_tournament_id', $miniTournamentId)
+                ->where('is_confirmed', true)
+                ->whereIn('user_id', $remaining)
+                ->get()
+                ->keyBy('user_id');
+        }
 
         $records = [];
+        $validUserIds = [];
         $now = now();
-        foreach ($userIds as $userId) {
+        foreach ($ids as $id) {
+            $p = $byParticipantId->get($id) ?? $byUserId->get($id) ?? null;
+            if (!$p) {
+                throw new BusinessException(
+                    'ID ' . $id . ' không thuộc kèo đấu hoặc chưa được duyệt.',
+                    422
+                );
+            }
+
+            $isGuest = (bool) $p->is_guest;
             $records[] = [
-                'mini_team_id' => $team->id,
-                'user_id' => $userId,
-                'is_guest' => $guestMap->get($userId, false),
+                'user_id' => $isGuest ? null : $p->user_id,
+                'is_guest' => $isGuest,
+                'guest_name' => $isGuest ? ($p->guest_name ?? ('User #' . $p->id)) : null,
+                'guest_avatar' => $isGuest ? $p->guest_avatar : null,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
+            if (!$isGuest && $p->user_id) {
+                $validUserIds[] = $p->user_id;
+            }
+        }
+
+        return ['records' => $records, 'valid_user_ids' => array_values(array_unique($validUserIds))];
+    }
+
+    protected function syncTeamMembers(MiniTeam $team, array $ids)
+    {
+        $team->members()->delete();
+
+        if (empty($ids)) {
+            return;
+        }
+
+        ['records' => $records] = $this->resolveTeamMembers($team->mini_tournament_id, $ids);
+
+        foreach ($records as $i => $r) {
+            $records[$i]['mini_team_id'] = $team->id;
         }
 
         MiniTeamMember::insert($records);
@@ -1178,9 +1226,15 @@ class MiniMatchController extends Controller
             $hasGuest = $match->team1->members->contains(fn($m) => $m->is_guest)
                 || $match->team2->members->contains(fn($m) => $m->is_guest);
             if ($hasGuest) {
+                // Still mark qualified status (badge presence decides it, guests don't)
+                app(\App\Services\LeaderboardQualifierService::class)->markQualified($match);
                 return;
             }
         }
+
+        // ===== QUALIFIED_FOR_RANKING =====
+        // Single source of truth for "this match counts toward leaderboard".
+        app(\App\Services\LeaderboardQualifierService::class)->markQualified($match);
 
         // ===== ANCHOR MATCH LOGIC =====
         // Anchor count is only incremented for matches that affect rating
@@ -1563,8 +1617,8 @@ class MiniMatchController extends Controller
             'match_id' => 'nullable|exists:mini_matches,id',
             'team1' => 'required|array|min:1',
             'team2' => 'required|array|min:1',
-            'team1.*' => 'exists:users,id',
-            'team2.*' => 'exists:users,id',
+            'team1.*' => 'integer|min:1',
+            'team2.*' => 'integer|min:1',
             'team1_name' => 'nullable|string|max:255',
             'team2_name' => 'nullable|string|max:255',
             'name' => 'nullable|string|max:255',
@@ -1624,39 +1678,22 @@ class MiniMatchController extends Controller
                         : $match->disable_scoring,
                 ]);
             } else {
-                $allUserIds = array_unique(array_merge($data['team1'], $data['team2']));
-
-                $validParticipants = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
-                    ->where('is_confirmed', true)
-                    ->whereIn('user_id', $allUserIds)
-                    ->pluck('user_id')
-                    ->toArray();
-
-                if (count($validParticipants) !== count($allUserIds)) {
-                    DB::rollBack();
-                    return ResponseHelper::error('Có người chơi chưa tham gia hoặc chưa được duyệt trong kèo', 422);
-                }
-
                 $team1 = MiniTeam::create([
                     'mini_tournament_id' => $miniTournament->id,
                     'name' => $data['team1_name'] ?? $this->buildTeamName($data['team1'], $miniTournament->id),
                 ]);
-                foreach ($data['team1'] as $userId) {
-                    $isGuest = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
-                        ->where('user_id', $userId)
-                        ->value('is_guest') ?? false;
-                    $team1->members()->create(['user_id' => $userId, 'is_guest' => $isGuest]);
+                foreach ($this->resolveTeamMembers($miniTournament->id, $data['team1'])['records'] as $r) {
+                    $r['mini_team_id'] = $team1->id;
+                    $team1->members()->create($r);
                 }
 
                 $team2 = MiniTeam::create([
                     'mini_tournament_id' => $miniTournament->id,
                     'name' => $data['team2_name'] ?? $this->buildTeamName($data['team2'], $miniTournament->id),
                 ]);
-                foreach ($data['team2'] as $userId) {
-                    $isGuest = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
-                        ->where('user_id', $userId)
-                        ->value('is_guest') ?? false;
-                    $team2->members()->create(['user_id' => $userId, 'is_guest' => $isGuest]);
+                foreach ($this->resolveTeamMembers($miniTournament->id, $data['team2'])['records'] as $r) {
+                    $r['mini_team_id'] = $team2->id;
+                    $team2->members()->create($r);
                 }
 
                 $match = MiniMatch::create([
@@ -1689,11 +1726,15 @@ class MiniMatchController extends Controller
             $match = MiniMatch::withFullRelations()->findOrFail($match->id);
 
             if (!$isUpdate) {
-                $allParticipantIds = array_unique(array_merge($data['team1'], $data['team2']));
-                $users = User::whereIn('id', $allParticipantIds)->get();
-                $users->each(function ($user) use ($match) {
-                    $user->notify(new MiniMatchCreatedNotification($match));
-                });
+                $t1 = $this->resolveTeamMembers($miniTournament->id, $data['team1']);
+                $t2 = $this->resolveTeamMembers($miniTournament->id, $data['team2']);
+                $notifyUserIds = array_values(array_unique(array_merge($t1['valid_user_ids'], $t2['valid_user_ids'])));
+                if (!empty($notifyUserIds)) {
+                    $users = User::whereIn('id', $notifyUserIds)->get();
+                    $users->each(function ($user) use ($match) {
+                        $user->notify(new MiniMatchCreatedNotification($match));
+                    });
+                }
             }
 
             return ResponseHelper::success(
@@ -1701,6 +1742,9 @@ class MiniMatchController extends Controller
                 $isUpdate ? 'Cập nhật trận đấu thành công' : 'Tạo trận đấu thành công',
                 $isUpdate ? 200 : 201
             );
+        } catch (BusinessException $e) {
+            DB::rollBack();
+            return ResponseHelper::error($e->getMessage(), $e->getHttpCode());
         } catch (\Throwable $e) {
             DB::rollBack();
             return ResponseHelper::error('Có lỗi xảy ra khi tạo trận đấu', 500);

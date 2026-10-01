@@ -10,7 +10,6 @@ use App\Models\Club\ClubMember;
 use App\Models\Matches;
 use App\Models\Participant;
 use App\Models\Sport;
-use App\Models\SystemSetting;
 use App\Models\Team;
 use App\Models\TeamRanking;
 use App\Models\Tournament;
@@ -18,6 +17,7 @@ use App\Models\TournamentType;
 use App\Models\User;
 use App\Models\UserSportScore;
 use App\Services\BadgeService;
+use App\Services\LeaderboardQualifierService;
 use App\Services\TournamentType\TournamentRankService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -463,12 +463,19 @@ class LeaderboardController extends Controller
 
     private function getSystemLeaderboard(int $sportId, int $perPage, int $page, int $maxTotal = 50): array
     {
-        $rankingMatches = (int) SystemSetting::where('key', 'ranking_matches')->first()?->value ?: 10;
         $excludedEmail = 'vrplus2018@gmail.com';
 
+        // Single source of truth: who is qualified for the leaderboard?
+        // User is qualified when: has badge OR qualified match count >= ranking_matches
+        // (or legacy fallback on total_matches_has_anchor for matches predating the new column).
+        $qualifiedUserIds = app(LeaderboardQualifierService::class)->qualifiedUserIds($sportId);
+        if (empty($qualifiedUserIds)) {
+            return ['items' => [], 'total' => 0, 'last_page' => 1];
+        }
+
         // OPTIMIZED: Cache the total count for 5 minutes instead of counting every request
-        $cacheKey = "leaderboard_total:{$sportId}:{$rankingMatches}:{$maxTotal}";
-        $total = Cache::remember($cacheKey, 300, function () use ($sportId, $rankingMatches, $excludedEmail, $maxTotal) {
+        $cacheKey = "leaderboard_total:{$sportId}:" . User::getRankingMatches() . ":{$maxTotal}";
+        $total = Cache::remember($cacheKey, 300, function () use ($sportId, $excludedEmail, $maxTotal, $qualifiedUserIds) {
             $scoreSubQuery = UserSportScore::query()
                 ->select(
                     'user_sport.user_id',
@@ -477,15 +484,12 @@ class LeaderboardController extends Controller
                 ->join('user_sport', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
                 ->where('user_sport.sport_id', $sportId)
                 ->where('user_sport_scores.score_type', 'vndupr_score')
-                ->where('user_sport.total_matches', '>=', $rankingMatches)
                 ->groupBy('user_sport.user_id');
 
             $count = User::query()
                 ->joinSub($scoreSubQuery, 'scores', 'scores.user_id', '=', 'users.id')
-                ->join('user_sport', 'user_sport.user_id', '=', 'users.id')
-                ->where('user_sport.sport_id', $sportId)
                 ->where('users.email', '!=', $excludedEmail)
-                ->where('user_sport.total_matches', '>=', $rankingMatches)
+                ->whereIn('users.id', $qualifiedUserIds)
                 ->count();
 
             return min($count, $maxTotal);
@@ -502,22 +506,18 @@ class LeaderboardController extends Controller
             ->join('user_sport', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
             ->where('user_sport.sport_id', $sportId)
             ->where('user_sport_scores.score_type', 'vndupr_score')
-            ->where('user_sport.total_matches', '>=', $rankingMatches)
             ->groupBy('user_sport.user_id');
 
         $baseQuery = User::query()
             ->joinSub($scoreSubQuery, 'scores', 'scores.user_id', '=', 'users.id')
-            ->join('user_sport', 'user_sport.user_id', '=', 'users.id')
-            ->where('user_sport.sport_id', $sportId)
             ->where('users.email', '!=', $excludedEmail)
+            ->whereIn('users.id', $qualifiedUserIds)
             ->select(
                 'users.id',
-                'scores.vndupr_score',
-                'user_sport.total_matches'
+                'scores.vndupr_score'
             )
             ->with(['clubs:id,name', 'userBadges'])
-            ->orderByDesc('scores.vndupr_score')
-            ->where('user_sport.total_matches', '>=', $rankingMatches);
+            ->orderByDesc('scores.vndupr_score');
 
         // Use ROW_NUMBER() for ranking - more efficient than offset for large datasets
         // Cap limit to not exceed maxTotal

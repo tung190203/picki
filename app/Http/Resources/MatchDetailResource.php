@@ -123,7 +123,8 @@ class MatchDetailResource extends JsonResource
                     $homeTeam->members,
                     $tournamentType?->tournament_id,
                     null,
-                    'tournament'
+                    'tournament',
+                    $homeTeam->guestMembers
                 ),
             ] : null,
 
@@ -134,7 +135,8 @@ class MatchDetailResource extends JsonResource
                     $awayTeam->members,
                     $tournamentType?->tournament_id,
                     null,
-                    'tournament'
+                    'tournament',
+                    $awayTeam->guestMembers
                 ),
             ] : null,
 

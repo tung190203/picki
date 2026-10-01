@@ -198,9 +198,9 @@ class MiniParticipantController extends Controller
         $isInviteAround = $request->boolean('is_invite_around', false);
 
         $validated = $request->validate([
-            'user_ids'         => 'sometimes|array|min:1',
+            'user_ids'         => 'sometimes|array',
             'user_ids.*'       => 'required_with:user_ids|exists:users,id',
-            'virtual_ids'      => 'sometimes|array|min:1',
+            'virtual_ids'      => 'sometimes|array',
             'virtual_ids.*'    => 'required_with:virtual_ids|exists:club_virtual_members,id',
             'is_invite_around' => 'sometimes|boolean',
         ]);

@@ -53,14 +53,17 @@ Content-Type: multipart/form-data
 }
 ```
 
-**Error Response (409 - Pending request exists):**
+**Error Response (422 - Pending request exists / Validation failed):**
 
 ```json
 {
     "success": false,
-    "message": "Bạn đang có yêu cầu đang chờ duyệt",
-    "errors": { "code": "PENDING_REQUEST_EXISTS" },
-    "code": 409
+    "message": "Bạn đang có yêu cầu đang chờ duyệt, vui lòng chờ xử lý trước khi gửi yêu cầu mới.",
+    "errors": {
+        "score_type": [
+            "Bạn đang có yêu cầu đang chờ duyệt, vui lòng chờ xử lý trước khi gửi yêu cầu mới."
+        ]
+    }
 }
 ```
 
