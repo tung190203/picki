@@ -37,8 +37,7 @@ class ParticipantController extends Controller
         ]);
 
         $query = Participant::where('tournament_id', $tournamentId)
-            ->whereHas('user')
-            ->with(['user']);
+            ->with(['user', 'tournament']);
 
         if (isset($validated['is_confirmed'])) {
             $query->where('is_confirmed', $validated['is_confirmed']);
