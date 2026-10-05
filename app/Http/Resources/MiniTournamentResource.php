@@ -200,6 +200,25 @@ class MiniTournamentResource extends JsonResource
             }
         }
 
+        // Thành viên ảo có user_id = null nên không xuất hiện trong `staff` (belongsToMany User).
+        // Phải đọc riêng từ miniTournamentStaffs để không bỏ sót BTC / trọng tài ảo.
+        $virtualStaffs = $this->resource instanceof \App\Models\MiniTournament
+            ? $this->resource->miniTournamentStaffs()->where('is_virtual', true)->get()
+            : collect();
+
+        foreach ($virtualStaffs as $virtualStaff) {
+            $resource = (new MiniTournamentStaffResource($virtualStaff))->resolve();
+            $role = (int) $virtualStaff->role;
+
+            if ($role === MiniTournamentStaff::ROLE_ADMIN) {
+                $organizers->push($resource);
+            } elseif ($role === MiniTournamentStaff::ROLE_STAFF) {
+                $staffs->push($resource);
+            } elseif ($role === MiniTournamentStaff::ROLE_REFEREE) {
+                $referees->push($resource);
+            }
+        }
+
         return [
             'organizer' => $organizers->values(),
             'staff' => $staffs->values(),

@@ -201,11 +201,15 @@ class MiniParticipantController extends Controller
             // user_ids chấp nhận null cho từng phần tử — FE có thể gửi 1 entry vừa có user_id vừa có virtual_id,
             // hoặc chỉ virtual_id (user_id = null) khi entry đó là virtual member.
             // Validation exists sẽ chạy sau, lọc bỏ phần tử null.
-            'user_ids'         => 'sometimes|array',
+            // App mobile gửi `virtual_ids: null` khi không mời thành viên ảo,
+            // nên rule phải `nullable` (key có mặt + value null) chứ không chỉ `sometimes`.
+            // `user_ids` cũng vậy: chấp nhận null cho từng phần tử vì 1 entry có thể
+            // vừa có user_id vừa có virtual_id, hoặc chỉ virtual_id (user_id = null).
+            'user_ids'         => 'sometimes|nullable|array',
             'user_ids.*'       => 'nullable|integer',
-            'virtual_ids'      => 'sometimes|array',
-            'virtual_ids.*'    => 'required_with:virtual_ids|exists:club_virtual_members,id',
-            'is_invite_around' => 'sometimes|boolean',
+            'virtual_ids'      => 'sometimes|nullable|array',
+            'virtual_ids.*'    => 'nullable|integer|exists:club_virtual_members,id',
+            'is_invite_around' => 'sometimes|nullable|boolean',
         ]);
 
         // Lọc ra các user_id thực (không null, không rỗng) và check exists
@@ -225,12 +229,14 @@ class MiniParticipantController extends Controller
             );
         }
 
-        if (empty($rawUserIds) && empty($validated['virtual_ids'])) {
+        // Lọc luôn virtual_ids (bỏ null/rỗng) để check "có gì để mời" chính xác
+        $virtualIds = array_values(array_filter($validated['virtual_ids'] ?? [], fn($id) => $id !== null && $id !== ''));
+
+        if (empty($rawUserIds) && empty($virtualIds)) {
             return ResponseHelper::error('Cần chọn ít nhất 1 người chơi hoặc thành viên ảo để mời.', 422);
         }
 
         $userIds = $rawUserIds;
-        $virtualIds = $validated['virtual_ids'] ?? [];
 
         // If FE passes the same id in both arrays (virtual member id may collide with a real user id),
         // prefer the virtual-member interpretation — the FE has already marked the entry as `is_virtual`.
