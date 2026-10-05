@@ -31,6 +31,10 @@ class TournamentStaff extends Model
         'checked_in_at',
         'is_absent',
         'court_id',
+        'is_virtual',
+        'virtual_member_id',
+        'guest_name',
+        'guest_avatar',
     ];
 
     const ROLE_ORGANIZER = 1;
@@ -71,9 +75,30 @@ class TournamentStaff extends Model
         'is_absent' => 'boolean',
         'checked_in_at' => 'datetime',
         'court_id' => 'integer',
+        'is_virtual' => 'boolean',
+        'virtual_member_id' => 'integer',
     ];
 
     // === Scopes ===
+
+    /**
+     * Lấy tên hiển thị: user thật lấy từ relation, thành viên ảo lấy từ snapshot.
+     */
+    public function getDisplayNameAttribute(): ?string
+    {
+        if ($this->is_virtual) {
+            return $this->guest_name;
+        }
+        return $this->user?->full_name;
+    }
+
+    public function getDisplayAvatarAttribute(): ?string
+    {
+        if ($this->is_virtual) {
+            return $this->guest_avatar;
+        }
+        return $this->user?->avatar_url;
+    }
 
     public function scopeAdmin($query)
     {

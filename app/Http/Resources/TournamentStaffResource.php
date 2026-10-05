@@ -14,18 +14,32 @@ class TournamentStaffResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        // Thành viên ảo (ClubVirtualMember) có user_id = null và không có relation `user`.
+        // Vì vậy toàn bộ field liên quan user đều fallback sang snapshot guest_name/guest_avatar.
+        $isVirtual = (bool) $this->is_virtual;
+
         return [
             'id'                       => $this->id,
-            'user_id'                   => (int) $this->user_id,
-            'staff'                     => $this->whenLoaded('user', function () {
-                return [
-                    'id'       => $this->user->id,
-                    'name'     => $this->user->full_name,
-                    'avatar'   => $this->user->avatar_url,
-                    'sports'   => UserSportResource::collection($this->user?->sports ?? []),
+            'user_id'                   => $this->user_id !== null ? (int) $this->user_id : null,
+            'is_virtual'                => $isVirtual,
+            'virtual_member_id'         => $this->virtual_member_id !== null ? (int) $this->virtual_member_id : null,
+            'staff'                     => $isVirtual
+                ? [
+                    'id'       => null,
+                    'name'     => $this->guest_name,
+                    'avatar'   => $this->guest_avatar,
+                    'sports'   => [],
                     'is_confirmed' => true,
-                ];
-            }),
+                ]
+                : $this->whenLoaded('user', function () {
+                    return [
+                        'id'       => $this->user->id,
+                        'name'     => $this->user->full_name,
+                        'avatar'   => $this->user->avatar_url,
+                        'sports'   => UserSportResource::collection($this->user?->sports ?? []),
+                        'is_confirmed' => true,
+                    ];
+                }),
             'role'                     => (int) $this->role,
             'role_text'                => $this->role_text,
             'court_id'                 => $this->court_id !== null ? (int) $this->court_id : null,

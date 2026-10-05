@@ -619,12 +619,14 @@ class ParticipantController extends Controller
     public function inviteUsers(Request $request, $tournamentId)
     {
         $validated = $request->validate([
-            // user_ids chấp nhận null cho từng phần tử — FE có thể gửi 1 entry vừa có user_id vừa có virtual_id,
-            // hoặc chỉ virtual_id (user_id = null) khi entry đó là virtual member.
-            'user_ids' => 'sometimes|array',
+            // App mobile gửi `virtual_ids: null` khi không mời thành viên ảo,
+            // nên rule phải `nullable` (key có mặt + value null) chứ không chỉ `sometimes`.
+            // `user_ids` cũng vậy: chấp nhận null cho từng phần tử vì 1 entry có thể
+            // vừa có user_id vừa có virtual_id, hoặc chỉ virtual_id (user_id = null).
+            'user_ids' => 'sometimes|nullable|array',
             'user_ids.*' => 'nullable|integer',
-            'virtual_ids' => 'sometimes|array',
-            'virtual_ids.*' => 'exists:club_virtual_members,id',
+            'virtual_ids' => 'sometimes|nullable|array',
+            'virtual_ids.*' => 'nullable|integer|exists:club_virtual_members,id',
         ]);
 
         // Lọc ra các user_id thực (không null, không rỗng) và check exists
@@ -637,7 +639,10 @@ class ParticipantController extends Controller
             }
         }
 
-        if (empty($rawUserIds) && empty($validated['virtual_ids'])) {
+        // Lọc luôn virtual_ids (bỏ null/rỗng) để check "có gì để mời" chính xác
+        $rawVirtualIds = array_values(array_filter($validated['virtual_ids'] ?? [], fn($id) => $id !== null && $id !== ''));
+
+        if (empty($rawUserIds) && empty($rawVirtualIds)) {
             return ResponseHelper::error('Cần chọn ít nhất 1 người chơi hoặc thành viên ảo để mời.', 422);
         }
 
@@ -662,7 +667,7 @@ class ParticipantController extends Controller
         // Count distinct ids (FE may pass the same id in both user_ids and virtual_ids)
         $allRequestedIds = array_unique(array_merge(
             $rawUserIds,
-            $validated['virtual_ids'] ?? [],
+            $rawVirtualIds,
         ));
         $totalRequested = count($allRequestedIds);
         if ($currentConfirmed + $totalRequested > $maxSlots) {
@@ -674,8 +679,8 @@ class ParticipantController extends Controller
         $realUserIds = $rawUserIds;
         // If FE passes the same id in both arrays (virtual member id may collide with a real user id),
         // prefer the virtual-member interpretation — the FE has already marked the entry as `is_virtual`.
-        if (!empty($validated['virtual_ids'])) {
-            $realUserIds = array_values(array_diff($realUserIds, $validated['virtual_ids']));
+        if (!empty($rawVirtualIds)) {
+            $realUserIds = array_values(array_diff($realUserIds, $rawVirtualIds));
         }
 
         if (!empty($realUserIds)) {
@@ -746,8 +751,8 @@ class ParticipantController extends Controller
         }
 
         // ──────── Handle club virtual members (no real user row; snapshot name+avatar as guest) ────────
-        if (!empty($validated['virtual_ids'])) {
-            $virtualMembers = \App\Models\Club\ClubVirtualMember::whereIn('id', $validated['virtual_ids'])->get();
+        if (!empty($rawVirtualIds)) {
+            $virtualMembers = \App\Models\Club\ClubVirtualMember::whereIn('id', $rawVirtualIds)->get();
 
             foreach ($virtualMembers as $vm) {
                 $alreadyAdded = Participant::where('tournament_id', $tournament->id)
