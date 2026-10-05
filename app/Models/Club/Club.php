@@ -224,12 +224,15 @@ class Club extends Model
             'members_count' => $query
                 ->withCount([
                     'activeMembers',
+                    // Sắp xếp theo tổng thành viên (user thật + user ảo) để khớp
+                    // với `quantity_members` hiển thị ra FE.
+                    'virtualMembers',
                     'miniTournaments as active_matches_count' => fn($q) => $q
                         ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
                         ->where(fn($sub) => $sub->whereNull('end_time')->orWhere('end_time', '>=', now())),
                 ])
                 ->orderByRaw('CASE WHEN active_matches_count > 0 THEN 0 ELSE 1 END ASC')
-                ->orderBy('active_members_count', $sortDir),
+                ->orderByRaw('(active_members_count + virtual_members_count) ' . $sortDir),
             'active_matches_count' => $query
                 ->withCount([
                     'miniTournaments as active_matches_count' => fn($q) => $q
@@ -275,13 +278,15 @@ class Club extends Model
     public function scopeWithListRelations($query)
     {
         return $query->with(['profile:id,club_id,cover_image_url,description,address'])
-            ->withCount('activeMembers');
+            ->withCount('activeMembers')
+            ->withCount('virtualMembers');
     }
 
     public function scopeWithSearchRelations($query, ?int $userId = null)
     {
         return $query->with(['profile:id,club_id,cover_image_url,description,address'])
             ->withCount('activeMembers')
+            ->withCount('virtualMembers')
             ->withCount([
                 'miniTournaments as active_matches_count' => fn($q) => $q
                     ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN]),

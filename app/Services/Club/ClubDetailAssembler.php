@@ -58,14 +58,21 @@ class ClubDetailAssembler
             $this->attachUnreadNotificationCount($club, $userId);
         }
 
-        // 1a. Active member count — use withCount from controller if available, else query.
-        // Cộng thêm club_virtual_members (user ảo của CLB).
-        if (isset($club->active_members_count)) {
-            // already loaded via withCount('activeMembers') in controller
-        } else {
-            $club->active_members_count = $club->activeMembers()->count();
+        // 1a. Member count = user thật (joined/active) + thành viên ảo (club_virtual_members).
+        // `_real_members_count` giữ raw count để assemble() gọi lại không cộng dồn VM nhiều lần.
+        // Nếu controller đã withCount('activeMembers') thì tái dùng `active_members_count` cho khỏi query.
+        if (!isset($club->_real_members_count)) {
+            $club->_real_members_count = isset($club->active_members_count)
+                ? (int) $club->active_members_count
+                : $club->activeMembers()->count();
         }
-        $club->active_members_count += $club->virtualMembers()->count();
+        $club->setAttribute(
+            'active_members_count',
+            (int) $club->_real_members_count + $this->countVirtualMembers($club)
+        );
+        // Cờ báo: active_members_count đã bao gồm thành viên ảo.
+        // Resource dùng cờ này để không cộng thêm lần nữa.
+        $club->setAttribute('_virtual_members_counted', true);
 
         // 2. Calculate rank (cached, ~0ms)
         $club->rank = $this->leaderboardService->calculateClubRank($club);
@@ -78,6 +85,23 @@ class ClubDetailAssembler
         }
 
         return $club;
+    }
+
+    /**
+     * Số thành viên ảo (club_virtual_members) của CLB.
+     * Dùng `virtual_members_count` từ withCount nếu có, để không query thêm.
+     */
+    protected function countVirtualMembers(Club $club): int
+    {
+        if (isset($club->virtual_members_count)) {
+            return (int) $club->virtual_members_count;
+        }
+
+        if ($club->relationLoaded('virtualMembers')) {
+            return $club->virtualMembers->count();
+        }
+
+        return $club->virtualMembers()->count();
     }
 
     /**

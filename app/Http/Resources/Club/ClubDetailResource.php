@@ -39,12 +39,8 @@ class ClubDetailResource extends ClubBaseResource
             // Invited by — pre-set by ClubDetailAssembler
             'invited_by' => $club->_invited_by_user ?? null,
 
-            // Stats — pre-set by Assembler or withCount
-            'quantity_members' => (int) (
-                $club->active_members_count
-                ?? $club->activeMembers_count
-                ?? ($this->relationLoaded('activeMembers') ? $this->activeMembers->count() : 0)
-            ),
+            // user thật (joined/active) + thành viên ảo (club_virtual_members)
+            'quantity_members' => $this->resolveClubQuantityMembers(),
 
             // Skill level — computed by Assembler if members loaded
             'skill_level' => $club->_skill_level ?? null,

@@ -2,11 +2,13 @@
 
 namespace App\Http\Resources\Map;
 
+use App\Http\Resources\Concerns\ResolvesClubMemberCount;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class MapClubResource extends JsonResource
 {
+    use ResolvesClubMemberCount;
     public function toArray(Request $request): array
     {
         $userId = auth()->id();
@@ -43,7 +45,7 @@ class MapClubResource extends JsonResource
             'is_verified'      => (bool) $this->is_verified,
             'is_public'        => (bool) ($this->is_public ?? true),
             'created_by'       => $this->creator?->id,
-            'quantity_members' => (int) ($this->activeMembers_count ?? $this->activeMembers?->count() ?? 0),
+            'quantity_members' => $this->resolveClubQuantityMembers(),
             'is_admin'         => $isAdmin,
             'is_member'        => $isMember,
             'has_pending_request' => $hasPendingRequest,

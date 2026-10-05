@@ -2,11 +2,13 @@
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\Concerns\ResolvesClubMemberCount;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class ListClubResource extends JsonResource
 {
+    use ResolvesClubMemberCount;
     /**
      * Transform the resource into an array.
      *
@@ -23,7 +25,7 @@ class ListClubResource extends JsonResource
             'logo_url' => $this->logo_url,
             'is_verified' => (bool) $this->is_verified,
             'created_by' => $this->created_by,
-            'quantity_members' => $this->whenLoaded('members', fn() => $this->members->count(), 0),
+            'quantity_members' => $this->resolveClubQuantityMembers(),
             'is_joined' => auth()->check()
                 ? ($this->relationLoaded('activeMembers')
                     ? $this->activeMembers->contains('user_id', auth()->id())

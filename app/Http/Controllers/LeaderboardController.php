@@ -698,9 +698,11 @@ class LeaderboardController extends Controller
 
     private function getAllClubsLeaderboard(int $perPage, int $page): array
     {
-        // Pre-load all club members with their vndupr scores in single queries to avoid N+1
+        // Pre-load all club members with their vndupr scores in single queries to avoid N+1.
+        // withCount('virtualMembers') để quantity_members cộng cả thành viên ảo.
         $clubs = Club::allClubs()
             ->with(['members.user'])
+            ->withCount('virtualMembers')
             ->get();
 
         // Batch load vndupr scores for all users in all clubs
@@ -744,7 +746,7 @@ class LeaderboardController extends Controller
                 'name'             => $club->name,
                 'logo_url'         => $club->logo_url,
                 'is_verified'      => (bool) $club->is_verified,
-                'quantity_members' => $club->members->count(),
+                'quantity_members' => $club->members->count() + (int) ($club->virtual_members_count ?? 0),
                 'max_score'        => $club->max_score,
                 'rank'             => ($page - 1) * $perPage + $index + 1,
             ];

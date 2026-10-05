@@ -66,11 +66,17 @@ class TournamentResource extends JsonResource
             'description' => $this->description,
             'created_by' => new UserResource($this->whenLoaded('createdBy')),
             'club' => $this->whenLoaded('club', function () {
+                $club = $this->club;
+
+                // Số thành viên = user thật + thành viên ảo (club_virtual_members).
+                $realCount = $club->members_count ?? $club->members()->count();
+                $virtualCount = $club->virtual_members_count ?? $club->virtualMembers()->count();
+
                 return [
-                    'id' => $this->club->id,
-                    'name' => $this->club->name,
-                    'address' => $this->club->address,
-                    'quantity_members' => $this->club->members_count ?? $this->club->members()->count(),
+                    'id' => $club->id,
+                    'name' => $club->name,
+                    'address' => $club->address,
+                    'quantity_members' => (int) $realCount + (int) $virtualCount,
                 ];
             }),
             'tournament_staff' => TournamentStaffResource::collection($this->whenLoaded('tournamentStaffs')),

@@ -146,7 +146,10 @@ class HomeController extends Controller
         ->values();
     
         // My club
+        // withCount('virtualMembers') để quantity_members trong ListClubResource
+        // cộng cả thành viên ảo (club_virtual_members) mà không N+1.
         $myClub = Club::with(['members.user.vnduprScores'])
+            ->withCount('virtualMembers')
             ->whereHas('members', fn($q) => $q->where('user_id', $userId))
             ->take($validated['club_per_page'] ?? Club::PER_PAGE)
             ->get();
@@ -162,6 +165,7 @@ class HomeController extends Controller
         $leaderboardClub = Cache::remember($leaderboardClubCacheKey, 3600, function () use ($leaderboardClubPerPage) {
             return Club::allClubs()
                 ->with(['members.user'])
+                ->withCount('virtualMembers')
                 ->get()
                 ->map(function ($club) {
                     $maxScore = $club->members
