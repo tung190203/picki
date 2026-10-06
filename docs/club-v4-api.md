@@ -184,7 +184,7 @@ App dựa vào `type` để deep-link vào detail tương ứng (`/tournament-de
 
 ## Phần 6 — Sân nhà (`club_competition_locations`)
 
-CLB chọn nhiều `competition_location` làm sân nhà, kèm meta (khoảng cách, số kèo đã tổ chức). Lưu ở bảng pivot `club_competition_locations` với các cột `position`, `distance_km`, `events_hosted_count`. Hiển thị ở tab "Giới thiệu" của ClubDetail cho mọi viewer.
+CLB chọn nhiều `competition_location` làm sân nhà. Lưu ở bảng pivot `club_competition_locations` với cột `position`. Hai field meta `distance_km` và `events_hosted_count` **do BE tự tính khi GET**, không nhập tay và không lưu lại. Hiển thị ở tab "Giới thiệu" của ClubDetail cho mọi viewer.
 
 ### Cấu trúc bảng `club_competition_locations`
 
@@ -194,12 +194,25 @@ club_competition_locations
   club_id                  FK → clubs (cascade)
   competition_location_id  FK → competition_locations (cascade)
   position                 UNSIGNED INT — thứ tự ưu tiên hiển thị
-  distance_km              DECIMAL(6,2) NULL — khoảng cách từ CLB tới sân (nhập tay)
-  events_hosted_count      UNSIGNED INT — số kèo/giải CLB đã tổ chức tại sân
+  distance_km              DECIMAL(6,2) NULL — (legacy, không còn dùng — BE tự tính)
+  events_hosted_count      UNSIGNED INT — (legacy, không còn dùng — BE tự đếm)
   created_at, updated_at
   UNIQUE (club_id, competition_location_id)
   INDEX (club_id, position)
 ```
+
+> `distance_km` và `events_hosted_count` trong DB giữ lại để tương thích ngược, nhưng BE **không ghi** giá trị mới. Khi trả response, BE luôn tự tính đè.
+
+### Quy tắc tự tính
+
+- **`distance_km`**: Haversine từ anchor point tới `competition_locations.latitude/longitude`.
+  - Anchor ưu tiên: `club.latitude/longitude` (nếu có).
+  - Fallback: header request `X-User-Lat` / `X-User-Lng` (FE lấy từ `navigator.geolocation`).
+  - Trả `null` nếu cả 2 đều thiếu toạ độ.
+- **`events_hosted_count`**: Tổng số event đã finished của CLB tại sân đó:
+  - `mini_tournaments` có `club_id = X` + `competition_location_id = Y` + `status = STATUS_CLOSED (3)`.
+  - `tournaments` có `club_id = X` + `competition_location_id = Y` + `status = CLOSED (3)`.
+  - Đếm lúc GET (không cache).
 
 ### API
 
@@ -207,6 +220,9 @@ club_competition_locations
 
 ```
 GET /api/clubs/{clubId}/home-courts
+Headers (optional):
+  X-User-Lat: 10.79
+  X-User-Lng: 106.67
 ```
 
 Public — ai cũng xem được. Response:
@@ -230,7 +246,8 @@ Public — ai cũng xem được. Response:
 }
 ```
 
-Sắp xếp theo `position` ASC, sau đó `id` ASC.
+- Sắp xếp theo `position` ASC, sau đó `id` ASC.
+- `distance_km = null` nếu thiếu anchor và thiếu header toạ độ user.
 
 #### Cập nhật danh sách sân nhà (sync toàn bộ)
 
@@ -240,19 +257,20 @@ Content-Type: application/json
 
 {
   "locations": [
-    { "competition_location_id": 7, "position": 0, "distance_km": 1.2, "events_hosted_count": 8 },
-    { "competition_location_id": 9, "position": 1, "distance_km": 3.5, "events_hosted_count": 2 }
+    { "competition_location_id": 7, "position": 0 },
+    { "competition_location_id": 9, "position": 1 }
   ]
 }
 ```
 
 - `competition_location_id` required, phải tồn tại trong `competition_locations`.
-- `position`, `distance_km`, `events_hosted_count` optional (mặc định `position` = index trong mảng, `events_hosted_count` = 0, `distance_km` = null).
+- `position` optional (mặc định = index trong mảng).
+- `distance_km` / `events_hosted_count` (nếu gửi) bị bỏ qua — BE tự tính lúc GET.
 - Tối đa 10 sân mỗi CLB.
 - Hành vi: xoá hết dòng pivot cũ của CLB rồi insert lại (idempotent). Trong 1 transaction.
 - Quyền: chỉ admin/manager/secretary (`Club::canManage()`). User khác → 403.
 
-Response: trả về danh sách sân nhà mới (cùng format GET).
+Response: trả về danh sách sân nhà mới (cùng format GET, đã có `distance_km` / `events_hosted_count` tự tính).
 
 #### Patch 1 dòng pivot
 
@@ -261,13 +279,12 @@ PUT /api/clubs/{clubId}/home-courts/{homeCourtId}
 Content-Type: application/json
 
 {
-  "position": 2,
-  "distance_km": 4.0,
-  "events_hosted_count": 5
+  "position": 2
 }
 ```
 
-Tất cả field optional. Quyền: `canManage()`. Trả 404 nếu `homeCourtId` không thuộc CLB.
+- `position` optional. `distance_km` / `events_hosted_count` bị bỏ qua nếu gửi.
+- Quyền: `canManage()`. Trả 404 nếu `homeCourtId` không thuộc CLB.
 
 #### Xoá 1 sân nhà
 
@@ -279,8 +296,9 @@ Quyền: `canManage()`. Trả 404 nếu không tồn tại.
 
 ### Lưu ý
 
-- `distance_km` là field nhập tay, KHÔNG tự tính từ toạ độ. FE map widget có thể suggest nhưng BE không enforce.
-- `events_hosted_count` không tự động cập nhật qua observer; admin tự cập nhật qua `PUT` khi cần.
+- `distance_km` và `events_hosted_count` trong pivot DB **chỉ là column tương thích ngược** — luôn rỗng/0 đối với record mới. Khi trả response, BE tính lại và ghi đè vào field top-level.
+- FE cần gửi header `X-User-Lat` / `X-User-Lng` để BE dùng làm anchor fallback khi CLB chưa có toạ độ.
+- Frontend modal thêm/sửa sân nhà **không** có input cho 2 field này nữa.
 
 ## Phần 7 — Lịch sinh hoạt định kỳ (`club_recurring_schedules`)
 

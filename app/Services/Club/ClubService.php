@@ -109,8 +109,9 @@ class ClubService
                     'club_id' => $club->id,
                     'competition_location_id' => (int) $row['competition_location_id'],
                     'position' => (int) ($row['position'] ?? $idx),
-                    'distance_km' => isset($row['distance_km']) ? (float) $row['distance_km'] : null,
-                    'events_hosted_count' => (int) ($row['events_hosted_count'] ?? 0),
+                    // distance_km & events_hosted_count được tính lúc GET (xem ClubHomeCourtService)
+                    'distance_km' => null,
+                    'events_hosted_count' => 0,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);

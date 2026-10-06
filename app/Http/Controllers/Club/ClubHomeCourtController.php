@@ -4,34 +4,34 @@ namespace App\Http\Controllers\Club;
 
 use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
-use App\Http\Resources\Club\ClubHomeCourtResource;
 use App\Models\Club\Club;
+use App\Services\Club\ClubHomeCourtService;
 use App\Services\Club\ClubService;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class ClubHomeCourtController extends Controller
 {
-    public function __construct(protected ClubService $clubService) {}
+    public function __construct(
+        protected ClubService $clubService,
+        protected ClubHomeCourtService $homeCourtEnricher,
+    ) {}
 
     /**
      * GET /api/clubs/{clubId}/home-courts
-     * Trả về danh sách sân nhà kèm metadata pivot.
-     * Ai cũng xem được (public data, hiển thị ở tab Giới thiệu).
+     * Trả về danh sách sân nhà + distance_km (tính sẵn) + events_hosted_count (đếm sẵn).
+     * Ai cũng xem được.
      */
     public function index(Request $request, $clubId)
     {
         $club = Club::with('homeCourts')->findOrFail($clubId);
-        return ResponseHelper::success(
-            ClubHomeCourtResource::collection($club->homeCourts),
-            'Lấy danh sách sân nhà thành công'
-        );
+        $enriched = $this->homeCourtEnricher->enrichCollection($club->homeCourts, $club, $request);
+        return ResponseHelper::success($enriched, 'Lấy danh sách sân nhà thành công');
     }
 
     /**
      * POST /api/clubs/{clubId}/home-courts
-     * Body: { locations: [{ competition_location_id, position?, distance_km?, events_hosted_count? }, ...] }
-     * Sync toàn bộ danh sách (xoá cũ + insert lại). Idempotent.
+     * Body: { locations: [{ competition_location_id, position? }, ...] }
+     * distance_km / events_hosted_count bị ignore (BE tự tính khi GET).
      */
     public function store(Request $request, $clubId)
     {
@@ -46,21 +46,17 @@ class ClubHomeCourtController extends Controller
             'locations' => 'required|array|max:10',
             'locations.*.competition_location_id' => 'required|integer|exists:competition_locations,id',
             'locations.*.position' => 'nullable|integer|min:0',
-            'locations.*.distance_km' => 'nullable|numeric|min:0|max:9999.99',
-            'locations.*.events_hosted_count' => 'nullable|integer|min:0',
         ]);
 
         $club = $this->clubService->setHomeCourts($club, $data['locations']);
 
-        return ResponseHelper::success(
-            ClubHomeCourtResource::collection($club->homeCourts),
-            'Cập nhật sân nhà thành công'
-        );
+        $enriched = $this->homeCourtEnricher->enrichCollection($club->homeCourts, $club, $request);
+        return ResponseHelper::success($enriched, 'Cập nhật sân nhà thành công');
     }
 
     /**
      * PATCH /api/clubs/{clubId}/home-courts/{homeCourtId}
-     * Cập nhật 1 dòng pivot (position / distance_km / events_hosted_count).
+     * Cập nhật position. distance_km / events_hosted_count bị ignore.
      */
     public function update(Request $request, $clubId, $homeCourtId)
     {
@@ -73,8 +69,6 @@ class ClubHomeCourtController extends Controller
 
         $data = $request->validate([
             'position' => 'nullable|integer|min:0',
-            'distance_km' => 'nullable|numeric|min:0|max:9999.99',
-            'events_hosted_count' => 'nullable|integer|min:0',
         ]);
 
         $row = \Illuminate\Support\Facades\DB::table('club_competition_locations')

@@ -67,6 +67,24 @@
                             </button>
                         </div>
                     </Transition>
+
+                    <!-- Sân nhà (Home Courts) -->
+                    <ClubHomeCourtsSection
+                        v-if="club?.id"
+                        :club-id="club.id"
+                        :can-manage="canManageIntro"
+                        :initial-courts="club.home_courts || []"
+                        class="mt-4"
+                    />
+
+                    <!-- Lịch sinh hoạt định kỳ (Recurring Schedules) -->
+                    <ClubRecurringSchedulesSection
+                        v-if="club?.id"
+                        :club-id="club.id"
+                        :can-manage="canManageIntro"
+                        :initial-schedules="club.recurring_schedules || []"
+                        class="mt-4"
+                    />
                 </div>
 
                 <!-- 2. Tab Thành viên -->
@@ -107,6 +125,8 @@ import { PencilSquareIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import ClubMember from '@/components/molecules/ClubMember.vue'
 import ClubAchievementRanking from '@/components/molecules/ClubAchievementRanking.vue'
 import ClubChatTab from '@/components/molecules/ClubChatTab.vue'
+import ClubHomeCourtsSection from '@/components/pages/club/partials/ClubHomeCourtsSection.vue'
+import ClubRecurringSchedulesSection from '@/components/pages/club/partials/ClubRecurringSchedulesSection.vue'
 
 const activeTab = ref('intro')
 const isExpanded = ref(false)
@@ -161,6 +181,11 @@ const tabs = computed(() => [
     { id: 'ranking', name: 'BXH' },
     { id: 'chat', name: 'Nhóm chat' }
 ])
+
+// Cho phép admin/manager/secretary chỉnh sửa sân nhà + lịch sinh hoạt
+const canManageIntro = computed(() => {
+    return ['admin', 'manager', 'secretary'].includes(props.currentUserRole)
+})
 
 const setTabRef = (el, id) => {
     if (el) {

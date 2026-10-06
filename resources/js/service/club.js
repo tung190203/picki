@@ -325,3 +325,55 @@ export const inviteClubGuest = async (clubId, userId) => {
 export const deleteClubGuest = async (clubId, userId) => {
     return axiosInstance.delete(`${API_ENDPOINT.CLUB}/${clubId}/guests/${userId}`).then((response) => response.data);
 }
+
+// ============================================================
+// Sân nhà (Home Courts) — club_competition_locations
+// ============================================================
+
+export const getHomeCourts = async (clubId) => {
+    const { data } = await axiosInstance.get(`${API_ENDPOINT.CLUB}/${clubId}/home-courts`);
+    return data?.data ?? [];
+};
+
+export const setHomeCourts = async (clubId, locations) => {
+    return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/home-courts`, { locations })
+        .then((response) => response.data?.data ?? []);
+};
+
+export const deleteHomeCourt = async (clubId, homeCourtId) => {
+    return axiosInstance.delete(`${API_ENDPOINT.CLUB}/${clubId}/home-courts/${homeCourtId}`)
+        .then((response) => response.data);
+};
+
+// ============================================================
+// Lịch sinh hoạt định kỳ (Recurring Schedules) — club_recurring_schedules
+// ============================================================
+
+export const getRecurringSchedules = async (clubId) => {
+    const { data } = await axiosInstance.get(`${API_ENDPOINT.CLUB}/${clubId}/recurring-schedules`);
+    return data?.data ?? [];
+};
+
+export const createRecurringSchedule = async (clubId, payload) => {
+    return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/recurring-schedules`, payload)
+        .then((response) => response.data?.data);
+};
+
+export const updateRecurringSchedule = async (clubId, scheduleId, payload) => {
+    return axiosInstance.put(`${API_ENDPOINT.CLUB}/${clubId}/recurring-schedules/${scheduleId}`, payload)
+        .then((response) => response.data?.data);
+};
+
+export const deleteRecurringSchedule = async (clubId, scheduleId) => {
+    return axiosInstance.delete(`${API_ENDPOINT.CLUB}/${clubId}/recurring-schedules/${scheduleId}`)
+        .then((response) => response.data);
+};
+
+// ============================================================
+// Trạng thái tuyển thành viên (Recruitment Status) — super_admin only
+// ============================================================
+
+export const setRecruitmentStatus = async (clubId, status) => {
+    return axiosInstance.post(`/admin/clubs/${clubId}/recruitment-status`, { recruitment_status: status })
+        .then((response) => response.data?.data);
+};
