@@ -178,8 +178,10 @@ class ClubGuestService
 
     protected function maxDate($a, $b)
     {
-        if (!$a) return $b;
-        if (!$b) return $a;
-        return $a->gt($b) ? $a : $b;
+        $aC = $a ? \Illuminate\Support\Carbon::parse($a) : null;
+        $bC = $b ? \Illuminate\Support\Carbon::parse($b) : null;
+        if (!$aC) return $bC;
+        if (!$bC) return $aC;
+        return $aC->gt($bC) ? $aC : $bC;
     }
 }

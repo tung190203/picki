@@ -313,3 +313,15 @@ export const unfollowClub = async (clubId) => {
         followable_id: clubId,
     }).then((response) => response.data);
 };
+
+export const getClubGuests = async (clubId) => {
+    return axiosInstance.get(`${API_ENDPOINT.CLUB}/${clubId}/guests`).then((response) => response.data.data);
+}
+
+export const inviteClubGuest = async (clubId, userId) => {
+    return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/guests/invite`, { user_id: userId }).then((response) => response.data);
+}
+
+export const deleteClubGuest = async (clubId, userId) => {
+    return axiosInstance.delete(`${API_ENDPOINT.CLUB}/${clubId}/guests/${userId}`).then((response) => response.data);
+}

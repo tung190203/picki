@@ -56,6 +56,14 @@
                             @click="inviteMembers">
                             <UserPlusIcon class="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                         </div>
+                        <div class="p-1.5 sm:p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors relative"
+                            @click="openGuestsModal" v-tooltip="'Khách của CLB'">
+                            <UserGroupIcon class="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                            <span v-if="(club?.guests_count ?? 0) > 0"
+                                class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-[#D72D36] text-white text-[10px] font-bold rounded-full flex items-center justify-center border border-white/30">
+                                {{ (club?.guests_count ?? 0) > 99 ? '99+' : club.guests_count }}
+                            </span>
+                        </div>
                         <div class="p-1.5 sm:p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors"
                             @click="shareClub">
                             <ShareIcon class="w-5 h-5 sm:w-6 sm:h-6 text-white" />
@@ -129,7 +137,7 @@
                 </div>
 
                 <!-- Stats Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mt-8 relative z-20">
+                <div class="grid grid-cols-2 gap-3 sm:gap-4 md:gap-6 mt-8 relative z-20">
                     <div v-for="(stat, index) in statsAdmin" :key="index"
                         class="bg-[#3E414C]/80 backdrop-blur-md rounded-2xl p-3 sm:p-4 md:p-6 border border-white/5 shadow-inner">
                         <p class="text-xs sm:text-sm font-semibold text-gray-300 mb-2 uppercase tracking-wide">{{ stat.label }}</p>
@@ -574,6 +582,11 @@
         :promotable-id="Number(clubId)"
         @success="toast.success('Đã gửi quảng bá thành công')"
     />
+    <ClubGuestsModal
+        v-model="isGuestsModalOpen"
+        :club-id="Number(clubId)"
+        @refresh="getClubDetail"
+    />
 </template>
 
 <script setup>
@@ -629,6 +642,8 @@ import dayjs from 'dayjs'
 import 'dayjs/locale/vi'
 import ClubDetailSkeleton from '@/components/molecules/ClubDetailSkeleton.vue';
 import UserPlusIcon from '@/assets/images/group_add_member.svg';
+import { UserGroupIcon } from '@heroicons/vue/24/outline'
+import ClubGuestsModal from '@/components/pages/club/partials/ClubGuestsModal.vue'
 import debounce from 'lodash.debounce'
 import { getVietnameseDay } from '@/composables/formatedDate'
 import { getRoleName } from '@/helpers/role'
@@ -660,6 +675,12 @@ const isUpdatingNotification = ref(false)
 const isSubmittingTransfer = ref(false)
 const isUnpinModalOpen = ref(false)
 const isPinModalOpen = ref(false)
+const isGuestsModalOpen = ref(false)
+const openGuestsModal = () => {
+    isGuestsModalOpen.value = true
+    isMenuOpen.value = false
+    isChangeClubOpen.value = false
+}
 const isDeleteNotificationModalOpen = ref(false)
 const isCreateActivityMenuOpen = ref(false)
 const notificationToUnpin = ref(null)
@@ -802,28 +823,26 @@ const getMyClubs = async () => {
 };
 
 const statsAdmin = computed(() => {
-    const now = dayjs()
-    const fundBalance = Number(fund.value?.balance ?? 0)
-    const activitiesThisWeek = activities.value?.filter(a =>
-        dayjs(a.start_time).isSame(now, 'week')
-    ).length ?? 0
-
     return [
-        {
-            label: 'Quỹ hiện tại',
-            value: fundBalance.toLocaleString(),
-            unit: fund.value?.currency ?? 'VND',
-            unitClass: 'text-[#00B377]'
-        },
         {
             label: 'Số thành viên',
             value: club.value?.quantity_members ?? 0,
             unit: 'người'
         },
         {
-            label: 'Hoạt động tuần này',
-            value: activitiesThisWeek,
-            unit: 'Buổi'
+            label: 'Kèo/giải hôm nay',
+            value: club.value?.mini_tournaments_today ?? 0,
+            unit: 'buổi'
+        },
+        {
+            label: 'Chưa thanh toán',
+            value: club.value?.unpaid_members_count ?? 0,
+            unit: 'lượt'
+        },
+        {
+            label: 'Tỷ lệ khách quay lại',
+            value: (club.value?.returning_guests_percent ?? 0) + '%',
+            unit: ''
         }
     ]
 })

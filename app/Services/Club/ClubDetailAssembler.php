@@ -246,37 +246,23 @@ class ClubDetailAssembler
         }
         $club->unpaid_members_count = $unpaidUserIds->unique()->count();
 
-        // 3. returning_guests_percent — % user tham gia trong 30 ngày gần nhất
-        //    đã từng chơi TRƯỚC 30 ngày
-        $recentUserIds = collect()
-            ->merge(Participant::whereIn('tournament_id', $tournamentIds)
-                ->whereDate('created_at', '>=', $oneMonthAgo)
-                ->whereNotIn('user_id', $memberUserIds)
-                ->whereNotNull('user_id')
-                ->pluck('user_id'))
-            ->merge(MiniParticipant::whereIn('mini_tournament_id', $miniIds)
-                ->whereDate('created_at', '>=', $oneMonthAgo)
-                ->whereNotIn('user_id', $memberUserIds)
-                ->whereNotNull('user_id')
-                ->pluck('user_id'))
-            ->unique();
+        // 3. returning_guests_percent — dựa trên club_guests (bảng định danh khách).
+        //    Mẫu số = user trong club_guests có last_played_at trong 30 ngày gần,
+        //    không phải member hiện tại. Tử số = trong nhóm đó, user có play_count > 1
+        //    (đã từng chơi TRƯỚC 30 ngày, tức "quay lại").
+        $recentGuestIds = ClubGuest::where('club_id', $club->id)
+            ->whereNotIn('user_id', $memberUserIds)
+            ->where('last_played_at', '>=', $oneMonthAgo)
+            ->pluck('user_id');
 
-        if ($recentUserIds->isEmpty()) {
+        if ($recentGuestIds->isEmpty()) {
             $club->returning_guests_percent = 0;
         } else {
-            $returning = collect()
-                ->merge(Participant::whereIn('tournament_id', $tournamentIds)
-                    ->whereIn('user_id', $recentUserIds)
-                    ->whereDate('created_at', '<', $oneMonthAgo)
-                    ->whereNotNull('user_id')
-                    ->pluck('user_id'))
-                ->merge(MiniParticipant::whereIn('mini_tournament_id', $miniIds)
-                    ->whereIn('user_id', $recentUserIds)
-                    ->whereDate('created_at', '<', $oneMonthAgo)
-                    ->whereNotNull('user_id')
-                    ->pluck('user_id'))
-                ->unique();
-            $club->returning_guests_percent = (int) round($returning->count() / $recentUserIds->count() * 100);
+            $returning = ClubGuest::where('club_id', $club->id)
+                ->whereIn('user_id', $recentGuestIds)
+                ->where('play_count', '>', 1)
+                ->count();
+            $club->returning_guests_percent = (int) round($returning / $recentGuestIds->count() * 100);
         }
 
         // 4. guests_count — tổng user trong club_guests chưa là member
