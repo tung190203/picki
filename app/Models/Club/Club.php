@@ -6,6 +6,7 @@ use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
 use App\Enums\ClubStatus;
+use App\Models\Follow;
 use App\Models\User;
 use App\Models\Tournament;
 use App\Models\MiniTournament;
@@ -162,6 +163,23 @@ class Club extends Model
     public function reports()
     {
         return $this->hasMany(ClubReport::class);
+    }
+
+    /** Polymorphic followers của CLB (những user theo dõi CLB, không phân biệt có phải member hay không). */
+    public function followers()
+    {
+        return $this->morphMany(Follow::class, 'followable');
+    }
+
+    /** User đang follow CLB này hay không. */
+    public function isFollowedBy(?int $userId): bool
+    {
+        if (!$userId) {
+            return false;
+        }
+        return $this->followers()
+            ->where('user_id', $userId)
+            ->exists();
     }
 
     public function tournaments()

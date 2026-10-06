@@ -299,3 +299,17 @@ export const createVirtualMember = async (clubId, data) => {
 export const deleteVirtualMember = async (clubId, virtualMemberId) => {
     return axiosInstance.delete(`${API_ENDPOINT.CLUB}/${clubId}/virtual-members/${virtualMemberId}`).then((response) => response.data);
 }
+
+export const followClub = async (clubId) => {
+    return axiosInstance.post('/follows/store', {
+        followable_type: 'club',
+        followable_id: clubId,
+    }).then((response) => response.data);
+};
+
+export const unfollowClub = async (clubId) => {
+    return axiosInstance.post('/follows/delete', {
+        followable_type: 'club',
+        followable_id: clubId,
+    }).then((response) => response.data);
+};

@@ -7,9 +7,11 @@ use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
 use App\Models\Club\Club;
 use App\Models\Club\ClubMember;
+use App\Models\Follow;
 use App\Models\User;
 use App\Models\UserSportScore;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * ClubDetailAssembler — assembles club data for detail view.
@@ -56,6 +58,7 @@ class ClubDetailAssembler
 
         if ($userId) {
             $this->attachUnreadNotificationCount($club, $userId);
+            $this->attachFollowStatus($club, $userId);
         }
 
         // 1a. Member count = user thật (joined/active) + thành viên ảo (club_virtual_members).
@@ -158,6 +161,29 @@ class ClubDetailAssembler
     public function attachUnreadNotificationCount(Club $club, int $userId): void
     {
         $this->clubService->attachUnreadNotificationCount(collect([$club]), $userId);
+    }
+
+    /**
+     * Attach follow status to club:
+     *  - is_following: user hiện tại có đang follow CLB không
+     *  - followers_count_excluding_members: số follower KHÔNG phải thành viên CLB
+     */
+    public function attachFollowStatus(Club $club, int $userId): void
+    {
+        $club->is_following = $club->isFollowedBy($userId);
+
+        // Đếm follower không phải member (joined + active) bằng 1 query
+        $club->followers_count_excluding_members = (int) Follow::where('followable_id', $club->id)
+            ->where('followable_type', Club::class)
+            ->whereNotExists(function ($q) use ($club) {
+                $q->select(DB::raw(1))
+                    ->from('club_members')
+                    ->whereColumn('club_members.user_id', 'follows.user_id')
+                    ->where('club_members.club_id', $club->id)
+                    ->where('membership_status', ClubMembershipStatus::Joined->value)
+                    ->where('status', ClubMemberStatus::Active->value);
+            })
+            ->count();
     }
 
     /**

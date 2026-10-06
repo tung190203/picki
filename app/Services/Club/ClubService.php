@@ -11,6 +11,7 @@ use App\Jobs\SendPushJob;
 use App\Models\Club\Club;
 use App\Models\Club\ClubMember;
 use App\Models\Club\ClubProfile;
+use App\Models\Follow;
 use App\Models\User;
 use App\Notifications\ClubDissolvedNotification;
 use App\Notifications\ClubRenamedNotification;
@@ -665,7 +666,7 @@ class ClubService
                     throw new BusinessException('Người được nhượng quyền phải là thành viên active của CLB và không phải chính bạn');
                 }
 
-                return DB::transaction(function () use ($member, $newAdmin) {
+                return DB::transaction(function () use ($member, $newAdmin, $userId, $club) {
                     $newAdmin->update([
                         'role' => ClubMemberRole::Admin,
                     ]);
@@ -676,6 +677,12 @@ class ClubService
                         'status' => ClubMemberStatus::Inactive,
                         'left_at' => now(),
                     ]);
+
+                    // Tự động bỏ theo dõi CLB khi rời CLB
+                    Follow::where('user_id', $userId)
+                        ->where('followable_id', $club->id)
+                        ->where('followable_type', Club::class)
+                        ->delete();
 
                     return [
                         'transferred_to' => [
@@ -693,6 +700,12 @@ class ClubService
             'status' => ClubMemberStatus::Inactive,
             'left_at' => now(),
         ]);
+
+        // Tự động bỏ theo dõi CLB khi rời CLB
+        Follow::where('user_id', $userId)
+            ->where('followable_id', $club->id)
+            ->where('followable_type', Club::class)
+            ->delete();
 
         return [];
     }

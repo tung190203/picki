@@ -250,6 +250,18 @@
                                     Hủy tham gia
                                 </Button>
                             </template>
+                            <Button v-if="!club.is_following" size="md"
+                                class="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-white border border-[#D72D36] text-[#D72D36] hover:bg-[#FBEAEB] flex gap-2"
+                                @click.stop="followClub" :disabled="isFollowingLoading">
+                                <BellAlertIcon class="w-4 h-4 sm:w-5 sm:h-5" />
+                                Theo dõi
+                            </Button>
+                            <Button v-else size="md"
+                                class="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-[#FBEAEB] border border-[#D72D36] text-[#D72D36] hover:bg-white flex gap-2"
+                                @click.stop="unfollowClub" :disabled="isFollowingLoading">
+                                <BellSlashIcon class="w-4 h-4 sm:w-5 sm:h-5" />
+                                Đang theo dõi
+                            </Button>
                             <Button v-if="club.profile?.qr_zalo_enabled || club.profile?.zalo_link_enabled" size="md"
                                 color="white" class="w-full sm:w-auto bg-[#FBEAEB] rounded-full p-2 sm:p-2.5" @click="openClubChat">
                                 <MessageIcon class="w-5 h-5 sm:w-6 sm:h-6 text-[#D72D36]" />
@@ -575,6 +587,8 @@ import {
     MapPinIcon,
     PlusIcon,
     BellIcon,
+    BellAlertIcon,
+    BellSlashIcon,
     ArrowLeftOnRectangleIcon,
     InformationCircleIcon,
     XMarkIcon,
@@ -1292,6 +1306,36 @@ const cancelJoinRequest = async () => {
         toast.success('Đã huỷ yêu cầu tham gia')
     } catch (error) {
         toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi huỷ yêu cầu tham gia')
+    }
+}
+
+const isFollowingLoading = ref(false)
+
+const followClub = async () => {
+    if (isFollowingLoading.value) return
+    isFollowingLoading.value = true
+    try {
+        await ClubService.followClub(clubId.value)
+        await getClubDetail(clubId.value)
+        toast.success('Đã theo dõi CLB')
+    } catch (error) {
+        toast.error(error.response?.data?.message || 'Không thể theo dõi CLB')
+    } finally {
+        isFollowingLoading.value = false
+    }
+}
+
+const unfollowClub = async () => {
+    if (isFollowingLoading.value) return
+    isFollowingLoading.value = true
+    try {
+        await ClubService.unfollowClub(clubId.value)
+        await getClubDetail(clubId.value)
+        toast.success('Đã bỏ theo dõi CLB')
+    } catch (error) {
+        toast.error(error.response?.data?.message || 'Không thể bỏ theo dõi CLB')
+    } finally {
+        isFollowingLoading.value = false
     }
 }
 
