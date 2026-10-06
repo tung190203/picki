@@ -6,6 +6,7 @@ use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
 use App\Enums\ClubStatus;
+use App\Models\CompetitionLocation;
 use App\Models\Follow;
 use App\Models\User;
 use App\Models\Tournament;
@@ -36,6 +37,7 @@ class Club extends Model
         'is_public',
         'is_verified',
         'is_banned',
+        'recruitment_status',
         'created_by',
         'location_id',
     ];
@@ -45,6 +47,7 @@ class Club extends Model
         'is_public' => 'boolean',
         'is_verified' => 'boolean',
         'is_banned' => 'boolean',
+        'recruitment_status' => 'string',
     ];
 
     /**
@@ -190,6 +193,30 @@ class Club extends Model
     public function miniTournaments()
     {
         return $this->hasMany(MiniTournament::class);
+    }
+
+    /**
+     * Sân nhà của CLB (competition_locations được chọn làm sân thường tổ chức).
+     * Pivot club_competition_locations có thêm position, distance_km, events_hosted_count.
+     */
+    public function homeCourts()
+    {
+        return $this->belongsToMany(CompetitionLocation::class, 'club_competition_locations')
+            ->withPivot(['position', 'distance_km', 'events_hosted_count'])
+            ->orderBy('club_competition_locations.position')
+            ->orderBy('club_competition_locations.id');
+    }
+
+    /**
+     * Lịch sinh hoạt định kỳ của CLB.
+     * Gắn với CLB (không gắn sân), áp dụng cho mọi sân nhà.
+     */
+    public function recurringSchedules()
+    {
+        return $this->hasMany(ClubRecurringSchedule::class)
+            ->orderBy('day_of_week')
+            ->orderBy('position')
+            ->orderBy('start_time');
     }
 
     /** Top admin = member with highest role priority: Admin > Manager > Secretary > Treasurer > Member. */

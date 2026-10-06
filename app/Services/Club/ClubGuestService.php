@@ -9,6 +9,7 @@ use App\Exceptions\BusinessException;
 use App\Models\Club\Club;
 use App\Models\Club\ClubGuest;
 use App\Models\Club\ClubMember;
+use App\Models\Follow;
 use App\Models\MiniParticipant;
 use App\Models\Participant;
 use App\Models\User;
@@ -37,14 +38,23 @@ class ClubGuestService
             return ['normal' => collect(), 'potential' => collect()];
         }
 
+        // Pre-compute is_followed: user nào đã follow CLB này
+        $followedUserIds = Follow::where('followable_type', Club::class)
+            ->where('followable_id', $club->id)
+            ->whereIn('user_id', $guestUserIds)
+            ->pluck('user_id')
+            ->flip();
+
         $guests = ClubGuest::where('club_id', $club->id)
             ->whereNotIn('user_id', $memberUserIds)
-            ->with(['user' => function ($q) {
-                $q->select(['id', 'full_name', 'avatar_url', 'email', 'gender'])
-                    ->with('sports.sport');
-            }])
+            ->with(['user'])
             ->get()
             ->keyBy('user_id');
+
+        // Tag is_followed lên từng guest model để resource đọc được
+        foreach ($guests as $guest) {
+            $guest->is_followed = $followedUserIds->has($guest->user_id);
+        }
 
         // Lấy last participated + event count từ participants
         $tournamentStats = $this->participantStats(

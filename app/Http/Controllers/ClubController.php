@@ -107,6 +107,8 @@ class ClubController extends Controller
             'creator:id,full_name,avatar_url',
             'profile',
             'mainWallet:id,club_id,currency,qr_code_url,qr_note',
+            'homeCourts:id,name,address,latitude,longitude',
+            'recurringSchedules',
         ])
             ->withCount('activeMembers')
             ->withCount('virtualMembers')

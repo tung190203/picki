@@ -378,6 +378,22 @@ Route::prefix('clubs')->middleware(['performance'])->group(function () {
                 Route::get('/member/{memberId}', [ClubMonthlyFeePaymentController::class, 'getMemberPayments']);
             });
 
+            // Sân nhà (club_competition_locations) — public GET, canManage cho CRUD
+            Route::prefix('home-courts')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'index']);
+                Route::post('/', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'store']);
+                Route::match(['put', 'patch'], '/{homeCourtId}', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'update']);
+                Route::delete('/{homeCourtId}', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'destroy']);
+            });
+
+            // Lịch sinh hoạt định kỳ — public GET, canManage cho CRUD
+            Route::prefix('recurring-schedules')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Club\ClubRecurringScheduleController::class, 'index']);
+                Route::post('/', [\App\Http\Controllers\Club\ClubRecurringScheduleController::class, 'store']);
+                Route::match(['put', 'patch'], '/{scheduleId}', [\App\Http\Controllers\Club\ClubRecurringScheduleController::class, 'update']);
+                Route::delete('/{scheduleId}', [\App\Http\Controllers\Club\ClubRecurringScheduleController::class, 'destroy']);
+            });
+
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
 
@@ -419,6 +435,7 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
     Route::get('/clubs', [AdminClubManagementController::class, 'index']);
     Route::get('/clubs/{clubId}', [AdminClubManagementController::class, 'show']);
     Route::post('/clubs/{clubId}/ban', [AdminClubManagementController::class, 'toggleBan']);
+    Route::post('/clubs/{clubId}/recruitment-status', [AdminClubManagementController::class, 'toggleRecruitmentStatus']);
 
     Route::get('/competition-locations', [AdminCompetitionLocationManagementController::class, 'index']);
     Route::post('/competition-locations', [AdminCompetitionLocationManagementController::class, 'store']);
@@ -825,6 +842,22 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
                 Route::get('/statistics', [ClubMonthlyFeePaymentController::class, 'getStatistics']);
                 Route::get('/{paymentId}', [ClubMonthlyFeePaymentController::class, 'show']);
                 Route::get('/member/{memberId}', [ClubMonthlyFeePaymentController::class, 'getMemberPayments']);
+            });
+
+            // Sân nhà (club_competition_locations) — public GET, canManage cho CRUD
+            Route::prefix('home-courts')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'index']);
+                Route::post('/', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'store']);
+                Route::match(['put', 'patch'], '/{homeCourtId}', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'update']);
+                Route::delete('/{homeCourtId}', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'destroy']);
+            });
+
+            // Lịch sinh hoạt định kỳ — public GET, canManage cho CRUD
+            Route::prefix('recurring-schedules')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Club\ClubRecurringScheduleController::class, 'index']);
+                Route::post('/', [\App\Http\Controllers\Club\ClubRecurringScheduleController::class, 'store']);
+                Route::match(['put', 'patch'], '/{scheduleId}', [\App\Http\Controllers\Club\ClubRecurringScheduleController::class, 'update']);
+                Route::delete('/{scheduleId}', [\App\Http\Controllers\Club\ClubRecurringScheduleController::class, 'destroy']);
             });
 
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);

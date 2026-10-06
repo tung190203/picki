@@ -81,4 +81,28 @@ class AdminClubManagementController extends Controller
             ? 'Club has been banned successfully.'
             : 'Club has been unbanned successfully.');
     }
+
+    /**
+     * POST /api/admin/clubs/{clubId}/recruitment-status
+     * Body: { recruitment_status: 'open' | 'closed' }
+     * Chỉ super_admin được đổi trạng thái tuyển thành viên của CLB.
+     */
+    public function toggleRecruitmentStatus(int $id, Request $request)
+    {
+        $data = $request->validate([
+            'recruitment_status' => ['required', Rule::in(['open', 'closed'])],
+        ]);
+
+        $club = Club::find($id);
+        if (!$club) {
+            return ResponseHelper::error('Club not found.', 404);
+        }
+
+        $club->update(['recruitment_status' => $data['recruitment_status']]);
+
+        return ResponseHelper::success(
+            ['recruitment_status' => $club->recruitment_status],
+            'Đã cập nhật trạng thái tuyển thành viên'
+        );
+    }
 }

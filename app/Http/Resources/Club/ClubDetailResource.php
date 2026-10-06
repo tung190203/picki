@@ -27,6 +27,7 @@ class ClubDetailResource extends ClubBaseResource
             'is_public' => (bool) ($club->is_public ?? true),
             'is_verified' => (bool) $club->is_verified,
             'is_banned' => (bool) ($club->is_banned ?? false),
+            'recruitment_status' => $club->recruitment_status ?? 'closed',
             'rank' => $club->rank ?? null,
             'created_by' => $club->created_by,
 
@@ -94,6 +95,23 @@ class ClubDetailResource extends ClubBaseResource
                 isset($club->guests_count),
                 fn () => (int) $club->guests_count
             ),
+
+            // Sân nhà — eager load từ controller, sắp xếp theo position
+            'home_courts' => $this->whenLoaded('homeCourts', function () {
+                return ClubHomeCourtResource::collection($this->homeCourts);
+            }),
+
+            // Lịch sinh hoạt định kỳ — eager load từ controller, sắp xếp theo day_of_week + position + start_time
+            'recurring_schedules' => $this->whenLoaded('recurringSchedules', function () {
+                return $this->recurringSchedules->map(fn ($s) => [
+                    'id' => $s->id,
+                    'day_of_week' => (int) $s->day_of_week,
+                    'start_time' => is_string($s->start_time) ? $s->start_time : $s->start_time?->format('H:i'),
+                    'end_time' => is_string($s->end_time) ? $s->end_time : $s->end_time?->format('H:i'),
+                    'note' => $s->note,
+                    'position' => (int) $s->position,
+                ])->values();
+            }),
         ];
     }
 }

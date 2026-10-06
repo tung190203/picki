@@ -181,3 +181,247 @@ App dựa vào `type` để deep-link vào detail tương ứng (`/tournament-de
 - Sau khi gọi `POST /guests/invite`, cập nhật UI ngay: set `is_invited = true` cho guest đó.
 - `DELETE /guests/{userId}` chỉ xoá lịch sử khách; lần sau tham gia event sẽ tự tạo lại bản ghi.
 - 4 stats chỉ render khi user là admin/manager/secretary. User thường và guest sẽ không thấy các field này trong response.
+
+## Phần 6 — Sân nhà (`club_competition_locations`)
+
+CLB chọn nhiều `competition_location` làm sân nhà, kèm meta (khoảng cách, số kèo đã tổ chức). Lưu ở bảng pivot `club_competition_locations` với các cột `position`, `distance_km`, `events_hosted_count`. Hiển thị ở tab "Giới thiệu" của ClubDetail cho mọi viewer.
+
+### Cấu trúc bảng `club_competition_locations`
+
+```
+club_competition_locations
+  id                       PK
+  club_id                  FK → clubs (cascade)
+  competition_location_id  FK → competition_locations (cascade)
+  position                 UNSIGNED INT — thứ tự ưu tiên hiển thị
+  distance_km              DECIMAL(6,2) NULL — khoảng cách từ CLB tới sân (nhập tay)
+  events_hosted_count      UNSIGNED INT — số kèo/giải CLB đã tổ chức tại sân
+  created_at, updated_at
+  UNIQUE (club_id, competition_location_id)
+  INDEX (club_id, position)
+```
+
+### API
+
+#### Lấy danh sách sân nhà
+
+```
+GET /api/clubs/{clubId}/home-courts
+```
+
+Public — ai cũng xem được. Response:
+
+```json
+{
+  "data": [
+    {
+      "id": 12,
+      "competition_location_id": 7,
+      "name": "Sân Pickleball Q7",
+      "address": "12 Nguyễn Văn Trỗi, Q.Phú Nhuận",
+      "latitude": 10.7995,
+      "longitude": 106.6789,
+      "position": 0,
+      "distance_km": 1.20,
+      "events_hosted_count": 8
+    }
+  ],
+  "message": "Lấy danh sách sân nhà thành công"
+}
+```
+
+Sắp xếp theo `position` ASC, sau đó `id` ASC.
+
+#### Cập nhật danh sách sân nhà (sync toàn bộ)
+
+```
+POST /api/clubs/{clubId}/home-courts
+Content-Type: application/json
+
+{
+  "locations": [
+    { "competition_location_id": 7, "position": 0, "distance_km": 1.2, "events_hosted_count": 8 },
+    { "competition_location_id": 9, "position": 1, "distance_km": 3.5, "events_hosted_count": 2 }
+  ]
+}
+```
+
+- `competition_location_id` required, phải tồn tại trong `competition_locations`.
+- `position`, `distance_km`, `events_hosted_count` optional (mặc định `position` = index trong mảng, `events_hosted_count` = 0, `distance_km` = null).
+- Tối đa 10 sân mỗi CLB.
+- Hành vi: xoá hết dòng pivot cũ của CLB rồi insert lại (idempotent). Trong 1 transaction.
+- Quyền: chỉ admin/manager/secretary (`Club::canManage()`). User khác → 403.
+
+Response: trả về danh sách sân nhà mới (cùng format GET).
+
+#### Patch 1 dòng pivot
+
+```
+PUT /api/clubs/{clubId}/home-courts/{homeCourtId}
+Content-Type: application/json
+
+{
+  "position": 2,
+  "distance_km": 4.0,
+  "events_hosted_count": 5
+}
+```
+
+Tất cả field optional. Quyền: `canManage()`. Trả 404 nếu `homeCourtId` không thuộc CLB.
+
+#### Xoá 1 sân nhà
+
+```
+DELETE /api/clubs/{clubId}/home-courts/{homeCourtId}
+```
+
+Quyền: `canManage()`. Trả 404 nếu không tồn tại.
+
+### Lưu ý
+
+- `distance_km` là field nhập tay, KHÔNG tự tính từ toạ độ. FE map widget có thể suggest nhưng BE không enforce.
+- `events_hosted_count` không tự động cập nhật qua observer; admin tự cập nhật qua `PUT` khi cần.
+
+## Phần 7 — Lịch sinh hoạt định kỳ (`club_recurring_schedules`)
+
+CLB khai báo nhiều khung giờ sinh hoạt trong tuần (thứ + giờ bắt đầu + giờ kết thúc + ghi chú). Lịch gắn với CLB, áp dụng cho mọi sân nhà.
+
+### Cấu trúc bảng `club_recurring_schedules`
+
+```
+club_recurring_schedules
+  id            PK
+  club_id       FK → clubs (cascade)
+  day_of_week   TINYINT — 0 = CN, 1 = T2, ..., 6 = T7
+  start_time    TIME
+  end_time      TIME
+  note          VARCHAR(255) NULL
+  position      UNSIGNED INT
+  created_at, updated_at
+  INDEX (club_id, day_of_week, position)
+```
+
+### API
+
+#### Lấy danh sách lịch sinh hoạt
+
+```
+GET /api/clubs/{clubId}/recurring-schedules
+```
+
+Public. Sắp xếp theo `day_of_week`, `position`, `start_time`. Response:
+
+```json
+{
+  "data": [
+    {
+      "id": 3,
+      "day_of_week": 1,
+      "start_time": "18:00:00",
+      "end_time": "21:00:00",
+      "note": "Sân chính",
+      "position": 0
+    }
+  ],
+  "message": "Lấy lịch sinh hoạt thành công"
+}
+```
+
+#### Thêm 1 dòng lịch
+
+```
+POST /api/clubs/{clubId}/recurring-schedules
+Content-Type: application/json
+
+{
+  "day_of_week": 1,
+  "start_time": "18:00",
+  "end_time": "21:00",
+  "note": "Sân chính",
+  "position": 0
+}
+```
+
+- `day_of_week`: integer 0-6 (0 = Chủ nhật).
+- `start_time`, `end_time`: định dạng `H:i` hoặc `H:i:s`.
+- `end_time` phải sau `start_time` (`after:start_time`).
+- `note` optional, tối đa 255 ký tự.
+- `position` optional (mặc định 0).
+- Quyền: `canManage()`. Trả 201 + object vừa tạo.
+
+#### Sửa 1 dòng lịch
+
+```
+PUT /api/clubs/{clubId}/recurring-schedules/{scheduleId}
+```
+
+Body giống POST, các field optional. Quyền: `canManage()`.
+
+#### Xoá 1 dòng lịch
+
+```
+DELETE /api/clubs/{clubId}/recurring-schedules/{scheduleId}
+```
+
+Quyền: `canManage()`. Trả 404 nếu không tồn tại.
+
+### Lưu ý
+
+- `day_of_week` trả về integer 0-6, FE tự map sang "Chủ nhật", "Thứ 2", ...
+- `start_time` / `end_time` trả về string `H:i:s` (theo MySQL TIME). FE cắt `:00` nếu muốn hiển thị gọn.
+
+## Phần 8 — Trạng thái tuyển thành viên (`clubs.recruitment_status`)
+
+Cột enum trên `clubs`: `'open' | 'closed'`, mặc định `'closed'`. Điều khiển nút "Tham gia" / "Theo dõi" ở frontend:
+
+| Status | Badge hiển thị | Nút tham gia | Nút theo dõi |
+|---|---|---|---|
+| `open` | "Đang tuyển thành viên" | Hiện → gửi yêu cầu, Admin/BTC duyệt trong tab Thành viên | Hiện |
+| `closed` | Không | Ẩn — chỉ hiện nút Theo dõi | Hiện |
+
+Nút "Theo dõi" LUÔN hiện ở cả 2 trạng thái.
+
+### Cấu trúc cột
+
+```
+clubs.recruitment_status  ENUM('open', 'closed') DEFAULT 'closed'  -- after is_banned
+```
+
+### API
+
+#### Cập nhật recruitment_status (chỉ super_admin)
+
+```
+POST /api/admin/clubs/{clubId}/recruitment-status
+Content-Type: application/json
+
+{ "recruitment_status": "open" }
+```
+
+- Middleware: `auth:api` + `super_admin`. User thường → 403.
+- Validate: `recruitment_status` required, in `['open', 'closed']`.
+- Response:
+
+```json
+{
+  "data": { "recruitment_status": "open" },
+  "message": "Đã cập nhật trạng thái tuyển thành viên"
+}
+```
+
+### Lưu ý
+
+- `recruitment_status` KHÔNG nằm trong payload của `PUT /api/clubs/{clubId}` (chỉ super_admin đổi được, qua endpoint admin riêng).
+- Field này xuất hiện trong response `GET /api/clubs/{id}` cho MỌI viewer (cả user chưa đăng nhập), ở top-level cùng `is_public`, `is_verified`, `is_banned`.
+
+## Phần 9 — Field mới trong `GET /api/clubs/{id}` (ClubDetailResource) — tiếp theo
+
+Bổ sung vào bảng Phần 3:
+
+| Field | Type | Mô tả | Scope |
+|---|---|---|---|
+| `recruitment_status` | string (`open`/`closed`) | Trạng thái tuyển thành viên của CLB | Public (ai cũng thấy) |
+| `home_courts` | array | Danh sách sân nhà (id, competition_location_id, name, address, lat/lng, position, distance_km, events_hosted_count) | Public |
+| `recurring_schedules` | array | Lịch sinh hoạt định kỳ (id, day_of_week, start_time, end_time, note, position) | Public |
+
+3 field này LUÔN có mặt trong response (không cần `when` điều kiện). Eager load từ `ClubController::show()` qua 2 quan hệ mới: `homeCourts` (belongsToMany) và `recurringSchedules` (hasMany).
