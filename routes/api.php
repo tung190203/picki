@@ -32,6 +32,7 @@ use App\Http\Controllers\Club\ClubWalletController;
 use App\Http\Controllers\Club\ClubWalletTransactionController;
 use App\Http\Controllers\Club\ClubActivityController;
 use App\Http\Controllers\Club\ClubActivityParticipantController;
+use App\Http\Controllers\Club\ClubGuestController;
 use App\Http\Controllers\Club\ClubNotificationController;
 use App\Http\Controllers\Club\ClubNotificationRecipientController;
 use App\Http\Controllers\Club\ClubFundCollectionController;
@@ -237,6 +238,12 @@ Route::prefix('clubs')->middleware(['performance'])->group(function () {
                 Route::get('/', [ClubVirtualMemberController::class, 'index']);
                 Route::post('/', [ClubVirtualMemberController::class, 'store']);
                 Route::delete('/{virtualMemberId}', [ClubVirtualMemberController::class, 'destroy']);
+            });
+
+            Route::prefix('guests')->group(function () {
+                Route::get('/', [ClubGuestController::class, 'index']);
+                Route::post('/invite', [ClubGuestController::class, 'invite']);
+                Route::delete('/{userId}', [ClubGuestController::class, 'destroy']);
             });
 
             Route::prefix('invitations')->group(function () {

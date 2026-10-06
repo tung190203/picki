@@ -2,12 +2,19 @@
 
 namespace App\Services\Club;
 
+use App\Enums\ClubFundCollectionStatus;
+use App\Enums\ClubFundContributionStatus;
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
 use App\Models\Club\Club;
+use App\Models\Club\ClubFundCollection;
+use App\Models\Club\ClubFundContribution;
+use App\Models\Club\ClubGuest;
 use App\Models\Club\ClubMember;
 use App\Models\Follow;
+use App\Models\MiniParticipant;
+use App\Models\Participant;
 use App\Models\User;
 use App\Models\UserSportScore;
 use Illuminate\Support\Collection;
@@ -59,6 +66,11 @@ class ClubDetailAssembler
         if ($userId) {
             $this->attachUnreadNotificationCount($club, $userId);
             $this->attachFollowStatus($club, $userId);
+        }
+
+        // 0b. Admin/BTC stats — chỉ attach khi user có quyền manage CLB.
+        if ($userId && $club->canManage($userId)) {
+            $this->attachAdminStats($club);
         }
 
         // 1a. Member count = user thật (joined/active) + thành viên ảo (club_virtual_members).
@@ -183,6 +195,93 @@ class ClubDetailAssembler
                     ->where('membership_status', ClubMembershipStatus::Joined->value)
                     ->where('status', ClubMemberStatus::Active->value);
             })
+            ->count();
+    }
+
+    /**
+     * Attach 4 admin stats (kèo hôm nay, chưa trả tiền, % khách quay lại, tổng khách).
+     * Chỉ gọi khi user có quyền canManage (admin/manager/secretary).
+     *
+     * ponytail: 6 query, không cache. Đủ nhanh cho 1 club detail request.
+     * Khi mở rộng sang CLB list (nhiều CLB cùng lúc) → cache 180s theo club_id.
+     */
+    public function attachAdminStats(Club $club): void
+    {
+        $oneMonthAgo = now()->subDays(30)->toDateString();
+        $today = now()->toDateString();
+        $memberUserIds = $club->activeMembers()->pluck('user_id')->all();
+        $tournamentIds = $club->tournaments()->pluck('id');
+        $miniIds = $club->miniTournaments()->pluck('id');
+
+        // 1. mini_tournaments_today — tổng event (mini + tournament) diễn ra hôm nay
+        $club->mini_tournaments_today =
+            $club->miniTournaments()->whereDate('start_time', $today)->count()
+            + $club->tournaments()->whereDate('start_date', $today)->count();
+
+        // 2. unpaid_members_count — tổng lượt participant + fund contribution chưa confirmed
+        $unpaidUserIds = collect();
+        if (!empty($miniIds) || !empty($tournamentIds)) {
+            $activeCollectionIds = $club->fundCollections()
+                ->where('status', ClubFundCollectionStatus::Active->value)
+                ->pluck('id');
+            if ($activeCollectionIds->isNotEmpty()) {
+                $unpaidUserIds = $unpaidUserIds->merge(
+                    ClubFundContribution::whereIn('club_fund_collection_id', $activeCollectionIds)
+                        ->where('status', ClubFundContributionStatus::Pending->value)
+                        ->pluck('user_id')
+                );
+            }
+            $unpaidUserIds = $unpaidUserIds->merge(
+                Participant::whereIn('tournament_id', $tournamentIds)
+                    ->where('payment_status', '!=', 'confirmed')
+                    ->whereNotNull('user_id')
+                    ->pluck('user_id')
+            );
+            $unpaidUserIds = $unpaidUserIds->merge(
+                MiniParticipant::whereIn('mini_tournament_id', $miniIds)
+                    ->where('payment_status', '!=', 'confirmed')
+                    ->whereNotNull('user_id')
+                    ->pluck('user_id')
+            );
+        }
+        $club->unpaid_members_count = $unpaidUserIds->unique()->count();
+
+        // 3. returning_guests_percent — % user tham gia trong 30 ngày gần nhất
+        //    đã từng chơi TRƯỚC 30 ngày
+        $recentUserIds = collect()
+            ->merge(Participant::whereIn('tournament_id', $tournamentIds)
+                ->whereDate('created_at', '>=', $oneMonthAgo)
+                ->whereNotIn('user_id', $memberUserIds)
+                ->whereNotNull('user_id')
+                ->pluck('user_id'))
+            ->merge(MiniParticipant::whereIn('mini_tournament_id', $miniIds)
+                ->whereDate('created_at', '>=', $oneMonthAgo)
+                ->whereNotIn('user_id', $memberUserIds)
+                ->whereNotNull('user_id')
+                ->pluck('user_id'))
+            ->unique();
+
+        if ($recentUserIds->isEmpty()) {
+            $club->returning_guests_percent = 0;
+        } else {
+            $returning = collect()
+                ->merge(Participant::whereIn('tournament_id', $tournamentIds)
+                    ->whereIn('user_id', $recentUserIds)
+                    ->whereDate('created_at', '<', $oneMonthAgo)
+                    ->whereNotNull('user_id')
+                    ->pluck('user_id'))
+                ->merge(MiniParticipant::whereIn('mini_tournament_id', $miniIds)
+                    ->whereIn('user_id', $recentUserIds)
+                    ->whereDate('created_at', '<', $oneMonthAgo)
+                    ->whereNotNull('user_id')
+                    ->pluck('user_id'))
+                ->unique();
+            $club->returning_guests_percent = (int) round($returning->count() / $recentUserIds->count() * 100);
+        }
+
+        // 4. guests_count — tổng user trong club_guests chưa là member
+        $club->guests_count = ClubGuest::where('club_id', $club->id)
+            ->whereNotIn('user_id', $memberUserIds)
             ->count();
     }
 

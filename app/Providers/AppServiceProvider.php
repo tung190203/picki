@@ -7,10 +7,12 @@ use App\Models\Matches;
 use App\Models\MiniMatch;
 use App\Models\MiniTournament;
 use App\Models\QuickMatch;
+use App\Models\Tournament;
 use App\Models\User;
 use App\Observers\ClubObserver;
 use App\Observers\MatchCacheObserver;
 use App\Observers\MiniTournamentObserver;
+use App\Observers\TournamentObserver;
 use App\Observers\UserObserver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -42,6 +44,7 @@ class AppServiceProvider extends ServiceProvider
         MiniMatch::observe(MatchCacheObserver::class);
         MiniTournament::observe(MiniTournamentObserver::class);
         QuickMatch::observe(MatchCacheObserver::class);
+        Tournament::observe(TournamentObserver::class);
         User::observe(UserObserver::class);
 
         $this->configureRateLimiting();

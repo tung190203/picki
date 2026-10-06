@@ -250,14 +250,14 @@
                                     Hủy tham gia
                                 </Button>
                             </template>
-                            <Button v-if="!club.is_following" size="md"
-                                class="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-white border border-[#D72D36] text-[#D72D36] hover:bg-[#FBEAEB] flex gap-2"
+                            <Button v-if="!club.is_following" size="md" color="white"
+                                class="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-white border border-white text-[#3E414C] hover:bg-gray-100 flex gap-2"
                                 @click.stop="followClub" :disabled="isFollowingLoading">
                                 <BellAlertIcon class="w-4 h-4 sm:w-5 sm:h-5" />
                                 Theo dõi
                             </Button>
-                            <Button v-else size="md"
-                                class="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-[#FBEAEB] border border-[#D72D36] text-[#D72D36] hover:bg-white flex gap-2"
+                            <Button v-else size="md" color="white"
+                                class="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-[#3E414C] border border-[#3E414C] text-white hover:bg-[#2A2D36] hover:border-[#2A2D36] flex gap-2"
                                 @click.stop="unfollowClub" :disabled="isFollowingLoading">
                                 <BellSlashIcon class="w-4 h-4 sm:w-5 sm:h-5" />
                                 Đang theo dõi

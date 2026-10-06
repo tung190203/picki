@@ -76,6 +76,24 @@ class ClubDetailResource extends ClubBaseResource
                 isset($club->unread_notification_count),
                 fn () => (int) $club->unread_notification_count
             ),
+
+            // Admin stats — pre-set by ClubDetailAssembler (chỉ attach khi user có quyền canManage)
+            'mini_tournaments_today' => $this->when(
+                isset($club->mini_tournaments_today),
+                fn () => (int) $club->mini_tournaments_today
+            ),
+            'unpaid_members_count' => $this->when(
+                isset($club->unpaid_members_count),
+                fn () => (int) $club->unpaid_members_count
+            ),
+            'returning_guests_percent' => $this->when(
+                isset($club->returning_guests_percent),
+                fn () => (int) $club->returning_guests_percent
+            ),
+            'guests_count' => $this->when(
+                isset($club->guests_count),
+                fn () => (int) $club->guests_count
+            ),
         ];
     }
 }
