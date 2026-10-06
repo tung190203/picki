@@ -48,6 +48,14 @@
                             <div class="text-sm font-medium text-[#1F2937] dark:text-slate-100 truncate">
                                 {{ item.note || 'Buổi tập' }}
                             </div>
+                            <div class="text-[11px] text-[#838799] dark:text-slate-500 truncate mt-0.5">
+                                <span v-if="!item.competition_location_ids || item.competition_location_ids.length === 0">
+                                    Tất cả sân nhà
+                                </span>
+                                <span v-else>
+                                    {{ homeCourtsLabel(item) }}
+                                </span>
+                            </div>
                         </div>
                         <div v-if="canManage" class="flex items-center gap-1 flex-shrink-0">
                             <button @click="openEditModal(item)"
@@ -69,7 +77,7 @@
             <div v-if="showFormModal"
                 class="fixed inset-0 z-[9999] flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm"
                 @click.self="closeFormModal">
-                <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl w-full max-w-[420px] shadow-2xl flex flex-col max-h-[90vh]">
+                <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl w-full max-w-[460px] shadow-2xl flex flex-col max-h-[90vh]">
                     <div class="p-4 sm:p-5 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
                         <h3 class="font-bold text-[#1F2937] dark:text-slate-100">
                             {{ formMode === 'add' ? 'Thêm lịch sinh hoạt' : 'Sửa lịch sinh hoạt' }}
@@ -112,8 +120,37 @@
                                 Ghi chú
                             </label>
                             <input v-model="form.note" type="text" maxlength="255"
-                                placeholder="vd: Sân chính, Tập cơ bản"
+                                placeholder="vd: Tập cơ bản, Giao lưu CLB"
                                 class="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D72D36]/20 focus:border-[#D72D36]" />
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-[#3E414C] dark:text-slate-200 mb-1">
+                                Sân nhà áp dụng
+                            </label>
+                            <p class="text-[11px] text-[#838799] dark:text-slate-500 mb-2">
+                                Không chọn → áp dụng cho tất cả sân nhà.
+                            </p>
+
+                            <div v-if="homeCourts.length === 0" class="text-xs text-[#838799] italic">
+                                CLB chưa có sân nhà nào.
+                            </div>
+                            <div v-else class="space-y-1 max-h-[180px] overflow-y-auto p-1 border border-gray-100 dark:border-slate-700 rounded-lg">
+                                <label v-for="court in homeCourts" :key="court.competition_location_id"
+                                    class="flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800/50 cursor-pointer">
+                                    <input type="checkbox" :value="court.competition_location_id"
+                                        v-model="form.competition_location_ids"
+                                        class="mt-0.5 w-4 h-4 accent-[#D72D36]" />
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-sm font-medium text-[#1F2937] dark:text-slate-100 truncate">
+                                            {{ court.name }}
+                                        </div>
+                                        <div class="text-[11px] text-[#838799] dark:text-slate-500 truncate">
+                                            {{ court.address || '—' }}
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
                         </div>
 
                         <p v-if="formError" class="text-xs text-[#D72D36]">{{ formError }}</p>
@@ -173,13 +210,15 @@ import {
     getRecurringSchedules,
     createRecurringSchedule,
     updateRecurringSchedule,
-    deleteRecurringSchedule
+    deleteRecurringSchedule,
+    getHomeCourts
 } from '@/service/club'
 
 const props = defineProps({
     clubId: { type: [String, Number], required: true },
     canManage: { type: Boolean, default: false },
-    initialSchedules: { type: Array, default: () => [] }
+    initialSchedules: { type: Array, default: () => [] },
+    initialHomeCourts: { type: Array, default: () => [] }
 })
 
 const emit = defineEmits(['updated'])
@@ -187,13 +226,20 @@ const emit = defineEmits(['updated'])
 const DAY_LABELS = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
 
 const schedules = ref([...props.initialSchedules])
+const homeCourts = ref([...props.initialHomeCourts])
 const loading = ref(false)
 
 const showFormModal = ref(false)
 const formMode = ref('add')
 const editingItem = ref(null)
 const formError = ref('')
-const form = ref({ day_of_week: 1, start_time: '18:00', end_time: '21:00', note: '' })
+const form = ref({
+    day_of_week: 1,
+    start_time: '18:00',
+    end_time: '21:00',
+    note: '',
+    competition_location_ids: []
+})
 const submitting = ref(false)
 
 const showDeleteConfirm = ref(false)
@@ -206,6 +252,15 @@ const formatTime = (t) => {
     return String(t).slice(0, 5)
 }
 const formatTimeRange = (s, e) => `${formatTime(s)} - ${formatTime(e)}`
+
+const homeCourtsLabel = (item) => {
+    const ids = item.competition_location_ids || []
+    if (ids.length === 0) return 'Tất cả sân nhà'
+    return homeCourts.value
+        .filter(c => ids.includes(c.competition_location_id))
+        .map(c => c.name)
+        .join(', ')
+}
 
 const groupedByDay = computed(() => {
     const map = new Map()
@@ -235,10 +290,24 @@ const fetchSchedules = async () => {
     }
 }
 
+const fetchHomeCourts = async () => {
+    try {
+        homeCourts.value = await getHomeCourts(props.clubId)
+    } catch {
+        homeCourts.value = []
+    }
+}
+
 const openAddModal = () => {
     formMode.value = 'add'
     formError.value = ''
-    form.value = { day_of_week: 1, start_time: '18:00', end_time: '21:00', note: '' }
+    form.value = {
+        day_of_week: 1,
+        start_time: '18:00',
+        end_time: '21:00',
+        note: '',
+        competition_location_ids: []
+    }
     showFormModal.value = true
 }
 
@@ -250,7 +319,8 @@ const openEditModal = (item) => {
         day_of_week: item.day_of_week,
         start_time: formatTime(item.start_time),
         end_time: formatTime(item.end_time),
-        note: item.note || ''
+        note: item.note || '',
+        competition_location_ids: Array.isArray(item.competition_location_ids) ? [...item.competition_location_ids] : []
     }
     showFormModal.value = true
 }
@@ -272,13 +342,21 @@ const submitForm = async () => {
         return
     }
 
+    const payload = {
+        day_of_week: form.value.day_of_week,
+        start_time: form.value.start_time,
+        end_time: form.value.end_time,
+        note: form.value.note || null,
+        competition_location_ids: [...form.value.competition_location_ids]
+    }
+
     submitting.value = true
     try {
         if (formMode.value === 'add') {
-            await createRecurringSchedule(props.clubId, { ...form.value })
+            await createRecurringSchedule(props.clubId, payload)
             toast.success('Đã thêm lịch sinh hoạt')
         } else {
-            await updateRecurringSchedule(props.clubId, editingItem.value.id, { ...form.value })
+            await updateRecurringSchedule(props.clubId, editingItem.value.id, payload)
             toast.success('Đã cập nhật lịch sinh hoạt')
         }
         await fetchSchedules()
@@ -318,7 +396,16 @@ watch(() => props.initialSchedules, (val) => {
     }
 }, { deep: true })
 
+watch(() => props.initialHomeCourts, (val) => {
+    if (val && val.length > 0) {
+        homeCourts.value = [...val]
+    }
+}, { deep: true })
+
 onMounted(() => {
+    if (props.initialHomeCourts?.length === 0) {
+        fetchHomeCourts()
+    }
     if (props.initialSchedules?.length === 0) {
         fetchSchedules()
     }

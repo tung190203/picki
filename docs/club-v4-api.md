@@ -299,10 +299,11 @@ Quyền: `canManage()`. Trả 404 nếu không tồn tại.
 - `distance_km` và `events_hosted_count` trong pivot DB **chỉ là column tương thích ngược** — luôn rỗng/0 đối với record mới. Khi trả response, BE tính lại và ghi đè vào field top-level.
 - FE cần gửi header `X-User-Lat` / `X-User-Lng` để BE dùng làm anchor fallback khi CLB chưa có toạ độ.
 - Frontend modal thêm/sửa sân nhà **không** có input cho 2 field này nữa.
+- Sân nhà được **tham chiếu** bởi bảng `club_recurring_schedule_locations` — lịch sinh hoạt định kỳ có thể chọn 1 hoặc nhiều sân nhà. Xem [Phần 7](#phần-7--lịch-sinh-hoạt-định-kỳ-club_recurring_schedules).
 
 ## Phần 7 — Lịch sinh hoạt định kỳ (`club_recurring_schedules`)
 
-CLB khai báo nhiều khung giờ sinh hoạt trong tuần (thứ + giờ bắt đầu + giờ kết thúc + ghi chú). Lịch gắn với CLB, áp dụng cho mọi sân nhà.
+CLB khai báo nhiều khung giờ sinh hoạt trong tuần (thứ + giờ bắt đầu + giờ kết thúc + ghi chú). Mỗi lịch có thể gắn với **một hoặc nhiều** sân nhà. Nếu không gắn sân nào → lịch áp dụng cho toàn bộ sân nhà của CLB.
 
 ### Cấu trúc bảng `club_recurring_schedules`
 
@@ -316,8 +317,24 @@ club_recurring_schedules
   note          VARCHAR(255) NULL
   position      UNSIGNED INT
   created_at, updated_at
+
   INDEX (club_id, day_of_week, position)
 ```
+
+### Cấu trúc bảng `club_recurring_schedule_locations` (pivot)
+
+```
+club_recurring_schedule_locations
+  id                          PK
+  club_recurring_schedule_id  FK → club_recurring_schedules (cascade on delete)
+  competition_location_id     FK → competition_locations (cascade on delete)
+  created_at, updated_at
+
+  UNIQUE (club_recurring_schedule_id, competition_location_id)
+  INDEX (competition_location_id)
+```
+
+> Khi xoá 1 lịch → toàn bộ pivot rows của lịch đó tự động cascade. Khi xoá 1 `competition_location` → toàn bộ pivot rows tham chiếu tới nó cũng cascade.
 
 ### API
 
@@ -334,16 +351,37 @@ Public. Sắp xếp theo `day_of_week`, `position`, `start_time`. Response:
   "data": [
     {
       "id": 3,
+      "club_id": 12,
       "day_of_week": 1,
-      "start_time": "18:00:00",
-      "end_time": "21:00:00",
-      "note": "Sân chính",
-      "position": 0
+      "start_time": "18:00",
+      "end_time": "21:00",
+      "note": "Tập cơ bản",
+      "position": 0,
+      "competition_location_ids": [7, 9],
+      "home_courts": [
+        { "id": 7, "name": "Sân Pickleball Q7", "address": "12 Nguyễn Văn Trỗi" },
+        { "id": 9, "name": "Sân Riverside", "address": "..." }
+      ]
+    },
+    {
+      "id": 4,
+      "club_id": 12,
+      "day_of_week": 3,
+      "start_time": "19:30",
+      "end_time": "21:30",
+      "note": "Giao lưu CLB",
+      "position": 0,
+      "competition_location_ids": [],
+      "home_courts": []
     }
   ],
   "message": "Lấy lịch sinh hoạt thành công"
 }
 ```
+
+- `competition_location_ids`: danh sách ID sân nhà mà lịch áp dụng. Mảng rỗng → lịch áp dụng cho mọi sân nhà.
+- `home_courts`: thông tin tối thiểu của các sân (id, name, address) — dùng để hiển thị. Nếu `competition_location_ids` rỗng thì `home_courts` cũng rỗng.
+- `start_time` / `end_time` trả về string `H:i` (BE cắt `:00` để FE khỏi xử lý).
 
 #### Thêm 1 dòng lịch
 
@@ -355,16 +393,17 @@ Content-Type: application/json
   "day_of_week": 1,
   "start_time": "18:00",
   "end_time": "21:00",
-  "note": "Sân chính",
-  "position": 0
+  "note": "Tập cơ bản",
+  "position": 0,
+  "competition_location_ids": [7, 9]
 }
 ```
 
-- `day_of_week`: integer 0-6 (0 = Chủ nhật).
-- `start_time`, `end_time`: định dạng `H:i` hoặc `H:i:s`.
-- `end_time` phải sau `start_time` (`after:start_time`).
+- `day_of_week`: integer 0-6 (0 = Chủ nhật), required.
+- `start_time`, `end_time`: định dạng `H:i` hoặc `H:i:s`, required. `end_time` phải sau `start_time`.
 - `note` optional, tối đa 255 ký tự.
 - `position` optional (mặc định 0).
+- `competition_location_ids` optional (mảng int). Mỗi id phải tồn tại trong `competition_locations` **và** thuộc sân nhà của CLB (BE lọc tự động — id nào không phải sân nhà sẽ bị bỏ qua). Mảng rỗng hoặc không gửi → lịch áp dụng cho mọi sân nhà.
 - Quyền: `canManage()`. Trả 201 + object vừa tạo.
 
 #### Sửa 1 dòng lịch
@@ -373,7 +412,7 @@ Content-Type: application/json
 PUT /api/clubs/{clubId}/recurring-schedules/{scheduleId}
 ```
 
-Body giống POST, các field optional. Quyền: `canManage()`.
+Body giống POST, các field optional. `competition_location_ids` là **sync** (ghi đè, không gộp dồn). Gửi `[]` để reset về "áp dụng mọi sân nhà". Quyền: `canManage()`.
 
 #### Xoá 1 dòng lịch
 
@@ -386,7 +425,10 @@ Quyền: `canManage()`. Trả 404 nếu không tồn tại.
 ### Lưu ý
 
 - `day_of_week` trả về integer 0-6, FE tự map sang "Chủ nhật", "Thứ 2", ...
-- `start_time` / `end_time` trả về string `H:i:s` (theo MySQL TIME). FE cắt `:00` nếu muốn hiển thị gọn.
+- `start_time` / `end_time` trả về string `H:i` (BE cắt `:00`).
+- `competition_location_ids` trong request là **absolute** — PUT sẽ sync toàn bộ, không gộp. Nếu muốn thêm 1 sân, phải gửi lại đầy đủ danh sách + sân mới.
+- Khi xoá 1 `competition_location` khỏi sân nhà (qua API home-courts), các pivot rows ở `club_recurring_schedule_locations` tham chiếu tới nó cũng tự động bị cascade xoá.
+- Lịch "áp dụng mọi sân nhà" (không gắn pivot) là giá trị mặc định khi thêm mới không chọn sân nào — phù hợp với CLB mới tạo, chưa có nhiều sân.
 
 ## Phần 8 — Trạng thái tuyển thành viên (`clubs.recruitment_status`)
 

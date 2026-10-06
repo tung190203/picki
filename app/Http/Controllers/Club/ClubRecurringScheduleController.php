@@ -7,23 +7,25 @@ use App\Http\Controllers\Controller;
 use App\Models\Club\Club;
 use App\Models\Club\ClubRecurringSchedule;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class ClubRecurringScheduleController extends Controller
 {
     /**
      * GET /api/clubs/{clubId}/recurring-schedules
-     * Trả về lịch sinh hoạt định kỳ. Public data, hiển thị ở tab Giới thiệu.
+     * Trả về lịch sinh hoạt định kỳ kèm danh sách sân nhà gắn với từng lịch.
+     * Public data, hiển thị ở tab Giới thiệu.
      */
     public function index(Request $request, $clubId)
     {
-        $club = Club::with('recurringSchedules')->findOrFail($clubId);
-        return ResponseHelper::success($club->recurringSchedules, 'Lấy lịch sinh hoạt thành công');
+        $club = Club::with(['recurringSchedules.homeCourts'])->findOrFail($clubId);
+        $payload = $club->recurringSchedules->map(fn ($s) => $this->serialize($s))->values();
+        return ResponseHelper::success($payload, 'Lấy lịch sinh hoạt thành công');
     }
 
     /**
      * POST /api/clubs/{clubId}/recurring-schedules
-     * Body: { day_of_week, start_time, end_time, note?, position? }
+     * Body: { day_of_week, start_time, end_time, note?, position?, competition_location_ids? (array<int>) }
+     * Nếu competition_location_ids rỗng / không gửi → lịch áp dụng cho toàn bộ sân nhà.
      */
     public function store(Request $request, $clubId)
     {
@@ -35,13 +37,20 @@ class ClubRecurringScheduleController extends Controller
         }
 
         $data = $this->validatePayload($request);
+        $locationIds = $this->resolveLocationIds($club, $data['competition_location_ids'] ?? null);
+        unset($data['competition_location_ids']);
 
         $schedule = $club->recurringSchedules()->create($data);
-        return ResponseHelper::success($schedule, 'Tạo lịch sinh hoạt thành công', 201);
+        if (!empty($locationIds)) {
+            $schedule->homeCourts()->sync($locationIds);
+        }
+        $schedule->load('homeCourts');
+
+        return ResponseHelper::success($this->serialize($schedule), 'Tạo lịch sinh hoạt thành công', 201);
     }
 
     /**
-     * PUT /api/clubs/{clubId}/recurring-schedules/{scheduleId}
+     * PUT/PATCH /api/clubs/{clubId}/recurring-schedules/{scheduleId}
      */
     public function update(Request $request, $clubId, $scheduleId)
     {
@@ -58,8 +67,15 @@ class ClubRecurringScheduleController extends Controller
         }
 
         $data = $this->validatePayload($request, true);
+        $locationIds = $this->resolveLocationIds($club, $data['competition_location_ids'] ?? null);
+        unset($data['competition_location_ids']);
+
         $schedule->update($data);
-        return ResponseHelper::success($schedule, 'Cập nhật lịch sinh hoạt thành công');
+        // sync (kể cả rỗng) — rỗng nghĩa là lịch áp dụng cho toàn bộ sân nhà
+        $schedule->homeCourts()->sync($locationIds);
+        $schedule->load('homeCourts');
+
+        return ResponseHelper::success($this->serialize($schedule), 'Cập nhật lịch sinh hoạt thành công');
     }
 
     /**
@@ -92,6 +108,37 @@ class ClubRecurringScheduleController extends Controller
             'end_time' => "$required|date_format:H:i|after:start_time",
             'note' => 'nullable|string|max:255',
             'position' => 'nullable|integer|min:0',
+            'competition_location_ids' => 'nullable|array',
+            'competition_location_ids.*' => 'integer|exists:competition_locations,id',
         ]);
+    }
+
+    /**
+     * Lọc location_ids: chỉ giữ những id thuộc sân nhà của CLB. Trả về mảng unique int.
+     */
+    protected function resolveLocationIds(Club $club, ?array $ids): array
+    {
+        if (empty($ids)) return [];
+        $valid = $club->homeCourts()->pluck('competition_locations.id')->all();
+        return array_values(array_unique(array_intersect(array_map('intval', $ids), $valid)));
+    }
+
+    protected function serialize(ClubRecurringSchedule $schedule): array
+    {
+        return [
+            'id' => (int) $schedule->id,
+            'club_id' => (int) $schedule->club_id,
+            'day_of_week' => (int) $schedule->day_of_week,
+            'start_time' => substr((string) $schedule->start_time, 0, 5),
+            'end_time' => substr((string) $schedule->end_time, 0, 5),
+            'note' => $schedule->note,
+            'position' => (int) ($schedule->position ?? 0),
+            'competition_location_ids' => $schedule->homeCourts->pluck('id')->map(fn ($v) => (int) $v)->values()->all(),
+            'home_courts' => $schedule->homeCourts->map(fn ($c) => [
+                'id' => (int) $c->id,
+                'name' => $c->name,
+                'address' => $c->address,
+            ])->values()->all(),
+        ];
     }
 }

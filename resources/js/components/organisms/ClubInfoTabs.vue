@@ -83,6 +83,7 @@
                         :club-id="club.id"
                         :can-manage="canManageIntro"
                         :initial-schedules="club.recurring_schedules || []"
+                        :initial-home-courts="club.home_courts || []"
                         class="mt-4"
                     />
                 </div>
