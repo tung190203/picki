@@ -408,6 +408,11 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
     Route::post('/users/{id}/set-anchor', [UserManagementController::class, 'setAnchor']);
     Route::post('/users/{id}/set-picki', [UserManagementController::class, 'setPicki']);
     Route::post('/users/{id}/revoke-picki', [UserManagementController::class, 'revokePicki']);
+    Route::post('/users/{id}/badges', [\App\Http\Controllers\Admin\AdminBadgeController::class, 'assignToUser']);
+    Route::delete('/users/{id}/badges/{code}', [\App\Http\Controllers\Admin\AdminBadgeController::class, 'revokeFromUser']);
+
+    Route::apiResource('badges', \App\Http\Controllers\Admin\AdminBadgeController::class);
+    Route::apiResource('badge-types', \App\Http\Controllers\Admin\AdminBadgeTypeController::class);
 
     Route::get('/clubs', [AdminClubManagementController::class, 'index']);
     Route::get('/clubs/{clubId}', [AdminClubManagementController::class, 'show']);
@@ -511,9 +516,11 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/send', [PromotionController::class, 'send']);
     });
     Route::prefix('user')->group(function () {
+        Route::put('/badges/featured', [\App\Http\Controllers\Api\BadgeController::class, 'setFeatured']);
         Route::match(['get', 'post'], '/index', [UserController::class, 'index']);
         Route::get('/{id}', [UserController::class, 'show']);
         Route::get('/{id}/clubs', [UserController::class, 'getUserClubs']);
+        Route::get('/{id}/badges', [\App\Http\Controllers\Api\BadgeController::class, 'getUserBadges']);
         Route::post('/update', [UserController::class, 'update']);
         Route::delete('/delete/{id}', [UserController::class, 'destroy']);
         Route::get('/matches/dataset', [UserMatchStatsController::class, 'dataset']);

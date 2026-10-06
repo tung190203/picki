@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Enums\BadgeType;
+
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\TournamentType;
@@ -215,7 +215,7 @@ class SeedChampionBadges extends Command
                 // Track valid winners so revoke phase can distinguish them from stale badges.
                 $result['winner_user_ids'][(int) $member->id] = true;
 
-                $alreadyHasBadge = $badgeService->hasBadge($member->id, BadgeType::CHAMPION);
+                $alreadyHasBadge = $badgeService->hasBadge($member->id, 'CHAMPION');
 
                 if ($alreadyHasBadge && !$force) {
                     $this->line("      ✓ {$member->full_name} (ID: {$member->id}) - Already has CHAMPION badge");
@@ -287,7 +287,10 @@ class SeedChampionBadges extends Command
         }
 
         // All user_ids currently holding a CHAMPION badge
-        $championUserIds = UserBadge::where('badge_type', BadgeType::CHAMPION->value)
+        $badge = \App\Models\Badge::where('code', 'CHAMPION')->first();
+        if (!$badge) return;
+
+        $championUserIds = UserBadge::where('badge_id', $badge->id)
             ->pluck('user_id')
             ->map(fn ($id) => (int) $id)
             ->unique()
@@ -372,9 +375,14 @@ class SeedChampionBadges extends Command
         }
 
         // Silent delete (no BadgeRevokedNotification, per admin cleanup contract).
-        $deleted = UserBadge::where('badge_type', BadgeType::CHAMPION->value)
-            ->whereIn('user_id', $staleUserIds)
-            ->delete();
+        $badge = \App\Models\Badge::where('code', 'CHAMPION')->first();
+        if ($badge) {
+            $deleted = UserBadge::where('badge_id', $badge->id)
+                ->whereIn('user_id', $staleUserIds)
+                ->delete();
+        } else {
+            $deleted = 0;
+        }
 
         $this->info("  ✅ Revoked {$deleted} stale CHAMPION badge row(s).");
     }

@@ -83,7 +83,12 @@
                         <p class="text-[#3E414C] font-semibold text-2xl">{{ user.full_name ?? 'Không rõ' }}</p>
 
                         <!-- Badge display -->
-                        <div v-if="user.badges?.length || user.primary_badge" class="flex items-center gap-1">
+                        <div 
+                          class="flex items-center gap-1 group/badges cursor-pointer" 
+                          @click="isOwner && (showPinModal = true)" 
+                          :title="isOwner ? 'Nhấn để tuỳ chỉnh huy hiệu ghim' : ''"
+                          v-if="isOwner || user.badges?.length || user.primary_badge"
+                        >
                           <BadgeIcon
                             v-for="badge in displayBadges"
                             :key="badge"
@@ -91,6 +96,12 @@
                             size="sm"
                             class="inline-block"
                           />
+                          <!-- Quick Edit Button (shows on hover for owner) -->
+                          <div v-if="isOwner" class="ml-1 w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 transition-colors opacity-0 group-hover/badges:opacity-100" :class="{'opacity-100': !displayBadges.length}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
+                            </svg>
+                          </div>
                         </div>
 
                         <div v-if="isOwner" class="relative" v-click-outside="closeVisibilityMenu">
@@ -233,6 +244,16 @@
                     </div>
                 </div>
             </section>
+
+            <!-- Badges Section -->
+            <section>
+                <div class="flex items-center justify-start mb-4 mx-10">
+                    <h2 class="text-xl font-semibold text-gray-800">Bộ sưu tập huy hiệu</h2>
+                </div>
+                <div class="mx-10 mb-10">
+                    <BadgeSection v-if="user.id" :userId="user.id" :isOwner="isOwner" @update="fetchDetailUser(id)" />
+                </div>
+            </section>
         </div>
 
         <SportSelectCard 
@@ -273,6 +294,13 @@
             @close="showCropper = false"
             @save="onCropSave"
         />
+
+        <PinBadgesModal
+            v-if="user?.id"
+            v-model:show="showPinModal"
+            :userId="user.id"
+            @saved="onPinSaved"
+        />
     </div>
 </template>
 
@@ -283,6 +311,7 @@ import maleIcon from '@/assets/images/male.svg';
 import femaleIcon from '@/assets/images/female.svg';
 import { vClickOutside } from "@/directives/clickOutside";
 import * as SportService from '@/service/sport';
+import PinBadgesModal from '@/components/organisms/PinBadgesModal.vue';
 
 import {
     CalendarIcon,
@@ -305,6 +334,7 @@ import SportLevelCard from "@/components/molecules/SportLevelCard.vue";
 import SportSelectCard from "@/components/molecules/SportSelectCard.vue";
 import ImageCropperModal from "@/components/molecules/ImageCropperModal.vue";
 import MatchHistorySection from "@/components/organisms/MatchHistorySection.vue";
+import BadgeSection from "@/components/organisms/BadgeSection.vue";
 import BadgeIcon from "@/components/atoms/BadgeIcon.vue";
 import { useRoute, useRouter } from "vue-router";
 import { toast } from "vue3-toastify";
@@ -327,6 +357,11 @@ const openIndex = ref(null);
 const showVisibilityMenu = ref(false);
 const showAvatarMenu = ref(false);
 const showThumbnailMenu = ref(false);
+const showPinModal = ref(false);
+
+const onPinSaved = () => {
+    if (id) fetchDetailUser(id);
+};
 const showImageViewer = ref(false);
 const viewerImageUrl = ref('');
 const showSportModal = ref(false);
@@ -354,11 +389,27 @@ const triggerThumbnailPicker = () => thumbnailInput.value?.click();
 const isOwner = computed(() => user.value.id === getUser.value.id);
 
 const displayBadges = computed(() => {
+  if (user.value.featured_badges?.length > 0) {
+    return user.value.featured_badges
+  }
+
   if (user.value.badges?.length) {
     const badgeOrder = ['picki', 'champion', 'anchor', 'verified']
-    return [...user.value.badges].sort((a, b) =>
-      badgeOrder.indexOf(a.toLowerCase()) - badgeOrder.indexOf(b.toLowerCase())
-    )
+    const sorted = [...user.value.badges].sort((a, b) => {
+      const aCode = (typeof a === 'string' ? a : (a?.type || '')).toLowerCase()
+      const bCode = (typeof b === 'string' ? b : (b?.type || '')).toLowerCase()
+      
+      const indexA = badgeOrder.indexOf(aCode)
+      const indexB = badgeOrder.indexOf(bCode)
+      
+      if (indexA === -1 && indexB === -1) return 0
+      if (indexA === -1) return 1
+      if (indexB === -1) return -1
+      
+      return indexA - indexB
+    })
+    // Only show up to 3 badges next to the name if no featured badges are explicitly set
+    return sorted.slice(0, 3)
   }
   return []
 })

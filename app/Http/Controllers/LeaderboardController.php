@@ -516,7 +516,7 @@ class LeaderboardController extends Controller
                 'users.id',
                 'scores.vndupr_score'
             )
-            ->with(['clubs:id,name', 'userBadges'])
+            ->with(['clubs:id,name', 'userBadges.badge'])
             ->orderByDesc('scores.vndupr_score');
 
         // Use ROW_NUMBER() for ranking - more efficient than offset for large datasets
@@ -584,7 +584,7 @@ class LeaderboardController extends Controller
             ->joinSub($scoreSubQuery, 'scores', function ($join) {
                 $join->on('scores.user_id', '=', 'users.id');
             })
-            ->with(['clubs:id,name', 'userBadges'])
+            ->with(['clubs:id,name', 'userBadges.badge'])
             ->select(
                 'users.id',
                 'users.full_name',
@@ -654,7 +654,7 @@ class LeaderboardController extends Controller
                 $join->on('scores.user_id', '=', 'users.id');
             })
             ->whereIn('users.id', $friendIds)
-            ->with(['clubs:id,name', 'userBadges'])
+            ->with(['clubs:id,name', 'userBadges.badge'])
             ->select(
                 'users.id',
                 'users.full_name',
@@ -771,16 +771,33 @@ class LeaderboardController extends Controller
             ];
         }
 
-        $badges = array_map(function ($userBadge) {
-            return $userBadge->badge_type instanceof \BackedEnum
-                ? $userBadge->badge_type->value
-                : $userBadge->badge_type;
-        }, $userBadges);
+        usort($userBadges, function($a, $b) {
+            $pA = $a->badge->priority ?? 0;
+            $pB = $b->badge->priority ?? 0;
+            return $pB <=> $pA;
+        });
 
-        $primaryBadge = $badges[0] ?? null;
+        $badges = array_filter(array_map(function ($userBadge) {
+            if (!$userBadge->badge) return null;
+            return [
+                'type' => $userBadge->badge->code,
+                'icon_url' => $userBadge->badge->icon_url,
+            ];
+        }, $userBadges));
+
+        $featuredBadges = array_filter(array_map(function ($userBadge) {
+            if (!$userBadge->badge || !$userBadge->is_featured) return null;
+            return [
+                'type' => $userBadge->badge->code,
+                'icon_url' => $userBadge->badge->icon_url,
+            ];
+        }, $userBadges));
+
+        $primaryBadge = array_values($badges)[0] ?? null;
 
         return [
             'badges' => array_values($badges),
+            'featured_badges' => array_values($featuredBadges),
             'primary_badge' => $primaryBadge,
         ];
     }
