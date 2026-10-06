@@ -31,8 +31,31 @@
             <p>Chưa có lịch sinh hoạt</p>
         </div>
 
-        <!-- Grouped by day -->
-        <div v-else class="space-y-3">
+        <!-- Weekly Grid (desktop) -->
+        <div v-if="!loading && schedules.length > 0"
+            class="hidden lg:grid grid-cols-7 gap-2 mb-4">
+            <div v-for="(label, dayIdx) in DAY_LABELS" :key="dayIdx" class="min-h-[80px]">
+                <div class="text-xs font-bold text-[#838799] dark:text-slate-400 mb-2 text-center uppercase">{{ label }}</div>
+                <div class="space-y-1.5">
+                    <div v-for="item in getSchedulesForDay(dayIdx)" :key="item.id"
+                        @click="canManage && openEditModal(item)"
+                        :class="['p-2 rounded-lg border text-xs transition-colors',
+                            canManage
+                                ? 'border-gray-200 dark:border-slate-700 hover:border-[#D72D36] hover:bg-[#FBEAEB] dark:hover:bg-[#D72D36]/20 cursor-pointer'
+                                : 'border-gray-100 dark:border-slate-800 cursor-default']">
+                        <div class="font-semibold text-[#1F2937] dark:text-slate-100">
+                            {{ formatTimeRange(item.start_time, item.end_time) }}
+                        </div>
+                        <div class="text-[#838799] dark:text-slate-400 truncate mt-0.5">
+                            {{ item.note || 'Buổi tập' }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Grouped by day (mobile/tablet) -->
+        <div v-else-if="!loading" class="lg:hidden space-y-3">
             <div v-for="group in groupedByDay" :key="group.day">
                 <div class="flex items-center gap-2 mb-1.5">
                     <span class="text-sm font-bold text-[#1F2937] dark:text-slate-100">{{ group.label }}</span>
@@ -278,6 +301,12 @@ const groupedByDay = computed(() => {
             items: items.sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)))
         }))
 })
+
+const getSchedulesForDay = (dayIdx) => {
+    return schedules.value
+        .filter(s => s.day_of_week === dayIdx)
+        .sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)))
+}
 
 const fetchSchedules = async () => {
     loading.value = true

@@ -32,7 +32,7 @@
         </div>
 
         <!-- List -->
-        <div v-else class="space-y-2">
+        <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div v-for="court in courts" :key="court.id"
                 class="flex items-center gap-3 p-3 rounded-lg border border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
                 <div class="flex-shrink-0 w-9 h-9 rounded-lg bg-[#FBEAEB] dark:bg-[#D72D36]/20 flex items-center justify-center">

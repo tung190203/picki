@@ -137,7 +137,7 @@
                 </div>
 
                 <!-- Stats Cards -->
-                <div class="grid grid-cols-2 gap-3 sm:gap-4 md:gap-6 mt-8 relative z-20">
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mt-8 relative z-20">
                     <div v-for="(stat, index) in statsAdmin" :key="index"
                         class="bg-[#3E414C]/80 backdrop-blur-md rounded-2xl p-3 sm:p-4 md:p-6 border border-white/5 shadow-inner">
                         <p class="text-xs sm:text-sm font-semibold text-gray-300 mb-2 uppercase tracking-wide">{{ stat.label }}</p>
@@ -229,8 +229,13 @@
                                 <h1 class="text-2xl sm:text-3xl md:text-4xl lg:text-[44px] font-bold leading-tight">{{ club.name }}</h1>
                                 <p class="text-white/70 text-xs sm:text-sm font-medium">{{ is_joined ? getRoleName(currentUserRole) : 'Khách' }}</p>
                             </div>
+                            <span v-if="club.recruitment_status === 'open'"
+                                class="inline-flex items-center gap-1 self-start px-2.5 py-1 rounded-full bg-[#00B377] text-white text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow-sm">
+                                <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                                Đang tuyển thành viên
+                            </span>
                         </div>
-                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto" v-if="!is_joined">
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto" v-if="!is_joined && !isRecruitmentClosed">
                             <template v-if="club.has_invitation">
                                 <Button size="md" color="success"
                                     class="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-[#00B377] border border-[#00B377] text-white hover:bg-[#009664] hover:border-[#009664] flex gap-2"
@@ -1506,6 +1511,10 @@ const deleteClub = () => {
 
 const is_joined = computed(() => {
     return club.value?.members?.some(member => member.user_id === getUser.value.id && member.status == 'active') ?? false
+})
+
+const isRecruitmentClosed = computed(() => {
+    return club.value?.recruitment_status === 'closed'
 })
 
 const goBack = () => {
