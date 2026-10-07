@@ -639,3 +639,136 @@ Bổ sung vào bảng Phần 3:
 | `recurring_schedules` | array | Lịch sinh hoạt định kỳ (id, day_of_week, start_time, end_time, note, position) | Public |
 
 3 field này LUÔN có mặt trong response (không cần `when` điều kiện). Eager load từ `ClubController::show()` qua 2 quan hệ mới: `homeCourts` (belongsToMany) và `recurringSchedules` (hasMany).
+
+## Phần 10 — Lịch sử sao/cúp của member & cách tính Cúp mới
+
+> **Cập nhật 2026-10-07**: Sửa cách tính Cúp (sort + phạm vi) + thêm API lịch sử sao/cúp của từng member trong CLB.
+
+### 10.1. Cách tính Cúp mới
+
+#### Sort rule
+
+So sánh theo thứ tự TRÁI → PHẢI, không cộng điểm kiểu `gold×3 + silver×2 + bronze`:
+
+```
+ORDER BY gold DESC,
+         silver DESC,
+         bronze DESC
+```
+
+Quy tắc tie-break:
+
+1. Ai có nhiều 🥇 Vàng hơn → xếp trên.
+2. Nếu bằng Vàng → xét 🥈 Bạc.
+3. Nếu tiếp tục bằng → xét 🥉 Đồng.
+
+| Người chơi | 🥇 Vàng | 🥈 Bạc | 🥉 Đồng | Xếp hạng |
+|---|---|---|---|---|
+| A | 5 | 0 | 0 | 🥇 1 |
+| B | 4 | 10 | 10 | 2 |
+| C | 4 | 8 | 20 | 3 |
+| D | 4 | 8 | 15 | 4 |
+| E | 3 | 20 | 20 | 5 |
+
+Sao (Kèo đấu) giữ nguyên sort cũ: `total_points DESC → gold DESC → silver DESC → bronze DESC` (tương thích ngược với mobile hiển thị "⭐").
+
+#### Phạm vi tính Cúp
+
+Áp dụng 4 rule:
+
+1. **Từ ngày vào CLB trở đi**: Cup đạt trước khi vào CLB không tính vào BXH CLB. BE lấy `MIN(joined_at)` của user trên CLB đó, lọc theo `tournament.start_date >= MIN(joined_at)`. Cup đạt trước đó vẫn hiển thị trong hồ sơ cá nhân (qua endpoint lịch sử ở Phần 10.2).
+2. **Tính mọi giải đấu, không chỉ giải do CLB tổ chức**: BE bỏ filter `club_id` ở `tournaments`, lấy tất cả tournament đã có final match completed (qua `TournamentRankService`).
+3. **Nếu rời CLB rồi quay lại → cộng dồn toàn bộ thời gian đã thuộc CLB**: BE query `MIN(joined_at)` qua mọi trạng thái membership (joined + left + rejected + cancelled) — không reset khi rời.
+4. **Nếu một thành viên thuộc nhiều CLB cùng lúc → thành tích Cúp được tính cho tất cả CLB đó**: BE chỉ filter "user từng là member của CLB hiện tại", không giới hạn "chỉ 1 CLB".
+
+### 10.2. API lịch sử sao/cúp của 1 member
+
+```
+GET /api/clubs/{clubId}/members/{memberId}/achievements
+```
+
+Quyền: **Public** — ai cũng xem được (tương tự `GET /api/clubs/{clubId}/leaderboard`).
+
+404 nếu `memberId` chưa từng là member của CLB (kể cả đã left/rejected).
+
+#### Response
+
+```json
+{
+  "data": {
+    "user": {
+      "id": 33,
+      "full_name": "Nguyễn Văn A",
+      "avatar_url": "https://..."
+    },
+    "club": {
+      "id": 12,
+      "name": "CLB Pickleball Q7"
+    },
+    "summary": {
+      "star": { "gold": 3, "silver": 2, "bronze": 1, "total_points": 13 },
+      "cup":  { "gold": 1, "silver": 0, "bronze": 2, "total_points": 3 },
+      "total_events": 9
+    },
+    "events": [
+      {
+        "event_id": 88,
+        "event_type": "tournament",
+        "event_name": "Giải Pickleball Mở Rộng 2026",
+        "event_date": "2026-09-15T08:00:00+07:00",
+        "event_status": "closed",
+        "is_club_hosted": false,
+        "rank": 1,
+        "medal": "gold",
+        "points": 1,
+        "is_star": false,
+        "is_cup": true,
+        "partner_names": ["Trần Văn B", "Lê Thị C"]
+      },
+      {
+        "event_id": 145,
+        "event_type": "mini_tournament",
+        "event_name": "Kèo đấu cuối tuần",
+        "event_date": "2026-10-05T18:00:00+07:00",
+        "event_status": "closed",
+        "is_club_hosted": true,
+        "rank": 1,
+        "medal": "gold",
+        "points": 3,
+        "is_star": true,
+        "is_cup": false,
+        "partner_names": []
+      }
+    ]
+  },
+  "message": "Lấy lịch sử thành tích thành viên thành công"
+}
+```
+
+#### Field mapping
+
+| Field | Type | Mô tả |
+|---|---|---|
+| `user` | object | Thông tin tối thiểu của user |
+| `club` | object | Thông tin tối thiểu của CLB |
+| `summary.star` | object | `{ gold, silver, bronze, total_points }` của kèo đấu mini_tournament |
+| `summary.cup` | object | `{ gold, silver, bronze, total_points }` của giải đấu tournament |
+| `summary.total_events` | int | Tổng event mà user đạt top 3 |
+| `events` | array | Flat list event, sort `event_date DESC` (mới nhất trước) |
+| `events[].event_type` | string | `tournament` (cup) hoặc `mini_tournament` (star) |
+| `events[].medal` | string | `gold` / `silver` / `bronze` |
+| `events[].rank` | int | 1 / 2 / 3 |
+| `events[].points` | int | star: 3/2/1, cup: 1/1/1 |
+| `events[].is_club_hosted` | bool | true nếu event do CLB hiện tại tổ chức |
+| `events[].partner_names` | array | Tên các member khác cùng team (đấu đôi) |
+
+#### Scope
+
+- **Mini-tournament (Sao)**: chỉ event thuộc CLB hiện tại (`mini_tournaments.club_id = club.id`), status CLOSED, `start_time >= MIN(joined_at)` của user. Guest (không có user_id thật) bị loại.
+- **Tournament (Cúp)**: tất cả tournament đã có final match completed (qua `TournamentRankService`), nhưng chỉ tính cup đạt được khi user đã là member của CLB (`start_date >= MIN(joined_at)`).
+
+#### Lưu ý cho Mobile
+
+- Sort events theo `event_date DESC` (mới nhất trước).
+- Filter nhanh theo loại: `events.filter(e => e.is_cup)` cho tab Cúp, `e.is_star` cho tab Sao.
+- Summary `total_points` của cup có thể không khớp với BXH Cúp CLB vì BXH CLB sort theo rule mới (chỉ gold/silver/bronze), còn `total_points` ở đây đếm số cup đạt được (= số event top 3).

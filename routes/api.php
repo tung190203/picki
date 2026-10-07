@@ -230,6 +230,7 @@ Route::prefix('clubs')->middleware(['performance'])->group(function () {
                 Route::post('/', [ClubMemberController::class, 'store']);
                 Route::get('/statistics', [ClubMemberController::class, 'statistics']);
                 Route::get('/{memberId}', [ClubMemberController::class, 'show']);
+                Route::get('/{memberId}/achievements', [ClubMemberController::class, 'achievements']);
                 Route::put('/{memberId}', [ClubMemberController::class, 'update']);
                 Route::delete('/{memberId}', [ClubMemberController::class, 'destroy']);
             });
@@ -705,6 +706,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
                 Route::post('/', [ClubMemberController::class, 'store']);
                 Route::get('/statistics', [ClubMemberController::class, 'statistics']);
                 Route::get('/{memberId}', [ClubMemberController::class, 'show']);
+                Route::get('/{memberId}/achievements', [ClubMemberController::class, 'achievements']);
                 Route::put('/{memberId}', [ClubMemberController::class, 'update']);
                 Route::delete('/{memberId}', [ClubMemberController::class, 'destroy']);
             });
