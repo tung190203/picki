@@ -896,8 +896,6 @@ class ParticipantController extends Controller
                     'is_pending_confirmation'  => false,
                     'checked_in_at'            => null,
                     'is_absent'                => false,
-                    'is_virtual'               => true,
-                    'virtual_member_id'        => $profile->id,
                     'club_guest_profile_id'    => $profile->id,
                 ];
             }
@@ -906,8 +904,6 @@ class ParticipantController extends Controller
         $participants = TournamentParticipantResource::collection($nonTeamParticipants)->toArray($request);
         foreach ($participants as &$p) {
             if (!empty($p['is_guest']) && isset($userNameToProfileId[$p['guest_name'] ?? ''])) {
-                $p['is_virtual'] = true;
-                $p['virtual_member_id'] = $userNameToProfileId[$p['guest_name']];
                 $p['club_guest_profile_id'] = $userNameToProfileId[$p['guest_name']];
             }
         }

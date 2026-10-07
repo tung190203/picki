@@ -17,8 +17,7 @@ class TournamentStaffResource extends JsonResource
         return [
             'id'                       => $this->id,
             'user_id'                   => $this->user_id !== null ? (int) $this->user_id : null,
-            'is_virtual'                => $this->user_id === null ? true : (bool) ($this->user?->is_guest ?? false),
-            'virtual_member_id'         => null, // đã bỏ — CLB guest giờ là User.is_guest
+            'is_guest' => $this->user_id === null ? true : (bool) ($this->user?->is_guest ?? false),
             'staff'                     => $this->whenLoaded('user', function () {
                 return [
                     'id'       => $this->user->id,

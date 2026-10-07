@@ -419,7 +419,7 @@ class SearchV2Controller extends Controller
     /**
      * Build JSON-shaped arrays for ClubGuestProfile records of a given club.
      * Shape mirrors SearchPlayerResource so the FE search invite UI shows them uniformly.
-     * Marker `is_virtual: true` + `id = club_guest_profiles.id` lets downstream invite
+     * Marker `is_guest: true` + `club_guest_profile_id` lets downstream invite
      * endpoints route through the CLB-guest code path.
      */
     private function buildVirtualMemberArrays(int $clubId, ?string $keyword): array
@@ -463,8 +463,6 @@ class SearchV2Controller extends Controller
                 'is_follow'    => false,
                 'marker_type'  => 'user',
                 'is_guest'     => true,
-                'is_virtual'   => true, // backward-compat cho UI cũ
-                'virtual_member_id' => $profile->id, // legacy
                 'club_guest_profile_id' => $profile->id, // dùng cho nhánh invite CLB guest
             ];
         }

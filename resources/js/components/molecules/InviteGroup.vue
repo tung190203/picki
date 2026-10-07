@@ -106,7 +106,7 @@
                                             class="w-full h-full object-cover"
                                         />
                                         <div
-                                            v-if="!user.is_guest && !user.is_virtual"
+                                            v-if="!user.is_guest"
                                             class="absolute -bottom-1 -left-1 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border border-white dark:border-slate-800"
                                         >
                                             <span class="text-white text-[9px] font-bold">
@@ -131,16 +131,16 @@
                                             {{ user.name || user.full_name || 'Thành viên ảo' }}
                                         </div>
                                         <span
-                                            v-if="user.is_guest || user.is_virtual"
+                                            v-if="user.is_guest"
                                             class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 flex-shrink-0"
-                                            :title="user.is_guest ? 'CLB guest (User.is_guest=true)' : 'Thành viên ảo'"
+                                            title="CLB guest"
                                         >
                                             Ảo
                                         </span>
                                     </div>
                                     <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 mt-0.5">
-                                        <component v-if="!user.is_guest && !user.is_virtual" :is="user.gender == 1 ? maleIcon : femaleIcon" class="w-4 h-4 flex-shrink-0" />
-                                        <span class="truncate">{{ (user.is_guest || user.is_virtual) ? 'Thành viên ảo' : (user.gender_text || '') }}</span>
+                                        <component v-if="!user.is_guest" :is="user.gender == 1 ? maleIcon : femaleIcon" class="w-4 h-4 flex-shrink-0" />
+                                        <span class="truncate">{{ user.is_guest ? 'Thành viên ảo' : (user.gender_text || '') }}</span>
                                     </div>
                                 </div>
 
@@ -152,12 +152,12 @@
                                         'px-4 py-2 rounded-lg text-sm font-semibold transition',
                                         user.invited
                                             ? 'bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500 cursor-not-allowed'
-                                            : (user.is_guest || user.is_virtual
+                                            :                                             (user.is_guest
                                                 ? 'bg-purple-500 text-white hover:bg-purple-600'
                                                 : 'bg-blue-500 text-white hover:bg-blue-600')
                                     ]"
                                 >
-                                    {{ user.invited ? 'Đã mời' : ((user.is_guest || user.is_virtual) ? 'Thêm' : 'Mời bạn') }}
+                                    {{ user.invited ? 'Đã mời' : (user.is_guest ? 'Thêm' : 'Mời bạn') }}
                                 </button>
                             </div>
 

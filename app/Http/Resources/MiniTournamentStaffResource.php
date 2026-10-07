@@ -31,8 +31,7 @@ class MiniTournamentStaffResource extends JsonResource
             'id' => $record->id,
             'mini_tournament_id' => $record->mini_tournament_id,
             'user_id' => $userId !== null ? (int) $userId : null,
-            'is_virtual' => $user ? (bool) $user->is_guest : false,
-            'virtual_member_id' => null, // đã bỏ — CLB guest giờ là User.is_guest
+            'is_guest' => $user ? (bool) $user->is_guest : false,
             'user' => $user ? new UserListResource($user) : null,
             'guest_name' => $user?->full_name ?? $record->guest_name ?? null,
             'guest_avatar' => $user?->avatar_url ?? $record->guest_avatar ?? null,

@@ -225,8 +225,7 @@ class ClubAchievementLeaderboardService
             if (!isset($scores[$userId])) {
                 $scores[$userId] = [
                     'user_id' => $userId,
-                    'virtual_member_id' => null,
-                    'is_virtual' => false,
+                    'is_guest' => (bool) ($member->is_guest ?? false),
                     'name' => $member->full_name ?? 'Khách',
                     'avatar_url' => $member->avatar_url,
                     'gold' => 0,
@@ -313,8 +312,7 @@ class ClubAchievementLeaderboardService
                     $user = $participant->user ?? User::find($userId);
                     $scores[$userId] = [
                         'user_id' => $userId,
-                        'virtual_member_id' => null,
-                        'is_virtual' => false,
+                        'is_guest' => (bool) ($user?->is_guest ?? false),
                         'name' => $user?->full_name ?? 'Khách',
                         'avatar_url' => $user?->avatar_url,
                         'gold' => 0,

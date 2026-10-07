@@ -59,7 +59,6 @@ export const searchUsersForInvite = async ({ keyword = '', subTab = 'all', clubI
     sports: u.sports || [],
     is_friend: u.is_friend ?? false,
     is_guest: Boolean(u.is_guest),
-    is_virtual: Boolean(u.is_guest), // backward-compat cho UI cũ (đã migrate từ VM sang CLB guest)
     invited: false,
   }));
 

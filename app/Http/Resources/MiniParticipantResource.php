@@ -30,13 +30,13 @@ class MiniParticipantResource extends JsonResource
                         'id' => $this->user->id,
                         'name' => $this->user->full_name,
                         'avatar_url' => $this->user->avatar_url,
-                        'is_virtual' => (bool) $this->user->is_guest,
+                        'is_guest' => (bool) $this->user->is_guest,
                     ]
                     : [
                         'id' => null,
                         'name' => (string) ($this->guest_name ?? ''),
                         'avatar_url' => $this->guest_avatar,
-                        'is_virtual' => false,
+                        'is_guest' => (bool) $this->is_guest,
                     ])
                 : new UserListResource($this->whenLoaded('user')),
             // Guest fields

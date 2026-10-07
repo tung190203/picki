@@ -42,7 +42,7 @@
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-1 flex-wrap">
                                     <span class="font-semibold text-gray-800">{{ display(item).full_name }}</span>
-                                    <span v-if="item.is_guest || item.is_virtual" class="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                                    <span v-if="item.is_guest" class="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
                                         CLB guest
                                     </span>
                                     <span v-else :class="[
@@ -133,7 +133,7 @@ const searchQuery = ref('')
 // - guest / CLB guest    -> guest_name / guest_avatar; user fields present (is_guest=true)
 const display = (item) => {
     const u = item?.user || {}
-    const isGuestLike = Boolean(item?.is_virtual || item?.is_guest)
+    const isGuestLike = Boolean(item?.is_guest)
     const name = isGuestLike || (!item?.user && item?.guest_name)
         ? (item?.guest_name || '')
         : (u.full_name || '')
@@ -149,7 +149,6 @@ const display = (item) => {
 
 const entryKey = (item) => {
     if (item?.is_guest) return `g-${item.id ?? item.guest_name}`
-    if (item?.is_virtual) return `vm-${item.virtual_member_id ?? item.id}` // legacy fallback
     return `u-${item?.user?.id ?? item?.id}`
 }
 

@@ -32,7 +32,7 @@ class TournamentParticipantResource extends JsonResource
             'is_pending_confirmation'  => $isGuest ? (bool) $this->is_pending_confirmation : false,
             'checked_in_at'            => $this->checked_in_at,
             'is_absent'                => (bool) $this->is_absent,
-            'is_virtual'               => $this->user ? (bool) $this->user->is_guest : false,
+            'is_guest' => $this->user ? (bool) $this->user->is_guest : false,
         ];
     }
 }

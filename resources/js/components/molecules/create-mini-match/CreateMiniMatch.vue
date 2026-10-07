@@ -97,7 +97,6 @@ export default {
                         participant_id: p.id,
                         user_id: p.user_id,
                         is_guest: Boolean(p.is_guest),
-                        is_virtual: Boolean(p.is_guest || p.is_virtual), // backward-compat
                     }
                 })
                 .filter(Boolean)

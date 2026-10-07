@@ -357,7 +357,7 @@ const goToItem = (item) => {
   if (!item) return;
   if (activeTab.value === "allClubs") {
     router.push(`/clubs/${item.id}`);
-  } else if (item.is_guest || item.is_virtual || !item.id) {
+  } else if (item.is_guest || !item.id) {
     toast.info('CLB guest (khách vãng lai) không có hồ sơ cá nhân.');
   } else {
     router.push(`/profile/${item.id}`);

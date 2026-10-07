@@ -479,7 +479,6 @@ export default {
                     checked_in_at: param.checked_in_at || null,
                     is_absent: param.is_absent || false,
                     is_guest: isGuest,
-                    is_virtual: isGuest, // backward-compat cho UI cũ
                     current_staff_role: lookupCurrentStaffRole(realUserId),
                     user: realUserId ? { id: realUserId, full_name: param.user?.full_name || param.name, avatar_url: param.user?.avatar_url || param.avatar } : null
                 }

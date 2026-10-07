@@ -357,7 +357,6 @@
                       <UserCard v-for="(item, index) in waitingConfirmationParticipants" :key="'waiting-' + index" :id="item.id"
                         :user-id="item.user_id || item.user?.id"
                         :is-guest="Boolean(item.is_guest)"
-                        :is-virtual="Boolean(item.is_guest || item.is_virtual)"
                         :name="getParticipantDisplayName(item)"
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
@@ -390,7 +389,6 @@
                       <UserCard v-for="(item, index) in confirmedParticipants" :key="'confirmed-' + index" :id="item.id"
                         :user-id="item.user_id || item.user?.id"
                         :is-guest="Boolean(item.is_guest)"
-                        :is-virtual="Boolean(item.is_guest || item.is_virtual)"
                         :name="getParticipantDisplayName(item)"
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
@@ -414,7 +412,6 @@
                       <UserCard v-for="(item, index) in checkedInParticipants" :key="'checkedin-' + index" :id="item.id"
                         :user-id="item.user_id || item.user?.id"
                         :is-guest="Boolean(item.is_guest)"
-                        :is-virtual="Boolean(item.is_guest || item.is_virtual)"
                         :name="getParticipantDisplayName(item)"
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
@@ -436,7 +433,6 @@
                       <UserCard v-for="(item, index) in absentParticipants" :key="'absent-' + index" :id="item.id"
                         :user-id="item.user_id || item.user?.id"
                         :is-guest="Boolean(item.is_guest)"
-                        :is-virtual="Boolean(item.is_guest || item.is_virtual)"
                         :name="getParticipantDisplayName(item)"
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
@@ -1482,7 +1478,6 @@ function openMemberActionModal(param) {
       checked_in_at: param.checked_in_at || null,
       is_absent: param.is_absent || false,
       is_guest: isGuest,
-      is_virtual: isGuest, // backward-compat cho UI cũ
       user: realUserId ? { id: realUserId, full_name: param.user?.full_name || param.name, avatar_url: param.user?.avatar_url || param.avatar } : null
     }
   } else {
