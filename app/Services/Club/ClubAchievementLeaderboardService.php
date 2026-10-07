@@ -432,28 +432,59 @@ class ClubAchievementLeaderboardService
     /**
      * Thu thập các event tournament mà user đạt top 3.
      *
+     * Tối ưu: thay vì lặp TOÀN BỘ tournament của hệ thống rồi query
+     * rankLabelsByTeam cho từng type (gây N+1 query + 8s+ response time),
+     * ta scope trước bằng cách lấy tập tournament_id mà user là participant
+     * hoặc nằm trong team_members, rồi mới load tournament.
+     *
      * @return Collection<int, array<string, mixed>>
      */
     private function collectCupEvents(Club $club, int $userId, Carbon $firstJoinedAt): Collection
     {
         $events = collect();
 
+        // 1. Lấy tập tournament_id user tham gia (qua Participant hoặc team_members).
+        $tournamentIds = $this->findUserTournamentIds($userId);
+
+        if ($tournamentIds === []) {
+            return $events;
+        }
+
+        // 2. Load đúng các tournament đó, kèm types. Chỉ giữ những giải
+        //    có start_date >= firstJoinedAt (rule "từ ngày vào CLB trở đi").
         $tournaments = Tournament::query()
             ->with('tournamentTypes')
+            ->whereIn('id', $tournamentIds)
+            ->where(function ($q) use ($firstJoinedAt) {
+                $q->where('start_date', '>=', $firstJoinedAt)
+                    ->orWhereNull('start_date');
+            })
             ->orderByDesc('start_date')
             ->get();
+
+        // 3. Nạp sẵn rank labels theo tournament_type_id (1 round-trip thay vì N+1)
+        //    + collect team_ids từ rankLabels để bulk-load teams (tránh N+1 find()).
+        $typeIds = $tournaments->pluck('tournamentTypes.*.id')->flatten()->unique()->all();
+        $rankLabelsByType = [];
+        $teamIds = [];
+        foreach ($typeIds as $typeId) {
+            $labels = $this->rankService->rankLabelsByTeam($typeId);
+            $rankLabelsByType[$typeId] = $labels;
+            foreach ($labels as $teamId => $info) {
+                $teamIds[$teamId] = true;
+            }
+        }
+        $teams = $teamIds
+            ? TournamentTeam::with('members')->whereIn('id', array_keys($teamIds))->get()->keyBy('id')
+            : collect();
 
         foreach ($tournaments as $tournament) {
             $tournamentDate = $tournament->start_date
                 ?? $tournament->end_date
                 ?? $tournament->created_at;
 
-            if ($tournamentDate && Carbon::parse($tournamentDate)->lt($firstJoinedAt)) {
-                continue;
-            }
-
             foreach ($tournament->tournamentTypes as $type) {
-                $rankLabels = $this->rankService->rankLabelsByTeam($type->id);
+                $rankLabels = $rankLabelsByType[$type->id] ?? [];
 
                 foreach ($rankLabels as $teamId => $rankInfo) {
                     $rank = (int) ($rankInfo['overall_rank'] ?? 0);
@@ -461,7 +492,7 @@ class ClubAchievementLeaderboardService
                         continue;
                     }
 
-                    $team = TournamentTeam::with('members')->find($teamId);
+                    $team = $teams->get($teamId);
                     if (!$team) {
                         continue;
                     }
@@ -492,6 +523,28 @@ class ClubAchievementLeaderboardService
         }
 
         return $events;
+    }
+
+    /**
+     * Tập tournament_id mà user đã từng tham gia (qua Participant hoặc team_members).
+     *
+     * @return int[]
+     */
+    private function findUserTournamentIds(int $userId): array
+    {
+        $fromParticipants = TournamentParticipant::where('user_id', $userId)
+            ->whereNotNull('tournament_id')
+            ->pluck('tournament_id')
+            ->all();
+
+        $fromTeams = DB::table('team_members')
+            ->join('teams', 'teams.id', '=', 'team_members.team_id')
+            ->where('team_members.user_id', $userId)
+            ->whereNotNull('teams.tournament_id')
+            ->pluck('teams.tournament_id')
+            ->all();
+
+        return array_values(array_unique(array_merge($fromParticipants, $fromTeams)));
     }
 
     private function resolveStarPartnerNames(MiniTournament $mini, int $userId, int $rank): array

@@ -159,6 +159,8 @@ class ClubService
                 'logo_url' => $logoPath,
                 'status' => $data['status'] ?? $club->status,
                 'is_public' => $data['is_public'] ?? $club->is_public,
+                'rules' => $data['rules'] ?? $club->rules,
+                'recurring_schedule_text' => $data['recurring_schedule_text'] ?? $club->recurring_schedule_text,
             ]);
 
             $profile = $club->profile;

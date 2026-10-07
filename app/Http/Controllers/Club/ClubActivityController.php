@@ -234,17 +234,23 @@ class ClubActivityController extends Controller
         $endTimeCondition = [];
 
         // Build query với OR groups
-        $query->where(function ($q) use ($userId, $filterStatuses, $dateCondition, $isClubStaff) {
+        $query->where(function ($q) use ($userId, $filterStatuses, $dateCondition, $isClubStaff, $isHistoryOnly) {
             // Nếu là club staff thì thấy tất cả (không cần logic phức tạp)
             if ($isClubStaff) {
                 // Apply status filter
                 if (!empty($filterStatuses)) {
                     $q->whereIn('status', $filterStatuses);
                 }
-                
+
                 // Apply date filter
                 foreach ($dateCondition as $cond) {
                     $q->whereDate($cond['column'], $cond['operator'], $cond['value']);
+                }
+
+                // Tab "Đã kết thúc": chỉ hiện kèo thực sự đã qua (start_time <= now)
+                // Tránh kèo có status=closed nhưng start_time trong tương lai do data bị set sai
+                if ($isHistoryOnly) {
+                    $q->where('start_time', '<=', now());
                 }
                 return;
             }
@@ -287,12 +293,17 @@ class ClubActivityController extends Controller
                 MiniTournament::STATUS_CANCELLED
             ]);
             if (!empty($publicStatuses)) {
-                $q->orWhere(function ($sub) use ($publicStatuses, $dateCondition) {
+                $q->orWhere(function ($sub) use ($publicStatuses, $dateCondition, $isHistoryOnly) {
                     $sub->whereIn('status', $publicStatuses);
 
                     // Áp dụng date filter
                     foreach ($dateCondition as $cond) {
                         $sub->whereDate($cond['column'], $cond['operator'], $cond['value']);
+                    }
+
+                    // Tab "Đã kết thúc": chỉ hiện kèo thực sự đã qua
+                    if ($isHistoryOnly) {
+                        $sub->where('start_time', '<=', now());
                     }
                 });
             }
@@ -372,17 +383,23 @@ class ClubActivityController extends Controller
         $endDateCondition = [];
 
         // Build query với OR groups
-        $query->where(function ($q) use ($userId, $filterStatuses, $dateCondition, $isClubStaff) {
+        $query->where(function ($q) use ($userId, $filterStatuses, $dateCondition, $isClubStaff, $isHistoryOnly) {
             // Nếu là club staff thì thấy tất cả (không cần logic phức tạp)
             if ($isClubStaff) {
                 // Apply status filter
                 if (!empty($filterStatuses)) {
                     $q->whereIn('status', $filterStatuses);
                 }
-                
+
                 // Apply date filter
                 foreach ($dateCondition as $cond) {
                     $q->whereDate($cond['column'], $cond['operator'], $cond['value']);
+                }
+
+                // Tab "Đã kết thúc": chỉ hiện giải thực sự đã qua (start_date <= now)
+                // Tránh giải có status=closed nhưng start_date trong tương lai do data bị set sai
+                if ($isHistoryOnly) {
+                    $q->where('start_date', '<=', now());
                 }
                 return;
             }
@@ -425,12 +442,17 @@ class ClubActivityController extends Controller
                 Tournament::CANCELLED
             ]);
             if (!empty($publicStatuses)) {
-                $q->orWhere(function ($sub) use ($publicStatuses, $dateCondition) {
+                $q->orWhere(function ($sub) use ($publicStatuses, $dateCondition, $isHistoryOnly) {
                     $sub->whereIn('status', $publicStatuses);
 
                     // Áp dụng date filter
                     foreach ($dateCondition as $cond) {
                         $sub->whereDate($cond['column'], $cond['operator'], $cond['value']);
+                    }
+
+                    // Tab "Đã kết thúc": chỉ hiện giải thực sự đã qua
+                    if ($isHistoryOnly) {
+                        $sub->where('start_date', '<=', now());
                     }
                 });
             }
