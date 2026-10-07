@@ -27,13 +27,12 @@ class TournamentGuestController extends Controller
     public function store(Request $request, $tournamentId)
     {
         $data = $request->validate([
-            'guest_name' => 'required_without:club_guest_profile_id|nullable|string|max:255',
+            'guest_name' => 'required_without:club_id|nullable|string|max:255',
             'guest_phone' => 'nullable|string|max:20',
             'guest_avatar' => 'nullable|file|mimes:jpeg,png,jpg,gif,svg,webp|max:5120',
             'guarantor_user_id' => 'nullable|integer|exists:users,id',
             'estimated_level' => 'nullable|numeric|min:1|max:2.5',
-            'club_guest_profile_id' => 'nullable|integer|exists:club_guest_profiles,id',
-            'create_club_guest_for_club_id' => 'nullable|integer|exists:clubs,id',
+            'club_id' => 'nullable|integer|exists:clubs,id',
         ]);
 
         $tournament = Tournament::with('staff')->findOrFail($tournamentId);
@@ -113,30 +112,24 @@ class TournamentGuestController extends Controller
         }
 
         // ─────────────────────────────────────────────────────────────────────────
-        // CLB guest flows (2 nhánh)
+        // CLB guest flow: tạo User.is_guest + ClubGuestProfile mới.
         // ─────────────────────────────────────────────────────────────────────────
         $createdClubGuestProfileId = null;
-        if (!empty($data['club_guest_profile_id'])) {
-            $profile = \App\Models\Club\ClubGuestProfile::with('user')->findOrFail($data['club_guest_profile_id']);
-            $guestUser = $profile->user;
-            if (!$guestUser) {
-                return ResponseHelper::error('CLB guest không có user liên kết', 422);
-            }
-            if (empty($data['guest_name'])) {
-                $data['guest_name'] = $guestUser->full_name;
-            }
-            if (empty($guestAvatarUrl) && $guestUser->avatar_url) {
-                $guestAvatarUrl = $guestUser->avatar_url;
-            }
-        } elseif (!empty($data['create_club_guest_for_club_id'])) {
-            $club = ModelsClub::findOrFail($data['create_club_guest_for_club_id']);
+        if (!empty($data['club_id'])) {
+            $club = ModelsClub::findOrFail($data['club_id']);
             if (!$club->canManage(auth()->id())) {
                 return ResponseHelper::error('Bạn không có quyền tạo CLB guest cho club này', 403);
             }
             $guestUser = $this->findOrCreateGuestUserForEvent($data, $guestAvatarUrl);
-            $profile = \App\Models\Club\ClubGuestProfile::firstOrCreate(
+            // Tạo/cập nhật ClubGuestProfile (UNIQUE club_id+user_id sẽ chặn duplicate).
+            // Dùng updateOrCreate để luôn sync estimated_level mỗi lần mời
+            // (firstOrCreate sẽ bỏ qua update nếu profile đã tồn tại).
+            $profile = \App\Models\Club\ClubGuestProfile::updateOrCreate(
                 ['club_id' => $club->id, 'user_id' => $guestUser->id],
-                ['created_by' => auth()->id(), 'notes' => null]
+                [
+                    'created_by' => auth()->id(),
+                    'estimated_level' => $data['estimated_level'] ?? null,
+                ]
             );
             $createdClubGuestProfileId = $profile->id;
         }
@@ -191,7 +184,8 @@ class TournamentGuestController extends Controller
             'guest_phone' => $guestUser->phone,
             'guest_avatar' => $guestAvatarUrl,
             'guarantor_user_id' => $guarantorUserId,
-            'estimated_level' => $data['estimated_level'] ?? null,
+            'estimated_level' => $data['estimated_level']
+                ?? ($createdClubGuestProfileId && isset($profile) ? $profile->estimated_level : null),
             'is_pending_confirmation' => $isPendingConfirmation,
             'payment_status' => $paymentStatus,
             'self_registered' => false,

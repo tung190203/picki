@@ -660,12 +660,15 @@ class ParticipantController extends Controller
             ? ($tournament->player_per_team * $tournament->max_team)
             : ($tournament->max_team * $tournament->player_per_team);
 
-        // Resolve club_guest_profile_ids → user_ids
+        // Resolve club_guest_profile_ids → user_ids + snapshot estimated_level
+        $profileUserMap = []; // [user_id => ClubGuestProfile]
         $profileUserIds = [];
         if (!empty($rawClubGuestProfileIds)) {
-            $profileUserIds = \App\Models\Club\ClubGuestProfile::whereIn('id', $rawClubGuestProfileIds)
-                ->pluck('user_id')
-                ->all();
+            $profiles = \App\Models\Club\ClubGuestProfile::whereIn('id', $rawClubGuestProfileIds)->get();
+            $profileUserIds = $profiles->pluck('user_id')->all();
+            foreach ($profiles as $p) {
+                $profileUserMap[$p->user_id] = $p;
+            }
         }
         $allRealUserIds = array_values(array_unique(array_merge($rawUserIds, $profileUserIds)));
         $allRequestedIds = $allRealUserIds;
@@ -695,9 +698,13 @@ class ParticipantController extends Controller
                 // Lấy info user.is_guest để set is_guest + snapshot name/avatar/phone cho CLB guest
                 $usersById = User::whereIn('id', $newUserIds)->get()->keyBy('id');
 
-                $insertData = array_map(function ($invitedUserId) use ($tournament, $isSuperAdmin, $paymentStatus, $organizer, $usersById) {
+                $insertData = array_map(function ($invitedUserId) use ($tournament, $isSuperAdmin, $paymentStatus, $organizer, $usersById, $profileUserMap) {
                     $u = $usersById[$invitedUserId] ?? null;
                     $isGuest = $u && (bool) $u->is_guest;
+                    // Snapshot estimated_level từ ClubGuestProfile (chỉ áp dụng cho CLB guest)
+                    $estimatedLevel = ($isGuest && isset($profileUserMap[$invitedUserId]))
+                        ? $profileUserMap[$invitedUserId]->estimated_level
+                        : null;
                     return [
                         'tournament_id' => $tournament->id,
                         'user_id' => $invitedUserId,
@@ -709,6 +716,7 @@ class ParticipantController extends Controller
                         'guest_avatar' => $isGuest ? $u->avatar_url : null,
                         'guest_phone' => $isGuest ? $u->phone : null,
                         'guarantor_user_id' => $isGuest ? $organizer->id : null,
+                        'estimated_level' => $estimatedLevel,
                         'created_at' => now(),
                         'updated_at' => now(),
                         'payment_status' => $paymentStatus,

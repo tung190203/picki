@@ -58,7 +58,7 @@ class ClubGuestProfileController extends Controller
             'guest_name' => 'required|string|max:255',
             'guest_phone' => 'nullable|string|max:20',
             'guest_avatar' => 'nullable|file|mimes:jpeg,png,jpg,gif,svg,webp|max:5120',
-            'notes' => 'nullable|string|max:500',
+            'estimated_level' => 'nullable|numeric|min:1|max:8',
         ]);
 
         $user = $this->findOrCreateGuestUser($data, $request);
@@ -66,7 +66,7 @@ class ClubGuestProfileController extends Controller
         $profile = ClubGuestProfile::create([
             'club_id' => $club->id,
             'user_id' => $user->id,
-            'notes' => $data['notes'] ?? null,
+            'estimated_level' => $data['estimated_level'] ?? null,
             'created_by' => auth()->id(),
         ]);
 
@@ -81,7 +81,7 @@ class ClubGuestProfileController extends Controller
 
     /**
      * PUT /api/clubs/{clubId}/guests/profiles/{id}
-     * Sửa notes + sync name/avatar/phone của user.
+     * Sửa estimated_level + sync name/avatar/phone của user.
      */
     public function update(Request $request, $clubId, $id)
     {
@@ -97,7 +97,7 @@ class ClubGuestProfileController extends Controller
             'guest_name' => 'nullable|string|max:255',
             'guest_phone' => 'nullable|string|max:20',
             'guest_avatar' => 'nullable|file|mimes:jpeg,png,jpg,gif,svg,webp|max:5120',
-            'notes' => 'nullable|string|max:500',
+            'estimated_level' => 'nullable|numeric|min:1|max:8',
         ]);
 
         DB::transaction(function () use ($profile, $data, $request) {
@@ -120,8 +120,8 @@ class ClubGuestProfileController extends Controller
                 $profile->user->updateQuietly($userUpdates);
             }
 
-            if (array_key_exists('notes', $data)) {
-                $profile->update(['notes' => $data['notes']]);
+            if (array_key_exists('estimated_level', $data)) {
+                $profile->update(['estimated_level' => $data['estimated_level']]);
             }
         });
 

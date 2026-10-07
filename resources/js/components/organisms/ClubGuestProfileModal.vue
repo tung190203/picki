@@ -62,10 +62,10 @@
 
                         <div>
                             <label class="block text-sm font-semibold text-[#3E414C] mb-1">
-                                Ghi chú
+                                Trình độ ước tính (Không bắt buộc, 1.0–8.0)
                             </label>
-                            <textarea v-model="form.notes" rows="2" placeholder="Ghi chú thông tin phụ (khách vãng lai, sđt người bảo lãnh...)"
-                                class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[#3E414C] text-gray-900 font-medium placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/20 focus:border-[#D72D36] transition-colors"></textarea>
+                            <input v-model.number="form.estimated_level" type="number" min="1" max="8" step="0.5" placeholder="VD: 4.5"
+                                class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[#3E414C] text-gray-900 font-medium placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/20 focus:border-[#D72D36] transition-colors" />
                         </div>
 
                         <div class="pt-3 flex items-center gap-3">
@@ -106,7 +106,7 @@ const emit = defineEmits(['update:modelValue', 'submit'])
 const form = reactive({
     guest_name: '',
     guest_phone: '',
-    notes: ''
+    estimated_level: null
 })
 
 const fileInput = ref(null)
@@ -165,8 +165,8 @@ const submit = () => {
             payload.append('guest_phone', form.guest_phone.trim())
         }
         payload.append('guest_avatar', avatarFile.value)
-        if (form.notes.trim()) {
-            payload.append('notes', form.notes.trim())
+        if (form.estimated_level != null) {
+            payload.append('estimated_level', Number(form.estimated_level))
         }
         emit('submit', payload)
     } else {
@@ -176,8 +176,8 @@ const submit = () => {
         if (form.guest_phone.trim()) {
             payload.guest_phone = form.guest_phone.trim()
         }
-        if (form.notes.trim()) {
-            payload.notes = form.notes.trim()
+        if (form.estimated_level != null) {
+            payload.estimated_level = Number(form.estimated_level)
         }
         emit('submit', payload)
     }
@@ -187,7 +187,7 @@ watch(() => props.modelValue, (val) => {
     if (val) {
         form.guest_name = ''
         form.guest_phone = ''
-        form.notes = ''
+        form.estimated_level = null
         clearAvatar()
     }
 })

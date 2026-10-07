@@ -45,14 +45,14 @@ class GuestController extends Controller
     public function store(Request $request, $miniTournamentId)
     {
         $data = $request->validate([
-            'guest_name' => 'required_without:club_guest_profile_id|nullable|string|max:255',
+            'guest_name' => 'required_without:club_id|nullable|string|max:255',
             'guest_phone' => 'nullable|string|max:20',
             'guest_avatar' => 'nullable|file|mimes:jpeg,png,jpg,gif,svg,webp|max:5120',
             'guarantor_user_id' => 'nullable|integer|exists:users,id',
             'estimated_level_min' => 'nullable|numeric|min:1|max:8',
             'estimated_level_max' => 'nullable|numeric|min:1|max:8',
-            'club_guest_profile_id' => 'nullable|integer|exists:club_guest_profiles,id',
-            'create_club_guest_for_club_id' => 'nullable|integer|exists:clubs,id',
+            'club_id' => 'nullable|integer|exists:clubs,id',
+            'estimated_level' => 'nullable|numeric|min:1|max:8',
         ]);
 
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
@@ -143,34 +143,25 @@ class GuestController extends Controller
         }
 
         // ─────────────────────────────────────────────────────────────────────────
-        // CLB guest flows (2 nhánh):
-        //  - club_guest_profile_id: chọn 1 CLB guest có sẵn → lấy user từ profile.
-        //  - create_club_guest_for_club_id: tạo User.is_guest + ClubGuestProfile mới.
+        // CLB guest flow:
+        //  - club_id: tạo User.is_guest + ClubGuestProfile mới.
         // ─────────────────────────────────────────────────────────────────────────
         $createdClubGuestProfileId = null;
-        if (!empty($data['club_guest_profile_id'])) {
-            $profile = \App\Models\Club\ClubGuestProfile::with('user')->findOrFail($data['club_guest_profile_id']);
-            $guestUser = $profile->user;
-            if (!$guestUser) {
-                return ResponseHelper::error('CLB guest không có user liên kết', 422);
-            }
-            // Lấy name/avatar mới nhất từ user (nếu client gửi kèm thì ưu tiên)
-            if (empty($data['guest_name'])) {
-                $data['guest_name'] = $guestUser->full_name;
-            }
-            if (empty($guestAvatarUrl) && $guestUser->avatar_url) {
-                $guestAvatarUrl = $guestUser->avatar_url;
-            }
-        } elseif (!empty($data['create_club_guest_for_club_id'])) {
-            $club = Club::findOrFail($data['create_club_guest_for_club_id']);
+        if (!empty($data['club_id'])) {
+            $club = Club::findOrFail($data['club_id']);
             if (!$club->canManage(auth()->id())) {
                 return ResponseHelper::error('Bạn không có quyền tạo CLB guest cho club này', 403);
             }
             $guestUser = $this->findOrCreateGuestUserForEvent($data, $guestAvatarUrl);
-            // Tạo ClubGuestProfile (UNIQUE club_id+user_id sẽ chặn duplicate)
-            $profile = \App\Models\Club\ClubGuestProfile::firstOrCreate(
+            // Tạo/cập nhật ClubGuestProfile (UNIQUE club_id+user_id sẽ chặn duplicate).
+            // Dùng updateOrCreate để luôn sync estimated_level mỗi lần mời
+            // (firstOrCreate sẽ bỏ qua update nếu profile đã tồn tại).
+            $profile = \App\Models\Club\ClubGuestProfile::updateOrCreate(
                 ['club_id' => $club->id, 'user_id' => $guestUser->id],
-                ['created_by' => auth()->id(), 'notes' => null]
+                [
+                    'created_by' => auth()->id(),
+                    'estimated_level' => $data['estimated_level'] ?? null,
+                ]
             );
             $createdClubGuestProfileId = $profile->id;
         }
@@ -178,7 +169,7 @@ class GuestController extends Controller
         // Tạo hoặc tìm user cho guest - LUÔN LUÔN tạo user (có hoặc không có phone)
         // Nếu có phone: tìm user theo phone hoặc tạo mới is_guest
         // Nếu không phone: tạo user is_guest không có phone
-        // (Bỏ qua khi đã chọn club_guest_profile_id hoặc đã tạo qua create_club_guest_for_club_id)
+        // (Bỏ qua khi đã tạo qua club_id)
         if (!isset($guestUser)) {
             $guestUser = null;
 
@@ -237,8 +228,10 @@ class GuestController extends Controller
             'guest_avatar' => $guestAvatarUrl,
             'guarantor_user_id' => $guarantorUserId,
             'payment_status' => $paymentStatus,
-            'estimated_level_min' => $data['estimated_level_min'] ?? null,
-            'estimated_level_max' => $data['estimated_level_max'] ?? null,
+            'estimated_level_min' => $data['estimated_level_min']
+                ?? ($createdClubGuestProfileId && isset($profile) ? $profile->estimated_level : null),
+            'estimated_level_max' => $data['estimated_level_max']
+                ?? ($createdClubGuestProfileId && isset($profile) ? $profile->estimated_level : null),
             'is_pending_confirmation' => $isPendingConfirmation,
         ];
 
@@ -697,7 +690,7 @@ class GuestController extends Controller
 
     /**
      * Tìm User theo phone (nếu có) hoặc tạo mới User.is_guest=true cho luồng
-     * "create_club_guest_for_club_id". Nếu phone trùng user thật → giữ user thật
+     * "club_id". Nếu phone trùng user thật → giữ user thật
      * (không set is_guest).
      */
     private function findOrCreateGuestUserForEvent(array $data, ?string $avatarUrl): User

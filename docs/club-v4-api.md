@@ -205,31 +205,33 @@ Soft-delete `ClubGuestProfile`. KHÔNG xoá `User` vì user có thể thuộc nh
 }
 ```
 
-### Mời guest vào event (mini-tournament / Tournament) — 3 nhánh
+### Mời guest vào event (mini-tournament / Tournament)
 
-Hai endpoint hiện có `POST /api/mini-tournaments/{id}/guests` và `POST /api/tournaments/{id}/guests` hỗ trợ **2 field optional mới** (loại trừ nhau):
+Hai endpoint `POST /api/mini-tournaments/{id}/guests` và `POST /api/tournaments/{id}/guests` hỗ trợ **2 field optional mới**:
 
 ```
-club_guest_profile_id        int  optional  Chọn CLB guest có sẵn (User đã có sẵn)
-create_club_guest_for_club_id int optional  Tạo CLB guest mới + thêm vào event
+club_id          int   optional  Tạo CLB guest mới thuộc club_id + thêm vào event
+estimated_level  float optional  Trình độ CLB guest (1.0–8.0). Gửi kèm khi truyền `club_id`.
+                                     Snapshot xuống participants.estimated_level (kèo: min=max)
+                                     hoặc participants.estimated_level (giải).
 ```
 
 | Nhánh | Field | Hành vi |
 |---|---|---|
-| 1 — Per-event (mặc định) | (không truyền field nào ở trên) | Như cũ — tạo User (nếu cần) + Participant với snapshot name/phone/avatar. Không tạo `ClubGuestProfile`. |
-| 2 — Chọn CLB guest có sẵn | `club_guest_profile_id` | Lookup `User` qua `club_guest_profiles.user_id`. KHÔNG ràng buộc club_id — CLB guest có thể được mời vào event của CLB khác. Set `guest_name/guest_avatar/guest_phone` từ User, tạo participant. |
-| 3 — Tạo mới CLB guest + thêm vào event | `create_club_guest_for_club_id` | Caller phải vừa là organizer của event VỪA là staff (`canManage()`) của `create_club_guest_for_club_id`. BE tạo `User` (nếu cần) + `ClubGuestProfile` + `Participant` trong 1 transaction. Response trả về `club_guest_profile_id`. |
+| 1 — Per-event (mặc định) | (không truyền `club_id`) | Như cũ — tạo User (nếu cần) + Participant với snapshot name/phone/avatar. Không tạo `ClubGuestProfile`. |
+| 2 — Tạo mới CLB guest + thêm vào event | `club_id` (+ `estimated_level`?) | Caller phải vừa là organizer của event VỪA là staff (`canManage()`) của `club_id`. BE tạo `User` (nếu cần) + `ClubGuestProfile` (với `estimated_level` nếu truyền) + `Participant` trong 1 transaction. Response trả về `club_guest_profile_id`. |
 
 #### Mời nhiều người cùng lúc (multi-invite)
 
-`POST /api/mini-tournaments/{id}/participants/invite` và `POST /api/tournaments/{id}/participants/invite` cũng nhận 2 field mới:
+`POST /api/mini-tournaments/{id}/participants/invite` và `POST /api/tournaments/{id}/participants/invite` nhận 2 field mới:
 
 ```
-club_guest_profile_ids         array  optional  Danh sách CLB guest profile id muốn mời
-create_club_guest_for_club_id  int    optional  Tạo mới CLB guest (cho tất cả guest mới trong lần invite này)
+club_guest_profile_ids  array  optional  Danh sách CLB guest profile id muốn mời
+club_id                 int    optional  Tạo mới CLB guest thuộc club_id (cho tất cả guest mới trong lần invite này)
 ```
 
-Cùng semantics như 2 endpoint trên.
+- Nhánh `club_guest_profile_ids`: lookup User qua `club_guest_profiles.user_id`. KHÔNG ràng buộc club_id — CLB guest có thể được mời vào event của CLB khác. **Snapshot `estimated_level` từ `ClubGuestProfile` xuống participant** (kèo: min=max; giải: 1 cột).
+- Nhánh `club_id`: cùng semantics như nhánh 2 ở bảng trên (Caller phải vừa là organizer của event VỪA là staff của `club_id`).
 
 ### `quantity_members` của CLB
 

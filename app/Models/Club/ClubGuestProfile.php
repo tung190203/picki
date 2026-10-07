@@ -22,8 +22,12 @@ class ClubGuestProfile extends Model
     protected $fillable = [
         'club_id',
         'user_id',
-        'notes',
+        'estimated_level',
         'created_by',
+    ];
+
+    protected $casts = [
+        'estimated_level' => 'decimal:1',
     ];
 
     public function club()

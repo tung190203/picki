@@ -12,7 +12,7 @@ class ClubGuestProfileResource extends JsonResource
         return [
             'id' => $this->id,
             'club_id' => $this->club_id,
-            'notes' => $this->notes,
+            'estimated_level' => $this->estimated_level !== null ? (float) $this->estimated_level : null,
             'user' => $this->whenLoaded('user', function () {
                 return [
                     'id' => $this->user->id,

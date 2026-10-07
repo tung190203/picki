@@ -44,13 +44,27 @@
                   Tạo cho CLB
                 </button>
               </div>
-              <select v-if="createScope === 'club'" v-model="createClubGuestForClubId"
+              <select v-if="createScope === 'club'" v-model="createGuestClubId"
                 class="mt-2 w-full bg-[#F9FAFB] dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition cursor-pointer font-medium">
                 <option value="">-- Chọn CLB --</option>
                 <option v-for="club in managedClubs" :key="club.id" :value="club.id">
                   {{ club.name }}
                 </option>
               </select>
+              <div v-if="createScope === 'club'" class="mt-2">
+                <label class="block text-[11px] text-[#6B7280] dark:text-slate-400 mb-1">
+                  Trình độ ước tính của CLB guest (1.0–8.0, tùy chọn)
+                </label>
+                <input
+                  v-model.number="form.estimated_level"
+                  type="number"
+                  min="1"
+                  max="8"
+                  step="0.5"
+                  placeholder="VD: 4.5"
+                  class="w-full bg-[#F9FAFB] dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
+                />
+              </div>
             </div>
 
             <!-- Tên hiển thị -->
@@ -274,6 +288,7 @@ const form = ref({
   guarantor_user_id: '',
   estimated_level_min: null,
   estimated_level_max: null,
+  estimated_level: null, // CLB scope only: trình độ lưu trên ClubGuestProfile
 })
 
 const avatarInput = ref(null)
@@ -283,7 +298,7 @@ const isSubmitting = ref(false)
 const guarantorCandidates = ref([])
 const managedClubs = ref([])
 const createScope = ref('event') // 'event' | 'club'
-const createClubGuestForClubId = ref('')
+const createGuestClubId = ref('')
 
 const validateForm = () => {
   errors.value = {}
@@ -304,7 +319,7 @@ const validateForm = () => {
     errors.value.guarantor_user_id = 'Vui lòng chọn người bảo lãnh (Thu tiền)'
   }
 
-  if (createScope.value === 'club' && !createClubGuestForClubId.value) {
+  if (createScope.value === 'club' && !createGuestClubId.value) {
     toast.error('Vui lòng chọn CLB để tạo guest')
     return false
   }
@@ -320,10 +335,11 @@ const resetForm = () => {
     guarantor_user_id: '',
     estimated_level_min: null,
     estimated_level_max: null,
+    estimated_level: null,
   }
   avatarPreview.value = ''
   createScope.value = 'event'
-  createClubGuestForClubId.value = ''
+  createGuestClubId.value = ''
   errors.value = {}
 }
 
@@ -365,7 +381,7 @@ const fetchManagedClubs = async () => {
 const onToggleCreateScope = (scope) => {
   createScope.value = scope
   if (scope !== 'club') {
-    createClubGuestForClubId.value = ''
+    createGuestClubId.value = ''
   }
 }
 
@@ -422,8 +438,11 @@ const handleSubmit = async () => {
     if (form.value.estimated_level_max != null) {
       payload.append('estimated_level_max', Number(form.value.estimated_level_max))
     }
-    if (createScope.value === 'club' && createClubGuestForClubId.value) {
-      payload.append('create_club_guest_for_club_id', Number(createClubGuestForClubId.value))
+    if (createScope.value === 'club' && createGuestClubId.value) {
+      payload.append('club_id', Number(createGuestClubId.value))
+      if (form.value.estimated_level != null) {
+        payload.append('estimated_level', Number(form.value.estimated_level))
+      }
     }
 
     const response = await addGuest(props.miniTournament.id, payload)

@@ -7,7 +7,8 @@ export const sendInvitation = async (miniTournamentId, userIds, isInviteAround =
     // RBAC v2: mọi user (cả thật lẫn User.is_guest=true) gom vào `user_ids`.
     // 2 tuỳ chọn thêm (loại trừ nhau):
     //   - `club_guest_profile_ids`: chọn CLB guest có sẵn để mời vào event.
-    //   - `create_club_guest_for_club_id`: tạo CLB guest mới cho 1 club + thêm vào event (transaction).
+    //   - `club_guest_profile_ids`: chọn CLB guest có sẵn để mời vào event.
+    //   - `club_id`: tạo CLB guest mới cho 1 club + thêm vào event (transaction).
     const uIds = Array.isArray(userIds) ? userIds.filter((x) => x != null) : [];
     const cgpIds = Array.isArray(clubGuestProfileIds) ? clubGuestProfileIds.filter((x) => x != null) : [];
     const payload = {
@@ -16,8 +17,8 @@ export const sendInvitation = async (miniTournamentId, userIds, isInviteAround =
     };
     if (uIds.length) payload.user_ids = uIds;
     if (cgpIds.length) payload.club_guest_profile_ids = cgpIds;
-    if (extra?.create_club_guest_for_club_id) {
-        payload.create_club_guest_for_club_id = Number(extra.create_club_guest_for_club_id);
+    if (extra?.club_id) {
+        payload.club_id = Number(extra.club_id);
     }
     return axiosInstance.post(`/mini-participants/invite/${miniTournamentId}`, payload)
         .then((response) => response.data.data)

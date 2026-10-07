@@ -202,7 +202,7 @@ class MiniParticipantController extends Controller
             'user_ids.*'       => 'nullable|integer',
             'club_guest_profile_ids' => 'sometimes|nullable|array',
             'club_guest_profile_ids.*' => 'nullable|integer|exists:club_guest_profiles,id',
-            'create_club_guest_for_club_id' => 'sometimes|nullable|integer|exists:clubs,id',
+            'club_id' => 'sometimes|nullable|integer|exists:clubs,id',
             'is_invite_around' => 'sometimes|nullable|boolean',
         ]);
 
@@ -232,11 +232,14 @@ class MiniParticipantController extends Controller
 
         $userIds = $rawUserIds;
 
-        // Resolve club_guest_profile_ids → user_ids (nếu có, lấy user_id từ profile)
+        // Resolve club_guest_profile_ids → user_ids + snapshot estimated_level
+        $profileUserMap = []; // [user_id => ClubGuestProfile]
         if (!empty($clubGuestProfileIds)) {
-            $profileUserIds = \App\Models\Club\ClubGuestProfile::whereIn('id', $clubGuestProfileIds)
-                ->pluck('user_id')
-                ->all();
+            $profiles = \App\Models\Club\ClubGuestProfile::whereIn('id', $clubGuestProfileIds)->get();
+            $profileUserIds = $profiles->pluck('user_id')->all();
+            foreach ($profiles as $p) {
+                $profileUserMap[$p->user_id] = $p;
+            }
             $userIds = array_values(array_unique(array_merge($userIds, $profileUserIds)));
         }
 
@@ -287,6 +290,12 @@ class MiniParticipantController extends Controller
                     $participantData['guest_avatar'] = $guestUser->avatar_url;
                     $participantData['guest_phone'] = $guestUser->phone;
                     $participantData['guarantor_user_id'] = Auth::id();
+                    // Snapshot estimated_level từ ClubGuestProfile nếu user đến từ CLB guest
+                    if (isset($profileUserMap[$userId]) && $profileUserMap[$userId]->estimated_level !== null) {
+                        $level = (float) $profileUserMap[$userId]->estimated_level;
+                        $participantData['estimated_level_min'] = $level;
+                        $participantData['estimated_level_max'] = $level;
+                    }
                 }
                 $participant = $miniTournament->participants()->create($participantData);
 
