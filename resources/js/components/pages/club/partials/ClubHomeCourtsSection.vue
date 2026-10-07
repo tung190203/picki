@@ -40,13 +40,13 @@
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="font-semibold text-sm text-[#1F2937] dark:text-slate-100 truncate">
-                        {{ court.name }}
+                        {{ court.location?.name || '—' }}
                     </div>
                     <div class="text-xs text-[#838799] dark:text-slate-400 truncate">
-                        {{ court.address || '—' }}
+                        {{ court.location?.address || '—' }}
                     </div>
                     <div class="flex items-center gap-3 mt-1 text-[11px] text-[#838799] dark:text-slate-500">
-                        <span v-if="court.distance_km !== null">📍 {{ court.distance_km }} km</span>
+                        <span v-if="court.distance_km !== null && court.distance_km !== undefined">📍 {{ court.distance_km }} km</span>
                         <span>🏆 {{ court.events_hosted_count }} kèo/giải</span>
                     </div>
                 </div>
@@ -141,7 +141,7 @@
                 <div class="bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-2xl w-full max-w-[400px] shadow-2xl p-5">
                     <h3 class="font-bold text-[#1F2937] dark:text-slate-100 mb-2">Xóa sân nhà?</h3>
                     <p class="text-sm text-[#838799] dark:text-slate-400 mb-5">
-                        Bạn có chắc muốn xóa <strong>{{ deletingCourt?.name }}</strong> khỏi danh sách sân nhà?
+                        Bạn có chắc muốn xóa <strong>{{ deletingCourt?.location?.name }}</strong> khỏi danh sách sân nhà?
                     </p>
                     <div class="flex gap-2">
                         <button @click="showDeleteConfirm = false"
