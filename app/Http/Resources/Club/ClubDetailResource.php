@@ -101,17 +101,9 @@ class ClubDetailResource extends ClubBaseResource
                 return ClubHomeCourtResource::collection($this->homeCourts);
             }),
 
-            // Lịch sinh hoạt định kỳ — eager load từ controller, sắp xếp theo day_of_week + position + start_time
-            'recurring_schedules' => $this->whenLoaded('recurringSchedules', function () {
-                return $this->recurringSchedules->map(fn ($s) => [
-                    'id' => $s->id,
-                    'day_of_week' => (int) $s->day_of_week,
-                    'start_time' => is_string($s->start_time) ? $s->start_time : $s->start_time?->format('H:i'),
-                    'end_time' => is_string($s->end_time) ? $s->end_time : $s->end_time?->format('H:i'),
-                    'note' => $s->note,
-                    'position' => (int) $s->position,
-                ])->values();
-            }),
+            // Nội quy + lịch sinh hoạt — text fields trên clubs
+            'rules' => $this->rules,
+            'recurring_schedule_text' => $this->recurring_schedule_text,
         ];
     }
 }

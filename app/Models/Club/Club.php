@@ -40,6 +40,8 @@ class Club extends Model
         'recruitment_status',
         'created_by',
         'location_id',
+        'rules',
+        'recurring_schedule_text',
     ];
 
     protected $casts = [
@@ -207,17 +209,7 @@ class Club extends Model
             ->orderBy('club_competition_locations.id');
     }
 
-    /**
-     * Lịch sinh hoạt định kỳ của CLB.
-     * Gắn với CLB (không gắn sân), áp dụng cho mọi sân nhà.
-     */
-    public function recurringSchedules()
-    {
-        return $this->hasMany(ClubRecurringSchedule::class)
-            ->orderBy('day_of_week')
-            ->orderBy('position')
-            ->orderBy('start_time');
-    }
+    ///** Lịch sinh hoạt định kỳ — đã chuyển thành text field clubs.recurring_schedule_text */
 
     /** Top admin = member with highest role priority: Admin > Manager > Secretary > Treasurer > Member. */
     public function adminMember()

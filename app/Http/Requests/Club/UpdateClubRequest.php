@@ -84,6 +84,8 @@ class UpdateClubRequest extends FormRequest
             'remove_qr_zalo' => 'nullable|boolean',
             'qr_code_image_url' => 'nullable|image|mimes:png,jpg,jpeg,gif|max:5120',
             'qr_code_enabled' => 'nullable|boolean',
+            'rules' => 'nullable|string|max:5000',
+            'recurring_schedule_text' => 'nullable|string|max:5000',
         ];
     }
 

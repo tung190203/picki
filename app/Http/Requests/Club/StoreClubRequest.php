@@ -34,6 +34,8 @@ class StoreClubRequest extends FormRequest
             'description' => 'nullable|string|max:5000',
             'status' => ['nullable', Rule::enum(ClubStatus::class)],
             'is_public' => 'nullable|boolean',
+            'rules' => 'nullable|string|max:5000',
+            'recurring_schedule_text' => 'nullable|string|max:5000',
         ];
     }
 

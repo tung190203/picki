@@ -353,7 +353,10 @@
                         :leaderboard-loading="isLeaderboardLoading"
                         :is-saving="isUpdatingIntro"
                         @leaderboard-page-change="handleLeaderboardPageChange" @tab-change="handleTabChange"
-                        @refresh-club="getClubDetail" @update-intro="handleUpdateIntro" />
+                        @refresh-club="getClubDetail"
+                        @update-intro="handleUpdateIntro"
+                        @update-rules="handleUpdateRules"
+                        @update-schedule="handleUpdateSchedule" />
                 </div>
                 <div class="col-span-12 lg:col-span-4 space-y-4 order-1 lg:order-2">
                     <div class="max-w-3xl mx-auto" v-if="!hasAnyRole(['admin', 'manager', 'secretary', 'treasurer'])">
@@ -1258,6 +1261,38 @@ const handleUpdateIntro = async (newDescription) => {
         toast.success('Cập nhật giới thiệu thành công')
     } catch (error) {
         toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật giới thiệu')
+    } finally {
+        isUpdatingIntro.value = false
+    }
+}
+
+const handleUpdateRules = async (rules) => {
+    isUpdatingIntro.value = true
+    try {
+        const formData = new FormData()
+        formData.append('rules', rules)
+
+        await ClubService.updateClub(clubId.value, formData)
+        await getClubDetail()
+        toast.success('Cập nhật nội quy thành công')
+    } catch (error) {
+        toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật nội quy')
+    } finally {
+        isUpdatingIntro.value = false
+    }
+}
+
+const handleUpdateSchedule = async (scheduleText) => {
+    isUpdatingIntro.value = true
+    try {
+        const formData = new FormData()
+        formData.append('recurring_schedule_text', scheduleText)
+
+        await ClubService.updateClub(clubId.value, formData)
+        await getClubDetail()
+        toast.success('Cập nhật lịch sinh hoạt thành công')
+    } catch (error) {
+        toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật lịch sinh hoạt')
     } finally {
         isUpdatingIntro.value = false
     }

@@ -2,6 +2,11 @@
 
 Tính năng theo dõi CLB + theo dõi khách chơi kèo/giải.
 
+> **Cập nhật 2026-10-07**: 2 field text mới trên bảng `clubs`:
+> - `rules` — nội quy CLB (text tự do, max 5000 ký tự).
+> - `recurring_schedule_text` — lịch sinh hoạt định kỳ (text tự do, max 5000 ký tự, thay thế cấu trúc bảng `club_recurring_schedules` cũ).
+> Cả 2 đều nằm trong `PUT /api/clubs/{clubId}` và `POST /api/clubs`.
+
 ## Phần 1 — Follow CLB
 
 Tận dụng endpoint `follows` polymorphic có sẵn (`followable_type: club`) — không có route mới, chỉ thêm `'club'` vào map của `FollowController`.
@@ -299,7 +304,56 @@ Quyền: `canManage()`. Trả 404 nếu không tồn tại.
 - `distance_km` và `events_hosted_count` trong pivot DB **chỉ là column tương thích ngược** — luôn rỗng/0 đối với record mới. Khi trả response, BE tính lại và ghi đè vào field top-level.
 - FE cần gửi header `X-User-Lat` / `X-User-Lng` để BE dùng làm anchor fallback khi CLB chưa có toạ độ.
 - Frontend modal thêm/sửa sân nhà **không** có input cho 2 field này nữa.
-- Sân nhà được **tham chiếu** bởi bảng `club_recurring_schedule_locations` — lịch sinh hoạt định kỳ có thể chọn 1 hoặc nhiều sân nhà. Xem [Phần 7](#phần-7--lịch-sinh-hoạt-định-kỳ-club_recurring_schedules).
+
+## Phần 7 — Nội quy & Lịch sinh hoạt (text fields trên bảng clubs)
+
+Thay vì bảng `club_recurring_schedules` phức tạp, **nội quy** và **lịch sinh hoạt** được lưu dưới dạng text tự do ngay trên bảng `clubs`. Admin/secretary nhập text, FE hiển thị `white-space: pre-wrap`.
+
+### Cấu trúc cột thêm
+
+```
+clubs.rules                    TEXT NULL       -- Nội quy CLB (max 5000 ký tự)
+clubs.recurring_schedule_text  TEXT NULL       -- Lịch sinh hoạt định kỳ (max 5000 ký tự)
+```
+
+### API
+
+Không có endpoint riêng. 2 field nằm trong `PUT /api/clubs/{clubId}` và `POST /api/clubs`, cùng với các field thường (`description`, `name`, ...):
+
+```
+PUT /api/clubs/{clubId}
+Body (multipart/form-data):
+  name=...
+  description=...
+  rules=Tập trung lúc 18h thứ 2 hàng tuần...
+  recurring_schedule_text=Thứ 2: 18h-21h tập cơ bản...
+  ...
+```
+
+### Validation
+
+- `rules`: `nullable|string|max:5000`
+- `recurring_schedule_text`: `nullable|string|max:5000`
+
+### Response
+
+2 field trả về trong `ClubDetailResource` (thuộc response `GET /api/clubs/{clubId}`):
+
+```json
+{
+  "data": {
+    ...
+    "rules": "1. Tôn trọng thành viên khác\n2. Không mang giày thường vào sân",
+    "recurring_schedule_text": "Thứ 2: 18h-21h tập cơ bản\nThứ 4: 19h-22h tập nâng cao"
+  }
+}
+```
+
+### FE display
+
+- `rules` và `recurring_schedule_text` hiển thị với `white-space: pre-wrap` (giữ nguyên xuống dòng).
+- Khi `rules`/`recurring_schedule_text` rỗng → hiển thị placeholder "Chưa có nội quy" / "Chưa có lịch sinh hoạt".
+- Admin/secretary bấm icon bút (pencil) trên mỗi block để chỉnh sửa — mỗi block độc lập, không ảnh hưởng nhau.
 
 ## Phần 7 — Lịch sinh hoạt định kỳ (`club_recurring_schedules`)
 

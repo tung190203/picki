@@ -386,13 +386,6 @@ Route::prefix('clubs')->middleware(['performance'])->group(function () {
                 Route::delete('/{homeCourtId}', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'destroy']);
             });
 
-            // Lịch sinh hoạt định kỳ — public GET, canManage cho CRUD
-            Route::prefix('recurring-schedules')->group(function () {
-                Route::get('/', [\App\Http\Controllers\Club\ClubRecurringScheduleController::class, 'index']);
-                Route::post('/', [\App\Http\Controllers\Club\ClubRecurringScheduleController::class, 'store']);
-                Route::match(['put', 'patch'], '/{scheduleId}', [\App\Http\Controllers\Club\ClubRecurringScheduleController::class, 'update']);
-                Route::delete('/{scheduleId}', [\App\Http\Controllers\Club\ClubRecurringScheduleController::class, 'destroy']);
-            });
 
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
@@ -852,13 +845,6 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
                 Route::delete('/{homeCourtId}', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'destroy']);
             });
 
-            // Lịch sinh hoạt định kỳ — public GET, canManage cho CRUD
-            Route::prefix('recurring-schedules')->group(function () {
-                Route::get('/', [\App\Http\Controllers\Club\ClubRecurringScheduleController::class, 'index']);
-                Route::post('/', [\App\Http\Controllers\Club\ClubRecurringScheduleController::class, 'store']);
-                Route::match(['put', 'patch'], '/{scheduleId}', [\App\Http\Controllers\Club\ClubRecurringScheduleController::class, 'update']);
-                Route::delete('/{scheduleId}', [\App\Http\Controllers\Club\ClubRecurringScheduleController::class, 'destroy']);
-            });
 
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);

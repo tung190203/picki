@@ -346,30 +346,6 @@ export const deleteHomeCourt = async (clubId, homeCourtId) => {
 };
 
 // ============================================================
-// Lịch sinh hoạt định kỳ (Recurring Schedules) — club_recurring_schedules
-// ============================================================
-
-export const getRecurringSchedules = async (clubId) => {
-    const { data } = await axiosInstance.get(`${API_ENDPOINT.CLUB}/${clubId}/recurring-schedules`);
-    return data?.data ?? [];
-};
-
-export const createRecurringSchedule = async (clubId, payload) => {
-    return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/recurring-schedules`, payload)
-        .then((response) => response.data?.data);
-};
-
-export const updateRecurringSchedule = async (clubId, scheduleId, payload) => {
-    return axiosInstance.put(`${API_ENDPOINT.CLUB}/${clubId}/recurring-schedules/${scheduleId}`, payload)
-        .then((response) => response.data?.data);
-};
-
-export const deleteRecurringSchedule = async (clubId, scheduleId) => {
-    return axiosInstance.delete(`${API_ENDPOINT.CLUB}/${clubId}/recurring-schedules/${scheduleId}`)
-        .then((response) => response.data);
-};
-
-// ============================================================
 // Trạng thái tuyển thành viên (Recruitment Status) — super_admin only
 // ============================================================
 
