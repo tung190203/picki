@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Tournament;
 use App\Models\Team;
 use App\Models\User;
+use App\Models\Participant;
+use App\Services\Club\ClubGuestService;
 use App\Services\TournamentType\StandingsService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +15,7 @@ class TournamentService
 {
     public function __construct(
         private \App\Services\TournamentType\TournamentRankService $rankService,
+        private ClubGuestService $guestService,
     ) {}
 
     /**
@@ -349,6 +352,18 @@ class TournamentService
         }
 
         $tournament->update(['status' => Tournament::CLOSED]);
+
+        // Cập nhật club_guests khi giải kết thúc — observer bị miss vì so sánh
+        // status (int 3) với enum string 'finished' không khớp.
+        if ($tournament->club_id) {
+            $this->guestService->upsertFromEvent(
+                $tournament->club_id,
+                Participant::where('tournament_id', $tournament->id)
+                    ->whereNotNull('user_id')
+                    ->pluck('user_id')
+            );
+        }
+
         $this->updateParticipantsRatingStats($tournament);
         $this->awardChampionBadge($tournament);
     }
