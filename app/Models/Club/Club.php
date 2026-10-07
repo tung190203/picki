@@ -83,7 +83,13 @@ class Club extends Model
 
     public function virtualMembers()
     {
-        return $this->hasMany(ClubVirtualMember::class);
+        // Giữ alias virtualMembers() để các chỗ cũ không lỗi — delegate sang guestProfiles()
+        return $this->guestProfiles();
+    }
+
+    public function guestProfiles()
+    {
+        return $this->hasMany(\App\Models\Club\ClubGuestProfile::class, 'club_id');
     }
 
     /** Thành viên đang tham gia (membership_status = joined, status = active). */

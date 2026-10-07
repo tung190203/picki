@@ -73,7 +73,7 @@ class ClubDetailAssembler
             $this->attachAdminStats($club);
         }
 
-        // 1a. Member count = user thật (joined/active) + thành viên ảo (club_virtual_members).
+        // 1a. Member count = user thật (joined/active) + CLB guest (club_guest_profiles).
         // `_real_members_count` giữ raw count để assemble() gọi lại không cộng dồn VM nhiều lần.
         // Nếu controller đã withCount('activeMembers') thì tái dùng `active_members_count` cho khỏi query.
         if (!isset($club->_real_members_count)) {
@@ -83,9 +83,9 @@ class ClubDetailAssembler
         }
         $club->setAttribute(
             'active_members_count',
-            (int) $club->_real_members_count + $this->countVirtualMembers($club)
+            (int) $club->_real_members_count + $this->countGuestProfiles($club)
         );
-        // Cờ báo: active_members_count đã bao gồm thành viên ảo.
+        // Cờ báo: active_members_count đã bao gồm CLB guest.
         // Resource dùng cờ này để không cộng thêm lần nữa.
         $club->setAttribute('_virtual_members_counted', true);
 
@@ -103,20 +103,20 @@ class ClubDetailAssembler
     }
 
     /**
-     * Số thành viên ảo (club_virtual_members) của CLB.
-     * Dùng `virtual_members_count` từ withCount nếu có, để không query thêm.
+     * Số CLB guest (club_guest_profiles) của CLB.
+     * Dùng `guest_profiles_count` từ withCount nếu có, để không query thêm.
      */
-    protected function countVirtualMembers(Club $club): int
+    protected function countGuestProfiles(Club $club): int
     {
-        if (isset($club->virtual_members_count)) {
-            return (int) $club->virtual_members_count;
+        if (isset($club->guest_profiles_count)) {
+            return (int) $club->guest_profiles_count;
         }
 
-        if ($club->relationLoaded('virtualMembers')) {
-            return $club->virtualMembers->count();
+        if ($club->relationLoaded('guestProfiles')) {
+            return $club->guestProfiles->count();
         }
 
-        return $club->virtualMembers()->count();
+        return $club->guestProfiles()->count();
     }
 
     /**

@@ -3,10 +3,10 @@ import {API_ENDPOINT} from "@/constants/index.js";
 
 const participantEndpoint = API_ENDPOINT.PARTICIPANT;
 
-export const sendInvitation = async (tournamentId, userIds, virtualIds = []) => {
+export const sendInvitation = async (tournamentId, userIds, clubGuestProfileIds = []) => {
   const payload = {};
   if (userIds?.length) payload.user_ids = userIds;
-  if (virtualIds?.length) payload.virtual_ids = virtualIds;
+  if (clubGuestProfileIds?.length) payload.club_guest_profile_ids = clubGuestProfileIds;
   return axiosInstance.post(`${participantEndpoint}/invite-user/${tournamentId}`, payload).then((response) => response.data.data)
 };
 
@@ -58,7 +58,8 @@ export const searchUsersForInvite = async ({ keyword = '', subTab = 'all', clubI
     gender_text: u.gender_text,
     sports: u.sports || [],
     is_friend: u.is_friend ?? false,
-    is_virtual: Boolean(u.is_virtual),
+    is_guest: Boolean(u.is_guest),
+    is_virtual: Boolean(u.is_guest), // backward-compat cho UI cũ (đã migrate từ VM sang CLB guest)
     invited: false,
   }));
 

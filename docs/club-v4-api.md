@@ -112,32 +112,130 @@ Response:
 
 Quyền: chỉ admin/manager/secretary (xem `Club::canManage()`).
 
-#### Mời khách vào CLB
+## Phần 2.5 — CLB guests (User.is_guest + club_guest_profiles)
+
+> **Mới từ 2026-10-07**: thay thế hoàn toàn flow `ClubVirtualMember` cũ. CLB guest giờ là một `User` thật với `is_guest = true`, gắn vào CLB gốc qua bảng `club_guest_profiles` (chỉ là "ownership record" để CLB gốc quản lý danh sách guest của mình — KHÔNG ràng buộc scope mời).
+
+### Khác biệt cốt lõi với flow cũ
+
+| | VM cũ (đã xoá) | CLB guest mới |
+|---|---|---|
+| Lưu trữ | Bảng `club_virtual_members` riêng | `User` (`is_guest=true`) + `club_guest_profiles` |
+| Phạm vi mời | CHỈ trong event của CLB gốc | MỌI mini-tournament/Tournament (kể cả event CLB khác, event cá nhân) |
+| `quantity_members` của CLB | Có đếm | Có đếm (`activeMembers` + `guestProfiles`) |
+| Mời vào event | Truyền `virtual_id` | Truyền `user_id` (User thật, `is_guest=true`) |
+| Avatar/phone | snapshot riêng | kế thừa từ `User.avatar_url` / `User.phone` |
+
+### Cấu trúc bảng `club_guest_profiles`
 
 ```
-POST /api/clubs/{clubId}/guests/invite
-Body: { "user_id": 5 }
+club_guest_profiles
+  id           PK
+  club_id      FK → clubs (cascade)
+  user_id      FK → users (cascade)  -- User có is_guest = true
+  notes        TEXT NULL
+  created_by   FK → users (set null)
+  created_at, updated_at, deleted_at
+  UNIQUE (club_id, user_id)
 ```
 
-Hành vi:
-- Đánh dấu `club_guests.is_invited = true`
-- Gọi lại `ClubMemberManagementService::inviteMember()` → user nhận notification + push như lời mời bình thường
-- Trả 400 nếu user đã là thành viên
+### API mới — CRUD `club_guest_profiles`
 
-Response:
+```
+GET    /api/clubs/{clubId}/guests/profiles          List CLB guest của CLB
+POST   /api/clubs/{clubId}/guests/profiles          Tạo CLB guest mới
+PUT    /api/clubs/{clubId}/guests/profiles/{id}     Cập nhật CLB guest
+DELETE /api/clubs/{clubId}/guests/profiles/{id}     Xoá mềm CLB guest
+```
+
+#### Tạo CLB guest (từ tab Member của CLB)
+
+```
+POST /api/clubs/{clubId}/guests/profiles
+Body (multipart/form-data):
+  guest_name     string  required  Tên hiển thị
+  guest_phone    string  optional  SĐT (nếu có sẽ lookup User theo phone)
+  guest_avatar   file    optional  Avatar (lưu vào disk public/guest-avatars)
+  notes          string  optional  Ghi chú nội bộ
+```
+
+- Lookup `User` theo phone trước. Nếu đã tồn tại → dùng luôn. Nếu chưa → tạo `User` mới với `is_guest=true`, `visibility=PRIVATE`, `password=Str::random(12)`.
+- Tạo `ClubGuestProfile(club_id, user_id, notes)`.
+- Quyền: `Club::canManage()` (admin/manager/secretary).
+
+#### Cập nhật CLB guest
+
+```
+PUT /api/clubs/{clubId}/guests/profiles/{id}
+Body:
+  guest_name     string  optional
+  guest_phone    string  optional
+  guest_avatar   file    optional
+  notes          string  optional
+```
+
+Sync `user.full_name` / `user.avatar_url` / `user.phone` + cập nhật `notes`.
+
+#### Xoá CLB guest
+
+```
+DELETE /api/clubs/{clubId}/guests/profiles/{id}
+```
+
+Soft-delete `ClubGuestProfile`. KHÔNG xoá `User` vì user có thể thuộc nhiều CLB.
+
+#### Response (mẫu)
+
 ```json
-{ "data": { "is_invited": true }, "message": "Đã gửi lời mời tham gia CLB" }
+{
+  "data": {
+    "id": 12,
+    "club_id": 467,
+    "notes": "Khách ruột của CLB",
+    "user": {
+      "id": 555,
+      "full_name": "Anh Tuấn",
+      "phone": "0987654321",
+      "avatar_url": "https://.../guest-avatars/abc.jpg",
+      "is_guest": true
+    },
+    "created_at": "2026-10-07T09:00:00Z",
+    "created_by": 33
+  }
+}
 ```
 
-#### Xoá khách
+### Mời guest vào event (mini-tournament / Tournament) — 3 nhánh
+
+Hai endpoint hiện có `POST /api/mini-tournaments/{id}/guests` và `POST /api/tournaments/{id}/guests` hỗ trợ **2 field optional mới** (loại trừ nhau):
 
 ```
-DELETE /api/clubs/{clubId}/guests/{userId}
+club_guest_profile_id        int  optional  Chọn CLB guest có sẵn (User đã có sẵn)
+create_club_guest_for_club_id int optional  Tạo CLB guest mới + thêm vào event
 ```
 
-Xoá bản ghi `club_guests` (chỉ xoá lịch sử khách, không kick khỏi event đã tham gia).
+| Nhánh | Field | Hành vi |
+|---|---|---|
+| 1 — Per-event (mặc định) | (không truyền field nào ở trên) | Như cũ — tạo User (nếu cần) + Participant với snapshot name/phone/avatar. Không tạo `ClubGuestProfile`. |
+| 2 — Chọn CLB guest có sẵn | `club_guest_profile_id` | Lookup `User` qua `club_guest_profiles.user_id`. KHÔNG ràng buộc club_id — CLB guest có thể được mời vào event của CLB khác. Set `guest_name/guest_avatar/guest_phone` từ User, tạo participant. |
+| 3 — Tạo mới CLB guest + thêm vào event | `create_club_guest_for_club_id` | Caller phải vừa là organizer của event VỪA là staff (`canManage()`) của `create_club_guest_for_club_id`. BE tạo `User` (nếu cần) + `ClubGuestProfile` + `Participant` trong 1 transaction. Response trả về `club_guest_profile_id`. |
 
-Quyền: chỉ admin/manager/secretary.
+#### Mời nhiều người cùng lúc (multi-invite)
+
+`POST /api/mini-tournaments/{id}/participants/invite` và `POST /api/tournaments/{id}/participants/invite` cũng nhận 2 field mới:
+
+```
+club_guest_profile_ids         array  optional  Danh sách CLB guest profile id muốn mời
+create_club_guest_for_club_id  int    optional  Tạo mới CLB guest (cho tất cả guest mới trong lần invite này)
+```
+
+Cùng semantics như 2 endpoint trên.
+
+### `quantity_members` của CLB
+
+`quantity_members = club_members (joined + active) + club_guest_profiles` (CLB guest profile là thành viên ảo, vẫn được tính vào số lượng thành viên hiển thị).
+
+Logic này nằm trong `App\Http\Resources\Concerns\ResolvesClubMemberCount` (dùng `withCount('guestProfiles')`).
 
 ## Phần 3 — Field mới trong `GET /api/clubs/{id}` (ClubDetailResource)
 

@@ -68,9 +68,9 @@ class TournamentResource extends JsonResource
             'club' => $this->whenLoaded('club', function () {
                 $club = $this->club;
 
-                // Số thành viên = user thật + thành viên ảo (club_virtual_members).
+                // Số thành viên = user thật + CLB guest (club_guest_profiles).
                 $realCount = $club->members_count ?? $club->members()->count();
-                $virtualCount = $club->virtual_members_count ?? $club->virtualMembers()->count();
+                $virtualCount = $club->guest_profiles_count ?? $club->guestProfiles()->count();
 
                 return [
                     'id' => $club->id,

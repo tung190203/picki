@@ -357,7 +357,7 @@
                       <UserCard v-for="(item, index) in waitingConfirmationParticipants" :key="'waiting-' + index" :id="item.id"
                         :user-id="item.user_id || item.user?.id"
                         :is-guest="Boolean(item.is_guest)"
-                        :is-virtual="Boolean(item.is_virtual)"
+                        :is-virtual="Boolean(item.is_guest || item.is_virtual)"
                         :name="getParticipantDisplayName(item)"
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
@@ -390,7 +390,7 @@
                       <UserCard v-for="(item, index) in confirmedParticipants" :key="'confirmed-' + index" :id="item.id"
                         :user-id="item.user_id || item.user?.id"
                         :is-guest="Boolean(item.is_guest)"
-                        :is-virtual="Boolean(item.is_virtual)"
+                        :is-virtual="Boolean(item.is_guest || item.is_virtual)"
                         :name="getParticipantDisplayName(item)"
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
@@ -414,7 +414,7 @@
                       <UserCard v-for="(item, index) in checkedInParticipants" :key="'checkedin-' + index" :id="item.id"
                         :user-id="item.user_id || item.user?.id"
                         :is-guest="Boolean(item.is_guest)"
-                        :is-virtual="Boolean(item.is_virtual)"
+                        :is-virtual="Boolean(item.is_guest || item.is_virtual)"
                         :name="getParticipantDisplayName(item)"
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
@@ -436,7 +436,7 @@
                       <UserCard v-for="(item, index) in absentParticipants" :key="'absent-' + index" :id="item.id"
                         :user-id="item.user_id || item.user?.id"
                         :is-guest="Boolean(item.is_guest)"
-                        :is-virtual="Boolean(item.is_virtual)"
+                        :is-virtual="Boolean(item.is_guest || item.is_virtual)"
                         :name="getParticipantDisplayName(item)"
                         :avatar="getParticipantAvatar(item)"
                         :rating="getUserScore(item)"
@@ -1457,8 +1457,8 @@ function openActionModal(user) {
 }
 
 function viewProfile() {
-  if (selectedUser.value?.is_guest || selectedUser.value?.is_virtual || !selectedUser.value?.user?.id) {
-    toast.info('Thành viên ảo (khách vãng lai) không có hồ sơ cá nhân.')
+  if (selectedUser.value?.is_guest || !selectedUser.value?.user?.id) {
+    toast.info('CLB guest (khách vãng lai) không có hồ sơ cá nhân.')
     return
   }
   router.push(`/profile/${selectedUser.value.user.id}`)
@@ -1468,7 +1468,7 @@ function openMemberActionModal(param) {
   if (param && typeof param === 'object') {
     if (param.target && param.currentTarget) return
 
-    const isGuest = Boolean(param.is_guest || param.is_virtual || (!param.user?.id && !param.userId))
+    const isGuest = Boolean(param.is_guest || (!param.user?.id && !param.userId))
     const participantId = param.participant_id || param.id
     const realUserId = isGuest ? null : (param.user?.id || param.userId)
 
@@ -1482,7 +1482,7 @@ function openMemberActionModal(param) {
       checked_in_at: param.checked_in_at || null,
       is_absent: param.is_absent || false,
       is_guest: isGuest,
-      is_virtual: Boolean(param.is_virtual),
+      is_virtual: isGuest, // backward-compat cho UI cũ
       user: realUserId ? { id: realUserId, full_name: param.user?.full_name || param.name, avatar_url: param.user?.avatar_url || param.avatar } : null
     }
   } else {
@@ -1492,8 +1492,8 @@ function openMemberActionModal(param) {
 }
 
 function handleMemberViewProfile(member) {
-  if (member?.is_guest || member?.is_virtual || !member?.user?.id) {
-    toast.info('Thành viên ảo (khách vãng lai) không có hồ sơ cá nhân.')
+  if (member?.is_guest || !member?.user?.id) {
+    toast.info('CLB guest (khách vãng lai) không có hồ sơ cá nhân.')
     return
   }
   router.push(`/profile/${member.user?.id}`)
@@ -1631,14 +1631,12 @@ const handleRemoveStaff = async (data) => {
 // Hàm xử lý thống nhất
 const handleInviteAction = async (user) => {
   if (inviteType.value === 'staff') {
-    // RBAC v2: truyền role số (1/2/3) — lấy từ selectedStaffRole
-    // User ảo: truyền virtualId; user thật: truyền userId.
-    await inviteStaff(user.id, Number(selectedStaffRole.value) || 1, user?.is_virtual ? user.id : null)
+    // RBAC v2: truyền role số (1/2/3) — lấy từ selectedStaffRole.
+    // CLB guest giờ là User thật (User.is_guest=true), gửi userId như user thường.
+    await inviteStaff(user.id, Number(selectedStaffRole.value) || 1)
   } else {
-    // Gom user thật vào user_ids, user ảo vào virtual_ids rồi gọi 1 lần
-    // Khi mời user ảo: CHỈ gửi virtual_ids, KHÔNG gửi user_ids.
-    const isVirtual = Boolean(user?.is_virtual)
-    await invite(isVirtual ? null : user.id, isVirtual ? [user.id] : [])
+    // CLB guest giờ là User thật → gửi userId (không dùng virtual_ids nữa).
+    await invite(user.id)
   }
   await detailTournament(id);
 }
@@ -1897,8 +1895,8 @@ const getNonTeamParticipants = async () => {
 const handleAddUserToTeam = async (participant) => {
   if (!selectedTeam.value || !participant) return;
   let payload = null;
-  if (participant.is_virtual && participant.virtual_member_id) {
-    payload = { virtual_member_id: participant.virtual_member_id };
+  if (participant.club_guest_profile_id) {
+    payload = { club_guest_profile_id: participant.club_guest_profile_id };
   } else if (participant.is_guest && participant.id) {
     payload = { participant_id: participant.id };
   } else {
@@ -2274,30 +2272,27 @@ const autoAssign = async () => {
   }
 }
 
-const invite = async (friendId, virtualIds = []) => {
+const invite = async (friendId, clubGuestProfileIds = []) => {
   try {
-    const vIds = Array.isArray(virtualIds) ? virtualIds : [virtualIds].filter(Boolean)
-    // VM: friendId = null → bỏ qua user_ids, chỉ gửi virtual_ids.
+    const cgpIds = Array.isArray(clubGuestProfileIds) ? clubGuestProfileIds : [clubGuestProfileIds].filter(Boolean)
     const uIds = friendId == null ? [] : [friendId]
-    await ParticipantService.sendInvitation(id, uIds, vIds);
+    await ParticipantService.sendInvitation(id, uIds, cgpIds);
     toast.success('Đã gửi lời mời thành công!');
   } catch (error) {
     toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi gửi lời mời.');
   }
 };
 
-const inviteStaff = async (userId, role = 1, virtualId = null) => {
+const inviteStaff = async (userId, role = 1) => {
   try {
-    // RBAC v2: role là số 1/2/3
+    // RBAC v2: role là số 1/2/3 — CLB guest giờ là User thật nên chỉ cần userId
     const roleNum = Number(role) || 1
-    // User ảo: truyền virtualId (không truyền userId).
-    const realUserId = virtualId != null ? null : userId
     let response
     if (roleNum === 3) {
       // Trọng tài — backward-compat endpoint
-      response = await TournamentStaffService.addReferee(id, realUserId, null, virtualId)
+      response = await TournamentStaffService.addReferee(id, userId, null)
     } else {
-      response = await TournamentStaffService.addTournamentStaff(id, realUserId, roleNum, null, virtualId)
+      response = await TournamentStaffService.addTournamentStaff(id, userId, roleNum, null)
     }
     toast.success(response?.message || 'Thêm thành công')
   } catch (error) {

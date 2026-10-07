@@ -3,7 +3,6 @@
 namespace App\Services\Club;
 
 use App\Models\Club\Club;
-use App\Models\Club\ClubVirtualMember;
 use App\Models\Tournament;
 use App\Models\TournamentType;
 use App\Services\RoundRobinSchedulerService;
@@ -230,19 +229,8 @@ class ClubAchievementLeaderboardService
     {
         $collection = collect(array_values($scores));
 
-        // Nếu thành viên ảo thuộc CLB có tên khớp với guest, map thông tin thành viên ảo vào
-        $virtualMembers = ClubVirtualMember::where('club_id', $club->id)->get()->keyBy('name');
-
-        $collection = $collection->map(function ($item) use ($virtualMembers) {
-            if ($item['is_virtual'] && isset($virtualMembers[$item['name']])) {
-                $vm = $virtualMembers[$item['name']];
-                $item['virtual_member_id'] = $vm->id;
-                if ($vm->avatar_url) {
-                    $item['avatar_url'] = $vm->avatar_url;
-                }
-            }
-            return $item;
-        });
+        // CLB guest giờ là user thật (User.is_guest = true), không cần map VM riêng —
+        // avatar/định danh đã lấy từ User row lúc build $scores.
 
         // Sắp xếp
         $sorted = $collection->sort(function ($a, $b) {

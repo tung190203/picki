@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources;
 
-use App\Models\Club\ClubVirtualMember;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Http\Resources\TournamentParticipantPaymentResource;
@@ -23,65 +22,12 @@ class ParticipantResource extends JsonResource
     }
 
     /**
-     * Resolve virtual member (nếu có) từ guest_name + club_id của tournament.
-     * Lazy lookup, không thêm schema. Match theo name + club_id để tránh nhầm giữa các CLB.
-     * Fallback: nếu không thấy trong CLB của tournament, thử lookup theo name đơn lẻ (best-effort).
-     */
-    private function resolveVirtualMember(): ?ClubVirtualMember
-    {
-        if (!$this->is_guest) {
-            return null;
-        }
-        if (empty($this->guest_name)) {
-            return null;
-        }
-        $clubId = $this->tournament?->club_id;
-        if ($clubId) {
-            $vm = ClubVirtualMember::where('club_id', $clubId)
-                ->where('name', $this->guest_name)
-                ->first();
-            if ($vm) {
-                return $vm;
-            }
-        }
-        return ClubVirtualMember::where('name', $this->guest_name)->first();
-    }
-
-    /**
-     * Build user object cho guest/virtual participant — bắt buộc đủ 3 field id/name/avatar_url.
-     * id và name không được null; avatar_url có thể null.
-     */
-    private function buildGuestUserObject(): array
-    {
-        $vm = $this->resolveVirtualMember();
-        if ($vm) {
-            return [
-                'id'         => (int) $vm->id,
-                'name'       => (string) ($this->guest_name ?? $vm->name),
-                'avatar_url' => $this->guest_avatar ?: ($vm->avatar_url ?? null),
-                'is_virtual' => true,
-                'virtual_member_id' => (int) $vm->id,
-            ];
-        }
-
-        // Guest nhập tay — không match VM
-        return [
-            'id'         => null,
-            'name'       => (string) ($this->guest_name ?? ''),
-            'avatar_url' => $this->guest_avatar,
-            'is_virtual' => false,
-        ];
-    }
-
-    /**
      * Transform the resource into an array.
      *
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
     {
-        $vm = $this->is_guest ? $this->resolveVirtualMember() : null;
-
         return [
             'id' => $this->id,
             'name' => $this->user?->full_name,
@@ -91,7 +37,19 @@ class ParticipantResource extends JsonResource
             'self_registered' => (bool) ($this->self_registered ?? false),
             'is_guest' => (bool) $this->is_guest,
             'user' => $this->is_guest
-                ? $this->buildGuestUserObject()
+                ? ($this->user
+                    ? [
+                        'id' => $this->user->id,
+                        'name' => $this->user->full_name,
+                        'avatar_url' => $this->user->avatar_url,
+                        'is_virtual' => (bool) $this->user->is_guest,
+                    ]
+                    : [
+                        'id' => null,
+                        'name' => (string) ($this->guest_name ?? ''),
+                        'avatar_url' => $this->guest_avatar,
+                        'is_virtual' => false,
+                    ])
                 : ($this->omitNestedUserSports
                     ? (new UserListResource($this->whenLoaded('user')))->withoutSports()
                     : new UserListResource($this->whenLoaded('user'))),
@@ -110,8 +68,6 @@ class ParticipantResource extends JsonResource
             'payment' => new TournamentParticipantPaymentResource($this->whenLoaded('payments')),
             'modified_score' => $this->modified_score,
             'effective_score' => $this->effective_score,
-            'is_virtual'       => $vm !== null,
-            'virtual_member_id' => $vm?->id,
         ];
     }
 }

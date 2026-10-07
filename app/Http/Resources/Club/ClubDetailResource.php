@@ -44,7 +44,7 @@ class ClubDetailResource extends ClubBaseResource
             // Invited by — pre-set by ClubDetailAssembler
             'invited_by' => $club->_invited_by_user ?? null,
 
-            // user thật (joined/active) + thành viên ảo (club_virtual_members)
+            // user thật (joined/active) + CLB guest (club_guest_profiles)
             'quantity_members' => $this->resolveClubQuantityMembers(),
 
             // Skill level — computed by Assembler if members loaded

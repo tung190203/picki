@@ -29,7 +29,7 @@ export const deleteTeam = async (teamId) => {
 }
 
 export const addUserToTeam = async (teamId, payload) => {
-  // payload có thể là {user_id}, {participant_id} hoặc {virtual_member_id}
+  // payload có thể là {user_id} hoặc {participant_id} (user_id có thể là User.is_guest=true)
   return axiosInstance.post(`${teamEndPoint}/add-member/${teamId}`, payload)
   .then((response) => response?.data?.data || []);
 }

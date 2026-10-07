@@ -8,7 +8,7 @@ use App\Exceptions\BusinessException;
 use App\Events\SuperAdmin\MiniTournamentMemberAdded;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MiniParticipantResource;
-use App\Models\Club;
+use App\Models\Club\Club;
 use App\Models\MiniParticipant;
 use App\Models\MiniTournament;
 use App\Models\MiniParticipantPayment;
@@ -45,12 +45,14 @@ class GuestController extends Controller
     public function store(Request $request, $miniTournamentId)
     {
         $data = $request->validate([
-            'guest_name' => 'required|string|max:255',
+            'guest_name' => 'required_without:club_guest_profile_id|nullable|string|max:255',
             'guest_phone' => 'nullable|string|max:20',
             'guest_avatar' => 'nullable|file|mimes:jpeg,png,jpg,gif,svg,webp|max:5120',
             'guarantor_user_id' => 'nullable|integer|exists:users,id',
             'estimated_level_min' => 'nullable|numeric|min:1|max:8',
             'estimated_level_max' => 'nullable|numeric|min:1|max:8',
+            'club_guest_profile_id' => 'nullable|integer|exists:club_guest_profiles,id',
+            'create_club_guest_for_club_id' => 'nullable|integer|exists:clubs,id',
         ]);
 
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
@@ -140,52 +142,88 @@ class GuestController extends Controller
             $guestAvatarUrl = $data['guest_avatar'];
         }
 
+        // ─────────────────────────────────────────────────────────────────────────
+        // CLB guest flows (2 nhánh):
+        //  - club_guest_profile_id: chọn 1 CLB guest có sẵn → lấy user từ profile.
+        //  - create_club_guest_for_club_id: tạo User.is_guest + ClubGuestProfile mới.
+        // ─────────────────────────────────────────────────────────────────────────
+        $createdClubGuestProfileId = null;
+        if (!empty($data['club_guest_profile_id'])) {
+            $profile = \App\Models\Club\ClubGuestProfile::with('user')->findOrFail($data['club_guest_profile_id']);
+            $guestUser = $profile->user;
+            if (!$guestUser) {
+                return ResponseHelper::error('CLB guest không có user liên kết', 422);
+            }
+            // Lấy name/avatar mới nhất từ user (nếu client gửi kèm thì ưu tiên)
+            if (empty($data['guest_name'])) {
+                $data['guest_name'] = $guestUser->full_name;
+            }
+            if (empty($guestAvatarUrl) && $guestUser->avatar_url) {
+                $guestAvatarUrl = $guestUser->avatar_url;
+            }
+        } elseif (!empty($data['create_club_guest_for_club_id'])) {
+            $club = Club::findOrFail($data['create_club_guest_for_club_id']);
+            if (!$club->canManage(auth()->id())) {
+                return ResponseHelper::error('Bạn không có quyền tạo CLB guest cho club này', 403);
+            }
+            $guestUser = $this->findOrCreateGuestUserForEvent($data, $guestAvatarUrl);
+            // Tạo ClubGuestProfile (UNIQUE club_id+user_id sẽ chặn duplicate)
+            $profile = \App\Models\Club\ClubGuestProfile::firstOrCreate(
+                ['club_id' => $club->id, 'user_id' => $guestUser->id],
+                ['created_by' => auth()->id(), 'notes' => null]
+            );
+            $createdClubGuestProfileId = $profile->id;
+        }
+
         // Tạo hoặc tìm user cho guest - LUÔN LUÔN tạo user (có hoặc không có phone)
         // Nếu có phone: tìm user theo phone hoặc tạo mới is_guest
         // Nếu không phone: tạo user is_guest không có phone
-        $guestUser = null;
+        // (Bỏ qua khi đã chọn club_guest_profile_id hoặc đã tạo qua create_club_guest_for_club_id)
+        if (!isset($guestUser)) {
+            $guestUser = null;
 
-        if (!empty($data['guest_phone'])) {
-            // Tìm user theo phone (kể cả user thường hay guest)
-            $guestUser = User::where('phone', $data['guest_phone'])->first();
+            if (!empty($data['guest_phone'])) {
+                // Tìm user theo phone (kể cả user thường hay guest)
+                $guestUser = User::where('phone', $data['guest_phone'])->first();
 
-            if (!$guestUser) {
-                // Tạo mới user guest với phone
+                if (!$guestUser) {
+                    // Tạo mới user guest với phone
+                    $guestUser = User::create([
+                        'full_name' => $data['guest_name'],
+                        'phone' => $data['guest_phone'],
+                        'avatar_url' => $guestAvatarUrl,
+                        'password' => Str::random(12),
+                        'visibility' => User::VISIBILITY_PRIVATE,
+                        'is_guest' => true,
+                        'last_active_at' => now(),
+                    ]);
+                } elseif (!$guestUser->is_guest) {
+                    // Phone đã tồn tại trong hệ thống (user thật) → không gán is_guest
+                    // Cập nhật avatar nếu có
+                    if ($guestAvatarUrl) {
+                        $guestUser->updateQuietly(['avatar_url' => $guestAvatarUrl]);
+                    }
+                    $guestUser->updateQuietly(['last_active_at' => now()]);
+                } else {
+                    // Tìm thấy user guest cũ → cập nhật avatar + last_active_at
+                    $guestUser->updateQuietly([
+                        'full_name' => $data['guest_name'],
+                        'avatar_url' => $guestAvatarUrl,
+                        'last_active_at' => now(),
+                    ]);
+                }
+            } else {
+                // Không có phone → tạo user guest mới không có phone
                 $guestUser = User::create([
                     'full_name' => $data['guest_name'],
-                    'phone' => $data['guest_phone'],
-                    'avatar_url' => $guestAvatarUrl,
+                    'phone' => null,
+                        'avatar_url' => $guestAvatarUrl,
                     'password' => Str::random(12),
                     'visibility' => User::VISIBILITY_PRIVATE,
                     'is_guest' => true,
                     'last_active_at' => now(),
                 ]);
-            } elseif (!$guestUser->is_guest) {
-                // Phone đã tồn tại trong hệ thống (user thật) → không gán is_guest
-                // Cập nhật avatar nếu có
-                if ($guestAvatarUrl) {
-                    $guestUser->updateQuietly(['avatar_url' => $guestAvatarUrl]);
-                }
-                $guestUser->updateQuietly(['last_active_at' => now()]);
-            } else {
-                // Tìm thấy user guest cũ → cập nhật avatar + last_active_at
-                $guestUser->updateQuietly([
-                    'full_name' => $data['guest_name'],
-                    'avatar_url' => $guestAvatarUrl,
-                    'last_active_at' => now(),
-                ]);
             }
-        } else {
-            // Không có phone → tạo user guest mới không có phone
-            $guestUser = User::create([
-                'full_name' => $data['guest_name'],
-                'phone' => null,
-                    'avatar_url' => $guestAvatarUrl,
-                'password' => Str::random(12),
-                'visibility' => User::VISIBILITY_PRIVATE,
-                'is_guest' => true,
-                'last_active_at' => now(),
-            ]);
         }
 
         // Tạo participant cho guest
@@ -282,7 +320,10 @@ class GuestController extends Controller
         }
 
         return ResponseHelper::success(
-            new MiniParticipantResource($participant),
+            array_merge(
+                (new MiniParticipantResource($participant))->resolve(),
+                $createdClubGuestProfileId ? ['club_guest_profile_id' => $createdClubGuestProfileId] : []
+            ),
             'Thêm guest thành công',
             201
         );
@@ -654,4 +695,45 @@ class GuestController extends Controller
         );
     }
 
+    /**
+     * Tìm User theo phone (nếu có) hoặc tạo mới User.is_guest=true cho luồng
+     * "create_club_guest_for_club_id". Nếu phone trùng user thật → giữ user thật
+     * (không set is_guest).
+     */
+    private function findOrCreateGuestUserForEvent(array $data, ?string $avatarUrl): User
+    {
+        if (!empty($data['guest_phone'])) {
+            $user = User::where('phone', $data['guest_phone'])->first();
+            if (!$user) {
+                return User::create([
+                    'full_name' => $data['guest_name'],
+                    'phone' => $data['guest_phone'],
+                    'avatar_url' => $avatarUrl,
+                    'password' => Str::random(12),
+                    'visibility' => User::VISIBILITY_PRIVATE,
+                    'is_guest' => true,
+                    'last_active_at' => now(),
+                ]);
+            }
+            $updates = ['last_active_at' => now()];
+            if ($avatarUrl) {
+                $updates['avatar_url'] = $avatarUrl;
+            }
+            if ($user->is_guest) {
+                $updates['full_name'] = $data['guest_name'];
+            }
+            $user->updateQuietly($updates);
+            return $user;
+        }
+
+        return User::create([
+            'full_name' => $data['guest_name'],
+            'phone' => null,
+            'avatar_url' => $avatarUrl,
+            'password' => Str::random(12),
+            'visibility' => User::VISIBILITY_PRIVATE,
+            'is_guest' => true,
+            'last_active_at' => now(),
+        ]);
+    }
 }

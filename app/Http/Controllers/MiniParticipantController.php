@@ -198,17 +198,11 @@ class MiniParticipantController extends Controller
         $isInviteAround = $request->boolean('is_invite_around', false);
 
         $validated = $request->validate([
-            // user_ids chấp nhận null cho từng phần tử — FE có thể gửi 1 entry vừa có user_id vừa có virtual_id,
-            // hoặc chỉ virtual_id (user_id = null) khi entry đó là virtual member.
-            // Validation exists sẽ chạy sau, lọc bỏ phần tử null.
-            // App mobile gửi `virtual_ids: null` khi không mời thành viên ảo,
-            // nên rule phải `nullable` (key có mặt + value null) chứ không chỉ `sometimes`.
-            // `user_ids` cũng vậy: chấp nhận null cho từng phần tử vì 1 entry có thể
-            // vừa có user_id vừa có virtual_id, hoặc chỉ virtual_id (user_id = null).
             'user_ids'         => 'sometimes|nullable|array',
             'user_ids.*'       => 'nullable|integer',
-            'virtual_ids'      => 'sometimes|nullable|array',
-            'virtual_ids.*'    => 'nullable|integer|exists:club_virtual_members,id',
+            'club_guest_profile_ids' => 'sometimes|nullable|array',
+            'club_guest_profile_ids.*' => 'nullable|integer|exists:club_guest_profiles,id',
+            'create_club_guest_for_club_id' => 'sometimes|nullable|integer|exists:clubs,id',
             'is_invite_around' => 'sometimes|nullable|boolean',
         ]);
 
@@ -229,19 +223,21 @@ class MiniParticipantController extends Controller
             );
         }
 
-        // Lọc luôn virtual_ids (bỏ null/rỗng) để check "có gì để mời" chính xác
-        $virtualIds = array_values(array_filter($validated['virtual_ids'] ?? [], fn($id) => $id !== null && $id !== ''));
+        // Lọc club_guest_profile_ids (bỏ null/rỗng)
+        $clubGuestProfileIds = array_values(array_filter($validated['club_guest_profile_ids'] ?? [], fn($id) => $id !== null && $id !== ''));
 
-        if (empty($rawUserIds) && empty($virtualIds)) {
-            return ResponseHelper::error('Cần chọn ít nhất 1 người chơi hoặc thành viên ảo để mời.', 422);
+        if (empty($rawUserIds) && empty($clubGuestProfileIds)) {
+            return ResponseHelper::error('Cần chọn ít nhất 1 người chơi hoặc CLB guest để mời.', 422);
         }
 
         $userIds = $rawUserIds;
 
-        // If FE passes the same id in both arrays (virtual member id may collide with a real user id),
-        // prefer the virtual-member interpretation — the FE has already marked the entry as `is_virtual`.
-        if (!empty($virtualIds)) {
-            $userIds = array_values(array_diff($userIds, $virtualIds));
+        // Resolve club_guest_profile_ids → user_ids (nếu có, lấy user_id từ profile)
+        if (!empty($clubGuestProfileIds)) {
+            $profileUserIds = \App\Models\Club\ClubGuestProfile::whereIn('id', $clubGuestProfileIds)
+                ->pluck('user_id')
+                ->all();
+            $userIds = array_values(array_unique(array_merge($userIds, $profileUserIds)));
         }
 
         $this->checkMaxPlayers($miniTournament);
@@ -273,14 +269,26 @@ class MiniParticipantController extends Controller
 
                 $isSuperAdmin = Auth::user()?->is_super_admin ?? false;
 
-                $participant = $miniTournament->participants()->create([
+                // Nếu user này là is_guest=true (từ club_guest_profile) → set is_guest + snapshot name/avatar
+                $isGuestUser = User::where('id', $userId)->where('is_guest', true)->exists();
+
+                $participantData = [
                     'user_id' => $userId,
                     'is_confirmed' => $isSuperAdmin && !$isInviteAround,
                     'is_invited' => true,
                     'invited_by' => Auth::id(),
                     'self_confirmed' => !$isSuperAdmin || $isInviteAround,
                     'payment_status' => $paymentStatus,
-                ]);
+                ];
+                if ($isGuestUser) {
+                    $guestUser = User::find($userId);
+                    $participantData['is_guest'] = true;
+                    $participantData['guest_name'] = $guestUser->full_name;
+                    $participantData['guest_avatar'] = $guestUser->avatar_url;
+                    $participantData['guest_phone'] = $guestUser->phone;
+                    $participantData['guarantor_user_id'] = Auth::id();
+                }
+                $participant = $miniTournament->participants()->create($participantData);
 
                 $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $userId);
 
@@ -312,47 +320,8 @@ class MiniParticipantController extends Controller
             }
         }
 
-        // Handle virtual members (ClubVirtualMember) — create a guest-style MiniParticipant
-        // without a real User row. Same payment rules as guest invited by organizer.
-        if (!empty($virtualIds)) {
-            $virtualMembers = \App\Models\Club\ClubVirtualMember::whereIn('id', $virtualIds)->get();
-            $organizerId = Auth::id();
-            $isSuperAdmin = Auth::user()?->is_super_admin ?? false;
-
-            foreach ($virtualMembers as $vm) {
-                $existingVm = $miniTournament->participants()
-                    ->where('is_guest', true)
-                    ->where('guest_name', $vm->name)
-                    ->exists();
-
-                if ($existingVm) {
-                    $failed[] = ['virtual_id' => $vm->id, 'reason' => 'Thành viên ảo đã có trong kèo đấu.'];
-                    continue;
-                }
-
-                try {
-                    $paymentStatus = PaymentStatusEnum::CONFIRMED;
-                    if ($miniTournament->has_fee && !$miniTournament->use_club_fund && !$miniTournament->auto_split_fee) {
-                        $paymentStatus = PaymentStatusEnum::PENDING;
-                    }
-
-                    $participant = $miniTournament->participants()->create([
-                        'is_guest' => true,
-                        'guest_name' => $vm->name,
-                        'guest_avatar' => $vm->avatar_url,
-                        'is_confirmed' => $isSuperAdmin && !$isInviteAround,
-                        'is_invited' => true,
-                        'invited_by' => $organizerId,
-                        'guarantor_user_id' => $organizerId,
-                        'payment_status' => $paymentStatus,
-                    ]);
-
-                    $invited[] = new MiniParticipantResource($participant->loadFullRelations());
-                } catch (\Exception $e) {
-                    $failed[] = ['virtual_id' => $vm->id, 'reason' => 'Lỗi khi thêm thành viên ảo.'];
-                }
-            }
-        }
+        // (Đã bỏ block xử lý virtualIds cũ — club_guest_profile_ids đã được resolve
+        //  sang user_ids ở phần trên, các user này sẽ được xử lý trong vòng lặp $userIds)
 
         $message = empty($failed)
             ? 'Đã gửi lời mời tham gia kèo đấu cho ' . count($invited) . ' người chơi.'

@@ -27,7 +27,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\VerificationController;
 use App\Http\Controllers\ClubController;
 use App\Http\Controllers\Club\ClubMemberController;
-use App\Http\Controllers\Club\ClubVirtualMemberController;
+use App\Http\Controllers\Club\ClubGuestProfileController;
 use App\Http\Controllers\Club\ClubWalletController;
 use App\Http\Controllers\Club\ClubWalletTransactionController;
 use App\Http\Controllers\Club\ClubActivityController;
@@ -234,10 +234,11 @@ Route::prefix('clubs')->middleware(['performance'])->group(function () {
                 Route::delete('/{memberId}', [ClubMemberController::class, 'destroy']);
             });
 
-            Route::prefix('virtual-members')->group(function () {
-                Route::get('/', [ClubVirtualMemberController::class, 'index']);
-                Route::post('/', [ClubVirtualMemberController::class, 'store']);
-                Route::delete('/{virtualMemberId}', [ClubVirtualMemberController::class, 'destroy']);
+            Route::prefix('guests/profiles')->group(function () {
+                Route::get('/', [ClubGuestProfileController::class, 'index']);
+                Route::post('/', [ClubGuestProfileController::class, 'store']);
+                Route::put('/{id}', [ClubGuestProfileController::class, 'update']);
+                Route::delete('/{id}', [ClubGuestProfileController::class, 'destroy']);
             });
 
             Route::prefix('guests')->group(function () {

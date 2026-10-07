@@ -425,7 +425,7 @@ class ClubService
         ])
             ->with(['profile:id,club_id,cover_image_url,description'])
             ->withCount('activeMembers')
-            ->withCount('virtualMembers')
+            ->withCount('guestProfiles')
             ->orderBy('created_at', 'desc');
 
         if ($userId) {
@@ -506,7 +506,7 @@ class ClubService
         ])
             ->with(['profile:id,club_id,cover_image_url,description'])
             ->withCount('activeMembers')
-            ->withCount('virtualMembers')
+            ->withCount('guestProfiles')
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->where(function ($q) use ($isSuperAdmin) {

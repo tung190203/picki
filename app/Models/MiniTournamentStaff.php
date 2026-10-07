@@ -27,8 +27,6 @@ class MiniTournamentStaff extends Model
         'role',
         'checked_in_at',
         'is_absent',
-        'is_virtual',
-        'virtual_member_id',
         'guest_name',
         'guest_avatar',
     ];
@@ -62,29 +60,18 @@ class MiniTournamentStaff extends Model
     protected $casts = [
         'is_absent' => 'boolean',
         'checked_in_at' => 'datetime',
-        'is_virtual' => 'boolean',
-        'virtual_member_id' => 'integer',
     ];
 
     // === Scopes ===
 
-    /**
-     * Lấy tên hiển thị: user thật lấy từ relation, thành viên ảo lấy từ snapshot.
-     */
     public function getDisplayNameAttribute(): ?string
     {
-        if ($this->is_virtual) {
-            return $this->guest_name;
-        }
-        return $this->user?->full_name;
+        return $this->user?->full_name ?? $this->guest_name;
     }
 
     public function getDisplayAvatarAttribute(): ?string
     {
-        if ($this->is_virtual) {
-            return $this->guest_avatar;
-        }
-        return $this->user?->avatar_url;
+        return $this->user?->avatar_url ?? $this->guest_avatar;
     }
 
     public function scopeAdmin($query)

@@ -702,7 +702,7 @@ class LeaderboardController extends Controller
         // withCount('virtualMembers') để quantity_members cộng cả thành viên ảo.
         $clubs = Club::allClubs()
             ->with(['members.user'])
-            ->withCount('virtualMembers')
+            ->withCount('guestProfiles')
             ->get();
 
         // Batch load vndupr scores for all users in all clubs

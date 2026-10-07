@@ -287,17 +287,21 @@ export const reportClub = async (clubId, data) => {
     return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/report`, data).then((response) => response.data);
 }
 
-export const getVirtualMembers = async (clubId, params = {}) => {
-    const { data } = await axiosInstance.get(`${API_ENDPOINT.CLUB}/${clubId}/virtual-members`, { params });
+export const getClubGuestProfiles = async (clubId, params = {}) => {
+    const { data } = await axiosInstance.get(`${API_ENDPOINT.CLUB}/${clubId}/guests/profiles`, { params });
     return data;
 }
 
-export const createVirtualMember = async (clubId, data) => {
-    return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/virtual-members`, data).then((response) => response.data);
+export const createClubGuestProfile = async (clubId, data) => {
+    return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/guests/profiles`, data).then((response) => response.data);
 }
 
-export const deleteVirtualMember = async (clubId, virtualMemberId) => {
-    return axiosInstance.delete(`${API_ENDPOINT.CLUB}/${clubId}/virtual-members/${virtualMemberId}`).then((response) => response.data);
+export const updateClubGuestProfile = async (clubId, id, data) => {
+    return axiosInstance.put(`${API_ENDPOINT.CLUB}/${clubId}/guests/profiles/${id}`, data).then((response) => response.data);
+}
+
+export const deleteClubGuestProfile = async (clubId, id) => {
+    return axiosInstance.delete(`${API_ENDPOINT.CLUB}/${clubId}/guests/profiles/${id}`).then((response) => response.data);
 }
 
 export const followClub = async (clubId) => {

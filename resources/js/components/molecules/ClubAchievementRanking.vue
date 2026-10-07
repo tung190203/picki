@@ -72,7 +72,7 @@
                         <h4 class="font-bold text-xs sm:text-sm text-gray-800 dark:text-slate-100 truncate max-w-[90px] sm:max-w-[120px] text-center">
                             {{ achievementTopThree[1].name }}
                         </h4>
-                        <span v-if="achievementTopThree[1].is_virtual" class="text-[9px] bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 font-bold px-1 rounded mt-0.5">ẢO</span>
+                        <span v-if="achievementTopThree[1].is_guest || achievementTopThree[1].is_virtual" class="text-[9px] bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 font-bold px-1 rounded mt-0.5">CLB GUEST</span>
                         <div class="text-xs font-extrabold text-[#D72D36] dark:text-red-400 mt-1">
                             {{ achievementTopThree[1].total_points }} {{ subType === 'star' ? '⭐' : '🏆' }}
                         </div>
@@ -93,7 +93,7 @@
                         <h4 class="font-bold text-sm sm:text-base text-gray-900 dark:text-slate-100 truncate max-w-[100px] sm:max-w-[140px] text-center">
                             {{ achievementTopThree[0].name }}
                         </h4>
-                        <span v-if="achievementTopThree[0].is_virtual" class="text-[9px] bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 font-bold px-1 rounded mt-0.5">ẢO</span>
+                        <span v-if="achievementTopThree[0].is_guest || achievementTopThree[0].is_virtual" class="text-[9px] bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 font-bold px-1 rounded mt-0.5">CLB GUEST</span>
                         <div class="text-sm font-extrabold text-[#D72D36] dark:text-red-400 mt-1">
                             {{ achievementTopThree[0].total_points }} {{ subType === 'star' ? '⭐' : '🏆' }}
                         </div>
@@ -114,7 +114,7 @@
                         <h4 class="font-bold text-xs sm:text-sm text-gray-800 dark:text-slate-100 truncate max-w-[90px] sm:max-w-[120px] text-center">
                             {{ achievementTopThree[2].name }}
                         </h4>
-                        <span v-if="achievementTopThree[2].is_virtual" class="text-[9px] bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 font-bold px-1 rounded mt-0.5">ẢO</span>
+                        <span v-if="achievementTopThree[2].is_guest || achievementTopThree[2].is_virtual" class="text-[9px] bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 font-bold px-1 rounded mt-0.5">CLB GUEST</span>
                         <div class="text-xs font-extrabold text-[#D72D36] dark:text-red-400 mt-1">
                             {{ achievementTopThree[2].total_points }} {{ subType === 'star' ? '⭐' : '🏆' }}
                         </div>
@@ -128,7 +128,7 @@
 
                 <!-- Leaderboard List Table -->
                 <div class="divide-y divide-gray-100 dark:divide-slate-800/80 border border-gray-100 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
-                    <div v-for="item in achievementList" :key="item.user_id || item.virtual_member_id || item.name"
+                    <div v-for="item in achievementList" :key="item.user_id || item.id || item.name"
                         class="flex items-center justify-between p-3.5 hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors">
                         <div class="flex items-center space-x-3">
                             <span class="font-bold text-sm text-gray-400 dark:text-slate-400 w-6 text-center">{{ item.rank }}</span>
@@ -136,7 +136,7 @@
                             <div>
                                 <div class="flex items-center space-x-1.5">
                                     <span class="font-semibold text-sm text-gray-800 dark:text-slate-100">{{ item.name }}</span>
-                                    <span v-if="item.is_virtual" class="text-[9px] bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-bold px-1.5 py-0.5 rounded">ẢO</span>
+                                    <span v-if="item.is_guest || item.is_virtual" class="text-[9px] bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-bold px-1.5 py-0.5 rounded">CLB GUEST</span>
                                 </div>
                                 <div class="text-xs text-gray-400 dark:text-slate-400 space-x-2 mt-0.5">
                                     <span>🥇 {{ item.gold }}</span>

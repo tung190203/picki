@@ -7,18 +7,18 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * Helper dùng chung cho các ClubResource để tính `quantity_members`.
  *
- * Quy ước số thành viên của CLB = user thật (đã join + active) + thành viên ảo
- * (club_virtual_members). Trước đây chỉ đếm user thật nên số liệu thấp hơn thực tế.
+ * Quy ước số thành viên của CLB = user thật (đã join + active) + CLB guest
+ * (club_guest_profiles — User.is_guest = true do CLB tạo và quản lý).
  *
  * ⚠️ Lưu ý quan trọng về tên attribute:
  *  `withCount('activeMembers')` của Laravel sinh attribute tên `active_members_count`
- *  (snake_case tự động) — CHƯA bao gồm thành viên ảo.
+ *  (snake_case tự động) — CHƯA bao gồm CLB guest.
  *  Trong khi `ClubDetailAssembler` cũng set `active_members_count` nhưng ĐÃ cộng sẵn
- *  thành viên ảo vào, đồng thời đánh dấu bằng cờ `_virtual_members_counted`.
+ *  CLB guest vào, đồng thời đánh dấu bằng cờ `_virtual_members_counted`.
  *
- *  Vì vậy: chỉ coi `active_members_count` là "đã bao gồm thành viên ảo" khi cờ
+ *  Vì vậy: chỉ coi `active_members_count` là "đã bao gồm CLB guest" khi cờ
  *  `_virtual_members_counted` = true. Nếu không có cờ thì đây là raw count của
- *  `withCount('activeMembers')` và vẫn phải cộng thêm thành viên ảo.
+ *  `withCount('activeMembers')` và vẫn phải cộng thêm CLB guest.
  *
  * @mixin \Illuminate\Http\Resources\Json\JsonResource
  */
@@ -31,7 +31,7 @@ trait ResolvesClubMemberCount
     public const FLAG_VIRTUAL_MEMBERS_COUNTED = '_virtual_members_counted';
 
     /**
-     * Tổng số thành viên CLB = user thật (joined + active) + thành viên ảo.
+     * Tổng số thành viên CLB = user thật (joined + active) + CLB guest.
      */
     protected function resolveClubQuantityMembers(): int
     {
@@ -41,7 +41,7 @@ trait ResolvesClubMemberCount
             return 0;
         }
 
-        // Đã cộng sẵn cả user thật + thành viên ảo (ClubDetailAssembler) → dùng luôn.
+        // Đã cộng sẵn cả user thật + CLB guest (ClubDetailAssembler) → dùng luôn.
         if ($model->getAttribute(self::FLAG_VIRTUAL_MEMBERS_COUNTED) === true
             && $model->getAttribute('active_members_count') !== null) {
             return (int) $model->getAttribute('active_members_count');
@@ -54,12 +54,12 @@ trait ResolvesClubMemberCount
         ], ['activeMembers', 'members']);
 
         $virtualCount = $this->pickCount($model, [
-            'virtual_members_count',
-        ], ['virtualMembers']);
+            'guest_profiles_count',
+        ], ['guestProfiles']);
 
         // Thiếu phần nào thì chỉ query phần còn thiếu (tránh query thừa).
         $realCount ??= $model->members()->count();
-        $virtualCount ??= $model->virtualMembers()->count();
+        $virtualCount ??= $model->guestProfiles()->count();
 
         return (int) $realCount + (int) $virtualCount;
     }

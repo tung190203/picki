@@ -42,8 +42,8 @@
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-1 flex-wrap">
                                     <span class="font-semibold text-gray-800">{{ display(item).full_name }}</span>
-                                    <span v-if="item.is_virtual" class="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
-                                        Virtual
+                                    <span v-if="item.is_guest || item.is_virtual" class="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                                        CLB guest
                                     </span>
                                     <span v-else :class="[
                                         'px-2 py-0.5 rounded text-xs font-medium',
@@ -129,12 +129,12 @@ const closeModal = () => {
 const searchQuery = ref('')
 
 // Build a normalized user-shaped view from a participant entry:
-// - real user       -> participant.user fields
-// - guest           -> guest_name / guest_avatar; user fields absent
-// - virtual member  -> guest_name / guest_avatar from club virtual member
+// - real user            -> participant.user fields
+// - guest / CLB guest    -> guest_name / guest_avatar; user fields present (is_guest=true)
 const display = (item) => {
     const u = item?.user || {}
-    const name = item?.is_virtual || (!item?.user && item?.guest_name)
+    const isGuestLike = Boolean(item?.is_virtual || item?.is_guest)
+    const name = isGuestLike || (!item?.user && item?.guest_name)
         ? (item?.guest_name || '')
         : (u.full_name || '')
     return {
@@ -142,14 +142,14 @@ const display = (item) => {
         avatar_url: u.avatar_url || item?.guest_avatar || null,
         gender: typeof u.gender === 'number' ? u.gender : null,
         gender_text: u.gender_text || null,
-        visibility: u.visibility || (item?.is_virtual ? 'open' : 'open'),
+        visibility: u.visibility || 'open',
         sportsScores: u?.sports?.[0]?.scores || [],
     }
 }
 
 const entryKey = (item) => {
-    if (item?.is_virtual && item?.virtual_member_id) return `vm-${item.virtual_member_id}`
     if (item?.is_guest) return `g-${item.id ?? item.guest_name}`
+    if (item?.is_virtual) return `vm-${item.virtual_member_id ?? item.id}` // legacy fallback
     return `u-${item?.user?.id ?? item?.id}`
 }
 
