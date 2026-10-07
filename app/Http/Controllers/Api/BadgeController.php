@@ -22,7 +22,9 @@ class BadgeController extends Controller
 
         $result = $allBadges->map(function ($badge) use ($userBadges, $badgeTypes) {
             $userBadge = $userBadges->get($badge->id);
-            $typeName = $badgeTypes->has($badge->type) ? $badgeTypes->get($badge->type)->name : $badge->type;
+            $typeModel = $badgeTypes->has($badge->type) ? $badgeTypes->get($badge->type) : null;
+            $typeName = $typeModel ? $typeModel->name : $badge->type;
+            $typeDescription = $typeModel ? $typeModel->description : null;
             return [
                 'id' => $badge->id, // badge id
                 'user_badge_id' => $userBadge ? $userBadge->id : null,
@@ -32,6 +34,7 @@ class BadgeController extends Controller
                 'icon_url' => $badge->icon_url,
                 'type' => $badge->type,
                 'type_name' => $typeName,
+                'type_description' => $typeDescription,
                 'priority' => $badge->priority,
                 'is_unlocked' => $userBadge ? true : false,
                 'is_featured' => $userBadge ? (bool) $userBadge->is_featured : false,

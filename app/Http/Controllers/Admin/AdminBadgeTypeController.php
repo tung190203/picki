@@ -18,6 +18,7 @@ class AdminBadgeTypeController extends Controller
         $validated = $request->validate([
             'code' => 'required|string|unique:badge_types,code|max:50',
             'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
         ]);
 
         $badgeType = \App\Models\BadgeType::create($validated);
@@ -31,6 +32,7 @@ class AdminBadgeTypeController extends Controller
         $validated = $request->validate([
             'code' => 'string|max:50|unique:badge_types,code,' . $badgeType->id,
             'name' => 'string|max:255',
+            'description' => 'nullable|string',
         ]);
 
         $badgeType->update($validated);

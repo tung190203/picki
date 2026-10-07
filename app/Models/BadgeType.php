@@ -9,5 +9,5 @@ class BadgeType extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['code', 'name'];
+    protected $fillable = ['code', 'name', 'description'];
 }

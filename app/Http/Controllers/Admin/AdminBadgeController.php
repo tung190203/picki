@@ -14,6 +14,7 @@ class AdminBadgeController extends Controller
     {
         $badges = Badge::query()
             ->when($request->type, fn($q) => $q->where('type', $request->type))
+            ->orderBy('created_at', 'desc')
             ->orderBy('priority', 'desc')
             ->paginate($request->per_page ?? 15);
 

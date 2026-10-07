@@ -10,7 +10,16 @@
 
     <div v-else>
       <div v-for="(group, typeName) in groupedBadges" :key="typeName" class="mb-8 last:mb-0 relative hover:z-50">
-        <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">{{ typeName }}</h3>
+        <div class="flex items-center gap-2 mb-4">
+          <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider">{{ typeName }}</h3>
+          <div v-if="group[0]?.type_description" class="group/tooltip relative flex items-center justify-center cursor-help">
+            <span class="material-symbols-outlined text-[16px] text-slate-400 hover:text-slate-600 transition-colors">help</span>
+            <div class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover/tooltip:block w-56 p-2.5 bg-white text-xs rounded-lg shadow-lg text-center z-[100] normal-case tracking-normal font-normal">
+              {{ group[0].type_description }}
+              <div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-800"></div>
+            </div>
+          </div>
+        </div>
         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
           <div 
             v-for="badge in group" 

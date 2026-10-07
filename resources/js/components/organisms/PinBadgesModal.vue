@@ -41,17 +41,18 @@
                 <div 
                   v-for="i in 3" 
                   :key="`slot-${i}`" 
-                  class="w-16 h-16 rounded-2xl border-2 flex items-center justify-center transition-all"
-                  :class="selectedBadges[i-1] ? 'border-[#E8192C] bg-red-50' : 'border-dashed border-slate-200 bg-white'"
+                  class="w-16 h-16 rounded-2xl border-2 flex items-center justify-center transition-all relative group"
+                  :class="selectedBadges[i-1] ? 'border-[#E8192C] bg-red-50 cursor-pointer' : 'border-dashed border-slate-200 bg-white'"
+                  @click="selectedBadges[i-1] && toggleSelection(selectedBadges[i-1])"
                 >
-                  <div v-if="selectedBadges[i-1]" class="relative cursor-pointer group" @click="toggleSelection(selectedBadges[i-1])">
+                  <template v-if="selectedBadges[i-1]">
                     <BadgeIcon :badge="selectedBadges[i-1]" size="lg" :showHoverCard="false" />
-                    <div class="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div class="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-sm border border-white">
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
                       </svg>
                     </div>
-                  </div>
+                  </template>
                   <span v-else class="text-slate-300 text-2xl font-light">+</span>
                 </div>
               </div>

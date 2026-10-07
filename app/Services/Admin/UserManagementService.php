@@ -464,7 +464,7 @@ class UserManagementService
         $badgeService = app(BadgeService::class);
         $oldHasBadge = $badgeService->hasBadge($user->id, 'PICKI');
 
-        $badgeService->grant_picki($user->id, $admin->id);
+        $badgeService->awardBadge($user->id, 'PICKI', $admin->id);
 
         $this->auditLogService->log(
             $admin,

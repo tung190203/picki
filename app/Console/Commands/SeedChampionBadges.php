@@ -228,7 +228,7 @@ class SeedChampionBadges extends Command
                             // created_by user might not exist on this environment → fallback to null
                             $creatorExists = \App\Models\User::withTrashed()->find($tournament->created_by);
                             $createdBy = $creatorExists ? $tournament->created_by : null;
-                            $badgeService->grant_champion($member->id, $createdBy);
+                            $badgeService->awardBadge($member->id, 'CHAMPION', $createdBy);
                             $this->line("      ✅ {$member->full_name} (ID: {$member->id}) - Awarded CHAMPION badge");
                         } catch (\Throwable $e) {
                             $this->line("      ❌ {$member->full_name} (ID: {$member->id}) - ERROR: " . $e->getMessage());

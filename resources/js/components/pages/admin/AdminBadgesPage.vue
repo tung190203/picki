@@ -122,6 +122,21 @@
                 </tr>
               </tbody>
             </table>
+            
+            <!-- Pagination Controls -->
+            <div v-if="lastPage > 1" class="flex items-center justify-between p-4 border-t border-slate-200 bg-slate-50">
+              <div class="text-sm text-slate-500">
+                Hiển thị trang <span class="font-bold text-slate-700">{{ currentPage }}</span> / <span class="font-bold text-slate-700">{{ lastPage }}</span> (Tổng {{ totalBadges }})
+              </div>
+              <div class="flex items-center gap-2">
+                <button @click="changePage(currentPage - 1)" :disabled="currentPage === 1" class="px-3 py-1.5 text-sm font-medium border border-slate-300 rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                  Trước
+                </button>
+                <button @click="changePage(currentPage + 1)" :disabled="currentPage === lastPage" class="px-3 py-1.5 text-sm font-medium border border-slate-300 rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                  Sau
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -266,6 +281,10 @@
                 <input v-model="typeFormData.code" type="text" placeholder="VD: rank, achievement, event..." class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-[#E8192C] focus:outline-none transition-all" :disabled="isEditingType" :class="{'opacity-60 cursor-not-allowed': isEditingType}" />
                 <p v-if="!isEditingType" class="text-xs text-slate-400 mt-1">Mã không có dấu, không khoảng trắng (vd: event)</p>
               </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Mô tả</label>
+                <textarea v-model="typeFormData.description" placeholder="Mô tả về loại huy hiệu này (hiển thị khi di chuột vào dấu chấm hỏi)" rows="3" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-[#E8192C] focus:outline-none transition-all"></textarea>
+              </div>
             </div>
 
             <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3">
@@ -278,6 +297,14 @@
           </div>
         </div>
       </transition>
+      <!-- Delete Confirmation Modal -->
+      <DeleteConfirmationModal
+        v-model="showDeleteConfirm"
+        title="Xác nhận xóa"
+        :message="deleteConfirmMessage"
+        confirmButtonText="Xóa"
+        @confirm="onConfirmDelete"
+      />
     </main>
   </div>
 </template>
@@ -286,14 +313,24 @@
 import { ref, onMounted } from 'vue';
 import AdminSidebar from '@/components/organisms/AdminSidebar.vue';
 import AdminHeader from '@/components/organisms/AdminHeader.vue';
+import DeleteConfirmationModal from '@/components/molecules/DeleteConfirmationModal.vue';
 import http from '@/utils/httpRequest';
 import { toast } from 'vue3-toastify';
+
+const showDeleteConfirm = ref(false);
+const deleteTarget = ref(null);
+const deleteType = ref('badge');
+const deleteConfirmMessage = ref('');
 
 const loading = ref(false);
 const saving = ref(false);
 const showModal = ref(false);
 const isEditing = ref(false);
 const allBadges = ref([]);
+
+const currentPage = ref(1);
+const lastPage = ref(1);
+const totalBadges = ref(0);
 
 const activeTab = ref('badges');
 const allBadgeTypes = ref([]);
@@ -305,6 +342,7 @@ const typeFormData = ref({
   id: null,
   code: '',
   name: '',
+  description: '',
 });
 
 const fileInput = ref(null);
@@ -348,14 +386,26 @@ const handleImageChange = (e) => {
 const fetchBadges = async () => {
   loading.value = true;
   try {
-    const res = await http.get('/admin/badges');
+    const res = await http.get(`/admin/badges?page=${currentPage.value}`);
     if (res.data && res.data.data) {
       allBadges.value = res.data.data;
+      if (res.data.meta) {
+        currentPage.value = res.data.meta.current_page;
+        lastPage.value = res.data.meta.last_page;
+        totalBadges.value = res.data.meta.total;
+      }
     }
   } catch (e) {
     console.error('Lỗi khi tải danh sách:', e);
   } finally {
     loading.value = false;
+  }
+};
+
+const changePage = (page) => {
+  if (page >= 1 && page <= lastPage.value) {
+    currentPage.value = page;
+    fetchBadges();
   }
 };
 
@@ -432,16 +482,32 @@ const saveBadge = async () => {
   }
 };
 
-const confirmDelete = async (badge) => {
-  if (confirm(`Bạn có chắc chắn muốn xóa huy hiệu ${badge.name}?`)) {
+const confirmDelete = (badge) => {
+  deleteTarget.value = badge;
+  deleteType.value = 'badge';
+  deleteConfirmMessage.value = `Bạn có chắc chắn muốn xóa huy hiệu ${badge.name}?`;
+  showDeleteConfirm.value = true;
+};
+
+const onConfirmDelete = async () => {
+  if (deleteType.value === 'badge') {
     try {
-      await http.delete(`/admin/badges/${badge.id}`);
+      await http.delete(`/admin/badges/${deleteTarget.value.id}`);
       toast.success('Đã xóa huy hiệu');
       await fetchBadges();
     } catch (e) {
       toast.error('Có lỗi xảy ra khi xóa');
     }
+  } else if (deleteType.value === 'badgeType') {
+    try {
+      await http.delete(`/admin/badge-types/${deleteTarget.value.id}`);
+      toast.success('Đã xóa loại huy hiệu');
+      await fetchBadgeTypes();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Có lỗi xảy ra khi xóa');
+    }
   }
+  showDeleteConfirm.value = false;
 };
 
 // BADGE TYPES
@@ -462,6 +528,7 @@ const openCreateTypeModal = () => {
     id: null,
     code: '',
     name: '',
+    description: '',
   };
   showTypeModal.value = true;
 };
@@ -472,6 +539,7 @@ const editType = (type) => {
     id: type.id,
     code: type.code,
     name: type.name,
+    description: type.description || '',
   };
   showTypeModal.value = true;
 };
@@ -487,6 +555,7 @@ const saveBadgeType = async () => {
     const payload = {
       code: typeFormData.value.code.toLowerCase().replace(/\s+/g, '_'),
       name: typeFormData.value.name,
+      description: typeFormData.value.description,
     };
 
     if (isEditingType.value) {
@@ -507,16 +576,11 @@ const saveBadgeType = async () => {
   }
 };
 
-const confirmDeleteType = async (type) => {
-  if (confirm(`Bạn có chắc chắn muốn xóa loại huy hiệu ${type.name}?`)) {
-    try {
-      await http.delete(`/admin/badge-types/${type.id}`);
-      toast.success('Đã xóa loại huy hiệu');
-      await fetchBadgeTypes();
-    } catch (e) {
-      toast.error(e.response?.data?.message || 'Có lỗi xảy ra khi xóa');
-    }
-  }
+const confirmDeleteType = (type) => {
+  deleteTarget.value = type;
+  deleteType.value = 'badgeType';
+  deleteConfirmMessage.value = `Bạn có chắc chắn muốn xóa loại huy hiệu ${type.name}?`;
+  showDeleteConfirm.value = true;
 };
 
 onMounted(() => {

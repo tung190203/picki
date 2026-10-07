@@ -6,6 +6,7 @@ use App\Models\Matches;
 use App\Models\MiniMatch;
 use App\Models\MiniTournament;
 use App\Models\QuickMatch;
+use App\Events\MatchResultConfirmed;
 use App\Services\UserSportMatchCounter;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -127,6 +128,9 @@ class MatchCacheObserver
                 'class' => get_class($match),
             ]);
         }
+
+        // Bắn event để xử lý các logic như phát huy hiệu
+        event(new MatchResultConfirmed($match));
     }
 
     protected function handleResultRemoved($match): void

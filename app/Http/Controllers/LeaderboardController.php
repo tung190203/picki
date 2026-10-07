@@ -461,7 +461,7 @@ class LeaderboardController extends Controller
         ], 'Lấy bảng xếp hạng thành công');
     }
 
-    private function getSystemLeaderboard(int $sportId, int $perPage, int $page, int $maxTotal = 50): array
+    public function getSystemLeaderboard(int $sportId, int $perPage, int $page, int $maxTotal = 50): array
     {
         $excludedEmail = 'vrplus2018@gmail.com';
 
