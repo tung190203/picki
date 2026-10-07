@@ -92,6 +92,9 @@ class ClubDetailAssembler
         // 2. Calculate rank (cached, ~0ms)
         $club->rank = $this->leaderboardService->calculateClubRank($club);
 
+        // 2c. Score range (min/max vndupr) — luôn tính, dùng cho FE bất kể user là member hay không
+        $club->score_range = $this->calculateScoreRange($club);
+
         // 3. Load members only if user is a member (and option allows)
         if ($loadMembers && ($club->is_member ?? false)) {
             $this->loadMembers($club, $options);
@@ -383,5 +386,39 @@ class ClubDetailAssembler
         }
 
         return null;
+    }
+
+    /**
+     * Tính score_range (min/max vndupr) của các thành viên active trong CLB.
+     * Trả về string "min-max" với 1 chữ số thập phân (vd: "1.2-2.5"), null nếu không có.
+     * ponytail: O(active_members) user_sport join + 1 aggregate. Cần cache 300s nếu CLB list gọi nhiều.
+     */
+    protected function calculateScoreRange(Club $club): ?string
+    {
+        $rows = DB::select(
+            "SELECT MIN(per_user.max_score) AS min_score, MAX(per_user.max_score) AS max_score
+             FROM (
+                 SELECT us.user_id, MAX(uss.score_value) AS max_score
+                 FROM club_members cm
+                 JOIN user_sport us ON us.user_id = cm.user_id
+                 JOIN user_sport_scores uss ON uss.user_sport_id = us.id
+                 WHERE cm.club_id = ?
+                   AND cm.membership_status = ?
+                   AND cm.status = ?
+                   AND uss.score_type = 'vndupr_score'
+                 GROUP BY us.user_id
+             ) AS per_user",
+            [
+                $club->id,
+                ClubMembershipStatus::Joined->value,
+                ClubMemberStatus::Active->value,
+            ]
+        );
+
+        if (empty($rows) || $rows[0]->min_score === null || $rows[0]->max_score === null) {
+            return null;
+        }
+
+        return round((float) $rows[0]->min_score, 1) . '-' . round((float) $rows[0]->max_score, 1);
     }
 }

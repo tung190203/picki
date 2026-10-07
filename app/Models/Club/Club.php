@@ -182,6 +182,29 @@ class Club extends Model
         return $this->morphMany(Follow::class, 'followable');
     }
 
+    /**
+     * Trả về điểm trình (vndupr_score) thấp nhất và cao nhất của các thành viên đang active trong CLB.
+     * Trả về string kiểu "1.2-2.5" hoặc null nếu không có thành viên nào có điểm.
+     */
+    public function getScoreRangeAttribute(): ?string
+    {
+        $members = $this->activeMembers()->with('user.vnduprScores')->get();
+
+        $scores = [];
+        foreach ($members as $member) {
+            $maxScore = $member->user?->vnduprScores?->max('score_value');
+            if ($maxScore !== null) {
+                $scores[] = (float) $maxScore;
+            }
+        }
+
+        if (empty($scores)) {
+            return null;
+        }
+
+        return round(min($scores), 1) . '-' . round(max($scores), 1);
+    }
+
     /** User đang follow CLB này hay không. */
     public function isFollowedBy(?int $userId): bool
     {

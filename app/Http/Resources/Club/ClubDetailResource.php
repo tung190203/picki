@@ -50,6 +50,9 @@ class ClubDetailResource extends ClubBaseResource
             // Skill level — computed by Assembler if members loaded
             'skill_level' => $club->_skill_level ?? null,
 
+            // Score range (vndupr min/max) — luôn có, dù member hay không
+            'score_range' => $club->score_range ?? null,
+
             // Members — only included if explicitly loaded
             'members' => $this->when($this->relationLoaded('members') && $this->members, function () {
                 return ClubMemberResource::collection($this->members);
