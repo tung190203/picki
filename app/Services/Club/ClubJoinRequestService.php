@@ -13,6 +13,7 @@ use App\Models\Club\Club;
 use App\Models\Club\ClubFundCollection;
 use App\Models\Club\ClubFundContribution;
 use App\Models\Club\ClubMember;
+use App\Models\Follow;
 use App\Models\MiniTournament;
 use App\Models\User;
 use App\Jobs\SendPushJob;
@@ -121,6 +122,13 @@ class ClubJoinRequestService
         if ($applicant) {
             $this->notifyAdminsOfNewJoinRequest($club, $applicant);
         }
+
+        // Auto-follow CLB: gửi yêu cầu tham gia = tự động theo dõi để nhận thông báo tournament
+        Follow::firstOrCreate([
+            'user_id' => $userId,
+            'followable_id' => $club->id,
+            'followable_type' => Club::class,
+        ]);
 
         return $member;
     }
@@ -266,6 +274,13 @@ class ClubJoinRequestService
         if ($club) {
             $this->notificationService->backfillNotificationsForNewMember($club, $userId, now());
             $this->attachUserToClubFundCollections($club, $userId);
+
+            // Đảm bảo user vẫn follow CLB sau khi accept lời mời
+            Follow::firstOrCreate([
+                'user_id' => $userId,
+                'followable_id' => $club->id,
+                'followable_type' => Club::class,
+            ]);
         }
 
         return $member;

@@ -56,6 +56,14 @@
                             @click="inviteMembers">
                             <UserPlusIcon class="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                         </div>
+                        <div class="p-1.5 sm:p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors relative"
+                            @click="openGuestsModal" v-tooltip="'Khách của CLB'">
+                            <UserGroupIcon class="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                            <span v-if="(club?.guests_count ?? 0) > 0"
+                                class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-[#D72D36] text-white text-[10px] font-bold rounded-full flex items-center justify-center border border-white/30">
+                                {{ (club?.guests_count ?? 0) > 99 ? '99+' : club.guests_count }}
+                            </span>
+                        </div>
                         <div class="p-1.5 sm:p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors"
                             @click="shareClub">
                             <ShareIcon class="w-5 h-5 sm:w-6 sm:h-6 text-white" />
@@ -129,7 +137,7 @@
                 </div>
 
                 <!-- Stats Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mt-8 relative z-20">
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mt-8 relative z-20">
                     <div v-for="(stat, index) in statsAdmin" :key="index"
                         class="bg-[#3E414C]/80 backdrop-blur-md rounded-2xl p-3 sm:p-4 md:p-6 border border-white/5 shadow-inner">
                         <p class="text-xs sm:text-sm font-semibold text-gray-300 mb-2 uppercase tracking-wide">{{ stat.label }}</p>
@@ -221,8 +229,13 @@
                                 <h1 class="text-2xl sm:text-3xl md:text-4xl lg:text-[44px] font-bold leading-tight">{{ club.name }}</h1>
                                 <p class="text-white/70 text-xs sm:text-sm font-medium">{{ is_joined ? getRoleName(currentUserRole) : 'Khách' }}</p>
                             </div>
+                            <span v-if="club.recruitment_status === 'open'"
+                                class="inline-flex items-center gap-1 self-start px-2.5 py-1 rounded-full bg-[#00B377] text-white text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow-sm">
+                                <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                                Đang tuyển thành viên
+                            </span>
                         </div>
-                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto" v-if="!is_joined">
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto" v-if="!is_joined && !isRecruitmentClosed">
                             <template v-if="club.has_invitation">
                                 <Button size="md" color="success"
                                     class="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-[#00B377] border border-[#00B377] text-white hover:bg-[#009664] hover:border-[#009664] flex gap-2"
@@ -250,6 +263,18 @@
                                     Hủy tham gia
                                 </Button>
                             </template>
+                            <Button v-if="!club.is_following" size="md" color="white"
+                                class="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-white border border-white text-[#3E414C] hover:bg-gray-100 flex gap-2"
+                                @click.stop="followClub" :disabled="isFollowingLoading">
+                                <BellAlertIcon class="w-4 h-4 sm:w-5 sm:h-5" />
+                                Theo dõi
+                            </Button>
+                            <Button v-else size="md" color="white"
+                                class="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-[#3E414C] border border-[#3E414C] text-white hover:bg-[#2A2D36] hover:border-[#2A2D36] flex gap-2"
+                                @click.stop="unfollowClub" :disabled="isFollowingLoading">
+                                <BellSlashIcon class="w-4 h-4 sm:w-5 sm:h-5" />
+                                Đang theo dõi
+                            </Button>
                             <Button v-if="club.profile?.qr_zalo_enabled || club.profile?.zalo_link_enabled" size="md"
                                 color="white" class="w-full sm:w-auto bg-[#FBEAEB] rounded-full p-2 sm:p-2.5" @click="openClubChat">
                                 <MessageIcon class="w-5 h-5 sm:w-6 sm:h-6 text-[#D72D36]" />
@@ -328,7 +353,10 @@
                         :leaderboard-loading="isLeaderboardLoading"
                         :is-saving="isUpdatingIntro"
                         @leaderboard-page-change="handleLeaderboardPageChange" @tab-change="handleTabChange"
-                        @refresh-club="getClubDetail" @update-intro="handleUpdateIntro" />
+                        @refresh-club="getClubDetail"
+                        @update-intro="handleUpdateIntro"
+                        @update-rules="handleUpdateRules"
+                        @update-schedule="handleUpdateSchedule" />
                 </div>
                 <div class="col-span-12 lg:col-span-4 space-y-4 order-1 lg:order-2">
                     <div class="max-w-3xl mx-auto" v-if="!hasAnyRole(['admin', 'manager', 'secretary', 'treasurer'])">
@@ -562,6 +590,11 @@
         :promotable-id="Number(clubId)"
         @success="toast.success('Đã gửi quảng bá thành công')"
     />
+    <ClubGuestsModal
+        v-model="isGuestsModalOpen"
+        :club-id="Number(clubId)"
+        @refresh="getClubDetail"
+    />
 </template>
 
 <script setup>
@@ -575,6 +608,8 @@ import {
     MapPinIcon,
     PlusIcon,
     BellIcon,
+    BellAlertIcon,
+    BellSlashIcon,
     ArrowLeftOnRectangleIcon,
     InformationCircleIcon,
     XMarkIcon,
@@ -615,6 +650,8 @@ import dayjs from 'dayjs'
 import 'dayjs/locale/vi'
 import ClubDetailSkeleton from '@/components/molecules/ClubDetailSkeleton.vue';
 import UserPlusIcon from '@/assets/images/group_add_member.svg';
+import { UserGroupIcon } from '@heroicons/vue/24/outline'
+import ClubGuestsModal from '@/components/pages/club/partials/ClubGuestsModal.vue'
 import debounce from 'lodash.debounce'
 import { getVietnameseDay } from '@/composables/formatedDate'
 import { getRoleName } from '@/helpers/role'
@@ -646,6 +683,12 @@ const isUpdatingNotification = ref(false)
 const isSubmittingTransfer = ref(false)
 const isUnpinModalOpen = ref(false)
 const isPinModalOpen = ref(false)
+const isGuestsModalOpen = ref(false)
+const openGuestsModal = () => {
+    isGuestsModalOpen.value = true
+    isMenuOpen.value = false
+    isChangeClubOpen.value = false
+}
 const isDeleteNotificationModalOpen = ref(false)
 const isCreateActivityMenuOpen = ref(false)
 const notificationToUnpin = ref(null)
@@ -788,28 +831,26 @@ const getMyClubs = async () => {
 };
 
 const statsAdmin = computed(() => {
-    const now = dayjs()
-    const fundBalance = Number(fund.value?.balance ?? 0)
-    const activitiesThisWeek = activities.value?.filter(a =>
-        dayjs(a.start_time).isSame(now, 'week')
-    ).length ?? 0
-
     return [
-        {
-            label: 'Quỹ hiện tại',
-            value: fundBalance.toLocaleString(),
-            unit: fund.value?.currency ?? 'VND',
-            unitClass: 'text-[#00B377]'
-        },
         {
             label: 'Số thành viên',
             value: club.value?.quantity_members ?? 0,
             unit: 'người'
         },
         {
-            label: 'Hoạt động tuần này',
-            value: activitiesThisWeek,
-            unit: 'Buổi'
+            label: 'Kèo/giải hôm nay',
+            value: club.value?.mini_tournaments_today ?? 0,
+            unit: 'buổi'
+        },
+        {
+            label: 'Chưa thanh toán',
+            value: club.value?.unpaid_members_count ?? 0,
+            unit: 'lượt'
+        },
+        {
+            label: 'Tỷ lệ khách quay lại',
+            value: (club.value?.returning_guests_percent ?? 0) + '%',
+            unit: ''
         }
     ]
 })
@@ -1225,6 +1266,38 @@ const handleUpdateIntro = async (newDescription) => {
     }
 }
 
+const handleUpdateRules = async (rules) => {
+    isUpdatingIntro.value = true
+    try {
+        const formData = new FormData()
+        formData.append('rules', rules)
+
+        await ClubService.updateClub(clubId.value, formData)
+        await getClubDetail()
+        toast.success('Cập nhật nội quy thành công')
+    } catch (error) {
+        toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật nội quy')
+    } finally {
+        isUpdatingIntro.value = false
+    }
+}
+
+const handleUpdateSchedule = async (scheduleText) => {
+    isUpdatingIntro.value = true
+    try {
+        const formData = new FormData()
+        formData.append('recurring_schedule_text', scheduleText)
+
+        await ClubService.updateClub(clubId.value, formData)
+        await getClubDetail()
+        toast.success('Cập nhật lịch sinh hoạt thành công')
+    } catch (error) {
+        toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật lịch sinh hoạt')
+    } finally {
+        isUpdatingIntro.value = false
+    }
+}
+
 const handleUpdateClub = async (data) => {
     isUpdatingClub.value = true
     try {
@@ -1292,6 +1365,36 @@ const cancelJoinRequest = async () => {
         toast.success('Đã huỷ yêu cầu tham gia')
     } catch (error) {
         toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi huỷ yêu cầu tham gia')
+    }
+}
+
+const isFollowingLoading = ref(false)
+
+const followClub = async () => {
+    if (isFollowingLoading.value) return
+    isFollowingLoading.value = true
+    try {
+        await ClubService.followClub(clubId.value)
+        await getClubDetail(clubId.value)
+        toast.success('Đã theo dõi CLB')
+    } catch (error) {
+        toast.error(error.response?.data?.message || 'Không thể theo dõi CLB')
+    } finally {
+        isFollowingLoading.value = false
+    }
+}
+
+const unfollowClub = async () => {
+    if (isFollowingLoading.value) return
+    isFollowingLoading.value = true
+    try {
+        await ClubService.unfollowClub(clubId.value)
+        await getClubDetail(clubId.value)
+        toast.success('Đã bỏ theo dõi CLB')
+    } catch (error) {
+        toast.error(error.response?.data?.message || 'Không thể bỏ theo dõi CLB')
+    } finally {
+        isFollowingLoading.value = false
     }
 }
 
@@ -1443,6 +1546,10 @@ const deleteClub = () => {
 
 const is_joined = computed(() => {
     return club.value?.members?.some(member => member.user_id === getUser.value.id && member.status == 'active') ?? false
+})
+
+const isRecruitmentClosed = computed(() => {
+    return club.value?.recruitment_status === 'closed'
 })
 
 const goBack = () => {

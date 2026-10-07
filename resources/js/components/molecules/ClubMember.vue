@@ -1,6 +1,6 @@
 <template>
   <div class="bg-white">
-    <!-- Header with Search & Filter Tabs & Add Virtual Member Button -->
+    <!-- Header with Search & Filter Tabs & Add CLB guest Button -->
     <div class="flex flex-col gap-4 mb-6">
       <div class="flex items-center gap-3">
         <div class="relative flex-1">
@@ -26,7 +26,7 @@
         <button @click="memberFilter = 'all'"
           class="px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors"
           :class="memberFilter === 'all' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
-          Tất cả ({{ totalMembers + virtualMembers.length }})
+          Tất cả ({{ totalMembers + clubGuestProfiles.length }})
         </button>
         <button @click="memberFilter = 'real'"
           class="px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors"
@@ -36,7 +36,12 @@
         <button @click="memberFilter = 'virtual'"
           class="px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors"
           :class="memberFilter === 'virtual' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
-          Thành viên ảo ({{ virtualMembers.length }})
+          Guest CLB ({{ clubGuestProfiles.length }})
+        </button>
+        <button @click="memberFilter = 'guests'"
+          class="px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors"
+          :class="memberFilter === 'guests' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+          Khách ({{ guestsData?.counts?.total ?? 0 }})
         </button>
       </div>
     </div>
@@ -186,25 +191,25 @@
         </div>
       </div>
 
-      <!-- Section 3: Thành viên Ảo -->
-      <div class="mt-8" v-if="(memberFilter === 'all' || memberFilter === 'virtual') && virtualMembers.length > 0">
+      <!-- Section 3: Guest CLB (User.is_guest=true do CLB tạo) -->
+      <div class="mt-8" v-if="(memberFilter === 'all' || memberFilter === 'virtual') && clubGuestProfiles.length > 0">
         <h3 class="text-sm font-semibold text-purple-600 uppercase tracking-tight mb-4 flex items-center gap-1.5">
-          THÀNH VIÊN ẢO <span class="text-purple-400 text-lg">•</span> {{ virtualMembers.length }}
+          GUEST CLB <span class="text-purple-400 text-lg">•</span> {{ clubGuestProfiles.length }}
         </h3>
-        <div v-for="vm in virtualMembers" :key="'vm_' + vm.id"
+        <div v-for="cg in clubGuestProfiles" :key="'cg_' + cg.id"
           class="flex items-center justify-between py-3.5 border-b border-gray-100">
           <div class="flex items-center gap-3">
-            <img :src="vm.avatar_url || defaultAvatar" :alt="vm.name" class="w-12 h-12 rounded-full object-cover border border-purple-200">
+            <img :src="cg.user?.avatar_url || defaultAvatar" :alt="cg.user?.full_name" class="w-12 h-12 rounded-full object-cover border border-purple-200">
             <div>
               <div class="flex items-center gap-1.5">
-                <p class="font-semibold text-gray-800">{{ vm.name }}</p>
-                <span class="text-[9px] bg-purple-100 text-purple-700 font-bold px-1.5 py-0.5 rounded">ẢO</span>
+                <p class="font-semibold text-gray-800">{{ cg.user?.full_name }}</p>
+                <span class="text-[9px] bg-purple-100 text-purple-700 font-bold px-1.5 py-0.5 rounded">CLB GUEST</span>
               </div>
-              <p v-if="vm.notes" class="text-xs text-gray-400 mt-0.5">{{ vm.notes }}</p>
+              <p v-if="cg.notes" class="text-xs text-gray-400 mt-0.5">{{ cg.notes }}</p>
             </div>
           </div>
 
-          <button v-if="canManageMembers" @click="handleDeleteVirtual(vm.id)"
+          <button v-if="canManageMembers" @click="handleDeleteClubGuest(cg.id)"
             class="text-xs font-semibold text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition-colors">
             Xóa
           </button>
@@ -212,8 +217,95 @@
       </div>
 
       <!-- Empty state -->
-      <div v-if="!loading && !regularMembers.length && !managementMembers.length && !virtualMembers.length" class="text-center py-12 text-gray-400">
+      <div v-if="!loading && memberFilter !== 'guests' && !regularMembers.length && !managementMembers.length && !clubGuestProfiles.length" class="text-center py-12 text-gray-400">
         Chưa có thành viên nào
+      </div>
+
+      <!-- Section 4: Khách - Tiềm năng -->
+      <div v-if="memberFilter === 'guests'" class="mt-2">
+        <div v-if="loadingGuests" class="text-center py-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+        </div>
+
+        <div v-else-if="!guestsData?.potential?.length && !guestsData?.normal?.length" class="text-center py-12 text-gray-400">
+          Chưa có khách nào
+        </div>
+
+        <template v-else>
+          <!-- Tiềm năng -->
+          <div v-if="guestsData?.potential?.length" class="mt-2 mb-8">
+            <h3 class="text-sm font-semibold text-[#D72D36] uppercase tracking-tight mb-4 flex items-center gap-1.5">
+              KHÁCH TIỀM NĂNG <span class="text-gray-400 text-lg">•</span> {{ guestsData.potential.length }}
+            </h3>
+            <div v-for="guest in guestsData.potential" :key="'gp_' + guest.user_id"
+              class="flex items-center justify-between py-3.5 border-b border-gray-100">
+              <div class="flex items-center gap-3 min-w-0 flex-1">
+                <img :src="guest.user?.avatar_url || defaultAvatar" :alt="guest.user?.full_name"
+                  class="w-12 h-12 rounded-full object-cover border border-gray-100">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2">
+                    <p class="font-semibold text-gray-800 truncate">{{ guest.user?.full_name || 'N/A' }}</p>
+                    <span v-if="guest.is_invited"
+                      class="text-[9px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded whitespace-nowrap">
+                      ĐÃ MỜI
+                    </span>
+                  </div>
+                  <p class="text-xs text-gray-400 mt-0.5">
+                    Chơi {{ guest.play_count }} lần • {{ formatLastPlayed(guest) }}
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <button v-if="!guest.is_invited" @click="handleInviteGuest(guest)" :disabled="invitingGuestId === guest.user_id"
+                  class="text-xs font-semibold bg-[#D72D36] hover:bg-red-700 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
+                  <span v-if="invitingGuestId === guest.user_id">...</span>
+                  <span v-else>Mời</span>
+                </button>
+                <button @click="handleDeleteGuest(guest)" :disabled="deletingGuestId === guest.user_id"
+                  class="p-1.5 text-gray-400 hover:text-[#D72D36] hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50">
+                  <TrashIcon class="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bình thường -->
+          <div v-if="guestsData?.normal?.length" class="mt-2">
+            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-tight mb-4 flex items-center gap-1.5">
+              KHÁCH BÌNH THƯỜNG <span class="text-gray-400 text-lg">•</span> {{ guestsData.normal.length }}
+            </h3>
+            <div v-for="guest in guestsData.normal" :key="'gn_' + guest.user_id"
+              class="flex items-center justify-between py-3.5 border-b border-gray-100">
+              <div class="flex items-center gap-3 min-w-0 flex-1">
+                <img :src="guest.user?.avatar_url || defaultAvatar" :alt="guest.user?.full_name"
+                  class="w-12 h-12 rounded-full object-cover border border-gray-100">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2">
+                    <p class="font-semibold text-gray-800 truncate">{{ guest.user?.full_name || 'N/A' }}</p>
+                    <span v-if="guest.is_invited"
+                      class="text-[9px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded whitespace-nowrap">
+                      ĐÃ MỜI
+                    </span>
+                  </div>
+                  <p class="text-xs text-gray-400 mt-0.5">
+                    Chơi {{ guest.play_count }} lần • {{ formatLastPlayed(guest) }}
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <button v-if="!guest.is_invited" @click="handleInviteGuest(guest)" :disabled="invitingGuestId === guest.user_id"
+                  class="text-xs font-semibold bg-[#D72D36] hover:bg-red-700 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
+                  <span v-if="invitingGuestId === guest.user_id">...</span>
+                  <span v-else>Mời</span>
+                </button>
+                <button @click="handleDeleteGuest(guest)" :disabled="deletingGuestId === guest.user_id"
+                  class="p-1.5 text-gray-400 hover:text-[#D72D36] hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50">
+                  <TrashIcon class="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </template>
       </div>
 
       <!-- Pagination for real members -->
@@ -254,10 +346,10 @@
       @confirm="handleDeleteMember"
     />
 
-    <ClubVirtualMemberModal
+    <ClubGuestProfileModal
       v-model="showVirtualModal"
       :is-submitting="isCreatingVirtual"
-      @submit="handleCreateVirtual"
+      @submit="handleCreateClubGuest"
     />
   </div>
 </template>
@@ -280,7 +372,7 @@ const defaultAvatar = 'https://picki.vn/images/default-avatar.png'
 import * as ClubService from '@/service/club'
 import AssignRoleModal from '@/components/molecules/AssignRoleModal.vue'
 import DeleteConfirmationModal from '@/components/molecules/DeleteConfirmationModal.vue'
-import ClubVirtualMemberModal from '@/components/organisms/ClubVirtualMemberModal.vue'
+import ClubGuestProfileModal from '@/components/organisms/ClubGuestProfileModal.vue'
 import { toast } from 'vue3-toastify'
 
 const props = defineProps({
@@ -305,18 +397,22 @@ const userStore = useUserStore()
 const { getUser } = storeToRefs(userStore)
 
 const members = ref([])
-const virtualMembers = ref([])
+const clubGuestProfiles = ref([])
 const allManagementMembers = ref([])
 const statistics = ref({})
 const loading = ref(false)
 const searchQuery = ref('')
-const memberFilter = ref('all') // 'all' | 'real' | 'virtual'
+const memberFilter = ref('all') // 'all' | 'real' | 'virtual' | 'guests'
 const currentPage = ref(1)
 const totalPages = ref(1)
 const totalMembers = ref(0)
 const totalRegularMembers = ref(0)
 const perPage = ref(15)
 const openMenuId = ref(null)
+const guestsData = ref({ normal: [], potential: [], counts: { normal: 0, potential: 0, total: 0 } })
+const loadingGuests = ref(false)
+const invitingGuestId = ref(null)
+const deletingGuestId = ref(null)
 let searchTimeout = null
 
 const showAssignRoleModal = ref(false)
@@ -371,14 +467,14 @@ const fetchManagementMembers = async () => {
   }
 }
 
-const fetchVirtualMembers = async () => {
+const fetchClubGuestProfiles = async () => {
   try {
-    const res = await ClubService.getVirtualMembers(props.clubId, {
+    const res = await ClubService.getClubGuestProfiles(props.clubId, {
       search: searchQuery.value
     })
-    virtualMembers.value = res.data || []
+    clubGuestProfiles.value = res.data || []
   } catch (e) {
-    virtualMembers.value = []
+    clubGuestProfiles.value = []
   }
 }
 
@@ -411,34 +507,34 @@ const fetchMembers = async () => {
   }
 }
 
-const handleCreateVirtual = async (formData) => {
+const handleCreateClubGuest = async (formData) => {
   isCreatingVirtual.value = true
   try {
-    await ClubService.createVirtualMember(props.clubId, formData)
-    toast.success('Thêm thành viên thành công')
+    await ClubService.createClubGuestProfile(props.clubId, formData)
+    toast.success('Thêm CLB guest thành công')
     showVirtualModal.value = false
-    await fetchVirtualMembers()
+    await fetchClubGuestProfiles()
   } catch (e) {
-    toast.error('Có lỗi xảy ra khi thêm thành viên')
+    toast.error('Có lỗi xảy ra khi thêm CLB guest')
   } finally {
     isCreatingVirtual.value = false
   }
 }
 
-const handleDeleteVirtual = async (vmId) => {
+const handleDeleteClubGuest = async (id) => {
   try {
-    await ClubService.deleteVirtualMember(props.clubId, vmId)
-    toast.success('Đã xóa thành viên khỏi danh sách')
-    await fetchVirtualMembers()
+    await ClubService.deleteClubGuestProfile(props.clubId, id)
+    toast.success('Đã xóa CLB guest khỏi danh sách')
+    await fetchClubGuestProfiles()
   } catch (e) {
-    toast.error('Có lỗi khi xóa thành viên')
+    toast.error('Có lỗi khi xóa CLB guest')
   }
 }
 
 const fetchData = async () => {
   await fetchManagementMembers()
   await fetchMembers()
-  await fetchVirtualMembers()
+  await fetchClubGuestProfiles()
 }
 
 const goToPage = (page) => {
@@ -517,8 +613,8 @@ const closeMenu = () => {
 }
 
 const viewInfo = (member) => {
-  if (member.is_virtual || member.is_guest || !member.user?.id) {
-    toast.info('Thành viên ảo (khách vãng lai) không có hồ sơ cá nhân.')
+  if (member.is_guest || !member.user?.id) {
+    toast.info('CLB guest (khách vãng lai) không có hồ sơ cá nhân.')
     closeMenu()
     return
   }
@@ -575,12 +671,76 @@ watch(searchQuery, () => {
   searchTimeout = setTimeout(() => {
     currentPage.value = 1
     fetchMembers()
-    fetchVirtualMembers()
+    fetchClubGuestProfiles()
   }, 300)
 })
 
 onMounted(() => {
   fetchData()
+})
+
+const fetchGuests = async () => {
+  loadingGuests.value = true
+  try {
+    const data = await ClubService.getClubGuests(props.clubId)
+    guestsData.value = data || { normal: [], potential: [], counts: { normal: 0, potential: 0, total: 0 } }
+  } catch (e) {
+    guestsData.value = { normal: [], potential: [], counts: { normal: 0, potential: 0, total: 0 } }
+  } finally {
+    loadingGuests.value = false
+  }
+}
+
+const formatLastPlayed = (guest) => {
+  if (guest.days_since_last_play == null) return 'chưa rõ'
+  if (guest.days_since_last_play === 0) return 'hôm nay'
+  if (guest.days_since_last_play === 1) return '1 ngày trước'
+  return `${guest.days_since_last_play} ngày trước`
+}
+
+const handleInviteGuest = async (guest) => {
+  if (guest.is_invited || invitingGuestId.value) return
+  invitingGuestId.value = guest.user_id
+  try {
+    await ClubService.inviteClubGuest(props.clubId, guest.user_id)
+    guest.is_invited = true
+    if (guestsData.value?.counts?.total > 0) {
+      guestsData.value.counts.total--
+    }
+    emit('refresh-club')
+    toast.success('Đã gửi lời mời')
+  } catch (e) {
+    toast.error(e?.response?.data?.message || e?.message || 'Lỗi khi mời khách')
+  } finally {
+    invitingGuestId.value = null
+  }
+}
+
+const handleDeleteGuest = async (guest) => {
+  if (deletingGuestId.value) return
+  const name = guest.user?.full_name || 'khách này'
+  if (!confirm(`Xoá ${name} khỏi danh sách khách?`)) return
+  deletingGuestId.value = guest.user_id
+  try {
+    await ClubService.deleteClubGuest(props.clubId, guest.user_id)
+    guestsData.value.normal = guestsData.value.normal.filter(g => g.user_id !== guest.user_id)
+    guestsData.value.potential = guestsData.value.potential.filter(g => g.user_id !== guest.user_id)
+    if (guestsData.value?.counts?.total > 0) {
+      guestsData.value.counts.total--
+    }
+    emit('refresh-club')
+    toast.success('Đã xoá khách')
+  } catch (e) {
+    toast.error(e?.response?.data?.message || e?.message || 'Lỗi khi xoá khách')
+  } finally {
+    deletingGuestId.value = null
+  }
+}
+
+watch(memberFilter, (newVal) => {
+  if (newVal === 'guests' && (guestsData.value?.counts?.total ?? 0) === 0) {
+    fetchGuests()
+  }
 })
 </script>
 

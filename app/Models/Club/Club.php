@@ -6,6 +6,8 @@ use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
 use App\Enums\ClubStatus;
+use App\Models\CompetitionLocation;
+use App\Models\Follow;
 use App\Models\User;
 use App\Models\Tournament;
 use App\Models\MiniTournament;
@@ -35,8 +37,11 @@ class Club extends Model
         'is_public',
         'is_verified',
         'is_banned',
+        'recruitment_status',
         'created_by',
         'location_id',
+        'rules',
+        'recurring_schedule_text',
     ];
 
     protected $casts = [
@@ -44,6 +49,7 @@ class Club extends Model
         'is_public' => 'boolean',
         'is_verified' => 'boolean',
         'is_banned' => 'boolean',
+        'recruitment_status' => 'string',
     ];
 
     /**
@@ -77,7 +83,13 @@ class Club extends Model
 
     public function virtualMembers()
     {
-        return $this->hasMany(ClubVirtualMember::class);
+        // Giữ alias virtualMembers() để các chỗ cũ không lỗi — delegate sang guestProfiles()
+        return $this->guestProfiles();
+    }
+
+    public function guestProfiles()
+    {
+        return $this->hasMany(\App\Models\Club\ClubGuestProfile::class, 'club_id');
     }
 
     /** Thành viên đang tham gia (membership_status = joined, status = active). */
@@ -164,6 +176,46 @@ class Club extends Model
         return $this->hasMany(ClubReport::class);
     }
 
+    /** Polymorphic followers của CLB (những user theo dõi CLB, không phân biệt có phải member hay không). */
+    public function followers()
+    {
+        return $this->morphMany(Follow::class, 'followable');
+    }
+
+    /**
+     * Trả về điểm trình (vndupr_score) thấp nhất và cao nhất của các thành viên đang active trong CLB.
+     * Trả về string kiểu "1.2-2.5" hoặc null nếu không có thành viên nào có điểm.
+     */
+    public function getScoreRangeAttribute(): ?string
+    {
+        $members = $this->activeMembers()->with('user.vnduprScores')->get();
+
+        $scores = [];
+        foreach ($members as $member) {
+            $maxScore = $member->user?->vnduprScores?->max('score_value');
+            if ($maxScore !== null) {
+                $scores[] = (float) $maxScore;
+            }
+        }
+
+        if (empty($scores)) {
+            return null;
+        }
+
+        return round(min($scores), 1) . '-' . round(max($scores), 1);
+    }
+
+    /** User đang follow CLB này hay không. */
+    public function isFollowedBy(?int $userId): bool
+    {
+        if (!$userId) {
+            return false;
+        }
+        return $this->followers()
+            ->where('user_id', $userId)
+            ->exists();
+    }
+
     public function tournaments()
     {
         return $this->hasMany(Tournament::class);
@@ -173,6 +225,20 @@ class Club extends Model
     {
         return $this->hasMany(MiniTournament::class);
     }
+
+    /**
+     * Sân nhà của CLB (competition_locations được chọn làm sân thường tổ chức).
+     * Pivot club_competition_locations có thêm position, distance_km, events_hosted_count.
+     */
+    public function homeCourts()
+    {
+        return $this->belongsToMany(CompetitionLocation::class, 'club_competition_locations')
+            ->withPivot(['position', 'distance_km', 'events_hosted_count'])
+            ->orderBy('club_competition_locations.position')
+            ->orderBy('club_competition_locations.id');
+    }
+
+    ///** Lịch sinh hoạt định kỳ — đã chuyển thành text field clubs.recurring_schedule_text */
 
     /** Top admin = member with highest role priority: Admin > Manager > Secretary > Treasurer > Member. */
     public function adminMember()
@@ -224,12 +290,15 @@ class Club extends Model
             'members_count' => $query
                 ->withCount([
                     'activeMembers',
+                    // Sắp xếp theo tổng thành viên (user thật + user ảo) để khớp
+                    // với `quantity_members` hiển thị ra FE.
+                    'virtualMembers',
                     'miniTournaments as active_matches_count' => fn($q) => $q
                         ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN])
                         ->where(fn($sub) => $sub->whereNull('end_time')->orWhere('end_time', '>=', now())),
                 ])
                 ->orderByRaw('CASE WHEN active_matches_count > 0 THEN 0 ELSE 1 END ASC')
-                ->orderBy('active_members_count', $sortDir),
+                ->orderByRaw('(active_members_count + virtual_members_count) ' . $sortDir),
             'active_matches_count' => $query
                 ->withCount([
                     'miniTournaments as active_matches_count' => fn($q) => $q
@@ -275,13 +344,15 @@ class Club extends Model
     public function scopeWithListRelations($query)
     {
         return $query->with(['profile:id,club_id,cover_image_url,description,address'])
-            ->withCount('activeMembers');
+            ->withCount('activeMembers')
+            ->withCount('virtualMembers');
     }
 
     public function scopeWithSearchRelations($query, ?int $userId = null)
     {
         return $query->with(['profile:id,club_id,cover_image_url,description,address'])
             ->withCount('activeMembers')
+            ->withCount('virtualMembers')
             ->withCount([
                 'miniTournaments as active_matches_count' => fn($q) => $q
                     ->whereIn('status', [MiniTournament::STATUS_DRAFT, MiniTournament::STATUS_OPEN]),

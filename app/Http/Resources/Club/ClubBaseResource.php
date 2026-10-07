@@ -9,11 +9,14 @@ namespace App\Http\Resources\Club;
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
+use App\Http\Resources\Concerns\ResolvesClubMemberCount;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 abstract class ClubBaseResource extends JsonResource
 {
+    use ResolvesClubMemberCount;
+
     /**
      * Calculate skill_level from pre-loaded members (no query).
      * Call this AFTER ClubDetailAssembler has populated the data.

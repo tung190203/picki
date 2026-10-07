@@ -12,6 +12,7 @@ use App\Http\Resources\Club\ClubMemberResource;
 use App\Models\Club\Club;
 use App\Models\Club\ClubMember;
 use App\Models\User;
+use App\Services\Club\ClubAchievementLeaderboardService;
 use App\Services\Club\ClubMemberManagementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -329,5 +330,30 @@ class ClubMemberController extends Controller
             'per_page'     => $paginated->perPage(),
             'total'        => $paginated->total(),
         ]);
+    }
+
+    /**
+     * Lịch sử sao/cúp của 1 member trong CLB.
+     * Flat list các event (mini_tournament + tournament) mà user đó đạt top 3,
+     * cộng với summary gold/silver/bronze.
+     *
+     * Public — ai cũng xem được (tương tự leaderboard).
+     */
+    public function achievements(Request $request, $clubId, $memberId)
+    {
+        $club = Club::findOrFail($clubId);
+
+        // 404 nếu user chưa từng là member của CLB (kể cả đã left/rejected)
+        $hasHistory = ClubMember::where('club_id', $club->id)
+            ->where('user_id', $memberId)
+            ->exists();
+        if (!$hasHistory) {
+            return ResponseHelper::error('Member không tồn tại trong CLB này', 404);
+        }
+
+        $service = app(ClubAchievementLeaderboardService::class);
+        $data = $service->getMemberAchievements($club, (int) $memberId);
+
+        return ResponseHelper::success($data, 'Lấy lịch sử thành tích thành viên thành công');
     }
 }

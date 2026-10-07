@@ -107,8 +107,10 @@ class ClubController extends Controller
             'creator:id,full_name,avatar_url',
             'profile',
             'mainWallet:id,club_id,currency,qr_code_url,qr_note',
+            'homeCourts:id,name,address,latitude,longitude',
         ])
             ->withCount('activeMembers')
+            ->withCount('guestProfiles')
             ->find($clubId);
         if (!$club) {
             return ResponseHelper::error('Câu lạc bộ không còn tồn tại trong hệ thống', 404);
@@ -272,6 +274,7 @@ class ClubController extends Controller
         $clubs = $query
             ->with(['profile:id,club_id,cover_image_url,description', 'creator:id,full_name,avatar_url', 'mainWallet:id,club_id,qr_code_url,qr_note'])
             ->withCount('activeMembers')
+            ->withCount('guestProfiles')
             ->get();
 
         if ($userId) {

@@ -16,40 +16,31 @@ class MiniTournamentStaffController extends Controller
     /**
      * Thêm thành viên vào kèo (Admin / BTC / Trọng tài).
      *
-     * Body: { staff_id|virtual_id, role: 1|2|3 }
+     * Body: { staff_id, role: 1|2|3 }
      *  - role = 1 (Admin)         → Admin (organizer)
      *  - role = 2 (BTC / Staff)   → BTC
      *  - role = 3 (Referee)       → Trọng tài
-     *  - `staff_id` (user thật) và `virtual_id` (thành viên ảo ClubVirtualMember) loại trừ nhau.
      *
      * Quyền:
      *  - Admin: được add với mọi role
      *  - BTC:   chỉ được add role = 3 (Trọng tài)
      *  - Trọng tài: ❌
      *
-     * 1 người (thật hoặc ảo) chỉ giữ tối đa 1 role / kèo.
+     * 1 người chỉ giữ tối đa 1 role / kèo.
+     *
+     * Lưu ý: CLB guest (User.is_guest = true) có thể được thêm vào staff —
+     * BE vẫn dùng staff_id (user_id) như user thật.
      */
     public function addStaff(Request $request, $tournamentId)
     {
-        // `staff_id` có thể null khi thêm thành viên ảo (ClubVirtualMember).
         $validatedData = $request->validate([
-            'staff_id' => 'nullable|integer|exists:users,id',
-            'virtual_id' => 'nullable|integer|exists:club_virtual_members,id',
+            'staff_id' => 'required|integer|exists:users,id',
             'role' => 'required|integer|in:1,2,3',
         ], [
             'staff_id.exists' => 'Chỉ được phép thêm người dùng Picki vào làm BTC/trọng tài của kèo.',
         ]);
 
-        $staffId = $validatedData['staff_id'] ?? null;
-        $virtualId = $validatedData['virtual_id'] ?? null;
-
-        if ($staffId === null && $virtualId === null) {
-            return ResponseHelper::error(
-                'Cần chọn người dùng Picki hoặc thành viên ảo để thêm vào kèo đấu.',
-                422
-            );
-        }
-
+        $staffId = $validatedData['staff_id'];
         $tournament = MiniTournament::findOrFail($tournamentId);
 
         // Permission: caller phải có quyền gán role này
@@ -57,17 +48,10 @@ class MiniTournamentStaffController extends Controller
             return ResponseHelper::error('Bạn không có quyền gán vai trò này cho kèo đấu', 403);
         }
 
-        // 1 người (thật hoặc ảo) chỉ giữ 1 role / kèo (theo quyết định với Thắng).
-        // Dùng hasMany vì bản ghi thành viên ảo có user_id = null, belongsToMany(User) không thấy.
-        if ($virtualId !== null) {
-            $alreadyIn = $tournament->miniTournamentStaffs()
-                ->where('virtual_member_id', $virtualId)
-                ->exists();
-        } else {
-            $alreadyIn = $tournament->miniTournamentStaffs()
-                ->where('user_id', $staffId)
-                ->exists();
-        }
+        // 1 người chỉ giữ 1 role / kèo
+        $alreadyIn = $tournament->miniTournamentStaffs()
+            ->where('user_id', $staffId)
+            ->exists();
 
         if ($alreadyIn) {
             return ResponseHelper::error(
@@ -77,28 +61,11 @@ class MiniTournamentStaffController extends Controller
         }
 
         $role = (int) $validatedData['role'];
-
-        // Thành viên ảo: snapshot name + avatar, user_id để null.
-        $isVirtual = $virtualId !== null;
-        $guestName = null;
-        $guestAvatar = null;
-        $staffUser = null;
-
-        if ($isVirtual) {
-            $vm = \App\Models\Club\ClubVirtualMember::findOrFail($virtualId);
-            $guestName = $vm->name;
-            $guestAvatar = $vm->avatar_url;
-        } else {
-            $staffUser = User::find($staffId);
-        }
+        $staffUser = User::find($staffId);
 
         $tournament->miniTournamentStaffs()->create([
             'user_id' => $staffId,
             'role' => $role,
-            'is_virtual' => $isVirtual,
-            'virtual_member_id' => $virtualId,
-            'guest_name' => $guestName,
-            'guest_avatar' => $guestAvatar,
         ]);
 
         $tournament->load('miniTournamentStaffs');
@@ -107,14 +74,13 @@ class MiniTournamentStaffController extends Controller
             $tournament->id,
             $tournament->name,
             [
-                'id' => $isVirtual ? $virtualId : $staffUser->id,
+                'id' => $staffUser->id,
                 'user' => [
-                    'id' => $isVirtual ? null : $staffUser->id,
-                    'full_name' => $isVirtual ? $guestName : $staffUser->full_name,
-                    'avatar_url' => $isVirtual ? $guestAvatar : $staffUser->avatar_url,
+                    'id' => $staffUser->id,
+                    'full_name' => $staffUser->full_name,
+                    'avatar_url' => $staffUser->avatar_url,
                 ],
                 'role' => $role,
-                'is_virtual' => $isVirtual,
             ],
             'staff'
         );

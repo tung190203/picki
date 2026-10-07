@@ -10,7 +10,6 @@ use App\Http\Resources\Map\MapMiniTournamentResource;
 use App\Http\Resources\Map\MapTournamentResource;
 use App\Http\Resources\Map\MapUserResource;
 use App\Models\Club\Club;
-use App\Models\Club\ClubVirtualMember;
 use App\Models\CompetitionLocation;
 use App\Models\MiniTournament;
 use App\Models\Tournament;
@@ -418,26 +417,33 @@ class SearchV2Controller extends Controller
     }
 
     /**
-     * Build JSON-shaped arrays for ClubVirtualMember records of a given club.
+     * Build JSON-shaped arrays for ClubGuestProfile records of a given club.
      * Shape mirrors SearchPlayerResource so the FE search invite UI shows them uniformly.
-     * Marker `is_virtual: true` + `id = club_virtual_members.id` lets downstream invite
-     * endpoints route through the virtual-member code path.
+     * Marker `is_guest: true` + `club_guest_profile_id` lets downstream invite
+     * endpoints route through the CLB-guest code path.
      */
     private function buildVirtualMemberArrays(int $clubId, ?string $keyword): array
     {
-        $query = ClubVirtualMember::where('club_id', $clubId);
+        $query = \App\Models\Club\ClubGuestProfile::with('user')
+            ->where('club_id', $clubId)
+            ->whereHas('user');
         if (!empty($keyword)) {
-            $query->where('name', 'like', '%' . $keyword . '%');
+            $query->whereHas('user', fn ($q) => $q->where('full_name', 'like', '%' . $keyword . '%'));
         }
-        $vms = $query->orderBy('name')->get();
+        $profiles = $query->orderBy('created_at', 'desc')->get();
 
         $out = [];
-        foreach ($vms as $vm) {
+        foreach ($profiles as $profile) {
+            $user = $profile->user;
+            if (!$user) {
+                continue;
+            }
             $out[] = [
-                'id'           => $vm->id,
-                'full_name'    => $vm->name,
-                'name'         => $vm->name,
-                'avatar_url'   => $vm->avatar_url,
+                'id'           => $user->id, // unified: id = user.id (CLB guest giờ là User thật)
+                'user_id'      => $user->id,
+                'full_name'    => $user->full_name,
+                'name'         => $user->full_name,
+                'avatar_url'   => $user->avatar_url,
                 'gender'       => null,
                 'gender_text'  => null,
                 'age_group'    => null,
@@ -456,8 +462,8 @@ class SearchV2Controller extends Controller
                 'clubs'        => [],
                 'is_follow'    => false,
                 'marker_type'  => 'user',
-                'is_virtual'   => true,
-                'virtual_member_id' => $vm->id,
+                'is_guest'     => true,
+                'club_guest_profile_id' => $profile->id, // dùng cho nhánh invite CLB guest
             ];
         }
         return $out;
