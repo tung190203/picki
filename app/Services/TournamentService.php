@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Tournament;
 use App\Models\Team;
 use App\Models\User;
+use App\Models\Participant;
+use App\Services\Club\ClubGuestService;
 use App\Services\TournamentType\StandingsService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +15,7 @@ class TournamentService
 {
     public function __construct(
         private \App\Services\TournamentType\TournamentRankService $rankService,
+        private ClubGuestService $guestService,
     ) {}
 
     /**
@@ -240,21 +243,24 @@ class TournamentService
             ->keyBy('user_sport_id');
 
         // OPTIMIZED: Get all scores for ranking calculation in single query
-        // Use ROW_NUMBER() window function to calculate rank instead of correlated subquery
+        // Use ROW_NUMBER() window function to calculate rank instead of correlated subquery.
+        // is_anchor lives on `users` (anchor users are excluded from the rank pool),
+        // so JOIN user_sport -> users before filtering.
         $allScores = DB::select("
-            SELECT 
+            SELECT
                 user_id,
                 score_value,
                 ROW_NUMBER() OVER (ORDER BY score_value DESC) as rank
             FROM (
-                SELECT 
+                SELECT
                     us.user_id,
                     MAX(uss.score_value) as score_value
                 FROM user_sport us
+                JOIN users u ON u.id = us.user_id
                 JOIN user_sport_scores uss ON uss.user_sport_id = us.id
                 WHERE us.sport_id = ?
                   AND uss.score_type = 'vndupr_score'
-                  AND us.is_anchor = false
+                  AND u.is_anchor = false
                 GROUP BY us.user_id
             ) as ranked_users
             ORDER BY rank
@@ -349,6 +355,18 @@ class TournamentService
         }
 
         $tournament->update(['status' => Tournament::CLOSED]);
+
+        // Cập nhật club_guests khi giải kết thúc — observer bị miss vì so sánh
+        // status (int 3) với enum string 'finished' không khớp.
+        if ($tournament->club_id) {
+            $this->guestService->upsertFromEvent(
+                $tournament->club_id,
+                Participant::where('tournament_id', $tournament->id)
+                    ->whereNotNull('user_id')
+                    ->pluck('user_id')
+            );
+        }
+
         $this->updateParticipantsRatingStats($tournament);
         $this->awardChampionBadge($tournament);
     }
