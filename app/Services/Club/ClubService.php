@@ -11,6 +11,7 @@ use App\Jobs\SendPushJob;
 use App\Models\Club\Club;
 use App\Models\Club\ClubMember;
 use App\Models\Club\ClubProfile;
+use App\Models\Follow;
 use App\Models\User;
 use App\Notifications\ClubDissolvedNotification;
 use App\Notifications\ClubRenamedNotification;
@@ -84,6 +85,39 @@ class ClubService
             ]);
 
             return $club;
+        });
+    }
+
+    /**
+     * Sync danh sách sân nhà cho CLB.
+     * Input: mảng [{ competition_location_id, position?, distance_km?, events_hosted_count? }, ...]
+     * Hành vi: xoá hết dòng pivot cũ của club_id rồi insert lại (idempotent).
+     * Nếu input rỗng → xoá hết, CLB không còn sân nhà.
+     *
+     * ponytail: sync-all-then-insert đơn giản, OK cho ≤ 5 sân / CLB.
+     * Nâng cấp thành upsert diff khi frontend cần PATCH từng dòng.
+     */
+    public function setHomeCourts(Club $club, array $locations): Club
+    {
+        return DB::transaction(function () use ($club, $locations) {
+            \Illuminate\Support\Facades\DB::table('club_competition_locations')
+                ->where('club_id', $club->id)
+                ->delete();
+
+            foreach (array_values($locations) as $idx => $row) {
+                \Illuminate\Support\Facades\DB::table('club_competition_locations')->insert([
+                    'club_id' => $club->id,
+                    'competition_location_id' => (int) $row['competition_location_id'],
+                    'position' => (int) ($row['position'] ?? $idx),
+                    // distance_km & events_hosted_count được tính lúc GET (xem ClubHomeCourtService)
+                    'distance_km' => null,
+                    'events_hosted_count' => 0,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            return $club->fresh('homeCourts');
         });
     }
 
@@ -391,6 +425,7 @@ class ClubService
         ])
             ->with(['profile:id,club_id,cover_image_url,description'])
             ->withCount('activeMembers')
+            ->withCount('guestProfiles')
             ->orderBy('created_at', 'desc');
 
         if ($userId) {
@@ -471,6 +506,7 @@ class ClubService
         ])
             ->with(['profile:id,club_id,cover_image_url,description'])
             ->withCount('activeMembers')
+            ->withCount('guestProfiles')
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->where(function ($q) use ($isSuperAdmin) {
@@ -663,7 +699,7 @@ class ClubService
                     throw new BusinessException('Người được nhượng quyền phải là thành viên active của CLB và không phải chính bạn');
                 }
 
-                return DB::transaction(function () use ($member, $newAdmin) {
+                return DB::transaction(function () use ($member, $newAdmin, $userId, $club) {
                     $newAdmin->update([
                         'role' => ClubMemberRole::Admin,
                     ]);
@@ -674,6 +710,12 @@ class ClubService
                         'status' => ClubMemberStatus::Inactive,
                         'left_at' => now(),
                     ]);
+
+                    // Tự động bỏ theo dõi CLB khi rời CLB
+                    Follow::where('user_id', $userId)
+                        ->where('followable_id', $club->id)
+                        ->where('followable_type', Club::class)
+                        ->delete();
 
                     return [
                         'transferred_to' => [
@@ -691,6 +733,12 @@ class ClubService
             'status' => ClubMemberStatus::Inactive,
             'left_at' => now(),
         ]);
+
+        // Tự động bỏ theo dõi CLB khi rời CLB
+        Follow::where('user_id', $userId)
+            ->where('followable_id', $club->id)
+            ->where('followable_type', Club::class)
+            ->delete();
 
         return [];
     }

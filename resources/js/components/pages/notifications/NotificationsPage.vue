@@ -470,6 +470,21 @@ const redirectByType = (n) => {
       })
       break
 
+    case 'CLUB_TOURNAMENT_CREATED':
+      if (!d.tournament_id) return
+      if (d.tournament_type === 'mini_tournament') {
+        router.push({
+          name: 'mini-tournament-detail',
+          params: { id: d.tournament_id }
+        })
+      } else {
+        router.push({
+          name: 'tournament-detail',
+          params: { id: d.tournament_id }
+        })
+      }
+      break
+
     case 'MINI_TOURNAMENT_PROMOTION':
       if (!d.mini_tournament_id) return
       router.push({

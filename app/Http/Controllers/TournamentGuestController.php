@@ -27,11 +27,12 @@ class TournamentGuestController extends Controller
     public function store(Request $request, $tournamentId)
     {
         $data = $request->validate([
-            'guest_name' => 'required|string|max:255',
+            'guest_name' => 'required_without:club_id|nullable|string|max:255',
             'guest_phone' => 'nullable|string|max:20',
             'guest_avatar' => 'nullable|file|mimes:jpeg,png,jpg,gif,svg,webp|max:5120',
             'guarantor_user_id' => 'nullable|integer|exists:users,id',
             'estimated_level' => 'nullable|numeric|min:1|max:2.5',
+            'club_id' => 'nullable|integer|exists:clubs,id',
         ]);
 
         $tournament = Tournament::with('staff')->findOrFail($tournamentId);
@@ -110,43 +111,68 @@ class TournamentGuestController extends Controller
             $guestAvatarUrl = $data['guest_avatar'];
         }
 
-        $guestUser = null;
+        // ─────────────────────────────────────────────────────────────────────────
+        // CLB guest flow: tạo User.is_guest + ClubGuestProfile mới.
+        // ─────────────────────────────────────────────────────────────────────────
+        $createdClubGuestProfileId = null;
+        if (!empty($data['club_id'])) {
+            $club = ModelsClub::findOrFail($data['club_id']);
+            if (!$club->canManage(auth()->id())) {
+                return ResponseHelper::error('Bạn không có quyền tạo CLB guest cho club này', 403);
+            }
+            $guestUser = $this->findOrCreateGuestUserForEvent($data, $guestAvatarUrl);
+            // Tạo/cập nhật ClubGuestProfile (UNIQUE club_id+user_id sẽ chặn duplicate).
+            // Dùng updateOrCreate để luôn sync estimated_level mỗi lần mời
+            // (firstOrCreate sẽ bỏ qua update nếu profile đã tồn tại).
+            $profile = \App\Models\Club\ClubGuestProfile::updateOrCreate(
+                ['club_id' => $club->id, 'user_id' => $guestUser->id],
+                [
+                    'created_by' => auth()->id(),
+                    'estimated_level' => $data['estimated_level'] ?? null,
+                ]
+            );
+            $createdClubGuestProfileId = $profile->id;
+        }
 
-        if (!empty($data['guest_phone'])) {
-            $guestUser = User::where('phone', $data['guest_phone'])->first();
+        if (!isset($guestUser)) {
+            $guestUser = null;
 
-            if (!$guestUser) {
+            if (!empty($data['guest_phone'])) {
+                $guestUser = User::where('phone', $data['guest_phone'])->first();
+
+                if (!$guestUser) {
+                    $guestUser = User::create([
+                        'full_name' => $data['guest_name'],
+                        'phone' => $data['guest_phone'],
+                        'avatar_url' => $guestAvatarUrl,
+                        'password' => Str::random(12),
+                        'visibility' => User::VISIBILITY_PRIVATE,
+                        'is_guest' => true,
+                        'last_active_at' => now(),
+                    ]);
+                } elseif (!$guestUser->is_guest) {
+                    if ($guestAvatarUrl) {
+                        $guestUser->updateQuietly(['avatar_url' => $guestAvatarUrl]);
+                    }
+                    $guestUser->updateQuietly(['last_active_at' => now()]);
+                } else {
+                    $guestUser->updateQuietly([
+                        'full_name' => $data['guest_name'],
+                        'avatar_url' => $guestAvatarUrl,
+                        'last_active_at' => now(),
+                    ]);
+                }
+            } else {
                 $guestUser = User::create([
                     'full_name' => $data['guest_name'],
-                    'phone' => $data['guest_phone'],
-                    'avatar_url' => $guestAvatarUrl,
+                    'phone' => null,
+                        'avatar_url' => $guestAvatarUrl,
                     'password' => Str::random(12),
                     'visibility' => User::VISIBILITY_PRIVATE,
                     'is_guest' => true,
                     'last_active_at' => now(),
                 ]);
-            } elseif (!$guestUser->is_guest) {
-                if ($guestAvatarUrl) {
-                    $guestUser->updateQuietly(['avatar_url' => $guestAvatarUrl]);
-                }
-                $guestUser->updateQuietly(['last_active_at' => now()]);
-            } else {
-                $guestUser->updateQuietly([
-                    'full_name' => $data['guest_name'],
-                    'avatar_url' => $guestAvatarUrl,
-                    'last_active_at' => now(),
-                ]);
             }
-        } else {
-            $guestUser = User::create([
-                'full_name' => $data['guest_name'],
-                'phone' => null,
-                    'avatar_url' => $guestAvatarUrl,
-                'password' => Str::random(12),
-                'visibility' => User::VISIBILITY_PRIVATE,
-                'is_guest' => true,
-                'last_active_at' => now(),
-            ]);
         }
 
         $participant = Participant::create([
@@ -158,7 +184,8 @@ class TournamentGuestController extends Controller
             'guest_phone' => $guestUser->phone,
             'guest_avatar' => $guestAvatarUrl,
             'guarantor_user_id' => $guarantorUserId,
-            'estimated_level' => $data['estimated_level'] ?? null,
+            'estimated_level' => $data['estimated_level']
+                ?? ($createdClubGuestProfileId && isset($profile) ? $profile->estimated_level : null),
             'is_pending_confirmation' => $isPendingConfirmation,
             'payment_status' => $paymentStatus,
             'self_registered' => false,
@@ -228,7 +255,10 @@ class TournamentGuestController extends Controller
         );
 
         return ResponseHelper::success(
-            new ParticipantResource($participant),
+            array_merge(
+                (new ParticipantResource($participant))->resolve(),
+                $createdClubGuestProfileId ? ['club_guest_profile_id' => $createdClubGuestProfileId] : []
+            ),
             'Thêm guest thành công',
             201
         );
@@ -497,4 +527,40 @@ class TournamentGuestController extends Controller
         );
     }
 
+    private function findOrCreateGuestUserForEvent(array $data, ?string $avatarUrl): User
+    {
+        if (!empty($data['guest_phone'])) {
+            $user = User::where('phone', $data['guest_phone'])->first();
+            if (!$user) {
+                return User::create([
+                    'full_name' => $data['guest_name'],
+                    'phone' => $data['guest_phone'],
+                    'avatar_url' => $avatarUrl,
+                    'password' => Str::random(12),
+                    'visibility' => User::VISIBILITY_PRIVATE,
+                    'is_guest' => true,
+                    'last_active_at' => now(),
+                ]);
+            }
+            $updates = ['last_active_at' => now()];
+            if ($avatarUrl) {
+                $updates['avatar_url'] = $avatarUrl;
+            }
+            if ($user->is_guest) {
+                $updates['full_name'] = $data['guest_name'];
+            }
+            $user->updateQuietly($updates);
+            return $user;
+        }
+
+        return User::create([
+            'full_name' => $data['guest_name'],
+            'phone' => null,
+            'avatar_url' => $avatarUrl,
+            'password' => Str::random(12),
+            'visibility' => User::VISIBILITY_PRIVATE,
+            'is_guest' => true,
+            'last_active_at' => now(),
+        ]);
+    }
 }

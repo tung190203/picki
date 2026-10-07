@@ -7,6 +7,7 @@ use App\Http\Resources\FollowResource;
 use App\Http\Resources\UserResource;
 use App\Jobs\SendPushJob;
 use App\Models\CompetitionLocation;
+use App\Models\Club\Club;
 use App\Models\Follow;
 use App\Models\User;
 use App\Notifications\FollowNotification;
@@ -127,6 +128,7 @@ class FollowController extends Controller
         $map = [
             'competition' => CompetitionLocation::class,
             'user' => User::class,
+            'club' => Club::class,
         ];
 
         $model = $map[strtolower($type)] ?? null;
@@ -173,6 +175,7 @@ class FollowController extends Controller
         $map = [
             'competition' => CompetitionLocation::class,
             'user' => User::class,
+            'club' => Club::class,
         ];
 
         $model = $map[strtolower($type)] ?? null;

@@ -18,40 +18,29 @@ class TournamentStaffController extends Controller
     /**
      * Thêm thành viên vào giải đấu (Admin / BTC / Trọng tài).
      *
-     * Body: { user_id|virtual_id, role?: 1|2|3, court_id?: int }
+     * Body: { user_id, role?: 1|2|3, court_id?: int }
      *  - role = 1 (Admin / Organizer) → Admin
      *  - role = 2 (Staff)            → BTC
      *  - role = 3 (Referee)          → Trọng tài
      *  - court_id chỉ có hiệu lực khi role = 3 (giới hạn scope trọng tài theo sân).
-     *  - `user_id` và `virtual_id` là 2 cách loại trừ nhau: user thật thì gửi `user_id`,
-     *    thành viên ảo (ClubVirtualMember) thì gửi `virtual_id` và để `user_id` = null.
      *
      * Quyền: Chỉ Admin (organizer) của giải mới được thêm.
-     * 1 người (thật hoặc ảo) chỉ giữ tối đa 1 role / giải.
+     * 1 người chỉ giữ tối đa 1 role / giải.
+     *
+     * Lưu ý: CLB guest (User.is_guest = true) có thể được thêm vào staff —
+     * BE vẫn dùng user_id như user thật, không cần nhánh virtual_id riêng.
      */
     public function addStaff(Request $request, $tournamentId)
     {
-        // `user_id` có thể null khi thêm thành viên ảo (ClubVirtualMember) — VM không có bản ghi trong `users`.
         $validatedData = $request->validate([
-            'user_id' => 'nullable|integer|exists:users,id',
-            'virtual_id' => 'nullable|integer|exists:club_virtual_members,id',
+            'user_id' => 'required|integer|exists:users,id',
             'role' => 'nullable|integer|in:1,2,3',
             'court_id' => 'nullable|integer',
         ], [
             'user_id.exists' => 'Chỉ được phép thêm người dùng Picki vào làm BTC/trọng tài của giải.',
         ]);
 
-        // Phải có đúng 1 trong 2: user thật hoặc thành viên ảo.
-        $userId = $validatedData['user_id'] ?? null;
-        $virtualId = $validatedData['virtual_id'] ?? null;
-
-        if ($userId === null && $virtualId === null) {
-            return ResponseHelper::error(
-                'Cần chọn người dùng Picki hoặc thành viên ảo để thêm vào ban tổ chức.',
-                422
-            );
-        }
-
+        $userId = $validatedData['user_id'];
         $tournament = Tournament::findOrFail($tournamentId);
         $role = (int) ($validatedData['role'] ?? TournamentStaff::ROLE_ORGANIZER);
 
@@ -59,18 +48,10 @@ class TournamentStaffController extends Controller
             return ResponseHelper::error('Bạn không có quyền thêm thành viên vào ban tổ chức', 403);
         }
 
-        // 1 người (thật hoặc ảo) chỉ giữ 1 role / giải.
-        // Dùng tournamentStaffs() (hasMany) vì bản ghi thành viên ảo có user_id = null,
-        // belongsToMany(User) sẽ không thấy các bản ghi này.
-        if ($virtualId !== null) {
-            $alreadyIn = $tournament->tournamentStaffs()
-                ->where('virtual_member_id', $virtualId)
-                ->exists();
-        } else {
-            $alreadyIn = $tournament->tournamentStaffs()
-                ->where('user_id', $userId)
-                ->exists();
-        }
+        // 1 người chỉ giữ 1 role / giải
+        $alreadyIn = $tournament->tournamentStaffs()
+            ->where('user_id', $userId)
+            ->exists();
 
         if ($alreadyIn) {
             return ResponseHelper::error(
@@ -85,31 +66,12 @@ class TournamentStaffController extends Controller
             $courtId = (int) $validatedData['court_id'];
         }
 
-        // Thành viên ảo: snapshot name + avatar, user_id để null.
-        $guestName = null;
-        $guestAvatar = null;
-        $isVirtual = false;
-        $staffUser = null;
+        $staffUser = User::find($userId);
 
-        if ($virtualId !== null) {
-            $vm = \App\Models\Club\ClubVirtualMember::findOrFail($virtualId);
-            $isVirtual = true;
-            $guestName = $vm->name;
-            $guestAvatar = $vm->avatar_url;
-        } else {
-            $staffUser = User::find($userId);
-        }
-
-        // Dùng hasMany (tournamentStaffs) vì thành viên ảo có user_id = null —
-        // belongsToMany(User) không attach được bản ghi không có user row.
         $tournament->tournamentStaffs()->create([
             'user_id' => $userId,
             'role' => $role,
             'court_id' => $courtId,
-            'is_virtual' => $isVirtual,
-            'virtual_member_id' => $virtualId,
-            'guest_name' => $guestName,
-            'guest_avatar' => $guestAvatar,
         ]);
 
         $tournament->load('tournamentStaffs');
@@ -118,15 +80,14 @@ class TournamentStaffController extends Controller
             $tournament->id,
             $tournament->name,
             [
-                'id' => $isVirtual ? $virtualId : $staffUser->id,
+                'id' => $staffUser->id,
                 'user' => [
-                    'id' => $isVirtual ? null : $staffUser->id,
-                    'full_name' => $isVirtual ? $guestName : $staffUser->full_name,
-                    'avatar_url' => $isVirtual ? $guestAvatar : $staffUser->avatar_url,
+                    'id' => $staffUser->id,
+                    'full_name' => $staffUser->full_name,
+                    'avatar_url' => $staffUser->avatar_url,
                 ],
                 'role' => $role,
                 'court_id' => $courtId,
-                'is_virtual' => $isVirtual,
             ],
             'staff'
         );
@@ -143,39 +104,24 @@ class TournamentStaffController extends Controller
 
     /**
      * Backward-compat endpoint: chỉ thêm Trọng tài (mặc định role = REFEREE, court_id optional).
-     * Body: { user_id|virtual_id, court_id?: int }
+     * Body: { user_id, court_id?: int }
      */
     public function addReferee(Request $request, $tournamentId)
     {
-        // `user_id` có thể null khi thêm thành viên ảo (ClubVirtualMember).
         $validatedData = $request->validate([
-            'user_id' => 'nullable|integer|exists:users,id',
-            'virtual_id' => 'nullable|integer|exists:club_virtual_members,id',
+            'user_id' => 'required|integer|exists:users,id',
             'court_id' => 'nullable|integer',
         ], [
             'user_id.exists' => 'Chỉ được phép thêm người dùng Picki vào làm trọng tài của giải.',
         ]);
 
-        $userId = $validatedData['user_id'] ?? null;
-        $virtualId = $validatedData['virtual_id'] ?? null;
-
-        if ($userId === null && $virtualId === null) {
-            return ResponseHelper::error(
-                'Cần chọn người dùng Picki hoặc thành viên ảo để thêm làm trọng tài.',
-                422
-            );
-        }
-
+        $userId = $validatedData['user_id'];
         $tournament = Tournament::findOrFail($tournamentId);
         if (!TournamentPermission::canAssignRole($tournament, Auth::id(), TournamentStaff::ROLE_REFEREE)) {
             return ResponseHelper::error('Bạn không có quyền thêm trọng tài', 403);
         }
 
-        if ($virtualId !== null) {
-            $alreadyIn = $tournament->tournamentStaffs()->where('virtual_member_id', $virtualId)->exists();
-        } else {
-            $alreadyIn = $tournament->tournamentStaffs()->where('user_id', $userId)->exists();
-        }
+        $alreadyIn = $tournament->tournamentStaffs()->where('user_id', $userId)->exists();
 
         if ($alreadyIn) {
             return ResponseHelper::error('Người dùng này đã là thành viên ban tổ chức của giải đấu', 409);
@@ -183,23 +129,10 @@ class TournamentStaffController extends Controller
 
         $courtId = isset($validatedData['court_id']) ? (int) $validatedData['court_id'] : null;
 
-        $isVirtual = $virtualId !== null;
-        $guestName = null;
-        $guestAvatar = null;
-        if ($isVirtual) {
-            $vm = \App\Models\Club\ClubVirtualMember::findOrFail($virtualId);
-            $guestName = $vm->name;
-            $guestAvatar = $vm->avatar_url;
-        }
-
         $tournament->tournamentStaffs()->create([
             'user_id' => $userId,
             'role' => TournamentStaff::ROLE_REFEREE,
             'court_id' => $courtId,
-            'is_virtual' => $isVirtual,
-            'virtual_member_id' => $virtualId,
-            'guest_name' => $guestName,
-            'guest_avatar' => $guestAvatar,
         ]);
 
         return ResponseHelper::success(null, 'Thêm trọng tài thành công', 201);

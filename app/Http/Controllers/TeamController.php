@@ -317,14 +317,14 @@ class TeamController extends Controller
     {
         $request->validate(
             [
-                'user_id'           => 'sometimes|nullable|integer',
-                'participant_id'    => 'sometimes|nullable|integer',
-                'virtual_member_id' => 'sometimes|nullable|integer',
+                'user_id'                 => 'sometimes|nullable|integer',
+                'participant_id'          => 'sometimes|nullable|integer',
+                'club_guest_profile_id'   => 'sometimes|nullable|integer|exists:club_guest_profiles,id',
             ],
             [
-                'user_id.integer'           => 'user_id phải là số nguyên',
-                'participant_id.integer'    => 'participant_id phải là số nguyên',
-                'virtual_member_id.integer' => 'virtual_member_id phải là số nguyên',
+                'user_id.integer'               => 'user_id phải là số nguyên',
+                'participant_id.integer'        => 'participant_id phải là số nguyên',
+                'club_guest_profile_id.integer' => 'club_guest_profile_id phải là số nguyên',
             ]
         );
 
@@ -386,7 +386,7 @@ class TeamController extends Controller
      * Resolve Participant từ 1 trong 3 input.
      * - user_id: real user đã confirmed trong tournament
      * - participant_id: guest đã tồn tại (confirmed)
-     * - virtual_member_id: ClubVirtualMember → tạo Participant guest mới (giống flow guest)
+     * - club_guest_profile_id: CLB guest (User.is_guest=true qua club_guest_profiles) → tạo Participant guest mới nếu chưa có
      *
      * Trả về Participant hoặc null nếu không resolve được.
      */
@@ -407,34 +407,31 @@ class TeamController extends Controller
                 ->first();
         }
 
-        if ($request->filled('virtual_member_id')) {
-            if (!$tournament->club_id) return null;
-            $vm = \App\Models\Club\ClubVirtualMember::where('id', $request->virtual_member_id)
-                ->where('club_id', $tournament->club_id)
-                ->first();
-            if (!$vm) return null;
+        if ($request->filled('club_guest_profile_id')) {
+            $profile = \App\Models\Club\ClubGuestProfile::with('user')->find($request->club_guest_profile_id);
+            if (!$profile || !$profile->user) {
+                return null;
+            }
+            $user = $profile->user;
 
-            // Tái sử dụng guest participant đã tồn tại trùng tên (VM ↔ guest 1-1)
-            $existing = Participant::where('tournament_id', $tournament->id)
-                ->where('is_guest', true)
-                ->where('guest_name', $vm->name)
+            // Nếu user này đã là participant confirmed trong tournament → trả về
+            $existingByUser = Participant::where('tournament_id', $tournament->id)
+                ->where('user_id', $user->id)
+                ->where('is_confirmed', true)
                 ->first();
-            if ($existing) {
-                if (!$existing->is_confirmed) {
-                    $existing->is_confirmed = true;
-                    $existing->save();
-                }
-                return $existing;
+            if ($existingByUser) {
+                return $existingByUser;
             }
 
-            // Tạo mới — giống flow add guest participant
+            // Tạo participant mới gắn với user thật (is_guest=true) + snapshot
             return Participant::create([
                 'tournament_id'            => $tournament->id,
-                'user_id'                  => null,
+                'user_id'                  => $user->id,
                 'is_guest'                 => true,
                 'is_confirmed'             => true,
-                'guest_name'               => $vm->name,
-                'guest_avatar'             => $vm->avatar_url,
+                'guest_name'               => $user->full_name,
+                'guest_avatar'             => $user->avatar_url,
+                'guest_phone'              => $user->phone,
                 'guarantor_user_id'        => Auth::id(),
                 'is_pending_confirmation'  => false,
             ]);

@@ -619,14 +619,10 @@ class ParticipantController extends Controller
     public function inviteUsers(Request $request, $tournamentId)
     {
         $validated = $request->validate([
-            // App mobile gửi `virtual_ids: null` khi không mời thành viên ảo,
-            // nên rule phải `nullable` (key có mặt + value null) chứ không chỉ `sometimes`.
-            // `user_ids` cũng vậy: chấp nhận null cho từng phần tử vì 1 entry có thể
-            // vừa có user_id vừa có virtual_id, hoặc chỉ virtual_id (user_id = null).
             'user_ids' => 'sometimes|nullable|array',
             'user_ids.*' => 'nullable|integer',
-            'virtual_ids' => 'sometimes|nullable|array',
-            'virtual_ids.*' => 'nullable|integer|exists:club_virtual_members,id',
+            'club_guest_profile_ids' => 'sometimes|nullable|array',
+            'club_guest_profile_ids.*' => 'nullable|integer|exists:club_guest_profiles,id',
         ]);
 
         // Lọc ra các user_id thực (không null, không rỗng) và check exists
@@ -639,11 +635,11 @@ class ParticipantController extends Controller
             }
         }
 
-        // Lọc luôn virtual_ids (bỏ null/rỗng) để check "có gì để mời" chính xác
-        $rawVirtualIds = array_values(array_filter($validated['virtual_ids'] ?? [], fn($id) => $id !== null && $id !== ''));
+        // Lọc club_guest_profile_ids (bỏ null/rỗng)
+        $rawClubGuestProfileIds = array_values(array_filter($validated['club_guest_profile_ids'] ?? [], fn($id) => $id !== null && $id !== ''));
 
-        if (empty($rawUserIds) && empty($rawVirtualIds)) {
-            return ResponseHelper::error('Cần chọn ít nhất 1 người chơi hoặc thành viên ảo để mời.', 422);
+        if (empty($rawUserIds) && empty($rawClubGuestProfileIds)) {
+            return ResponseHelper::error('Cần chọn ít nhất 1 người chơi hoặc CLB guest để mời.', 422);
         }
 
         $tournament = Tournament::findOrFail($tournamentId);
@@ -664,11 +660,18 @@ class ParticipantController extends Controller
             ? ($tournament->player_per_team * $tournament->max_team)
             : ($tournament->max_team * $tournament->player_per_team);
 
-        // Count distinct ids (FE may pass the same id in both user_ids and virtual_ids)
-        $allRequestedIds = array_unique(array_merge(
-            $rawUserIds,
-            $rawVirtualIds,
-        ));
+        // Resolve club_guest_profile_ids → user_ids + snapshot estimated_level
+        $profileUserMap = []; // [user_id => ClubGuestProfile]
+        $profileUserIds = [];
+        if (!empty($rawClubGuestProfileIds)) {
+            $profiles = \App\Models\Club\ClubGuestProfile::whereIn('id', $rawClubGuestProfileIds)->get();
+            $profileUserIds = $profiles->pluck('user_id')->all();
+            foreach ($profiles as $p) {
+                $profileUserMap[$p->user_id] = $p;
+            }
+        }
+        $allRealUserIds = array_values(array_unique(array_merge($rawUserIds, $profileUserIds)));
+        $allRequestedIds = $allRealUserIds;
         $totalRequested = count($allRequestedIds);
         if ($currentConfirmed + $totalRequested > $maxSlots) {
             return ResponseHelper::error('Số lượng người tham gia đã đạt giới hạn.', 422);
@@ -676,16 +679,10 @@ class ParticipantController extends Controller
 
         // ──────── Handle real users ────────
         $invitedResources = [];
-        $realUserIds = $rawUserIds;
-        // If FE passes the same id in both arrays (virtual member id may collide with a real user id),
-        // prefer the virtual-member interpretation — the FE has already marked the entry as `is_virtual`.
-        if (!empty($rawVirtualIds)) {
-            $realUserIds = array_values(array_diff($realUserIds, $rawVirtualIds));
-        }
+        $realUserIds = $allRealUserIds;
 
         if (!empty($realUserIds)) {
             $existingMemberIds = Participant::where('tournament_id', $tournament->id)
-                ->where('is_guest', false)
                 ->whereIn('user_id', $realUserIds)
                 ->pluck('user_id')
                 ->toArray();
@@ -698,13 +695,28 @@ class ParticipantController extends Controller
                     $paymentStatus = TournamentParticipantPayment::STATUS_PENDING;
                 }
 
-                $insertData = array_map(function ($invitedUserId) use ($tournament, $isSuperAdmin, $paymentStatus) {
+                // Lấy info user.is_guest để set is_guest + snapshot name/avatar/phone cho CLB guest
+                $usersById = User::whereIn('id', $newUserIds)->get()->keyBy('id');
+
+                $insertData = array_map(function ($invitedUserId) use ($tournament, $isSuperAdmin, $paymentStatus, $organizer, $usersById, $profileUserMap) {
+                    $u = $usersById[$invitedUserId] ?? null;
+                    $isGuest = $u && (bool) $u->is_guest;
+                    // Snapshot estimated_level từ ClubGuestProfile (chỉ áp dụng cho CLB guest)
+                    $estimatedLevel = ($isGuest && isset($profileUserMap[$invitedUserId]))
+                        ? $profileUserMap[$invitedUserId]->estimated_level
+                        : null;
                     return [
                         'tournament_id' => $tournament->id,
                         'user_id' => $invitedUserId,
                         'is_confirmed' => $isSuperAdmin,
                         'self_confirmed' => !$isSuperAdmin,
                         'self_registered' => false,
+                        'is_guest' => $isGuest,
+                        'guest_name' => $isGuest ? $u->full_name : null,
+                        'guest_avatar' => $isGuest ? $u->avatar_url : null,
+                        'guest_phone' => $isGuest ? $u->phone : null,
+                        'guarantor_user_id' => $isGuest ? $organizer->id : null,
+                        'estimated_level' => $estimatedLevel,
                         'created_at' => now(),
                         'updated_at' => now(),
                         'payment_status' => $paymentStatus,
@@ -750,37 +762,8 @@ class ParticipantController extends Controller
             }
         }
 
-        // ──────── Handle club virtual members (no real user row; snapshot name+avatar as guest) ────────
-        if (!empty($rawVirtualIds)) {
-            $virtualMembers = \App\Models\Club\ClubVirtualMember::whereIn('id', $rawVirtualIds)->get();
-
-            foreach ($virtualMembers as $vm) {
-                $alreadyAdded = Participant::where('tournament_id', $tournament->id)
-                    ->where('is_guest', true)
-                    ->where('guest_name', $vm->name)
-                    ->exists();
-                if ($alreadyAdded) {
-                    continue;
-                }
-
-                $paymentStatus = $tournament->has_financial_management && $tournament->has_fee && !$tournament->use_club_fund && !$tournament->auto_split_fee
-                    ? TournamentParticipantPayment::STATUS_PENDING
-                    : TournamentParticipantPayment::STATUS_CONFIRMED;
-
-                $participant = $tournament->participants()->create([
-                    'is_guest' => true,
-                    'guest_name' => $vm->name,
-                    'guest_avatar' => $vm->avatar_url,
-                    'guarantor_user_id' => $organizer->id,
-                    'is_confirmed' => $isSuperAdmin,
-                    'self_confirmed' => !$isSuperAdmin,
-                    'self_registered' => false,
-                    'payment_status' => $paymentStatus,
-                ]);
-
-                $invitedResources[] = new ParticipantResource($participant);
-            }
-        }
+        // (Đã bỏ block xử lý virtualMembers cũ — club_guest_profile_ids đã được resolve
+        //  sang user_ids ở phần trên, các user này được insert qua loop $realUserIds)
 
         if (empty($invitedResources)) {
             return ResponseHelper::error('Tất cả người chơi đã được mời hoặc đã tham gia.', 422);
@@ -874,56 +857,54 @@ class ParticipantController extends Controller
             })
             ->get();
 
-        // Also surface club virtual members (ẩn) that haven't already been
-        // promoted to a guest participant for this tournament.
+        // Also surface club guest profiles (ẩn) whose user chưa có trong participant của giải này.
         $tournament = Tournament::find($tournamentId);
         $virtualArrays = [];
-        $vmByName = [];
+        $userIdsInGuests = [];
+        $userNameToProfileId = [];
         if ($tournament && $tournament->club_id) {
-            $vms = \App\Models\Club\ClubVirtualMember::where('club_id', $tournament->club_id)->orderBy('name')->get();
+            $profiles = \App\Models\Club\ClubGuestProfile::with('user')
+                ->where('club_id', $tournament->club_id)
+                ->get();
+
             // Lấy TẤT CẢ guest participants đã nằm trong team của giải đấu,
             // không chỉ trong $nonTeamParticipants (đã bị filter ra).
-            $guestNamesInTeams = Participant::where('tournament_id', $tournamentId)
+            $existingGuestUserIds = Participant::where('tournament_id', $tournamentId)
                 ->where('is_guest', true)
-                ->whereIn('id', function ($sub) use ($tournamentId) {
-                    $sub->select('participant_id')->from('team_members')
-                        ->join('teams', 'team_members.team_id', '=', 'teams.id')
-                        ->where('teams.tournament_id', $tournamentId)
-                        ->whereNotNull('participant_id');
-                })
-                ->pluck('guest_name')
+                ->whereNotNull('user_id')
+                ->pluck('user_id')
                 ->all();
-            $existingGuestNames = array_merge(
-                $nonTeamParticipants->where('is_guest', true)->pluck('guest_name')->all(),
-                $guestNamesInTeams
-            );
-            foreach ($vms as $vm) {
-                $vmByName[$vm->name] = $vm;
-                if (in_array($vm->name, $existingGuestNames, true)) {
+
+            foreach ($profiles as $profile) {
+                $user = $profile->user;
+                if (!$user) {
+                    continue;
+                }
+                $userIdsInGuests[$user->id] = $profile->id;
+                $userNameToProfileId[$user->full_name] = $profile->id;
+                if (in_array($user->id, $existingGuestUserIds, true)) {
                     continue;
                 }
                 $virtualArrays[] = [
                     'id'                       => null,
                     'is_confirmed'             => false,
                     'is_guest'                 => true,
-                    'guest_name'               => $vm->name,
-                    'guest_avatar'             => $vm->avatar_url,
+                    'guest_name'               => $user->full_name,
+                    'guest_avatar'             => $user->avatar_url,
                     'guarantor_user_id'        => null,
                     'estimated_level'          => null,
                     'is_pending_confirmation'  => false,
                     'checked_in_at'            => null,
                     'is_absent'                => false,
-                    'is_virtual'               => true,
-                    'virtual_member_id'        => $vm->id,
+                    'club_guest_profile_id'    => $profile->id,
                 ];
             }
         }
 
         $participants = TournamentParticipantResource::collection($nonTeamParticipants)->toArray($request);
         foreach ($participants as &$p) {
-            if (!empty($p['is_guest']) && isset($vmByName[$p['guest_name'] ?? ''])) {
-                $p['is_virtual'] = true;
-                $p['virtual_member_id'] = $vmByName[$p['guest_name']]->id;
+            if (!empty($p['is_guest']) && isset($userNameToProfileId[$p['guest_name'] ?? ''])) {
+                $p['club_guest_profile_id'] = $userNameToProfileId[$p['guest_name']];
             }
         }
         unset($p);

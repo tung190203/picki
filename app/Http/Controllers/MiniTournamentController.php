@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Enums\ClubFundCollectionStatus;
 use App\Enums\ClubFundContributionStatus;
 use App\Enums\ClubMemberRole;
+use App\Enums\ClubMemberStatus;
+use App\Enums\ClubMembershipStatus;
 use App\Exceptions\BusinessException;
 use App\Enums\ClubWalletTransactionDirection;
 use App\Enums\ClubWalletTransactionSourceType;
@@ -15,6 +17,8 @@ use App\Events\SuperAdmin\DashboardStatUpdated;
 use App\Events\SuperAdmin\MiniTournamentCreated;
 use App\Events\SuperAdmin\MiniTournamentDeleted;
 use App\Events\SuperAdmin\MiniTournamentUpdated;
+use App\Notifications\ClubTournamentCreatedNotification;
+use App\Jobs\SendPushJob;
 use App\Notifications\MiniTournamentCancelledNotification;
 use App\Helpers\ResponseHelper;
 use App\Http\Requests\StoreMiniTournamentRequest;
@@ -27,6 +31,8 @@ use App\Models\Club\Club;
 use App\Models\Club\ClubExpense;
 use App\Models\Club\ClubFundCollection;
 use App\Models\Club\ClubFundContribution;
+use App\Models\Club\ClubMember;
+use App\Models\Follow;
 use App\Models\MiniMatch;
 use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
@@ -279,6 +285,16 @@ class MiniTournamentController extends Controller
         $miniTournament->loadFullRelations();
 
         MiniTournamentCreated::dispatch($miniTournament);
+
+        // Thông báo tới thành viên + follower (không phải thành viên) của CLB khi tạo kèo
+        if ($miniTournament->club_id) {
+            $this->notifyClubFollowers(
+                (int) $miniTournament->club_id,
+                $miniTournament->name,
+                ClubTournamentCreatedNotification::TYPE_MINI_TOURNAMENT,
+                (int) $miniTournament->id
+            );
+        }
 
         // Invalidate club content cache if this tournament belongs to a club
         if ($miniTournament->club_id) {
@@ -2182,5 +2198,54 @@ class MiniTournamentController extends Controller
         $pair->delete();
 
         return ResponseHelper::success(null, 'Huỷ cặp ghép thành công');
+    }
+
+    /**
+     * Gửi notification + push tới thành viên CLB + follower (không trùng thành viên)
+     * khi CLB tạo mini-tournament / Tournament.
+     */
+    private function notifyClubFollowers(int $clubId, string $tournamentName, string $tournamentType, int $tournamentId): void
+    {
+        $memberIds = ClubMember::where('club_id', $clubId)
+            ->where('membership_status', ClubMembershipStatus::Joined->value)
+            ->where('status', ClubMemberStatus::Active->value)
+            ->pluck('user_id');
+
+        $followerIds = Follow::where('followable_id', $clubId)
+            ->where('followable_type', Club::class)
+            ->whereNotIn('user_id', $memberIds)
+            ->pluck('user_id');
+
+        $recipientIds = $memberIds->merge($followerIds)->unique()->values();
+
+        if ($recipientIds->isEmpty()) {
+            return;
+        }
+
+        $club = Club::find($clubId);
+        if (!$club) {
+            return;
+        }
+
+        $isMini = $tournamentType === ClubTournamentCreatedNotification::TYPE_MINI_TOURNAMENT;
+        $label = $isMini ? 'kèo' : 'giải đấu';
+        $type = $isMini ? 'CLUB_MINI_TOURNAMENT_CREATED' : 'CLUB_TOURNAMENT_CREATED';
+        $title = "CLB {$club->name} vừa tạo {$label} mới";
+        $body = $tournamentName;
+        $data = [
+            'type' => $type,
+            'club_id' => (string) $clubId,
+            'tournament_id' => (string) $tournamentId,
+            'tournament_type' => $tournamentType,
+        ];
+
+        foreach ($recipientIds as $userId) {
+            $user = User::find($userId);
+            if (!$user) {
+                continue;
+            }
+            $user->notify(new ClubTournamentCreatedNotification($club, $tournamentName, $tournamentType, $tournamentId));
+            SendPushJob::dispatch((int) $userId, $title, $body, $data);
+        }
     }
 }

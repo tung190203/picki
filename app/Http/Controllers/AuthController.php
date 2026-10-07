@@ -837,7 +837,7 @@ class AuthController extends Controller
                 'members as active_members_count' => fn($qq) => $qq
                     ->where('membership_status', 'joined')
                     ->where('status', 'active'),
-            ]),
+            ])->withCount('guestProfiles'),
         ]);
 
         // Tính rank 1 lần duy nhất

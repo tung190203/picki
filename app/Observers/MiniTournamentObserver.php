@@ -9,6 +9,7 @@ use App\Models\Club\ClubExpense;
 use App\Models\Club\ClubWallet;
 use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
+use App\Services\Club\ClubGuestService;
 use App\Services\MiniTournamentService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +38,9 @@ class MiniTournamentObserver
 
         // Hook auto-create: tạo occurrence tiếp theo khi kèo lặp được đóng
         $this->handleRecurringAutoCreate($tournament);
+
+        // Hook club_guests: cập nhật thống kê khách khi kèo kết thúc
+        $this->updateClubGuests($tournament);
     }
 
     /**
@@ -183,6 +187,36 @@ class MiniTournamentObserver
         } catch (\Exception $e) {
             Log::error('MiniTournamentObserver: Failed to create tournament expense', [
                 'tournament_id' => $tournament->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Khi kèo chuyển sang STATUS_CLOSED, cập nhật club_guests cho tất cả
+     * participant là user đã đăng ký.
+     */
+    protected function updateClubGuests(MiniTournament $tournament): void
+    {
+        if (!$tournament->wasChanged('status')) {
+            return;
+        }
+        if ((int) $tournament->status !== MiniTournament::STATUS_CLOSED) {
+            return;
+        }
+        $clubId = $tournament->club_id;
+        if (!$clubId) {
+            return;
+        }
+
+        try {
+            $participantUserIds = \App\Models\MiniParticipant::where('mini_tournament_id', $tournament->id)
+                ->whereNotNull('user_id')
+                ->pluck('user_id');
+            $this->guestService->upsertFromEvent($clubId, $participantUserIds);
+        } catch (\Exception $e) {
+            Log::error('MiniTournamentObserver: Failed to update club_guests', [
+                'mini_tournament_id' => $tournament->id,
                 'error' => $e->getMessage(),
             ]);
         }

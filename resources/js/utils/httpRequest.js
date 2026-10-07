@@ -134,4 +134,32 @@ export const post = async (url, data) => axiosInstance.post(url, data);
 export const put = async (url, data) => axiosInstance.put(url, data);
 export const patch = async (url, data) => axiosInstance.patch(url, data);
 
+/**
+ * Set vị trí user làm anchor (gắn vào header để BE tính khoảng cách nếu CLB thiếu toạ độ).
+ * Gọi 1 lần khi user cấp quyền geolocation.
+ */
+export const setUserAnchor = (lat, lng) => {
+    if (lat == null || lng == null) return;
+    axiosInstance.defaults.headers.common['X-User-Lat'] = String(lat);
+    axiosInstance.defaults.headers.common['X-User-Lng'] = String(lng);
+};
+
+export const clearUserAnchor = () => {
+    delete axiosInstance.defaults.headers.common['X-User-Lat'];
+    delete axiosInstance.defaults.headers.common['X-User-Lng'];
+};
+
+/**
+ * Best-effort lấy toạ độ user hiện tại, set anchor header nếu được cấp quyền.
+ * Promise không reject — fail im lặng.
+ */
+export const requestUserAnchor = () => {
+    if (!('geolocation' in navigator)) return;
+    navigator.geolocation.getCurrentPosition(
+        (pos) => setUserAnchor(pos.coords.latitude, pos.coords.longitude),
+        () => { /* user từ chối hoặc lỗi → ignore */ },
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 5 * 60 * 1000 }
+    );
+};
+
 export default axiosInstance;
