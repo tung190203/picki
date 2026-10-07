@@ -10,8 +10,12 @@ class Badge extends Model
     use HasFactory;
 
     protected $fillable = [
+        'code',
         'name',
         'description',
         'icon_url',
+        'type',
+        'priority',
+        'is_active',
     ];
 }

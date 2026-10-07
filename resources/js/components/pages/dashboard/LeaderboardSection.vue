@@ -193,8 +193,15 @@
                   Bạn
                 </span>
               </template>
-              <template v-else-if="item.primary_badge || (item.badges && item.badges.length)">
-                <BadgeIcon :badge="item.primary_badge || item.badges[0]" size="sm" />
+              <template v-else-if="getDisplayBadges(item).length">
+                <div class="flex items-center gap-0.5">
+                  <BadgeIcon 
+                    v-for="badge in getDisplayBadges(item)" 
+                    :key="badge" 
+                    :badge="badge" 
+                    size="sm" 
+                  />
+                </div>
               </template>
             </div>
             <div v-if="activeTab === 'allClubs'" class="flex items-center gap-2 mt-0.5">
@@ -386,6 +393,19 @@ const getScore = (item) => {
   const score = item.vndupr_score || item.max_score;
   if (score == null) return "-";
   return Number(score).toFixed(2);
+};
+
+const getDisplayBadges = (item) => {
+  if (item.featured_badges && item.featured_badges.length > 0) {
+    return [item.featured_badges[0]];
+  }
+  if (item.primary_badge) {
+    return [item.primary_badge];
+  }
+  if (item.badges && item.badges.length > 0) {
+    return [item.badges[0]];
+  }
+  return [];
 };
 
 const goToItem = (item) => {

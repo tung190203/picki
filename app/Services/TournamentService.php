@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Participant;
 use App\Services\Club\ClubGuestService;
 use App\Services\TournamentType\StandingsService;
+use App\Events\TournamentCompleted;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -258,6 +259,7 @@ class TournamentService
                 FROM user_sport us
                 JOIN users u ON u.id = us.user_id
                 JOIN user_sport_scores uss ON uss.user_sport_id = us.id
+                JOIN users u ON u.id = us.user_id
                 WHERE us.sport_id = ?
                   AND uss.score_type = 'vndupr_score'
                   AND u.is_anchor = false
@@ -300,51 +302,7 @@ class TournamentService
         }
     }
 
-    /**
-     * Xác định và cấp CHAMPION badge cho đội vô địch.
-     * Dùng TournamentRankService để xác định champion đúng (cho cả Elimination, Mixed, Round Robin).
-     */
-    private function awardChampionBadge(Tournament $tournament): void
-    {
-        $tournamentType = $tournament->tournamentTypes->first();
-        if (!$tournamentType) {
-            return;
-        }
-
-        // ✅ Dùng TournamentRankService để lấy champion team_id
-        $labels = $this->rankService->rankLabelsByTeam((int) $tournamentType->id);
-
-        // Tìm team có is_champion = true
-        $championTeamId = null;
-        foreach ($labels as $teamId => $info) {
-            if (!empty($info['is_champion'])) {
-                $championTeamId = (int) $teamId;
-                break;
-            }
-        }
-
-        if (!$championTeamId) {
-            return;
-        }
-
-        $winnerTeam = Team::with('members')->find($championTeamId);
-        if (!$winnerTeam) {
-            return;
-        }
-
-        foreach ($winnerTeam->members as $member) {
-            if (!$member->id) continue;
-            // Skip if user not found (may be soft-deleted)
-            $user = \App\Models\User::withTrashed()->find($member->id);
-            if (!$user) continue;
-            // created_by user might not exist on this environment → fallback to null
-            $creatorExists = \App\Models\User::withTrashed()->find($tournament->created_by);
-            $createdBy = $creatorExists ? $tournament->created_by : null;
-            // members relation returns User instances → use $member->id
-            app(\App\Services\BadgeService::class)->grant_champion((int) $member->id, $createdBy);
-        }
-    }
-
+    // The awardChampionBadge method has been moved to App\Badges\Rules\ChampionBadgeRule
     /**
      * Đóng giải đấu: đổi status = CLOSED và cập nhật stats cho participants.
      */
@@ -368,7 +326,7 @@ class TournamentService
         }
 
         $this->updateParticipantsRatingStats($tournament);
-        $this->awardChampionBadge($tournament);
+        event(new TournamentCompleted($tournament));
     }
 
     /**

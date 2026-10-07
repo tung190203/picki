@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Enums\BadgeType;
+use App\Models\Badge;
 use App\Models\User;
 use App\Models\UserBadge;
 use App\Notifications\BadgeGrantedNotification;
@@ -11,152 +11,141 @@ use Illuminate\Support\Facades\DB;
 
 class BadgeService
 {
-    /**
-     * Get all badges for a user.
-     *
-     * @return array{badges: array<string>, primary_badge: string|null}
-     */
     public function getUserBadges(int $userId): array
     {
-        $userBadges = UserBadge::where('user_id', $userId)
-            ->orderByRaw($this->getBadgeOrderByClause())
-            ->get();
+        $userBadges = UserBadge::with('badge')
+            ->where('user_id', $userId)
+            ->get()
+            ->sortByDesc(fn($ub) => $ub->badge->priority ?? 0);
 
-        $badges = $userBadges->map(fn(UserBadge $userBadge) => $userBadge->badge_type->value)->toArray();
-        $primaryBadge = $this->getPrimaryBadge($userId);
+        $badges = $userBadges->map(function ($ub) {
+            if (!$ub->badge) return null;
+            return ['type' => $ub->badge->code, 'icon_url' => $ub->badge->icon_url];
+        })->filter()->values()->toArray();
+
+        $featuredBadges = $userBadges->filter(fn($ub) => $ub->is_featured)->map(function ($ub) {
+            if (!$ub->badge) return null;
+            return ['type' => $ub->badge->code, 'icon_url' => $ub->badge->icon_url];
+        })->filter()->values()->toArray();
+
+        $primaryBadge = $badges[0] ?? null;
 
         return [
             'badges' => $badges,
+            'featured_badges' => $featuredBadges,
             'primary_badge' => $primaryBadge,
         ];
     }
 
-    /**
-     * Get all badges for a user (alias).
-     */
     public function get_badges(int $userId): array
     {
         return $this->getUserBadges($userId);
     }
 
-    /**
-     * Get the primary badge type for a user (badge with highest priority).
-     */
-    public function getPrimaryBadge(int $userId): ?string
+    public function getPrimaryBadge(int $userId): ?array
     {
-        $userBadge = UserBadge::where('user_id', $userId)
-            ->orderByRaw($this->getBadgeOrderByClause())
+        $userBadge = UserBadge::with('badge')
+            ->where('user_id', $userId)
+            ->get()
+            ->sortByDesc(fn($ub) => $ub->badge->priority ?? 0)
             ->first();
 
-        return $userBadge?->badge_type->value;
+        if (!$userBadge?->badge) return null;
+        return [
+            'type' => $userBadge->badge->code,
+            'icon_url' => $userBadge->badge->icon_url,
+        ];
     }
 
-    /**
-     * Get the primary badge for a user (alias).
-     */
-    public function get_primary_badge(int $userId): ?string
+    public function get_primary_badge(int $userId): ?array
     {
         return $this->getPrimaryBadge($userId);
     }
 
-    /**
-     * Batch get primary badges for multiple users.
-     * Returns array of user_id => badge_type
-     */
     public function getBatchPrimaryBadges(array $userIds): array
     {
         if (empty($userIds)) {
             return [];
         }
 
-        $orderClause = $this->getBadgeOrderByClause();
-
-        $rows = DB::table('user_badges as ub')
-            ->join(DB::raw("(SELECT user_id, MIN({$orderClause}) as min_order FROM user_badges WHERE user_id IN (" . implode(',', $userIds) . ") GROUP BY user_id) as ranked"), function ($join) {
-                $join->on('ub.user_id', '=', 'ranked.user_id');
-            })
-            ->whereRaw("({$orderClause}) = ranked.min_order")
-            ->whereIn('ub.user_id', $userIds)
-            ->select('ub.user_id', 'ub.badge_type')
-            ->get();
+        $userBadges = UserBadge::with('badge')
+            ->whereIn('user_id', $userIds)
+            ->get()
+            ->groupBy('user_id');
 
         $result = [];
         foreach ($userIds as $userId) {
-            $result[$userId] = null;
-        }
-        foreach ($rows as $row) {
-            $result[$row->user_id] = $row->badge_type;
+            $badges = $userBadges->get($userId, collect());
+            $primary = $badges->sortByDesc(fn($ub) => $ub->badge->priority ?? 0)->first();
+            $result[$userId] = $primary?->badge ? [
+                'type' => $primary->badge->code,
+                'icon_url' => $primary->badge->icon_url,
+            ] : null;
         }
 
         return $result;
     }
 
-    /**
-     * Batch get all badges for multiple users.
-     * Returns array of user_id => ['badges' => [...], 'primary_badge' => ...]
-     */
     public function getBatchUserBadges(array $userIds): array
     {
         if (empty($userIds)) {
             return [];
         }
 
-        $orderClause = $this->getBadgeOrderByClause();
-
-        $userBadges = UserBadge::whereIn('user_id', $userIds)
-            ->orderByRaw($orderClause)
+        $userBadges = UserBadge::with('badge')
+            ->whereIn('user_id', $userIds)
             ->get()
             ->groupBy('user_id');
 
-        $primaryBadges = $this->getBatchPrimaryBadges($userIds);
-
         $result = [];
         foreach ($userIds as $userId) {
-            $badges = $userBadges->get($userId, collect());
+            $badges = $userBadges->get($userId, collect())->sortByDesc(fn($ub) => $ub->badge->priority ?? 0);
+            $badgesArray = $badges->map(function ($ub) {
+                if (!$ub->badge) return null;
+                return ['type' => $ub->badge->code, 'icon_url' => $ub->badge->icon_url];
+            })->filter()->values()->toArray();
+
+            $featuredBadges = $badges->filter(fn($ub) => $ub->is_featured)->map(function ($ub) {
+                if (!$ub->badge) return null;
+                return ['type' => $ub->badge->code, 'icon_url' => $ub->badge->icon_url];
+            })->filter()->values()->toArray();
+
             $result[$userId] = [
-                'badges' => $badges->map(fn($ub) => $ub->badge_type->value)->toArray(),
-                'primary_badge' => $primaryBadges[$userId] ?? null,
+                'badges' => $badgesArray,
+                'featured_badges' => $featuredBadges,
+                'primary_badge' => $badgesArray[0] ?? null,
             ];
         }
 
         return $result;
     }
 
-    /**
-     * Check if a user has any badge.
-     */
     public function has_any_badge(int $userId): bool
     {
         return UserBadge::where('user_id', $userId)->exists();
     }
 
-    /**
-     * Check if a user has a specific badge type.
-     */
-    public function has_badge(int $userId, BadgeType $type): bool
+    public function has_badge(int $userId, string $code): bool
     {
         return UserBadge::where('user_id', $userId)
-            ->where('badge_type', $type->value)
+            ->whereHas('badge', fn($q) => $q->where('code', $code))
             ->exists();
     }
 
-    /**
-     * Check if a user has a specific badge (alias).
-     */
-    public function hasBadge(int $userId, BadgeType $type): bool
+    public function hasBadge(int $userId, string $code): bool
     {
-        return $this->has_badge($userId, $type);
+        return $this->has_badge($userId, $code);
     }
 
-    /**
-     * Create a badge for a user (idempotent, uses firstOrCreate).
-     * For ANCHOR also keeps the legacy `users.is_anchor` column in sync
-     * (column is derived state — single source of truth is user_badges).
-     */
-    private function _create_badge(int $userId, BadgeType $type, ?int $createdBy = null): ?UserBadge
+    private function _create_badge(int $userId, string $code, ?int $createdBy = null): ?UserBadge
     {
+        $badge = Badge::where('code', $code)->first();
+        if (!$badge) {
+            return null;
+        }
+
         $existingBadge = UserBadge::where('user_id', $userId)
-            ->where('badge_type', $type->value)
+            ->where('badge_id', $badge->id)
             ->first();
 
         if ($existingBadge) {
@@ -165,138 +154,65 @@ class BadgeService
 
         $userBadge = UserBadge::create([
             'user_id' => $userId,
-            'badge_type' => $type->value,
+            'badge_id' => $badge->id,
             'created_by' => $createdBy,
-            'created_at' => now(),
+            'acquired_at' => now(),
         ]);
 
-        if ($type === BadgeType::ANCHOR) {
+        if ($code === 'ANCHOR') {
             User::where('id', $userId)->update(['is_anchor' => true]);
         }
 
         $user = User::find($userId);
         if ($user) {
-            $user->notify(new BadgeGrantedNotification($type, $createdBy));
+            $user->notify(new BadgeGrantedNotification($code, $createdBy));
         }
 
         return $userBadge;
     }
 
-    /**
-     * Grant VERIFIED badge to a user.
-     */
-    public function grant_verified(int $userId, ?int $createdBy = null): void
+    public function awardBadge(int $userId, string $code, ?int $createdBy = null): ?UserBadge
     {
-        $this->_create_badge($userId, BadgeType::VERIFIED, $createdBy);
+        return $this->_create_badge($userId, $code, $createdBy);
     }
 
-    /**
-     * Grant ANCHOR badge to a user.
-     */
-    public function grant_anchor(int $userId, ?int $createdBy = null): void
+    public function revokeBadge(int $userId, string $code): bool
     {
-        $this->_create_badge($userId, BadgeType::ANCHOR, $createdBy);
-    }
+        $badge = Badge::where('code', $code)->first();
+        if (!$badge) {
+            return false;
+        }
 
-    /**
-     * Grant CHAMPION badge to a user.
-     */
-    public function grant_champion(int $userId, ?int $createdBy = null): void
-    {
-        DB::transaction(function () use ($userId, $createdBy) {
-            $this->_create_badge($userId, BadgeType::CHAMPION, $createdBy);
-        });
-    }
-
-    /**
-     * Grant PICKI badge to a user.
-     */
-    public function grant_picki(int $userId, ?int $createdBy = null): void
-    {
-        $this->_create_badge($userId, BadgeType::PICKI, $createdBy);
-    }
-
-    /**
-     * Award a badge to a user (backward compatibility wrapper).
-     */
-    public function awardBadge(int $userId, BadgeType $type, ?int $createdBy = null): UserBadge
-    {
-        return $this->_create_badge($userId, $type, $createdBy);
-    }
-
-    /**
-     * Revoke a badge from a user.
-     * For ANCHOR also clears the legacy `users.is_anchor` column so the
-     * derived field stays consistent with the badge source of truth.
-     */
-    public function revokeBadge(int $userId, BadgeType $type): bool
-    {
         $user = User::find($userId);
 
         $deleted = UserBadge::where('user_id', $userId)
-            ->where('badge_type', $type->value)
+            ->where('badge_id', $badge->id)
             ->delete() > 0;
 
         if ($deleted) {
-            if ($type === BadgeType::ANCHOR) {
+            if ($code === 'ANCHOR') {
                 User::where('id', $userId)->update(['is_anchor' => false]);
             }
             if ($user) {
-                $user->notify(new BadgeRevokedNotification($type));
+                $user->notify(new BadgeRevokedNotification($code));
             }
         }
 
         return $deleted;
     }
 
-    /**
-     * Get badge priority order from config (highest priority first).
-     * Config: VERIFIED=1 (lowest), ANCHOR=2, CHAMPION=3, PICKI=4 (highest)
-     */
-    private function getBadgePriorityOrder(): array
-    {
-        $priority = config('badges.priority', [
-            BadgeType::VERIFIED->value => 1,
-            BadgeType::ANCHOR->value => 2,
-            BadgeType::CHAMPION->value => 3,
-            BadgeType::PICKI->value => 4,
-        ]);
-
-        asort($priority);
-
-        return array_reverse(array_keys($priority));
-    }
-
-    /**
-     * Get ORDER BY clause for MySQL FIELD() function based on config priority.
-     */
-    private function getBadgeOrderByClause(): string
-    {
-        $order = $this->getBadgePriorityOrder();
-        $fieldValues = implode("', '", $order);
-
-        return "FIELD(badge_type, '{$fieldValues}')";
-    }
-
-    /**
-     * Sync badges from legacy is_verified/is_anchor fields.
-     * Idempotent: existing badges are preserved (BadgeService uses firstOrCreate).
-     */
     public function syncFromLegacyFields(User $user): void
     {
         DB::transaction(function () use ($user) {
             if ($user->getRawOriginal('is_verified')) {
-                $this->grant_verified($user->id, $user->id);
+                $this->awardBadge($user->id, 'VERIFIED', $user->id);
             }
             if ($user->getRawOriginal('is_anchor')) {
-                $this->grant_anchor($user->id, $user->id);
+                $this->awardBadge($user->id, 'ANCHOR', $user->id);
             }
         });
     }
 
-    /**
-     * Batch sync badges from legacy fields for all users.
-     */
     public function syncAllFromLegacyFields(): int
     {
         $count = 0;

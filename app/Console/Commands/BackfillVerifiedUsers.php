@@ -4,7 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\User;
 use App\Services\BadgeService;
-use App\Enums\BadgeType;
+
 use Illuminate\Console\Command;
 
 class BackfillVerifiedUsers extends Command
@@ -51,7 +51,7 @@ class BackfillVerifiedUsers extends Command
         foreach ($eligibleUsers as $user) {
             $user->is_verified = true;
             $user->saveQuietly();
-            $badgeService->awardBadge($user->id, BadgeType::VERIFIED);
+            $badgeService->awardBadge($user->id, 'VERIFIED');
             $count++;
         }
 

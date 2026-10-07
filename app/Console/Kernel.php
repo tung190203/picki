@@ -137,6 +137,22 @@ class Kernel extends ConsoleKernel
         $schedule->command('device-tokens:cleanup-stale --days=60')
             ->dailyAt('03:30')
             ->runInBackground();
+
+        // === Monthly Badges ===
+        $schedule->command('badges:evaluate-sniper')
+            ->monthlyOn(1, '00:00')
+            ->withoutOverlapping()
+            ->runInBackground();
+
+        $schedule->command('badges:evaluate-rating')
+            ->dailyAt('02:45')
+            ->withoutOverlapping()
+            ->runInBackground();
+
+        $schedule->command('badges:evaluate-leaderboards')
+            ->dailyAt('03:00')
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 
     protected function commands(): void
