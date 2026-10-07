@@ -27,6 +27,7 @@ class ClubDetailResource extends ClubBaseResource
             'is_public' => (bool) ($club->is_public ?? true),
             'is_verified' => (bool) $club->is_verified,
             'is_banned' => (bool) ($club->is_banned ?? false),
+            'recruitment_status' => $club->recruitment_status ?? 'closed',
             'rank' => $club->rank ?? null,
             'created_by' => $club->created_by,
 
@@ -36,18 +37,21 @@ class ClubDetailResource extends ClubBaseResource
             'has_pending_request' => (bool) ($club->has_pending_request ?? false),
             'has_invitation' => (bool) ($club->has_invitation ?? false),
 
+            // Follow flags — pre-set by ClubDetailAssembler
+            'is_following' => (bool) ($club->is_following ?? false),
+            'followers_count_excluding_members' => (int) ($club->followers_count_excluding_members ?? 0),
+
             // Invited by — pre-set by ClubDetailAssembler
             'invited_by' => $club->_invited_by_user ?? null,
 
-            // Stats — pre-set by Assembler or withCount
-            'quantity_members' => (int) (
-                $club->active_members_count
-                ?? $club->activeMembers_count
-                ?? ($this->relationLoaded('activeMembers') ? $this->activeMembers->count() : 0)
-            ),
+            // user thật (joined/active) + CLB guest (club_guest_profiles)
+            'quantity_members' => $this->resolveClubQuantityMembers(),
 
             // Skill level — computed by Assembler if members loaded
             'skill_level' => $club->_skill_level ?? null,
+
+            // Score range (vndupr min/max) — luôn có, dù member hay không
+            'score_range' => $club->score_range ?? null,
 
             // Members — only included if explicitly loaded
             'members' => $this->when($this->relationLoaded('members') && $this->members, function () {
@@ -76,6 +80,33 @@ class ClubDetailResource extends ClubBaseResource
                 isset($club->unread_notification_count),
                 fn () => (int) $club->unread_notification_count
             ),
+
+            // Admin stats — pre-set by ClubDetailAssembler (chỉ attach khi user có quyền canManage)
+            'mini_tournaments_today' => $this->when(
+                isset($club->mini_tournaments_today),
+                fn () => (int) $club->mini_tournaments_today
+            ),
+            'unpaid_members_count' => $this->when(
+                isset($club->unpaid_members_count),
+                fn () => (int) $club->unpaid_members_count
+            ),
+            'returning_guests_percent' => $this->when(
+                isset($club->returning_guests_percent),
+                fn () => (int) $club->returning_guests_percent
+            ),
+            'guests_count' => $this->when(
+                isset($club->guests_count),
+                fn () => (int) $club->guests_count
+            ),
+
+            // Sân nhà — eager load từ controller, sắp xếp theo position
+            'home_courts' => $this->whenLoaded('homeCourts', function () {
+                return ClubHomeCourtResource::collection($this->homeCourts);
+            }),
+
+            // Nội quy + lịch sinh hoạt — text fields trên clubs
+            'rules' => $this->rules,
+            'recurring_schedule_text' => $this->recurring_schedule_text,
         ];
     }
 }

@@ -58,7 +58,7 @@ const isOpen = computed({
 
 const isGuest = computed(() => {
     if (!props.user) return false
-    return props.user.is_guest || props.user.is_virtual || !props.user.user?.id
+    return props.user.is_guest || !props.user.user?.id
 })
 
 const closeModal = () => (isOpen.value = false)
@@ -70,7 +70,7 @@ const emitConfirm = () => {
 
 const emitViewProfile = () => {
     if (isGuest.value) {
-        toast.info('Thành viên ảo (khách vãng lai) không có hồ sơ cá nhân.')
+        toast.info('CLB guest (khách vãng lai) không có hồ sơ cá nhân.')
         return
     }
     emit('view-profile', props.user)

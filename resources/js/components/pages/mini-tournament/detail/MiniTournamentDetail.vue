@@ -149,13 +149,11 @@ export default {
         const handleInvite = async (user) => {
             if (inviteType.value === 'staff') {
                 // Mời từ sidebar "Mời nhóm" - thêm vào ban tổ chức với role từ selectedStaffRole
-                // User ảo: truyền virtualId; user thật: truyền userId.
-                await inviteStaff(user.id, Number(selectedStaffRole.value) || 3, user?.is_virtual ? user.id : null)
+                // Cả user thật và CLB guest (is_guest=true) đều truyền user_id.
+                await inviteStaff(user.id, Number(selectedStaffRole.value) || 3)
             } else {
-                // Mời từ tab người tham gia - gom user thật vào user_ids, user ảo vào virtual_ids rồi gọi 1 lần
-                // Khi mời user ảo: CHỈ gửi virtual_ids, KHÔNG gửi user_ids.
-                const isVirtual = Boolean(user?.is_virtual);
-                await invite(isVirtual ? null : [user.id], isVirtual ? [user.id] : []);
+                // Mời từ tab người tham gia - gom tất cả user (cả thật lẫn CLB guest) vào user_ids rồi gọi 1 lần.
+                await invite([user.id]);
             }
             await detailMiniTournament(id);
         }
@@ -467,7 +465,7 @@ export default {
             if (param && typeof param === 'object') {
                 if (param.target && param.currentTarget) return
 
-                const isGuest = Boolean(param.is_guest || param.is_virtual || (!param.user?.id && !param.userId))
+                const isGuest = Boolean(param.is_guest || (!param.user?.id && !param.userId))
                 const participantId = param.participant_id || param.id
                 const realUserId = isGuest ? null : (param.user?.id || param.userId)
 
@@ -481,7 +479,6 @@ export default {
                     checked_in_at: param.checked_in_at || null,
                     is_absent: param.is_absent || false,
                     is_guest: isGuest,
-                    is_virtual: Boolean(param.is_virtual),
                     current_staff_role: lookupCurrentStaffRole(realUserId),
                     user: realUserId ? { id: realUserId, full_name: param.user?.full_name || param.name, avatar_url: param.user?.avatar_url || param.avatar } : null
                 }
@@ -528,8 +525,8 @@ export default {
         }
 
         const handleMemberViewProfile = (member) => {
-            if (member?.is_guest || member?.is_virtual || !member?.user?.id) {
-                toast.info('Thành viên ảo (khách vãng lai) không có hồ sơ cá nhân.')
+            if (member?.is_guest || !member?.user?.id) {
+                toast.info('CLB guest (khách vãng lai) không có hồ sơ cá nhân.')
                 return
             }
             router.push(`/profile/${member.user?.id}`)
@@ -761,27 +758,24 @@ export default {
             await getInviteGroupData({ loadMore: true });
         };
 
-        const invite = async (friendId, virtualIds = []) => {
-            const vIds = Array.isArray(virtualIds) ? virtualIds : [virtualIds].filter(Boolean);
-            // VM: friendId = null → bỏ qua user_ids, chỉ gửi virtual_ids.
+        const invite = async (friendId, _legacy = null) => {
             const uIds = friendId == null ? [] : (Array.isArray(friendId) ? friendId : [friendId]);
             try {
-                await MiniParticipantService.sendInvitation(id, uIds, false, vIds);
+                // RBAC v2: 1 user_ids chung (cả thật lẫn CLB guest is_guest=true), không còn virtual_ids.
+                await MiniParticipantService.sendInvitation(id, uIds, false);
                 toast.success('Đã gửi lời mời thành công!');
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi gửi lời mời.');
             }
         };
 
-        const inviteStaff = async (userId, role, virtualId = null) => {
+        const inviteStaff = async (userId, role) => {
             try {
                 // RBAC v2: role bắt buộc (1=Admin, 2=BTC, 3=Trọng tài)
                 // Mặc định lấy từ selectedStaffRole; fallback 3 (Trọng tài).
                 const roleNum = Number(role ?? selectedStaffRole.value) || 3
-                // User ảo: truyền virtualId (không truyền userId).
-                // User thật: truyền userId.
-                const staffId = virtualId != null ? null : userId
-                await MiniTournamentStaffService.addMiniTournamentStaff(id, staffId, roleNum, virtualId)
+                // Cả user thật và CLB guest đều truyền user_id (User.is_guest=true).
+                await MiniTournamentStaffService.addMiniTournamentStaff(id, userId, roleNum)
                 toast.success('Thêm thành công')
             } catch (error) {
                 toast.error(error.response?.data?.message || 'Đã xảy ra lỗi khi thêm.');

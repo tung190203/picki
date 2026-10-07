@@ -247,12 +247,12 @@ const canSelfMarkAbsent = computed(() => {
 
 const isGuest = computed(() => {
     if (!props.member) return false
-    return props.member.is_guest || props.member.is_virtual || !props.member.user?.id
+    return props.member.is_guest || !props.member.user?.id
 })
 
 const handleViewProfile = () => {
     if (isGuest.value) {
-        toast.info('Thành viên ảo (khách vãng lai) không có hồ sơ cá nhân.')
+        toast.info('CLB guest (khách vãng lai) không có hồ sơ cá nhân.')
         return
     }
     emit('view-profile', props.member)

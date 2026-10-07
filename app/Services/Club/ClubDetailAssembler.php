@@ -2,14 +2,23 @@
 
 namespace App\Services\Club;
 
+use App\Enums\ClubFundCollectionStatus;
+use App\Enums\ClubFundContributionStatus;
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
 use App\Models\Club\Club;
+use App\Models\Club\ClubFundCollection;
+use App\Models\Club\ClubFundContribution;
+use App\Models\Club\ClubGuest;
 use App\Models\Club\ClubMember;
+use App\Models\Follow;
+use App\Models\MiniParticipant;
+use App\Models\Participant;
 use App\Models\User;
 use App\Models\UserSportScore;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * ClubDetailAssembler — assembles club data for detail view.
@@ -56,19 +65,35 @@ class ClubDetailAssembler
 
         if ($userId) {
             $this->attachUnreadNotificationCount($club, $userId);
+            $this->attachFollowStatus($club, $userId);
         }
 
-        // 1a. Active member count — use withCount from controller if available, else query.
-        // Cộng thêm club_virtual_members (user ảo của CLB).
-        if (isset($club->active_members_count)) {
-            // already loaded via withCount('activeMembers') in controller
-        } else {
-            $club->active_members_count = $club->activeMembers()->count();
+        // 0b. Admin/BTC stats — chỉ attach khi user có quyền manage CLB.
+        if ($userId && $club->canManage($userId)) {
+            $this->attachAdminStats($club);
         }
-        $club->active_members_count += $club->virtualMembers()->count();
+
+        // 1a. Member count = user thật (joined/active) + CLB guest (club_guest_profiles).
+        // `_real_members_count` giữ raw count để assemble() gọi lại không cộng dồn VM nhiều lần.
+        // Nếu controller đã withCount('activeMembers') thì tái dùng `active_members_count` cho khỏi query.
+        if (!isset($club->_real_members_count)) {
+            $club->_real_members_count = isset($club->active_members_count)
+                ? (int) $club->active_members_count
+                : $club->activeMembers()->count();
+        }
+        $club->setAttribute(
+            'active_members_count',
+            (int) $club->_real_members_count + $this->countGuestProfiles($club)
+        );
+        // Cờ báo: active_members_count đã bao gồm CLB guest.
+        // Resource dùng cờ này để không cộng thêm lần nữa.
+        $club->setAttribute('_virtual_members_counted', true);
 
         // 2. Calculate rank (cached, ~0ms)
         $club->rank = $this->leaderboardService->calculateClubRank($club);
+
+        // 2c. Score range (min/max vndupr) — luôn tính, dùng cho FE bất kể user là member hay không
+        $club->score_range = $this->calculateScoreRange($club);
 
         // 3. Load members only if user is a member (and option allows)
         if ($loadMembers && ($club->is_member ?? false)) {
@@ -78,6 +103,23 @@ class ClubDetailAssembler
         }
 
         return $club;
+    }
+
+    /**
+     * Số CLB guest (club_guest_profiles) của CLB.
+     * Dùng `guest_profiles_count` từ withCount nếu có, để không query thêm.
+     */
+    protected function countGuestProfiles(Club $club): int
+    {
+        if (isset($club->guest_profiles_count)) {
+            return (int) $club->guest_profiles_count;
+        }
+
+        if ($club->relationLoaded('guestProfiles')) {
+            return $club->guestProfiles->count();
+        }
+
+        return $club->guestProfiles()->count();
     }
 
     /**
@@ -134,6 +176,102 @@ class ClubDetailAssembler
     public function attachUnreadNotificationCount(Club $club, int $userId): void
     {
         $this->clubService->attachUnreadNotificationCount(collect([$club]), $userId);
+    }
+
+    /**
+     * Attach follow status to club:
+     *  - is_following: user hiện tại có đang follow CLB không
+     *  - followers_count_excluding_members: số follower KHÔNG phải thành viên CLB
+     */
+    public function attachFollowStatus(Club $club, int $userId): void
+    {
+        $club->is_following = $club->isFollowedBy($userId);
+
+        // Đếm follower không phải member (joined + active) bằng 1 query
+        $club->followers_count_excluding_members = (int) Follow::where('followable_id', $club->id)
+            ->where('followable_type', Club::class)
+            ->whereNotExists(function ($q) use ($club) {
+                $q->select(DB::raw(1))
+                    ->from('club_members')
+                    ->whereColumn('club_members.user_id', 'follows.user_id')
+                    ->where('club_members.club_id', $club->id)
+                    ->where('membership_status', ClubMembershipStatus::Joined->value)
+                    ->where('status', ClubMemberStatus::Active->value);
+            })
+            ->count();
+    }
+
+    /**
+     * Attach 4 admin stats (kèo hôm nay, chưa trả tiền, % khách quay lại, tổng khách).
+     * Chỉ gọi khi user có quyền canManage (admin/manager/secretary).
+     *
+     * ponytail: 6 query, không cache. Đủ nhanh cho 1 club detail request.
+     * Khi mở rộng sang CLB list (nhiều CLB cùng lúc) → cache 180s theo club_id.
+     */
+    public function attachAdminStats(Club $club): void
+    {
+        $oneMonthAgo = now()->subDays(30)->toDateString();
+        $today = now()->toDateString();
+        $memberUserIds = $club->activeMembers()->pluck('user_id')->all();
+        $tournamentIds = $club->tournaments()->pluck('id');
+        $miniIds = $club->miniTournaments()->pluck('id');
+
+        // 1. mini_tournaments_today — tổng event (mini + tournament) diễn ra hôm nay
+        $club->mini_tournaments_today =
+            $club->miniTournaments()->whereDate('start_time', $today)->count()
+            + $club->tournaments()->whereDate('start_date', $today)->count();
+
+        // 2. unpaid_members_count — tổng lượt participant + fund contribution chưa confirmed
+        $unpaidUserIds = collect();
+        if (!empty($miniIds) || !empty($tournamentIds)) {
+            $activeCollectionIds = $club->fundCollections()
+                ->where('status', ClubFundCollectionStatus::Active->value)
+                ->pluck('id');
+            if ($activeCollectionIds->isNotEmpty()) {
+                $unpaidUserIds = $unpaidUserIds->merge(
+                    ClubFundContribution::whereIn('club_fund_collection_id', $activeCollectionIds)
+                        ->where('status', ClubFundContributionStatus::Pending->value)
+                        ->pluck('user_id')
+                );
+            }
+            $unpaidUserIds = $unpaidUserIds->merge(
+                Participant::whereIn('tournament_id', $tournamentIds)
+                    ->where('payment_status', '!=', 'confirmed')
+                    ->whereNotNull('user_id')
+                    ->pluck('user_id')
+            );
+            $unpaidUserIds = $unpaidUserIds->merge(
+                MiniParticipant::whereIn('mini_tournament_id', $miniIds)
+                    ->where('payment_status', '!=', 'confirmed')
+                    ->whereNotNull('user_id')
+                    ->pluck('user_id')
+            );
+        }
+        $club->unpaid_members_count = $unpaidUserIds->unique()->count();
+
+        // 3. returning_guests_percent — dựa trên club_guests (bảng định danh khách).
+        //    Mẫu số = user trong club_guests có last_played_at trong 30 ngày gần,
+        //    không phải member hiện tại. Tử số = trong nhóm đó, user có play_count > 1
+        //    (đã từng chơi TRƯỚC 30 ngày, tức "quay lại").
+        $recentGuestIds = ClubGuest::where('club_id', $club->id)
+            ->whereNotIn('user_id', $memberUserIds)
+            ->where('last_played_at', '>=', $oneMonthAgo)
+            ->pluck('user_id');
+
+        if ($recentGuestIds->isEmpty()) {
+            $club->returning_guests_percent = 0;
+        } else {
+            $returning = ClubGuest::where('club_id', $club->id)
+                ->whereIn('user_id', $recentGuestIds)
+                ->where('play_count', '>', 1)
+                ->count();
+            $club->returning_guests_percent = (int) round($returning / $recentGuestIds->count() * 100);
+        }
+
+        // 4. guests_count — tổng user trong club_guests chưa là member
+        $club->guests_count = ClubGuest::where('club_id', $club->id)
+            ->whereNotIn('user_id', $memberUserIds)
+            ->count();
     }
 
     /**
@@ -248,5 +386,39 @@ class ClubDetailAssembler
         }
 
         return null;
+    }
+
+    /**
+     * Tính score_range (min/max vndupr) của các thành viên active trong CLB.
+     * Trả về string "min-max" với 1 chữ số thập phân (vd: "1.2-2.5"), null nếu không có.
+     * ponytail: O(active_members) user_sport join + 1 aggregate. Cần cache 300s nếu CLB list gọi nhiều.
+     */
+    protected function calculateScoreRange(Club $club): ?string
+    {
+        $rows = DB::select(
+            "SELECT MIN(per_user.max_score) AS min_score, MAX(per_user.max_score) AS max_score
+             FROM (
+                 SELECT us.user_id, MAX(uss.score_value) AS max_score
+                 FROM club_members cm
+                 JOIN user_sport us ON us.user_id = cm.user_id
+                 JOIN user_sport_scores uss ON uss.user_sport_id = us.id
+                 WHERE cm.club_id = ?
+                   AND cm.membership_status = ?
+                   AND cm.status = ?
+                   AND uss.score_type = 'vndupr_score'
+                 GROUP BY us.user_id
+             ) AS per_user",
+            [
+                $club->id,
+                ClubMembershipStatus::Joined->value,
+                ClubMemberStatus::Active->value,
+            ]
+        );
+
+        if (empty($rows) || $rows[0]->min_score === null || $rows[0]->max_score === null) {
+            return null;
+        }
+
+        return round((float) $rows[0]->min_score, 1) . '-' . round((float) $rows[0]->max_score, 1);
     }
 }

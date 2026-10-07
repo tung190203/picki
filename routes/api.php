@@ -27,11 +27,12 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\VerificationController;
 use App\Http\Controllers\ClubController;
 use App\Http\Controllers\Club\ClubMemberController;
-use App\Http\Controllers\Club\ClubVirtualMemberController;
+use App\Http\Controllers\Club\ClubGuestProfileController;
 use App\Http\Controllers\Club\ClubWalletController;
 use App\Http\Controllers\Club\ClubWalletTransactionController;
 use App\Http\Controllers\Club\ClubActivityController;
 use App\Http\Controllers\Club\ClubActivityParticipantController;
+use App\Http\Controllers\Club\ClubGuestController;
 use App\Http\Controllers\Club\ClubNotificationController;
 use App\Http\Controllers\Club\ClubNotificationRecipientController;
 use App\Http\Controllers\Club\ClubFundCollectionController;
@@ -229,14 +230,22 @@ Route::prefix('clubs')->middleware(['performance'])->group(function () {
                 Route::post('/', [ClubMemberController::class, 'store']);
                 Route::get('/statistics', [ClubMemberController::class, 'statistics']);
                 Route::get('/{memberId}', [ClubMemberController::class, 'show']);
+                Route::get('/{memberId}/achievements', [ClubMemberController::class, 'achievements']);
                 Route::put('/{memberId}', [ClubMemberController::class, 'update']);
                 Route::delete('/{memberId}', [ClubMemberController::class, 'destroy']);
             });
 
-            Route::prefix('virtual-members')->group(function () {
-                Route::get('/', [ClubVirtualMemberController::class, 'index']);
-                Route::post('/', [ClubVirtualMemberController::class, 'store']);
-                Route::delete('/{virtualMemberId}', [ClubVirtualMemberController::class, 'destroy']);
+            Route::prefix('guests/profiles')->group(function () {
+                Route::get('/', [ClubGuestProfileController::class, 'index']);
+                Route::post('/', [ClubGuestProfileController::class, 'store']);
+                Route::put('/{id}', [ClubGuestProfileController::class, 'update']);
+                Route::delete('/{id}', [ClubGuestProfileController::class, 'destroy']);
+            });
+
+            Route::prefix('guests')->group(function () {
+                Route::get('/', [ClubGuestController::class, 'index']);
+                Route::post('/invite', [ClubGuestController::class, 'invite']);
+                Route::delete('/{userId}', [ClubGuestController::class, 'destroy']);
             });
 
             Route::prefix('invitations')->group(function () {
@@ -371,6 +380,15 @@ Route::prefix('clubs')->middleware(['performance'])->group(function () {
                 Route::get('/member/{memberId}', [ClubMonthlyFeePaymentController::class, 'getMemberPayments']);
             });
 
+            // Sân nhà (club_competition_locations) — public GET, canManage cho CRUD
+            Route::prefix('home-courts')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'index']);
+                Route::post('/', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'store']);
+                Route::match(['put', 'patch'], '/{homeCourtId}', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'update']);
+                Route::delete('/{homeCourtId}', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'destroy']);
+            });
+
+
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);
 
@@ -417,6 +435,7 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
     Route::get('/clubs', [AdminClubManagementController::class, 'index']);
     Route::get('/clubs/{clubId}', [AdminClubManagementController::class, 'show']);
     Route::post('/clubs/{clubId}/ban', [AdminClubManagementController::class, 'toggleBan']);
+    Route::post('/clubs/{clubId}/recruitment-status', [AdminClubManagementController::class, 'toggleRecruitmentStatus']);
 
     Route::get('/competition-locations', [AdminCompetitionLocationManagementController::class, 'index']);
     Route::post('/competition-locations', [AdminCompetitionLocationManagementController::class, 'store']);
@@ -694,6 +713,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
                 Route::post('/', [ClubMemberController::class, 'store']);
                 Route::get('/statistics', [ClubMemberController::class, 'statistics']);
                 Route::get('/{memberId}', [ClubMemberController::class, 'show']);
+                Route::get('/{memberId}/achievements', [ClubMemberController::class, 'achievements']);
                 Route::put('/{memberId}', [ClubMemberController::class, 'update']);
                 Route::delete('/{memberId}', [ClubMemberController::class, 'destroy']);
             });
@@ -826,6 +846,15 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
                 Route::get('/{paymentId}', [ClubMonthlyFeePaymentController::class, 'show']);
                 Route::get('/member/{memberId}', [ClubMonthlyFeePaymentController::class, 'getMemberPayments']);
             });
+
+            // Sân nhà (club_competition_locations) — public GET, canManage cho CRUD
+            Route::prefix('home-courts')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'index']);
+                Route::post('/', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'store']);
+                Route::match(['put', 'patch'], '/{homeCourtId}', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'update']);
+                Route::delete('/{homeCourtId}', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'destroy']);
+            });
+
 
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
             Route::match(['put', 'patch'], '/mini-tournaments/{miniTournamentId}', [ClubMiniTournamentController::class, 'update']);

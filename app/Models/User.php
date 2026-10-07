@@ -461,7 +461,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                 'members as active_members_count' => fn($qq) => $qq
                     ->where('membership_status', ClubMembershipStatus::Joined)
                     ->where('status', ClubMemberStatus::Active),
-            ]),
+            ])->withCount('guestProfiles'),
         ]);
     }
 

@@ -35,12 +35,8 @@ class ClubSearchResource extends ClubBaseResource
             // Pre-set by ClubService::attachMembershipStatus
             'invited_by' => $club->_invited_by_user ?? null,
 
-            // from withCount
-            'quantity_members' => (int) (
-                $club->active_members_count
-                ?? $club->activeMembers_count
-                ?? ($this->relationLoaded('activeMembers') ? $this->activeMembers->count() : 0)
-            ),
+            // user thật (joined/active) + CLB guest (club_guest_profiles)
+            'quantity_members' => $this->resolveClubQuantityMembers(),
 
             // from withCount + calculation (if activeMembers loaded)
             'skill_level' => $club->_skill_level ?? null,
