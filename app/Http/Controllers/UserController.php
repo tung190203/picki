@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubMembershipStatus;
 use App\Enums\SubTabFilter;
+use App\Events\UserProfileCompleted;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\ClubResource;
 use App\Http\Resources\Map\MapUserResource;
@@ -319,7 +320,13 @@ class UserController extends Controller
             }
         }
 
+        $wasProfileCompleted = $user->is_profile_completed;
+
         $user->update($data);
+
+        if (!$wasProfileCompleted && $user->is_profile_completed) {
+            event(new UserProfileCompleted($user));
+        }
 
         if (isset($validated['sport_ids'])) {
             $newSportIds = $validated['sport_ids'] ?? [];

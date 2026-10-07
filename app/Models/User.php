@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\BadgeType;
 use App\Enums\ClubMembershipStatus;
 use App\Enums\ClubMemberStatus;
 use App\Models\SuperAdminDraft;
@@ -258,7 +257,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         ];
     }
 
-    public function getPrimaryBadgeAttribute(): ?string
+    public function getPrimaryBadgeAttribute(): ?array
     {
         return app(\App\Services\BadgeService::class)->getPrimaryBadge($this->id);
     }
@@ -290,8 +289,12 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     public function userBadges(): HasMany
     {
-        return $this->hasMany(UserBadge::class)
-            ->orderByRaw("FIELD(badge_type, 'PICKI', 'CHAMPION', 'ANCHOR', 'VERIFIED')");
+        return $this->hasMany(UserBadge::class);
+    }
+
+    public function featuredBadges(): HasMany
+    {
+        return $this->hasMany(UserBadge::class)->where('is_featured', true);
     }
 
     public function deviceTokens(): HasMany
@@ -312,15 +315,15 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         return app(BadgeService::class)->getUserBadges($this->id);
     }
 
-    public function getPrimaryBadge(): ?string
+    public function getPrimaryBadge(): ?array
     {
         return app(BadgeService::class)->getPrimaryBadge($this->id);
     }
 
-    public function hasAnyBadge(array $badges): bool
+    public function hasAnyBadge(array $badgeCodes): bool
     {
         return $this->userBadges()
-            ->whereIn('badge_type', $badges)
+            ->whereHas('badge', fn($q) => $q->whereIn('code', $badgeCodes))
             ->exists();
     }
 

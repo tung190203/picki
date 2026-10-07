@@ -8,7 +8,7 @@ use App\Models\MiniTournamentStaff;
 use App\Models\User;
 use App\Models\VnduprHistory;
 use App\Services\BadgeService;
-use App\Enums\BadgeType;
+
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -424,9 +424,9 @@ class UserManagementService
     public function verify(User $user, User $admin): void
     {
         $badgeService = app(BadgeService::class);
-        $oldHasBadge = $badgeService->hasBadge($user->id, BadgeType::VERIFIED);
+        $oldHasBadge = $badgeService->hasBadge($user->id, 'VERIFIED');
 
-        $badgeService->awardBadge($user->id, BadgeType::VERIFIED, $admin->id);
+        $badgeService->awardBadge($user->id, 'VERIFIED', $admin->id);
 
         $this->auditLogService->log(
             $admin,
@@ -441,12 +441,12 @@ class UserManagementService
     public function setAnchor(User $user, User $admin): void
     {
         $badgeService = app(BadgeService::class);
-        $hasAnchor = $badgeService->hasBadge($user->id, BadgeType::ANCHOR);
+        $hasAnchor = $badgeService->hasBadge($user->id, 'ANCHOR');
 
         if ($hasAnchor) {
-            $badgeService->revokeBadge($user->id, BadgeType::ANCHOR);
+            $badgeService->revokeBadge($user->id, 'ANCHOR');
         } else {
-            $badgeService->awardBadge($user->id, BadgeType::ANCHOR, $admin->id);
+            $badgeService->awardBadge($user->id, 'ANCHOR', $admin->id);
         }
 
         $this->auditLogService->log(
@@ -462,9 +462,9 @@ class UserManagementService
     public function setPicki(User $user, User $admin): void
     {
         $badgeService = app(BadgeService::class);
-        $oldHasBadge = $badgeService->hasBadge($user->id, BadgeType::PICKI);
+        $oldHasBadge = $badgeService->hasBadge($user->id, 'PICKI');
 
-        $badgeService->grant_picki($user->id, $admin->id);
+        $badgeService->awardBadge($user->id, 'PICKI', $admin->id);
 
         $this->auditLogService->log(
             $admin,
@@ -479,9 +479,9 @@ class UserManagementService
     public function revokePicki(User $user, User $admin): void
     {
         $badgeService = app(BadgeService::class);
-        $oldHasBadge = $badgeService->hasBadge($user->id, BadgeType::PICKI);
+        $oldHasBadge = $badgeService->hasBadge($user->id, 'PICKI');
 
-        $badgeService->revokeBadge($user->id, BadgeType::PICKI);
+        $badgeService->revokeBadge($user->id, 'PICKI');
 
         $this->auditLogService->log(
             $admin,
