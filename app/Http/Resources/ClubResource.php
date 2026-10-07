@@ -6,12 +6,14 @@ use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
 use App\Http\Resources\Club\ClubMemberResource;
+use App\Http\Resources\Concerns\ResolvesClubMemberCount;
 use App\Models\Club\ClubMember;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class ClubResource extends JsonResource
 {
+    use ResolvesClubMemberCount;
 
     public function toArray(Request $request): array
     {
@@ -40,7 +42,7 @@ class ClubResource extends JsonResource
             'rank' => $this->rank ?? null,
             'created_by' => $this->created_by,
             'members' => ClubMemberResource::collection($this->whenLoaded('members')),
-            'quantity_members' => (int) ($this->active_members_count ?? 0),
+            'quantity_members' => $this->resolveClubQuantityMembers(),
             'skill_level' => $this->skill_level ?? $this->whenLoaded('members', function () {
                 $scores = $this->members
                     ->filter(fn($m) => $m->user !== null)
@@ -140,7 +142,7 @@ class ClubResource extends JsonResource
             'is_public' => (bool) ($this->is_public ?? true),
             'is_verified' => (bool) $this->is_verified,
             'is_banned' => (bool) ($this->is_banned ?? false),
-            'quantity_members' => (int) ($this->active_members_count ?? 0),
+            'quantity_members' => $this->resolveClubQuantityMembers(),
             'skill_level' => $skillLevel,
             'rank' => $this->rank ?? null,
             'is_member' => false,

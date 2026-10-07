@@ -7,17 +7,15 @@ const tournamentStaffEndpoint = API_ENDPOINT.TOURNAMENT_STAFF;
  * Thêm thành viên vào giải đấu (RBAC v2).
  *
  * @param {Number} tournamentId
- * @param {Number} userId - user_id của người được thêm
+ * @param {Number} userId - user_id của người được thêm (kể cả User.is_guest=true)
  * @param {Number} role - 1=Admin/organizer, 2=BTC/staff, 3=Trọng tài/referee (optional)
  * @param {Number|null} courtId - chỉ áp dụng khi role=3, scope trọng tài theo sân (optional)
- * @param {Number|null} virtualId - id của thành viên ảo (optional)
  */
-export const addTournamentStaff = async (tournamentId, userId, role = null, courtId = null, virtualId = null) => {
+export const addTournamentStaff = async (tournamentId, userId, role = null, courtId = null) => {
   const payload = {}
   if (userId != null) payload.user_id = userId
   if (role !== null) payload.role = role
   if (courtId !== null) payload.court_id = courtId
-  if (virtualId !== null) payload.virtual_id = virtualId
 
   return axiosInstance.post(`${tournamentStaffEndpoint}/add/${tournamentId}`, payload)
     .then((response) => response.data)
@@ -28,13 +26,11 @@ export const addTournamentStaff = async (tournamentId, userId, role = null, cour
  * @param {Number} tournamentId
  * @param {Number} userId
  * @param {Number|null} courtId - optional, scope theo sân
- * @param {Number|null} virtualId - id của thành viên ảo (optional)
  */
-export const addReferee = async (tournamentId, userId, courtId = null, virtualId = null) => {
+export const addReferee = async (tournamentId, userId, courtId = null) => {
   const payload = {}
   if (userId != null) payload.user_id = userId
   if (courtId !== null) payload.court_id = courtId
-  if (virtualId !== null) payload.virtual_id = virtualId
   return axiosInstance.post(`${tournamentStaffEndpoint}/add-referee/${tournamentId}`, payload)
     .then((response) => response.data)
 }

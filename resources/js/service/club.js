@@ -287,15 +287,73 @@ export const reportClub = async (clubId, data) => {
     return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/report`, data).then((response) => response.data);
 }
 
-export const getVirtualMembers = async (clubId, params = {}) => {
-    const { data } = await axiosInstance.get(`${API_ENDPOINT.CLUB}/${clubId}/virtual-members`, { params });
+export const getClubGuestProfiles = async (clubId, params = {}) => {
+    const { data } = await axiosInstance.get(`${API_ENDPOINT.CLUB}/${clubId}/guests/profiles`, { params });
     return data;
 }
 
-export const createVirtualMember = async (clubId, data) => {
-    return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/virtual-members`, data).then((response) => response.data);
+export const createClubGuestProfile = async (clubId, data) => {
+    return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/guests/profiles`, data).then((response) => response.data);
 }
 
-export const deleteVirtualMember = async (clubId, virtualMemberId) => {
-    return axiosInstance.delete(`${API_ENDPOINT.CLUB}/${clubId}/virtual-members/${virtualMemberId}`).then((response) => response.data);
+export const updateClubGuestProfile = async (clubId, id, data) => {
+    return axiosInstance.put(`${API_ENDPOINT.CLUB}/${clubId}/guests/profiles/${id}`, data).then((response) => response.data);
 }
+
+export const deleteClubGuestProfile = async (clubId, id) => {
+    return axiosInstance.delete(`${API_ENDPOINT.CLUB}/${clubId}/guests/profiles/${id}`).then((response) => response.data);
+}
+
+export const followClub = async (clubId) => {
+    return axiosInstance.post('/follows/store', {
+        followable_type: 'club',
+        followable_id: clubId,
+    }).then((response) => response.data);
+};
+
+export const unfollowClub = async (clubId) => {
+    return axiosInstance.post('/follows/delete', {
+        followable_type: 'club',
+        followable_id: clubId,
+    }).then((response) => response.data);
+};
+
+export const getClubGuests = async (clubId) => {
+    return axiosInstance.get(`${API_ENDPOINT.CLUB}/${clubId}/guests`).then((response) => response.data.data);
+}
+
+export const inviteClubGuest = async (clubId, userId) => {
+    return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/guests/invite`, { user_id: userId }).then((response) => response.data);
+}
+
+export const deleteClubGuest = async (clubId, userId) => {
+    return axiosInstance.delete(`${API_ENDPOINT.CLUB}/${clubId}/guests/${userId}`).then((response) => response.data);
+}
+
+// ============================================================
+// Sân nhà (Home Courts) — club_competition_locations
+// ============================================================
+
+export const getHomeCourts = async (clubId) => {
+    const { data } = await axiosInstance.get(`${API_ENDPOINT.CLUB}/${clubId}/home-courts`);
+    return data?.data ?? [];
+};
+
+export const setHomeCourts = async (clubId, locations) => {
+    return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/home-courts`, { locations })
+        .then((response) => response.data?.data ?? []);
+};
+
+export const deleteHomeCourt = async (clubId, homeCourtId) => {
+    return axiosInstance.delete(`${API_ENDPOINT.CLUB}/${clubId}/home-courts/${homeCourtId}`)
+        .then((response) => response.data);
+};
+
+// ============================================================
+// Trạng thái tuyển thành viên (Recruitment Status) — super_admin only
+// ============================================================
+
+export const setRecruitmentStatus = async (clubId, status) => {
+    return axiosInstance.post(`/admin/clubs/${clubId}/recruitment-status`, { recruitment_status: status })
+        .then((response) => response.data?.data);
+};

@@ -14,7 +14,7 @@ class MiniTournamentStaffResource extends JsonResource
      *
      * Hỗ trợ 2 nguồn dữ liệu:
      *  - `User` qua pivot `staff` (belongsToMany) — bản ghi user thật
-     *  - `MiniTournamentStaff` trực tiếp — bản ghi thành viên ảo (user_id = null)
+     *  - `MiniTournamentStaff` trực tiếp — bản ghi user (kể cả is_guest=true) với user_id thật
      *
      * @return array<string, mixed>
      */
@@ -24,24 +24,17 @@ class MiniTournamentStaffResource extends JsonResource
             ? $this->resource
             : $this->resource->pivot;
 
-        // Thành viên ảo (ClubVirtualMember) có user_id = null, không có bản ghi trong `users`.
-        $isVirtual = (bool) ($record->is_virtual ?? false);
         $userId = $record->user_id ?? null;
+        $user = $userId ? User::with(['sports.scores', 'sports.sport'])->find($userId) : null;
 
         return [
             'id' => $record->id,
             'mini_tournament_id' => $record->mini_tournament_id,
             'user_id' => $userId !== null ? (int) $userId : null,
-            'is_virtual' => $isVirtual,
-            'virtual_member_id' => isset($record->virtual_member_id) && $record->virtual_member_id !== null
-                ? (int) $record->virtual_member_id
-                : null,
-            'user' => $userId
-                ? new UserListResource(User::with(['sports.scores', 'sports.sport'])->find($userId))
-                : null,
-            // Thành viên ảo không có `user` — FE dùng `guest_name` / `guest_avatar` để render.
-            'guest_name' => $record->guest_name ?? null,
-            'guest_avatar' => $record->guest_avatar ?? null,
+            'is_guest' => $user ? (bool) $user->is_guest : false,
+            'user' => $user ? new UserListResource($user) : null,
+            'guest_name' => $user?->full_name ?? $record->guest_name ?? null,
+            'guest_avatar' => $user?->avatar_url ?? $record->guest_avatar ?? null,
             'role' => $record->role,
             'role_text' => MiniTournamentStaff::getRoleText($record->role),
             'checked_in_at' => isset($record->checked_in_at) && $record->checked_in_at

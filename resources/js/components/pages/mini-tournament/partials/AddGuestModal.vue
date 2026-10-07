@@ -27,18 +27,44 @@
 
           <!-- Form -->
           <div class="space-y-4 flex-1">
-            <!-- Chọn từ Thành viên ảo CLB -->
-            <div v-if="virtualMembers.length > 0">
+            <!-- Phạm vi tạo: Chỉ cho kèo này / Tạo cho CLB -->
+            <div v-if="managedClubs.length > 0">
               <label class="block text-[13px] font-semibold text-[#6B7280] dark:text-slate-300 mb-1.5 uppercase tracking-wide">
-                Chọn nhanh từ Thành viên ảo CLB
+                Phạm vi tạo
               </label>
-              <select v-model="selectedVirtualMemberId" @change="onSelectVirtualMember"
-                class="w-full bg-[#F9FAFB] dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition cursor-pointer font-medium">
-                <option value="">-- Chọn thành viên ảo --</option>
-                <option v-for="vm in virtualMembers" :key="vm.id" :value="vm.id">
-                  {{ vm.name }} (Thành viên ảo)
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" @click="createScope = 'event'"
+                  class="py-2 px-3 rounded-lg border text-[12px] font-semibold transition"
+                  :class="createScope === 'event' ? 'bg-[#D72D36] text-white border-[#D72D36]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'">
+                  Chỉ cho kèo này
+                </button>
+                <button type="button" @click="createScope = 'club'"
+                  class="py-2 px-3 rounded-lg border text-[12px] font-semibold transition"
+                  :class="createScope === 'club' ? 'bg-[#D72D36] text-white border-[#D72D36]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'">
+                  Tạo cho CLB
+                </button>
+              </div>
+              <select v-if="createScope === 'club'" v-model="createGuestClubId"
+                class="mt-2 w-full bg-[#F9FAFB] dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition cursor-pointer font-medium">
+                <option value="">-- Chọn CLB --</option>
+                <option v-for="club in managedClubs" :key="club.id" :value="club.id">
+                  {{ club.name }}
                 </option>
               </select>
+              <div v-if="createScope === 'club'" class="mt-2">
+                <label class="block text-[11px] text-[#6B7280] dark:text-slate-400 mb-1">
+                  Trình độ ước tính của CLB guest (1.0–8.0, tùy chọn)
+                </label>
+                <input
+                  v-model.number="form.estimated_level"
+                  type="number"
+                  min="1"
+                  max="8"
+                  step="0.5"
+                  placeholder="VD: 4.5"
+                  class="w-full bg-[#F9FAFB] dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
+                />
+              </div>
             </div>
 
             <!-- Tên hiển thị -->
@@ -234,7 +260,7 @@
 import { computed, ref, watch } from 'vue'
 import { toast } from 'vue3-toastify'
 import { addGuest, getGuarantorCandidates } from '@/service/guest.js'
-import { getVirtualMembers } from '@/service/club.js'
+import { myClubs } from '@/service/club.js'
 import { useUserStore } from '@/store/auth'
 import { storeToRefs } from 'pinia'
 
@@ -262,6 +288,7 @@ const form = ref({
   guarantor_user_id: '',
   estimated_level_min: null,
   estimated_level_max: null,
+  estimated_level: null, // CLB scope only: trình độ lưu trên ClubGuestProfile
 })
 
 const avatarInput = ref(null)
@@ -269,8 +296,9 @@ const avatarPreview = ref('')
 const errors = ref({})
 const isSubmitting = ref(false)
 const guarantorCandidates = ref([])
-const virtualMembers = ref([])
-const selectedVirtualMemberId = ref('')
+const managedClubs = ref([])
+const createScope = ref('event') // 'event' | 'club'
+const createGuestClubId = ref('')
 
 const validateForm = () => {
   errors.value = {}
@@ -291,6 +319,11 @@ const validateForm = () => {
     errors.value.guarantor_user_id = 'Vui lòng chọn người bảo lãnh (Thu tiền)'
   }
 
+  if (createScope.value === 'club' && !createGuestClubId.value) {
+    toast.error('Vui lòng chọn CLB để tạo guest')
+    return false
+  }
+
   return Object.keys(errors.value).length === 0
 }
 
@@ -302,9 +335,11 @@ const resetForm = () => {
     guarantor_user_id: '',
     estimated_level_min: null,
     estimated_level_max: null,
+    estimated_level: null,
   }
   avatarPreview.value = ''
-  selectedVirtualMemberId.value = ''
+  createScope.value = 'event'
+  createGuestClubId.value = ''
   errors.value = {}
 }
 
@@ -330,29 +365,23 @@ const fetchGuarantorCandidates = async () => {
   }
 }
 
-const fetchVirtualMembers = async () => {
-  const clubId = props.miniTournament?.club_id || props.miniTournament?.club?.id
-  if (!clubId) {
-    virtualMembers.value = []
-    return
-  }
+const fetchClubGuestProfiles = async () => {
+  // No-op: CLB guest quick-pick đã bỏ, chỉ còn toggle "Tạo cho CLB" ở dưới.
+}
+
+const fetchManagedClubs = async () => {
   try {
-    const data = await getVirtualMembers(clubId)
-    virtualMembers.value = data?.data || data || []
+    const data = await myClubs({ managed: 1 })
+    managedClubs.value = data || []
   } catch {
-    virtualMembers.value = []
+    managedClubs.value = []
   }
 }
 
-const onSelectVirtualMember = () => {
-  if (!selectedVirtualMemberId.value) return
-  const vm = virtualMembers.value.find(v => v.id === selectedVirtualMemberId.value)
-  if (vm) {
-    form.value.guest_name = vm.name
-    if (vm.avatar_url) {
-      avatarPreview.value = vm.avatar_url
-      form.value.guest_avatar = vm.avatar_url
-    }
+const onToggleCreateScope = (scope) => {
+  createScope.value = scope
+  if (scope !== 'club') {
+    createGuestClubId.value = ''
   }
 }
 
@@ -409,6 +438,12 @@ const handleSubmit = async () => {
     if (form.value.estimated_level_max != null) {
       payload.append('estimated_level_max', Number(form.value.estimated_level_max))
     }
+    if (createScope.value === 'club' && createGuestClubId.value) {
+      payload.append('club_id', Number(createGuestClubId.value))
+      if (form.value.estimated_level != null) {
+        payload.append('estimated_level', Number(form.value.estimated_level))
+      }
+    }
 
     const response = await addGuest(props.miniTournament.id, payload)
     toast.success(response?.message || 'Thêm khách mời thành công')
@@ -427,6 +462,7 @@ watch(
     if (open) {
       resetForm()
       await fetchGuarantorCandidates()
+      await fetchManagedClubs()
     }
   }
 )

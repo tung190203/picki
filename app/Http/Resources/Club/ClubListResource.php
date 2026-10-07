@@ -2,11 +2,13 @@
 
 namespace App\Http\Resources\Club;
 
+use App\Http\Resources\Concerns\ResolvesClubMemberCount;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class ClubListResource extends JsonResource
 {
+    use ResolvesClubMemberCount;
     public function toArray(Request $request): array
     {
         return [
@@ -20,11 +22,7 @@ class ClubListResource extends JsonResource
             'is_public' => (bool) ($this->is_public ?? true),
             'is_verified' => (bool) $this->is_verified,
             'created_by' => $this->created_by,
-            'quantity_members' => (int) (
-                $this->active_members_count
-                ?? $this->activeMembers_count
-                ?? ($this->relationLoaded('activeMembers') ? $this->activeMembers->count() : 0)
-            ),
+            'quantity_members' => $this->resolveClubQuantityMembers(),
             'active_matches_count' => $this->active_matches_count ?? 0,
             'active_tournaments_count' => $this->active_tournaments_count ?? 0,
             'cover_image_url' => $this->whenLoaded('profile', fn () => $this->profile?->cover_image_url),

@@ -62,8 +62,7 @@ class MapUserResource extends JsonResource
             ),
             'is_follow' => $isFollow,
             'marker_type'  => 'user',
-            'is_virtual' => false,
-            'virtual_member_id' => null,
+            'is_guest' => false,
         ];
     }
 }
