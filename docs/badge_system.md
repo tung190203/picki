@@ -256,11 +256,12 @@ Clear cache để hệ thống nhận diện các Event/Listener và Schedule (C
 php artisan optimize:clear
 ```
 
-### Bước 4: Tạo dữ liệu Huy hiệu trên Admin CMS (BẮT BUỘC)
-Trước khi chạy bất kỳ script đồng bộ nào, hệ thống **bắt buộc phải có sẵn các mã huy hiệu** trong DB.
-1. Đăng nhập vào Admin CMS.
-2. Tạo các Loại huy hiệu (Kèm Description cho Tooltip).
-3. Tạo các Huy hiệu và nhập chính xác các `Code` mà chúng ta đã thống nhất (Ví dụ: `CHAMPION_1`, `WIN_STREAK_5`, `GIANT_SLAYER_3`, `VN_EXPLORER_1`, `RATING_3`, `TOP_BXH_1`, `HOST_10`, `ORGANIZER_5`, `PROFILE_COMPLETED`, v.v.).
+### Bước 4: Chạy Seeder tạo dữ liệu Huy hiệu (BẮT BUỘC)
+Trước khi chạy bất kỳ script đồng bộ nào, hệ thống **bắt buộc phải có sẵn các mã huy hiệu** trong DB. Thay vì phải lên CMS tạo bằng tay từng cái, bạn chỉ cần chạy lệnh sau để tự động sinh toàn bộ (hơn 50) huy hiệu và loại huy hiệu đã được cấu hình sẵn:
+```bash
+php artisan db:seed --class=AutoBadgeSeeder
+```
+*(Nếu huy hiệu nào chưa có thì sẽ tự tạo, có rồi thì sẽ bỏ qua hoặc update thông tin cơ bản. Sau khi chạy xong, bạn có thể vào CMS upload lại ảnh `icon` cho từng cái sau).*
 
 ### Bước 5: Chạy Script convert dữ liệu cũ (Dành cho User đã có huy hiệu)
 Đồng bộ các huy hiệu cũ (lưu bằng text `badge_code`) sang hệ thống khoá ngoại `badge_id` mới.
