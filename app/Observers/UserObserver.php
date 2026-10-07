@@ -4,7 +4,6 @@ namespace App\Observers;
 
 use App\Models\User;
 use App\Services\BadgeService;
-use App\Enums\BadgeType;
 
 class UserObserver
 {
@@ -37,7 +36,7 @@ class UserObserver
         }
 
         if ((int) $user->total_matches_has_anchor >= self::AUTO_VERIFY_THRESHOLD) {
-            app(BadgeService::class)->awardBadge($user->id, BadgeType::VERIFIED);
+            app(BadgeService::class)->awardBadge($user->id, 'VERIFIED');
         }
     }
 }

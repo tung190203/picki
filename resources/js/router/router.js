@@ -439,6 +439,14 @@ export const route = [
       requiresAdmin: true,
     }
   },
+  {
+    path: '/admin/badges',
+    name: 'admin.badges',
+    component: () => import('@/components/pages/admin/AdminBadgesPage.vue'),
+    meta: {
+      requiresAdmin: true,
+    }
+  },
 
   // --- GENERAL & ERROR ROUTES ---
   {

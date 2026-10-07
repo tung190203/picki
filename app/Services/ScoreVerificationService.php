@@ -159,7 +159,7 @@ class ScoreVerificationService
             );
 
             if ($awardAnchor) {
-                $this->badgeService->grant_anchor($request->user_id, $reviewerId);
+                $this->badgeService->awardBadge($request->user_id, 'ANCHOR', $reviewerId);
                 ActivityLog::log($request->user_id, 'badge_awarded', [
                     'badge' => 'Anchor',
                     'request_id' => $request->id,

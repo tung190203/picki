@@ -82,6 +82,7 @@ class UserResource extends JsonResource
             'spcn_request' => $this->spcn_request ?? null,
             'dupr_request' => $this->dupr_request ?? null,
             'badges' => $this->getBatchBadge('badges'),
+            'featured_badges' => $this->getBatchBadge('featured_badges'),
             'platform' => $this->platform,
             'vndupr_score' => $this->vndupr_score !== null ? (float) $this->vndupr_score : null,
             'total_matches' => $this->preloaded_sport_stats['total_matches'] ?? 0,

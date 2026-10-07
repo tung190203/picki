@@ -397,18 +397,18 @@ class UserMergeService
         // 1. Transfer non-duplicate badges from merged user to survivor
         $survivorBadgeTypes = DB::table('user_badges')
             ->where('user_id', $survivorUserId)
-            ->pluck('badge_type')
+            ->pluck('badge_id')
             ->toArray();
 
         DB::table('user_badges')
             ->where('user_id', $mergedUserId)
-            ->whereNotIn('badge_type', $survivorBadgeTypes)
+            ->whereNotIn('badge_id', $survivorBadgeTypes)
             ->update(['user_id' => $survivorUserId]);
 
         // 2. Remove duplicate badges from merged user
         UserBadge::where('user_id', $mergedUserId)
-            ->whereIn('badge_type', function ($query) use ($survivorUserId) {
-                $query->select('badge_type')
+            ->whereIn('badge_id', function ($query) use ($survivorUserId) {
+                $query->select('badge_id')
                     ->from('user_badges')
                     ->where('user_id', $survivorUserId);
             })
