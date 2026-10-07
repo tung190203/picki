@@ -2,17 +2,15 @@
 
 namespace App\Http\Resources\Club;
 
+use App\Http\Resources\CompetitionLocationResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * Resource cho 1 sân nhà của CLB.
  *
- * Resource nhận:
- *  - Eloquent model (CompetitionLocation) + pivot: dùng cho cập nhật
- *  - Hoặc array đã enrich từ ClubHomeCourtService (distance_km, events_hosted_count đã tính sẵn)
- *
- * Khi là array, 2 field computed sẽ lấy trực tiếp từ array.
+ * Trả nested CompetitionLocationResource thay vì lẻ các field riêng lẻ,
+ * để client nhận đầy đủ thông tin bao gồm image, location, facilities...
  */
 class ClubHomeCourtResource extends JsonResource
 {
@@ -24,16 +22,17 @@ class ClubHomeCourtResource extends JsonResource
 
         $pivot = $this->pivot ?? null;
 
+        // Load relations nếu chưa loaded (cho trường hợp dùng trong collection)
+        if (!$this->relationLoaded('location') && !$this->relationLoaded('sports') && !$this->relationLoaded('facilities')) {
+            $this->loadMissing(['location', 'sports', 'facilities']);
+        }
+
         return [
-            'id' => (int) $this->id,
-            'competition_location_id' => (int) $this->id,
-            'name' => $this->name,
-            'address' => $this->address,
-            'latitude' => $this->latitude !== null ? (float) $this->latitude : null,
-            'longitude' => $this->longitude !== null ? (float) $this->longitude : null,
+            'id' => $this->id,
             'position' => (int) ($pivot->position ?? 0),
             'distance_km' => $pivot && $pivot->distance_km !== null ? (float) $pivot->distance_km : null,
             'events_hosted_count' => (int) ($pivot->events_hosted_count ?? 0),
+            'location' => CompetitionLocationResource::make($this->resource)->resolve($request),
         ];
     }
 }

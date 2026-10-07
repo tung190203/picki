@@ -194,19 +194,31 @@ class MatchCacheObserver
             return;
         }
 
+        // Lifecycle `status` should be driven by end_time via
+        // AutoCloseMiniTournaments, not by match results — a single confirmed
+        // match must not close a tournament whose end_time is still in the
+        // future. session_status is flipped separately in
+        // MiniMatchController::checkRoundActivation.
         $allMatches = $miniTournament->matches()->get();
         if ($allMatches->isEmpty()) {
             return;
         }
 
         $allHasResult = $allMatches->every(fn($m) => $m->winner_id !== null || $m->team_win_id !== null || $m->participant_win_id !== null);
-        if ($allHasResult) {
-            Log::info('[MatchCacheObserver] All mini matches have results, auto-completing mini tournament', [
-                'mini_tournament_id' => $miniTournament->id,
-                'match_id' => $match->id,
-            ]);
-            $miniTournament->update(['status' => MiniTournament::STATUS_CLOSED]);
+        if (!$allHasResult) {
+            return;
         }
+
+        $endTime = $miniTournament->end_time;
+        if ($endTime && $endTime->gt(now())) {
+            return;
+        }
+
+        Log::info('[MatchCacheObserver] All mini matches have results and end_time has passed, auto-completing mini tournament', [
+            'mini_tournament_id' => $miniTournament->id,
+            'match_id' => $match->id,
+        ]);
+        $miniTournament->update(['status' => MiniTournament::STATUS_CLOSED]);
     }
 
     protected function revertTournamentCompletion($match): void
