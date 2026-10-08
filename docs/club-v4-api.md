@@ -338,13 +338,26 @@ Public — ai cũng xem được. Response:
     {
       "id": 12,
       "competition_location_id": 7,
-      "name": "Sân Pickleball Q7",
-      "address": "12 Nguyễn Văn Trỗi, Q.Phú Nhuận",
-      "latitude": 10.7995,
-      "longitude": 106.6789,
       "position": 0,
       "distance_km": 1.20,
-      "events_hosted_count": 8
+      "events_hosted_count": 8,
+      "location": {
+        "id": 7,
+        "name": "Sân Pickleball Q7",
+        "address": "12 Nguyễn Văn Trỗi, Q.Phú Nhuận",
+        "latitude": 10.7995,
+        "longitude": 106.6789,
+        "phone": "0901234567",
+        "opening_time": "06:00:00",
+        "closing_time": "22:00:00",
+        "image": "storage/competition_locations/abc.jpg",
+        "note_booking": null,
+        "website": null,
+        "is_banned": false,
+        "sports": [...],
+        "facilities": [...],
+        "yard_types": [...]
+      }
     }
   ],
   "message": "Lấy danh sách sân nhà thành công"
@@ -353,6 +366,7 @@ Public — ai cũng xem được. Response:
 
 - Sắp xếp theo `position` ASC, sau đó `id` ASC.
 - `distance_km = null` nếu thiếu anchor và thiếu header toạ độ user.
+- `location` là object `CompetitionLocation` đầy đủ (xoá flatten fields `name`, `address`, `latitude`, `longitude` khỏi top-level).
 
 #### Cập nhật danh sách sân nhà (sync toàn bộ)
 
