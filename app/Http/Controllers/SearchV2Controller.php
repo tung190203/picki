@@ -14,6 +14,7 @@ use App\Models\CompetitionLocation;
 use App\Models\MiniTournament;
 use App\Models\Tournament;
 use App\Models\User;
+use App\Services\Club\ClubSearchEnricher;
 use App\Services\SearchCacheService;
 use App\Services\SearchFilterConfig;
 use App\Services\SearchV2Service;
@@ -246,6 +247,7 @@ class SearchV2Controller extends Controller
                 User::loadSportStatsOnUsers($items, 1);
             }
             $this->loadBatchMembershipStatus($items, $tab, $userId);
+            $this->enrichClubResults($items, $tab, $userId);
 
             $resourceClass = $this->searchService->resolveListResourceClass($tab);
 
@@ -272,6 +274,7 @@ class SearchV2Controller extends Controller
 
         // Eager-load batch membership status for tournament tabs (avoids N+1 on isJoinedBy/isRegisteredBy)
         $this->loadBatchMembershipStatus($paginator->getCollection(), $tab, $userId);
+        $this->enrichClubResults($paginator->getCollection(), $tab, $userId);
 
         $resourceClass = $this->searchService->resolveListResourceClass($params['tab']);
 
@@ -299,6 +302,7 @@ class SearchV2Controller extends Controller
 
         // Eager-load batch membership status for tournament tabs
         $this->loadBatchMembershipStatus($items, $tab, $userId);
+        $this->enrichClubResults($items, $tab, $userId);
 
         $bounds = $this->searchService->computeBounds($items, $tab);
         // Use list resource (has sports field) for user tab, map resource for others
@@ -328,6 +332,7 @@ class SearchV2Controller extends Controller
                 User::loadSportStatsOnUsers($items, 1);
             }
             $this->loadBatchMembershipStatus($items, $tab, $userId);
+            $this->enrichClubResults($items, $tab, $userId);
 
             $resourceClass = $this->searchService->resolveListResourceClass($tab);
 
@@ -363,6 +368,7 @@ class SearchV2Controller extends Controller
 
         // Eager-load batch membership status for tournament tabs
         $this->loadBatchMembershipStatus($paginator->getCollection(), $tab, $userId);
+        $this->enrichClubResults($paginator->getCollection(), $tab, $userId);
 
         $resourceClass = $this->searchService->resolveListResourceClass($tab);
 
@@ -535,4 +541,12 @@ class SearchV2Controller extends Controller
      * Batch-load per-(user_id, sport_id) stats for all UserSport models.
      * Assigns preloaded_sport_stats[$sportId] on each UserSport to avoid per-row getSportStats calls.
      */
+    private function enrichClubResults($items, string $tab, ?int $userId): void
+    {
+        if ($tab !== SearchFilterConfig::TAB_CLUB || $items->isEmpty()) {
+            return;
+        }
+
+        ClubSearchEnricher::enrich($items, $userId);
+    }
 }

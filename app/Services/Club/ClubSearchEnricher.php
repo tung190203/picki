@@ -1,0 +1,300 @@
+<?php
+
+namespace App\Services\Club;
+
+use App\Models\Club\Club;
+use App\Models\Follow;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Batch load enrichment cho Search Club results.
+ * Tránh N+1 bằng cách load tất cả data cần thiết trong 1-2 queries mỗi loại.
+ */
+class ClubSearchEnricher
+{
+    /**
+     * Attach followers_count (loại trừ members).
+     * Followers count = tổng follows - số members (user thật đã join).
+     */
+    public static function attachFollowersCount(Collection|array $clubs): Collection|array
+    {
+        if (empty($clubs)) {
+            return $clubs;
+        }
+
+        $clubIds = collect($clubs)->pluck('id')->toArray();
+        if (empty($clubIds)) {
+            return $clubs;
+        }
+
+        // Lấy tổng follows cho mỗi club
+        $totalFollows = Follow::where('followable_type', Club::class)
+            ->whereIn('followable_id', $clubIds)
+            ->groupBy('followable_id')
+            ->selectRaw('followable_id, COUNT(*) as cnt')
+            ->pluck('cnt', 'followable_id');
+
+        // Lấy số members (user thật) đã joined cho mỗi club
+        $memberCounts = DB::table('club_members')
+            ->whereIn('club_id', $clubIds)
+            ->where('membership_status', 'joined')
+            ->groupBy('club_id')
+            ->selectRaw('club_id, COUNT(*) as cnt')
+            ->pluck('cnt', 'club_id');
+
+        foreach ($clubs as $club) {
+            $total = (int) ($totalFollows[$club->id] ?? 0);
+            $members = (int) ($memberCounts[$club->id] ?? 0);
+            $club->followers_count = max(0, $total - $members);
+        }
+
+        return $clubs;
+    }
+
+    /**
+     * Attach is_following cho current user.
+     */
+    public static function attachIsFollowing(Collection|array $clubs, ?int $userId): Collection|array
+    {
+        if (empty($clubs) || !$userId) {
+            foreach ($clubs as $club) {
+                $club->is_following = false;
+            }
+            return $clubs;
+        }
+
+        $clubIds = collect($clubs)->pluck('id')->toArray();
+        if (empty($clubIds)) {
+            return $clubs;
+        }
+
+        $followingIds = Follow::where('followable_type', Club::class)
+            ->where('user_id', $userId)
+            ->whereIn('followable_id', $clubIds)
+            ->pluck('followable_id')
+            ->flip()
+            ->toArray();
+
+        foreach ($clubs as $club) {
+            $club->is_following = isset($followingIds[$club->id]);
+        }
+
+        return $clubs;
+    }
+
+    /**
+     * Attach primary_home_court (position = 0).
+     * Sử dụng logic tương tự ClubHomeCourtService.
+     */
+    public static function attachPrimaryHomeCourt(Collection|array $clubs): Collection|array
+    {
+        if (empty($clubs)) {
+            return $clubs;
+        }
+
+        $clubIds = collect($clubs)->pluck('id')->toArray();
+        if (empty($clubIds)) {
+            return $clubs;
+        }
+
+        // Lấy primary home court cho mỗi club (position = 0)
+        $primaryCourts = DB::table('club_competition_locations as ccl')
+            ->join('competition_locations as cl', 'cl.id', '=', 'ccl.competition_location_id')
+            ->whereIn('ccl.club_id', $clubIds)
+            ->where('ccl.position', 0)
+            ->select([
+                'ccl.club_id',
+                'cl.id',
+                'cl.name',
+                'cl.address',
+                'cl.latitude',
+                'cl.longitude',
+            ])
+            ->get()
+            ->groupBy('club_id');
+
+        foreach ($clubs as $club) {
+            $court = $primaryCourts->get($club->id)?->first();
+            if ($court) {
+                $club->primary_home_court = [
+                    'id' => (int) $court->id,
+                    'name' => $court->name,
+                    'address' => $court->address,
+                    'latitude' => (float) $court->latitude,
+                    'longitude' => (float) $court->longitude,
+                ];
+            } else {
+                $club->primary_home_court = null;
+            }
+        }
+
+        return $clubs;
+    }
+
+    /**
+     * Attach leader info (adminMember với user + vndupr_score).
+     */
+    public static function attachLeaderInfo(Collection|array $clubs): Collection|array
+    {
+        if (empty($clubs)) {
+            return $clubs;
+        }
+
+        $clubIds = collect($clubs)->pluck('id')->toArray();
+        if (empty($clubIds)) {
+            return $clubs;
+        }
+
+        // Lấy admin member cho mỗi club
+        // Role priority: Admin > Manager > Secretary > Treasurer > Member
+        $adminMembers = DB::table('club_members as cm')
+            ->join('users as u', 'u.id', '=', 'cm.user_id')
+            ->whereIn('cm.club_id', $clubIds)
+            ->where('cm.membership_status', 'joined')
+            ->where('cm.status', 'active')
+            ->whereIn('cm.role', ['admin', 'manager', 'secretary'])
+            ->select([
+                'cm.club_id',
+                'cm.user_id',
+                'u.full_name',
+                'u.avatar_url',
+            ])
+            // Order by role priority: admin=1, manager=2, secretary=3
+            ->orderByRaw("FIELD(cm.role, 'admin', 'manager', 'secretary')")
+            ->get()
+            ->groupBy('club_id');
+
+        // Lấy vndupr_score cho các user này
+        $userIds = $adminMembers->flatten()->pluck('user_id')->unique()->toArray();
+        if (empty($userIds)) {
+            foreach ($clubs as $club) {
+                $club->leader = null;
+            }
+            return $clubs;
+        }
+
+        $vnduprScores = DB::table('user_sport_scores as uss')
+            ->join('user_sport as us', 'us.id', '=', 'uss.user_sport_id')
+            ->whereIn('us.user_id', $userIds)
+            ->where('uss.score_type', 'vndupr_score')
+            ->whereNotNull('uss.score_value')
+            ->groupBy('us.user_id')
+            ->selectRaw('us.user_id, MAX(uss.score_value) as max_score')
+            ->pluck('max_score', 'user_id');
+
+        // Build leader info
+        foreach ($clubs as $club) {
+            $admin = $adminMembers->get($club->id)?->first();
+            if ($admin) {
+                $club->leader = [
+                    'user_id' => (int) $admin->user_id,
+                    'full_name' => $admin->full_name,
+                    'avatar_url' => $admin->avatar_url,
+                    'vndupr_score' => isset($vnduprScores[$admin->user_id])
+                        ? round((float) $vnduprScores[$admin->user_id], 1)
+                        : null,
+                ];
+            } else {
+                $club->leader = null;
+            }
+        }
+
+        return $clubs;
+    }
+
+    /**
+     * Attach organized_count cho leaders.
+     * Tổng hợp từ: mini_tournaments.created_by, mini_tournament_staff (role=1),
+     * tournaments.created_by, tournament_staff (role=1,2).
+     */
+    public static function attachOrganizedCount(Collection|array $clubs): Collection|array
+    {
+        if (empty($clubs)) {
+            return $clubs;
+        }
+
+        // Collect unique leader user IDs
+        $leaderUserIds = collect($clubs)
+            ->map(fn($club) => $club->leader['user_id'] ?? null)
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+
+        if (empty($leaderUserIds)) {
+            return $clubs;
+        }
+
+        // Count organized mini_tournaments (created_by)
+        $miniCreated = DB::table('mini_tournaments')
+            ->whereIn('created_by', $leaderUserIds)
+            ->whereIn('status', [3, 4]) // draft, open - có thể thay đổi tùy business
+            ->groupBy('created_by')
+            ->selectRaw('created_by, COUNT(*) as cnt')
+            ->pluck('cnt', 'created_by');
+
+        // Count organized mini_tournaments (staff role=1/organizer)
+        $miniStaff = DB::table('mini_tournament_staff as mts')
+            ->join('mini_tournaments as mnt', 'mnt.id', '=', 'mts.mini_tournament_id')
+            ->whereIn('mts.user_id', $leaderUserIds)
+            ->where('mts.role', 1)
+            ->whereIn('mnt.status', [3, 4])
+            ->groupBy('mts.user_id')
+            ->selectRaw('mts.user_id, COUNT(DISTINCT mts.mini_tournament_id) as cnt')
+            ->pluck('cnt', 'mts.user_id');
+
+        // Count organized tournaments (created_by)
+        $tourCreated = DB::table('tournaments')
+            ->whereIn('created_by', $leaderUserIds)
+            ->whereIn('status', [0, 1]) // draft, open
+            ->groupBy('created_by')
+            ->selectRaw('created_by, COUNT(*) as cnt')
+            ->pluck('cnt', 'created_by');
+
+        // Count organized tournaments (staff role=1,2)
+        $tourStaff = DB::table('tournament_staff as ts')
+            ->join('tournaments as t', 't.id', '=', 'ts.tournament_id')
+            ->whereIn('ts.user_id', $leaderUserIds)
+            ->whereIn('ts.role', [1, 2])
+            ->whereIn('t.status', [0, 1])
+            ->groupBy('ts.user_id')
+            ->selectRaw('ts.user_id, COUNT(DISTINCT ts.tournament_id) as cnt')
+            ->pluck('cnt', 'ts.user_id');
+
+        // Attach to each club's leader
+        foreach ($clubs as $club) {
+            if (isset($club->leader['user_id'])) {
+                $userId = $club->leader['user_id'];
+                $count = (int) ($miniCreated[$userId] ?? 0)
+                    + (int) ($miniStaff[$userId] ?? 0)
+                    + (int) ($tourCreated[$userId] ?? 0)
+                    + (int) ($tourStaff[$userId] ?? 0);
+                $club->leader['organized_count'] = $count;
+            }
+        }
+
+        return $clubs;
+    }
+
+    /**
+     * Enrich tất cả data cho search club results.
+     */
+    public static function enrich(Collection|array $clubs, ?int $userId): Collection|array
+    {
+        if (empty($clubs)) {
+            return $clubs;
+        }
+
+        // Batch load tất cả
+        self::attachFollowersCount($clubs);
+        self::attachIsFollowing($clubs, $userId);
+        ClubService::attachSkillLevel($clubs);
+        self::attachPrimaryHomeCourt($clubs);
+        self::attachLeaderInfo($clubs);
+        self::attachOrganizedCount($clubs);
+
+        return $clubs;
+    }
+}

@@ -44,6 +44,7 @@ class PartnerController extends Controller
                 'wins'          => $stat['wins'],
                 'losses'        => $stat['losses'],
                 'win_rate'      => $stat['win_rate'],
+                'loss_rate'     => $stat['loss_rate'],
             ];
         })->filter(fn($item) => $item['user'] !== null)->values();
 
@@ -90,6 +91,7 @@ class PartnerController extends Controller
                 'wins'          => $stat['wins'],
                 'losses'        => $stat['losses'],
                 'win_rate'      => $stat['win_rate'],
+                'loss_rate'     => $stat['loss_rate'],
             ];
         })->filter(fn($item) => $item['user'] !== null)->values();
 

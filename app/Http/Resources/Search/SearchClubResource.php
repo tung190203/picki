@@ -8,10 +8,12 @@ use App\Enums\ClubMemberStatus;
 use App\Http\Resources\Concerns\ResolvesClubMemberCount;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Str;
 
 class SearchClubResource extends JsonResource
 {
     use ResolvesClubMemberCount;
+
     public function toArray(Request $request): array
     {
         $userId = auth()->id();
@@ -41,6 +43,7 @@ class SearchClubResource extends JsonResource
         }
 
         return [
+            // Existing fields
             'id'               => $this->id,
             'name'             => $this->name,
             'address'          => $this->address ?? $this->whenLoaded('profile', fn() => $this->profile?->address),
@@ -55,7 +58,7 @@ class SearchClubResource extends JsonResource
             'is_admin'         => $isAdmin,
             'is_member'        => $isMember,
             'has_pending_request' => $hasPendingRequest,
-            'has_invitation' => $hasInvitation,
+            'has_invitation'   => $hasInvitation,
             'invited_by'       => $invitedBy,
             'profile'          => $this->whenLoaded('profile', fn() => [
                 'description'     => $this->profile?->description,
@@ -66,6 +69,31 @@ class SearchClubResource extends JsonResource
             'active_matches_count' => $this->active_matches_count ?? 0,
             'active_tournaments_count' => $this->active_tournaments_count ?? 0,
             'announcements_count' => $this->announcements_count ?? 0,
+
+            // New fields for Phase 1
+            'followers_count' => $this->followers_count ?? 0,
+            'is_following' => $this->is_following ?? false,
+            'score_range' => $this->skill_level, // { min, max } - preloaded by ClubService::attachSkillLevel()
+            'score_range_text' => $this->skill_level
+                ? $this->skill_level['min'] . '-' . $this->skill_level['max']
+                : null,
+            'recruitment_status' => $this->recruitment_status,
+            'recruitment_status_text' => $this->getRecruitmentStatusText(),
+            'recurring_schedule_text' => $this->recurring_schedule_text
+                ? Str::limit($this->recurring_schedule_text, 100)
+                : null,
+            'primary_home_court' => $this->primary_home_court,
+            'leader' => $this->leader, // { user_id, full_name, avatar_url, vndupr_score, organized_count }
         ];
+    }
+
+    private function getRecruitmentStatusText(): ?string
+    {
+        return match ($this->recruitment_status) {
+            'open' => 'Đang tuyển thành viên',
+            'closed' => 'Đã đóng tuyển',
+            'invite_only' => 'Chỉ mời',
+            default => null,
+        };
     }
 }

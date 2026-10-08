@@ -2,6 +2,7 @@
 
 namespace App\Services\Club;
 
+use App\Http\Resources\CompetitionLocationResource;
 use App\Models\Club\Club;
 use App\Models\CompetitionLocation;
 use App\Models\MiniTournament;
@@ -30,16 +31,13 @@ class ClubHomeCourtService
             return [
                 'id' => (int) $court->id,
                 'competition_location_id' => (int) $court->id,
-                'name' => $court->name,
-                'address' => $court->address,
-                'latitude' => $court->latitude !== null ? (float) $court->latitude : null,
-                'longitude' => $court->longitude !== null ? (float) $court->longitude : null,
                 'position' => (int) ($pivot->position ?? 0),
                 'distance_km' => ClubHomeCourtEnricher::distanceKm(
                     $anchor['lat'], $anchor['lng'],
                     $court->latitude, $court->longitude
                 ),
                 'events_hosted_count' => (int) ($counts[$court->id] ?? 0),
+                'location' => (new CompetitionLocationResource($court))->resolve(request()),
             ];
         })->values()->all();
     }

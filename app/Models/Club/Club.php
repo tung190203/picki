@@ -543,7 +543,25 @@ class Club extends Model
         return $query
             ->when(
                 !empty($filters['keyword']),
-                fn($q) => $q->where('name', 'like', '%' . $filters['keyword'] . '%')
+                fn($q) => $q->where(function ($sub) use ($filters) {
+                    $keyword = $filters['keyword'];
+                    $sub->where('name', 'like', '%' . $keyword . '%')
+                        // Search theo tên admin/chủ nhiệm CLB (Admin, Manager, Secretary)
+                        ->orWhereExists(function ($adminQuery) use ($keyword) {
+                            $adminQuery->select(DB::raw(1))
+                                ->from('club_members')
+                                ->join('users', 'users.id', '=', 'club_members.user_id')
+                                ->whereColumn('club_members.club_id', 'clubs.id')
+                                ->whereIn('club_members.role', [
+                                    ClubMemberRole::Admin->value,
+                                    ClubMemberRole::Manager->value,
+                                    ClubMemberRole::Secretary->value,
+                                ])
+                                ->where('club_members.membership_status', ClubMembershipStatus::Joined->value)
+                                ->where('club_members.status', ClubMemberStatus::Active->value)
+                                ->where('users.full_name', 'like', '%' . $keyword . '%');
+                        });
+                })
             )
             ->when(
                 !empty($filters['location_id']),
