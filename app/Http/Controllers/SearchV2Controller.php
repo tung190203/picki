@@ -389,6 +389,10 @@ class SearchV2Controller extends Controller
 
         // Eager-load batch membership status for tournament tabs
         $this->loadBatchMembershipStatus($items, $tab, $userId);
+        // MapClubResource also renders admin — same eager-load boundary as list path.
+        if ($tab === SearchFilterConfig::TAB_CLUB && $items->isNotEmpty()) {
+            $items->loadMissing('creator.vnduprScores', 'members.user.vnduprScores');
+        }
         $this->enrichClubResults($items, $tab, $userId);
 
         $bounds = $this->searchService->computeBounds($items, $tab);
@@ -650,6 +654,12 @@ class SearchV2Controller extends Controller
         $collection = $items instanceof \Illuminate\Pagination\AbstractPaginator
             ? $items->getCollection()
             : $items;
+
+        // SearchClubResource cần creator + members (user + vnduprScores) để build admin.
+        // Load tại đây 1 lần batch, tránh N+1 khi render từng item.
+        if ($collection->isNotEmpty()) {
+            $collection->loadMissing('creator.vnduprScores', 'members.user.vnduprScores');
+        }
 
         ClubSearchEnricher::enrich($collection, $userId, $suitLevelUserScore);
 

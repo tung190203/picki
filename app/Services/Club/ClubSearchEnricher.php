@@ -15,8 +15,9 @@ use Illuminate\Support\Facades\DB;
 class ClubSearchEnricher
 {
     /**
-     * Attach followers_count (loại trừ members).
-     * Followers count = tổng follows - số members (user thật đã join).
+     * Attach followers_count.
+     * Followers = số user DISTINCT đang follow − số member đã join
+     * (member đã là 'thành viên' rồi, không tính là follower ngoài).
      */
     public static function attachFollowersCount(Collection|array $clubs): Collection|array
     {
@@ -29,25 +30,26 @@ class ClubSearchEnricher
             return $clubs;
         }
 
-        // Lấy tổng follows cho mỗi club
-        $totalFollows = Follow::where('followable_type', Club::class)
+        // DISTINCT user_id đang follow từng club
+        $followDistinct = DB::table('follows')
+            ->where('followable_type', Club::class)
             ->whereIn('followable_id', $clubIds)
             ->groupBy('followable_id')
-            ->selectRaw('followable_id, COUNT(*) as cnt')
-            ->pluck('cnt', 'followable_id');
+            ->selectRaw('followable_id as club_id, COUNT(DISTINCT user_id) as cnt')
+            ->pluck('cnt', 'club_id');
 
-        // Lấy số members (user thật) đã joined cho mỗi club
+        // Số member joined
         $memberCounts = DB::table('club_members')
             ->whereIn('club_id', $clubIds)
             ->where('membership_status', 'joined')
             ->groupBy('club_id')
-            ->selectRaw('club_id, COUNT(*) as cnt')
+            ->selectRaw('club_id, COUNT(DISTINCT user_id) as cnt')
             ->pluck('cnt', 'club_id');
 
         foreach ($clubs as $club) {
-            $total = (int) ($totalFollows[$club->id] ?? 0);
+            $follow = (int) ($followDistinct[$club->id] ?? 0);
             $members = (int) ($memberCounts[$club->id] ?? 0);
-            $club->followers_count = max(0, $total - $members);
+            $club->followers_count = max(0, $follow - $members);
         }
 
         return $clubs;

@@ -124,9 +124,9 @@
                                     </section>
                                 </template>
 
-                                <!-- Other sub-tabs: flat grid -->
+                                <!-- Other sub-tabs: flat grid (1 card / row) -->
                                 <template v-else>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+                                    <div class="grid grid-cols-1 gap-3 sm:gap-4">
                                         <ClubSuggestCard
                                             v-for="club in displayedListData"
                                             :key="club.id"

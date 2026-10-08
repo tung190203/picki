@@ -74,6 +74,46 @@ class MapClubResource extends JsonResource
             'active_matches_count' => $this->active_matches_count ?? 0,
             'active_tournaments_count' => $this->active_tournaments_count ?? 0,
             'announcements_count' => $this->announcements_count ?? 0,
+
+            // Enricher-attached fields (same as SearchClubResource so map + list stay aligned)
+            'followers_count'  => $this->followers_count ?? 0,
+            'is_following'     => $this->is_following ?? false,
+            'score_range'      => $this->skill_level,
+            'score_range_text' => $this->skill_level
+                ? $this->skill_level['min'] . '-' . $this->skill_level['max']
+                : null,
+            'recruitment_status' => $this->recruitment_status,
+            'recruitment_status_text' => match ($this->recruitment_status) {
+                'open' => 'Đang tuyển thành viên',
+                'closed' => 'Đã đóng tuyển',
+                'invite_only' => 'Chỉ mời',
+                default => null,
+            },
+            'recurring_schedule_text' => $this->recurring_schedule_text
+                ? \Illuminate\Support\Str::limit($this->recurring_schedule_text, 100)
+                : null,
+            'primary_home_court' => $this->primary_home_court,
+            'admin' => $this->when(
+                $this->relationLoaded('creator') || $this->relationLoaded('members'),
+                fn() => $this->buildAdmin()
+            ),
         ];
+    }
+
+    private function buildAdmin(): ?array
+    {
+        if ($this->creator) {
+            $user = $this->creator;
+            $score = $user->relationLoaded('vnduprScores')
+                ? $user->vnduprScores->max('score_value')
+                : null;
+            return [
+                'id' => $user->id,
+                'full_name' => $user->full_name,
+                'avatar_url' => $user->avatar_url,
+                'vndupr_score' => $score !== null ? round((float) $score, 3) : null,
+            ];
+        }
+        return null;
     }
 }
