@@ -206,9 +206,9 @@ Route::prefix('clubs')->middleware(['performance'])->group(function () {
     Route::get('/my-invitations', [ClubJoinRequestController::class, 'myInvitations']);
     Route::get('/search-location', [ClubController::class, 'searchLocation']);
     Route::get('/location-detail', [ClubController::class, 'detailGooglePlace']);
-    Route::get('/members/candidates', [ClubMemberController::class, 'getCandidates']);
-        Route::get('/{clubId}', [ClubController::class, 'show']);
-        Route::put('/{clubId}', [ClubController::class, 'update']);
+Route::get('/members/candidates', [ClubMemberController::class, 'getCandidates']);
+    Route::get('/{clubId}', [ClubController::class, 'show']);
+    Route::put('/{clubId}', [ClubController::class, 'update']);
         Route::delete('/{clubId}', [ClubController::class, 'destroy']);
         Route::post('/{clubId}/restore', [ClubController::class, 'restore']);
         Route::post('/{clubId}/leave', [ClubController::class, 'leave']);
@@ -689,9 +689,9 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::get('/my-invitations', [ClubJoinRequestController::class, 'myInvitations']);
         Route::get('/search-location', [ClubController::class, 'searchLocation']);
         Route::get('/location-detail', [ClubController::class, 'detailGooglePlace']);
-        Route::get('/members/candidates', [ClubMemberController::class, 'getCandidates']);
-        Route::get('/{clubId}', [ClubController::class, 'show']);
-        Route::put('/{clubId}', [ClubController::class, 'update']);
+Route::get('/members/candidates', [ClubMemberController::class, 'getCandidates']);
+    Route::get('/{clubId}', [ClubController::class, 'show']);
+    Route::put('/{clubId}', [ClubController::class, 'update']);
         Route::delete('/{clubId}', [ClubController::class, 'destroy']);
         Route::post('/{clubId}/restore', [ClubController::class, 'restore']);
         Route::post('/{clubId}/leave', [ClubController::class, 'leave']);

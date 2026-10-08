@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Search;
 
+use App\Http\Resources\Search\OrganizerResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -88,6 +89,10 @@ class SearchTournamentResource extends JsonResource
                 'full_name' => $this->createdBy->full_name,
                 'avatar_url' => $this->createdBy->avatar_url,
             ]),
+            // Organizer identity (Phase 4)
+            'organizer' => $this->resource->organizer !== null
+                ? (new OrganizerResource($this->resource->organizer))->toArray($request)
+                : null,
             'distance'     => $this->when(isset($this->distance), round($this->distance, 1)),
             'marker_type'  => 'tournament',
             // Membership — use preloaded batch data to avoid N+1
