@@ -13,6 +13,12 @@ class AdminBadgeController extends Controller
     public function index(Request $request)
     {
         $badges = Badge::query()
+            ->when($request->search, function ($q) use ($request) {
+                $q->where(function ($subQ) use ($request) {
+                    $subQ->where('name', 'like', '%' . $request->search . '%')
+                         ->orWhere('code', 'like', '%' . $request->search . '%');
+                });
+            })
             ->when($request->type, fn($q) => $q->where('type', $request->type))
             ->orderBy('created_at', 'desc')
             ->orderBy('priority', 'desc')
@@ -81,6 +87,14 @@ class AdminBadgeController extends Controller
 
     public function destroy(Badge $badge)
     {
+        $usersCount = \DB::table('user_badges')->where('badge_id', $badge->id)->count();
+
+        if ($usersCount > 0) {
+            return response()->json([
+                'message' => "Không thể xoá! Đang có {$usersCount} người dùng sở hữu huy hiệu này."
+            ], 400);
+        }
+
         $badge->delete();
         return response()->json(['message' => 'Badge deleted successfully']);
     }
