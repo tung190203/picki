@@ -6,6 +6,16 @@ export const getAllClubs = async (params = {}) => {
   return data
 }
 
+/**
+ * GET /api/clubs/suggest
+ * Returns up to 30 clubs bucketed by category (friend_in_club | following | suit_level | nearby).
+ * Each item carries `category` + `category_text` for FE grouping.
+ */
+export const getClubSuggest = async (params = {}) => {
+    const { data } = await axiosInstance.get(`${API_ENDPOINT.CLUB}/suggest`, { params });
+    return data; // { data: [...], meta: { total: N } }
+};
+
 export const joinRequest = async (clubId) => {
     return axiosInstance.post(`${API_ENDPOINT.CLUB}/${clubId}/join-requests`).then((response) => response.data);
 }

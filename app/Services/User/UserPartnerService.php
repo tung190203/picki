@@ -14,13 +14,20 @@ use Illuminate\Support\Facades\DB;
 class UserPartnerService
 {
     private const SPORT_ID = 1;
+    private const MIN_MATCHES = 3; // ignore partners/opponents with < 3 matches
 
     public function getTopPartners(int $userId, int $page = 1, int $perPage = 10): array
     {
-        $stats = $this->buildPartnerStats($userId);
+        $stats = $this->buildPartnerStats($userId)
+            ->filter(fn($s) => $s['total_matches'] >= self::MIN_MATCHES)
+            ->values();
 
         $sorted = $stats
-            ->sortByDesc(fn($p) => [$p['win_rate'], $p['total_matches']])
+            ->sortByDesc(fn($p) => [
+                $p['wins'] - $p['losses'],     // primary: net wins
+                $p['win_rate'],                // tiebreaker
+                $p['total_matches'],           // 2nd tiebreaker
+            ])
             ->values();
 
         $total = $sorted->count();
@@ -34,10 +41,16 @@ class UserPartnerService
 
     public function getTopOpponents(int $userId, int $page = 1, int $perPage = 10): array
     {
-        $stats = $this->buildOpponentStats($userId);
+        $stats = $this->buildOpponentStats($userId)
+            ->filter(fn($s) => $s['total_matches'] >= self::MIN_MATCHES)
+            ->values();
 
         $sorted = $stats
-            ->sortBy(fn($o) => [$o['win_rate'], -$o['total_matches']])
+            ->sortByDesc(fn($o) => [
+                $o['losses'] - $o['wins'],     // primary: net losses (kỳ phùng địch thủ)
+                100 - $o['win_rate'],          // tiebreaker: higher loss rate first
+                $o['total_matches'],           // 2nd tiebreaker
+            ])
             ->values();
 
         $total = $sorted->count();
@@ -62,6 +75,9 @@ class UserPartnerService
             $data['win_rate'] = $data['total_matches'] > 0
                 ? round(($data['wins'] / $data['total_matches']) * 100, 2)
                 : 0.0;
+            $data['loss_rate'] = $data['total_matches'] > 0
+                ? round(($data['losses'] / $data['total_matches']) * 100, 2)
+                : 0.0;
             return $data;
         });
     }
@@ -78,6 +94,9 @@ class UserPartnerService
             $data['losses'] = $data['total_matches'] - $data['wins'];
             $data['win_rate'] = $data['total_matches'] > 0
                 ? round(($data['wins'] / $data['total_matches']) * 100, 2)
+                : 0.0;
+            $data['loss_rate'] = $data['total_matches'] > 0
+                ? round(($data['losses'] / $data['total_matches']) * 100, 2)
                 : 0.0;
             return $data;
         });

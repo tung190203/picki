@@ -561,7 +561,7 @@ class MiniTournament extends Model
         return $query->with([
             'sport',
             'competitionLocation',
-            'club',
+            'club.creator',
             'participants.user',
             'staff',
             'creator',

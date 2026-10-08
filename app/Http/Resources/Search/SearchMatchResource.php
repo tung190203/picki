@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Search;
 
+use App\Http\Resources\Search\OrganizerResource;
 use App\Models\MiniTournamentStaff;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -102,6 +103,9 @@ class SearchMatchResource extends JsonResource
                 'full_name' => $this->creator->full_name,
                 'avatar_url' => $this->creator->avatar_url,
             ]),
+            'organizer' => $this->resource->organizer !== null
+                ? (new OrganizerResource($this->resource->organizer))->toArray($request)
+                : null,
             'is_private'   => (bool) $this->is_private,
             'min_rating'   => $this->min_rating,
             'max_rating'   => $this->max_rating,
