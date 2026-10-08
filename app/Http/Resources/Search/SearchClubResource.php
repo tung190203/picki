@@ -6,6 +6,7 @@ use App\Enums\ClubMembershipStatus;
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
 use App\Http\Resources\Concerns\ResolvesClubMemberCount;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
@@ -24,6 +25,18 @@ class SearchClubResource extends JsonResource
         $hasInvitation = false;
         $invitedBy = null;
 
+        if ($userId) {
+            // Prefer the batch-preloaded flag from ClubService::attachMembershipStatus
+            // (covers users with role=Admin even when the members relation isn't eager-loaded,
+            // and avoids a per-item lookup).
+            if (isset($this->is_admin)) {
+                $isAdmin = (bool) $this->is_admin;
+            }
+            if (isset($this->is_member)) {
+                $isMember = (bool) $this->is_member;
+            }
+        }
+
         if ($userId && $this->relationLoaded('members')) {
             $membership = $this->members->firstWhere('user_id', $userId);
 
@@ -31,9 +44,12 @@ class SearchClubResource extends JsonResource
                 $status = $membership->membership_status;
                 $role = $membership->role;
 
-                $isMember = $status === ClubMembershipStatus::Joined
-                    && $membership->status !== ClubMemberStatus::Suspended;
-                $isAdmin = $this->created_by === $userId
+                $isMember = $isMember || ($status === ClubMembershipStatus::Joined
+                    && $membership->status !== ClubMemberStatus::Suspended);
+                // In DB, created_by is NOT NULL unsigned int (defaults to 0 when not set).
+                // Treat both null and 0 as "no creator set" → fall through to role check.
+                $isAdmin = $isAdmin
+                    || (($this->created_by ?? 0) !== 0 && $this->created_by === $userId)
                     || in_array($role, [ClubMemberRole::Admin->value, ClubMemberRole::Manager->value, ClubMemberRole::Secretary->value]);
                 $hasPendingRequest = $status === ClubMembershipStatus::Pending
                     && $membership->invited_by === null;
@@ -83,7 +99,76 @@ class SearchClubResource extends JsonResource
                 ? Str::limit($this->recurring_schedule_text, 100)
                 : null,
             'primary_home_court' => $this->primary_home_court,
-            'leader' => $this->leader, // { user_id, full_name, avatar_url, vndupr_score, organized_count }
+            'score_match' => $this->buildScoreMatch(), // { user_score, tolerance, delta } - chỉ có khi sub_tab=suit_level
+
+            // New fields for Phase 2 - Admin & Total Counts
+            // Admin = creator (simple format to avoid N+1 from UserResource)
+            'admin' => $this->buildAdmin(),
+            'total_mini_tournaments_count' => $this->total_mini_tournaments_count ?? 0,
+            'total_tournaments_count' => $this->total_tournaments_count ?? 0,
+        ];
+    }
+
+    /**
+     * Admin object: ưu tiên creator (người tạo CLB).
+     * Nếu creator đã bị xoá (orphaned FK), fallback sang member role cao nhất
+     * còn active+joined để FE vẫn có người liên hệ. Ponytail: simple priority list,
+     * đủ cho orphaned data; nếu cần "ai đã thật sự tạo" thì tra audit log.
+     */
+    private function buildAdmin(): ?array
+    {
+        if ($this->creator) {
+            return $this->formatAdminUser($this->creator);
+        }
+
+        if (!$this->relationLoaded('members')) {
+            return null;
+        }
+
+        $fallback = $this->members
+            ->where('membership_status', ClubMembershipStatus::Joined->value)
+            ->where('status', ClubMemberStatus::Active->value)
+            ->sortBy(function ($m) {
+                return match ($m->role) {
+                    ClubMemberRole::Admin->value => 0,
+                    ClubMemberRole::Manager->value => 1,
+                    ClubMemberRole::Secretary->value => 2,
+                    default => 99,
+                };
+            })
+            ->first();
+
+        if (!$fallback) {
+            return null;
+        }
+
+        if (!$fallback->relationLoaded('user')) {
+            return [
+                'id' => $fallback->user_id,
+                'full_name' => null,
+                'avatar_url' => null,
+                'vndupr_score' => null,
+            ];
+        }
+
+        return $this->formatAdminUser($fallback->user);
+    }
+
+    /**
+     * Chuẩn hoá shape admin + lấy vndupr_score max từ relation đã preload
+     * (fallback query nếu controller chưa load), làm tròn 3 chữ số thập phân.
+     */
+    private function formatAdminUser(User $user): array
+    {
+        $score = $this->relationLoaded('creator') || $user->relationLoaded('vnduprScores')
+            ? ($user->vnduprScores->max('score_value'))
+            : $user->vnduprScores()->max('score_value');
+
+        return [
+            'id' => $user->id,
+            'full_name' => $user->full_name,
+            'avatar_url' => $user->avatar_url,
+            'vndupr_score' => $score !== null ? round((float) $score, 3) : null,
         ];
     }
 
@@ -95,5 +180,21 @@ class SearchClubResource extends JsonResource
             'invite_only' => 'Chỉ mời',
             default => null,
         };
+    }
+
+    private function buildScoreMatch(): ?array
+    {
+        // Chỉ attach khi sub_tab=suit_level (enricher sẽ set user_vndupr_score)
+        if (!isset($this->user_vndupr_score)) {
+            return null;
+        }
+
+        return [
+            'user_score' => (float) $this->user_vndupr_score,
+            'tolerance' => 0.5,
+            'delta' => $this->score_match_score !== null
+                ? round((float) $this->score_match_score, 2)
+                : null,
+        ];
     }
 }

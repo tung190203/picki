@@ -232,7 +232,7 @@ class Tournament extends Model
         return $query->with([
             'sport',
             'competitionLocation',
-            'club',
+            'club.creator',
             'createdBy',
             'teams',
             'tournamentStaffs',

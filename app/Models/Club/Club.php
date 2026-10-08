@@ -15,6 +15,7 @@ use Database\Factories\ClubFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class Club extends Model
 {
@@ -361,6 +362,9 @@ class Club extends Model
                 'tournaments as active_tournaments_count' => fn($q) => $q
                     ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN]),
             ])
+            // TOTAL counts (all history, not just active)
+            ->withCount('miniTournaments as total_mini_tournaments_count')
+            ->withCount('tournaments as total_tournaments_count')
             ->when($userId, function ($q) use ($userId) {
                 // Count notifications where user has unread recipients
                 $q->withCount([
@@ -574,6 +578,50 @@ class Club extends Model
                     ->where('membership_status', \App\Enums\ClubMembershipStatus::Joined->value)
                 )
             );
+    }
+
+    /**
+     * Lấy các CLB mà user đang follow, sort theo follows.created_at DESC.
+     */
+    public function scopeFollowing($query, int $userId)
+    {
+        $userId = (int) $userId;
+
+        return $query
+            ->whereIn('id', function ($sub) use ($userId) {
+                $sub->select('followable_id')
+                    ->from('follows')
+                    ->where('user_id', $userId)
+                    ->where('followable_type', self::class);
+            })
+            ->orderByDesc(
+                DB::raw('(SELECT MAX(created_at) FROM follows WHERE follows.followable_id = clubs.id AND follows.user_id = ' . $userId . ' AND follows.followable_type = ' . "'" . addslashes(self::class) . "'" . ')')
+            );
+    }
+
+    /**
+     * Lấy các CLB có score range phù hợp với user score (tolerance ±tolerance).
+     * Match: club.min <= userScore + tolerance AND club.max >= userScore - tolerance.
+     */
+    public function scopeSuitLevel($query, float $userScore, float $tolerance = 0.5)
+    {
+        $min = $userScore - $tolerance;
+        $max = $userScore + $tolerance;
+
+        return $query->whereExists(function ($q) use ($min, $max) {
+            $q->select(DB::raw(1))
+                ->from('club_members')
+                ->join('user_sport', 'user_sport.user_id', '=', 'club_members.user_id')
+                ->join('user_sport_scores', 'user_sport_scores.user_sport_id', '=', 'user_sport.id')
+                ->whereColumn('club_members.club_id', 'clubs.id')
+                ->where('club_members.membership_status', 'joined')
+                ->where('club_members.status', 'active')
+                ->where('user_sport_scores.score_type', 'vndupr_score')
+                ->whereNotNull('user_sport_scores.score_value')
+                ->groupBy('club_members.club_id')
+                ->havingRaw('MIN(user_sport_scores.score_value) <= ?', [$max])
+                ->havingRaw('MAX(user_sport_scores.score_value) >= ?', [$min]);
+        });
     }
 
     public function scopeApplyTimeline($query, ?string $timeFilter, ?int $userId = null)

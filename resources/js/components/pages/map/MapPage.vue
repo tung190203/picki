@@ -102,9 +102,40 @@
                                     :getVisibilityText="getVisibilityText" @select="focusItemAuto" @toggle-follow="handleToggleFollow" />
                             </template>
                             <template v-else-if="activeTab === 'club'">
-                                <ClubListItem v-for="club in displayedListData" :key="club.id" :club="club"
-                                    :selected="selectedClubItem?.id" :defaultImage="defaultImage"
-                                    @select="focusItemAuto" />
+                                <!-- Suggest sub-tab: group by category -->
+                                <template v-if="subTab === 'suggest'">
+                                    <section
+                                        v-for="section in suggestSections"
+                                        :key="section.key"
+                                        class="mb-3"
+                                    >
+                                        <h2 class="text-sm font-semibold text-gray-700 mb-1.5 px-1">
+                                            {{ section.title }}
+                                        </h2>
+                                        <div class="space-y-2">
+                                            <ClubSuggestCard
+                                                v-for="club in section.items"
+                                                :key="club.id"
+                                                :club="club"
+                                                @click="handleClubCardClick"
+                                                @follow="handleClubFollow"
+                                            />
+                                        </div>
+                                    </section>
+                                </template>
+
+                                <!-- Other sub-tabs: flat grid -->
+                                <template v-else>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+                                        <ClubSuggestCard
+                                            v-for="club in displayedListData"
+                                            :key="club.id"
+                                            :club="club"
+                                            @click="handleClubCardClick"
+                                            @follow="handleClubFollow"
+                                        />
+                                    </div>
+                                </template>
                             </template>
 
                             <div v-if="(activeTab === 'mini-tournament' || activeTab === 'tournament') && isLoadingMoreMatches" class="text-center py-4 text-sm text-gray-500">
@@ -1365,7 +1396,9 @@ import SearchInput from '@/components/atoms/SearchInput.vue';
 import CourtListItem from '@/components/molecules/CourtListItem.vue';
 import MatchListItem from '@/components/molecules/MatchListItem.vue';
 import UserListItem from '@/components/molecules/UserListItem.vue';
-import ClubListItem from '@/components/molecules/ClubListItem.vue';
+import ClubSuggestCard from '@/components/molecules/ClubSuggestCard.vue';
+import { orderedSections } from '@/composables/useClubGrouping.js';
+import * as ClubService from '@/service/club.js';
 
 const router = useRouter();
 const { toHourMinute } = useTimeFormat();
@@ -1402,9 +1435,11 @@ const SUB_TAB_OPTIONS = {
         { value: 'this_month', label: 'Tháng này', badge: null },
     ],
     club: [
+        { value: 'suggest', label: 'Gợi ý', badge: null },
         { value: 'all', label: 'Tất cả', badge: null },
         { value: 'mine', label: 'Của tôi', badge: null },
-        { value: 'joined', label: 'Đã tham gia', badge: null },
+        { value: 'following', label: 'Đang theo dõi', badge: null },
+        { value: 'suit_level', label: 'Hợp trình tôi', badge: null },
     ],
     user: [
         { value: 'all', label: 'Tất cả', badge: null },
@@ -2312,6 +2347,9 @@ const selectSubTab = async (value) => {
     }
     subTab.value = value;
     isInitialLoad.value = true;
+    // Clear list immediately to prevent stale data from the previous sub-tab
+    // from showing while the new request is in flight.
+    listData.value = [];
     // Reset match pagination when changing time filter
     if (activeTab.value === 'mini-tournament' || activeTab.value === 'tournament') {
         miniMatchPage.value = 1;
@@ -2323,6 +2361,33 @@ const selectSubTab = async (value) => {
     clubsMap.value.clear();
     clearAllMarkers();
     await loadTabContent(activeTab.value, currentBounds.value);
+};
+
+// Group suggest results by category for the Gợi ý sub-tab.
+// Reuses the existing useClubGrouping composable.
+const suggestSections = computed(() => {
+    if (subTab.value !== 'suggest') return [];
+    return orderedSections(displayedListData.value || []);
+});
+
+const handleClubCardClick = (club) => {
+    if (!club?.id) return;
+    router.push({ name: 'club-detail', params: { id: club.id } });
+};
+
+const handleClubFollow = async ({ club, next }) => {
+    if (!club?.id) return;
+    try {
+        if (next) {
+            await ClubService.followClub(club.id);
+        } else {
+            await ClubService.unfollowClub(club.id);
+        }
+        // Re-fetch so card counts/flags reflect server state.
+        await doSearch(false, currentBounds.value);
+    } catch (_) {
+        // Card reverts its optimistic state on emit throw; nothing to do here.
+    }
 };
 
 const searchValue = computed({

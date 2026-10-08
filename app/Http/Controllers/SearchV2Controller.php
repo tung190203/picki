@@ -9,12 +9,15 @@ use App\Http\Resources\Map\MapCourtResource;
 use App\Http\Resources\Map\MapMiniTournamentResource;
 use App\Http\Resources\Map\MapTournamentResource;
 use App\Http\Resources\Map\MapUserResource;
+use App\Http\Resources\Search\SuggestClubResource;
 use App\Models\Club\Club;
 use App\Models\CompetitionLocation;
 use App\Models\MiniTournament;
 use App\Models\Tournament;
 use App\Models\User;
 use App\Services\Club\ClubSearchEnricher;
+use App\Services\Club\ClubSuggestService;
+use App\Services\Search\SearchOrganizerEnricher;
 use App\Services\SearchCacheService;
 use App\Services\SearchFilterConfig;
 use App\Services\SearchV2Service;
@@ -60,6 +63,13 @@ class SearchV2Controller extends Controller
         }
 
         $query = $this->buildQuery($tab, $params, $filters, $subTab, $userId);
+
+        // sub_tab=suggest: dedicated 3-bucket suggestion (friend_in_club → following, suit_level, nearby).
+        // List-only — never returned in map mode. Client per_page is intentionally ignored: the service
+        // caps results at TOTAL_LIMIT (30) and groups already break the list into sections.
+        if ($tab === SearchFilterConfig::TAB_CLUB && $subTab === 'suggest') {
+            return $this->suggestResponse($userId, $params);
+        }
 
         if ($isMap) {
             return $this->mapResponse($query, $tab, $params);
@@ -111,7 +121,7 @@ class SearchV2Controller extends Controller
                     }
                 }),
 
-            SearchFilterConfig::TAB_CLUB => $this->buildClubQuery($userId, $filters),
+            SearchFilterConfig::TAB_CLUB => $this->buildClubQuery($userId, $filters, $subTab),
 
             SearchFilterConfig::TAB_COURT => CompetitionLocation::withFullRelations()
                 ->active()
@@ -209,17 +219,17 @@ class SearchV2Controller extends Controller
     // Club query builder (includes private clubs the user is a member of)
     // -------------------------------------------------------------------------
 
-    private function buildClubQuery(?int $userId, array $filters)
+    private function buildClubQuery(?int $userId, array $filters, string $subTab = 'all')
     {
         $isSuperAdmin = $userId && \App\Models\User::isSuperAdmin($userId);
 
-        return Club::withSearchRelations($userId)
+        $query = Club::withSearchRelations($userId)
             ->with(['creator', 'members'])
             ->when(!$isSuperAdmin, fn($q) => $q->where('status', '!=', \App\Enums\ClubStatus::Suspended))
-            ->where(function ($q) use ($userId, $isSuperAdmin) {
+            ->where(function ($q) use ($userId, $isSuperAdmin, $subTab) {
                 $q->where('is_public', true);
 
-                if ($userId) {
+                if ($userId && $subTab !== 'following') {
                     if ($isSuperAdmin) {
                         $q->orWhere('is_public', false);
                     } else {
@@ -231,6 +241,49 @@ class SearchV2Controller extends Controller
                 }
             })
             ->filter($filters);
+
+        // following sub-tab: chỉ trả clubs user đang follow
+        if ($subTab === 'following') {
+            if (!$userId) {
+                // Chưa login → trả empty
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->following($userId);
+            }
+        }
+
+        // suit_level sub-tab: chỉ trả clubs có score range phù hợp với user score (±0.5)
+        if ($subTab === 'suit_level') {
+            if (!$userId) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $userScore = $this->getUserVnduprScore($userId);
+                if ($userScore === null) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->suitLevel($userScore, 0.5);
+                    // Lưu user score để enricher sử dụng cho sort
+                    request()->attributes->set('suit_level_user_score', $userScore);
+                    request()->attributes->set('suit_level_tolerance', 0.5);
+                }
+            }
+        }
+
+        return $query;
+    }
+
+    /**
+     * Lấy vndupr_score cao nhất của user cho sport_id (default = 1 = Pickleball).
+     * Trả về null nếu user chưa có score.
+     */
+    private function getUserVnduprScore(int $userId): ?float
+    {
+        $user = \App\Models\User::find($userId);
+        if (!$user) {
+            return null;
+        }
+        $score = $user->vnduprScoresBySport(\App\Models\Sport::PICKLEBALL_ID)->max('score_value');
+        return $score !== null ? (float) $score : null;
     }
 
     private function paginate($query, array $params): array
@@ -287,6 +340,40 @@ class SearchV2Controller extends Controller
                 'total'        => $paginator->total(),
             ],
         ];
+    }
+
+    private function suggestResponse(?int $userId, array $params): \Illuminate\Http\JsonResponse
+    {
+        $lat = $params['lat'] ?? null;
+        $lng = $params['lng'] ?? null;
+
+        /** @var ClubSuggestService $service */
+        $service = app(ClubSuggestService::class);
+
+        // Anonymous: nothing to suggest. (FE only enters this sub-tab when logged in, but be safe.)
+        if (!$userId) {
+            $items = collect();
+        } else {
+            $items = $service->suggest($userId, $lat !== null ? (float) $lat : null, $lng !== null ? (float) $lng : null);
+            // ClubSuggestService does not eager-load creator/members (3 separate rank queries);
+            // SearchClubResource needs both to render admin + membership flags + vndupr_score
+            // (hasManyThrough via user_sport_scores). Load here at the boundary — single batch.
+            $items->load('creator.vnduprScores', 'members.user.vnduprScores');
+        }
+
+        $data = SuggestClubResource::collection($items)->toArray(request());
+
+        $this->logSearch($userId, SearchFilterConfig::TAB_CLUB, $params['keyword'] ?? null, [], 'suggest', count($data));
+
+        return ResponseHelper::success([
+            'data' => $data,
+            'meta' => [
+                'current_page' => 1,
+                'last_page'    => 1,
+                'per_page'     => count($data),
+                'total'        => count($data),
+            ],
+        ], 'Tìm kiếm thành công', 200);
     }
 
     private function mapResponse($query, string $tab, array $params): \Illuminate\Http\JsonResponse
@@ -543,10 +630,55 @@ class SearchV2Controller extends Controller
      */
     private function enrichClubResults($items, string $tab, ?int $userId): void
     {
-        if ($tab !== SearchFilterConfig::TAB_CLUB || $items->isEmpty()) {
+        if ($items->isEmpty()) {
             return;
         }
 
-        ClubSearchEnricher::enrich($items, $userId);
+        // Phase 4: Organizer identity cho Tournament/MiniTournament
+        if ($tab === SearchFilterConfig::TAB_MATCH || $tab === SearchFilterConfig::TAB_TOURNAMENT) {
+            $this->enrichTournamentResults($items);
+            return;
+        }
+
+        if ($tab !== SearchFilterConfig::TAB_CLUB) {
+            return;
+        }
+
+        $suitLevelUserScore = request()->attributes->get('suit_level_user_score');
+
+        // Lấy underlying collection (hỗ trợ cả Eloquent Collection và Paginator->getCollection)
+        $collection = $items instanceof \Illuminate\Pagination\AbstractPaginator
+            ? $items->getCollection()
+            : $items;
+
+        ClubSearchEnricher::enrich($collection, $userId, $suitLevelUserScore);
+
+        // Sort theo score_match_score ASC khi sub_tab=suit_level
+        $subTab = request()->query('sub_tab');
+        if ($subTab === 'suit_level' && $suitLevelUserScore !== null) {
+            $sorted = ClubSearchEnricher::sortByScoreMatch($collection);
+            if ($items instanceof \Illuminate\Pagination\AbstractPaginator) {
+                $items->setCollection($sorted);
+            } else {
+                // Replace contents in-place bằng cách clear + refill để giữ reference
+                $items->forget(array_keys($items->all()));
+                foreach ($sorted as $k => $v) {
+                    $items->put($k, $v);
+                }
+            }
+        }
+    }
+
+    /**
+     * Phase 4: Gắn organizer identity (id, name, avatar, club, vndupr_score,
+     * organized_count, follower_count) cho match/tournament results.
+     */
+    private function enrichTournamentResults($items): void
+    {
+        $collection = $items instanceof \Illuminate\Pagination\AbstractPaginator
+            ? $items->getCollection()
+            : $items;
+
+        SearchOrganizerEnricher::attachOrganizer($collection);
     }
 }

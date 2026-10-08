@@ -271,7 +271,11 @@ class ClubSearchEnricher
                     + (int) ($miniStaff[$userId] ?? 0)
                     + (int) ($tourCreated[$userId] ?? 0)
                     + (int) ($tourStaff[$userId] ?? 0);
-                $club->leader['organized_count'] = $count;
+                // Assign the full array — `$club->leader[...] = $count` would indirectly
+                // modify the overloaded Eloquent attribute and trigger a PHP warning.
+                $leader = $club->leader;
+                $leader['organized_count'] = $count;
+                $club->leader = $leader;
             }
         }
 
@@ -279,9 +283,77 @@ class ClubSearchEnricher
     }
 
     /**
+     * Attach total_mini_tournaments_count và total_tournaments_count cho mỗi club.
+     * 1 grouped query mỗi bảng. Indexes có sẵn (idx_mini_tournaments_club_status, idx_tournaments_club_status).
+     */
+    public static function attachTotalCounts(Collection|array $clubs): Collection|array
+    {
+        if (empty($clubs)) {
+            return $clubs;
+        }
+
+        $clubIds = collect($clubs)->pluck('id')->toArray();
+        if (empty($clubIds)) {
+            return $clubs;
+        }
+
+        $mini = DB::table('mini_tournaments')
+            ->whereIn('club_id', $clubIds)
+            ->groupBy('club_id')
+            ->selectRaw('club_id, COUNT(*) as cnt')
+            ->pluck('cnt', 'club_id');
+
+        $tours = DB::table('tournaments')
+            ->whereIn('club_id', $clubIds)
+            ->groupBy('club_id')
+            ->selectRaw('club_id, COUNT(*) as cnt')
+            ->pluck('cnt', 'club_id');
+
+        foreach ($clubs as $club) {
+            $club->total_mini_tournaments_count = (int) ($mini[$club->id] ?? 0);
+            $club->total_tournaments_count = (int) ($tours[$club->id] ?? 0);
+        }
+
+        return $clubs;
+    }
+
+    /**
+     * Tính score_match_score = |midpoint(user, club) - userScore|.
+     * Lower = better fit. Dùng cho sort ASC khi sub_tab=suit_level.
+     */
+    public static function attachScoreMatch(Collection|array $clubs, float $userScore): Collection|array
+    {
+        foreach ($clubs as $club) {
+            if (isset($club->skill_level) && is_array($club->skill_level)) {
+                $min = (float) ($club->skill_level['min'] ?? 0);
+                $max = (float) ($club->skill_level['max'] ?? 0);
+                $mid = ($min + $max) / 2.0;
+                $club->score_match_score = abs($mid - $userScore);
+                $club->user_vndupr_score = $userScore;
+            } else {
+                $club->score_match_score = null;
+                $club->user_vndupr_score = $userScore;
+            }
+        }
+
+        return $clubs;
+    }
+
+    /**
+     * Sort clubs theo score_match_score ASC (tốt nhất trước).
+     * Dùng cho sub_tab=suit_level.
+     */
+    public static function sortByScoreMatch(Collection $clubs): Collection
+    {
+        return $clubs->sortBy(function ($club) {
+            return $club->score_match_score ?? PHP_FLOAT_MAX;
+        })->values();
+    }
+
+    /**
      * Enrich tất cả data cho search club results.
      */
-    public static function enrich(Collection|array $clubs, ?int $userId): Collection|array
+    public static function enrich(Collection|array $clubs, ?int $userId, ?float $suitLevelUserScore = null): Collection|array
     {
         if (empty($clubs)) {
             return $clubs;
@@ -290,10 +362,19 @@ class ClubSearchEnricher
         // Batch load tất cả
         self::attachFollowersCount($clubs);
         self::attachIsFollowing($clubs, $userId);
-        ClubService::attachSkillLevel($clubs);
+        if ($userId !== null) {
+            app(ClubService::class)->attachMembershipStatus($clubs, $userId);
+        }
+        app(ClubService::class)->attachSkillLevel($clubs);
         self::attachPrimaryHomeCourt($clubs);
         self::attachLeaderInfo($clubs);
         self::attachOrganizedCount($clubs);
+        self::attachTotalCounts($clubs);
+
+        // Suit level enrichment
+        if ($suitLevelUserScore !== null) {
+            self::attachScoreMatch($clubs, $suitLevelUserScore);
+        }
 
         return $clubs;
     }

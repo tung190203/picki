@@ -17,6 +17,17 @@ class MapClubResource extends JsonResource
         $isAdmin = false;
         $hasPendingRequest = false;
 
+        if ($userId) {
+            // Prefer the batch-preloaded flag from ClubService::attachMembershipStatus
+            // so users with role=Admin are correctly flagged even when members isn't loaded.
+            if (isset($this->is_admin)) {
+                $isAdmin = (bool) $this->is_admin;
+            }
+            if (isset($this->is_member)) {
+                $isMember = (bool) $this->is_member;
+            }
+        }
+
         if ($userId && $this->relationLoaded('members')) {
             $membership = $this->members
                 ->where('user_id', $userId)
@@ -26,9 +37,12 @@ class MapClubResource extends JsonResource
                 $status = $membership->membership_status;
                 $role = $membership->role;
 
-                $isMember = $status === \App\Enums\ClubMembershipStatus::Joined
-                    && $membership->status !== \App\Enums\ClubMemberStatus::Suspended;
-                $isAdmin = $this->created_by === $userId
+                $isMember = $isMember || ($status === \App\Enums\ClubMembershipStatus::Joined
+                    && $membership->status !== \App\Enums\ClubMemberStatus::Suspended);
+                // In DB, created_by is NOT NULL unsigned int (defaults to 0 when not set).
+                // Treat both null and 0 as "no creator set" → fall through to role check.
+                $isAdmin = $isAdmin
+                    || (($this->created_by ?? 0) !== 0 && $this->created_by === $userId)
                     || in_array($role, [\App\Enums\ClubMemberRole::Admin->value, \App\Enums\ClubMemberRole::Manager->value, \App\Enums\ClubMemberRole::Secretary->value]);
                 $hasPendingRequest = $status === \App\Enums\ClubMembershipStatus::Pending;
             }

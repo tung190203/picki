@@ -12,6 +12,9 @@ enum SubTabFilter: string
     case FRIENDS = 'friends';
     case JOINED = 'joined';
     case SAME_CLUB = 'same_club';
+    case FOLLOWING = 'following';
+    case SUIT_LEVEL = 'suit_level';
+    case SUGGEST = 'suggest';
 
     public function label(): string
     {
@@ -24,6 +27,9 @@ enum SubTabFilter: string
             self::FRIENDS => 'Bạn bè',
             self::JOINED => 'Đã tham gia',
             self::SAME_CLUB => 'Cùng CLB',
+            self::FOLLOWING => 'Đang theo dõi',
+            self::SUIT_LEVEL => 'Phù hợp trình độ',
+            self::SUGGEST => 'Gợi ý',
         };
     }
 
