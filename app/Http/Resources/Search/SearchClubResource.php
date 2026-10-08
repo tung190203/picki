@@ -117,10 +117,27 @@ class SearchClubResource extends JsonResource
      */
     private function buildAdmin(): ?array
     {
+        // 1) Prefer 'leader' pre-attached bởi ClubSearchEnricher::attachLeaderInfo
+        //    (DB: 1 query batch, role priority Admin>Manager>Secretary, có score).
+        //    Tin tưởng enricher hơn vì nó cover cả CLB created_by=0 (orphaned FK).
+        if (isset($this->leader) && is_array($this->leader) && !empty($this->leader['user_id'])) {
+            $leader = $this->leader;
+            return [
+                'id' => (int) $leader['user_id'],
+                'full_name' => $leader['full_name'] ?? null,
+                'avatar_url' => $leader['avatar_url'] ?? null,
+                'vndupr_score' => isset($leader['vndupr_score']) && $leader['vndupr_score'] !== null
+                    ? round((float) $leader['vndupr_score'], 3)
+                    : null,
+            ];
+        }
+
+        // 2) Fallback: nếu enricher chưa chạy, dùng creator (nếu có)
         if ($this->creator) {
             return $this->formatAdminUser($this->creator);
         }
 
+        // 3) Fallback cuối: member role cao nhất
         if (!$this->relationLoaded('members')) {
             return null;
         }

@@ -102,6 +102,19 @@ class MapClubResource extends JsonResource
 
     private function buildAdmin(): ?array
     {
+        // Prefer 'leader' pre-attached bởi ClubSearchEnricher (1 query batch, role priority).
+        if (isset($this->leader) && is_array($this->leader) && !empty($this->leader['user_id'])) {
+            $leader = $this->leader;
+            return [
+                'id' => (int) $leader['user_id'],
+                'full_name' => $leader['full_name'] ?? null,
+                'avatar_url' => $leader['avatar_url'] ?? null,
+                'vndupr_score' => isset($leader['vndupr_score']) && $leader['vndupr_score'] !== null
+                    ? round((float) $leader['vndupr_score'], 3)
+                    : null,
+            ];
+        }
+
         if ($this->creator) {
             $user = $this->creator;
             $score = $user->relationLoaded('vnduprScores')
