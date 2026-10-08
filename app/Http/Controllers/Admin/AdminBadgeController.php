@@ -81,6 +81,14 @@ class AdminBadgeController extends Controller
 
     public function destroy(Badge $badge)
     {
+        $usersCount = \DB::table('user_badges')->where('badge_id', $badge->id)->count();
+
+        if ($usersCount > 0) {
+            return response()->json([
+                'message' => "Không thể xoá! Đang có {$usersCount} người dùng sở hữu huy hiệu này."
+            ], 400);
+        }
+
         $badge->delete();
         return response()->json(['message' => 'Badge deleted successfully']);
     }
