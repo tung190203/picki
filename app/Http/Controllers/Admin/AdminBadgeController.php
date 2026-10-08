@@ -13,6 +13,12 @@ class AdminBadgeController extends Controller
     public function index(Request $request)
     {
         $badges = Badge::query()
+            ->when($request->search, function ($q) use ($request) {
+                $q->where(function ($subQ) use ($request) {
+                    $subQ->where('name', 'like', '%' . $request->search . '%')
+                         ->orWhere('code', 'like', '%' . $request->search . '%');
+                });
+            })
             ->when($request->type, fn($q) => $q->where('type', $request->type))
             ->orderBy('created_at', 'desc')
             ->orderBy('priority', 'desc')

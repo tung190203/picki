@@ -46,6 +46,32 @@
           <button @click="activeTab = 'types'" :class="['pb-3 text-sm font-bold border-b-2 transition-colors', activeTab === 'types' ? 'border-[#E8192C] text-[#E8192C]' : 'border-transparent text-slate-500 hover:text-slate-700']">Loại huy hiệu</button>
         </div>
 
+        <!-- Filters -->
+        <div v-if="activeTab === 'badges'" class="flex flex-col sm:flex-row gap-4 mb-6">
+          <div class="relative flex-1">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+            <input 
+              v-model="searchQuery" 
+              @input="onSearch"
+              type="text" 
+              placeholder="Tìm theo tên hoặc mã huy hiệu..." 
+              class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:border-[#E8192C] focus:outline-none transition-colors shadow-sm"
+            />
+          </div>
+          <div class="w-full sm:w-64">
+            <select 
+              v-model="filterType" 
+              @change="onFilterChange"
+              class="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:border-[#E8192C] focus:outline-none transition-colors shadow-sm cursor-pointer"
+            >
+              <option value="">Tất cả các loại</option>
+              <option v-for="type in allBadgeTypes" :key="type.code" :value="type.code">
+                {{ type.name }}
+              </option>
+            </select>
+          </div>
+        </div>
+
         <!-- Loading State -->
         <div v-if="loading" class="space-y-3">
           <div v-for="i in 5" :key="i" class="h-16 bg-slate-200/60 rounded-2xl animate-pulse"></div>
@@ -338,6 +364,23 @@ const showTypeModal = ref(false);
 const savingType = ref(false);
 const isEditingType = ref(false);
 
+const searchQuery = ref('');
+const filterType = ref('');
+let searchTimeout = null;
+
+const onSearch = () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    currentPage.value = 1;
+    fetchBadges();
+  }, 500);
+};
+
+const onFilterChange = () => {
+  currentPage.value = 1;
+  fetchBadges();
+};
+
 const typeFormData = ref({
   id: null,
   code: '',
@@ -386,7 +429,11 @@ const handleImageChange = (e) => {
 const fetchBadges = async () => {
   loading.value = true;
   try {
-    const res = await http.get(`/admin/badges?page=${currentPage.value}`);
+    const params = new URLSearchParams({ page: currentPage.value });
+    if (searchQuery.value) params.append('search', searchQuery.value);
+    if (filterType.value) params.append('type', filterType.value);
+
+    const res = await http.get(`/admin/badges?${params.toString()}`);
     if (res.data && res.data.data) {
       allBadges.value = res.data.data;
       if (res.data.meta) {
