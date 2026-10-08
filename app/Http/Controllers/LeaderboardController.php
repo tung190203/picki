@@ -795,7 +795,9 @@ class LeaderboardController extends Controller
             ];
         }, $userBadges));
 
-        $primaryBadge = array_values($badges)[0] ?? null;
+        $primaryBadge = !empty($featuredBadges) 
+            ? array_values($featuredBadges)[0] 
+            : (array_values($badges)[0] ?? null);
 
         return [
             'badges' => array_values($badges),
