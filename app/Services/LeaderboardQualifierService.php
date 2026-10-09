@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
  *   - A match (matches / mini_matches) is qualified_for_ranking when COMPLETED
  *     and at least one of its participants already holds a badge.
  *   - A user is qualified for the leaderboard when:
- *       (a) they hold any badge, OR
+ *       (a) they hold one of the anchor badges (ANCHOR/PICKI/CHAMPION/VERIFIED), OR
  *       (b) their qualified_for_ranking match count >= ranking_matches setting,
  *       (c) legacy fallback: total_matches_has_anchor >= ranking_matches (for
  *           historical matches that pre-date the new column).
@@ -26,6 +26,27 @@ use Illuminate\Support\Facades\DB;
 class LeaderboardQualifierService
 {
     private const CACHE_TTL_SECONDS = 60;
+
+    /**
+     * Badges that count as "anchor" for leaderboard qualification. Only these
+     * four codes qualify a user on their own — any other badge (achievements
+     * like MATCH_10, TOUR_BRONZE, etc.) is decorative and does NOT auto-qualify.
+     */
+    private const ANCHOR_BADGE_CODES = ['ANCHOR', 'PICKI', 'CHAMPION', 'VERIFIED'];
+
+    /**
+     * True when the user holds at least one anchor badge (see ANCHOR_BADGE_CODES).
+     * Single source of truth — both inspectUser() and qualifiedUserIds() route
+     * through here so the two endpoints stay in sync.
+     */
+    private function userHasAnchorBadge(int $userId): bool
+    {
+        return DB::table('user_badges')
+            ->join('badges', 'badges.id', '=', 'user_badges.badge_id')
+            ->where('user_badges.user_id', $userId)
+            ->whereIn('badges.code', self::ANCHOR_BADGE_CODES)
+            ->exists();
+    }
 
     /**
      * Inspect a match and decide whether it should count toward ranking.
@@ -178,7 +199,7 @@ class LeaderboardQualifierService
     {
         $rankingMatches = User::getRankingMatches();
 
-        $hasBadge = DB::table('user_badges')->where('user_id', $userId)->exists();
+        $hasBadge = $this->userHasAnchorBadge($userId);
         $qualifiedMatchCount = $this->countQualifiedMatches($userId, $sportId);
 
         $legacyMatches = (int) (DB::table('users')
@@ -213,8 +234,10 @@ class LeaderboardQualifierService
                 $rankingMatches = User::getRankingMatches();
 
                 $badgeUserIds = DB::table('user_badges')
+                    ->join('badges', 'badges.id', '=', 'user_badges.badge_id')
+                    ->whereIn('badges.code', self::ANCHOR_BADGE_CODES)
                     ->distinct()
-                    ->pluck('user_id')
+                    ->pluck('user_badges.user_id')
                     ->all();
 
                 $legacyUserIds = DB::table('users')
