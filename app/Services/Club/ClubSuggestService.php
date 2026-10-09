@@ -13,8 +13,8 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Phase 3: Club suggestion với 3 nhóm (friend_in_club → fallback following,
- * suit_level, nearby). Tối đa 10 clubs/nhóm, tổng cộng max 30.
+ * Phase 3: Club suggestion với 4 nhóm (friend_in_club, following,
+ * suit_level, nearby). Tối đa 10 clubs/nhóm, tổng cộng max 40.
  *
  * Reuse Phase 1 ClubSearchEnricher cho toàn bộ card fields.
  * Không cache.
@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\DB;
 class ClubSuggestService
 {
     private const GROUP_LIMIT = 10;
-    private const TOTAL_LIMIT = 30;
+    private const TOTAL_LIMIT = 40;
     private const SUIT_LEVEL_TOLERANCE = 0.3;
     private const NEARBY_RADIUS_KM = 10.0;
 
@@ -32,15 +32,23 @@ class ClubSuggestService
         $result = new EloquentCollection();
         $seen = [];
 
-        // Group 1: friend_in_club → fallback following
-        foreach ($this->resolveFriendOrFollowing($userId) as $club) {
+        // Group 1: friend_in_club
+        foreach ($this->queryFriendInClub($userId) as $club) {
             if (!isset($seen[$club->id])) {
                 $seen[$club->id] = true;
                 $result->push($club);
             }
         }
 
-        // Group 2: suit_level
+        // Group 2: following
+        foreach ($this->queryFollowing($userId) as $club) {
+            if (!isset($seen[$club->id])) {
+                $seen[$club->id] = true;
+                $result->push($club);
+            }
+        }
+
+        // Group 3: suit_level
         $userScore = $this->getUserVnduprScore($userId);
         if ($userScore !== null) {
             foreach ($this->querySuitLevel($userScore) as $club) {
@@ -51,7 +59,7 @@ class ClubSuggestService
             }
         }
 
-        // Group 3: nearby (chỉ khi có lat/lng)
+        // Group 4: nearby (chỉ khi có lat/lng)
         if ($lat !== null && $lng !== null) {
             foreach ($this->queryNearby($lat, $lng, self::NEARBY_RADIUS_KM) as $club) {
                 if (!isset($seen[$club->id])) {
@@ -109,25 +117,6 @@ class ClubSuggestService
     /**
      * friend_in_club → fallback following nếu friend empty.
      */
-    private function resolveFriendOrFollowing(int $userId): Collection
-    {
-        $friendClubs = $this->queryFriendInClub($userId);
-        if ($friendClubs->isNotEmpty()) {
-            return $friendClubs->map(function (Club $club) {
-                $club->setAttribute('category', 'friend_in_club');
-                $club->setAttribute('category_text', 'CLB có bạn bè của bạn');
-                return $club;
-            });
-        }
-
-        $followingClubs = $this->queryFollowing($userId);
-        return $followingClubs->map(function (Club $club) {
-            $club->setAttribute('category', 'following');
-            $club->setAttribute('category_text', 'CLB bạn đang theo dõi');
-            return $club;
-        });
-    }
-
     /**
      * CLB có bạn bè của user đang joined. Sort:
      *   friends_in_club DESC, is_verified DESC, c.id DESC.
@@ -167,13 +156,15 @@ class ClubSuggestService
             ->get()
             ->keyBy('id');
 
-        // Trả về theo thứ tự ranking, gắn friends_in_club_count
+        // Trả về theo thứ tự ranking, gắn friends_in_club_count + category
         $countsById = $ranked->pluck('friends_in_club_count', 'club_id');
         $result = [];
         foreach ($ids as $id) {
             if (isset($clubs[$id])) {
                 $c = $clubs[$id];
                 $c->setAttribute('friends_in_club_count', (int) $countsById[$id]);
+                $c->setAttribute('category', 'friend_in_club');
+                $c->setAttribute('category_text', 'CLB có bạn bè của bạn');
                 $result[] = $c;
             }
         }
@@ -198,12 +189,19 @@ class ClubSuggestService
         }
 
         // Preserve follow-created_at order via FIELD() — whereIn() does not guarantee order
-        return Club::query()
+        $clubs = Club::query()
             ->whereIn('id', $ids)
             ->where('status', '!=', ClubStatus::Suspended->value)
             ->where('is_public', true)
             ->orderByRaw('FIELD(id, ' . implode(',', $ids) . ')')
             ->get();
+
+        foreach ($clubs as $club) {
+            $club->setAttribute('category', 'following');
+            $club->setAttribute('category_text', 'CLB bạn đang theo dõi');
+        }
+
+        return $clubs;
     }
 
     /**
