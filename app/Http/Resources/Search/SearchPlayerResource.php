@@ -43,7 +43,9 @@ class SearchPlayerResource extends JsonResource
             'is_online'  => (bool) $this->is_online,
             'primary_badge' => app(BadgeService::class)->getPrimaryBadge($this->id),
             'vn_rank'    => $this->vn_rank ?? null,
-            'vndupr_score' => $vnduprScore?->score_value ?? null,
+            'vndupr_score' => $vnduprScore?->score_value !== null
+                ? number_format((float) $vnduprScore->score_value, 3, '.', '')
+                : null,
             'win_rate'   => $stats['win_rate'] ?? 0.0,
             'total_matches' => $stats['total_matches'] ?? 0,
             'distance'    => is_numeric($this->distance) ? round((float) $this->distance, 1) : null,
