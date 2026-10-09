@@ -419,6 +419,14 @@ class ClubDetailAssembler
             return null;
         }
 
-        return round((float) $rows[0]->min_score, 1) . '-' . round((float) $rows[0]->max_score, 1);
+        $min = round((float) $rows[0]->min_score, 1);
+        $max = round((float) $rows[0]->max_score, 1);
+
+        // 1 member → trả về điểm luôn, không cần "min-max"
+        if ($min === $max) {
+            return (string) $min;
+        }
+
+        return "{$min}-{$max}";
     }
 }
