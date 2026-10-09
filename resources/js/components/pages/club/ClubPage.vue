@@ -75,8 +75,26 @@
                 </button>
             </div>
 
-            <!-- Cards list: 1 card / row (horizontal layout) -->
-            <div v-else class="grid grid-cols-1 gap-3 sm:gap-4">
+            <!-- Suggest tab: group by 4 categories (friend_in_club, following, suit_level, nearby) -->
+            <template v-else-if="activeSubTab === 'suggest' && suggestSections.length">
+                <div v-for="section in suggestSections" :key="section.key" class="mb-5 sm:mb-6">
+                    <h2 class="text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3 px-1">
+                        {{ section.title }}
+                    </h2>
+                    <div class="grid grid-cols-1 gap-3 sm:gap-4">
+                        <ClubSuggestCard
+                            v-for="club in section.items"
+                            :key="club.id"
+                            :club="club"
+                            @click="handleClubClick"
+                            @follow="handleFollow"
+                        />
+                    </div>
+                </div>
+            </template>
+
+            <!-- Other tabs: flat list -->
+            <div v-else-if="activeSubTab !== 'suggest'" class="grid grid-cols-1 gap-3 sm:gap-4">
                 <ClubSuggestCard
                     v-for="club in clubs"
                     :key="club.id"
@@ -109,6 +127,7 @@ import { search as searchApi } from '@/service/search.js'
 import { useRouter } from 'vue-router'
 import { toast } from 'vue3-toastify'
 import { requestUserAnchor } from '@/utils/httpRequest.js'
+import { orderedSections } from '@/composables/useClubGrouping.js'
 import ClubSuggestCard from '@/components/molecules/ClubSuggestCard.vue'
 
 const router = useRouter()
@@ -157,12 +176,13 @@ const loading = ref(false)
 const search = ref('')
 
 const hasAnyContent = computed(() => clubs.value.length > 0)
+const suggestSections = computed(() => orderedSections(clubs.value))
 
 const buildParams = () => {
     const params = {
         tab: 'club',
         sub_tab: SUB_TAB_MAP[activeSubTab.value] ?? 'all',
-        per_page: 30,
+        per_page: 40,
     }
     const q = search.value?.trim()
     if (q) params.keyword = q
