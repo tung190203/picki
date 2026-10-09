@@ -203,7 +203,15 @@ class Club extends Model
             return null;
         }
 
-        return round(min($scores), 1) . '-' . round(max($scores), 1);
+        $min = round(min($scores), 1);
+        $max = round(max($scores), 1);
+
+        // 1 member (min == max) → trả điểm luôn, không cần "min-max"
+        if ($min === $max) {
+            return (string) $min;
+        }
+
+        return $min . '-' . $max;
     }
 
     /** User đang follow CLB này hay không. */
@@ -601,7 +609,8 @@ class Club extends Model
 
     /**
      * Lấy các CLB có score range phù hợp với user score (tolerance ±tolerance).
-     * Match: club.min <= userScore + tolerance AND club.max >= userScore - tolerance.
+     * Match: toàn bộ range CLB nằm trong [userScore - tolerance, userScore + tolerance]
+     * (club.min >= userScore - tolerance AND club.max <= userScore + tolerance).
      */
     public function scopeSuitLevel($query, float $userScore, float $tolerance = 0.5)
     {
@@ -619,8 +628,8 @@ class Club extends Model
                 ->where('user_sport_scores.score_type', 'vndupr_score')
                 ->whereNotNull('user_sport_scores.score_value')
                 ->groupBy('club_members.club_id')
-                ->havingRaw('MIN(user_sport_scores.score_value) <= ?', [$max])
-                ->havingRaw('MAX(user_sport_scores.score_value) >= ?', [$min]);
+                ->havingRaw('MIN(user_sport_scores.score_value) >= ?', [$min])
+                ->havingRaw('MAX(user_sport_scores.score_value) <= ?', [$max]);
         });
     }
 

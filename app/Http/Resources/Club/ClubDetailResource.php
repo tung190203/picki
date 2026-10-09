@@ -39,7 +39,7 @@ class ClubDetailResource extends ClubBaseResource
 
             // Follow flags — pre-set by ClubDetailAssembler
             'is_following' => (bool) ($club->is_following ?? false),
-            'followers_count_excluding_members' => (int) ($club->followers_count_excluding_members ?? 0),
+            'followers_count' => (int) ($club->followers_count ?? 0),
 
             // Invited by — pre-set by ClubDetailAssembler
             'invited_by' => $club->_invited_by_user ?? null,

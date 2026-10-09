@@ -12,7 +12,6 @@ use App\Models\Club\ClubFundCollection;
 use App\Models\Club\ClubFundContribution;
 use App\Models\Club\ClubGuest;
 use App\Models\Club\ClubMember;
-use App\Models\Follow;
 use App\Models\MiniParticipant;
 use App\Models\Participant;
 use App\Models\User;
@@ -181,23 +180,23 @@ class ClubDetailAssembler
     /**
      * Attach follow status to club:
      *  - is_following: user hiện tại có đang follow CLB không
-     *  - followers_count_excluding_members: số follower KHÔNG phải thành viên CLB
+     *  - followers_count: số follower KHÔNG phải thành viên CLB (joined + active)
      */
     public function attachFollowStatus(Club $club, int $userId): void
     {
         $club->is_following = $club->isFollowedBy($userId);
 
-        // Đếm follower không phải member (joined + active) bằng 1 query
-        $club->followers_count_excluding_members = (int) Follow::where('followable_id', $club->id)
-            ->where('followable_type', Club::class)
-            ->whereNotExists(function ($q) use ($club) {
-                $q->select(DB::raw(1))
-                    ->from('club_members')
-                    ->whereColumn('club_members.user_id', 'follows.user_id')
-                    ->where('club_members.club_id', $club->id)
-                    ->where('membership_status', ClubMembershipStatus::Joined->value)
-                    ->where('status', ClubMemberStatus::Active->value);
-            })
+        // Lấy danh sách user_id đang joined + active trong CLB
+        $memberIds = DB::table('club_members')
+            ->where('club_id', $club->id)
+            ->where('membership_status', ClubMembershipStatus::Joined->value)
+            ->where('status', ClubMemberStatus::Active->value)
+            ->pluck('user_id')
+            ->all();
+
+        // Đếm follower KHÔNG thuộc member list
+        $club->followers_count = (int) $club->followers()
+            ->whereNotIn('user_id', $memberIds ?: [0]) // [0] để whereNotIn không lỗi khi rỗng
             ->count();
     }
 
@@ -419,6 +418,14 @@ class ClubDetailAssembler
             return null;
         }
 
-        return round((float) $rows[0]->min_score, 1) . '-' . round((float) $rows[0]->max_score, 1);
+        $min = round((float) $rows[0]->min_score, 1);
+        $max = round((float) $rows[0]->max_score, 1);
+
+        // 1 member → trả về điểm luôn, không cần "min-max"
+        if ($min === $max) {
+            return (string) $min;
+        }
+
+        return "{$min}-{$max}";
     }
 }
