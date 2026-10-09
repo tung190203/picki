@@ -13,7 +13,7 @@
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-Cy85CVKC.js",
+    "file": "assets/app-DO6xsrcS.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -73,7 +73,7 @@
     "src": "resources/js/assets/images/splash-bg.png"
   },
   "resources/js/components/pages/admin/AdminBadgesPage.vue": {
-    "file": "assets/AdminBadgesPage-CtfyiUay.js",
+    "file": "assets/AdminBadgesPage-IVDf4U5a.js",
     "name": "AdminBadgesPage",
     "src": "resources/js/components/pages/admin/AdminBadgesPage.vue",
     "isDynamicEntry": true,
@@ -82,7 +82,7 @@
     ]
   },
   "resources/js/components/pages/admin/AdminBannersPage.vue": {
-    "file": "assets/AdminBannersPage-B6UntMPJ.js",
+    "file": "assets/AdminBannersPage-RWr1Dqtn.js",
     "name": "AdminBannersPage",
     "src": "resources/js/components/pages/admin/AdminBannersPage.vue",
     "isDynamicEntry": true,
@@ -94,7 +94,7 @@
     ]
   },
   "resources/js/components/pages/admin/AdminConfig.vue": {
-    "file": "assets/AdminConfig-Cvz_0rsC.js",
+    "file": "assets/AdminConfig-C23PL23e.js",
     "name": "AdminConfig",
     "src": "resources/js/components/pages/admin/AdminConfig.vue",
     "isDynamicEntry": true,
@@ -106,7 +106,7 @@
     ]
   },
   "resources/js/components/pages/admin/AdminModeration.vue": {
-    "file": "assets/AdminModeration-Dp-gdkwP.js",
+    "file": "assets/AdminModeration-DM0FMhWn.js",
     "name": "AdminModeration",
     "src": "resources/js/components/pages/admin/AdminModeration.vue",
     "isDynamicEntry": true,
@@ -118,7 +118,7 @@
     ]
   },
   "resources/js/components/pages/admin/AdminSponsorsPage.vue": {
-    "file": "assets/AdminSponsorsPage-CN69G8sM.js",
+    "file": "assets/AdminSponsorsPage-DNRqPVEK.js",
     "name": "AdminSponsorsPage",
     "src": "resources/js/components/pages/admin/AdminSponsorsPage.vue",
     "isDynamicEntry": true,
