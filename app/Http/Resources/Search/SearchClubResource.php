@@ -90,9 +90,7 @@ class SearchClubResource extends JsonResource
             'followers_count' => $this->followers_count ?? 0,
             'is_following' => $this->is_following ?? false,
             'score_range' => $this->skill_level, // { min, max } - preloaded by ClubService::attachSkillLevel()
-            'score_range_text' => $this->skill_level
-                ? $this->skill_level['min'] . '-' . $this->skill_level['max']
-                : null,
+            'score_range_text' => $this->buildScoreRangeText(),
             'recruitment_status' => $this->recruitment_status,
             'recruitment_status_text' => $this->getRecruitmentStatusText(),
             'recurring_schedule_text' => $this->recurring_schedule_text
@@ -127,7 +125,7 @@ class SearchClubResource extends JsonResource
                 'full_name' => $leader['full_name'] ?? null,
                 'avatar_url' => $leader['avatar_url'] ?? null,
                 'vndupr_score' => isset($leader['vndupr_score']) && $leader['vndupr_score'] !== null
-                    ? round((float) $leader['vndupr_score'], 3)
+                    ? number_format((float) $leader['vndupr_score'], 3, '.', '')
                     : null,
             ];
         }
@@ -185,7 +183,7 @@ class SearchClubResource extends JsonResource
             'id' => $user->id,
             'full_name' => $user->full_name,
             'avatar_url' => $user->avatar_url,
-            'vndupr_score' => $score !== null ? round((float) $score, 3) : null,
+            'vndupr_score' => $score !== null ? number_format((float) $score, 3, '.', '') : null,
         ];
     }
 
@@ -208,10 +206,32 @@ class SearchClubResource extends JsonResource
 
         return [
             'user_score' => (float) $this->user_vndupr_score,
-            'tolerance' => 0.5,
+            'tolerance' => 0.3,
             'delta' => $this->score_match_score !== null
                 ? round((float) $this->score_match_score, 2)
                 : null,
         ];
+    }
+
+    /**
+     * 1 member (min == max) → "1.5"; nhiều member → "1.5-2.6". Luôn 1 chữ số thập phân.
+     */
+    private function buildScoreRangeText(): ?string
+    {
+        if (!$this->skill_level) {
+            return null;
+        }
+
+        $min = $this->skill_level['min'];
+        $max = $this->skill_level['max'];
+
+        $minStr = number_format((float) $min, 1, '.', '');
+        $maxStr = number_format((float) $max, 1, '.', '');
+
+        if ($min == $max) {
+            return $minStr;
+        }
+
+        return "{$minStr}-{$maxStr}";
     }
 }

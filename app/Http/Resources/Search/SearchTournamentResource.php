@@ -43,7 +43,7 @@ class SearchTournamentResource extends JsonResource
             'max_level'      => $this->max_level,
             'max_players'    => $this->max_player,
             'max_team'       => $this->max_team,
-            'participated_team' => $teams ? $teams->count() : 0,
+            'participated_team' => $teams ? $teams->filter(fn($t) => (($t->members_count ?? 0) + ($t->guest_members_count ?? 0)) >= 2)->count() : 0,
             'slot_status'    => $this->computeSlotStatus(),
             // Nested competition_location
             'competition_location' => $location ? [
@@ -64,11 +64,12 @@ class SearchTournamentResource extends JsonResource
                 'name' => $club->name,
             ] : null,
             // Participated teams
-            'participated_teams' => $teams ? $teams->map(fn($team) => [
-                'id'    => $team->id,
-                'name'  => $team->name,
-                'avatar'=> $team->avatar,
-            ])->toArray() : [],
+            'participated_teams' => $teams ? $teams->filter(fn($team) => (($team->members_count ?? 0) + ($team->guest_members_count ?? 0)) >= 2)
+                ->map(fn($team) => [
+                    'id'    => $team->id,
+                    'name'  => $team->name,
+                    'avatar'=> $team->avatar,
+                ])->values()->toArray() : [],
             'tournamentStaff' => $tournamentStaffs ? $tournamentStaffs
                 ->filter(fn($s) => (int) ($s->pivot->role ?? null) === \App\Models\TournamentStaff::ROLE_ORGANIZER)
                 ->map(fn($s) => [
@@ -104,6 +105,9 @@ class SearchTournamentResource extends JsonResource
     private function computeSlotStatus(): string
     {
         $max = (int) $this->max_player;
+        if ($max <= 0) {
+            $max = (int) $this->player_per_team * (int) $this->max_team;
+        }
         $current = (int) ($this->participants_count ?? $this->participants?->count() ?? 0);
         $remaining = $max - $current;
 

@@ -244,7 +244,7 @@ Logic này nằm trong `App\Http\Resources\Concerns\ResolvesClubMemberCount` (d�
 | Field | Type | Mô tả | Scope |
 |---|---|---|---|
 | `is_following` | bool | User hiện tại có đang follow CLB không | Authenticated |
-| `followers_count_excluding_members` | int | Số user theo dõi CLB mà KHÔNG nằm trong `club_members` (joined + active) | Authenticated |
+| `followers_count` | int | Số user theo dõi CLB mà KHÔNG nằm trong `club_members` (joined + active) | Authenticated |
 | `mini_tournaments_today` | int | Số kèo + giải của CLB diễn ra hôm nay | Admin/Manager/Secretary |
 | `unpaid_members_count` | int | Tổng lượt chưa thanh toán (fund + tournament + mini) | Admin/Manager/Secretary |
 | `returning_guests_percent` | int | % user tham gia event trong 30 ngày gần nhất đã từng chơi CLB trước đó | Admin/Manager/Secretary |
