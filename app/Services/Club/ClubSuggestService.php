@@ -23,7 +23,7 @@ class ClubSuggestService
 {
     private const GROUP_LIMIT = 10;
     private const TOTAL_LIMIT = 30;
-    private const SUIT_LEVEL_TOLERANCE = 0.5;
+    private const SUIT_LEVEL_TOLERANCE = 0.3;
     private const NEARBY_RADIUS_KM = 10.0;
 
     public function suggest(int $userId, ?float $lat, ?float $lng): Collection
@@ -207,7 +207,7 @@ class ClubSuggestService
     }
 
     /**
-     * CLB có score range phù hợp với user score (tolerance ±0.5).
+     * CLB có score range phù hợp với user score (tolerance ±0.3).
      * Sort: abs(midpoint - user_score) ASC.
      */
     private function querySuitLevel(float $userScore): Collection
@@ -224,8 +224,8 @@ class ClubSuggestService
             ->where('uss.score_type', 'vndupr_score')
             ->whereNotNull('uss.score_value')
             ->groupBy('cm.club_id')
-            ->havingRaw('MIN(uss.score_value) <= ?', [$max])
-            ->havingRaw('MAX(uss.score_value) >= ?', [$min])
+            ->havingRaw('MIN(uss.score_value) >= ?', [$min])
+            ->havingRaw('MAX(uss.score_value) <= ?', [$max])
             ->select([
                 'cm.club_id',
                 DB::raw('MIN(uss.score_value) as club_min'),

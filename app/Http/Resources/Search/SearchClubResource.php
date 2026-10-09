@@ -206,7 +206,7 @@ class SearchClubResource extends JsonResource
 
         return [
             'user_score' => (float) $this->user_vndupr_score,
-            'tolerance' => 0.5,
+            'tolerance' => 0.3,
             'delta' => $this->score_match_score !== null
                 ? round((float) $this->score_match_score, 2)
                 : null,

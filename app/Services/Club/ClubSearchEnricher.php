@@ -16,7 +16,7 @@ class ClubSearchEnricher
 {
     /**
      * Attach followers_count.
-     * Followers = số user DISTINCT đang follow − số member đã join
+     * Followers = số user follow CLB mà KHÔNG phải member joined+active.
      * (member đã là 'thành viên' rồi, không tính là follower ngoài).
      */
     public static function attachFollowersCount(Collection|array $clubs): Collection|array
@@ -30,26 +30,40 @@ class ClubSearchEnricher
             return $clubs;
         }
 
-        // DISTINCT user_id đang follow từng club
-        $followDistinct = DB::table('follows')
-            ->where('followable_type', Club::class)
-            ->whereIn('followable_id', $clubIds)
-            ->groupBy('followable_id')
-            ->selectRaw('followable_id as club_id, COUNT(DISTINCT user_id) as cnt')
-            ->pluck('cnt', 'club_id');
-
-        // Số member joined
-        $memberCounts = DB::table('club_members')
+        // Tập user_id đang joined+active theo từng club
+        $memberIdsByClub = DB::table('club_members')
             ->whereIn('club_id', $clubIds)
             ->where('membership_status', 'joined')
+            ->where('status', 'active')
+            ->select('club_id', 'user_id')
+            ->get()
             ->groupBy('club_id')
-            ->selectRaw('club_id, COUNT(DISTINCT user_id) as cnt')
-            ->pluck('cnt', 'club_id');
+            ->map(fn($rows) => $rows->pluck('user_id')->all());
+
+        // Follow theo từng (club, user) DISTINCT
+        $followerRows = DB::table('follows')
+            ->where('followable_type', Club::class)
+            ->whereIn('followable_id', $clubIds)
+            ->select('followable_id as club_id', 'user_id')
+            ->distinct()
+            ->get();
+
+        $followersByClub = [];
+        foreach ($followerRows as $row) {
+            $followersByClub[$row->club_id][$row->user_id] = true;
+        }
 
         foreach ($clubs as $club) {
-            $follow = (int) ($followDistinct[$club->id] ?? 0);
-            $members = (int) ($memberCounts[$club->id] ?? 0);
-            $club->followers_count = max(0, $follow - $members);
+            $followers = $followersByClub[$club->id] ?? [];
+            $members = $memberIdsByClub->get($club->id, []) ?: [];
+            $memberSet = array_flip($members);
+            $count = 0;
+            foreach ($followers as $uid => $_) {
+                if (!isset($memberSet[$uid])) {
+                    $count++;
+                }
+            }
+            $club->followers_count = $count;
         }
 
         return $clubs;
