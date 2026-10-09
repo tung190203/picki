@@ -203,7 +203,15 @@ class Club extends Model
             return null;
         }
 
-        return round(min($scores), 1) . '-' . round(max($scores), 1);
+        $min = round(min($scores), 1);
+        $max = round(max($scores), 1);
+
+        // 1 member (min == max) → trả điểm luôn, không cần "min-max"
+        if ($min === $max) {
+            return (string) $min;
+        }
+
+        return $min . '-' . $max;
     }
 
     /** User đang follow CLB này hay không. */

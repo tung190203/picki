@@ -195,7 +195,7 @@ class ClubSearchEnricher
                     'full_name' => $admin->full_name,
                     'avatar_url' => $admin->avatar_url,
                     'vndupr_score' => isset($vnduprScores[$admin->user_id])
-                        ? round((float) $vnduprScores[$admin->user_id], 1)
+                        ? number_format((float) $vnduprScores[$admin->user_id], 3, '.', '')
                         : null,
                 ];
             } else {

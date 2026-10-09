@@ -66,7 +66,44 @@ class ClubSuggestService
             ClubSearchEnricher::enrich($result, $userId);
         }
 
+        // Attach distance cho mọi club (nearby đã có sẵn, các nhóm khác cần tính)
+        if ($lat !== null && $lng !== null && $result->isNotEmpty()) {
+            $this->attachDistance($result, $lat, $lng);
+        }
+
         return $result->take(self::TOTAL_LIMIT)->values();
+    }
+
+    /**
+     * Gắn distance từ (lat, lng) cho mọi club chưa có attribute này.
+     * Bỏ qua nếu club không có tọa độ.
+     */
+    private function attachDistance(EloquentCollection $clubs, float $lat, float $lng): void
+    {
+        $haversine = "(6371 * acos(cos(radians(?))
+                * cos(radians(latitude))
+                * cos(radians(longitude) - radians(?))
+                + sin(radians(?))
+                * sin(radians(latitude))))";
+
+        $ids = $clubs->filter(fn($c) => $c->latitude !== null && $c->longitude !== null && !isset($c->distance))->pluck('id')->all();
+        if (empty($ids)) {
+            return;
+        }
+
+        $rows = DB::table('clubs')
+            ->whereIn('id', $ids)
+            ->select('id')
+            ->selectRaw("$haversine AS distance", [$lat, $lng, $lat])
+            ->get()
+            ->keyBy('id');
+
+        foreach ($clubs as $club) {
+            if (isset($club->distance) || !isset($rows[$club->id])) {
+                continue;
+            }
+            $club->setAttribute('distance', (float) $rows[$club->id]->distance);
+        }
     }
 
     /**
