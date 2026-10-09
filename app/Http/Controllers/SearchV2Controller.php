@@ -261,10 +261,10 @@ class SearchV2Controller extends Controller
                 if ($userScore === null) {
                     $query->whereRaw('1 = 0');
                 } else {
-                    $query->suitLevel($userScore, 0.5);
+                    $query->suitLevel($userScore, 0.3);
                     // Lưu user score để enricher sử dụng cho sort
                     request()->attributes->set('suit_level_user_score', $userScore);
-                    request()->attributes->set('suit_level_tolerance', 0.5);
+                    request()->attributes->set('suit_level_tolerance', 0.3);
                 }
             }
         }

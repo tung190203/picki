@@ -23,7 +23,7 @@ class ClubSuggestService
 {
     private const GROUP_LIMIT = 10;
     private const TOTAL_LIMIT = 30;
-    private const SUIT_LEVEL_TOLERANCE = 0.5;
+    private const SUIT_LEVEL_TOLERANCE = 0.3;
     private const NEARBY_RADIUS_KM = 10.0;
 
     public function suggest(int $userId, ?float $lat, ?float $lng): Collection
@@ -66,7 +66,44 @@ class ClubSuggestService
             ClubSearchEnricher::enrich($result, $userId);
         }
 
+        // Attach distance cho mọi club (nearby đã có sẵn, các nhóm khác cần tính)
+        if ($lat !== null && $lng !== null && $result->isNotEmpty()) {
+            $this->attachDistance($result, $lat, $lng);
+        }
+
         return $result->take(self::TOTAL_LIMIT)->values();
+    }
+
+    /**
+     * Gắn distance từ (lat, lng) cho mọi club chưa có attribute này.
+     * Bỏ qua nếu club không có tọa độ.
+     */
+    private function attachDistance(EloquentCollection $clubs, float $lat, float $lng): void
+    {
+        $haversine = "(6371 * acos(cos(radians(?))
+                * cos(radians(latitude))
+                * cos(radians(longitude) - radians(?))
+                + sin(radians(?))
+                * sin(radians(latitude))))";
+
+        $ids = $clubs->filter(fn($c) => $c->latitude !== null && $c->longitude !== null && !isset($c->distance))->pluck('id')->all();
+        if (empty($ids)) {
+            return;
+        }
+
+        $rows = DB::table('clubs')
+            ->whereIn('id', $ids)
+            ->select('id')
+            ->selectRaw("$haversine AS distance", [$lat, $lng, $lat])
+            ->get()
+            ->keyBy('id');
+
+        foreach ($clubs as $club) {
+            if (isset($club->distance) || !isset($rows[$club->id])) {
+                continue;
+            }
+            $club->setAttribute('distance', (float) $rows[$club->id]->distance);
+        }
     }
 
     /**
@@ -170,7 +207,7 @@ class ClubSuggestService
     }
 
     /**
-     * CLB có score range phù hợp với user score (tolerance ±0.5).
+     * CLB có score range phù hợp với user score (tolerance ±0.3).
      * Sort: abs(midpoint - user_score) ASC.
      */
     private function querySuitLevel(float $userScore): Collection
@@ -187,8 +224,8 @@ class ClubSuggestService
             ->where('uss.score_type', 'vndupr_score')
             ->whereNotNull('uss.score_value')
             ->groupBy('cm.club_id')
-            ->havingRaw('MIN(uss.score_value) <= ?', [$max])
-            ->havingRaw('MAX(uss.score_value) >= ?', [$min])
+            ->havingRaw('MIN(uss.score_value) >= ?', [$min])
+            ->havingRaw('MAX(uss.score_value) <= ?', [$max])
             ->select([
                 'cm.club_id',
                 DB::raw('MIN(uss.score_value) as club_min'),

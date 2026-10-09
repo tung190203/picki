@@ -308,11 +308,18 @@ class UserTournamentResource extends JsonResource
     protected function getParticipatedTeamCount(): int
     {
         if ($this->relationLoaded('teams') && $this->teams) {
-            return $this->teams->count();
+            return $this->teams->filter(fn($t) => ($t->members_count ?? 0) >= 2)->count();
         }
 
         return DB::table('teams')
             ->where('tournament_id', $this->id)
+            ->whereExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('team_members')
+                    ->whereColumn('team_members.team_id', 'teams.id')
+                    ->groupBy('team_members.team_id')
+                    ->havingRaw('COUNT(*) >= 2');
+            })
             ->count();
     }
 

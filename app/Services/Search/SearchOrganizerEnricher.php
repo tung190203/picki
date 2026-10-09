@@ -88,7 +88,7 @@ class SearchOrganizerEnricher
                 'name' => $club->name,
             ] : null);
             $user->setAttribute('vndupr_score', isset($vnduprByUser[$orgUserId])
-                ? round((float) $vnduprByUser[$orgUserId], 1)
+                ? number_format((float) $vnduprByUser[$orgUserId], 3, '.', '')
                 : null);
             $user->setAttribute('organized_count', (int) ($organizedByUser[$orgUserId] ?? 0));
             $user->setAttribute('follower_count', (int) ($followersByUser[$orgUserId] ?? 0));

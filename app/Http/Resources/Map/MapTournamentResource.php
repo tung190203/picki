@@ -35,7 +35,7 @@ class MapTournamentResource extends JsonResource
             'fee_amount'   => $this->has_fee ? (float) $this->fee_amount : null,
             'max_players'  => $this->max_player,
             'max_team'       => $this->max_team,
-            'participated_team' => $teams ? $teams->count() : 0,
+            'participated_team' => $teams ? $teams->filter(fn($t) => (($t->members_count ?? 0) + ($t->guest_members_count ?? 0)) >= 2)->count() : 0,
             'sports'      => $this->whenLoaded('sports', fn() =>
                 UserSportResource::collection($this->sports)
             ),
@@ -75,6 +75,9 @@ class MapTournamentResource extends JsonResource
     private function computeSlotStatus(): string
     {
         $max = (int) $this->max_player;
+        if ($max <= 0) {
+            $max = (int) $this->player_per_team * (int) $this->max_team;
+        }
         $current = (int) ($this->participants_count ?? $this->participants?->count() ?? 0);
         $remaining = $max - $current;
 

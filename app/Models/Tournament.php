@@ -234,7 +234,7 @@ class Tournament extends Model
             'competitionLocation',
             'club.creator',
             'createdBy',
-            'teams',
+            'teams' => fn($q) => $q->withCount(['members', 'guestMembers']),
             'tournamentStaffs',
             'participants',
         ]);
