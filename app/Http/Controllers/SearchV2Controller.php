@@ -176,6 +176,18 @@ class SearchV2Controller extends Controller
         $radius = $params['radius'] ?? null;
         $filters = $params['filters'] ?? [];
 
+        // ponytail: FE chưa luôn gửi anchor cho tab=user/club/court. Fallback về lat/lng
+        // của user đang login để distance/orderByDistance/nearBy vẫn hoạt động.
+        if (($lat === null || $lng === null)
+            && in_array($tab, [SearchFilterConfig::TAB_USER, SearchFilterConfig::TAB_CLUB, SearchFilterConfig::TAB_COURT], true)
+        ) {
+            $authUser = Auth::user();
+            if ($authUser) {
+                $lat = $lat ?? ($authUser->latitude !== null ? (float) $authUser->latitude : null);
+                $lng = $lng ?? ($authUser->longitude !== null ? (float) $authUser->longitude : null);
+            }
+        }
+
         if ($lat !== null && $lng !== null) {
             if ($tab === SearchFilterConfig::TAB_USER || $tab === SearchFilterConfig::TAB_CLUB || $tab === SearchFilterConfig::TAB_COURT) {
                 $query->orderByDistance($lat, $lng);
