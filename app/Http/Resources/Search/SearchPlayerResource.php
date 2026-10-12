@@ -62,6 +62,27 @@ class SearchPlayerResource extends JsonResource
             'is_follow' => $isFollow,
             'marker_type' => 'user',
             'is_guest' => false,
+            // Relation data (for played_together tab or suggest)
+            'relation' => $this->buildRelation(),
+        ];
+    }
+
+    /**
+     * Build relation object from preloaded_relation.
+     */
+    private function buildRelation(): ?array
+    {
+        $relation = $this->preloaded_relation ?? null;
+
+        if (!$relation) {
+            return null;
+        }
+
+        return [
+            'matches_together' => (int) ($relation->matches_together ?? 0),
+            'mini_tournaments_together' => (int) ($relation->mini_tournaments_together ?? 0),
+            'tournaments_together' => (int) ($relation->tournaments_together ?? 0),
+            'clubs_together' => (int) ($relation->clubs_together ?? 0),
         ];
     }
 }
