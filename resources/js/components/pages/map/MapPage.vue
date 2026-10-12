@@ -96,7 +96,30 @@
                                     :match="match" :selected="selectedMatches?.value" @select="focusItemAuto" :defaultImage="defaultImage"/>
                             </template>
                             <template v-else-if="activeTab === 'user'">
-                                <UserListItem v-for="user in displayedListData" :key="user.id" :user="user"
+                                <!-- User Suggest mode: 3 groups (played_together, same_club, nearby) -->
+                                <template v-if="isUserSuggestMode && userSuggestSections.length">
+                                    <section
+                                        v-for="section in userSuggestSections"
+                                        :key="section.key"
+                                        class="mb-3"
+                                    >
+                                        <h2 class="text-sm font-semibold text-gray-700 mb-1.5 px-1">
+                                            {{ section.title }}
+                                        </h2>
+                                        <div class="space-y-2">
+                                            <UserSuggestCard
+                                                v-for="user in section.items"
+                                                :key="user.id"
+                                                :user="user"
+                                                @click="handleUserSuggestClick"
+                                                @follow="handleUserSuggestFollow"
+                                            />
+                                        </div>
+                                    </section>
+                                </template>
+
+                                <!-- Other sub-tabs: flat list -->
+                                <UserListItem v-else v-for="user in displayedListData" :key="user.id" :user="user"
                                     :selected="selectedUser?.id" :defaultImage="defaultImage" :maleIcon="maleIcon"
                                     :femaleIcon="femaleIcon" :getUserRating="getUserRating"
                                     :getVisibilityText="getVisibilityText" @select="focusItemAuto" @toggle-follow="handleToggleFollow" />
@@ -1396,8 +1419,10 @@ import SearchInput from '@/components/atoms/SearchInput.vue';
 import CourtListItem from '@/components/molecules/CourtListItem.vue';
 import MatchListItem from '@/components/molecules/MatchListItem.vue';
 import UserListItem from '@/components/molecules/UserListItem.vue';
+import UserSuggestCard from '@/components/molecules/UserSuggestCard.vue';
 import ClubSuggestCard from '@/components/molecules/ClubSuggestCard.vue';
-import { orderedSections } from '@/composables/useClubGrouping.js';
+import { orderedSections as orderedClubSections } from '@/composables/useClubGrouping.js';
+import { sectionsFromGroups as sectionsFromUserGroups } from '@/composables/useUserGrouping.js';
 import * as ClubService from '@/service/club.js';
 
 const router = useRouter();
@@ -1445,6 +1470,8 @@ const SUB_TAB_OPTIONS = {
         { value: 'all', label: 'Tất cả', badge: null },
         { value: 'friends', label: 'Bạn bè', badge: null },
         { value: 'same_club', label: 'Cùng CLB', badge: null },
+        { value: 'suggest', label: 'Gợi ý', badge: null },
+        { value: 'played_together', label: 'Đã chơi cùng', badge: null },
     ],
     court: [
         { value: 'all', label: 'Tất cả', badge: null },
@@ -1514,6 +1541,16 @@ const genderOptions = [
 ];
 const isGenderDropdownOpen = ref(false);
 const onlineRecently = [{ label: 'Online gần đây', value: false }];
+
+// User suggest groups (cho tab=user, sub_tab=suggest): backend trả về 3 nhóm riêng
+const userSuggestGroups = ref({
+    played_tournament: [],
+    same_club: [],
+    nearby: [],
+});
+const isUserSuggestMode = computed(() =>
+    activeTab.value === 'user' && subTab.value === 'suggest'
+);
 
 // Club-only state
 const joinedOnly = ref(false);
@@ -1921,12 +1958,28 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
 
         // ---- USER TAB ----
         if (tab === 'user') {
-            const usersData = res.data?.data || [];
-            mergeData(usersMap.value, usersData, !isLoadMore);
-            quantityUsers.value = usersMap.value.size;
+            // sub_tab=suggest: backend trả về 3 groups, không phải flat list
+            if (subTab.value === 'suggest') {
+                const groups = res.data?.data || {};
+                userSuggestGroups.value = {
+                    played_tournament: Array.isArray(groups.played_tournament) ? groups.played_tournament : [],
+                    same_club: Array.isArray(groups.same_club) ? groups.same_club : [],
+                    nearby: Array.isArray(groups.nearby) ? groups.nearby : [],
+                };
+                quantityUsers.value =
+                    userSuggestGroups.value.played_tournament.length +
+                    userSuggestGroups.value.same_club.length +
+                    userSuggestGroups.value.nearby.length;
+                // Không load markers cho suggest mode
+            } else {
+                // Flat list cho các sub_tab khác
+                const usersData = res.data?.data || [];
+                mergeData(usersMap.value, usersData, !isLoadMore);
+                quantityUsers.value = usersMap.value.size;
 
-            clearAllMarkers();
-            addUserMarkers(users.value, defaultImage, maleIconRaw, femaleIconRaw, getVisibilityText, getUserRating, router, focusItemAuto, !isLoadMore);
+                clearAllMarkers();
+                addUserMarkers(users.value, defaultImage, maleIconRaw, femaleIconRaw, getVisibilityText, getUserRating, router, focusItemAuto, !isLoadMore);
+            }
         }
 
         // ---- COURT TAB ----
@@ -2355,6 +2408,12 @@ const selectSubTab = async (value) => {
         miniMatchPage.value = 1;
         tournamentPage.value = 1;
     }
+    // Reset user suggest groups khi chuyển tab
+    userSuggestGroups.value = {
+        played_tournament: [],
+        same_club: [],
+        nearby: [],
+    };
     courtsMap.value.clear();
     usersMap.value.clear();
     matchesMap.value.clear();
@@ -2367,7 +2426,14 @@ const selectSubTab = async (value) => {
 // Reuses the existing useClubGrouping composable.
 const suggestSections = computed(() => {
     if (subTab.value !== 'suggest') return [];
-    return orderedSections(displayedListData.value || []);
+    return orderedClubSections(displayedListData.value || []);
+});
+
+// Group user suggest results (3 nhóm riêng) cho tab=user + sub_tab=suggest.
+// Dùng sectionsFromGroups để giữ nguyên 3 nhóm từ BE (không flatten).
+const userSuggestSections = computed(() => {
+    if (!isUserSuggestMode.value) return [];
+    return sectionsFromUserGroups(userSuggestGroups.value);
 });
 
 const handleClubCardClick = (club) => {
@@ -2387,6 +2453,26 @@ const handleClubFollow = async ({ club, next }) => {
         await doSearch(false, currentBounds.value);
     } catch (_) {
         // Card reverts its optimistic state on emit throw; nothing to do here.
+    }
+};
+
+const handleUserSuggestClick = (user) => {
+    if (!user?.id) return;
+    router.push({ name: 'profile', params: { id: user.id } });
+};
+
+const handleUserSuggestFollow = async ({ user, next }) => {
+    if (!user?.id) return;
+    try {
+        if (next) {
+            await followUser({ followable_id: user.id, followable_type: 'user' });
+        } else {
+            await unFollowUser({ followable_id: user.id, followable_type: 'user' });
+        }
+        // Re-fetch để cập nhật state
+        await doSearch(false, currentBounds.value);
+    } catch (_) {
+        // Card reverts optimistic state on emit throw
     }
 };
 
@@ -2427,12 +2513,26 @@ watch(activeTab, (newTab) => {
     usersMap.value.clear();
     matchesMap.value.clear();
     clubsMap.value.clear();
+    // Reset user suggest groups khi rời tab user
+    userSuggestGroups.value = {
+        played_tournament: [],
+        same_club: [],
+        nearby: [],
+    };
 
     clearAllMarkers();
     loadTabContent(newTab, currentBounds.value);
 });
 
 let searchDebounceTimer = null;
+const resetUserSuggest = () => {
+    userSuggestGroups.value = {
+        played_tournament: [],
+        same_club: [],
+        nearby: [],
+    };
+};
+
 watch(searchKeyword, () => {
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
 
@@ -2443,6 +2543,7 @@ watch(searchKeyword, () => {
             usersMap.value.clear();
             matchesMap.value.clear();
             clubsMap.value.clear();
+            resetUserSuggest();
             clearAllMarkers();
             await loadTabContent(activeTab.value, currentBounds.value);
         }, 300);
@@ -2455,6 +2556,7 @@ watch(searchKeyword, () => {
         usersMap.value.clear();
         matchesMap.value.clear();
         clubsMap.value.clear();
+        resetUserSuggest();
         clearAllMarkers();
         await loadTabContent(activeTab.value, currentBounds.value);
     }, 800);

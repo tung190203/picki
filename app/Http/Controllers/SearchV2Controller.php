@@ -10,8 +10,10 @@ use App\Http\Resources\Map\MapMiniTournamentResource;
 use App\Http\Resources\Map\MapTournamentResource;
 use App\Http\Resources\Map\MapUserResource;
 use App\Http\Resources\Search\SuggestClubResource;
+use App\Http\Resources\Search\SuggestUserResource;
 use App\Models\Club\Club;
 use App\Models\CompetitionLocation;
+use App\Services\User\UserSuggestService;
 use App\Models\MiniTournament;
 use App\Models\Tournament;
 use App\Models\User;
@@ -69,6 +71,11 @@ class SearchV2Controller extends Controller
         // caps results at TOTAL_LIMIT (30) and groups already break the list into sections.
         if ($tab === SearchFilterConfig::TAB_CLUB && $subTab === 'suggest') {
             return $this->suggestResponse($userId, $params);
+        }
+
+        // sub_tab=suggest for TAB_USER: 3-bucket user suggestion (played_tournament, same_club, nearby)
+        if ($tab === SearchFilterConfig::TAB_USER && $subTab === 'suggest') {
+            return $this->suggestUserResponse($userId, $params);
         }
 
         if ($isMap) {
@@ -384,6 +391,75 @@ class SearchV2Controller extends Controller
                 'last_page'    => 1,
                 'per_page'     => count($data),
                 'total'        => count($data),
+            ],
+        ], 'Tìm kiếm thành công', 200);
+    }
+
+    /**
+     * Suggest users for TAB_USER sub_tab=suggest.
+     * Returns 3 groups: played_tournament, same_club, nearby.
+     */
+    private function suggestUserResponse(?int $userId, array $params): \Illuminate\Http\JsonResponse
+    {
+        $lat = $params['lat'] ?? null;
+        $lng = $params['lng'] ?? null;
+
+        // ponytail: FE không luôn gửi anchor. Fallback về lat/lng của user đang login
+        // để nhóm "nearby" vẫn hoạt động khi user chưa cấp GPS hoặc cache stale.
+        if (($lat === null || $lng === null) && $userId) {
+            $authUser = \App\Models\User::find($userId);
+            if ($authUser) {
+                $lat = $lat ?? ($authUser->latitude !== null ? (float) $authUser->latitude : null);
+                $lng = $lng ?? ($authUser->longitude !== null ? (float) $authUser->longitude : null);
+            }
+        }
+
+        /** @var UserSuggestService $service */
+        $service = app(UserSuggestService::class);
+
+        // Anonymous: nothing to suggest
+        if (!$userId) {
+            $groups = [
+                'played_tournament' => [],
+                'same_club' => [],
+                'nearby' => [],
+            ];
+        } else {
+            $groups = $service->suggest(
+                $userId,
+                $lat !== null ? (float) $lat : null,
+                $lng !== null ? (float) $lng : null
+            );
+
+            // Load batch stats cho tất cả users
+            $allUsers = $groups['played_tournament']
+                ->merge($groups['same_club'])
+                ->merge($groups['nearby']);
+
+            if ($allUsers->isNotEmpty()) {
+                User::loadSportStatsOnUsers($allUsers, 1);
+            }
+        }
+
+        // Transform sang arrays
+        $playedWithData = SuggestUserResource::collection($groups['played_tournament'])->toArray(request());
+        $sameClubData = SuggestUserResource::collection($groups['same_club'])->toArray(request());
+        $nearbyData = SuggestUserResource::collection($groups['nearby'])->toArray(request());
+
+        $this->logSearch($userId, SearchFilterConfig::TAB_USER, null, [], 'suggest',
+            count($playedWithData) + count($sameClubData) + count($nearbyData));
+
+        return ResponseHelper::success([
+            'data' => [
+                'played_tournament' => $playedWithData,
+                'same_club' => $sameClubData,
+                'nearby' => $nearbyData,
+            ],
+            'meta' => [
+                'current_page' => 1,
+                'last_page'    => 1,
+                'per_page'     => count($playedWithData) + count($sameClubData) + count($nearbyData),
+                'total'        => count($playedWithData) + count($sameClubData) + count($nearbyData),
             ],
         ], 'Tìm kiếm thành công', 200);
     }

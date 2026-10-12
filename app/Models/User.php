@@ -141,6 +141,8 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         'gender_text',
         'is_super_admin',
         'is_online',
+        'category',
+        'category_text',
     ];
 
     public function getGenderText()
@@ -196,6 +198,16 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         }
 
         return null;
+    }
+
+    public function getCategoryAttribute(): ?string
+    {
+        return $this->attributes['category'] ?? null;
+    }
+
+    public function getCategoryTextAttribute(): ?string
+    {
+        return $this->attributes['category_text'] ?? null;
     }
 
     /**
@@ -1183,10 +1195,35 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         if (empty($keyword)) {
             return $query;
         }
-        return $query->where(function ($q) use ($keyword) {
-            $q->where('full_name', 'like', "%{$keyword}%")
-              ->orWhere('phone', 'like', "%{$keyword}%")
-              ->orWhere('email', 'like', "%{$keyword}%");
+
+        // ponytail: Fulltext search với fallback LIKE
+        // MySQL FULLTEXT: tự động bỏ qua stopwords, hỗ trợ boolean mode
+        // Fallback LIKE đảm bảo tìm kiếm vẫn hoạt động nếu index chưa migrate
+        $searchTerm = trim($keyword);
+
+        // Đảm bảo search term an toàn cho SQL (escape special chars)
+        $safeTerm = str_replace(['"', "'", '*', '+', '-', '<', '>', '(', ')', '~'], ' ', $searchTerm);
+        $safeTerm = preg_replace('/\s+/', ' ', trim($safeTerm));
+
+        // Tách thành các từ cho boolean mode
+        $words = array_filter(explode(' ', $safeTerm));
+
+        if (!empty($words) && DB::getDriverName() === 'mysql') {
+            // Boolean mode: +word = must contain, -word = must not contain, word* = prefix match
+            $booleanQuery = '+' . implode('* +', $words) . '*';
+
+            // Thử FULLTEXT trước, fallback về LIKE nếu cần
+            return $query->whereRaw(
+                "(MATCH(full_name, email) AGAINST(? IN BOOLEAN MODE) OR full_name LIKE ? OR email LIKE ?)",
+                [$booleanQuery, "%{$searchTerm}%", "%{$searchTerm}%"]
+            );
+        }
+
+        // Fallback cho SQLite hoặc khi không có FULLTEXT index
+        return $query->where(function ($q) use ($searchTerm) {
+            $q->where('full_name', 'like', "%{$searchTerm}%")
+              ->orWhere('email', 'like', "%{$searchTerm}%")
+              ->orWhere('phone', 'like', "%{$searchTerm}%");
         });
     }
 
