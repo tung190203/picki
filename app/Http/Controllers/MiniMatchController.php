@@ -99,6 +99,8 @@ class MiniMatchController extends Controller
         $baseQuery = MiniMatch::with([
             'team1.members.user.sports.scores',
             'team2.members.user.sports.scores',
+            'team1.members.miniTeam',
+            'team2.members.miniTeam',
             'results.team.members.user',
         ])
             ->where('mini_tournament_id', $miniTournament->id);
@@ -232,8 +234,8 @@ class MiniMatchController extends Controller
                 'participants' => $participants->map(fn($p) => [
                     'id' => $p->id,
                     'user_id' => $p->user_id,
-                    'name' => $p->user?->name ?? $p->guest_name ?? 'Khách',
-                    'avatar' => $p->user?->avatar ?? $p->guest_avatar,
+                    'name' => $p->user?->full_name ?? $p->guest_name ?? 'Khách',
+                    'avatar' => $p->user?->avatar_url ?? $p->guest_avatar,
                     'player_group' => $p->player_group,
                     'is_guest' => $p->is_guest,
                     'is_absent' => $p->is_absent,
@@ -290,8 +292,8 @@ class MiniMatchController extends Controller
             'participants' => $participants->map(fn($p) => [
                 'id' => $p->id,
                 'user_id' => $p->user_id,
-                'name' => $p->user?->name ?? $p->guest_name ?? 'Khách',
-                'avatar' => $p->user?->avatar ?? $p->guest_avatar,
+                'name' => $p->user?->full_name ?? $p->guest_name ?? 'Khách',
+                'avatar' => $p->user?->avatar_url ?? $p->guest_avatar,
                 'player_group' => $p->player_group,
                 'is_guest' => $p->is_guest,
                 'is_absent' => $p->is_absent,

@@ -689,7 +689,7 @@ class TournamentRankService
             if ($overallRank === 3) return 'Hạng 3';
             if ($overallRank === 4) return 'Hạng 4';
         } else {
-            if ($overallRank === 3) return 'Đồng hạng 3';
+            if ($overallRank === 3) return 'Hạng 3';
         }
 
         $results = $this->buildTournamentResults($tournamentTypeId);
