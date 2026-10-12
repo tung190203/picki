@@ -24,6 +24,7 @@ use App\Services\SearchCacheService;
 use App\Services\SearchFilterConfig;
 use App\Services\SearchV2Service;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class SearchV2Controller extends Controller
 {
@@ -119,10 +120,22 @@ class SearchV2Controller extends Controller
                 ->when($user && $subTab !== 'same_club', fn($q) => $q->visibleFor($user))
                 ->filter($filters)
                 ->applyTimeline($subTab, $userId)
-                ->when($subTab === 'same_club', function ($q) use ($params) {
+                ->when($subTab === 'same_club', function ($q) use ($params, $userId) {
                     $clubId = $params['club_id'] ?? null;
                     if ($clubId) {
                         $q->whereHas('clubs', fn($cq) => $cq->where('clubs.id', $clubId));
+                    } elseif ($userId) {
+                        // Không truyền club_id: gộp tất cả user thuộc bất kỳ CLB nào mà current user cũng là active member
+                        $myClubIds = DB::table('club_members')
+                            ->where('user_id', $userId)
+                            ->where('status', 'active')
+                            ->whereNull('deleted_at')
+                            ->pluck('club_id');
+                        if ($myClubIds->isEmpty()) {
+                            $q->whereRaw('1 = 0');
+                        } else {
+                            $q->whereHas('clubs', fn($cq) => $cq->whereIn('clubs.id', $myClubIds));
+                        }
                     } else {
                         $q->whereRaw('1 = 0');
                     }
@@ -348,6 +361,11 @@ class SearchV2Controller extends Controller
         $this->loadBatchMembershipStatus($paginator->getCollection(), $tab, $userId);
         $this->enrichClubResults($paginator->getCollection(), $tab, $userId);
 
+        // Attach relation counts cho sub_tab=played_together
+        if ($params['sub_tab'] === 'played_together') {
+            app(UserSuggestService::class)->attachPlayedTogetherRelations($userId, $paginator->getCollection());
+        }
+
         $resourceClass = $this->searchService->resolveListResourceClass($params['tab']);
 
         return [
@@ -441,25 +459,23 @@ class SearchV2Controller extends Controller
             }
         }
 
-        // Transform sang arrays
+        // Transform sang arrays rồi flatten thành 1 list
         $playedWithData = SuggestUserResource::collection($groups['played_tournament'])->toArray(request());
         $sameClubData = SuggestUserResource::collection($groups['same_club'])->toArray(request());
         $nearbyData = SuggestUserResource::collection($groups['nearby'])->toArray(request());
+        $allData = array_merge($playedWithData, $sameClubData, $nearbyData);
+        $total = count($allData);
 
         $this->logSearch($userId, SearchFilterConfig::TAB_USER, null, [], 'suggest',
-            count($playedWithData) + count($sameClubData) + count($nearbyData));
+            $total);
 
         return ResponseHelper::success([
-            'data' => [
-                'played_tournament' => $playedWithData,
-                'same_club' => $sameClubData,
-                'nearby' => $nearbyData,
-            ],
+            'data' => $allData,
             'meta' => [
                 'current_page' => 1,
                 'last_page'    => 1,
-                'per_page'     => count($playedWithData) + count($sameClubData) + count($nearbyData),
-                'total'        => count($playedWithData) + count($sameClubData) + count($nearbyData),
+                'per_page'     => $total,
+                'total'        => $total,
             ],
         ], 'Tìm kiếm thành công', 200);
     }
@@ -482,6 +498,11 @@ class SearchV2Controller extends Controller
             $items->loadMissing('creator.vnduprScores', 'members.user.vnduprScores');
         }
         $this->enrichClubResults($items, $tab, $userId);
+
+        // Attach relation counts cho sub_tab=played_together
+        if ($params['sub_tab'] === 'played_together') {
+            app(UserSuggestService::class)->attachPlayedTogetherRelations($userId, $items);
+        }
 
         $bounds = $this->searchService->computeBounds($items, $tab);
         // Use list resource (has sports field) for user tab, map resource for others

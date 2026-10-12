@@ -61,23 +61,6 @@
                             </button>
                         </div>
 
-                        <!-- Club dropdown for same_club sub-tab -->
-                        <div v-if="activeTab === 'user' && subTab === 'same_club'" class="mt-2">
-                            <select
-                                v-model="selectedClubIdForSameClub"
-                                @change="onSameClubChange"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:border-[#D72D36]"
-                            >
-                                <option :value="null" disabled>-- Chọn CLB --</option>
-                                <option v-for="club in getUser.clubs" :key="club.id" :value="club.id">
-                                    {{ club.name }}
-                                </option>
-                            </select>
-                            <p v-if="!getUser.clubs?.length" class="text-xs text-gray-400 mt-1">
-                                Chưa có CLB nào. Tham gia CLB để sử dụng tính năng này.
-                            </p>
-                        </div>
-
                     </div>
 
                     <div class="px-4 pt-3 pb-2">
@@ -1422,7 +1405,7 @@ import UserListItem from '@/components/molecules/UserListItem.vue';
 import UserSuggestCard from '@/components/molecules/UserSuggestCard.vue';
 import ClubSuggestCard from '@/components/molecules/ClubSuggestCard.vue';
 import { orderedSections as orderedClubSections } from '@/composables/useClubGrouping.js';
-import { sectionsFromGroups as sectionsFromUserGroups } from '@/composables/useUserGrouping.js';
+import { sectionsFromGroups as sectionsFromUserGroups, orderedSections } from '@/composables/useUserGrouping.js';
 import * as ClubService from '@/service/club.js';
 
 const router = useRouter();
@@ -1554,8 +1537,6 @@ const isUserSuggestMode = computed(() =>
 
 // Club-only state
 const joinedOnly = ref(false);
-const sameClubId = ref(null);
-const selectedClubIdForSameClub = ref(null);
 
 // Tournament-only state
 const selectedSlotStatus = ref([]); // ['con_trong', 'da_day']
@@ -1826,11 +1807,6 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
         per_page: 200, // load enough for list view
     };
 
-    // club_id for same_club sub-tab
-    if (subTab.value === 'same_club' && selectedClubIdForSameClub.value) {
-        params.club_id = selectedClubIdForSameClub.value;
-    }
-
     // Pagination for match/tournament tabs
     if (tab === 'mini-tournament' || tab === 'tournament') {
         params.page = isLoadMore
@@ -1875,7 +1851,6 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
         clubType: tab === 'mini-tournament' || tab === 'tournament' ? selectedClubType.value : [],
         joinedOnly: joinedOnly.value,
         selectedGender: selectedGender.value,
-        sameClubId: sameClubId.value,
         playMode: selectedPlayMode.value,
         selectedGenderMatch: selectedGenderMatch.value,
         selectedGenderTour: selectedGenderTour.value,
@@ -1958,18 +1933,26 @@ const doSearch = async (isLoadMore = false, bounds = null) => {
 
         // ---- USER TAB ----
         if (tab === 'user') {
-            // sub_tab=suggest: backend trả về 3 groups, không phải flat list
+            // sub_tab=suggest: backend trả về flat list với mỗi user có category field
             if (subTab.value === 'suggest') {
-                const groups = res.data?.data || {};
+                const usersData = res.data?.data || [];
                 userSuggestGroups.value = {
-                    played_tournament: Array.isArray(groups.played_tournament) ? groups.played_tournament : [],
-                    same_club: Array.isArray(groups.same_club) ? groups.same_club : [],
-                    nearby: Array.isArray(groups.nearby) ? groups.nearby : [],
+                    played_tournament: [],
+                    same_club: [],
+                    nearby: [],
                 };
-                quantityUsers.value =
-                    userSuggestGroups.value.played_tournament.length +
-                    userSuggestGroups.value.same_club.length +
-                    userSuggestGroups.value.nearby.length;
+                // Bucket flat list vào 3 groups theo category field
+                for (const user of usersData) {
+                    const cat = user.category;
+                    if (cat === 'played_tournament') {
+                        userSuggestGroups.value.played_tournament.push(user);
+                    } else if (cat === 'same_club') {
+                        userSuggestGroups.value.same_club.push(user);
+                    } else if (cat === 'nearby') {
+                        userSuggestGroups.value.nearby.push(user);
+                    }
+                }
+                quantityUsers.value = usersData.length;
                 // Không load markers cho suggest mode
             } else {
                 // Flat list cho các sub_tab khác
@@ -2163,7 +2146,6 @@ const resetFilter = async () => {
 
     // Reset club-only
     joinedOnly.value = false;
-    sameClubId.value = null;
 
     // Reset tournament/match-only
     selectedSlotStatus.value = [];
@@ -2386,18 +2368,7 @@ const handleToggleFollow = async (user) => {
 };
 
 // Timeline helpers
-const onSameClubChange = async () => {
-    if (selectedClubIdForSameClub.value) {
-        usersMap.value.clear();
-        clearAllMarkers();
-        await loadTabContent(activeTab.value, currentBounds.value);
-    }
-};
-
 const selectSubTab = async (value) => {
-    if (value !== 'same_club') {
-        selectedClubIdForSameClub.value = null;
-    }
     subTab.value = value;
     isInitialLoad.value = true;
     // Clear list immediately to prevent stale data from the previous sub-tab
