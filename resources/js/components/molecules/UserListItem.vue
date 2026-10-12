@@ -70,7 +70,7 @@
       <div class="flex items-center gap-3 flex-wrap">
         <span v-if="user.distance != null" class="flex items-center gap-1 text-xs text-[#4392E0] dark:text-sky-400 font-medium">
           <MapPinIcon class="w-3 h-3" />
-          {{ user.distance }} km
+          {{ formatDistance(user.distance) }}
         </span>
         <span v-if="user.vndupr_score != null" class="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 font-medium">
           <StarIconSolid class="w-3 h-3" />
@@ -87,6 +87,45 @@
         <span v-if="user.total_matches != null" class="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">
           <HashtagIcon class="w-3 h-3" />
           {{ user.total_matches }} trận
+        </span>
+      </div>
+
+      <!-- Row 3.5: relation (played_together tab) -->
+      <div
+        v-if="hasRelation"
+        class="flex items-center gap-2 flex-wrap pt-1 border-t border-gray-100 dark:border-slate-700"
+      >
+        <span
+          v-if="user.relation.matches_together > 0"
+          class="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400"
+          v-tooltip="'Số trận đã chơi cùng'"
+        >
+          <SparklesIcon class="w-3 h-3" />
+          {{ user.relation.matches_together }} trận
+        </span>
+        <span
+          v-if="user.relation.mini_tournaments_together > 0"
+          class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400"
+          v-tooltip="'Số kèo mini-tournament đã chơi cùng'"
+        >
+          <TrophyIcon class="w-3 h-3" />
+          {{ user.relation.mini_tournaments_together }} kèo
+        </span>
+        <span
+          v-if="user.relation.tournaments_together > 0"
+          class="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400"
+          v-tooltip="'Số giải đấu đã chơi cùng'"
+        >
+          <StarIconSolid class="w-3 h-3" />
+          {{ user.relation.tournaments_together }} giải
+        </span>
+        <span
+          v-if="user.relation.clubs_together > 0"
+          class="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-600 dark:text-rose-400"
+          v-tooltip="'Số CLB chung'"
+        >
+          <UsersIcon class="w-3 h-3" />
+          {{ user.relation.clubs_together }} CLB
         </span>
       </div>
 
@@ -129,6 +168,8 @@ import {
   UserMinusIcon,
   TrophyIcon,
   HashtagIcon,
+  UsersIcon,
+  SparklesIcon,
 } from '@heroicons/vue/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/vue/24/solid';
 import { storeToRefs } from 'pinia'
@@ -161,6 +202,25 @@ const props = defineProps({
 })
 
 const isOwnUser = computed(() => Number(props.user?.id) === Number(getUser.value?.id))
+
+const hasRelation = computed(() => {
+  const r = props.user?.relation
+  if (!r) return false
+  return (
+    (r.matches_together ?? 0) > 0 ||
+    (r.mini_tournaments_together ?? 0) > 0 ||
+    (r.tournaments_together ?? 0) > 0 ||
+    (r.clubs_together ?? 0) > 0
+  )
+})
+
+const formatDistance = (km) => {
+  if (km == null || km === '') return ''
+  const num = Number(km)
+  if (!Number.isFinite(num)) return ''
+  if (num < 1) return `${Math.round(num * 1000)} m`
+  return `${num.toFixed(1)} km`
+}
 
 defineEmits(['select', 'toggle-follow'])
 </script>

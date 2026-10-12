@@ -36,7 +36,13 @@ class SearchFilterConfig
         self::TAB_MATCH      => [SubTabFilter::ALL, SubTabFilter::MINE, SubTabFilter::TODAY, SubTabFilter::THIS_WEEK, SubTabFilter::THIS_MONTH],
         self::TAB_TOURNAMENT => [SubTabFilter::ALL, SubTabFilter::MINE, SubTabFilter::TODAY, SubTabFilter::THIS_WEEK, SubTabFilter::THIS_MONTH],
         self::TAB_CLUB       => [SubTabFilter::ALL, SubTabFilter::MINE, SubTabFilter::FRIENDS, SubTabFilter::FOLLOWING, SubTabFilter::SUIT_LEVEL],
-        self::TAB_USER        => [SubTabFilter::ALL, SubTabFilter::FRIENDS, SubTabFilter::SAME_CLUB],
+        self::TAB_USER => [
+            SubTabFilter::ALL,
+            SubTabFilter::FRIENDS,
+            SubTabFilter::SAME_CLUB,
+            SubTabFilter::SUGGEST,
+            SubTabFilter::PLAYED_TOGETHER,
+        ],
         self::TAB_COURT       => [SubTabFilter::ALL],
     ];
 

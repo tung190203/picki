@@ -15,6 +15,7 @@ enum SubTabFilter: string
     case FOLLOWING = 'following';
     case SUIT_LEVEL = 'suit_level';
     case SUGGEST = 'suggest';
+    case PLAYED_TOGETHER = 'played_together';
 
     public function label(): string
     {
@@ -30,6 +31,7 @@ enum SubTabFilter: string
             self::FOLLOWING => 'Đang theo dõi',
             self::SUIT_LEVEL => 'Phù hợp trình độ',
             self::SUGGEST => 'Gợi ý',
+            self::PLAYED_TOGETHER => 'Đã chơi cùng',
         };
     }
 
