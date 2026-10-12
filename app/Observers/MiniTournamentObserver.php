@@ -9,6 +9,7 @@ use App\Models\Club\ClubExpense;
 use App\Models\Club\ClubWallet;
 use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
+use App\Services\Club\ClubGuestEventService;
 use App\Services\Club\ClubGuestService;
 use App\Services\MiniTournamentService;
 use Illuminate\Support\Carbon;
@@ -39,8 +40,8 @@ class MiniTournamentObserver
         // Hook auto-create: tạo occurrence tiếp theo khi kèo lặp được đóng
         $this->handleRecurringAutoCreate($tournament);
 
-        // Hook club_guests: cập nhật thống kê khách khi kèo kết thúc
-        $this->updateClubGuests($tournament);
+        // Note: club_guests giờ được xử lý bởi cronjob
+        // clubs:sync-guests-from-started-events chạy mỗi 2 phút
     }
 
     /**
@@ -195,6 +196,11 @@ class MiniTournamentObserver
     /**
      * Khi kèo chuyển sang STATUS_CLOSED, cập nhật club_guests cho tất cả
      * participant là user đã đăng ký.
+     * 
+     * Note: Hiện tại logic này đã được chuyển sang cronjob
+     * (clubs:sync-guests-from-started-events) chạy mỗi 2 phút.
+     * Method này giữ lại làm backup - khi CLOSED vẫn re-trigger để chắc chắn
+     * có user late registration (đăng ký sau start_time nhưng trước CLOSED).
      */
     protected function updateClubGuests(MiniTournament $tournament): void
     {
@@ -213,7 +219,9 @@ class MiniTournamentObserver
             $participantUserIds = \App\Models\MiniParticipant::where('mini_tournament_id', $tournament->id)
                 ->whereNotNull('user_id')
                 ->pluck('user_id');
-            $this->guestService->upsertFromEvent($clubId, $participantUserIds);
+            // Dùng ClubGuestEventService với eventTime = start_time
+            app(\App\Services\Club\ClubGuestEventService::class)
+                ->upsertFromEvent($clubId, $participantUserIds, $tournament->start_time);
         } catch (\Exception $e) {
             Log::error('MiniTournamentObserver: Failed to update club_guests', [
                 'mini_tournament_id' => $tournament->id,
