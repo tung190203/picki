@@ -36,15 +36,15 @@ GET /api/players/search[?tab=user&keyword=...&sub_tab=...&lat=...&lng=...&radius
 |---|---|---|---|
 | `all` (mặc định) | Tìm user theo keyword + filter địa lý | Flat list | Có |
 | `played_together` | User đã chơi cùng nhiều trận nhất | Flat list, có `relation` | Có |
-| `same_club` | Thành viên trong cùng 1 CLB (`club_id`) | Flat list | Có |
+| `same_club` | Thành viên trong cùng 1 CLB (`club_id`) hoặc gộp tất cả CLB của current user nếu không truyền `club_id` | Flat list | Có |
 | `this_week` | User tương tác tuần này | Flat list | Có |
-| `suggest` | Gợi ý cá nhân hoá 3 nhóm | **3-bucket object** | Không (đã cap 15/nhóm) |
+| `suggest` | Gợi ý cá nhân hoá 3 nhóm | **Flat list đã merge** (mỗi user có `category` để FE group) | Không (đã cap 15/nhóm) |
 
 ---
 
-## sub_tab = suggest (3-bucket response)
+## sub_tab = suggest (flat list — đã merge từ 3 nhóm)
 
-Trả về object với 3 key, mỗi key là 1 array (tối đa 15 user). User xuất hiện nhiều nhất 1 lần (theo thứ tự ưu tiên played_tournament → same_club → nearby).
+Trả về 1 flat list, mỗi user có `category` enum (`played_tournament` | `same_club` | `nearby`) để FE tự group. Thứ tự ưu tiên: `played_tournament` (15) → `same_club` (15) → `nearby` (15) — user không trùng giữa các nhóm. Tổng tối đa 30 user.
 
 ### Query
 
@@ -61,11 +61,7 @@ Không cần `keyword`/`per_page`/`page`/`map_mode`. `lat/lng` optional — nế
   "status": true,
   "message": "Tìm kiếm thành công",
   "data": {
-    "data": {
-      "played_tournament": [ /* User[] */ ],
-      "same_club":         [ /* User[] */ ],
-      "nearby":            [ /* User[] */ ]
-    },
+    "data": [ /* User[] — flat, mỗi user có field `category` */ ],
     "meta": {
       "current_page": 1,
       "last_page":    1,
@@ -75,6 +71,8 @@ Không cần `keyword`/`per_page`/`page`/`map_mode`. `lat/lng` optional — nế
   }
 }
 ```
+
+User xuất hiện ở nhóm trước sẽ bị loại ở nhóm sau (tránh trùng). FE group theo `category` để hiển thị section.
 
 | Group | Logic | Sort | Cap |
 |---|---|---|---|
