@@ -64,6 +64,12 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping(180)
             ->runInBackground();
 
+        // === Sync club_guests khi giải vừa đến start_time (mỗi 2 phút) ===
+        $schedule->command('clubs:sync-guests-from-started-events --minutes=120')
+            ->everyTwoMinutes()
+            ->withoutOverlapping(180)
+            ->runInBackground();
+
         // === Payment + Online status (mỗi 5 phút, có batch limit) ===
         $schedule->command('mini-tournaments:create-auto-payments --limit=50')
             ->everyFiveMinutes()
