@@ -1243,6 +1243,11 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                     ->pluck('club_id'));
             }),
             'friends' => $query->whereIn('id', (new User)->find($userId)?->friends()?->pluck('id') ?? []),
+            // ponytail: chỉ user đã từng chơi cùng (matches_together + mini + tournament > 0).
+            // Reuse UserSuggestService::queryPlayedTogether() để khỏi duplicate SQL.
+            'played_together' => $userId
+                ? $query->whereIn('id', app(\App\Services\User\UserSuggestService::class)->getPlayedTogetherUserIds($userId))
+                : $query->whereRaw('1 = 0'),
             default => $query,
         };
     }

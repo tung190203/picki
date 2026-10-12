@@ -64,6 +64,11 @@ class UserSuggestService
             }
         }
 
+        // Compute distance cho tất cả users từ (lat, lng) anchor
+        if ($lat !== null && $lng !== null) {
+            $this->computeDistances($result, $lat, $lng);
+        }
+
         // Batch attach relations cho tất cả users
         $allUsers = $result['played_tournament']
             ->merge($result['same_club'])
@@ -77,12 +82,25 @@ class UserSuggestService
     }
 
     /**
+     * Trả về danh sách user_id đã từng chơi cùng current user (top GROUP_LIMIT theo tổng matches).
+     * Public để reuse trong scope/filter (sub_tab=played_together).
+     * Không load full User models — chỉ trả array id.
+     */
+    public function getPlayedTogetherUserIds(int $userId): array
+    {
+        return $this->queryPlayedTogether($userId)
+            ->pluck('id')
+            ->all();
+    }
+
+    /**
      * Group 1: Users đã chơi cùng nhiều trận nhất với current user.
      * Đếm qua: mini_matches + tournament_matches + quick_matches
      */
     private function queryPlayedTogether(int $userId): Collection
     {
         // Step 1: Đếm số trận đã chơi cùng với mỗi user khác
+        // Lấy hết (không limit) — top N sẽ sort ở cuối sau khi merge cả 4 nguồn.
         $playedWithCounts = DB::table('match_histories as mh')
             ->join('match_histories as mh_other', 'mh_other.quick_match_id', '=', 'mh.quick_match_id')
             ->where('mh.user_id', $userId)
@@ -92,7 +110,6 @@ class UserSuggestService
                 'mh_other.user_id',
                 DB::raw('COUNT(DISTINCT mh.quick_match_id) as matches_together'),
             ])
-            ->limit(self::GROUP_LIMIT)
             ->get()
             ->keyBy('user_id');
 
@@ -157,30 +174,28 @@ class UserSuggestService
             ->keyBy('user_id');
 
         // Gộp tất cả counts và sort theo tổng matches
-        $allCounts = $playedWithCounts->merge($miniMatches)->merge($miniParticipants)->merge($tournamentMatches);
-        $userScores = [];
-        foreach ($allCounts as $uid => $row) {
-            if (!isset($userScores[$uid])) {
-                $userScores[$uid] = [
-                    'user_id' => $uid,
-                    'matches_together' => 0,
-                    'mini_tournaments_together' => 0,
-                    'tournaments_together' => 0,
-                ];
-            }
-            if (isset($row->matches_together)) {
-                $userScores[$uid]['matches_together'] = (int) $row->matches_together;
-            }
-            if (isset($row->mini_tournaments_together)) {
-                $userScores[$uid]['mini_tournaments_together'] = (int) $row->mini_tournaments_together;
-            }
-            if (isset($row->mini_tournaments_participant)) {
-                $userScores[$uid]['mini_tournaments_together'] += (int) $row->mini_tournaments_participant;
-            }
-            if (isset($row->tournaments_together)) {
-                $userScores[$uid]['tournaments_together'] = (int) $row->tournaments_together;
+        // QUAN TRỌNG: các collection trên đều keyBy('user_id') nên phải gộp giá trị theo key
+        // (không dùng Collection::merge — nó ghi đè row, mất count từ nguồn khác).
+        $allCounts = []; // [uid => assoc array]
+        foreach ([$playedWithCounts, $miniMatches, $miniParticipants, $tournamentMatches] as $src) {
+            foreach ($src as $uid => $row) {
+                $existing = $allCounts[$uid] ?? ['user_id' => $uid, 'matches_together' => 0, 'mini_tournaments_together' => 0, 'tournaments_together' => 0];
+                if (isset($row->matches_together)) {
+                    $existing['matches_together'] = (int) $row->matches_together;
+                }
+                if (isset($row->mini_tournaments_together)) {
+                    $existing['mini_tournaments_together'] = (int) $row->mini_tournaments_together;
+                }
+                if (isset($row->mini_tournaments_participant)) {
+                    $existing['mini_tournaments_together'] += (int) $row->mini_tournaments_participant;
+                }
+                if (isset($row->tournaments_together)) {
+                    $existing['tournaments_together'] = (int) $row->tournaments_together;
+                }
+                $allCounts[$uid] = $existing;
             }
         }
+        $userScores = $allCounts;
 
         // Sort theo tổng matches (desc) và lấy top N
         uasort($userScores, fn($a, $b) => (
@@ -188,7 +203,6 @@ class UserSuggestService
             <=> ($a['matches_together'] + $a['mini_tournaments_together'] + $a['tournaments_together'])
         ));
         $topUserIds = array_slice(array_keys($userScores), 0, self::GROUP_LIMIT);
-
         if (empty($topUserIds)) {
             return collect();
         }
@@ -209,7 +223,12 @@ class UserSuggestService
                 'tournaments_together' => 0,
                 'clubs_together' => 0,
             ];
-            $user->setRelation('preloaded_relation', (object) $counts);
+            $user->setRelation('preloaded_relation', (object) [
+                'matches_together' => (int) ($counts['matches_together'] ?? 0),
+                'mini_tournaments_together' => (int) ($counts['mini_tournaments_together'] ?? 0),
+                'tournaments_together' => (int) ($counts['tournaments_together'] ?? 0),
+                'clubs_together' => 0,
+            ]);
             $user->category = 'played_tournament';
             $user->category_text = 'Hay chơi cùng kèo giải';
         }
@@ -327,7 +346,6 @@ class UserSuggestService
 
         // Re-load qua Eloquent để có relations đầy đủ
         $userIds = $rows->pluck('id')->toArray();
-        $distanceById = $rows->keyBy('id')->map(fn($r) => $r->distance);
 
         $users = User::query()
             ->with(['sports.sport', 'sports.scores', 'clubs'])
@@ -344,7 +362,6 @@ class UserSuggestService
                     'tournaments_together' => 0,
                     'clubs_together' => 0,
                 ]);
-                $user->distance = $distanceById[$id];
                 $user->category = 'nearby';
                 $user->category_text = 'Ở gần bạn';
                 $result->push($user);
@@ -398,5 +415,46 @@ class UserSuggestService
                 $user->setRelation('preloaded_relation', (object) $relation);
             }
         }
+    }
+
+    /**
+     * Compute Haversine distance cho tất cả users trong 3 nhóm.
+     * Đảm bảo mọi user đều có distance khi có lat/lng anchor.
+     */
+    private function computeDistances(array $result, float $lat, float $lng): void
+    {
+        $haversine = "(6371 * acos(
+            LEAST(1.0, GREATEST(-1.0,
+                cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?))
+                + sin(radians(?)) * sin(radians(latitude))
+            ))
+        ))";
+
+        $allIds = $result['played_tournament']->pluck('id')
+            ->merge($result['same_club']->pluck('id'))
+            ->merge($result['nearby']->pluck('id'))
+            ->toArray();
+
+        if (empty($allIds)) {
+            return;
+        }
+
+        $distances = DB::table('users')
+            ->whereIn('id', $allIds)
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->select('id')
+            ->selectRaw("$haversine AS distance", [$lat, $lng, $lat])
+            ->get()
+            ->keyBy('id')
+            ->map(fn($r) => round((float) $r->distance, 3));
+
+        $setDist = function ($user) use ($distances) {
+            $user->distance = $distances[$user->id] ?? null;
+        };
+
+        $result['played_tournament']->each($setDist);
+        $result['same_club']->each($setDist);
+        $result['nearby']->each($setDist);
     }
 }
