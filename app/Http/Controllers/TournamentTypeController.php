@@ -3335,7 +3335,7 @@ class TournamentTypeController extends Controller
             if ($overallRank === 3) return 'Hạng 3';
             if ($overallRank === 4) return 'Hạng 4';
         } else {
-            if ($overallRank === 3) return 'Đồng hạng 3';
+            if ($overallRank === 3) return 'Hạng 3';
         }
 
         // rank 5+: dùng losers_by_round để xác định round

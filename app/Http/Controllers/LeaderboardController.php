@@ -82,7 +82,9 @@ class LeaderboardController extends Controller
         }
 
         // ✅ Build leaderboard với rank + rank_label mới
-        $rankings = TeamRanking::with(['team.members'])
+        // Eager-load cả members (user thật) + guestMembers (user ảo qua participant) để
+        // team chỉ có guest/user ảo vẫn hiển thị trong leaderboard.
+        $rankings = TeamRanking::with(['team.members', 'team.guestMembers.participant'])
             ->whereIn('tournament_type_id', $tournamentTypeIds)
             ->get();
 
@@ -96,8 +98,8 @@ class LeaderboardController extends Controller
             $tournamentId
         );
 
-        // Preload participant records
-        $allMemberIds = $rankings
+        // Preload participant records (cả user thật + guest/ảo qua participant_id)
+        $realMemberIds = $rankings
             ->pluck('team.members')
             ->flatten()
             ->pluck('id')
@@ -105,13 +107,30 @@ class LeaderboardController extends Controller
             ->unique()
             ->values();
 
+        $guestParticipantIds = $rankings
+            ->pluck('team.guestMembers')
+            ->flatten()
+            ->pluck('participant_id')
+            ->filter()
+            ->unique()
+            ->values();
+
         $participantQuery = Participant::where('tournament_id', $tournamentId)
-            ->whereIn('user_id', $allMemberIds);
+            ->where(function ($q) use ($realMemberIds, $guestParticipantIds) {
+                if ($realMemberIds->isNotEmpty()) {
+                    $q->whereIn('user_id', $realMemberIds);
+                }
+                if ($guestParticipantIds->isNotEmpty()) {
+                    $q->orWhereIn('id', $guestParticipantIds);
+                }
+            });
 
         if ($hasFee) {
             $participantQuery->where('payment_status', PaymentStatusEnum::CONFIRMED);
         }
 
+        // Key theo user_id cho real members. Guest (user_id null) tra cứp trực tiếp
+        // qua quan hệ guestMembers.participant đã eager-load ở trên.
         $participants = $participantQuery->get()->keyBy('user_id');
 
         $currentUserId = Auth::id();
@@ -138,12 +157,14 @@ class LeaderboardController extends Controller
                 $memberUserIds = $team->members->pluck('id')->toArray();
                 $isMyTeam = $currentUserId && in_array($currentUserId, $memberUserIds);
 
-                $members = $team->members->map(function ($m) use ($participants) {
+                // User thật (members) — match participant theo user_id
+                $realMembers = $team->members->map(function ($m) use ($participants) {
                     $participant = $participants->get($m->id);
                     return [
                         'id'            => $m->id,
                         'full_name'     => $m->full_name,
                         'avatar_url'    => $m->avatar_url,
+                        'is_guest'      => false,
                         'participant'   => $participant ? [
                             'id'                  => $participant->id,
                             'is_confirmed'        => (bool) $participant->is_confirmed,
@@ -154,7 +175,30 @@ class LeaderboardController extends Controller
                             'checked_in_at'       => $participant->checked_in_at?->toIsoString(),
                         ] : null,
                     ];
-                })->values()->all();
+                });
+
+                // Guest/user ảo (guestMembers) — match participant theo participant_id
+                $guestMembers = $team->guestMembers->map(function ($tm) use ($participants) {
+                    $p = $tm->participant;
+                    if (!$p) return null;
+                    return [
+                        'id'            => $p->id,
+                        'full_name'     => $p->guest_name ?? 'Thành viên ảo',
+                        'avatar_url'    => $p->guest_avatar,
+                        'is_guest'      => true,
+                        'participant'   => [
+                            'id'                  => $p->id,
+                            'is_confirmed'        => (bool) $p->is_confirmed,
+                            'is_guest'            => (bool) $p->is_guest,
+                            'is_pending_confirmation' => (bool) $p->is_pending_confirmation,
+                            'is_absent'           => (bool) $p->is_absent,
+                            'guarantor_user_id'   => $p->guarantor_user_id,
+                            'checked_in_at'       => $p->checked_in_at?->toIsoString(),
+                        ],
+                    ];
+                })->filter()->values();
+
+                $members = $realMembers->concat($guestMembers)->values()->all();
 
                 return [
                     'team' => $team,
@@ -179,7 +223,8 @@ class LeaderboardController extends Controller
             })
             ->values()
             ->map(function ($item, $index) {
-                $finalRank = $index + 1;
+                // ✅ Dùng overall_rank từ service (đã tính chuẩn Olympic convention, đồng hạng = cùng số)
+                $finalRank = (int) ($item['rank'] ?? ($index + 1));
 
                 return new TeamLeaderboardResource([
                     'id'            => $item['team']->id,
