@@ -21,7 +21,7 @@ class CompetitionLocationResource extends JsonResource
             'name' => $this->name,
             'latitude' => $this->latitude,
             'longitude' => $this->longitude,
-            'image' => $this->image,
+            'image' => $this->image ? (\Illuminate\Support\Str::startsWith($this->image, ['http://', 'https://']) ? $this->image : asset($this->image)) : null,
             'address' => $this->address,
             'phone' => $this->phone,
             'opening_time' => $this->opening_time,

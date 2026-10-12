@@ -24,7 +24,11 @@ class MiniTeamResource extends JsonResource
             'members' => $members->map(function ($member) {
                 /** @var \App\Models\MiniParticipant|null $p */
                 $p = $member->miniTournamentParticipant();
-                $isGuest = (bool) ($p?->is_guest);
+                // Ưu tiên cờ is_guest từ chính MiniTeamMember (đã có sẵn khi tạo)
+                // để tránh phụ thuộc lookup MiniParticipant (có thể thiếu do data cũ).
+                $isGuest = (bool) $member->is_guest || (bool) ($p?->is_guest);
+                $guestName = $member->guest_name ?: ($p?->guest_name ?? null);
+                $guestAvatar = $member->guest_avatar ?: ($p?->guest_avatar ?? null);
 
                 $user = $member->relationLoaded('user') ? $member->user : null;
 
@@ -32,10 +36,10 @@ class MiniTeamResource extends JsonResource
                     'id' => $p?->id ?? $member->user_id, // MiniParticipant.id (key ổn định cho FE), fallback user_id
                     'team_id' => $this->id,
                     'full_name' => $isGuest
-                        ? ($p->guest_name ?? $user?->full_name ?? 'Thành viên ảo')
+                        ? ($guestName ?? $user?->full_name ?? 'Thành viên ảo')
                         : ($user?->full_name ?? ''),
                     'avatar_url' => $isGuest
-                        ? ($p->guest_avatar ?? $user?->avatar_url)
+                        ? ($guestAvatar ?? $user?->avatar_url)
                         : ($user?->avatar_url ?? ''),
                     'is_guest' => $isGuest,
                     'visibility' => $user?->visibility,
