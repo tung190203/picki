@@ -372,7 +372,118 @@ class UserSuggestService
     }
 
     /**
-     * Attach relation data cho tất cả users.
+     * Compute relation counts cho một collection user.
+     * Dùng cho sub_tab=played_together (flat list) — reuse logic từ queryPlayedTogether.
+     *
+     * @return array uid => ['matches_together' => int, 'mini_tournaments_together' => int, 'tournaments_together' => int]
+     */
+    public function getPlayedTogetherRelations(int $userId, array $userIds): array
+    {
+        if (empty($userIds)) {
+            return [];
+        }
+
+        $userIds = array_filter($userIds, fn($id) => $id != $userId);
+
+        // Quick matches
+        $quick = DB::table('match_histories as mh')
+            ->join('match_histories as mh_other', 'mh_other.quick_match_id', '=', 'mh.quick_match_id')
+            ->where('mh.user_id', $userId)
+            ->whereIn('mh_other.user_id', $userIds)
+            ->groupBy('mh_other.user_id')
+            ->select('mh_other.user_id', DB::raw('COUNT(DISTINCT mh.quick_match_id) as matches_together'))
+            ->get()
+            ->keyBy('user_id');
+
+        // Mini team
+        $miniTeam = DB::table('mini_team_members as mtm1')
+            ->join('mini_teams as mt1', 'mtm1.mini_team_id', '=', 'mt1.id')
+            ->join('mini_teams as mt2', 'mt1.mini_tournament_id', '=', 'mt2.mini_tournament_id')
+            ->join('mini_team_members as mtm2', 'mt2.id', '=', 'mtm2.mini_team_id')
+            ->where('mtm1.user_id', $userId)
+            ->whereIn('mtm2.user_id', $userIds)
+            ->whereColumn('mtm1.mini_team_id', '!=', 'mtm2.mini_team_id')
+            ->groupBy('mtm2.user_id')
+            ->select('mtm2.user_id', DB::raw('COUNT(DISTINCT mt1.mini_tournament_id) as mini_tournaments_together'))
+            ->get()
+            ->keyBy('user_id');
+
+        // Mini solo participant
+        $miniSolo = DB::table('mini_participants as mp1')
+            ->join('mini_matches as mm', function ($j) {
+                $j->on('mp1.mini_tournament_id', '=', 'mm.mini_tournament_id')
+                    ->on(fn($q) => $q->whereColumn('mp1.id', '=', 'mm.participant1_id')
+                        ->orWhereColumn('mp1.id', '=', 'mm.participant2_id'));
+            })
+            ->join('mini_participants as mp2', fn($j) => $j->on('mp2.mini_tournament_id', '=', 'mp1.mini_tournament_id')
+                ->where('mp2.user_id', '!=', $userId))
+            ->where('mp1.user_id', $userId)
+            ->whereIn('mp2.user_id', $userIds)
+            ->groupBy('mp2.user_id')
+            ->select('mp2.user_id', DB::raw('COUNT(DISTINCT mp1.mini_tournament_id) as mini_tournaments_participant'))
+            ->get()
+            ->keyBy('user_id');
+
+        // Tournament
+        $tour = DB::table('team_members as tm1')
+            ->join('teams as t1', 'tm1.team_id', '=', 't1.id')
+            ->join('teams as t2', fn($j) => $j->on('t1.tournament_id', '=', 't2.tournament_id')
+                ->on('t1.id', '!=', 't2.id'))
+            ->join('team_members as tm2', 't2.id', '=', 'tm2.team_id')
+            ->where('tm1.user_id', $userId)
+            ->whereIn('tm2.user_id', $userIds)
+            ->whereNotNull('t1.tournament_id')
+            ->groupBy('tm2.user_id')
+            ->select('tm2.user_id', DB::raw('COUNT(DISTINCT t1.tournament_id) as tournaments_together'))
+            ->get()
+            ->keyBy('user_id');
+
+        // Merge giống queryPlayedTogether
+        $relations = [];
+        foreach ([$quick, $miniTeam, $miniSolo, $tour] as $src) {
+            foreach ($src as $uid => $row) {
+                $r = $relations[$uid] ?? ['matches_together' => 0, 'mini_tournaments_together' => 0, 'tournaments_together' => 0];
+                if (isset($row->matches_together)) {
+                    $r['matches_together'] = (int) $row->matches_together;
+                }
+                if (isset($row->mini_tournaments_together)) {
+                    $r['mini_tournaments_together'] = (int) $row->mini_tournaments_together;
+                }
+                if (isset($row->mini_tournaments_participant)) {
+                    $r['mini_tournaments_together'] += (int) $row->mini_tournaments_participant;
+                }
+                if (isset($row->tournaments_together)) {
+                    $r['tournaments_together'] = (int) $row->tournaments_together;
+                }
+                $relations[$uid] = $r;
+            }
+        }
+
+        return $relations;
+    }
+
+    /**
+     * Compute relation counts cho một collection user model.
+     * Attach preloaded_relation lên mỗi user.
+     */
+    public function attachPlayedTogetherRelations(int $userId, $users): void
+    {
+        if ($users instanceof \Illuminate\Support\Collection) {
+            $users = $users->all();
+        }
+        if (empty($users)) {
+            return;
+        }
+        $userIds = array_column($users, 'id');
+        $relations = $this->getPlayedTogetherRelations($userId, $userIds);
+        foreach ($users as $user) {
+            $rel = $relations[$user->id] ?? ['matches_together' => 0, 'mini_tournaments_together' => 0, 'tournaments_together' => 0, 'clubs_together' => 0];
+            $user->setRelation('preloaded_relation', (object) $rel);
+        }
+    }
+
+    /**
+     * Attach relation data cho tất cả users (clubs_together).
      * Tính clubs_together cho từng user.
      */
     private function attachRelations(EloquentCollection $users, int $userId): void
