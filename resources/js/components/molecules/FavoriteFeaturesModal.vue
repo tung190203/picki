@@ -136,6 +136,7 @@
 <script>
 import { 
     UserGroupIcon,
+    UserPlusIcon,
     PlusCircleIcon,
     MapPinIcon,
     ChartBarIcon,
@@ -149,6 +150,7 @@ import {
 
 export const ALL_FAVORITE_FEATURES = [
     { id: 'club', label: 'CLB', icon: UserGroupIcon, route: '/club' },
+    { id: 'club_create', label: 'Tạo câu lạc bộ mới', icon: UserPlusIcon, route: '/clubs/create' },
     { id: 'quick_match', label: 'Tạo trận đấu nhanh', icon: PlusCircleIcon, route: '/quick-match/create' },
     { id: 'map', label: 'Tìm sân', icon: MapPinIcon, route: '/map' },
     { id: 'leaderboard', label: 'Bảng xếp hạng', icon: ChartBarIcon, route: '/leaderboard' },
