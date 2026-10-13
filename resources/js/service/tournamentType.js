@@ -21,7 +21,7 @@ export const deleteTournamentType = async (tournamentTypeId) => {
 }
 
 export const getBracketByTournamentTypeId = async (tournamentTypeId) => {
-  return axiosInstance.get(`${tournamentTypeEndpoint}/${tournamentTypeId}/bracket`)
+  return axiosInstance.get(`${tournamentTypeEndpoint}/${tournamentTypeId}/bracket`, { _skipAuthRedirect: true })
     .then((response) => response.data.data);
 }
 

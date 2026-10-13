@@ -54,6 +54,12 @@ axiosInstance.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
+      // Allow callers to opt out of the global "clear + push to login" on 401
+      // (e.g. public landing page fetching auxiliary data that requires auth).
+      if (originalRequest._skipAuthRedirect) {
+        return Promise.reject(error);
+      }
+
       const refreshToken = localStorage.getItem(LOCAL_STORAGE_KEY.REFRESH_TOKEN);
 
       if (!refreshToken || refreshFailed) {
