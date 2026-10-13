@@ -295,6 +295,7 @@ Accept: application/json
 | Keyword (`id`) | Tên tính năng | Đường dẫn Web (`route`) | Màn hình tương ứng trên App Mobile |
 |----------------|---------------|--------------------------|-----------------------------------|
 | `club` | Câu lạc bộ | `/club` | `ClubListScreen` |
+| `club_create` | Tạo câu lạc bộ mới | `/clubs/create` (hoặc `/club/create`) | `CreateClubScreen` |
 | `quick_match` | Tạo trận đấu nhanh | `/quick-match/create` | `CreateQuickMatchScreen` |
 | `map` | Tìm sân / Bản đồ | `/map` | `MapSearchScreen` |
 | `leaderboard` | Bảng xếp hạng | `/leaderboard` | `LeaderboardScreen` |
