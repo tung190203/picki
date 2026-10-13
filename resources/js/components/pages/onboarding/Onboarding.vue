@@ -3,18 +3,36 @@ import Button from '@/components/atoms/Button.vue'
 import { useRouter } from 'vue-router'
 import { LOCAL_STORAGE_KEY } from "@/constants/index.js"
 import LogoSplash from '@/assets/images/logo-splash.svg'
+import { onMounted } from 'vue'
 
 const router = useRouter()
 const query = router.currentRoute.value.query
 
+// Mark onboarding as seen as soon as the page renders, so subsequent
+// navigations don't bounce the user back here in a loop.
+onMounted(() => {
+  localStorage.setItem(LOCAL_STORAGE_KEY.ONBOARDING, 'true')
+})
+
+// Anonymous users can't reach /tournament-detail/:id; rewrite any such redirect
+// to the matching public landing page so they don't get bounced to login.
+function publicRedirect(q) {
+  const r = q?.redirect
+  if (typeof r !== 'string') return q
+  const m = r.match(/^\/tournament-detail\/([^/?#]+)/)
+  if (!m) return q
+  const { redirect, ...rest } = q
+  return { ...rest, redirect: `/tournament-landing/${m[1]}` }
+}
+
 function goRegister() {
   localStorage.setItem(LOCAL_STORAGE_KEY.ONBOARDING, 'true')
-  router.push({ path: '/register', query })
+  router.push({ path: '/register', query: publicRedirect(query) })
 }
 
 function goLogin() {
   localStorage.setItem(LOCAL_STORAGE_KEY.ONBOARDING, 'true')
-  router.push({ path: '/login', query })
+  router.push({ path: '/login', query: publicRedirect(query) })
 }
 </script>
 
