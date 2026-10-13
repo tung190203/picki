@@ -29,16 +29,21 @@ router.beforeEach((to, from, next) => {
   ];
 
   if (!loginToken) {
-    const onboardingWhitelist = ["onboarding", "privacy-policy", "tournament-landing", "pairing-wheel", "group-draw-wheel", "public-live-score"];
+    const onboardingWhitelist = ["onboarding", "privacy-policy", "tournament-landing", "tournament-detail", "pairing-wheel", "group-draw-wheel", "public-live-score"];
 
     if (!hasSeenOnboarding && !onboardingWhitelist.includes(to.name)) {
       return next({ name: "onboarding", query: { redirect: to.fullPath }});
     }
   
     if (!publicPages.includes(to.name)) {
-      // Special handling: redirect tournament-detail to tournament-landing instead of login
+      // Anonymous user sharing /tournament-detail/:id -> send to public landing page,
+      // but remember the original URL so login can bounce them back to the detail page.
       if (to.name === 'tournament-detail' && to.params.id) {
-        return next({ name: "tournament-landing", params: { id: to.params.id } });
+        return next({
+          name: "tournament-landing",
+          params: { id: to.params.id },
+          query: { ...to.query, redirect: to.fullPath }
+        });
       }
       return next({ name: "login", query: { redirect: to.fullPath } });
     }
