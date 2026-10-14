@@ -270,22 +270,6 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         return round((1 - $userRank / $totalUsers) * 100, 1);
     }
 
-    /**
-     * Get friends count (mutual follows - 2 people follow each other)
-     */
-    public function getFriendsCount(): int
-    {
-        return DB::table('follows as f1')
-            ->join('follows as f2', function ($join) {
-                $join->on('f1.user_id', '=', 'f2.followable_id')
-                    ->on('f1.followable_id', '=', 'f2.user_id');
-            })
-            ->where('f1.followable_type', User::class)
-            ->where('f2.followable_type', User::class)
-            ->where('f1.user_id', $this->id)
-            ->count();
-    }
-
     public function follows()
     {
         return $this->morphMany(Follow::class, 'followable');
