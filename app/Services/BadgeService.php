@@ -20,12 +20,20 @@ class BadgeService
 
         $badges = $userBadges->map(function ($ub) {
             if (!$ub->badge) return null;
-            return ['type' => $ub->badge->code, 'icon_url' => $ub->badge->icon_url];
+            return [
+                'name' => $ub->badge->name,
+                'type' => $ub->badge->code,
+                'icon_url' => $ub->badge->icon_url,
+            ];
         })->filter()->values()->toArray();
 
         $featuredBadges = $userBadges->filter(fn($ub) => $ub->is_featured)->map(function ($ub) {
             if (!$ub->badge) return null;
-            return ['type' => $ub->badge->code, 'icon_url' => $ub->badge->icon_url];
+            return [
+                'name' => $ub->badge->name,
+                'type' => $ub->badge->code,
+                'icon_url' => $ub->badge->icon_url,
+            ];
         })->filter()->values()->toArray();
 
         $primaryBadge = $badges[0] ?? null;
@@ -52,6 +60,7 @@ class BadgeService
 
         if (!$userBadge?->badge) return null;
         return [
+            'name' => $userBadge->badge->name,
             'type' => $userBadge->badge->code,
             'icon_url' => $userBadge->badge->icon_url,
         ];
@@ -78,6 +87,7 @@ class BadgeService
             $badges = $userBadges->get($userId, collect());
             $primary = $badges->sortByDesc(fn($ub) => $ub->badge->priority ?? 0)->first();
             $result[$userId] = $primary?->badge ? [
+                'name' => $primary->badge->name,
                 'type' => $primary->badge->code,
                 'icon_url' => $primary->badge->icon_url,
             ] : null;
@@ -102,12 +112,20 @@ class BadgeService
             $badges = $userBadges->get($userId, collect())->sortByDesc(fn($ub) => $ub->badge->priority ?? 0);
             $badgesArray = $badges->map(function ($ub) {
                 if (!$ub->badge) return null;
-                return ['type' => $ub->badge->code, 'icon_url' => $ub->badge->icon_url];
+                return [
+                    'name' => $ub->badge->name,
+                    'type' => $ub->badge->code,
+                    'icon_url' => $ub->badge->icon_url,
+                ];
             })->filter()->values()->toArray();
 
             $featuredBadges = $badges->filter(fn($ub) => $ub->is_featured)->map(function ($ub) {
                 if (!$ub->badge) return null;
-                return ['type' => $ub->badge->code, 'icon_url' => $ub->badge->icon_url];
+                return [
+                    'name' => $ub->badge->name,
+                    'type' => $ub->badge->code,
+                    'icon_url' => $ub->badge->icon_url,
+                ];
             })->filter()->values()->toArray();
 
             $result[$userId] = [

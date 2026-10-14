@@ -86,7 +86,6 @@
                         <div 
                           class="flex items-center gap-1 group/badges cursor-pointer" 
                           @click="isOwner && (showPinModal = true)" 
-                          :title="isOwner ? 'Nhấn để tuỳ chỉnh huy hiệu ghim' : ''"
                           v-if="isOwner || user.badges?.length || user.primary_badge"
                         >
                           <BadgeIcon
@@ -94,6 +93,7 @@
                             :key="badge"
                             :badge="badge"
                             size="sm"
+                            :showHoverCard="false"
                             class="inline-block"
                           />
                           <!-- Quick Edit Button (shows on hover for owner) -->
