@@ -247,29 +247,6 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         return $this->last_active_at->diffInMinutes(now()) <= $minutesThreshold;
     }
 
-    /**
-     * Get rank percentile for a user (top X% players)
-     */
-    public static function getRankPercentile(int $userId, int $sportId): ?float
-    {
-        $userRank = self::getBatchVNRanks([$userId], $sportId)[$userId] ?? null;
-        if ($userRank === null) return null;
-
-        $totalUsers = self::query()
-            ->join('user_sport', 'users.id', '=', 'user_sport.user_id')
-            ->join('user_sport_scores', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
-            ->where('user_sport.sport_id', $sportId)
-            ->where('user_sport_scores.score_type', 'vndupr_score')
-            ->where('users.email', '!=', 'vrplus2018@gmail.com')
-            ->whereRaw('user_sport_scores.score_value > 0')
-            ->distinct('users.id')
-            ->count('users.id');
-
-        if ($totalUsers === 0) return null;
-
-        return round((1 - $userRank / $totalUsers) * 100, 1);
-    }
-
     public function follows()
     {
         return $this->morphMany(Follow::class, 'followable');
