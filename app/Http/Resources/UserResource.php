@@ -70,7 +70,7 @@ class UserResource extends JsonResource
             'is_friend' => $isFriend,
             'vn_rank' => $this->vn_rank ?? null,
             'weekly_change' => $currentUser ? ($this->weekly_change ?? null) : null,
-            'rank_percentile' => $this->rank_percentile ?? null,
+            'rank_percentile' => $this->rank_percentile !== null ? (float) $this->rank_percentile : null,
             'friends_count' => (int) ($this->friends_count ?? 0),
             'followers_count' => (int) ($this->followers_count ?? 0),
             'following_count' => (int) ($this->following_count ?? 0),
