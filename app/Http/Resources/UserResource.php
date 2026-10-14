@@ -88,7 +88,6 @@ class UserResource extends JsonResource
             'badges' => $this->getBatchBadge('badges'),
             'featured_badges' => $this->getBatchBadge('featured_badges'),
             'platform' => $this->platform,
-            'vndupr_score' => $this->vndupr_score !== null ? (float) $this->vndupr_score : null,
             'total_matches' => $this->preloaded_sport_stats['total_matches'] ?? 0,
             'theme_mode' => $this->theme_mode ?? 'system',
             'settings' => !empty($this->settings) ? (is_array($this->settings) && empty($this->settings) ? (object) [] : $this->settings) : (object) [],

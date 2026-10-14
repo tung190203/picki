@@ -798,6 +798,12 @@ class AuthController extends Controller
         $ranks = User::getBatchVNRanks([$user->id], 1);
         $user->vn_rank = $ranks[$user->id] ?? null;
         $user->weekly_change = User::getBatchWeeklyChanges([$user->id], 1, $ranks)[$user->id] ?? null;
+        $user->rank_percentile = User::getRankPercentile($user->id, 1);
+
+        // Load social counts (friends, followers, following)
+        $user->followers_count = $user->followers()->count();
+        $user->following_count = $user->followings()->count();
+        $user->friends_count = $user->getFriendsCount();
 
         // Load sport stats với ranks đã có (pass vào để API consistent dù có cần hay không)
         User::loadSportStatsOnUsers(collect([$user]), 1, true, $ranks);
