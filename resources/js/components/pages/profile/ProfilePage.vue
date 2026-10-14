@@ -177,13 +177,13 @@
 
             <!-- Sports -->
             <section>
-                <div class="flex items-center justify-start mb-4 mx-10">
+                <div class="flex items-center justify-between mb-4 mx-10">
                     <h2 class="text-xl font-semibold text-gray-800">Môn thể thao</h2>
                     <div
                         v-if="isOwner"
-                        class="flex items-center text-sm text-gray-600 dark:text-slate-300 ml-4 cursor-pointer hover:text-gray-900 dark:hover:text-white bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-slate-700/60 p-1.5 rounded-full shadow-sm transition"
+                        class="text-sm font-medium text-[#4392E0] cursor-pointer hover:underline"
                         @click="openSportModal">
-                        <PencilIcon class="w-4 h-4" />
+                        Thêm
                     </div>
                 </div>
 
@@ -199,6 +199,72 @@
                         :is-open="openIndex === index"
                         @toggle="toggleCard(index)"
                     />
+                </div>
+            </section>
+
+            <!-- Picki Score & Ranking (from Figma) -->
+            <section>
+                <div class="bg-white rounded-[8px] shadow-[0_0_2px_rgba(0,0,0,0.12)] p-4 mx-10 mb-6">
+                    <div class="flex items-center justify-between gap-6">
+                        <div class="flex items-baseline gap-2">
+                            <p class="text-[44px] leading-[48px] font-bold tracking-[-0.5px] text-[#3E414C]">
+                                {{ formatVndupr(pickiScore) }}
+                            </p>
+                            <span
+                                v-if="user.weekly_change != null"
+                                class="bg-[#AC242B] text-white text-[12px] font-semibold tracking-[-0.25px] leading-[16px] rounded-[16px] px-[8px] py-[2px] self-center"
+                            >
+                                +{{ user.weekly_change }}
+                            </span>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <p class="text-[12px] leading-[16px] tracking-[-0.25px] text-[#6B6F80]">Xếp hạng</p>
+                            <p class="text-[16px] leading-[20px] font-bold tracking-[-0.25px] text-[#3E414C] mt-[2px]">
+                                {{ user.vn_rank || '—' }} <span class="font-normal text-[#6B6F80]">Toàn quốc</span>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="mt-2 flex items-center gap-1 text-[14px] leading-[18px] tracking-[-0.25px] text-[#6B6F80]">
+                        <span>Điểm trình Picki</span>
+                        <span>·</span>
+                        <span>
+                            Top {{ user.rank_percentile ? Math.round(user.rank_percentile) : '—' }}% người chơi
+                        </span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Connections: Bạn bè / Người theo dõi / Đang theo dõi (from Figma) -->
+            <section>
+                <div class="mx-10 mb-10">
+                    <div class="flex items-center justify-between mb-2">
+                        <h2 class="text-[16px] font-semibold leading-[20px] tracking-[-0.25px] text-[#6B6F80]">Kết nối</h2>
+                        <button class="text-[12px] font-normal leading-[16px] text-[#4392E0] hover:underline">
+                            Xem tất cả
+                        </button>
+                    </div>
+                    <div class="bg-white rounded-[8px] shadow-[0_0_2px_rgba(0,0,0,0.12)] flex items-stretch overflow-hidden">
+                        <div class="flex-1 flex flex-col items-center justify-center py-3 px-2 text-center">
+                            <p class="text-[20px] font-bold leading-[24px] tracking-[-0.5px] text-[#3E414C]">
+                                {{ formatNumber(user.friends_count) }}
+                            </p>
+                            <p class="text-[12px] font-semibold leading-[18px] tracking-[-0.25px] text-[#6B6F80]">Bạn bè</p>
+                        </div>
+                        <div class="w-px bg-[#EDEEF2]"></div>
+                        <div class="flex-1 flex flex-col items-center justify-center py-3 px-2 text-center">
+                            <p class="text-[20px] font-bold leading-[24px] tracking-[-0.5px] text-[#3E414C]">
+                                {{ formatNumber(user.followers_count) }}
+                            </p>
+                            <p class="text-[12px] font-semibold leading-[18px] tracking-[-0.25px] text-[#6B6F80]">Người theo dõi</p>
+                        </div>
+                        <div class="w-px bg-[#EDEEF2]"></div>
+                        <div class="flex-1 flex flex-col items-center justify-center py-3 px-2 text-center">
+                            <p class="text-[20px] font-bold leading-[24px] tracking-[-0.5px] text-[#3E414C]">
+                                {{ formatNumber(user.following_count) }}
+                            </p>
+                            <p class="text-[12px] font-semibold leading-[18px] tracking-[-0.25px] text-[#6B6F80]">Đang theo dõi</p>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -423,11 +489,27 @@ const mappedSports = computed(() =>
     }))
 );
 
+// Điểm trình Picki = vndupr_score của môn đầu tiên (Pickleball) trong user.sports
+const pickiScore = computed(() => mappedSports.value[0]?.vndupr ?? null);
+
 const backgroundStyle = computed(() => ({
     backgroundImage: `url('${user.value.thumbnail || Background}')`,
     backgroundSize: 'cover',
     backgroundPosition: 'center'
 }));
+
+const formatNumber = (n) => {
+    if (n == null) return '—';
+    return Number(n).toLocaleString('vi-VN');
+};
+
+const formatVndupr = (n) => {
+    if (n == null) return '—';
+    return Number(n).toLocaleString('vi-VN', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 3,
+    });
+};
 
 const toggleCard = (index) => {
     openIndex.value = openIndex.value === index ? null : index;

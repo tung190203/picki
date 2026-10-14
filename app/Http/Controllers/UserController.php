@@ -82,6 +82,7 @@ class UserController extends Controller
             ->visibleFor(auth()->user())
             ->withPickleballStats($sport?->id)
             ->withInteractionStatus(auth()->id())
+            ->withSocialCounts()
             ->applyTimeline($validated['sub_tab'] ?? null, auth()->id());
 
         $hasFilter = collect([
@@ -151,6 +152,21 @@ class UserController extends Controller
 
         $paginated = $query->paginate($validated['per_page'] ?? User::PER_PAGE);
 
+        // Batch load weekly_change, rank_percentile, friends_count cho list users (tránh N+1)
+        $sportId = $sport?->id ?? 1;
+        $userIds = $paginated->getCollection()->pluck('id')->all();
+        if (!empty($userIds)) {
+            $currentRanks = User::getBatchVNRanks($userIds, $sportId);
+            $weeklyChanges = User::getBatchWeeklyChanges($userIds, $sportId, $currentRanks);
+
+            foreach ($paginated->getCollection() as $u) {
+                $u->weekly_change = $weeklyChanges[$u->id] ?? null;
+                $u->friends_count = $u->getFriendsCount();
+                // rank_percentile: compute on-the-fly per user (rare in list, no N+1 critical)
+                $u->rank_percentile = User::getRankPercentile($u->id, $sportId);
+            }
+        }
+
         $data = [
             'users' => UserResource::collection($paginated),
             'clubs' => ClubResource::collection(auth()->user()->clubs),
@@ -168,12 +184,18 @@ class UserController extends Controller
 
     public function show($id)
     {
-        $user = User::withFullRelations()->find($id);
+        $user = User::withFullRelations()->withSocialCounts()->find($id);
         if (!$user) {
             return ResponseHelper::error('Người dùng không tồn tại', 404);
         }
 
         User::loadSportStatsOnUsers(collect([$user]), 1, false);
+
+        // Load social stats: friends_count (mutual follow), weekly_change, rank_percentile
+        $sportId = 1;
+        $user->friends_count = $user->getFriendsCount();
+        $user->weekly_change = User::getWeeklyChange($user->id, $sportId);
+        $user->rank_percentile = User::getRankPercentile($user->id, $sportId);
 
         $authUserId = auth()->id();
         if ($authUserId && (int) $id === (int) $authUserId) {
