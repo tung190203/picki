@@ -827,6 +827,7 @@ class LeaderboardController extends Controller
         $badges = array_filter(array_map(function ($userBadge) {
             if (!$userBadge->badge) return null;
             return [
+                'name' => $userBadge->badge->name,
                 'type' => $userBadge->badge->code,
                 'icon_url' => $userBadge->badge->icon_url,
             ];
@@ -835,6 +836,7 @@ class LeaderboardController extends Controller
         $featuredBadges = array_filter(array_map(function ($userBadge) {
             if (!$userBadge->badge || !$userBadge->is_featured) return null;
             return [
+                'name' => $userBadge->badge->name,
                 'type' => $userBadge->badge->code,
                 'icon_url' => $userBadge->badge->icon_url,
             ];
