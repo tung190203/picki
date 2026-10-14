@@ -10,6 +10,7 @@ use App\Models\QuickMatch;
 use App\Models\SystemSetting;
 use App\Models\WeeklyRank;
 use App\Services\BadgeService;
+use App\Services\LeaderboardQualifierService;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -282,13 +283,20 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     }
 
     /**
-     * Tính top X% người chơi: dựa trên rank hiện tại so với tổng user có rank.
-     * Càng rank nhỏ (top 1) thì percentile càng cao (99.9%).
+     * Tính top X% người chơi: dựa trên rank hiện tại so với tổng user qualified (cùng nguồn với /api/leaderboard).
+     * Rank 1 trong totalUsers = top 0.1% (nếu total >= 1000), rank 1 trong 100 = top 1%.
+     * Trả về giá trị top X% (1 chữ số thập phân).
      */
     public static function getRankPercentile(int $userId, int $sportId): ?float
     {
         $userRank = self::getBatchVNRanks([$userId], $sportId)[$userId] ?? null;
         if ($userRank === null) {
+            return null;
+        }
+
+        // Đếm tổng user qualified — cùng tập với leaderboard để rank_percentile khớp với vn_rank.
+        $qualifiedUserIds = app(LeaderboardQualifierService::class)->qualifiedUserIds($sportId);
+        if (empty($qualifiedUserIds)) {
             return null;
         }
 
@@ -300,6 +308,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             ->where('users.email', '!=', 'vrplus2018@gmail.com')
             ->whereNull('users.deleted_at')
             ->where('user_sport_scores.score_value', '>', 0)
+            ->whereIn('users.id', $qualifiedUserIds)
             ->distinct('users.id')
             ->count('users.id');
 
@@ -307,9 +316,8 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             return null;
         }
 
-        // Percentile = (1 - rank/total) * 100
-        // Rank 1 trong totalUsers = top ((total-1)/total)*100
-        return round((1 - $userRank / $totalUsers) * 100, 1);
+        // Top X% = (rank / total) * 100 — rank 1/total = 0.1% (nếu total=1000), rank 1/100 = 1%
+        return round(($userRank / $totalUsers) * 100, 1);
     }
 
     public function getJWTIdentifier()
@@ -621,72 +629,50 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     {
         if (!$sportId) return $query;
 
-        $rankingMatches = self::getRankingMatches();
-
-        $scoreSubquery = DB::table('user_sport')
-            ->join('user_sport_scores', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
-            ->where('user_sport.sport_id', $sportId)
-            ->where('user_sport_scores.score_type', 'vndupr_score')
-            ->whereColumn('user_sport.user_id', 'users.id')
-            ->groupBy('user_sport.user_id')
-            ->select(DB::raw('MAX(user_sport_scores.score_value)'));
-
-        $totalMatchesRaw = "(
-            (
-                SELECT COUNT(DISTINCT m.id)
-                FROM matches m
-                JOIN tournament_types tt ON m.tournament_type_id = tt.id
-                JOIN tournaments t ON tt.tournament_id = t.id
-                JOIN team_members tm ON tm.team_id = m.home_team_id
-                WHERE tm.user_id = u2.id AND t.sport_id = %d AND m.status = 'completed'
-            ) + (
-                SELECT COUNT(DISTINCT m.id)
-                FROM matches m
-                JOIN tournament_types tt ON m.tournament_type_id = tt.id
-                JOIN tournaments t ON tt.tournament_id = t.id
-                JOIN team_members tm ON tm.team_id = m.away_team_id
-                WHERE tm.user_id = u2.id AND t.sport_id = %d AND m.status = 'completed'
-            ) + (
-                SELECT COUNT(DISTINCT mm.id)
-                FROM mini_matches mm
-                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
-                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team1_id
-                WHERE mtm.user_id = u2.id AND mnt.sport_id = %d AND mm.status = 'completed'
-            ) + (
-                SELECT COUNT(DISTINCT mm.id)
-                FROM mini_matches mm
-                JOIN mini_tournaments mnt ON mm.mini_tournament_id = mnt.id
-                JOIN mini_team_members mtm ON mtm.mini_team_id = mm.team2_id
-                WHERE mtm.user_id = u2.id AND mnt.sport_id = %d AND mm.status = 'completed'
-            ) + (
-                SELECT COUNT(DISTINCT mh.id)
-                FROM match_histories mh
-                JOIN quick_matches qm ON mh.quick_match_id = qm.id
-                WHERE mh.user_id = u2.id AND qm.status = 'completed'
-                    AND (qm.competition_location_id IS NULL OR EXISTS (
-                        SELECT 1 FROM competition_location_sport cls
-                        WHERE cls.competition_location_id = qm.competition_location_id AND cls.sport_id = %d
-                    ))
-            )
-        ) >= %d";
-
-        $totalMatchesRaw = sprintf($totalMatchesRaw, $sportId, $sportId, $sportId, $sportId, $sportId, $rankingMatches);
-
-        $rankSubquery = DB::table('users as u2')
-            ->join('user_sport as us2', 'u2.id', '=', 'us2.user_id')
-            ->join('user_sport_scores as uss2', 'us2.id', '=', 'uss2.user_sport_id')
-            ->where('us2.sport_id', $sportId)
-            ->where('uss2.score_type', 'vndupr_score')
-            ->where('uss2.score_value', '>', DB::raw('(' . $scoreSubquery->toSql() . ')'))
-            ->whereRaw($totalMatchesRaw)
-            ->mergeBindings($scoreSubquery)
-            ->select(DB::raw('COUNT(DISTINCT u2.id) + 1'));
+        // Dùng cùng nguồn qualified với /api/leaderboard để vn_rank đồng bộ
+        $qualifiedUserIds = app(LeaderboardQualifierService::class)->qualifiedUserIds($sportId);
+        if (empty($qualifiedUserIds)) {
+            if ($skipRank) {
+                return $query;
+            }
+            return $query->addSelect(['vn_rank' => DB::raw('NULL')]);
+        }
 
         if ($skipRank) {
             return $query;
         }
 
-        return $query->addSelect(['vn_rank' => $rankSubquery]);
+        // Escape CSV string an toàn bằng PDO quote để tránh SQL injection
+        $csv = implode(',', array_map('intval', $qualifiedUserIds));
+        $quotedCsv = DB::connection()->getPdo()->quote($csv);
+
+        // Correlated subquery với FIND_IN_SET - đúng rank như leaderboard
+        $vnRankSql = "(SELECT COUNT(DISTINCT u2.id) + 1
+            FROM users u2
+            INNER JOIN user_sport us2 ON u2.id = us2.user_id
+            INNER JOIN user_sport_scores uss2 ON us2.id = uss2.user_sport_id
+            WHERE us2.sport_id = {$sportId}
+              AND uss2.score_type = 'vndupr_score'
+              AND uss2.score_value > (
+                  SELECT MAX(uss_inner.score_value)
+                  FROM user_sport us_inner
+                  INNER JOIN user_sport_scores uss_inner ON us_inner.id = uss_inner.user_sport_id
+                  WHERE us_inner.sport_id = {$sportId}
+                    AND uss_inner.score_type = 'vndupr_score'
+                    AND us_inner.user_id = users.id
+              )
+              AND FIND_IN_SET(u2.id, {$quotedCsv}) > 0
+              AND u2.email != 'vrplus2018@gmail.com'
+              AND u2.deleted_at IS NULL
+        )";
+
+        // Preserve existing select columns and add vn_rank
+        $columns = $query->getQuery()->columns;
+        if ($columns === null || (count($columns) === 1 && $columns[0] === '*')) {
+            // No custom select, use select * with vn_rank
+            return $query->select([DB::raw('users.*'), DB::raw($vnRankSql . ' AS vn_rank')]);
+        }
+        return $query->addSelect(DB::raw($vnRankSql . ' AS vn_rank'));
     }
 
     public function scopeWithInteractionStatus($query, $currentUserId)
@@ -1065,11 +1051,18 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
             return [];
         }
 
-        $rankingMatches = self::getRankingMatches();
         $userIdsCsv = implode(',', array_map('intval', $userIds));
 
-        // Single query: pre-compute (user_id, max_score, total_matches) once in "user_scores" CTE,
-        // then for each target user count how many users have a higher score AND >= rankingMatches.
+        // Dùng cùng nguồn qualified với /api/leaderboard (anchor badge + total_matches_has_anchor + qualified matches)
+        // để /api/user (me) và /api/leaderboard đồng bộ — trước đó chỉ filter total_matches >= 5 nên lệch.
+        $qualifiedUserIds = app(LeaderboardQualifierService::class)->qualifiedUserIds($sportId);
+        if (empty($qualifiedUserIds)) {
+            return array_fill_keys(array_map('intval', $userIds), null);
+        }
+
+        // Single query: pre-compute (user_id, max_score) once in "user_scores" CTE,
+        // then for each target user count how many qualified users have a higher score.
+        $qualifiedCsv = implode(',', array_map('intval', $qualifiedUserIds));
         $ranksSql = "
             SELECT
               target.user_id,
@@ -1079,7 +1072,6 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                 FROM user_scores
                 WHERE user_scores.user_id IN ({$userIdsCsv})
                   AND user_scores.sport_id = {$sportId}
-                  AND user_scores.total_matches >= {$rankingMatches}
             ) target
             LEFT JOIN (
                 SELECT user_id, max_score
@@ -1088,7 +1080,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                   AND email != 'vrplus2018@gmail.com'
                   AND deleted_at IS NULL
                   AND max_score > 0
-                  AND total_matches >= {$rankingMatches}
+                  AND user_id IN ({$qualifiedCsv})
             ) higher ON higher.max_score > target.max_score
             GROUP BY target.user_id, target.max_score
         ";
@@ -1100,8 +1092,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
                   us.sport_id,
                   u.email,
                   u.deleted_at,
-                  ms.max_score,
-                  us.total_matches
+                  ms.max_score
                 FROM user_sport us
                 JOIN (
                     SELECT user_sport.user_id, MAX(user_sport_scores.score_value) AS max_score
