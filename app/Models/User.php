@@ -247,14 +247,108 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         return $this->last_active_at->diffInMinutes(now()) <= $minutesThreshold;
     }
 
+    /**
+     * Get rank percentile for a user (top X% players)
+     */
+    public static function getRankPercentile(int $userId, int $sportId): ?float
+    {
+        $userRank = self::getBatchVNRanks([$userId], $sportId)[$userId] ?? null;
+        if ($userRank === null) return null;
+
+        $totalUsers = self::query()
+            ->join('user_sport', 'users.id', '=', 'user_sport.user_id')
+            ->join('user_sport_scores', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
+            ->where('user_sport.sport_id', $sportId)
+            ->where('user_sport_scores.score_type', 'vndupr_score')
+            ->where('users.email', '!=', 'vrplus2018@gmail.com')
+            ->whereRaw('user_sport_scores.score_value > 0')
+            ->distinct('users.id')
+            ->count('users.id');
+
+        if ($totalUsers === 0) return null;
+
+        return round((1 - $userRank / $totalUsers) * 100, 1);
+    }
+
+    /**
+     * Get friends count (mutual follows - 2 people follow each other)
+     */
+    public function getFriendsCount(): int
+    {
+        return DB::table('follows as f1')
+            ->join('follows as f2', function ($join) {
+                $join->on('f1.user_id', '=', 'f2.followable_id')
+                    ->on('f1.followable_id', '=', 'f2.user_id');
+            })
+            ->where('f1.followable_type', User::class)
+            ->where('f2.followable_type', User::class)
+            ->where('f1.user_id', $this->id)
+            ->count();
+    }
+
     public function follows()
     {
         return $this->morphMany(Follow::class, 'followable');
     }
 
+    public function followers()
+    {
+        return $this->hasMany(Follow::class, 'followable_id')
+            ->where('followable_type', User::class);
+    }
+
     public function followings()
     {
         return $this->hasMany(Follow::class, 'user_id');
+    }
+
+    /**
+     * Đếm số bạn bè = mutual follow giữa user hiện tại và người khác.
+     * Bạn bè = 2 người follow nhau (chỉ tính user-user, không tính same-club).
+     */
+    public function getFriendsCount(): int
+    {
+        $userClass = User::class;
+        return DB::table('follows as f1')
+            ->join('follows as f2', function ($join) {
+                $join->on('f1.user_id', '=', 'f2.followable_id')
+                    ->on('f1.followable_id', '=', 'f2.user_id');
+            })
+            ->where('f1.followable_type', $userClass)
+            ->where('f2.followable_type', $userClass)
+            ->where('f1.user_id', $this->id)
+            ->count();
+    }
+
+    /**
+     * Tính top X% người chơi: dựa trên rank hiện tại so với tổng user có rank.
+     * Càng rank nhỏ (top 1) thì percentile càng cao (99.9%).
+     */
+    public static function getRankPercentile(int $userId, int $sportId): ?float
+    {
+        $userRank = self::getBatchVNRanks([$userId], $sportId)[$userId] ?? null;
+        if ($userRank === null) {
+            return null;
+        }
+
+        $totalUsers = self::query()
+            ->join('user_sport', 'users.id', '=', 'user_sport.user_id')
+            ->join('user_sport_scores', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
+            ->where('user_sport.sport_id', $sportId)
+            ->where('user_sport_scores.score_type', 'vndupr_score')
+            ->where('users.email', '!=', 'vrplus2018@gmail.com')
+            ->whereNull('users.deleted_at')
+            ->where('user_sport_scores.score_value', '>', 0)
+            ->distinct('users.id')
+            ->count('users.id');
+
+        if ($totalUsers === 0) {
+            return null;
+        }
+
+        // Percentile = (1 - rank/total) * 100
+        // Rank 1 trong totalUsers = top ((total-1)/total)*100
+        return round((1 - $userRank / $totalUsers) * 100, 1);
     }
 
     public function getJWTIdentifier()
@@ -653,6 +747,19 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         return $query->addSelect([
             'is_following_count' => $isFollowingSubquery,
             'is_followed_by_count' => $isFollowedBySubquery,
+        ]);
+    }
+
+    /**
+     * Scope: Load social counts (followers_count, following_count) cho list users.
+     * Tránh N+1 khi render danh sách users.
+     * Note: friends_count cần query riêng (mutual follow self-join).
+     */
+    public function scopeWithSocialCounts($query)
+    {
+        return $query->withCount([
+            'followers as followers_count',
+            'followings as following_count',
         ]);
     }
 
