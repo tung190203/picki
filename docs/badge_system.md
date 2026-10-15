@@ -214,7 +214,7 @@ Các lệnh này đã được cấu hình chạy tự động trong `app/Consol
   - **Chức năng:** Cấp huy hiệu "Cột mốc Rating" dựa trên rating hiện tại của tất cả user.
   - **Lịch tự động:** Chạy lúc `02:45` sáng mỗi ngày.
 - `php artisan badges:evaluate-leaderboard`
-  - **Chức năng:** Cấp huy hiệu "Top BXH" dựa trên Bảng xếp hạng của hệ thống và Club.
+  - **Chức năng:** Cấp huy hiệu "Top BXH" dựa trên Bảng xếp hạng toàn hệ thống (Top 100, 50, 10, 3, 1).
   - **Lịch tự động:** Chạy lúc `03:00` sáng mỗi ngày.
 
 ### 6.2. Các lệnh Đồng Bộ Hồi Tố (Chỉ chạy thủ công 1 lần)
