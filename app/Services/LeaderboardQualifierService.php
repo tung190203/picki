@@ -58,8 +58,11 @@ class LeaderboardQualifierService
             return false;
         }
 
+        // Match is qualified when at least one participant has an anchor badge
         return DB::table('user_badges')
-            ->whereIn('user_id', $userIds)
+            ->join('badges', 'badges.id', '=', 'user_badges.badge_id')
+            ->whereIn('user_badges.user_id', $userIds)
+            ->whereIn('badges.code', self::ANCHOR_BADGE_CODES)
             ->exists();
     }
 
