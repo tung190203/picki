@@ -704,9 +704,9 @@ const persistMatchScores = async () => {
         // Also save rally stages if rally scoring
         if (isRally.value && rallyStageData.value.length > 0) {
             try {
-                const payload = formatRallyStagesForAPI()
-                console.debug('[Rally] Saving stages:', JSON.stringify(payload, null, 2))
-                await MatchesServices.saveRallyStages(currentLeg.value.id, { stages: payload })
+                await MatchesServices.saveRallyStages(currentLeg.value.id, {
+                    stages: formatRallyStagesForAPI()
+                })
             } catch (rallyErr) {
                 console.warn('Rally stages save failed:', rallyErr)
             }
@@ -731,7 +731,15 @@ const saveMatch = async () => {
 /* ===================== CONFIRM MATCH ===================== */
 const canConfirmMatch = computed(() => {
     if (isRally.value) {
-        return rallyStageData.value.some(s => (s.cumulative_score_a ?? 0) > 0 || (s.cumulative_score_b ?? 0) > 0)
+        // ponytail: only allow confirm once every stage has reached its target.
+        // "any score > 0" was a confusing requirement that let users confirm
+        // with half-finished stages.
+        const stages = rallyStageData.value
+        if (stages.length === 0) return false
+        return stages.every(s => {
+            const target = s.target_point || props.data?.stage_points?.[s.stage_no - 1] || 10
+            return (s.cumulative_score_a ?? 0) >= target || (s.cumulative_score_b ?? 0) >= target
+        })
     }
     return scores.value.some(s => s.team1 > 0 || s.team2 > 0)
 })
@@ -740,6 +748,18 @@ const confirmMatchResult = async () => {
     if (isSaving.value || !canConfirmMatch.value) return
     try {
         isSaving.value = true
+        // ponytail: rally stages live in a separate table — persist them first,
+        // otherwise confirm can mark a match done with stale/empty stages.
+        if (isRally.value && rallyStageData.value.length > 0) {
+            try {
+                const payload = formatRallyStagesForAPI()
+                console.debug('[Rally] Confirm: saving stages first', JSON.stringify(payload, null, 2))
+                await MatchesServices.saveRallyStages(currentLeg.value.id, { stages: payload })
+            } catch (rallyErr) {
+                toast.error(rallyErr.response?.data?.message || 'Lưu điểm rally thất bại')
+                return
+            }
+        }
         const res = await MatchesServices.confirmResults(currentLeg.value.id)
         toast.success('Xác nhận kết quả thành công!')
         emit('updated', res)

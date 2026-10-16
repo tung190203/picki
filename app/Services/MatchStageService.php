@@ -96,22 +96,14 @@ class MatchStageService
                         "stages.{$idx}.stage_no" => ["Chặng {$stageNo} chỉ ghi được sau khi chặng {$prev['stage_no']} chạm mốc."],
                     ]);
                 }
-                if ($cumA < $prev['cumulative_score_a'] || $cumB < $prev['cumulative_score_b']) {
-                    throw ValidationException::withMessages([
-                        "stages.{$idx}.cumulative_score_a" => ["Điểm lũy kế phải ≥ chặng trước."],
-                    ]);
-                }
             }
 
-            // Stage placeholder (0/0) hoặc chưa có prev → stageScore = 0
-            $stageA = $isPlaceholder ? 0 : ($cumA - $prevCumulativeA);
-            $stageB = $isPlaceholder ? 0 : ($cumB - $prevCumulativeB);
-
-            if (!$isPlaceholder && ($stageA < 0 || $stageB < 0)) {
-                throw ValidationException::withMessages([
-                    "stages.{$idx}" => ["Điểm riêng stage phải ≥ 0."],
-                ]);
-            }
+            // ponytail: cumulative_score_* is the per-stage score (delta), not a
+            // running total. Earlier code compared cum vs prevCum and rejected
+            // "0 < 20" as a decrease, but that's the natural next-stage state
+            // (the team that lost simply scored 0). Treat cum == stage_score.
+            $stageA = $isPlaceholder ? 0 : $cumA;
+            $stageB = $isPlaceholder ? 0 : $cumB;
 
             if (!$isPlaceholder && $cumA === $target && $cumB === $target) {
                 throw ValidationException::withMessages([
@@ -492,20 +484,12 @@ class MatchStageService
                 ]);
             }
 
-            // Tính lại stage_score từ cumulative hiện tại của các stage trước đó
-            $prev = MatchStage::where('match_id', $lockedMatch->id)
-                ->where('stage_no', '<', $stage->stage_no)
-                ->orderByDesc('stage_no')
-                ->first();
-            $prevCumA = $prev ? (int) $prev->cumulative_score_a : 0;
-            $prevCumB = $prev ? (int) $prev->cumulative_score_b : 0;
-            $stageScoreA = $cumA - $prevCumA;
-            $stageScoreB = $cumB - $prevCumB;
-            if ($stageScoreA < 0 || $stageScoreB < 0) {
-                throw ValidationException::withMessages([
-                    'cumulative_score_a' => ['Điểm lũy kế nhỏ hơn chặng trước.'],
-                ]);
-            }
+            // ponytail: cumulative_score_* is the per-stage score (delta). See
+            // validateAndBuild() for the same reasoning. Drop the
+            // "≥ prev cumulative" check that rejected valid 0s on the
+            // losing side of a new stage.
+            $stageScoreA = $cumA;
+            $stageScoreB = $cumB;
             if ($cumA === $target && $cumB === $target) {
                 throw ValidationException::withMessages([
                     'cumulative_score_a' => ['Cả hai đội cùng chạm mốc — không hợp lệ.'],
