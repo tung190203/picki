@@ -59,10 +59,6 @@
                         <div class="p-1.5 sm:p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors relative"
                             @click="openGuestsModal" v-tooltip="'Khách của CLB'">
                             <UserGroupIcon class="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                            <span v-if="(club?.guests_count ?? 0) > 0"
-                                class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-[#D72D36] text-white text-[10px] font-bold rounded-full flex items-center justify-center border border-white/30">
-                                {{ (club?.guests_count ?? 0) > 99 ? '99+' : club.guests_count }}
-                            </span>
                         </div>
                         <div class="p-1.5 sm:p-2 cursor-pointer hover:bg-white/10 rounded-full transition-colors"
                             @click="shareClub">
@@ -137,7 +133,7 @@
                 </div>
 
                 <!-- Stats Cards -->
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mt-8 relative z-20">
+                <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mt-8 relative z-20">
                     <div v-for="(stat, index) in statsAdmin" :key="index"
                         class="bg-[#3E414C]/80 backdrop-blur-md rounded-2xl p-3 sm:p-4 md:p-6 border border-white/5 shadow-inner">
                         <p class="text-xs sm:text-sm font-semibold text-gray-300 mb-2 uppercase tracking-wide">{{ stat.label }}</p>
@@ -838,18 +834,13 @@ const statsAdmin = computed(() => {
             unit: 'người'
         },
         {
-            label: 'Kèo/giải hôm nay',
-            value: club.value?.mini_tournaments_today ?? 0,
-            unit: 'buổi'
+            label: 'Người theo dõi',
+            value: club.value?.followers_count ?? 0,
+            unit: 'người'
         },
         {
-            label: 'Chưa thanh toán',
-            value: club.value?.unpaid_members_count ?? 0,
-            unit: 'lượt'
-        },
-        {
-            label: 'Tỷ lệ khách quay lại',
-            value: (club.value?.returning_guests_percent ?? 0) + '%',
+            label: 'Khoảng trình',
+            value: club.value?.score_range ?? '-',
             unit: ''
         }
     ]
