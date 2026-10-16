@@ -183,6 +183,32 @@
                         </div>
                     </div>
 
+                    <div v-if="isRally" class="border border-dashed border-gray-200 rounded-lg p-3 bg-gray-50">
+                        <div class="flex items-center justify-between mb-2">
+                            <p class="text-sm font-medium text-gray-700">Mốc điểm Rally</p>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-gray-500">Số chặng:</span>
+                                <select v-model.number="stageCount" @change="onStageCountChange"
+                                    class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-[#D72D36] focus:border-[#D72D36]">
+                                    <option v-for="n in [2, 3, 4, 5]" :key="n" :value="n">{{ n }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid gap-2"
+                            :class="stageCount === 2 ? 'grid-cols-2' : (stageCount === 4 ? 'grid-cols-2' : 'grid-cols-3')">
+                            <div v-for="(_, idx) in stagePoints" :key="idx">
+                                <label class="block text-xs text-gray-500 mb-1">Chặng {{ idx + 1 }}</label>
+                                <input type="number" v-model.number="stagePoints[idx]" min="1"
+                                    class="w-full px-2 py-1 border rounded text-sm focus:ring-[#D72D36] focus:border-[#D72D36]"
+                                    :class="!stageValidation.ok ? 'border-red-400' : 'border-gray-300'" />
+                            </div>
+                        </div>
+                        <p v-if="!stageValidation.ok" class="text-xs text-red-500 mt-2">{{ stageValidation.error }}</p>
+                        <p v-else class="text-xs text-gray-500 mt-2">
+                            Mỗi mốc phải lớn hơn mốc trước ít nhất 5 điểm. Mặc định 10/20/30.
+                        </p>
+                    </div>
+
                     <div class="relative">
                         <SettingItem label="Điểm kết thúc mỗi trận" :value="`${pointsToWinSet} Điểm`"
                             :is-open="openSettingId === 'point'" @click="toggleDropdown('point')" />
@@ -323,6 +349,31 @@
                             </div>
                         </div>
                     </div>
+                    <div v-if="isRally" class="border border-dashed border-gray-200 rounded-lg p-3 bg-gray-50">
+                        <div class="flex items-center justify-between mb-2">
+                            <p class="text-sm font-medium text-gray-700">Mốc điểm Rally</p>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-gray-500">Số chặng:</span>
+                                <select v-model.number="stageCount" @change="onStageCountChange"
+                                    class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-[#D72D36] focus:border-[#D72D36]">
+                                    <option v-for="n in [2, 3, 4, 5]" :key="n" :value="n">{{ n }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid gap-2"
+                            :class="stageCount === 2 ? 'grid-cols-2' : (stageCount === 4 ? 'grid-cols-2' : 'grid-cols-3')">
+                            <div v-for="(_, idx) in stagePoints" :key="idx">
+                                <label class="block text-xs text-gray-500 mb-1">Chặng {{ idx + 1 }}</label>
+                                <input type="number" v-model.number="stagePoints[idx]" min="1"
+                                    class="w-full px-2 py-1 border rounded text-sm focus:ring-[#D72D36] focus:border-[#D72D36]"
+                                    :class="!stageValidation.ok ? 'border-red-400' : 'border-gray-300'" />
+                            </div>
+                        </div>
+                        <p v-if="!stageValidation.ok" class="text-xs text-red-500 mt-2">{{ stageValidation.error }}</p>
+                        <p v-else class="text-xs text-gray-500 mt-2">
+                            Mỗi mốc phải lớn hơn mốc trước ít nhất 5 điểm. Mặc định 10/20/30.
+                        </p>
+                    </div>
                     <div class="relative">
                         <SettingItem label="Điểm kết thúc mỗi trận" :value="`${pointsToWinSet} Điểm`"
                             :is-open="openSettingId === 'point'" @click="toggleDropdown('point')" />
@@ -430,6 +481,31 @@
                                 </button>
                             </div>
                         </div>
+                    </div>
+                    <div v-if="isRally" class="border border-dashed border-gray-200 rounded-lg p-3 bg-gray-50">
+                        <div class="flex items-center justify-between mb-2">
+                            <p class="text-sm font-medium text-gray-700">Mốc điểm Rally</p>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-gray-500">Số chặng:</span>
+                                <select v-model.number="stageCount" @change="onStageCountChange"
+                                    class="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-[#D72D36] focus:border-[#D72D36]">
+                                    <option v-for="n in [2, 3, 4, 5]" :key="n" :value="n">{{ n }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid gap-2"
+                            :class="stageCount === 2 ? 'grid-cols-2' : (stageCount === 4 ? 'grid-cols-2' : 'grid-cols-3')">
+                            <div v-for="(_, idx) in stagePoints" :key="idx">
+                                <label class="block text-xs text-gray-500 mb-1">Chặng {{ idx + 1 }}</label>
+                                <input type="number" v-model.number="stagePoints[idx]" min="1"
+                                    class="w-full px-2 py-1 border rounded text-sm focus:ring-[#D72D36] focus:border-[#D72D36]"
+                                    :class="!stageValidation.ok ? 'border-red-400' : 'border-gray-300'" />
+                            </div>
+                        </div>
+                        <p v-if="!stageValidation.ok" class="text-xs text-red-500 mt-2">{{ stageValidation.error }}</p>
+                        <p v-else class="text-xs text-gray-500 mt-2">
+                            Mỗi mốc phải lớn hơn mốc trước ít nhất 5 điểm. Mặc định 10/20/30.
+                        </p>
                     </div>
                     <div class="relative">
                         <SettingItem label="Điểm kết thúc mỗi trận" :value="`${pointsToWinSet} Điểm`"
@@ -554,6 +630,16 @@ import Toggle from '@/components/atoms/Toggle.vue';
 import MixedIcon from '@/assets/images/mixed.svg';
 import DirectIcon from '@/assets/images/direct.svg';
 import RoundRobinIcon from '@/assets/images/round-robin.svg';
+import {
+    MIN_STAGES,
+    MAX_STAGES,
+    DEFAULT_STAGES,
+    DEFAULT_STAGE_VALUES,
+    inferScoringType,
+    defaultStagePoints,
+    validateStagePoints,
+    resizeStagePoints,
+} from '@/composables/rallyScoring'
 
 const props = defineProps({
     data: {
@@ -632,6 +718,16 @@ const maxPoints = ref(11);
 const serveChangeInterval = ref(0);
 const seedingRules = ref([1, 2, 3]);
 const calculationMethods = ref([1, 4, 5, 2, 3]);
+
+// ✅ Phase 1 — Rally Scoring stage points
+const stageCount = ref(DEFAULT_STAGES);
+const stagePoints = ref(defaultStagePoints(DEFAULT_STAGES));
+const isRally = computed(() => inferScoringType(props.data?.player_per_team) === 'rally');
+const stageValidation = computed(() => validateStagePoints(stagePoints.value));
+
+function onStageCountChange() {
+    stagePoints.value = resizeStagePoints(stagePoints.value, stageCount.value);
+}
 
 // Pairing mode được quản lý ở TournamentDetail.vue (tab Thể thức), không gửi khi tạo mới thể thức
 // Chỉ gửi PUT riêng qua API PUT tournament-types/{id} để cập nhật pairing_mode
@@ -819,19 +915,26 @@ const singleGroupValidationError = computed(() => {
 });
 
 const tournamentConfigJson = computed(() => {
+    const matchRules = {
+        sets_per_match: setsPerMatch.value,
+        points_to_win_set: pointsToWinSet.value,
+        winning_rule: winningRule.value,
+        max_points: maxPoints.value,
+        serve_change_interval: serveChangeInterval.value,
+        // Phase 1 — Rally Scoring: server is source of truth, but we send
+        // scoring_type + stage_points to keep payload explicit (the server
+        // will still overwrite scoring_type from `player_per_team`).
+        scoring_type: isRally.value ? 'rally' : 'side_out',
+    };
+    if (isRally.value && stageValidation.value.ok) {
+        matchRules.stage_points = stagePoints.value.slice();
+    }
+
     const baseConfig = {
         format: activeTab.value === 'mixed' ? 1 : (activeTab.value === 'direct' ? 2 : 3),
         num_legs: parseInt(format.value),
 
-        match_rules: [
-            {
-                sets_per_match: setsPerMatch.value,
-                points_to_win_set: pointsToWinSet.value,
-                winning_rule: winningRule.value,
-                max_points: maxPoints.value,
-                serve_change_interval: serveChangeInterval.value,
-            }
-        ],
+        match_rules: [matchRules],
 
         rules: matchNotes.value,
         rules_file_path: rulesFileName.value,

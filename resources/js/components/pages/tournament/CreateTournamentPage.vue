@@ -363,6 +363,10 @@
                                 </button>
                             </div>
                         </div>
+                        <p v-if="participant === 'team' && scoringTypeLabel"
+                            class="text-xs text-gray-500 italic -mt-3 ml-1">
+                            {{ scoringTypeLabel }}
+                        </p>
 
                         <!-- Số người chơi tối đa (khi tham gia đơn) -->
                         <div v-if="participant === 'player'" class="flex items-center justify-between">
@@ -871,6 +875,13 @@ const ageGroupLabel = computed(() => ageGroupOptions.find(a => a.value === ageGr
 const genderPolicyLabel = computed(() => genderPolicyOptions.find(g => g.value === genderPolicy.value)?.label || 'Nam Nữ')
 const privacyLabel = computed(() => isPrivate.value ? 'Giải riêng tư' : 'Công khai')
 const participantLabel = computed(() => participant.value === 'team' ? 'Đội' : 'Đơn')
+const scoringTypeLabel = computed(() => {
+    if (participant.value !== 'team') return ''
+    if (playerPerTeam.value >= 3) {
+        return 'Rally Scoring — điểm cộng dồn qua các chặng (chọn số chặng ở màn Luật thi đấu).'
+    }
+    return 'Side-out (luật hiện tại, thắng cách 2).'
+})
 
 const buildImageUrl = (url) => {
     if (!url) return null
@@ -1032,8 +1043,8 @@ const selectLocation = (location) => {
 
 const decreaseTeam = () => { if (teamCount.value > 1) teamCount.value-- }
 const increaseTeam = () => { teamCount.value++ }
-const decreasePlayerPerTeam = () => { if (playerPerTeam.value > 1) playerPerTeam.value-- }
-const increasePlayerPerTeam = () => { playerPerTeam.value++ }
+const decreasePlayerPerTeam = () => { if (playerPerTeam.value > 2) playerPerTeam.value-- }
+const increasePlayerPerTeam = () => { if (playerPerTeam.value < 4) playerPerTeam.value++ }
 const decreaseMaxPlayer = () => { if (maxPlayer.value > 1) maxPlayer.value-- }
 const increaseMaxPlayer = () => { maxPlayer.value++ }
 

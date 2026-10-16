@@ -16,6 +16,7 @@ use App\Services\TournamentType\CrossGroupRankingService;
 use App\Services\TournamentType\GroupStandingRanker;
 use App\Services\TournamentType\ManualTiebreakerService;
 use App\Services\TournamentService;
+use App\Services\TournamentScoringTypeInferrer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +38,7 @@ class TournamentTypeController extends Controller
         private \App\Services\TournamentType\KnockoutRebuildService $knockoutRebuildService,
         private \App\Services\TournamentType\ManualTiebreakerService $manualTiebreakerService,
         private \App\Services\TournamentType\TournamentRankService $rankService,
+        private \App\Services\TournamentScoringTypeInferrer $scoringInferrer,
     ) {}
 
     /**
@@ -159,6 +161,17 @@ class TournamentTypeController extends Controller
                     'rules_file_path' => $validated['rules_file_path'] ?? null,
                 ]
             );
+
+            // ✅ Phase 1 — Rally Scoring: stamp scoring_type + stage_points from
+            // `tournament.player_per_team` so the engine always has a single
+            // source of truth and clients cannot pick a contradictory type.
+            try {
+                $type->match_rules = $this->normalizeMatchRules($tournament, $type->match_rules ?? []);
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                DB::rollBack();
+                return ResponseHelper::error($e->errors()['match_rules'][0] ?? 'Invalid stage points', 422);
+            }
+            $type->save();
 
             // ✅ FORCE-SYNC: cross_group_ranking.enabled = advanced_to_next_round
             // (chỉ áp dụng cho format MIXED). Phải set NGAY SAU createWithFormat để các bước
@@ -342,6 +355,9 @@ class TournamentTypeController extends Controller
 
         $validated = $request->validate([
             'match_rules' => 'sometimes|array',
+            'match_rules.scoring_type' => 'sometimes|nullable|string|in:side_out,rally',
+            'match_rules.stage_points' => 'sometimes|nullable|array',
+            'match_rules.stage_points.*' => 'integer|min:1',
             'format_specific_config' => 'array|nullable',
             'rules' => 'string|nullable',
             'rules_file_path' => 'string|nullable',
@@ -459,7 +475,15 @@ class TournamentTypeController extends Controller
 
             // ✅ CẬP NHẬT từng phần, GIỮ NGUYÊN dữ liệu cũ nếu không gửi lên
             if (array_key_exists('match_rules', $validated)) {
-                $tournamentType->match_rules = $validated['match_rules'];
+                try {
+                    $tournamentType->match_rules = $this->normalizeMatchRules(
+                        $tournamentType->tournament,
+                        $validated['match_rules']
+                    );
+                } catch (\Illuminate\Validation\ValidationException $e) {
+                    DB::rollBack();
+                    return ResponseHelper::error($e->errors()['match_rules'][0] ?? 'Invalid stage points', 422);
+                }
             }
 
             if (array_key_exists('format_specific_config', $validated)) {
@@ -4515,6 +4539,37 @@ class TournamentTypeController extends Controller
         }
 
         return false;
+    }
+
+    /**
+     * Normalize scoring_type + stage_points inside match_rules.
+     *
+     * - `scoring_type` is server-derived from `tournament->player_per_team`
+     *   (2 → side_out, ≥3 → rally). The client's value is overwritten so we
+     *   never have two sources of truth.
+     * - For rally: if stage_points is absent, default to
+     *   [10,20,30]. Existing stage_points are validated.
+     * - For side_out: stage_points (if any) is stripped to avoid drift.
+     *
+     * Returns the (possibly modified) match_rules array. The caller is
+     * responsible for persisting it.
+     */
+    protected function normalizeMatchRules(Tournament $tournament, array $matchRules): array
+    {
+        $expected = $this->scoringInferrer->inferScoringType((int) $tournament->player_per_team);
+        $matchRules['scoring_type'] = $expected;
+
+        if ($expected === TournamentScoringTypeInferrer::RALLY) {
+            if (!array_key_exists('stage_points', $matchRules) || !is_array($matchRules['stage_points']) || empty($matchRules['stage_points'])) {
+                $matchRules['stage_points'] = $this->scoringInferrer->defaultStagePoints();
+            } else {
+                $matchRules['stage_points'] = $this->scoringInferrer->validateStagePoints($matchRules['stage_points']);
+            }
+        } else {
+            unset($matchRules['stage_points']);
+        }
+
+        return $matchRules;
     }
 
     /**

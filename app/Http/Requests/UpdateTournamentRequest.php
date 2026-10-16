@@ -40,7 +40,7 @@ class UpdateTournamentRequest extends FormRequest
             'gender_policy_text' => 'nullable|string',
             'participant' => 'nullable|in:team,user',
             'max_team' => 'nullable|integer|required_if:participant,team',
-            'player_per_team' => 'nullable|integer|required_if:participant,team',
+            'player_per_team' => 'nullable|integer|required_if:participant,team|in:2,3,4',
             'max_player' => 'nullable|integer|required_if:participant,user',
             'is_private' => 'nullable|boolean',
             'auto_approve' => 'nullable|boolean',
@@ -94,38 +94,53 @@ class UpdateTournamentRequest extends FormRequest
     {
         $validator->after(function ($validator) {
 
-            if (!$this->has('has_fee') && !$this->has('has_financial_management')) {
-                return;
-            }
+            if ($this->has('has_fee') || $this->has('has_financial_management')) {
+                $hasFinancialMgmt = $this->boolean('has_financial_management');
+                $hasFee = $this->boolean('has_fee');
 
-            $hasFinancialMgmt = $this->boolean('has_financial_management');
-            $hasFee = $this->boolean('has_fee');
+                if ($hasFee && $hasFinancialMgmt) {
+                    $hasQrFile = $this->hasFile('qr_code_url');
+                    $qrInput = $this->input('qr_code_url');
+                    $hasQrString = is_string($qrInput) && trim($qrInput) !== '';
 
-            if ($hasFee && $hasFinancialMgmt) {
-                $hasQrFile = $this->hasFile('qr_code_url');
-                $qrInput = $this->input('qr_code_url');
-                $hasQrString = is_string($qrInput) && trim($qrInput) !== '';
-
-                if (!$hasQrFile && !$hasQrString && !$this->boolean('use_cached_qr')) {
-                    $tournamentId = $this->route('id');
-                    if ($tournamentId) {
-                        $tournament = \App\Models\Tournament::find($tournamentId);
-                        $existingQr = $tournament && $tournament->qr_code_url;
-                        if (!$existingQr) {
-                            $validator->errors()->add(
-                                'qr_code_url',
-                                'Mã QR thanh toán là bắt buộc khi bật thu phí và quản lý tài chính.'
-                            );
+                    if (!$hasQrFile && !$hasQrString && !$this->boolean('use_cached_qr')) {
+                        $tournamentId = $this->route('id');
+                        if ($tournamentId) {
+                            $tournament = \App\Models\Tournament::find($tournamentId);
+                            $existingQr = $tournament && $tournament->qr_code_url;
+                            if (!$existingQr) {
+                                $validator->errors()->add(
+                                    'qr_code_url',
+                                    'Mã QR thanh toán là bắt buộc khi bật thu phí và quản lý tài chính.'
+                                );
+                            }
                         }
                     }
                 }
+
+                if ($hasFee && !$this->input('fee_amount')) {
+                    $validator->errors()->add(
+                        'fee_amount',
+                        'Số tiền phí là bắt buộc khi bật thu phí.'
+                    );
+                }
             }
 
-            if ($hasFee && !$this->input('fee_amount')) {
-                $validator->errors()->add(
-                    'fee_amount',
-                    'Số tiền phí là bắt buộc khi bật thu phí.'
-                );
+            // Phase 1 — block changing player_per_team once the tournament has any matches.
+            if ($this->has('player_per_team') && $this->input('player_per_team') !== null) {
+                $tournamentId = $this->route('id');
+                if ($tournamentId) {
+                    $tournament = \App\Models\Tournament::find($tournamentId);
+                    if ($tournament && $tournament->player_per_team !== null
+                        && (int) $tournament->player_per_team !== (int) $this->input('player_per_team')
+                        && $tournament->hasMatchesWithResults()
+                    ) {
+                        $validator->errors()->add(
+                            'player_per_team',
+                            'Không thể thay đổi số người mỗi đội khi giải đã có trận đấu.'
+                        );
+                    }
+                }
             }
         });
     }
@@ -173,6 +188,7 @@ class UpdateTournamentRequest extends FormRequest
             'player_per_team.required' => 'Vui lòng nhập số người mỗi đội',
             'player_per_team.required_if' => 'Vui lòng nhập số người mỗi đội khi chọn hình thức thi đấu theo đội',
             'player_per_team.integer' => 'Số người mỗi đội phải là số nguyên',
+            'player_per_team.in' => 'Số người mỗi đội chỉ được là 2, 3 hoặc 4',
             'max_player.required' => 'Vui lòng nhập số người chơi tối đa',
             'max_player.required_if' => 'Vui lòng nhập số người chơi tối đa khi chọn hình thức thi đấu cá nhân',
             'max_player.integer' => 'Số người chơi tối đa phải là số nguyên',
