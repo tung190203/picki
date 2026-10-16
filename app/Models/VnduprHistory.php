@@ -13,6 +13,7 @@ class VnduprHistory extends Model
     protected $fillable = [
         'user_id',
         'match_id',
+        'match_stage_id',
         'mini_match_id',
         'quick_match_id',
         'score_before',
@@ -25,6 +26,10 @@ class VnduprHistory extends Model
     public function match()
     {
         return $this->belongsTo(Matches::class, 'match_id');
+    }
+    public function matchStage()
+    {
+        return $this->belongsTo(MatchStage::class, 'match_stage_id');
     }
     public function miniMatch()
     {

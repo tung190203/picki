@@ -93,6 +93,103 @@
                             </div>
                         </div>
 
+                        <!-- RALLY SCORING: kết quả các chặng theo mẫu mobile -->
+                        <div v-if="hasRallyData && rallyStages.length" class="mb-6">
+                            <!-- Header -->
+                            <div class="flex items-center gap-2 mb-3">
+                                <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
+                                <h3 class="text-sm font-bold text-gray-700">Rally Scoring — Kết quả các chặng</h3>
+                            </div>
+
+                            <!-- Total cumulative result -->
+                            <div class="mb-4 p-4 bg-green-50 border border-green-200 rounded-xl text-center">
+                                <div class="text-xs font-bold text-green-700 uppercase tracking-wide mb-1">Kết quả chung cuộc</div>
+                                <div class="flex items-center justify-center gap-3">
+                                    <span class="text-3xl font-black" :class="rallyHomeWins ? 'text-green-600' : 'text-blue-600'">{{ rallyHomeCumulative }}</span>
+                                    <span class="text-2xl font-light text-gray-400">–</span>
+                                    <span class="text-3xl font-black" :class="rallyAwayWins ? 'text-green-600' : 'text-red-500'">{{ rallyAwayCumulative }}</span>
+                                </div>
+                                <div v-if="matchData.winner_id" class="mt-2 text-sm font-semibold text-green-700">
+                                    {{ matchData.winner_id === matchData.home_team?.id ? matchData.home_team?.name : matchData.away_team?.name }} thắng
+                                </div>
+                            </div>
+
+                            <!-- Stage cards -->
+                            <div class="space-y-3">
+                                <div v-for="stage in rallyStages" :key="stage.stage_no"
+                                    class="border rounded-xl overflow-hidden transition-all"
+                                    :class="stage.status === 'completed' ? 'border-green-300 bg-white' : 'border-gray-200 bg-gray-50'">
+
+                                    <!-- Stage header -->
+                                    <div class="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-bold text-sm" :class="stage.status === 'completed' ? 'text-green-700' : 'text-blue-700'">
+                                                Chặng {{ stage.stage_no }}
+                                            </span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs text-gray-500 font-medium">mốc {{ stage.target_point }}</span>
+                                            <span v-if="stage.status === 'completed'" class="text-xs font-bold px-2 py-0.5 rounded-full text-white" :class="stage.winner_team_id === matchData.home_team?.id ? 'bg-blue-600' : 'bg-red-500'">
+                                                THẮNG CHẶNG
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Stage body -->
+                                    <div class="p-4">
+                                        <!-- Members row -->
+                                        <div class="grid grid-cols-[1fr_auto_1fr] gap-3 items-center mb-3">
+                                            <div class="flex flex-wrap gap-1">
+                                                <span v-for="m in stage.members?.team_a" :key="m.user_id"
+                                                    class="text-xs bg-blue-50 border border-blue-200 rounded px-2 py-1 font-medium text-gray-700">
+                                                    {{ m.name }}
+                                                </span>
+                                            </div>
+                                            <span class="text-xs font-bold text-gray-400">VS</span>
+                                            <div class="flex flex-wrap gap-1 justify-end">
+                                                <span v-for="m in stage.members?.team_b" :key="m.user_id"
+                                                    class="text-xs bg-red-50 border border-red-200 rounded px-2 py-1 font-medium text-gray-700">
+                                                    {{ m.name }}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Scores -->
+                                        <div class="flex items-center justify-center gap-3">
+                                            <div class="text-center">
+                                                <div class="w-14 h-14 rounded-xl border-2 flex items-center justify-center font-black text-2xl transition-colors"
+                                                    :class="stage.winner_team_id === matchData.home_team?.id
+                                                        ? 'border-green-400 bg-green-50 text-green-600'
+                                                        : 'border-gray-200 bg-gray-50 text-gray-600'">
+                                                    {{ stage.stage_score_a ?? 0 }}
+                                                </div>
+                                                <div class="text-[10px] text-gray-400 mt-1 font-semibold uppercase">điểm chặng</div>
+                                            </div>
+                                            <span class="text-xl font-bold text-gray-400 mt-2">–</span>
+                                            <div class="text-center">
+                                                <div class="w-14 h-14 rounded-xl border-2 flex items-center justify-center font-black text-2xl transition-colors"
+                                                    :class="stage.winner_team_id === matchData.away_team?.id
+                                                        ? 'border-green-400 bg-green-50 text-green-600'
+                                                        : 'border-gray-200 bg-gray-50 text-gray-600'">
+                                                    {{ stage.stage_score_b ?? 0 }}
+                                                </div>
+                                                <div class="text-[10px] text-gray-400 mt-1 font-semibold uppercase">điểm chặng</div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Cumulative label -->
+                                        <div class="text-center mt-2">
+                                            <div class="inline-block text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+                                                Điểm luỹ kế: {{ stage.cumulative_score_a ?? 0 }} – {{ stage.cumulative_score_b ?? 0 }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div v-if="matchData.winner_id" class="text-center mb-8">
                             <div class="inline-flex items-center gap-2 px-6 py-3 bg-green-100 border-2 border-green-300 rounded-full">
                                 <CheckBadgeIcon class="w-6 h-6 text-green-600" />
@@ -152,6 +249,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { toast } from 'vue3-toastify'
 import * as MatchesServices from '@/service/match.js'
 import { CheckBadgeIcon, ExclamationCircleIcon } from '@heroicons/vue/24/solid'
+import { useMatchRallyDisplay } from '@/composables/useRallyScoringDisplay.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -205,6 +303,30 @@ const formattedScores = computed(() => {
 
   return result;
 });
+
+// Rally Scoring display
+const { rallyStages, hasRallyData, lastCompletedStage } = useMatchRallyDisplay(computed(() => matchData.value))
+const rallyHomeCumulative = computed(() => {
+    if (!rallyStages.value?.length) return 0
+    const last = [...rallyStages.value].sort((a, b) => a.stage_no - b.stage_no).at(-1)
+    return last?.cumulative_score_a ?? 0
+})
+
+const rallyAwayCumulative = computed(() => {
+    if (!rallyStages.value?.length) return 0
+    const last = [...rallyStages.value].sort((a, b) => a.stage_no - b.stage_no).at(-1)
+    return last?.cumulative_score_b ?? 0
+})
+
+const rallyHomeWins = computed(() => {
+    if (!lastCompletedStage.value) return false
+    return lastCompletedStage.value.winner_team_id === matchData.value?.home_team?.id
+})
+
+const rallyAwayWins = computed(() => {
+    if (!lastCompletedStage.value) return false
+    return lastCompletedStage.value.winner_team_id === matchData.value?.away_team?.id
+})
 
 // Confirm match
 const confirmMatch = async () => {

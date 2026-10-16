@@ -4565,8 +4565,17 @@ class TournamentTypeController extends Controller
             } else {
                 $matchRules['stage_points'] = $this->scoringInferrer->validateStagePoints($matchRules['stage_points']);
             }
+            // Rally không dùng 3 trường side_out-only — bỏ để tránh drift
+            // khi payload bẩn (FE cũ, smoke test,...) vẫn gửi kèm.
+            unset(
+                $matchRules['points_to_win_set'],
+                $matchRules['max_points'],
+                $matchRules['serve_change_interval']
+            );
         } else {
             unset($matchRules['stage_points']);
+            // side_out: KHÔNG unset 3 trường points_to_win_set/max_points/serve_change_interval
+            // để update() có chọn lọc vẫn giữ được dữ liệu cũ khi client không gửi lại.
         }
 
         return $matchRules;

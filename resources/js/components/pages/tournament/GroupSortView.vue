@@ -354,6 +354,14 @@ const isCreator = computed(() => {
     )
 })
 
+/**
+ * Số người mỗi đội - được cấu hình từ tournament.
+ * Phase 2: Không có validation giới tính, bất kỳ user hợp lệ nào đều có thể tham gia.
+ */
+const playerPerTeam = computed(() => {
+    return tournament.value?.player_per_team ?? 2;
+});
+
 const fetchTeams = async () => {
     try {
         const res = await TournamentTypeService.groupWithTeamsForSort(

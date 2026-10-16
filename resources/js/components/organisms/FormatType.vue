@@ -209,7 +209,7 @@
                         </p>
                     </div>
 
-                    <div class="relative">
+                    <div v-if="!isRally" class="relative">
                         <SettingItem label="Điểm kết thúc mỗi trận" :value="`${pointsToWinSet} Điểm`"
                             :is-open="openSettingId === 'point'" @click="toggleDropdown('point')" />
                         <div v-if="openSettingId === 'point'"
@@ -238,7 +238,7 @@
                         </div>
                     </div>
 
-                    <div class="relative">
+                    <div v-if="!isRally" class="relative">
                         <SettingItem label="Điểm tối đa" :value="`${maxPoints} Điểm`"
                             :is-open="openSettingId === 'maxpoint'" @click="toggleDropdown('maxpoint')" />
                         <div v-if="openSettingId === 'maxpoint'"
@@ -253,7 +253,7 @@
                         </div>
                     </div>
 
-                    <div class="relative">
+                    <div v-if="!isRally" class="relative">
                         <SettingItem label="Điểm đổi sân"
                             :value="serveChangeInterval > 0 ? `${serveChangeInterval} Điểm` : 'Không có'"
                             subtitle="Hệ thống sẽ tự động đổi sân ở set cuối dựa trên điểm đạp nhập"
@@ -374,7 +374,7 @@
                             Mỗi mốc phải lớn hơn mốc trước ít nhất 5 điểm. Mặc định 10/20/30.
                         </p>
                     </div>
-                    <div class="relative">
+                    <div v-if="!isRally" class="relative">
                         <SettingItem label="Điểm kết thúc mỗi trận" :value="`${pointsToWinSet} Điểm`"
                             :is-open="openSettingId === 'point'" @click="toggleDropdown('point')" />
                         <div v-if="openSettingId === 'point'"
@@ -401,7 +401,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="relative">
+                    <div v-if="!isRally" class="relative">
                         <SettingItem label="Điểm tối đa" :value="`${maxPoints} Điểm`"
                             :is-open="openSettingId === 'maxpoint'" @click="toggleDropdown('maxpoint')" />
                         <div v-if="openSettingId === 'maxpoint'"
@@ -415,7 +415,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="relative">
+                    <div v-if="!isRally" class="relative">
                         <SettingItem label="Điểm đổi sân"
                             :value="serveChangeInterval > 0 ? `${serveChangeInterval} Điểm` : 'Không có'"
                             subtitle="Hệ thống sẽ tự động đổi sân ở set cuối dựa trên điểm đạp nhập"
@@ -507,7 +507,7 @@
                             Mỗi mốc phải lớn hơn mốc trước ít nhất 5 điểm. Mặc định 10/20/30.
                         </p>
                     </div>
-                    <div class="relative">
+                    <div v-if="!isRally" class="relative">
                         <SettingItem label="Điểm kết thúc mỗi trận" :value="`${pointsToWinSet} Điểm`"
                             :is-open="openSettingId === 'point'" @click="toggleDropdown('point')" />
                         <div v-if="openSettingId === 'point'"
@@ -534,7 +534,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="relative">
+                    <div v-if="!isRally" class="relative">
                         <SettingItem label="Điểm tối đa" :value="`${maxPoints} Điểm`"
                             :is-open="openSettingId === 'maxpoint'" @click="toggleDropdown('maxpoint')" />
                         <div v-if="openSettingId === 'maxpoint'"
@@ -548,7 +548,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="relative">
+                    <div v-if="!isRally" class="relative">
                         <SettingItem label="Điểm đổi sân"
                             :value="serveChangeInterval > 0 ? `${serveChangeInterval} Điểm` : 'Không có'"
                             subtitle="Hệ thống sẽ tự động đổi sân ở set cuối dựa trên điểm đạp nhập"
@@ -917,17 +917,21 @@ const singleGroupValidationError = computed(() => {
 const tournamentConfigJson = computed(() => {
     const matchRules = {
         sets_per_match: setsPerMatch.value,
-        points_to_win_set: pointsToWinSet.value,
         winning_rule: winningRule.value,
-        max_points: maxPoints.value,
-        serve_change_interval: serveChangeInterval.value,
         // Phase 1 — Rally Scoring: server is source of truth, but we send
         // scoring_type + stage_points to keep payload explicit (the server
         // will still overwrite scoring_type from `player_per_team`).
         scoring_type: isRally.value ? 'rally' : 'side_out',
     };
-    if (isRally.value && stageValidation.value.ok) {
-        matchRules.stage_points = stagePoints.value.slice();
+    if (isRally.value) {
+        // Rally: chỉ dùng stage_points, bỏ 3 trường side_out-only
+        if (stageValidation.value.ok) {
+            matchRules.stage_points = stagePoints.value.slice();
+        }
+    } else {
+        matchRules.points_to_win_set = pointsToWinSet.value;
+        matchRules.max_points = maxPoints.value;
+        matchRules.serve_change_interval = serveChangeInterval.value;
     }
 
     const baseConfig = {

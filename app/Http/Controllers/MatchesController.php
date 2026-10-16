@@ -10,6 +10,7 @@ use App\Http\Resources\MatchesResource;
 use App\Jobs\SendPushJob;
 use App\Models\Matches;
 use App\Models\MatchResult;
+use App\Models\MatchStage;
 use App\Models\Team;
 use App\Models\TeamRanking;
 use App\Models\TournamentStaff;
@@ -1191,6 +1192,14 @@ class MatchesController extends Controller
         $numLegs = $match->tournamentType->num_legs ?? 1;
 
         // ===================================
+        // RALLY: winner quyết định từ MatchStage (stage cuối, cumulative cao hơn)
+        // ===================================
+        $isRally = MatchStage::where('match_id', $match->id)->exists();
+        if ($isRally) {
+            return $this->confirmRallyResult($match, $tournament, $isOrganizer, $userTeam, $setsPerMatch);
+        }
+
+        // ===================================
         // VALIDATE TOÀN BỘ KẾT QUẢ CÁC SET
         // ===================================
         $validationError = $this->validateAllMatchSets($match, $rulesConfig);
@@ -1342,10 +1351,93 @@ class MatchesController extends Controller
     }
 
     // ============================================
+    // 2b. CONFIRM RALLY RESULT — tổng kết từ MatchStage
+    // ============================================
+    private function confirmRallyResult($match, $tournament, bool $isOrganizer, $userTeam, int $setsPerMatch)
+    {
+        $stages = MatchStage::where('match_id', $match->id)->orderBy('stage_no')->get();
+        if ($stages->isEmpty()) {
+            return ResponseHelper::error('Trận rally chưa có dữ liệu chặng nào', 400);
+        }
+
+        $expected = app(\App\Services\MatchStageService::class)->resolveStagePoints($match);
+        if ($stages->count() !== count($expected)) {
+            return ResponseHelper::error(
+                "Chưa đủ chặng để xác nhận: cần " . count($expected) . " chặng, hiện có {$stages->count()}",
+                400
+            );
+        }
+
+        foreach ($stages as $s) {
+            if (!$s->isCompleted()) {
+                return ResponseHelper::error("Chặng {$s->stage_no} chưa hoàn thành (chưa đạt mốc)", 400);
+            }
+        }
+
+        $last = $stages->last();
+        if ((int) $last->cumulative_score_a === (int) $last->cumulative_score_b) {
+            return ResponseHelper::error('Hai đội bằng điểm tổng kết, không thể xác nhận', 400);
+        }
+
+        $winnerId = ((int) $last->cumulative_score_a > (int) $last->cumulative_score_b)
+            ? (int) $match->home_team_id
+            : (int) $match->away_team_id;
+
+        // Cập nhật confirm flags
+        if ($isOrganizer) {
+            $match->home_team_confirm = true;
+            $match->away_team_confirm = true;
+        } else {
+            if ($userTeam && $userTeam->id == $match->home_team_id) {
+                $match->home_team_confirm = true;
+            } elseif ($userTeam && $userTeam->id == $match->away_team_id) {
+                $match->away_team_confirm = true;
+            }
+        }
+
+        if ($match->home_team_confirm && $match->away_team_confirm) {
+            $match->status = Matches::STATUS_COMPLETED;
+            $match->winner_id = $winnerId;
+            $match->save();
+
+            // Cập nhật won_match cho từng MatchResult theo stage_no
+            MatchResult::where('match_id', $match->id)
+                ->update(['won_match' => \DB::raw("team_id = {$winnerId}"), 'confirmed' => true]);
+
+            $this->processMatchCompletionBig($match, $tournament, $setsPerMatch);
+        } else {
+            $match->save();
+        }
+
+        Broadcast::event(new MatchScorePublicUpdated($match->fresh(['results'])));
+
+        TournamentMatchUpdated::dispatch($match->fresh([
+            'results',
+            'tournamentType.tournament',
+            'homeTeam.members',
+            'awayTeam.members',
+            'stages.members.user',
+        ]));
+
+        return ResponseHelper::success(
+            new MatchesResource($match->fresh([
+                'results',
+                'tournamentType.tournament',
+                'homeTeam.members',
+                'homeTeam.guestMembers.participant',
+                'homeTeam.guestMembers.participant.user',
+                'awayTeam.members',
+                'awayTeam.guestMembers.participant',
+                'awayTeam.guestMembers.participant.user',
+                'stages.members.user',
+            ])),
+            'Xác nhận kết quả rally thành công'
+        );
+    }
+
+    // ============================================
     // 3. VALIDATE ALL MATCH SETS - HÀM PHỤ
     // ============================================
-    // private function validateAllMatchSets($match, $rules)
-    // {
     //     $pointsToWinSet = $rules['points_to_win_set'] ?? 11;
     //     $winningRule = $rules['winning_rule'] ?? 2;
     //     $maxPoints = $rules['max_points'] ?? $pointsToWinSet;
@@ -1656,173 +1748,41 @@ class MatchesController extends Controller
             ->groupBy('team_id')
             ->map(fn($results) => $results->sum('score'));
 
-        $homeScore = $scores->get($match->home_team_id, 0);
-        $awayScore = $scores->get($match->away_team_id, 0);
-        $totalScore = $homeScore + $awayScore;
+        $homeScore = (int) $scores->get($match->home_team_id, 0);
+        $awayScore = (int) $scores->get($match->away_team_id, 0);
 
-        // Xác định đội thắng (dựa trên tổng điểm)
         if ($homeScore > $awayScore) {
             $winnerTeamId = $match->home_team_id;
         } elseif ($awayScore > $homeScore) {
             $winnerTeamId = $match->away_team_id;
         } else {
-            $winnerTeamId = null; // hòa (nếu có)
+            $winnerTeamId = null;
         }
 
-        // S_match
-        $S_match_home = $winnerTeamId === $match->home_team_id ? 1.0 : 0.0;
-        $S_match_away = $winnerTeamId === $match->away_team_id ? 1.0 : 0.0;
+        $homeUserIds = $match->homeTeam->members
+            ->filter(fn ($m) => !$m->is_guest)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        $awayUserIds = $match->awayTeam->members
+            ->filter(fn ($m) => !$m->is_guest)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
 
-        // S_points
-        $S_points_home = $totalScore > 0 ? $homeScore / $totalScore : 0;
-        $S_points_away = $totalScore > 0 ? $awayScore / $totalScore : 0;
-
-        // S_final
-        $S_home = 0.5 * $S_match_home + 0.5 * $S_points_home;
-        $S_away = 0.5 * $S_match_away + 0.5 * $S_points_away;
-
-        // =====================================================
-        // D. TÍNH R (AVERAGE RATING)
-        // =====================================================
-        $sportId = $tournament->sport_id;
-
-        $allMemberIds = $match->homeTeam->members->pluck('id')
-            ->merge($match->awayTeam->members->pluck('id'))
-            ->unique()
-            ->values();
-
-        // Batch load all user_sport records for both teams
-        $userSportRecords = DB::table('user_sport')
-            ->whereIn('user_id', $allMemberIds)
-            ->where('sport_id', $sportId)
-            ->get()
-            ->keyBy('user_id');
-
-        $userSportIds = $userSportRecords->pluck('id')->values();
-
-        // Batch load all user_sport_scores for all user_sport ids
-        $scoreMap = DB::table('user_sport_scores')
-            ->whereIn('user_sport_id', $userSportIds)
-            ->where('score_type', 'vndupr_score')
-            ->get()
-            ->keyBy('user_sport_id');
-
-        // Batch load all VnduprHistory for all members (used in K-factor calculation)
-        $historyMap = VnduprHistory::whereIn('user_id', $allMemberIds)
-            ->orderByDesc('id')
-            ->take(15 * $allMemberIds->count())
-            ->get()
-            ->groupBy('user_id')
-            ->map(fn($col) => $col->sortBy('id')->values());
-
-        $getAverageRating = function ($team) use ($userSportRecords, $scoreMap) {
-            $members = $team->members;
-            if ($members->isEmpty()) return 0;
-
-            $total = 0;
-            $count = 0;
-            foreach ($members as $member) {
-                $userSport = $userSportRecords->get($member->id);
-                if ($userSport) {
-                    $score = $scoreMap->get($userSport->id);
-                    if ($score) {
-                        $total += (float) $score->score_value;
-                        $count++;
-                    }
-                }
-            }
-
-            return $count > 0 ? $total / $count : 0;
-        };
-
-        $homeRating = $getAverageRating($match->homeTeam);
-        $awayRating = $getAverageRating($match->awayTeam);
-
-        $E_home = 1 / (1 + pow(10, ($awayRating - $homeRating)));
-        $E_away = 1 / (1 + pow(10, ($homeRating - $awayRating)));
-
-        $W = 0.6;
-
-        $allMemberIdList = $allMemberIds->toArray();
-
-        // NOTE: total_matches column is deprecated. is_verified driven by total_matches_has_anchor.
-
-        // Compute R_new for each user and prepare batch operations
-        $vnduprHistoryRecords = [];
-        $scoreUpserts = [];
-
-        $teams = collect([
-            ['team' => $match->homeTeam, 'S' => $S_home, 'E' => $E_home],
-            ['team' => $match->awayTeam, 'S' => $S_away, 'E' => $E_away],
+        // Phase 4: ủy thác toàn bộ logic rating cho VnduprRatingEngine.
+        app(\App\Services\VnduprRatingEngine::class)->computeAndApply([
+            'home_member_user_ids' => $homeUserIds,
+            'away_member_user_ids' => $awayUserIds,
+            'home_team_id' => (int) $match->home_team_id,
+            'away_team_id' => (int) $match->away_team_id,
+            'home_score' => $homeScore,
+            'away_score' => $awayScore,
+            'winner_team_id' => $winnerTeamId,
+            'match_id' => (int) $match->id,
+            'match_stage_id' => null, // side-out: 1 row per (user, match)
+            'sport_id' => (int) $tournament->sport_id,
         ]);
-
-        foreach ($teams as $data) {
-            foreach ($data['team']->members as $user) {
-                if ($user->is_guest) {
-                    continue;
-                }
-                $userSport = $userSportRecords->get($user->id);
-                $scoreRecord = $userSport ? $scoreMap->get($userSport->id) : null;
-                $R_old = $scoreRecord ? (float) $scoreRecord->score_value : 0;
-
-                $history = $historyMap->get($user->id, collect());
-
-                $K = 0.3;
-
-                if ($user->is_anchor || $user->hasAnyBadge(['PICKI', 'CHAMPION', 'ANCHOR', 'VERIFIED'])) {
-                    $K = 0.1;
-                } else {
-                    $anchored = $user->total_matches_has_anchor ?? 0;
-                    if ($anchored <= 10) {
-                        $K = 1;
-                    } elseif ($anchored <= 50) {
-                        $K = 0.6;
-                    }
-                }
-
-                if ($history->count() >= 2) {
-                    $first = $history->first()->score_before;
-                    $last = $history->last()->score_after;
-                    if (($first - $last) > 0.5) {
-                        $K = 1;
-                    }
-                }
-
-                $R_new = $R_old + ($W * $K * ($data['S'] - $data['E']));
-
-                $vnduprHistoryRecords[] = [
-                    'user_id' => $user->id,
-                    'match_id' => $match->id,
-                    'mini_match_id' => null,
-                    'score_before' => $R_old,
-                    'score_after' => $R_new,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
-
-                if ($userSport) {
-                    $scoreUpserts[] = [
-                        'user_sport_id' => $userSport->id,
-                        'score_type' => 'vndupr_score',
-                        'score_value' => $R_new,
-                        'updated_at' => now(),
-                    ];
-                }
-            }
-        }
-
-        // Batch insert VnduprHistory
-        if (!empty($vnduprHistoryRecords)) {
-            VnduprHistory::insert($vnduprHistoryRecords);
-        }
-
-        // Batch upsert scores using updateOrCreate logic
-        foreach ($scoreUpserts as $upsert) {
-            DB::table('user_sport_scores')->updateOrInsert(
-                ['user_sport_id' => $upsert['user_sport_id'], 'score_type' => $upsert['score_type']],
-                ['score_value' => $upsert['score_value'], 'updated_at' => $upsert['updated_at']]
-            );
-        }
 
         $this->checkAndAdvanceFromMultiLeg($match, $setsPerMatch);
     }
@@ -2473,5 +2433,118 @@ class MatchesController extends Controller
                 }
             }
         }
+    }
+
+    // ========================================================================
+    // Phase 3 — Rally Scoring: lưu và đọc stage
+    // ========================================================================
+
+    /**
+     * POST /api/matches/{matchId}/stages
+     * Lưu stages cho một trận rally. Idempotent theo (match_id, stage_no).
+     */
+    public function saveStages(Request $request, $matchId)
+    {
+        $user = $request->user();
+        $match = Matches::find($matchId);
+
+        if (!$match) {
+            return ResponseHelper::error('Match not found', 404);
+        }
+
+        if (!$match->hasScoringPermission($user->id)) {
+            return ResponseHelper::error('Không có quyền', 403);
+        }
+
+        $validated = $request->validate([
+            'stages' => 'required|array|min:1',
+            'stages.*.stage_no' => 'required|integer|min:1',
+            'stages.*.cumulative_score_a' => 'required|integer|min:0',
+            'stages.*.cumulative_score_b' => 'required|integer|min:0',
+            'stages.*.members' => 'nullable|array',
+            'stages.*.members.*.user_id' => 'required_with:stages.*.members|integer',
+            'stages.*.members.*.team_id' => 'required_with:stages.*.members|integer',
+        ]);
+
+        $match->load('tournamentType.tournament');
+
+        try {
+            $savedStages = app(\App\Services\MatchStageService::class)
+                ->upsertStages($match, $validated['stages'], $user->id);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return ResponseHelper::error('Validation failed', 422, $e->errors());
+        }
+
+        // Service đã re-fetch match + stages rồi, chỉ load thêm relations cần cho response.
+        $match->loadMissing('results', 'homeTeam', 'awayTeam');
+
+        return ResponseHelper::success([
+            'match_id' => $match->id,
+            'status' => $match->status,
+            'winner_id' => $match->winner_id,
+            'stages' => $savedStages->map(fn ($s) => [
+                'stage_no' => $s->stage_no,
+                'cumulative_score_a' => $s->cumulative_score_a,
+                'cumulative_score_b' => $s->cumulative_score_b,
+                'stage_score_a' => $s->stage_score_a,
+                'stage_score_b' => $s->stage_score_b,
+                'status' => $s->status,
+                'winner_team_id' => $s->winner_team_id,
+                'target_point' => $s->target_point,
+            ])->values(),
+        ], 'Lưu stage thành công');
+    }
+
+    /**
+     * GET /api/matches/{matchId}/stages
+     * Đọc stages đã ghi cho một trận rally.
+     */
+    public function getStages(Request $request, $matchId)
+    {
+        $match = Matches::with('stages.members.user', 'homeTeam', 'awayTeam')->find($matchId);
+
+        if (!$match) {
+            return ResponseHelper::error('Match not found', 404);
+        }
+
+        $homeTeamId = $match->home_team_id;
+        $awayTeamId = $match->away_team_id;
+
+        $stages = $match->stages->map(function ($stage) use ($homeTeamId, $awayTeamId) {
+            $homeMembers = $stage->members->where('team_id', $homeTeamId)->map(fn ($m) => [
+                'user_id' => $m->user_id,
+                'team_id' => $m->team_id,
+                'role' => $m->role,
+                'name' => $m->user?->full_name,
+            ])->values();
+            $awayMembers = $stage->members->where('team_id', $awayTeamId)->map(fn ($m) => [
+                'user_id' => $m->user_id,
+                'team_id' => $m->team_id,
+                'role' => $m->role,
+                'name' => $m->user?->full_name,
+            ])->values();
+            return [
+                'stage_no' => $stage->stage_no,
+                'cumulative_score_a' => $stage->cumulative_score_a,
+                'cumulative_score_b' => $stage->cumulative_score_b,
+                'stage_score_a' => $stage->stage_score_a,
+                'stage_score_b' => $stage->stage_score_b,
+                'status' => $stage->status,
+                'winner_team_id' => $stage->winner_team_id,
+                'target_point' => $stage->target_point,
+                'completed_at' => $stage->completed_at,
+                'members' => [
+                    'team_a' => $homeMembers,
+                    'team_b' => $awayMembers,
+                ],
+            ];
+        })->values();
+
+        return ResponseHelper::success([
+            'match_id' => $match->id,
+            'status' => $match->status,
+            'winner_id' => $match->winner_id,
+            'stages' => $stages,
+        ], 'Lấy stages thành công');
     }
 }
