@@ -434,6 +434,12 @@ class Club extends Model
 
     public function canManage($userId)
     {
+        // Người tạo CLB luôn có quyền quản lý, kể cả khi thiếu/legacy club_members row.
+        // Đây là data integrity net — CLB được tạo qua factory/seeder/SQL cũ có thể không enroll creator.
+        if ($userId && (int) $this->created_by === (int) $userId) {
+            return true;
+        }
+
         $member = $this->activeMembers()->where('user_id', $userId)->first();
         if (!$member) return false;
 
