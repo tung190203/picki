@@ -145,9 +145,9 @@ class LeaderboardController extends Controller
 
                 // ✅ Lấy rank từ service (đã tính chuẩn)
                 $rankInfo = $allRankData[(int) $teamId] ?? ['overall_rank' => null, 'rank_label' => null, 'is_champion' => false];
-                $rank = $rankInfo['overall_rank'] ?? 1;
+                $rank = $rankInfo['overall_rank'] ?? null;
                 $rankLabel = $rankInfo['rank_label'] ?? null;
-                $isChampion = $rankInfo['is_champion'] ?? false;
+                $isChampion = (bool) ($rankInfo['is_champion'] ?? false);
 
                 $tournamentTypes = $teamRankings->map(fn($r) => [
                     'id'   => $r->tournamentType->id,
@@ -215,11 +215,27 @@ class LeaderboardController extends Controller
                     'is_champion' => $isChampion,
                 ];
             })
-            ->sortBy(function ($item) {
-                if ($item['is_champion']) {
-                    return 0;
+            ->sort(function ($a, $b) {
+                if ($a['is_champion'] && !$b['is_champion']) {
+                    return -1;
                 }
-                return $item['rank'] ?? 999;
+                if (!$a['is_champion'] && $b['is_champion']) {
+                    return 1;
+                }
+
+                $rankA = $a['rank'] ?? 9999;
+                $rankB = $b['rank'] ?? 9999;
+                if ($rankA !== $rankB) {
+                    return $rankA <=> $rankB;
+                }
+
+                if (($a['win_rate'] ?? 0) !== ($b['win_rate'] ?? 0)) {
+                    return ($b['win_rate'] ?? 0) <=> ($a['win_rate'] ?? 0);
+                }
+                if (($a['total_matches'] ?? 0) !== ($b['total_matches'] ?? 0)) {
+                    return ($b['total_matches'] ?? 0) <=> ($a['total_matches'] ?? 0);
+                }
+                return $a['team']->id <=> $b['team']->id;
             })
             ->values()
             ->map(function ($item, $index) {

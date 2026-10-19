@@ -2990,7 +2990,11 @@ class TournamentTypeController extends Controller
 
     public function getRank($tournament_id)
     {
-        $type = TournamentType::where("tournament_id", $tournament_id)->first();
+        $typeId = request()->query('tournament_type_id');
+        $type = $typeId
+            ? TournamentType::where('id', $typeId)->where('tournament_id', $tournament_id)->first()
+            : TournamentType::where("tournament_id", $tournament_id)->first();
+
         if (!$type) {
             return ResponseHelper::error("Tournament type not found", 404);
         }
@@ -2999,6 +3003,7 @@ class TournamentTypeController extends Controller
         return ResponseHelper::success([
             "group_rankings" => $result["group_rankings"],
             "overall_rankings" => $result["overall_rankings"],
+            "rankings" => $result["overall_rankings"],
         ]);
     }
 
