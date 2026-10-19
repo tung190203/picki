@@ -67,15 +67,10 @@ class ClubActivityController extends Controller
         $category = $filters['category'] ?? 'all';
         $filters['category'] = $category;
 
-        // Client gửi statuses = tab hiện tại
-        $clientSentStatuses = $request->has('statuses');
-        if (!$clientSentStatuses) {
-            $filters['statuses'] = ['scheduled', 'ongoing'];
-        } elseif (isset($filters['statuses']) && !is_array($filters['statuses'])) {
-            $filters['statuses'] = array_filter([$filters['statuses']]);
-        }
-        $statusesOnlyCompletedOrCancelled = !empty($filters['statuses'])
-            && empty(array_diff($filters['statuses'], ['completed', 'cancelled']));
+        // statuses param is intentionally ignored — endpoint always returns both
+        // active (scheduled/ongoing) and ended (completed/cancelled) groups, merged
+        // with active first, then paginated.
+        unset($filters['statuses']);
 
         $clientSentDate = $request->has('date_from') || $request->has('from_date') || $request->has('date_to') || $request->has('to_date');
         if ($clientSentDate) {
@@ -92,62 +87,21 @@ class ClubActivityController extends Controller
         // Performance impact is acceptable for clubs with small-to-medium datasets.
         // Re-enable only when a more robust cache invalidation strategy is implemented.
 
-        $items = collect();
-        $totalCount = 0;
+        // Build two lists independently: active (scheduled/ongoing, ascending) and
+        // ended (completed/cancelled, descending), then merge with active first.
+        $activeItems = $this->fetchContents($club, $category, $filters, $userId, 'active');
+        $endedItems = $this->fetchContents($club, $category, $filters, $userId, 'ended');
 
-        // Query based on category (default: all)
-        $isHistoryOnly = $statusesOnlyCompletedOrCancelled;
-        $orderDirection = $isHistoryOnly ? 'desc' : 'asc';
+        $activeItems = $activeItems->sortBy(fn($i) => $i['data']->resource->start_time ?? '')->values();
+        $endedItems = $endedItems->sortByDesc(fn($i) => $i['data']->resource->start_time ?? '')->values();
 
-        // Activities
-        if ($category === 'all' || $category === 'activity') {
-            $activities = $this->activityService->getActivities($club, $filters, $userId);
-            foreach ($activities->items() as $activity) {
-                $items->push([
-                    'id' => $activity->id,
-                    'type' => 'activity',
-                    'data' => new ClubActivityListResource($activity),
-                ]);
-            }
-            $totalCount += $activities->total();
-        }
+        $merged = $activeItems->merge($endedItems)->values();
+        $totalCount = $merged->count();
 
-        // Mini Tournaments
-        if ($category === 'all' || $category === 'mini_tournament') {
-            $miniTournaments = $this->getMiniTournaments($club, $filters, $userId);
-            foreach ($miniTournaments as $tournament) {
-                $items->push([
-                    'id' => $tournament->id,
-                    'type' => 'mini_tournament',
-                    'data' => new \App\Http\Resources\ListMiniTournamentResource($tournament),
-                ]);
-            }
-            $totalCount += $miniTournaments->count();
-        }
-
-        // Tournaments
-        if ($category === 'all' || $category === 'tournament') {
-            $tournaments = $this->getTournaments($club, $filters, $userId);
-            foreach ($tournaments as $tournament) {
-                $items->push([
-                    'id' => $tournament->id,
-                    'type' => 'tournament',
-                    'data' => new \App\Http\Resources\ListTournamentResource($tournament),
-                ]);
-            }
-            $totalCount += $tournaments->count();
-        }
-
-        // Sort by start_time
-        $items = $isHistoryOnly
-            ? $items->sortByDesc(fn($i) => $i['data']->resource->start_time ?? '')->values()
-            : $items->sortBy(fn($i) => $i['data']->resource->start_time ?? '')->values();
-
-        // Pagination
         $perPage = $filters['per_page'] ?? 15;
         $currentPage = $filters['page'] ?? 1;
         $offset = ($currentPage - 1) * $perPage;
-        $paginatedItems = $items->slice($offset, $perPage)->values();
+        $paginatedItems = $merged->slice($offset, $perPage)->values();
 
         $data = [
             'items' => $paginatedItems,
@@ -164,9 +118,60 @@ class ClubActivityController extends Controller
     }
 
     /**
+     * Fetch contents for a given status group (active|ended) across selected categories.
+     * Returns a Collection of ['id', 'type', 'data' => resource] entries.
+     */
+    private function fetchContents(Club $club, string $category, array $filters, ?int $userId, string $group): \Illuminate\Support\Collection
+    {
+        $statuses = $group === 'active'
+            ? ['scheduled', 'ongoing']
+            : ['completed', 'cancelled'];
+
+        $groupFilters = $filters;
+        $groupFilters['statuses'] = $statuses;
+
+        $items = collect();
+
+        if ($category === 'all' || $category === 'activity') {
+            $activities = $this->activityService->getActivities($club, $groupFilters, $userId);
+            foreach ($activities->items() as $activity) {
+                $items->push([
+                    'id' => $activity->id,
+                    'type' => 'activity',
+                    'data' => new ClubActivityListResource($activity),
+                ]);
+            }
+        }
+
+        if ($category === 'all' || $category === 'mini_tournament') {
+            $miniTournaments = $this->getMiniTournaments($club, $groupFilters, $userId, $statuses);
+            foreach ($miniTournaments as $tournament) {
+                $items->push([
+                    'id' => $tournament->id,
+                    'type' => 'mini_tournament',
+                    'data' => new \App\Http\Resources\ListMiniTournamentResource($tournament),
+                ]);
+            }
+        }
+
+        if ($category === 'all' || $category === 'tournament') {
+            $tournaments = $this->getTournaments($club, $groupFilters, $userId, $statuses);
+            foreach ($tournaments as $tournament) {
+                $items->push([
+                    'id' => $tournament->id,
+                    'type' => 'tournament',
+                    'data' => new \App\Http\Resources\ListTournamentResource($tournament),
+                ]);
+            }
+        }
+
+        return $items;
+    }
+
+    /**
      * Lấy danh sách mini tournaments của club
      */
-    private function getMiniTournaments(Club $club, array $filters, ?int $userId)
+    private function getMiniTournaments(Club $club, array $filters, ?int $userId, array $statuses)
     {
         $query = MiniTournament::withFullRelations()
             ->with('fundCollection')
@@ -186,7 +191,6 @@ class ClubActivityController extends Controller
             ])
             ->exists();
 
-        $statuses = $filters['statuses'] ?? [];
         $hasAll = in_array('all', $statuses);
         $isHistoryOnly = !empty($statuses)
             && empty(array_diff($statuses, ['completed', 'cancelled']));
@@ -318,7 +322,7 @@ class ClubActivityController extends Controller
     /**
      * Lấy danh sách tournaments của club
      */
-    private function getTournaments(Club $club, array $filters, ?int $userId)
+    private function getTournaments(Club $club, array $filters, ?int $userId, array $statuses)
     {
         $query = Tournament::withFullRelations()->where('club_id', $club->id);
 
@@ -334,7 +338,6 @@ class ClubActivityController extends Controller
             ])
             ->exists();
 
-        $statuses = $filters['statuses'] ?? [];
         $hasAll = in_array('all', $statuses);
         $isHistoryOnly = !empty($statuses)
             && empty(array_diff($statuses, ['completed', 'cancelled']));
