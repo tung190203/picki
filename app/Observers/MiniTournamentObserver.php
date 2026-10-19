@@ -11,6 +11,7 @@ use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
 use App\Services\Club\ClubGuestEventService;
 use App\Services\Club\ClubGuestService;
+use App\Services\Club\UserAchievementRecorder;
 use App\Services\MiniTournamentService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -40,8 +41,31 @@ class MiniTournamentObserver
         // Hook auto-create: tạo occurrence tiếp theo khi kèo lặp được đóng
         $this->handleRecurringAutoCreate($tournament);
 
+        // Hook achievement: ghi star vào user_achievements khi CLOSED.
+        // Idempotent nhờ unique key — gọi lại nhiều lần không tạo row trùng.
+        $this->handleAchievementRecording($tournament);
+
         // Note: club_guests giờ được xử lý bởi cronjob
         // clubs:sync-guests-from-started-events chạy mỗi 2 phút
+    }
+
+    protected function handleAchievementRecording(MiniTournament $tournament): void
+    {
+        if (!$tournament->wasChanged('status')) {
+            return;
+        }
+        if ((int) $tournament->status !== MiniTournament::STATUS_CLOSED) {
+            return;
+        }
+
+        try {
+            app(UserAchievementRecorder::class)->recordForMiniTournament($tournament);
+        } catch (\Exception $e) {
+            Log::error('MiniTournamentObserver: Failed to record achievement', [
+                'mini_tournament_id' => $tournament->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

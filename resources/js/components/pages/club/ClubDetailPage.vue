@@ -464,13 +464,12 @@
             <ClubActivityModal :is-open="isActivityModalOpen" :thumbnail="Thumbnail"
                 :upcoming-activities="upcomingActivities" :history-activities="historyActivities"
                 :next-match="nextMatch" :countdown="countdownText"
-                :is-loading-upcoming="isLoadingMoreUpcoming" :is-loading-history="isLoadingMoreHistory"
-                :has-more-upcoming="currentUpcomingPage < (upcomingMeta?.last_page ?? 1)"
-                :has-more-history="currentHistoryPage < (historyMeta?.last_page ?? 1)"
+                :is-loading-activities="isLoadingMoreActivities"
+                :has-more-activities="currentActivityPage < (activitiesMeta?.last_page ?? 1)"
                 @close="closeActivityModal"
                 @edit="handleEditActivity" @click-card="(item) => goToContentDetail(item)" @register="handleRegisterActivity"
                 @cancel-join="handleCancelJoinActivity" @self-absent="handleSelfAbsentActivity" @check-in="handleSelfCheckInActivity"
-                @load-more-upcoming="handleLoadMoreUpcoming" @load-more-history="handleLoadMoreHistory" />
+                @load-more-activities="handleLoadMoreActivities" />
 
             <!-- Edit Club Modal -->
             <ClubEditModal v-model="isEditModalOpen" :club="club" :is-loading="isUpdatingClub"
@@ -709,12 +708,9 @@ const myClubs = ref([])
 const activities = ref([])
 const upcomingActivities = ref([])
 const historyActivities = ref([])
-const upcomingMeta = ref({})
-const historyMeta = ref({})
-const currentUpcomingPage = ref(1)
-const currentHistoryPage = ref(1)
-const isLoadingMoreUpcoming = ref(false)
-const isLoadingMoreHistory = ref(false)
+const activitiesMeta = ref({})
+const currentActivityPage = ref(1)
+const isLoadingMoreActivities = ref(false)
 const activityPerPage = ref(20)
 const fund = ref([])
 const notificationType = ref([])
@@ -975,8 +971,7 @@ const closeNotification = () => {
 
 const openActivityModal = () => {
     isActivityModalOpen.value = true
-    getMoreUpcomingActivities()
-    getMoreHistoryActivities()
+    loadModalActivities()
 }
 
 const closeActivityModal = () => {
@@ -1166,7 +1161,7 @@ const formatActivity = (rawItem, data) => {
     const startTime = item.start_time || item.start_date || item.starts_at
     const endTime = item.end_time || item.end_date || item.ends_at || startTime
 
-    const isCancelled = item.status === 'cancelled' || item.status === 'canceled' || item.status === 4
+    const isCancelled = item.status === 'cancelled' || item.status === 'canceled' || item.status === 'finished' || item.status === 4
     const isCompleted = item.status === 'completed' || item.status === 3 || (endTime && dayjs().isAfter(dayjs(endTime))) || isCancelled
 
     const participantsList = Array.isArray(item.participants) ? item.participants : []
@@ -1556,86 +1551,75 @@ const goBack = () => {
     router.back()
 }
 
+const isActivityItemEnded = (formatted) => {
+    // formatActivity derives `formatted.status` to one of:
+    //   'open' | 'private' | 'cancelled' | 'completed'
+    // (cancelled/completed covers status string, status int 3/4, and end_time < now).
+    return formatted?.status === 'cancelled' || formatted?.status === 'completed'
+}
+
+const formatActivityItem = (rawItem) => formatActivity(rawItem, rawItem?.data)
+
+const splitActivities = (rawItems) => {
+    const upcoming = []
+    const history = []
+    for (const raw of rawItems) {
+        const formatted = formatActivityItem(raw)
+        if (isActivityItemEnded(formatted)) {
+            history.push(formatted)
+        } else {
+            upcoming.push(formatted)
+        }
+    }
+    return { upcoming, history }
+}
+
 const getClubActivities = async () => {
     try {
         const response = await ClubService.getClubActivities(clubId.value, {
             page: 1,
             per_page: activityPerPage.value,
-            statuses: ['scheduled', 'ongoing'],
         })
         const activitiesList = response.data?.items || []
-        const allActivities = activitiesList.map(item => formatActivity(item, item.data))
-        activities.value = allActivities.slice(0, 5)
+        const allFormatted = activitiesList.map(formatActivityItem)
+        activities.value = allFormatted.filter((f) => !isActivityItemEnded(f)).slice(0, 5)
     } catch (error) {
         toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi lấy thông tin hoạt động')
     }
 }
 
-const getMoreUpcomingActivities = async (append = false) => {
+const loadModalActivities = async (append = false) => {
     if (append) {
-        isLoadingMoreUpcoming.value = true
+        isLoadingMoreActivities.value = true
     } else {
-        currentUpcomingPage.value = 1
+        currentActivityPage.value = 1
     }
     try {
         const response = await ClubService.getClubActivities(clubId.value, {
-            page: currentUpcomingPage.value,
+            page: currentActivityPage.value,
             per_page: activityPerPage.value,
-            statuses: ['scheduled', 'ongoing']
         })
         const activitiesList = response.data?.items || []
-        const formatted = activitiesList.map(item => formatActivity(item, item.data))
+        const { upcoming, history } = splitActivities(activitiesList)
         if (append) {
-            upcomingActivities.value = [...upcomingActivities.value, ...formatted]
+            upcomingActivities.value = [...upcomingActivities.value, ...upcoming]
+            historyActivities.value = [...historyActivities.value, ...history]
         } else {
-            upcomingActivities.value = formatted
+            upcomingActivities.value = upcoming
+            historyActivities.value = history
         }
-        upcomingMeta.value = response.meta
+        activitiesMeta.value = response.meta
     } catch (error) {
-        toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi lấy danh sách hoạt động sắp tới')
+        toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi lấy danh sách hoạt động')
     } finally {
-        isLoadingMoreUpcoming.value = false
+        isLoadingMoreActivities.value = false
     }
 }
 
-const getMoreHistoryActivities = async (append = false) => {
-    if (append) {
-        isLoadingMoreHistory.value = true
-    } else {
-        currentHistoryPage.value = 1
-    }
-    try {
-        const response = await ClubService.getClubActivities(clubId.value, {
-            page: currentHistoryPage.value,
-            per_page: activityPerPage.value,
-            statuses: ['completed', 'cancelled']
-        })
-        const activitiesList = response.data?.items || []
-        const formatted = activitiesList.map(item => formatActivity(item, item.data))
-        if (append) {
-            historyActivities.value = [...historyActivities.value, ...formatted]
-        } else {
-            historyActivities.value = formatted
-        }
-        historyMeta.value = response.meta
-    } catch (error) {
-        toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi lấy lịch sử hoạt động')
-    } finally {
-        isLoadingMoreHistory.value = false
-    }
-}
-
-const handleLoadMoreUpcoming = async () => {
-    if (currentUpcomingPage.value < (upcomingMeta.value?.last_page ?? 1)) {
-        currentUpcomingPage.value++
-        await getMoreUpcomingActivities(true)
-    }
-}
-
-const handleLoadMoreHistory = async () => {
-    if (currentHistoryPage.value < (historyMeta.value?.last_page ?? 1)) {
-        currentHistoryPage.value++
-        await getMoreHistoryActivities(true)
+const handleLoadMoreActivities = async () => {
+    if (currentActivityPage.value < (activitiesMeta.value?.last_page ?? 1)) {
+        currentActivityPage.value++
+        await loadModalActivities(true)
     }
 }
 
@@ -1924,10 +1908,7 @@ const handleInviteAction = async (user) => {
 const refreshActivityData = async () => {
     await getClubActivities()
     if (isActivityModalOpen.value) {
-        await Promise.all([
-            getMoreUpcomingActivities(),
-            getMoreHistoryActivities()
-        ])
+        await loadModalActivities()
     }
 }
 

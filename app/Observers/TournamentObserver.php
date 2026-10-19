@@ -2,20 +2,24 @@
 
 namespace App\Observers;
 
-use App\Enums\TournamentStatus;
 use App\Models\Participant;
 use App\Models\Tournament;
 use App\Services\Club\ClubGuestEventService;
+use App\Services\Club\UserAchievementRecorder;
 use Illuminate\Support\Facades\Log;
 
 class TournamentObserver
 {
-    public function __construct(protected ClubGuestEventService $guestEventService) {}
+    public function __construct(
+        protected ClubGuestEventService $guestEventService,
+        protected UserAchievementRecorder $achievementRecorder,
+    ) {}
 
     /**
-     * Khi tournament chuyển sang Finished, cập nhật club_guests cho
-     * tất cả participant là user đã đăng ký.
-     * 
+     * Khi tournament chuyển sang CLOSED, cập nhật club_guests cho
+     * tất cả participant là user đã đăng ký, đồng thời ghi cup
+     * vào user_achievements.
+     *
      * BACKUP: Đảm bảo tất cả participants đều được thêm vào club_guests,
      * kể cả những user đăng ký sau khi giải bắt đầu (không trigger được ở ParticipantObserver).
      */
@@ -24,7 +28,9 @@ class TournamentObserver
         if (!$tournament->wasChanged('status')) {
             return;
         }
-        if ((string) $tournament->status !== TournamentStatus::Finished->value) {
+        // So sánh với int constant (CLOSED = 3) — trước đây so sánh với
+        // enum string 'finished' nên luôn false và observer không bao giờ chạy.
+        if ((int) $tournament->status !== Tournament::CLOSED) {
             return;
         }
         $clubId = $tournament->club_id;
@@ -40,6 +46,16 @@ class TournamentObserver
             $this->guestEventService->upsertFromEvent($clubId, $participantUserIds, $tournament->start_date);
         } catch (\Exception $e) {
             Log::error('TournamentObserver: Failed to update club_guests', [
+                'tournament_id' => $tournament->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // Ghi cup vào bảng user_achievements (idempotent).
+        try {
+            $this->achievementRecorder->recordForTournament($tournament);
+        } catch (\Exception $e) {
+            Log::error('TournamentObserver: Failed to record achievement', [
                 'tournament_id' => $tournament->id,
                 'error' => $e->getMessage(),
             ]);

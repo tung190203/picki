@@ -120,18 +120,18 @@
                     <!-- Upcoming Activities -->
                     <div class="flex flex-col h-full overflow-hidden">
                         <h4 class="text-sm font-bold text-[#838799] uppercase tracking-wider mb-4 flex-shrink-0">Đang diễn ra</h4>
-                        <div class="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2" @scroll="handleUpcomingScroll">
+                        <div class="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2" @scroll="handleActivitiesScroll">
                             <ActivitySmallCard v-for="(activity, index) in upcomingActivities" :key="index"
                                 v-bind="activity" @edit="$emit('edit', activity)" @click-card="$emit('click-card', activity)" 
                                 @register="$emit('register', activity)" @cancel-join="$emit('cancel-join', activity)" @self-absent="$emit('self-absent', activity)" @check-in="$emit('check-in', activity)" />
                                 
                             <!-- Loading Indicator -->
-                            <div v-if="isLoadingUpcoming" class="flex justify-center py-4">
+                            <div v-if="isLoadingActivities" class="flex justify-center py-4">
                                 <div class="w-6 h-6 border-2 border-[#D72D36] border-t-transparent rounded-full animate-spin"></div>
                             </div>
 
                             <!-- Additional mocked items to match image if needed -->
-                            <div v-if="upcomingActivities.length === 0 && !isLoadingUpcoming"
+                            <div v-if="upcomingActivities.length === 0 && !isLoadingActivities"
                                 class="flex flex-col items-center justify-center py-8 text-[#838799]">
                                 <CalendarIcon class="w-10 h-10 mb-2 opacity-50" />
                                 <span>Chưa có lịch thi đấu sắp tới</span>
@@ -142,7 +142,7 @@
                     <!-- Recent History -->
                     <div class="flex flex-col h-full overflow-hidden">
                         <h4 class="text-sm font-bold text-[#838799] uppercase tracking-wider mb-4 flex-shrink-0">Đã kết thúc</h4>
-                        <div class="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2" @scroll="handleHistoryScroll">
+                        <div class="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2" @scroll="handleActivitiesScroll">
                             <div v-for="(history, index) in historyActivities" :key="index"
                                 class="flex items-start justify-between p-4 bg-white rounded-lg shadow-sm border border-[#E5E7EB] transition hover:border-gray-300 gap-3 cursor-pointer" @click="$emit('click-card', history)">
                                 <div class="flex items-center space-x-4 min-w-0">
@@ -186,11 +186,11 @@
                             </div>
 
                             <!-- Loading Indicator -->
-                            <div v-if="isLoadingHistory" class="flex justify-center py-4">
+                            <div v-if="isLoadingActivities" class="flex justify-center py-4">
                                 <div class="w-6 h-6 border-2 border-[#D72D36] border-t-transparent rounded-full animate-spin"></div>
                             </div>
 
-                            <div v-if="historyActivities.length === 0 && !isLoadingHistory"
+                            <div v-if="historyActivities.length === 0 && !isLoadingActivities"
                                 class="flex flex-col items-center justify-center py-8 text-[#838799]">
                                 <ClockIcon class="w-10 h-10 mb-2 opacity-50" />
                                 <span>Chưa có lịch sử thi đấu</span>
@@ -240,39 +240,23 @@ const props = defineProps({
         type: String,
         default: ''
     },
-    isLoadingUpcoming: {
+    isLoadingActivities: {
         type: Boolean,
         default: false
     },
-    isLoadingHistory: {
-        type: Boolean,
-        default: false
-    },
-    hasMoreUpcoming: {
-        type: Boolean,
-        default: true
-    },
-    hasMoreHistory: {
+    hasMoreActivities: {
         type: Boolean,
         default: true
     }
 })
 
-const emit = defineEmits(['close', 'edit', 'click-card', 'register', 'cancel-join', 'self-absent', 'check-in', 'load-more-upcoming', 'load-more-history'])
+const emit = defineEmits(['close', 'edit', 'click-card', 'register', 'cancel-join', 'self-absent', 'check-in', 'load-more-activities'])
 
-const handleUpcomingScroll = (e) => {
-    if (props.isLoadingUpcoming || !props.hasMoreUpcoming) return
+const handleActivitiesScroll = (e) => {
+    if (props.isLoadingActivities || !props.hasMoreActivities) return
     const { scrollTop, scrollHeight, clientHeight } = e.target
     if (scrollTop + clientHeight >= scrollHeight - 20) {
-        emit('load-more-upcoming')
-    }
-}
-
-const handleHistoryScroll = (e) => {
-    if (props.isLoadingHistory || !props.hasMoreHistory) return
-    const { scrollTop, scrollHeight, clientHeight } = e.target
-    if (scrollTop + clientHeight >= scrollHeight - 20) {
-        emit('load-more-history')
+        emit('load-more-activities')
     }
 }
 </script>

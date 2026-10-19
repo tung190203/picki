@@ -6,6 +6,7 @@ use App\Models\MiniTournament;
 use App\Models\MiniParticipant;
 use App\Models\User;
 use App\Services\Club\ClubGuestService;
+use App\Services\Club\UserAchievementRecorder;
 use Illuminate\Console\Command;
 
 class AutoCloseMiniTournaments extends Command
@@ -15,10 +16,12 @@ class AutoCloseMiniTournaments extends Command
     protected $description = 'Tự động đóng mini-tournament khi end_time < now(), cập nhật stats cho participants';
 
     protected ClubGuestService $guestService;
+    protected UserAchievementRecorder $achievementRecorder;
 
     public function handle(): int
     {
         $this->guestService = app(ClubGuestService::class);
+        $this->achievementRecorder = app(UserAchievementRecorder::class);
 
         // Eager-load participant + user để tránh N+1 trong vòng foreach
         $miniTournaments = MiniTournament::query()
@@ -98,5 +101,8 @@ class AutoCloseMiniTournaments extends Command
             $miniTournament->club_id,
             $miniTournament->participants->pluck('user_id')->filter()->unique()->values()
         );
+
+        // Ghi thành tích top 3 vào bảng user_achievements (idempotent).
+        $this->achievementRecorder->recordForMiniTournament($miniTournament);
     }
 }
