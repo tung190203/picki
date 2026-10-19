@@ -434,6 +434,12 @@ class Club extends Model
 
     public function canManage($userId)
     {
+        // Người tạo CLB luôn có quyền quản lý, kể cả khi thiếu/legacy club_members row.
+        // Đây là data integrity net — CLB được tạo qua factory/seeder/SQL cũ có thể không enroll creator.
+        if ($userId && (int) $this->created_by === (int) $userId) {
+            return true;
+        }
+
         $member = $this->activeMembers()->where('user_id', $userId)->first();
         if (!$member) return false;
 
@@ -558,19 +564,11 @@ class Club extends Model
                 fn($q) => $q->where(function ($sub) use ($filters) {
                     $keyword = $filters['keyword'];
                     $sub->where('name', 'like', '%' . $keyword . '%')
-                        // Search theo tên admin/chủ nhiệm CLB (Admin, Manager, Secretary)
-                        ->orWhereExists(function ($adminQuery) use ($keyword) {
-                            $adminQuery->select(DB::raw(1))
-                                ->from('club_members')
-                                ->join('users', 'users.id', '=', 'club_members.user_id')
-                                ->whereColumn('club_members.club_id', 'clubs.id')
-                                ->whereIn('club_members.role', [
-                                    ClubMemberRole::Admin->value,
-                                    ClubMemberRole::Manager->value,
-                                    ClubMemberRole::Secretary->value,
-                                ])
-                                ->where('club_members.membership_status', ClubMembershipStatus::Joined->value)
-                                ->where('club_members.status', ClubMemberStatus::Active->value)
+                        // Tìm theo tên người tạo CLB (clubs.created_by → users.full_name)
+                        ->orWhereExists(function ($creatorQuery) use ($keyword) {
+                            $creatorQuery->select(DB::raw(1))
+                                ->from('users')
+                                ->whereColumn('users.id', 'clubs.created_by')
                                 ->where('users.full_name', 'like', '%' . $keyword . '%');
                         });
                 })
