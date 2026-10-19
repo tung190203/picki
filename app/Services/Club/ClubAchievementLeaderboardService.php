@@ -115,9 +115,11 @@ class ClubAchievementLeaderboardService
 
         $memberJoinedAt = $this->loadClubMembersJoinedAt($club);
 
-        // Không filter club_id (tính tất cả giải), không filter status
-        // (TournamentRankService tự skip khi chưa có rank hợp lệ).
-        $tournamentsQuery = Tournament::query();
+        // Chỉ tính cup từ giải đã kết thúc (status CLOSED).
+        // Bỏ qua giải OPEN/DRAFT/CANCELLED vì rank lúc đó chỉ là tạm tính
+        // (đã từng leak bug trả về cup từ giải chưa đá — xem collectCupEvents).
+        $tournamentsQuery = Tournament::query()
+            ->where('status', Tournament::CLOSED);
 
         if ($startDate) {
             $tournamentsQuery->where('start_date', '>=', $startDate);
@@ -451,10 +453,13 @@ class ClubAchievementLeaderboardService
         }
 
         // 2. Load đúng các tournament đó, kèm types. Chỉ giữ những giải
-        //    có start_date >= firstJoinedAt (rule "từ ngày vào CLB trở đi").
+        //    đã kết thúc (status CLOSED) và có start_date >= firstJoinedAt
+        //    (rule "từ ngày vào CLB trở đi"). Không lấy giải OPEN/DRAFT/CANCELLED
+        //    vì rank lúc đó chỉ là tạm tính — chưa phải "cup đã nhận".
         $tournaments = Tournament::query()
             ->with('tournamentTypes')
             ->whereIn('id', $tournamentIds)
+            ->where('status', Tournament::CLOSED)
             ->where(function ($q) use ($firstJoinedAt) {
                 $q->where('start_date', '>=', $firstJoinedAt)
                     ->orWhereNull('start_date');
