@@ -6,6 +6,7 @@ use App\Models\MiniTournament;
 use App\Models\MiniParticipant;
 use App\Models\User;
 use App\Models\Tournament;
+use App\Services\Club\UserAchievementRecorder;
 use App\Services\TournamentService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -17,7 +18,8 @@ class BackfillTournamentEndDate extends Command
     protected $description = 'Backfill end_date/end_time cho tournaments/mini-tournaments từ start_date/start_time + duration, sau đó auto-close giải đã hết hạn';
 
     public function __construct(
-        private TournamentService $tournamentService
+        private TournamentService $tournamentService,
+        private UserAchievementRecorder $achievementRecorder,
     ) {
         parent::__construct();
     }
@@ -157,5 +159,7 @@ class BackfillTournamentEndDate extends Command
             $participant->rank_change = null;
             $participant->save();
         }
+
+        $this->achievementRecorder->recordForMiniTournament($miniTournament);
     }
 }

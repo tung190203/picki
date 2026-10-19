@@ -3,74 +3,123 @@
 namespace App\Services\Club;
 
 use App\Models\Club\Club;
-use App\Models\MiniTournament;
-use App\Models\Participant as TournamentParticipant;
-use App\Models\Tournament;
-use App\Models\Team as TournamentTeam;
 use App\Models\User;
-use App\Services\RoundRobinSchedulerService;
-use App\Services\TournamentType\TournamentRankService;
+use App\Models\UserAchievement;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
+/**
+ * BXH + lịch sử thành tích của CLB, đọc thẳng từ bảng user_achievements.
+ *
+ * Bảng user_achievements được fill bởi UserAchievementRecorder khi event
+ * (mini_tournament hoặc tournament) chuyển sang CLOSED — idempotent qua
+ * unique key (user_id, club_id, event_type, event_id).
+ *
+ * Do đã áp dụng các rule (filter status, joined_at, multi-CLB split) lúc
+ * ghi → read path chỉ cần WHERE + GROUP BY, không cần join bảng nặng.
+ */
 class ClubAchievementLeaderboardService
 {
-    public function __construct(
-        private TournamentRankService $rankService,
-        private RoundRobinSchedulerService $roundRobinService,
-    ) {}
-
     /**
-     * Get Achievement Leaderboard (Sao or Cúp) for a Club.
+     * BXH sao/cúp của CLB.
      *
-     * @param Club $club
-     * @param string $subType 'star' (Kèo đấu) or 'cup' (Giải đấu)
-     * @param string $timeFrame 'month', 'quarter', 'year', 'all'
-     * @return Collection
+     * @return Collection<int, array{
+     *     user_id: int, name: string|null, avatar_url: string|null,
+     *     is_guest: bool,
+     *     gold: int, silver: int, bronze: int, total_points: int,
+     *     rank: int
+     * }>
      */
     public function getLeaderboard(Club $club, string $subType = 'star', string $timeFrame = 'month'): Collection
     {
         $startDate = $this->getStartDateForTimeFrame($timeFrame);
+        $isCup = $subType === 'cup';
 
-        if ($subType === 'cup') {
-            return $this->calculateCupLeaderboard($club, $startDate);
+        $query = UserAchievement::query()
+            ->where('club_id', $club->id)
+            ->where('is_cup', $isCup)
+            ->whereNotNull('user_id');
+
+        if ($startDate) {
+            $query->where('event_date', '>=', $startDate);
         }
 
-        return $this->calculateStarLeaderboard($club, $startDate);
+        $rows = $query
+            ->selectRaw('user_id,
+                SUM(CASE WHEN medal = ? THEN 1 ELSE 0 END) as gold,
+                SUM(CASE WHEN medal = ? THEN 1 ELSE 0 END) as silver,
+                SUM(CASE WHEN medal = ? THEN 1 ELSE 0 END) as bronze,
+                SUM(points) as total_points,
+                MAX(is_guest_snapshot) as is_guest', ['gold', 'silver', 'bronze'])
+            ->groupBy('user_id')
+            ->get();
+
+        $userIds = $rows->pluck('user_id')->all();
+        $users = $userIds
+            ? User::whereIn('id', $userIds)->get()->keyBy('id')
+            : collect();
+
+        $scored = $rows->map(function ($row) use ($users) {
+            $user = $users->get($row->user_id);
+            return [
+                'user_id' => (int) $row->user_id,
+                'is_guest' => (bool) $row->is_guest,
+                'name' => $user?->full_name ?? 'Khách',
+                'avatar_url' => $user?->avatar_url,
+                'gold' => (int) $row->gold,
+                'silver' => (int) $row->silver,
+                'bronze' => (int) $row->bronze,
+                'total_points' => (int) $row->total_points,
+            ];
+        });
+
+        // Sort: cup → gold DESC > silver DESC > bronze DESC (giữ rule cũ).
+        //      star → total_points DESC > gold DESC > silver DESC > bronze DESC.
+        $sorted = $scored->sort(function ($a, $b) use ($isCup) {
+            if ($isCup) {
+                if ($a['gold'] !== $b['gold']) return $b['gold'] <=> $a['gold'];
+                if ($a['silver'] !== $b['silver']) return $b['silver'] <=> $a['silver'];
+                return $b['bronze'] <=> $a['bronze'];
+            }
+            if ($a['total_points'] !== $b['total_points']) return $b['total_points'] <=> $a['total_points'];
+            if ($a['gold'] !== $b['gold']) return $b['gold'] <=> $a['gold'];
+            if ($a['silver'] !== $b['silver']) return $b['silver'] <=> $a['silver'];
+            return $b['bronze'] <=> $a['bronze'];
+        })->values();
+
+        return $sorted->map(function ($item, $index) {
+            $item['rank'] = $index + 1;
+            return $item;
+        });
     }
 
     /**
-     * Lấy lịch sử sao/cúp của 1 member trong CLB.
-     *
-     * Trả về flat list các event (mini_tournament + tournament) mà user đó
-     * đạt top 3, CỘNG với summary gold/silver/bronze theo loại.
-     *
-     * Scope:
-     *  - Mini-tournament: chỉ của CLB này, status CLOSED, start_time >= joined_at.
-     *  - Tournament: TẤT CẢ tournament (kể cả CLB khác), nhưng chỉ tính các cup
-     *    đạt được từ ngày user vào CLB này sớm nhất trở đi.
-     *  - Nếu user chưa từng là member của CLB → trả rỗng.
+     * Lịch sử thành tích của 1 user trong CLB.
      *
      * @return array{user: array, club: array, summary: array, events: Collection}
      */
     public function getMemberAchievements(Club $club, int $userId): array
     {
-        $firstJoinedAt = $this->getFirstJoinedAt($club, $userId);
-
-        if ($firstJoinedAt === null) {
-            return [
-                'user' => $this->summarizeUser($userId),
-                'club' => $this->summarizeClub($club),
-                'summary' => $this->emptySummary(),
-                'events' => collect(),
-            ];
-        }
-
-        $events = collect()
-            ->merge($this->collectStarEvents($club, $userId, $firstJoinedAt))
-            ->merge($this->collectCupEvents($club, $userId, $firstJoinedAt))
-            ->sortByDesc('event_date')
+        $events = UserAchievement::query()
+            ->where('user_id', $userId)
+            ->where('club_id', $club->id)
+            ->orderByDesc('event_date')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (UserAchievement $a) => [
+                'event_id' => (int) $a->event_id,
+                'event_type' => $a->event_type,
+                'event_name' => $a->event_name,
+                'event_date' => optional($a->event_date)->toIso8601String(),
+                'event_status' => $a->event_status,
+                'is_club_hosted' => (bool) $a->is_club_hosted,
+                'rank' => (int) $a->rank,
+                'medal' => $a->medal,
+                'points' => (int) $a->points,
+                'is_star' => (bool) $a->is_star,
+                'is_cup' => (bool) $a->is_cup,
+                'partner_names' => $a->partner_names ?? [],
+            ])
             ->values();
 
         return [
@@ -84,519 +133,11 @@ class ClubAchievementLeaderboardService
     private function getStartDateForTimeFrame(string $timeFrame): ?Carbon
     {
         $now = Carbon::now();
-
         return match ($timeFrame) {
             'month' => $now->copy()->startOfMonth(),
             'quarter' => $now->copy()->startOfQuarter(),
             'year' => $now->copy()->startOfYear(),
             default => null,
-        };
-    }
-
-    /**
-     * Tính BXH Cúp (Giải đấu).
-     *
-     * Lấy champion/runner-up/third từ TournamentRankService (cùng logic với
-     * GET /api/tournaments/{id}/leaderboard), phân bổ điểm cho từng thành viên
-     * trong team VỚI CÁC RULE:
-     *
-     *  1. Tính TẤT CẢ tournament (không chỉ của CLB này).
-     *  2. Chỉ cộng điểm cho user đang/từng là member của CLB này.
-     *  3. Chỉ cộng các cup đạt được kể từ lần joined_at SỚM NHẤT của user
-     *     trên CLB này (cộng dồn toàn bộ thời gian đã thuộc CLB, không reset).
-     *  4. Nếu user thuộc nhiều CLB cùng lúc → cup của user đó sẽ được đếm
-     *     cho tất cả CLB user đã từng là member.
-     *
-     * Sort: gold DESC → silver DESC → bronze DESC (KHÔNG dùng total_points).
-     */
-    private function calculateCupLeaderboard(Club $club, ?Carbon $startDate): Collection
-    {
-        $scores = [];
-
-        $memberJoinedAt = $this->loadClubMembersJoinedAt($club);
-
-        // Chỉ tính cup từ giải đã kết thúc (status CLOSED).
-        // Bỏ qua giải OPEN/DRAFT/CANCELLED vì rank lúc đó chỉ là tạm tính
-        // (đã từng leak bug trả về cup từ giải chưa đá — xem collectCupEvents).
-        $tournamentsQuery = Tournament::query()
-            ->where('status', Tournament::CLOSED);
-
-        if ($startDate) {
-            $tournamentsQuery->where('start_date', '>=', $startDate);
-        }
-
-        $tournaments = $tournamentsQuery->with('tournamentTypes')->get();
-
-        foreach ($tournaments as $tournament) {
-            $tournamentDate = $tournament->start_date
-                ?? $tournament->end_date
-                ?? $tournament->created_at;
-
-            foreach ($tournament->tournamentTypes as $type) {
-                $rankLabels = $this->rankService->rankLabelsByTeam($type->id);
-
-                foreach ($rankLabels as $teamId => $rankInfo) {
-                    $rank = (int) ($rankInfo['overall_rank'] ?? 0);
-                    if ($rank < 1 || $rank > 3) {
-                        continue;
-                    }
-
-                    $team = TournamentTeam::with('members')->find($teamId);
-                    if (!$team) {
-                        continue;
-                    }
-
-                    $this->awardTeamPoints(
-                        $scores,
-                        $team,
-                        $rank,
-                        $memberJoinedAt,
-                        $tournamentDate
-                    );
-                }
-            }
-        }
-
-        return $this->sortAndRankLeaderboard($scores, 'cup');
-    }
-
-    /**
-     * Map user_id => earliest joined_at cho mọi user đã từng là member của CLB.
-     * Tra mọi trạng thái membership (joined + left + rejected + cancelled)
-     * để "cộng dồn toàn bộ thời gian đã thuộc CLB, không reset".
-     *
-     * @return array<int, Carbon> user_id => earliest joined_at
-     */
-    private function loadClubMembersJoinedAt(Club $club): array
-    {
-        return DB::table('club_members')
-            ->select('user_id', DB::raw('MIN(joined_at) as first_joined_at'))
-            ->where('club_id', $club->id)
-            ->whereNotNull('joined_at')
-            ->groupBy('user_id')
-            ->pluck('first_joined_at', 'user_id')
-            ->map(fn ($v) => Carbon::parse($v))
-            ->all();
-    }
-
-    /**
-     * Lấy joined_at SỚM NHẤT của 1 user trong CLB (kể cả đã left).
-     * Trả null nếu user chưa từng là member.
-     */
-    private function getFirstJoinedAt(Club $club, int $userId): ?Carbon
-    {
-        $value = DB::table('club_members')
-            ->where('club_id', $club->id)
-            ->where('user_id', $userId)
-            ->whereNotNull('joined_at')
-            ->min('joined_at');
-
-        return $value ? Carbon::parse($value) : null;
-    }
-
-    /**
-     * Phân bổ điểm cup cho từng thành viên của team.
-     * Filter theo rule "từ ngày vào CLB trở đi" + "chỉ members của CLB hiện tại".
-     */
-    private function awardTeamPoints(array &$scores, TournamentTeam $team, int $rank, array $memberJoinedAt, mixed $tournamentDate): void
-    {
-        $points = match ($rank) {
-            1 => ['gold' => 1, 'silver' => 0, 'bronze' => 0, 'total' => 1],
-            2 => ['gold' => 0, 'silver' => 1, 'bronze' => 0, 'total' => 1],
-            3 => ['gold' => 0, 'silver' => 0, 'bronze' => 1, 'total' => 1],
-            default => null,
-        };
-        if ($points === null) {
-            return;
-        }
-
-        foreach ($team->members as $member) {
-            $userId = (int) $member->id;
-
-            // Rule 2: chỉ members của CLB này
-            if (!isset($memberJoinedAt[$userId])) {
-                continue;
-            }
-
-            // Rule 3: chỉ tính cup đạt được từ earliest joined_at trở đi
-            $firstJoined = $memberJoinedAt[$userId];
-            if ($tournamentDate && Carbon::parse($tournamentDate)->lt($firstJoined)) {
-                continue;
-            }
-
-            if (!isset($scores[$userId])) {
-                $scores[$userId] = [
-                    'user_id' => $userId,
-                    'is_guest' => (bool) ($member->is_guest ?? false),
-                    'name' => $member->full_name ?? 'Khách',
-                    'avatar_url' => $member->avatar_url,
-                    'gold' => 0,
-                    'silver' => 0,
-                    'bronze' => 0,
-                    'total_points' => 0,
-                ];
-            }
-
-            $scores[$userId]['gold'] += $points['gold'];
-            $scores[$userId]['silver'] += $points['silver'];
-            $scores[$userId]['bronze'] += $points['bronze'];
-            $scores[$userId]['total_points'] += $points['total'];
-        }
-    }
-
-    /**
-     * Tính BXH Sao (Kèo đấu).
-     *
-     * Lấy top 3 từ RoundRobinSchedulerService::calculateLeaderboard() (cùng logic
-     * với GET /api/mini-tournaments/{id}/leaderboard).
-     *
-     * Scope: chỉ tính kèo của CLB này (mini_tournaments.club_id = club.id).
-     * Guest participant (không có user_id thật) → KHÔNG cộng vào BXH Sao CLB.
-     * User không phải member của CLB → KHÔNG cộng.
-     */
-    private function calculateStarLeaderboard(Club $club, ?Carbon $startDate): Collection
-    {
-        $scores = [];
-
-        $memberJoinedAt = $this->loadClubMembersJoinedAt($club);
-
-        $miniTournamentsQuery = MiniTournament::where('club_id', $club->id)
-            ->whereIn('status', [MiniTournament::STATUS_CLOSED, 3]);
-
-        if ($startDate) {
-            $miniTournamentsQuery->where('start_time', '>=', $startDate);
-        }
-
-        $miniTournaments = $miniTournamentsQuery->get();
-
-        foreach ($miniTournaments as $mini) {
-            $result = $this->roundRobinService->calculateLeaderboard($mini->id);
-            $leaderboard = $result['leaderboard'] ?? [];
-
-            $top3 = array_slice($leaderboard, 0, 3);
-
-            foreach ($top3 as $entry) {
-                $rank = (int) ($entry['rank'] ?? 0);
-                if ($rank < 1 || $rank > 3) {
-                    continue;
-                }
-
-                $userId = $entry['user_id'] ?? null;
-                $participantId = $entry['participant_id'] ?? null;
-
-                if (!$participantId) {
-                    continue;
-                }
-
-                $participant = \App\Models\MiniParticipant::with('user')->find($participantId);
-                if (!$participant) {
-                    continue;
-                }
-
-                $isGuest = (bool) ($participant->is_guest
-                    || !$participant->user_id
-                    || ($participant->user && $participant->user->is_guest));
-                if ($isGuest || !$userId) {
-                    continue;
-                }
-
-                if (!isset($memberJoinedAt[$userId])) {
-                    continue;
-                }
-
-                $firstJoined = $memberJoinedAt[$userId];
-                $miniStart = $mini->start_time ?? $mini->created_at;
-                if ($miniStart && Carbon::parse($miniStart)->lt($firstJoined)) {
-                    continue;
-                }
-
-                if (!isset($scores[$userId])) {
-                    $user = $participant->user ?? User::find($userId);
-                    $scores[$userId] = [
-                        'user_id' => $userId,
-                        'is_guest' => (bool) ($user?->is_guest ?? false),
-                        'name' => $user?->full_name ?? 'Khách',
-                        'avatar_url' => $user?->avatar_url,
-                        'gold' => 0,
-                        'silver' => 0,
-                        'bronze' => 0,
-                        'total_points' => 0,
-                    ];
-                }
-
-                if ($rank === 1) {
-                    $scores[$userId]['gold'] += 1;
-                    $scores[$userId]['total_points'] += 3;
-                } elseif ($rank === 2) {
-                    $scores[$userId]['silver'] += 1;
-                    $scores[$userId]['total_points'] += 2;
-                } elseif ($rank === 3) {
-                    $scores[$userId]['bronze'] += 1;
-                    $scores[$userId]['total_points'] += 1;
-                }
-            }
-        }
-
-        return $this->sortAndRankLeaderboard($scores, 'star');
-    }
-
-    /**
-     * Sắp xếp & gán rank cho leaderboard.
-     *
-     * Sort rule:
-     *  - 'star': total_points DESC → gold DESC → silver DESC → bronze DESC
-     *    (giữ tương thích ngược với mobile hiển thị "⭐").
-     *  - 'cup': gold DESC → silver DESC → bronze DESC
-     *    (BỎ total_points — sort trái → phải theo yêu cầu).
-     */
-    private function sortAndRankLeaderboard(array $scores, string $subType = 'star'): Collection
-    {
-        $collection = collect(array_values($scores));
-
-        $sorted = $collection->sort(function ($a, $b) use ($subType) {
-            if ($subType === 'cup') {
-                if ($a['gold'] !== $b['gold']) {
-                    return $b['gold'] <=> $a['gold'];
-                }
-                if ($a['silver'] !== $b['silver']) {
-                    return $b['silver'] <=> $a['silver'];
-                }
-                return $b['bronze'] <=> $a['bronze'];
-            }
-
-            // Star
-            if ($a['total_points'] !== $b['total_points']) {
-                return $b['total_points'] <=> $a['total_points'];
-            }
-            if ($a['gold'] !== $b['gold']) {
-                return $b['gold'] <=> $a['gold'];
-            }
-            if ($a['silver'] !== $b['silver']) {
-                return $b['silver'] <=> $a['silver'];
-            }
-            return $b['bronze'] <=> $a['bronze'];
-        })->values();
-
-        return $sorted->map(function ($item, $index) {
-            $item['rank'] = $index + 1;
-            return $item;
-        });
-    }
-
-    /**
-     * Thu thập các event mini_tournament mà user đạt top 3.
-     *
-     * @return Collection<int, array<string, mixed>>
-     */
-    private function collectStarEvents(Club $club, int $userId, Carbon $firstJoinedAt): Collection
-    {
-        $events = collect();
-
-        $minis = MiniTournament::where('club_id', $club->id)
-            ->whereIn('status', [MiniTournament::STATUS_CLOSED, 3])
-            ->where('start_time', '>=', $firstJoinedAt)
-            ->orderByDesc('start_time')
-            ->get();
-
-        foreach ($minis as $mini) {
-            $result = $this->roundRobinService->calculateLeaderboard($mini->id);
-            $leaderboard = $result['leaderboard'] ?? [];
-
-            foreach ($leaderboard as $entry) {
-                $rank = (int) ($entry['rank'] ?? 0);
-                if ($rank < 1 || $rank > 3) {
-                    continue;
-                }
-                if ((int) ($entry['user_id'] ?? 0) !== $userId) {
-                    continue;
-                }
-
-                $events->push([
-                    'event_id' => $mini->id,
-                    'event_type' => 'mini_tournament',
-                    'event_name' => $mini->name,
-                    'event_date' => optional($mini->start_time)->toIso8601String(),
-                    'event_status' => 'closed',
-                    'is_club_hosted' => true,
-                    'rank' => $rank,
-                    'medal' => $this->medal($rank),
-                    'points' => $this->starPoints($rank),
-                    'is_star' => true,
-                    'is_cup' => false,
-                    'partner_names' => $this->resolveStarPartnerNames($mini, $userId, $rank),
-                ]);
-            }
-        }
-
-        return $events;
-    }
-
-    /**
-     * Thu thập các event tournament mà user đạt top 3.
-     *
-     * Tối ưu: thay vì lặp TOÀN BỘ tournament của hệ thống rồi query
-     * rankLabelsByTeam cho từng type (gây N+1 query + 8s+ response time),
-     * ta scope trước bằng cách lấy tập tournament_id mà user là participant
-     * hoặc nằm trong team_members, rồi mới load tournament.
-     *
-     * @return Collection<int, array<string, mixed>>
-     */
-    private function collectCupEvents(Club $club, int $userId, Carbon $firstJoinedAt): Collection
-    {
-        $events = collect();
-
-        // 1. Lấy tập tournament_id user tham gia (qua Participant hoặc team_members).
-        $tournamentIds = $this->findUserTournamentIds($userId);
-
-        if ($tournamentIds === []) {
-            return $events;
-        }
-
-        // 2. Load đúng các tournament đó, kèm types. Chỉ giữ những giải
-        //    đã kết thúc (status CLOSED) và có start_date >= firstJoinedAt
-        //    (rule "từ ngày vào CLB trở đi"). Không lấy giải OPEN/DRAFT/CANCELLED
-        //    vì rank lúc đó chỉ là tạm tính — chưa phải "cup đã nhận".
-        $tournaments = Tournament::query()
-            ->with('tournamentTypes')
-            ->whereIn('id', $tournamentIds)
-            ->where('status', Tournament::CLOSED)
-            ->where(function ($q) use ($firstJoinedAt) {
-                $q->where('start_date', '>=', $firstJoinedAt)
-                    ->orWhereNull('start_date');
-            })
-            ->orderByDesc('start_date')
-            ->get();
-
-        // 3. Nạp sẵn rank labels theo tournament_type_id (1 round-trip thay vì N+1)
-        //    + collect team_ids từ rankLabels để bulk-load teams (tránh N+1 find()).
-        $typeIds = $tournaments->pluck('tournamentTypes.*.id')->flatten()->unique()->all();
-        $rankLabelsByType = [];
-        $teamIds = [];
-        foreach ($typeIds as $typeId) {
-            $labels = $this->rankService->rankLabelsByTeam($typeId);
-            $rankLabelsByType[$typeId] = $labels;
-            foreach ($labels as $teamId => $info) {
-                $teamIds[$teamId] = true;
-            }
-        }
-        $teams = $teamIds
-            ? TournamentTeam::with('members')->whereIn('id', array_keys($teamIds))->get()->keyBy('id')
-            : collect();
-
-        foreach ($tournaments as $tournament) {
-            $tournamentDate = $tournament->start_date
-                ?? $tournament->end_date
-                ?? $tournament->created_at;
-
-            foreach ($tournament->tournamentTypes as $type) {
-                $rankLabels = $rankLabelsByType[$type->id] ?? [];
-
-                foreach ($rankLabels as $teamId => $rankInfo) {
-                    $rank = (int) ($rankInfo['overall_rank'] ?? 0);
-                    if ($rank < 1 || $rank > 3) {
-                        continue;
-                    }
-
-                    $team = $teams->get($teamId);
-                    if (!$team) {
-                        continue;
-                    }
-
-                    if (!$team->members->contains(fn ($m) => (int) $m->id === $userId)) {
-                        continue;
-                    }
-
-                    $events->push([
-                        'event_id' => $tournament->id,
-                        'event_type' => 'tournament',
-                        'event_name' => $tournament->name,
-                        'event_date' => $tournamentDate ? Carbon::parse($tournamentDate)->toIso8601String() : null,
-                        'event_status' => $this->tournamentStatusLabel($tournament->status),
-                        'is_club_hosted' => (int) $tournament->club_id === (int) $club->id,
-                        'rank' => $rank,
-                        'medal' => $this->medal($rank),
-                        'points' => 1, // cup = 1 cup / giải
-                        'is_star' => false,
-                        'is_cup' => true,
-                        'partner_names' => $team->members
-                            ->filter(fn ($m) => (int) $m->id !== $userId)
-                            ->pluck('full_name')
-                            ->all(),
-                    ]);
-                }
-            }
-        }
-
-        return $events;
-    }
-
-    /**
-     * Tập tournament_id mà user đã từng tham gia (qua Participant hoặc team_members).
-     *
-     * @return int[]
-     */
-    private function findUserTournamentIds(int $userId): array
-    {
-        $fromParticipants = TournamentParticipant::where('user_id', $userId)
-            ->whereNotNull('tournament_id')
-            ->pluck('tournament_id')
-            ->all();
-
-        $fromTeams = DB::table('team_members')
-            ->join('teams', 'teams.id', '=', 'team_members.team_id')
-            ->where('team_members.user_id', $userId)
-            ->whereNotNull('teams.tournament_id')
-            ->pluck('teams.tournament_id')
-            ->all();
-
-        return array_values(array_unique(array_merge($fromParticipants, $fromTeams)));
-    }
-
-    private function resolveStarPartnerNames(MiniTournament $mini, int $userId, int $rank): array
-    {
-        $participant = \App\Models\MiniParticipant::with(['team.members', 'user'])
-            ->where('mini_tournament_id', $mini->id)
-            ->where('user_id', $userId)
-            ->first();
-
-        if (!$participant || !$participant->team) {
-            return [];
-        }
-
-        return $participant->team->members
-            ->filter(fn ($m) => (int) $m->id !== $userId)
-            ->pluck('full_name')
-            ->all();
-    }
-
-    private function medal(int $rank): string
-    {
-        return match ($rank) {
-            1 => 'gold',
-            2 => 'silver',
-            3 => 'bronze',
-            default => '',
-        };
-    }
-
-    private function starPoints(int $rank): int
-    {
-        return match ($rank) {
-            1 => 3,
-            2 => 2,
-            3 => 1,
-            default => 0,
-        };
-    }
-
-    private function tournamentStatusLabel(int|string $status): string
-    {
-        return match ((int) $status) {
-            Tournament::DRAFT => 'draft',
-            Tournament::OPEN => 'open',
-            Tournament::CLOSED => 'closed',
-            Tournament::CANCELLED => 'cancelled',
-            default => (string) $status,
         };
     }
 
@@ -618,15 +159,6 @@ class ClubAchievementLeaderboardService
         ];
     }
 
-    private function emptySummary(): array
-    {
-        return [
-            'star' => ['gold' => 0, 'silver' => 0, 'bronze' => 0, 'total_points' => 0],
-            'cup' => ['gold' => 0, 'silver' => 0, 'bronze' => 0, 'total_points' => 0],
-            'total_events' => 0,
-        ];
-    }
-
     private function summarizeEvents(Collection $events): array
     {
         $star = ['gold' => 0, 'silver' => 0, 'bronze' => 0, 'total_points' => 0];
@@ -634,8 +166,8 @@ class ClubAchievementLeaderboardService
 
         foreach ($events as $e) {
             $bucket = $e['is_cup'] ? 'cup' : 'star';
-            $$bucket[$e['medal']]++;
-            $$bucket['total_points'] += $e['points'];
+            ${$bucket}[$e['medal']]++;
+            ${$bucket}['total_points'] += $e['points'];
         }
 
         return [
