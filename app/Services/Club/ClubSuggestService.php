@@ -26,11 +26,12 @@ class ClubSuggestService
     private const SUIT_LEVEL_TOLERANCE = 0.3;
     private const NEARBY_RADIUS_KM = 10.0;
 
-    public function suggest(int $userId, ?float $lat, ?float $lng): Collection
+    public function suggest(int $userId, ?float $lat, ?float $lng, ?string $keyword = null): Collection
     {
         // Phase 1 enricher yêu cầu Eloquent Collection để set dirty attributes
         $result = new EloquentCollection();
         $seen = [];
+        $keyword = is_string($keyword) ? trim($keyword) : '';
 
         // Group 1: friend_in_club
         foreach ($this->queryFriendInClub($userId) as $club) {
@@ -67,6 +68,22 @@ class ClubSuggestService
                     $result->push($club);
                 }
             }
+        }
+
+        // ponytail: keyword lọc tại ranh giới service — match name club hoặc tên người tạo (created_by).
+        // Bỏ 0-result khi keyword có nhưng pool rỗng, để FE phân biệt "không có gợi ý" vs "không khớp keyword".
+        if ($keyword !== '' && $result->isNotEmpty()) {
+            $matched = $result->filter(function ($club) use ($keyword) {
+                if (stripos((string) $club->name, $keyword) !== false) {
+                    return true;
+                }
+                // Eager-load creator nếu chưa có (cheap, đã chạy bên controller cho resource path).
+                $creatorName = $club->relationLoaded('creator') && $club->creator
+                    ? $club->creator->full_name
+                    : \App\Models\User::where('id', $club->created_by)->value('full_name');
+                return $creatorName !== null && stripos($creatorName, $keyword) !== false;
+            });
+            $result = new EloquentCollection($matched->values()->all());
         }
 
         // Batch enrich (Phase 1 ClubSearchEnricher)

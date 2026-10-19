@@ -25,17 +25,30 @@ export const clubChatService = {
 
     getTournaments: (clubId, params = {}) => {
         // Reuse /clubs/{id}/content — backend đã merge tournament + mini-tournament + activity
+        // và trả active trước, ended sau. Picker chỉ cần giải/kèo đang diễn ra
+        // → filter client-side theo end_time + status để khớp 3 loại entity
+        // (activity: 'scheduled'/'ongoing'; tournament: 'upcoming'/'ongoing';
+        //  mini_tournament: int 1=DRAFT, 2=OPEN, 3=CLOSED, 4=CANCELLED).
         const defaults = {
             page: 1,
             per_page: 50,
-            statuses: ['scheduled', 'ongoing'],
         }
         return axiosInstance.get(`/clubs/${clubId}/content`, { params: { ...defaults, ...params } })
             .then(res => {
                 const items = res.data?.data?.items || []
-                // Chỉ lấy tournament + mini_tournament cho picker share
+                const now = Date.now()
+                const isEnded = (data) => {
+                    if (!data) return false
+                    const status = data.status
+                    if (status === 'cancelled' || status === 'canceled' || status === 'completed' || status === 'finished') return true
+                    if (status === 3 || status === 4) return true // MiniTournament CLOSED/CANCELLED
+                    const end = data.end_time || data.end_date || data.ends_at
+                    if (end && new Date(end).getTime() < now) return true
+                    return false
+                }
                 const list = items
                     .filter(i => i.type === 'tournament' || i.type === 'mini_tournament')
+                    .filter(i => !isEnded(i.data))
                     .map(i => ({
                         id: i.id,
                         kind: i.type,
