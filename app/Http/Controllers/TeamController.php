@@ -493,21 +493,14 @@ class TeamController extends Controller
         $teamMemberCount = array_fill(0, $maxTeams, 0);
 
         foreach ($participants as $participant) {
-            if ($participant->is_guest) {
-                // Guest/user ảo: không có user_id, gắn qua participant_id.
-                TeamMember::create([
-                    'team_id' => $teams[$teamIndex]->id,
-                    'user_id' => null,
-                    'participant_id' => $participant->id,
-                ]);
-            } else {
-                // User thật: gắn cả user_id và participant_id để load đúng.
-                TeamMember::create([
-                    'team_id' => $teams[$teamIndex]->id,
-                    'user_id' => $participant->user_id,
-                    'participant_id' => $participant->id,
-                ]);
-            }
+            // Guest cũng là 1 User thật trong bảng users (TournamentGuestController::store
+            // luôn tạo User + set Participant.user_id). Lưu user_id cho cả guest để
+            // nhất quán với syncMembersToTeam/addMember và để $team->members load được.
+            TeamMember::create([
+                'team_id' => $teams[$teamIndex]->id,
+                'user_id' => $participant->user_id,
+                'participant_id' => $participant->id,
+            ]);
             $teamMemberCount[$teamIndex]++;
 
             // nếu đội hiện tại đã full thì chuyển sang đội tiếp theo
