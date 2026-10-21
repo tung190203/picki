@@ -56,11 +56,9 @@ class MiniParticipantResource extends JsonResource
                         ->value('id')
                     : null;
             }),
-            'estimated_level_range' => $this->when(
+            'estimated_level' => $this->when(
                 $this->is_guest,
-                fn() => $this->estimated_level_min && $this->estimated_level_max
-                    ? ['min' => (float) $this->estimated_level_min, 'max' => (float) $this->estimated_level_max]
-                    : null
+                fn() => $this->estimated_level !== null ? (float) $this->estimated_level : null
             ),
             'is_pending_confirmation' => $this->when($this->is_guest, (bool) $this->is_pending_confirmation),
             'is_absent' => (bool) $this->is_absent,

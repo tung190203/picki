@@ -1552,9 +1552,10 @@ const goBack = () => {
 }
 
 const isActivityItemEnded = (formatted) => {
-    // formatActivity derives `formatted.status` to one of:
-    //   'open' | 'private' | 'cancelled' | 'completed'
-    // (cancelled/completed covers status string, status int 3/4, and end_time < now).
+    // BE đã trả `is_completed` cho mini_tournament/tournament.
+    // Activity chưa có field này → fallback suy từ status đã derive trong formatActivity
+    // ('cancelled' | 'completed' do status string/int hoặc end_time < now).
+    if (typeof formatted?.is_completed === 'boolean') return formatted.is_completed
     return formatted?.status === 'cancelled' || formatted?.status === 'completed'
 }
 
