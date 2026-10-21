@@ -37,18 +37,19 @@ export const clubChatService = {
             .then(res => {
                 const items = res.data?.data?.items || []
                 const now = Date.now()
-                const isEnded = (data) => {
-                    if (!data) return false
-                    const status = data.status
+                // BE trả `is_completed` cho mini_tournament/tournament.
+                // Fallback cho activity (chưa có field) hoặc response cũ.
+                const isEnded = (i) => {
+                    if (typeof i.data?.is_completed === 'boolean') return i.data.is_completed
+                    const status = i.data?.status
                     if (status === 'cancelled' || status === 'canceled' || status === 'completed' || status === 'finished') return true
-                    if (status === 3 || status === 4) return true // MiniTournament CLOSED/CANCELLED
-                    const end = data.end_time || data.end_date || data.ends_at
-                    if (end && new Date(end).getTime() < now) return true
-                    return false
+                    if (status === 3 || status === 4) return true
+                    const end = i.data?.end_time || i.data?.end_date || i.data?.ends_at
+                    return !!(end && new Date(end).getTime() < now)
                 }
                 const list = items
                     .filter(i => i.type === 'tournament' || i.type === 'mini_tournament')
-                    .filter(i => !isEnded(i.data))
+                    .filter(i => !isEnded(i))
                     .map(i => ({
                         id: i.id,
                         kind: i.type,

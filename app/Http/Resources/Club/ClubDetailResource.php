@@ -82,6 +82,10 @@ class ClubDetailResource extends ClubBaseResource
             ),
 
             // Admin stats — pre-set by ClubDetailAssembler (chỉ attach khi user có quyền canManage)
+            'activities_count' => $this->when(
+                isset($club->activities_count),
+                fn () => (int) $club->activities_count
+            ),
             'mini_tournaments_today' => $this->when(
                 isset($club->mini_tournaments_today),
                 fn () => (int) $club->mini_tournaments_today

@@ -201,11 +201,7 @@ class ClubDetailAssembler
     }
 
     /**
-     * Attach 4 admin stats (kèo hôm nay, chưa trả tiền, % khách quay lại, tổng khách).
-     * Chỉ gọi khi user có quyền canManage (admin/manager/secretary).
-     *
-     * ponytail: 6 query, không cache. Đủ nhanh cho 1 club detail request.
-     * Khi mở rộng sang CLB list (nhiều CLB cùng lúc) → cache 180s theo club_id.
+     * Attach admin stats — chỉ attach khi user có quyền manage CLB.
      */
     public function attachAdminStats(Club $club): void
     {
@@ -214,6 +210,9 @@ class ClubDetailAssembler
         $memberUserIds = $club->activeMembers()->pluck('user_id')->all();
         $tournamentIds = $club->tournaments()->pluck('id');
         $miniIds = $club->miniTournaments()->pluck('id');
+
+        // activities_count: tổng hợp activities đang diễn ra
+        $this->attachActivitiesCount($club);
 
         // 1. mini_tournaments_today — tổng event (mini + tournament) diễn ra hôm nay
         $club->mini_tournaments_today =
@@ -271,6 +270,35 @@ class ClubDetailAssembler
         $club->guests_count = ClubGuest::where('club_id', $club->id)
             ->whereNotIn('user_id', $memberUserIds)
             ->count();
+    }
+
+    /**
+     * Đếm tổng số hoạt động đang diễn ra của CLB:
+     * - ClubActivity với status Scheduled hoặc Ongoing (không phân biệt có mini_tournament_id hay không)
+     * - MiniTournament với status DRAFT hoặc OPEN
+     * - Tournament với status DRAFT hoặc OPEN
+     */
+    protected function attachActivitiesCount(Club $club): void
+    {
+        $club->activities_count =
+            $club->activities()
+                ->whereIn('status', [
+                    \App\Enums\ClubActivityStatus::Scheduled,
+                    \App\Enums\ClubActivityStatus::Ongoing,
+                ])
+                ->count()
+            + $club->miniTournaments()
+                ->whereIn('status', [
+                    \App\Models\MiniTournament::STATUS_DRAFT,
+                    \App\Models\MiniTournament::STATUS_OPEN,
+                ])
+                ->count()
+            + $club->tournaments()
+                ->whereIn('status', [
+                    \App\Models\Tournament::DRAFT,
+                    \App\Models\Tournament::OPEN,
+                ])
+                ->count();
     }
 
     /**
