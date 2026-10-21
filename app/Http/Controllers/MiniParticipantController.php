@@ -292,9 +292,7 @@ class MiniParticipantController extends Controller
                     $participantData['guarantor_user_id'] = Auth::id();
                     // Snapshot estimated_level từ ClubGuestProfile nếu user đến từ CLB guest
                     if (isset($profileUserMap[$userId]) && $profileUserMap[$userId]->estimated_level !== null) {
-                        $level = (float) $profileUserMap[$userId]->estimated_level;
-                        $participantData['estimated_level_min'] = $level;
-                        $participantData['estimated_level_max'] = $level;
+                        $participantData['estimated_level'] = (float) $profileUserMap[$userId]->estimated_level;
                     }
                 }
                 $participant = $miniTournament->participants()->create($participantData);

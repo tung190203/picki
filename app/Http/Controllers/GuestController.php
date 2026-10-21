@@ -49,10 +49,9 @@ class GuestController extends Controller
             'guest_phone' => 'nullable|string|max:20',
             'guest_avatar' => 'nullable|file|mimes:jpeg,png,jpg,gif,svg,webp|max:5120',
             'guarantor_user_id' => 'nullable|integer|exists:users,id',
-            'estimated_level_min' => 'nullable|numeric|min:1|max:8',
-            'estimated_level_max' => 'nullable|numeric|min:1|max:8',
-            'club_id' => 'nullable|integer|exists:clubs,id',
+            // Trình độ ước tính: 1 số cố định (1.0–8.0).
             'estimated_level' => 'nullable|numeric|min:1|max:8',
+            'club_id' => 'nullable|integer|exists:clubs,id',
         ]);
 
         $miniTournament = MiniTournament::findOrFail($miniTournamentId);
@@ -228,9 +227,7 @@ class GuestController extends Controller
             'guest_avatar' => $guestAvatarUrl,
             'guarantor_user_id' => $guarantorUserId,
             'payment_status' => $paymentStatus,
-            'estimated_level_min' => $data['estimated_level_min']
-                ?? ($createdClubGuestProfileId && isset($profile) ? $profile->estimated_level : null),
-            'estimated_level_max' => $data['estimated_level_max']
+            'estimated_level' => $data['estimated_level']
                 ?? ($createdClubGuestProfileId && isset($profile) ? $profile->estimated_level : null),
             'is_pending_confirmation' => $isPendingConfirmation,
         ];

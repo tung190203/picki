@@ -853,7 +853,7 @@ Route::get('/members/candidates', [ClubMemberController::class, 'getCandidates']
                 Route::post('/', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'store']);
                 Route::match(['put', 'patch'], '/{homeCourtId}', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'update']);
                 Route::delete('/{homeCourtId}', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'destroy']);
-            });
+            }); 
 
 
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);

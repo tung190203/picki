@@ -7,9 +7,9 @@ const tournamentEndpoint = API_ENDPOINT.TOURNAMENT;
 /**
  * Thêm guest vào mini tournament
  * @param {number} miniTournamentId
- * @param {object} data - { guest_name, guest_phone, guarantor_user_id?, club_id?, estimated_level? }
+ * @param {object} data - { guest_name, guest_phone?, guarantor_user_id?, club_id?, estimated_level? }
  *   - club_id: tạo CLB guest mới thuộc club_id
- *   - estimated_level: trình độ CLB guest (1.0–8.0), gửi kèm khi truyền club_id
+ *   - estimated_level: trình độ ước tính (1.0–8.0), lưu vào cả MiniParticipant lẫn ClubGuestProfile (nếu có club_id)
  */
 export const addGuest = async (miniTournamentId, data) => {
     return axiosInstance.post(`${miniTournamentEndpoint}/${miniTournamentId}/guests`, data)
