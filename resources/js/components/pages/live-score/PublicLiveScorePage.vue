@@ -4,7 +4,7 @@
 
             <!-- Background layers: base gradient -> photo -> overlay (mandatory for legibility) -->
             <div class="ls-bg"></div>
-            <img v-if="isPhotoMode && tournamentPoster" :src="tournamentPoster" class="ls-photo" alt="" />
+            <img v-if="isPhotoMode && backgroundImage" :src="backgroundImage" class="ls-photo" alt="" />
             <div class="ls-ov"></div>
 
             <!-- Content -->
@@ -27,8 +27,8 @@
                     </div>
 
                     <!-- Sponsor poster -->
-                    <div v-if="tournamentPoster" class="ls-sponsor">
-                        <img :src="tournamentPoster" alt="poster" class="w-full h-full object-cover" />
+                    <div v-if="sponsorLogo" class="ls-sponsor">
+                        <img :src="sponsorLogo" alt="poster" class="w-full h-full object-cover" />
                     </div>
                     <div v-else class="ls-sponsor ls-sponsor--ph">LOGO NHÀ TÀI TRỢ</div>
 
@@ -45,13 +45,56 @@
 
                         <Transition name="pop">
                             <div v-if="showSettings" class="panel">
-                                <p class="panel-cap">GIAO DIỆN</p>
+                                <p class="panel-cap">NỀN</p>
                                 <button v-for="opt in THEME_OPTIONS" :key="opt.value" type="button" class="opt"
                                     :class="{ 'opt--on': effectiveMode === opt.value, 'opt--off': opt.disabled }"
                                     :disabled="opt.disabled" @click="setTheme(opt.value)">
                                     <span class="opt-name">{{ opt.label }}</span>
                                     <span class="opt-hint">{{ opt.hint }}</span>
                                 </button>
+
+                                <!-- Độ phủ: chỉ hiện khi đang dùng ảnh nền -->
+                                <template v-if="isPhotoMode && backgroundImage">
+                                    <p class="panel-cap panel-cap--sp">ĐỘ PHỦ</p>
+                                    <div class="ovl">
+                                        <button v-for="lvl in [40, 60, 80]" :key="lvl" type="button" class="ovl-btn"
+                                            :class="{ 'ovl-btn--on': prefs.overlayLevel === lvl }"
+                                            @click="setOverlayLevel(lvl)">
+                                            {{ lvl }}%
+                                        </button>
+                                    </div>
+                                    <p class="ovl-note">
+                                        {{ prefs.overlayLevel >= 80 ? 'Chữ rõ nhất, ảnh mờ nhất'
+                                            : prefs.overlayLevel <= 40 ? 'Ảnh rõ nhất, chữ khó đọc hơn'
+                                            : 'Cân bằng' }}
+                                    </p>
+                                </template>
+
+                                <p class="panel-cap panel-cap--sp">MÀU ĐỘI</p>
+                                <div class="color-row">
+                                    <label class="color-item">
+                                        <span class="color-dot" style="background: var(--A)"></span>
+                                        <span class="color-lbl">Đội A</span>
+                                        <input type="color" class="color-in" :value="prefs.colorA || '#4A9BFF'"
+                                            @input="onColorInput('A', $event.target.value)" />
+                                    </label>
+                                    <label class="color-item">
+                                        <span class="color-dot" style="background: var(--B)"></span>
+                                        <span class="color-lbl">Đội B</span>
+                                        <input type="color" class="color-in" :value="prefs.colorB || '#FF5A63'"
+                                            @input="onColorInput('B', $event.target.value)" />
+                                    </label>
+                                </div>
+                                <p v-if="colorError" class="ovl-note" style="color: var(--B)">{{ colorError }}</p>
+
+                                <p class="panel-cap panel-cap--sp">HIỂN THỊ</p>
+                                <label v-for="t in TOGGLE_OPTIONS" :key="t.key" class="tgl">
+                                    <span class="tgl-lbl">{{ t.label }}</span>
+                                    <input type="checkbox" class="tgl-box" :checked="prefs[t.key]"
+                                        @change="togglePref(t.key)" />
+                                </label>
+
+                                <button type="button" class="reset" @click="resetPrefs">Khôi phục mặc định</button>
                             </div>
                         </Transition>
                     </div>
@@ -88,7 +131,7 @@
                                     <span v-else>{{ getInitials(member.name) }}</span>
                                 </div>
                                 <p class="pn">{{ member.name }}</p>
-                                <div class="dupr"><span>{{ getMemberVndupr(member) }}</span></div>
+                                <div v-if="prefs.showRating" class="dupr"><span>{{ getMemberVndupr(member) }}</span></div>
                             </div>
                         </div>
                         <div v-if="isTeamServing(1)" class="srv"><span>ĐANG GIAO BÓNG</span></div>
@@ -107,17 +150,17 @@
                             <span v-if="isConfirmed" class="verified"><span>Đã xác nhận</span></span>
                         </div>
 
-                        <div class="tabs">
-                            <template v-for="n in 3" :key="n">
+                        <div v-if="prefs.showSetHistory" class="tabs">
+                            <template v-for="n in setsInMatch" :key="n">
                                 <div class="tab" :class="n === currentSetNumber ? 'tab--on' : ''">
                                     S{{ n }}: {{ getSetTabLabel(n) }}
                                     <span v-if="isSetFinished(n)" class="tab-ok">✓</span>
                                 </div>
-                                <span v-if="n < 3" class="tab-dot">•</span>
+                                <span v-if="n < setsInMatch" class="tab-dot">•</span>
                             </template>
                         </div>
 
-                        <p v-if="ruleLine" class="fmt">{{ ruleLine }}</p>
+                        <p v-if="ruleLine && prefs.showFormat" class="fmt">{{ ruleLine }}</p>
                     </div>
 
                     <!-- Team B -->
@@ -131,7 +174,7 @@
                                     <span v-else>{{ getInitials(member.name) }}</span>
                                 </div>
                                 <p class="pn">{{ member.name }}</p>
-                                <div class="dupr"><span>{{ getMemberVndupr(member) }}</span></div>
+                                <div v-if="prefs.showRating" class="dupr"><span>{{ getMemberVndupr(member) }}</span></div>
                             </div>
                         </div>
                         <div v-if="isTeamServing(2)" class="srv"><span>ĐANG GIAO BÓNG</span></div>
@@ -140,19 +183,22 @@
 
                 <!-- Footer -->
                 <div v-if="!isLoading && !isError" class="lf">
-                    <div class="lf-left">
+                    <div v-if="prefs.showFormat" class="lf-left">
                         <span v-if="matchRules?.sets_per_match">Best of {{ matchRules.sets_per_match }}</span>
                         <span v-if="matchRules?.points_to_win_set">{{ matchRules.points_to_win_set }} điểm</span>
                         <span v-if="winningRuleText">{{ winningRuleText }}</span>
+                        <span v-if="isMatchOver" class="lf-hold">
+                            Giữ tỉ số {{ holdCountdown }}s
+                        </span>
                     </div>
-                    <div class="lf-clock">
+                    <div v-if="prefs.showClock" class="lf-clock">
                         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10" />
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3" />
                         </svg>
                         <span>{{ elapsedTimeText }}</span>
                     </div>
-                    <div class="lf-ref">
+                    <div v-if="prefs.showReferee" class="lf-ref">
                         <div class="ref-av">
                             <span v-if="!refereeName">—</span>
                             <span v-else>{{ getInitials(refereeName) }}</span>
@@ -208,8 +254,55 @@ const showTimeoutOverlay = ref(false)
 let echoChannel = null
 let nowTimer = null
 
-// ============ THEME (page-local, no API: this page is public) ============
-const THEME_KEY = 'vpick_livescore_theme'
+// ============ PREFS (spec D.4) ============
+// Cấu hình hiển thị KHÔNG lưu theo giải, KHÔNG gọi API.
+// Mỗi lần phát là phiên độc lập; lưu cục bộ trên máy đang chiếu.
+// Mở lại trên cùng máy -> giữ; mở máy khác -> mặc định.
+const PREFS_KEY = 'picki_livescore_prefs'
+const LEGACY_THEME_KEY = 'vpick_livescore_theme' // bài trước, chuyển sang key mới
+
+const DEFAULT_PREFS = {
+    theme: 'dark',
+    overlayLevel: 60,
+    colorA: null,
+    colorB: null,
+    sponsorLogoUrl: null,
+    bgImageUrl: null,
+    showRating: true,
+    showSetHistory: true,
+    showClock: true,
+    showReferee: true,
+    showFormat: true,
+}
+
+// Đọc lúc init. Dùng try/catch vì localStorage có thể bị chặn (private mode).
+const loadPrefs = () => {
+    try {
+        const raw = localStorage.getItem(PREFS_KEY)
+        if (raw) return { ...DEFAULT_PREFS, ...JSON.parse(raw) }
+        // Migrate 1 lần từ bản trước.
+        const legacy = localStorage.getItem(LEGACY_THEME_KEY)
+        if (legacy) {
+            localStorage.setItem(PREFS_KEY, JSON.stringify({ ...DEFAULT_PREFS, theme: legacy }))
+            localStorage.removeItem(LEGACY_THEME_KEY)
+            return { ...DEFAULT_PREFS, theme: legacy }
+        }
+    } catch {
+        /* storage bị chặn -> dùng mặc định, màn chiếu vẫn chạy */
+    }
+    return { ...DEFAULT_PREFS }
+}
+
+const prefs = ref(loadPrefs())
+
+const savePrefs = () => {
+    try {
+        localStorage.setItem(PREFS_KEY, JSON.stringify(prefs.value))
+    } catch {
+        /* bỏ qua: mất lưu cục bộ vẫn dùng được */
+    }
+}
+
 const THEMES = {
     dark: {
         '--bg': '#0B0D12',
@@ -237,7 +330,7 @@ const THEMES = {
     },
 }
 
-const themeMode = ref(localStorage.getItem(THEME_KEY) || 'dark')
+const themeMode = ref(prefs.value.theme)
 const showSettings = ref(false)
 
 // Poster may load after settings open, so photo option is disabled reactively.
@@ -254,14 +347,75 @@ const effectiveMode = computed(() => {
 })
 
 const themeClass = computed(() => `theme-${effectiveMode.value}`)
-const themeVars = computed(() => THEMES[effectiveMode.value] || THEMES.dark)
+const themeVars = computed(() => {
+    const base = THEMES[effectiveMode.value] || THEMES.dark
+    return {
+        ...base,
+        '--overlay': overlayAlpha.value,
+        // Màu đội tuỳ chỉnh đè lên bộ màu gốc (null = dùng mặc định của theme).
+        ...(prefs.value.colorA ? { '--A': prefs.value.colorA } : {}),
+        ...(prefs.value.colorB ? { '--B': prefs.value.colorB } : {}),
+    }
+})
 const isPhotoMode = computed(() => effectiveMode.value === 'photo')
+
+/** Độ phủ lớp phủ ảnh nền: 40 | 60 | 80 (spec B). */
+const OVERLAY_ALPHA = { 40: 0.62, 60: 0.82, 80: 0.95 }
 
 const setTheme = (mode) => {
     if (mode === 'photo' && !tournamentPoster.value) return
     themeMode.value = mode
-    localStorage.setItem(THEME_KEY, mode)
+    prefs.value.theme = mode
+    savePrefs()
     showSettings.value = false
+}
+
+/**
+ * Đổi màu đội — chặn trùng nhau (spec kiểm thử: "Đổi màu đội trùng nhau -> BỊ CHẶN").
+ * Trả về false để UI báo lý do.
+ */
+const setTeamColor = (side, color) => {
+    const other = side === 'A' ? 'colorB' : 'colorA'
+    if (prefs.value[other] && prefs.value[other].toLowerCase() === color.toLowerCase()) return false
+    prefs.value[side === 'A' ? 'colorA' : 'colorB'] = color
+    savePrefs()
+    return true
+}
+
+const setOverlayLevel = (level) => {
+    prefs.value.overlayLevel = level
+    savePrefs()
+}
+
+const resetPrefs = () => {
+    prefs.value = { ...DEFAULT_PREFS }
+    themeMode.value = DEFAULT_PREFS.theme
+    try {
+        localStorage.removeItem(PREFS_KEY)
+    } catch { /* bỏ qua */ }
+}
+
+// Chặn chọn trùng màu: báo lý do thay vì im lặng (spec kiểm thử).
+const colorError = ref('')
+const onColorInput = (side, color) => {
+    if (!setTeamColor(side, color)) {
+        colorError.value = 'Hai đội không được dùng cùng một màu'
+        return
+    }
+    colorError.value = ''
+}
+
+const TOGGLE_OPTIONS = [
+    { key: 'showRating', label: 'Điểm trình' },
+    { key: 'showSetHistory', label: 'Lịch sử séc' },
+    { key: 'showClock', label: 'Đồng hồ' },
+    { key: 'showReferee', label: 'Tên trọng tài' },
+    { key: 'showFormat', label: 'Thể thức' },
+]
+
+const togglePref = (key) => {
+    prefs.value[key] = !prefs.value[key]
+    savePrefs()
 }
 
 // Tournament
@@ -294,7 +448,11 @@ const refereeName = computed(() => matchData.value?.referee_name || null)
 
 // Sets
 const sets = computed(() => matchData.value?.sets || [])
-const currentSetNumber = computed(() => matchData.value?.current_set || (sets.value.length > 0 ? sets.value.length : 1))
+const currentSetNumber = computed(() => {
+    const raw = Number(matchData.value?.current_set) || (sets.value.length > 0 ? sets.value.length : 1)
+    // Không vượt quá số set của thể thức (best-of 1 chỉ có S1).
+    return Math.min(Math.max(1, raw), setsInMatch.value)
+})
 
 const currentSetScore = computed(() => {
     const current = sets.value.find(s => s.set_number === currentSetNumber.value)
@@ -378,6 +536,85 @@ const isConfirmed = computed(() => {
     return (d.home_team_confirm === 1 && d.away_team_confirm === 1) || d.status === 'completed'
 })
 
+// ============ TỰ LÀM MỚI & GIỮ TỈ SỐ ============
+// Máy chiếu chạy cả ngày. Ba chế độ:
+//   - trận đang đá  -> tự fetch mỗi AUTO_RELOAD_MS (dự phòng cho lúc Pusher rớt)
+//   - trận vừa xong -> giữ nguyên tỉ số HOLD_AFTER_END_MS để khán giả kịp nhìn
+//   - hết giờ       -> reload trang để dọn trạng thái cũ
+const AUTO_RELOAD_MS = 5 * 60 * 1000      // 5 phút khi đang đá
+const HOLD_AFTER_END_MS = 60 * 1000       // giữ tỉ số 60s sau khi trận kết thúc
+const HARD_RELOAD_MS = 2 * 60 * 60 * 1000 // cứng lại sau 2h để tránh rò bộ nhớ
+
+// Số giây còn lại của giai đoạn giữ tỉ số sau khi trận xong.
+const holdRemaining = ref(0)
+
+// Đồng hồ giữ tỉ số, dạng mm:ss cho footer.
+const holdCountdown = computed(() => {
+    const s = holdRemaining.value
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+})
+
+let autoReloadTimer = null
+let countdownTimer = null
+let pageOpenedAt = Date.now()
+
+// Trận đã kết thúc chưa?
+const isMatchOver = computed(() => status.value === 'completed' || isConfirmed.value)
+
+const currentInterval = computed(() => (isMatchOver.value ? HOLD_AFTER_END_MS : AUTO_RELOAD_MS))
+
+const stopAutoReload = () => {
+    if (autoReloadTimer) {
+        clearTimeout(autoReloadTimer)
+        autoReloadTimer = null
+    }
+    if (countdownTimer) {
+        clearInterval(countdownTimer)
+        countdownTimer = null
+    }
+}
+
+const hardReload = () => {
+    window.location.reload()
+}
+
+const scheduleAutoReload = () => {
+    stopAutoReload()
+
+    // Hết 2h: nạp lại cứng, giải phóng bộ nhớ cho phiên chiếu kéo dài.
+    if (Date.now() - pageOpenedAt >= HARD_RELOAD_MS) {
+        hardReload()
+        return
+    }
+
+    let remaining = currentInterval.value
+
+    // Sau khi trận kết thúc, chỉ giữ 60s rồi reload — không chạy vô hạn.
+    const isHold = isMatchOver.value
+
+    const deadline = Date.now() + remaining
+
+    countdownTimer = setInterval(() => {
+        const secs = Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
+        // Chỉ hiện đồng hồ giữ khi trận đã xong; lúc đang đá thì để kín.
+        holdRemaining.value = isHold ? secs : 0
+    }, 1000)
+
+    autoReloadTimer = setTimeout(async () => {
+        if (isHold) {
+            // Hết giờ giữ -> trở về trạng thái chờ, sẵn sàng trận tiếp theo.
+            hardReload()
+            return
+        }
+        // Đang đá -> nạp lại nhẹ, giữ nguyên giao diện chiếu.
+        try {
+            await fetchLiveScore()
+        } finally {
+            scheduleAutoReload()
+        }
+    }, remaining)
+}
+
 // match_rules may arrive as an object or as an array holding one object; normalize.
 const matchRules = computed(() => {
     const raw = matchData.value?.match_rules
@@ -387,10 +624,11 @@ const matchRules = computed(() => {
     return null
 })
 
-const tournamentPoster = computed(() => {
-    const d = matchData.value
-    if (!d) return null
-    return d.poster_url || d.tournament?.poster_url || null
+// Số set thực tế của thể thức (best-of N -> N set). Mặc định 3 khi không có luật.
+// Dùng để chỉ hiện đúng số section S1..SN thay vì luôn hardcode 3.
+const setsInMatch = computed(() => {
+    const n = Number(matchRules.value?.sets_per_match)
+    return Number.isFinite(n) && n >= 1 && n <= 7 ? n : 3
 })
 
 const ruleLine = computed(() => {
@@ -402,6 +640,17 @@ const ruleLine = computed(() => {
     const winRule = winRuleMap[mr.winning_rule] ?? null
     return [bestOf, points, winRule].filter(Boolean).join(' • ')
 })
+
+const tournamentPoster = computed(() => {
+    const d = matchData.value
+    if (!d) return null
+    return d.poster_url || d.tournament?.poster_url || null
+})
+
+// Ảnh nền: ưu tiên ảnh BTC tải lên, không có thì dùng poster giải.
+const backgroundImage = computed(() => prefs.value.bgImageUrl || tournamentPoster.value || null)
+const sponsorLogo = computed(() => prefs.value.sponsorLogoUrl || tournamentPoster.value || null)
+const overlayAlpha = computed(() => OVERLAY_ALPHA[prefs.value.overlayLevel] ?? OVERLAY_ALPHA[60])
 
 const getInitials = (name) => {
     if (!name) return '??'
@@ -431,6 +680,13 @@ watch(isTimeoutActive, (isActive) => {
     if (isActive) {
         showTimeoutOverlay.value = true
     }
+})
+
+// Trận vừa kết thúc -> chuyển sang chế độ giữ 60s rồi nạp lại trang;
+// trận được đấu lại -> quay lại nhịp nạp 5 phút. currentInterval tự tính lại.
+// Đặt ở đây để cả nhánh kênh match.* và tournament.* đều được hưởng.
+watch(isMatchOver, () => {
+    scheduleAutoReload()
 })
 
 const fetchLiveScore = async () => {
@@ -473,6 +729,9 @@ onMounted(async () => {
     }
     await fetchLiveScore()
 
+    // Bắt đầu chu kỳ tự nạp lại (dự phòng + giữ tỉ số sau khi trận xong).
+    scheduleAutoReload()
+
     // 1s tick so the clock advances without re-fetching.
     nowTimer = setInterval(() => {
         const nowMs = Date.now()
@@ -486,7 +745,40 @@ onMounted(async () => {
     if (!window.Echo && typeof window.initEcho === 'function') {
         window.initEcho(null)
     }
-    if (matchId && window.Echo) {
+
+    // Vào từ picker => nghe kênh cấp giải, lọc đúng trận đang xem.
+    // Vào bằng link trực tiếp => nghe kênh cấp trận như cũ.
+    const tournamentId = route.query.tournament
+    if (tournamentId && window.Echo) {
+        echoChannel = window.Echo.channel(`tournament.${tournamentId}`)
+        echoChannel.listen('.tournament.score_updated', (payload) => {
+            const row = (payload?.matches || []).find((m) => String(m.match_id) === String(matchId))
+            if (!row || !matchData.value) return
+            matchData.value = {
+                ...matchData.value,
+                live_status: row.live_status,
+                current_set: row.current_set,
+                version: row.version,
+            }
+            // Snapshot cấp giải không mang chi tiết set — lấy lại khi điểm đổi.
+            if (row.team1_score !== undefined) {
+                const sets = Array.isArray(matchData.value.sets) ? [...matchData.value.sets] : []
+                const idx = sets.findIndex((s) => s.set_number === row.current_set)
+                const next = {
+                    set_number: row.current_set,
+                    team1_score: row.team1_score,
+                    team2_score: row.team2_score,
+                    serving_position: sets[idx]?.serving_position ?? 0,
+                }
+                if (idx >= 0) sets[idx] = next
+                else sets.push(next)
+                matchData.value.sets = sets
+                tickStart.value = Date.now()
+                elapsedTick.value = 0
+            }
+            lastUpdated.value = new Date()
+        })
+    } else if (matchId && window.Echo) {
         echoChannel = window.Echo.channel(`match.${matchId}`)
         echoChannel.listen('.match.score_updated', (data) => {
             if (!matchData.value) return
@@ -515,14 +807,19 @@ onMounted(async () => {
 onUnmounted(() => {
     document.removeEventListener('click', onDocumentClick)
     if (echoChannel) {
-        echoChannel.stopListening('.match.score_updated')
-        window.Echo.leave(`match.${route.params.matchId}`)
+        const { matchId } = route.params
+        const tournamentId = route.query.tournament
+        const chName = tournamentId ? `tournament.${tournamentId}` : `match.${matchId}`
+        const event = tournamentId ? '.tournament.score_updated' : '.match.score_updated'
+        echoChannel.stopListening(event)
+        window.Echo.leave(chName)
         echoChannel = null
     }
     if (nowTimer) {
         clearInterval(nowTimer)
         nowTimer = null
     }
+    stopAutoReload()
 })
 </script>
 
@@ -533,16 +830,25 @@ onUnmounted(() => {
    ============================================================ */
 .ls-shell {
     container-type: inline-size;
+    /* Máy chiếu: khóa trang, không cuộn ngang/dọc. */
+    width: 100%;
+    max-width: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
 }
 
 .ls-root {
     position: relative;
     overflow: hidden;
-    min-height: 100vh;
+    height: 100dvh;
+    max-width: 100%;
     color: var(--txt);
     background: var(--bg);
     /* ~1.76cqi tracks the mockup: 854px -> 15px, 490px -> 8.6px */
     --u: clamp(8px, 1.76cqi, 15px);
+    /* Độ phủ do BTC chỉnh (40/60/80) — nhân lên độ đậm gốc của lớp phủ. */
+    --ov: var(--overlay, 0.82);
 }
 
 .ls-bg, .ls-photo, .ls-ov {
@@ -562,7 +868,9 @@ onUnmounted(() => {
     z-index: 2;
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: 100%;
+    max-width: 100%;
+    overflow: hidden;
 }
 
 /* ============ THEMES ============ */
@@ -585,8 +893,14 @@ onUnmounted(() => {
 }
 /* Overlay is mandatory — poster is arbitrary user content, text must stay readable. */
 .theme-photo .ls-ov {
-    background: linear-gradient(180deg, rgba(5, 8, 14, .88) 0%, rgba(5, 8, 14, .52) 22%, rgba(5, 8, 14, .52) 74%, rgba(5, 8, 14, .9) 100%),
-        radial-gradient(ellipse at 50% 46%, rgba(5, 8, 14, .74) 0%, rgba(5, 8, 14, .2) 70%);
+    background: linear-gradient(180deg,
+            rgba(5, 8, 14, var(--ov)) 0%,
+            rgba(5, 8, 14, calc(var(--ov) * .6)) 22%,
+            rgba(5, 8, 14, calc(var(--ov) * .6)) 74%,
+            rgba(5, 8, 14, var(--ov)) 100%),
+        radial-gradient(ellipse at 50% 46%,
+            rgba(5, 8, 14, var(--ov)) 0%,
+            rgba(5, 8, 14, calc(var(--ov) * .25)) 70%);
 }
 
 /* ============ HEADER ============ */
@@ -721,6 +1035,121 @@ onUnmounted(() => {
     color: var(--t3);
     padding: 0 calc(var(--u) * .4) calc(var(--u) * .45);
 }
+.panel-cap--sp {
+    padding-top: calc(var(--u) * .8);
+    border-top: 1px solid var(--div);
+    margin-top: calc(var(--u) * .35);
+}
+
+/* Độ phủ 40/60/80 */
+.ovl {
+    display: flex;
+    gap: calc(var(--u) * .35);
+}
+.ovl-btn {
+    flex: 1;
+    padding: calc(var(--u) * .35) 0;
+    border-radius: calc(var(--u) * .3);
+    background: var(--div);
+    border: 1px solid var(--line);
+    color: var(--t2);
+    font-size: calc(var(--u) * .72);
+    font-weight: 800;
+    cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+}
+.ovl-btn--on {
+    background: var(--Aw);
+    border-color: var(--A);
+    color: var(--A);
+}
+.ovl-note {
+    font-size: calc(var(--u) * .64);
+    color: var(--t3);
+    padding: calc(var(--u) * .3) calc(var(--u) * .2) 0;
+    line-height: 1.35;
+}
+
+/* Màu đội */
+.color-row {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--u) * .3);
+}
+.color-item {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--u) * .5);
+    padding: calc(var(--u) * .35) calc(var(--u) * .4);
+    border-radius: calc(var(--u) * .3);
+    background: var(--div);
+    cursor: pointer;
+}
+.color-dot {
+    width: calc(var(--u) * .95);
+    height: calc(var(--u) * .95);
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid var(--line);
+}
+.color-lbl {
+    flex: 1;
+    font-size: calc(var(--u) * .76);
+    font-weight: 700;
+    color: var(--t2);
+}
+.color-in {
+    width: calc(var(--u) * 2.2);
+    height: calc(var(--u) * 1.3);
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: calc(var(--u) * .25);
+    background: transparent;
+    cursor: pointer;
+}
+
+/* Bật/tắt hiển thị */
+.tgl {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--u) * .5);
+    padding: calc(var(--u) * .32) calc(var(--u) * .4);
+    border-radius: calc(var(--u) * .3);
+    cursor: pointer;
+}
+.tgl:hover {
+    background: var(--div);
+}
+.tgl-lbl {
+    flex: 1;
+    font-size: calc(var(--u) * .78);
+    font-weight: 700;
+    color: var(--t2);
+}
+.tgl-box {
+    width: calc(var(--u) * 1.15);
+    height: calc(var(--u) * 1.15);
+    accent-color: var(--A);
+    cursor: pointer;
+}
+
+.reset {
+    width: 100%;
+    margin-top: calc(var(--u) * .8);
+    padding: calc(var(--u) * .5);
+    border-radius: calc(var(--u) * .35);
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--t2);
+    font-size: calc(var(--u) * .75);
+    font-weight: 800;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+}
+.reset:hover {
+    background: var(--Bw);
+    color: var(--B);
+}
 
 .opt {
     display: flex;
@@ -805,11 +1234,14 @@ onUnmounted(() => {
 .lb {
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    /* Điểm to, 2 đội to: cho đội nhiều chỗ hơn nhưng vẫn chừa cột giữa cho số. */
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
-    gap: calc(var(--u) * 1.5);
+    gap: calc(var(--u) * 1.8);
     padding: calc(var(--u) * 1.2) calc(var(--u) * 1.6);
     min-height: 0;
+    max-width: 100%;
+    overflow: hidden;
 }
 
 .side {
@@ -817,12 +1249,13 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: calc(var(--u) * .7);
+    gap: calc(var(--u) * .9);
     text-align: center;
 }
 
 .tnm {
-    font-size: calc(var(--u) * .85);
+    /* To: tên đội phải nổi bật ngang với điểm. */
+    font-size: calc(var(--u) * 2.4);
     font-weight: 900;
     letter-spacing: 1.4px;
     text-transform: uppercase;
@@ -832,11 +1265,11 @@ onUnmounted(() => {
 .side--B .tnm { color: var(--B); }
 
 .timeout {
-    padding: calc(var(--u) * .3) calc(var(--u) * .7);
-    border-radius: calc(var(--u) * .35);
+    padding: calc(var(--u) * .36) calc(var(--u) * .85);
+    border-radius: calc(var(--u) * .4);
     background: var(--Bw);
     border: 1px solid var(--B);
-    font-size: calc(var(--u) * .72);
+    font-size: calc(var(--u) * .85);
     font-weight: 800;
     color: var(--B);
     letter-spacing: .5px;
@@ -845,7 +1278,7 @@ onUnmounted(() => {
 .avs {
     display: flex;
     justify-content: center;
-    gap: calc(var(--u) * 1.4);
+    gap: calc(var(--u) * 1.8);
     flex-wrap: wrap;
 }
 
@@ -853,20 +1286,20 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: calc(var(--u) * .35);
+    gap: calc(var(--u) * .45);
 }
 
 .av {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: calc(var(--u) * 4.2);
-    height: calc(var(--u) * 4.2);
+    width: calc(var(--u) * 7.5);
+    height: calc(var(--u) * 7.5);
     border-radius: 50%;
     overflow: hidden;
     background: var(--surf);
-    border: calc(var(--u) * .16) solid var(--t3);
-    font-size: calc(var(--u) * 1.5);
+    border: calc(var(--u) * .2) solid var(--t3);
+    font-size: calc(var(--u) * 2.6);
     font-weight: 800;
     color: var(--t3);
 }
@@ -874,20 +1307,20 @@ onUnmounted(() => {
 .side--B .av { border-color: var(--B); color: var(--B); }
 
 .pn {
-    font-size: calc(var(--u) * 1);
+    font-size: calc(var(--u) * 1.9);
     font-weight: 800;
     line-height: 1.3;
     color: var(--txt);
-    max-width: calc(var(--u) * 8);
+    max-width: calc(var(--u) * 15);
     overflow-wrap: anywhere;
 }
 
 .dupr {
-    padding: calc(var(--u) * .22) calc(var(--u) * .6);
-    border-radius: calc(var(--u) * .3);
+    padding: calc(var(--u) * .3) calc(var(--u) * .9);
+    border-radius: calc(var(--u) * .4);
     background: var(--surf);
     border: 1px solid var(--line);
-    font-size: calc(var(--u) * .7);
+    font-size: calc(var(--u) * 1.1);
     font-weight: 700;
     color: var(--t3);
     font-variant-numeric: tabular-nums;
@@ -896,10 +1329,10 @@ onUnmounted(() => {
 .srv {
     display: inline-flex;
     align-items: center;
-    padding: calc(var(--u) * .3) calc(var(--u) * .7);
-    border-radius: calc(var(--u) * .35);
+    padding: calc(var(--u) * .36) calc(var(--u) * .85);
+    border-radius: calc(var(--u) * .4);
     background: var(--gold);
-    font-size: calc(var(--u) * .7);
+    font-size: calc(var(--u) * .85);
     font-weight: 900;
     letter-spacing: .5px;
     color: var(--gold-ink);
@@ -920,18 +1353,19 @@ onUnmounted(() => {
     line-height: .9;
 }
 .scn {
-    font-size: calc(var(--u) * 4.8);
+    /* To: màn chiếu lớn, phải đọc được từ hàng ghế cuối. */
+    font-size: calc(var(--u) * 13);
     font-weight: 900;
-    letter-spacing: calc(var(--u) * -.12);
+    letter-spacing: calc(var(--u) * -.2);
     font-variant-numeric: tabular-nums;
 }
 .scn--A { color: var(--A); }
 .scn--B { color: var(--B); }
 .scd {
-    font-size: calc(var(--u) * 2.6);
+    font-size: calc(var(--u) * 6.4);
     font-weight: 300;
     color: var(--t3);
-    margin: 0 calc(var(--u) * .55);
+    margin: 0 calc(var(--u) * 1);
 }
 
 .set-row {
@@ -941,7 +1375,7 @@ onUnmounted(() => {
     margin-top: calc(var(--u) * .5);
 }
 .set-lbl {
-    font-size: calc(var(--u) * .9);
+    font-size: calc(var(--u) * 1.15);
     font-weight: 900;
     letter-spacing: 1.6px;
     color: var(--t2);
@@ -950,11 +1384,11 @@ onUnmounted(() => {
 .verified {
     display: inline-flex;
     align-items: center;
-    padding: calc(var(--u) * .18) calc(var(--u) * .45);
-    border-radius: calc(var(--u) * .3);
+    padding: calc(var(--u) * .22) calc(var(--u) * .55);
+    border-radius: calc(var(--u) * .35);
     background: color-mix(in srgb, var(--ok) 18%, transparent);
     border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent);
-    font-size: calc(var(--u) * .68);
+    font-size: calc(var(--u) * .8);
     font-weight: 700;
     color: var(--ok);
 }
@@ -962,14 +1396,14 @@ onUnmounted(() => {
 .tabs {
     display: flex;
     align-items: center;
-    margin-top: calc(var(--u) * .6);
+    margin-top: calc(var(--u) * .7);
 }
 .tab {
-    padding: calc(var(--u) * .28) calc(var(--u) * .6);
-    border-radius: calc(var(--u) * .3);
+    padding: calc(var(--u) * .32) calc(var(--u) * .7);
+    border-radius: calc(var(--u) * .35);
     background: var(--surf);
     border: 1px solid var(--line);
-    font-size: calc(var(--u) * .78);
+    font-size: calc(var(--u) * .92);
     font-weight: 800;
     color: var(--t2);
     font-variant-numeric: tabular-nums;
@@ -981,13 +1415,13 @@ onUnmounted(() => {
     color: var(--A);
 }
 .tab-ok { margin-left: calc(var(--u) * .25); color: var(--ok); }
-.tab-dot { margin: 0 calc(var(--u) * .35); color: var(--t3); font-size: calc(var(--u) * .8); }
+.tab-dot { margin: 0 calc(var(--u) * .4); color: var(--t3); font-size: calc(var(--u) * .95); }
 
 .fmt {
-    font-size: calc(var(--u) * .76);
+    font-size: calc(var(--u) * .9);
     font-weight: 600;
     color: var(--t3);
-    margin-top: calc(var(--u) * .5);
+    margin-top: calc(var(--u) * .6);
 }
 
 /* ============ FOOTER ============ */
@@ -1010,6 +1444,21 @@ onUnmounted(() => {
     min-width: 0;
     flex-wrap: wrap;
     letter-spacing: .5px;
+}
+
+/* Đồng hồ giữ tỉ số sau khi trận xong — BTC/khách biết sẽ chuyển cảnh sau bao lâu. */
+.lf-hold {
+    display: inline-flex;
+    align-items: center;
+    padding: calc(var(--u) * .16) calc(var(--u) * .5);
+    border-radius: calc(var(--u) * .3);
+    background: color-mix(in srgb, var(--ok) 16%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ok) 42%, transparent);
+    font-size: calc(var(--u) * .68);
+    font-weight: 800;
+    color: var(--ok);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
 .lf-clock {
@@ -1143,44 +1592,64 @@ onUnmounted(() => {
     }
 
     .lb {
-        grid-template-columns: 1fr auto;
-        grid-template-rows: auto auto auto;
-        align-content: center;
-        gap: calc(var(--u) * .9);
-        padding: calc(var(--u) * 1);
+        /* Mobile: xếp dọc — Đội A trên, điểm ở giữa, Đội B dưới. */
+        flex-direction: column;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: calc(var(--u) * 1.2);
+        padding: calc(var(--u) * 1) calc(var(--u) * .8);
+        min-height: 0;
+        overflow: hidden;
     }
 
-    .side--A { grid-column: 1; grid-row: 1; }
-    .side--B { grid-column: 1; grid-row: 3; }
-    .mid {
-        grid-column: 2;
-        grid-row: 1 / -1;
-        padding-left: calc(var(--u) * .8);
-    }
+    /* Đội A trên cùng, đội B dưới cùng, điểm nằm giữa hai đội. */
+    .side--A { order: 1; }
+    .mid { order: 2; }
+    .side--B { order: 3; }
 
-    /* Team rows: avatars on the left, names beside them. */
+    /* Mỗi đội là một hàng ngang: avatar trái, tên + thông tin phải. */
     .side {
         flex-direction: row;
         align-items: center;
         justify-content: flex-start;
         gap: calc(var(--u) * .8);
         text-align: left;
+        width: 100%;
+        max-width: 100%;
     }
     .side > * { margin: 0; }
-    .tnm { display: none; }
-    .avs { flex-shrink: 0; gap: calc(var(--u) * .5); }
+    .tnm {
+        display: block;
+        font-size: calc(var(--u) * 1.35);
+        flex-shrink: 0;
+        max-width: 42%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .avs { flex-shrink: 1; gap: calc(var(--u) * .5); min-width: 0; }
     .av { width: calc(var(--u) * 3.2); height: calc(var(--u) * 3.2); font-size: calc(var(--u) * 1.2); }
     .member { flex-direction: column; align-items: center; gap: calc(var(--u) * .25); }
-    .pn { max-width: calc(var(--u) * 11); font-size: calc(var(--u) * .92); }
-    .dupr { padding: calc(var(--u) * .14) calc(var(--u) * .4); font-size: calc(var(--u) * .64); }
-    .srv { margin-left: auto; }
+    .pn { max-width: calc(var(--u) * 9); font-size: calc(var(--u) * .85); }
+    .dupr { padding: calc(var(--u) * .14) calc(var(--u) * .4); font-size: calc(var(--u) * .62); }
+    .srv { margin-left: auto; flex-shrink: 0; }
     .timeout { flex-shrink: 0; }
 
-    .scn { font-size: calc(var(--u) * 3.4); }
-    .scd { font-size: calc(var(--u) * 2); }
-    .set-lbl { font-size: calc(var(--u) * .78); }
-    .tab { font-size: calc(var(--u) * .68); padding: calc(var(--u) * .22) calc(var(--u) * .45); }
-    .fmt { font-size: calc(var(--u) * .68); }
+    /* Điểm: lớn nhất trên mobile vì đây là thứ khách nhìn. */
+    .mid {
+        padding: 0;
+        width: 100%;
+        gap: calc(var(--u) * .4);
+    }
+
+    .scn { font-size: calc(var(--u) * 5.2); line-height: 1; }
+    .scd { font-size: calc(var(--u) * 3); line-height: 1; }
+    .set-row { margin-top: calc(var(--u) * .4); }
+    .set-lbl { font-size: calc(var(--u) * .95); }
+    .tabs { margin-top: calc(var(--u) * .5); flex-wrap: wrap; justify-content: center; }
+    .tab { font-size: calc(var(--u) * .78); padding: calc(var(--u) * .22) calc(var(--u) * .45); }
+    .fmt { font-size: calc(var(--u) * .72); margin-top: calc(var(--u) * .3); }
 
     /* Footer: rules hidden, clock + referee stay. */
     .lf { justify-content: space-between; padding: calc(var(--u) * .7) calc(var(--u) * 1); }
@@ -1197,5 +1666,243 @@ onUnmounted(() => {
     .pn { max-width: calc(var(--u) * 9); font-size: calc(var(--u) * .82); }
     .dupr, .ref-lbl { display: none; }
     .ref-av { width: calc(var(--u) * 1.6); height: calc(var(--u) * 1.6); }
+}
+
+/* ================================================================
+   DESKTOP FULL-SCREEN OVERRIDE — scale everything by viewport width.
+   All font sizes and spacing use vw so they grow with the screen,
+   independent of the cqi-based --u unit used on smaller layouts.
+   ================================================================ */
+@media (min-width: 1024px) {
+    /* Chuỗi layout thật: .ls-shell > .ls-root > .lsc > .lb
+       => .lsc mới là lớp flex chứa header/body/footer. */
+    .ls-shell {
+        width: 100%;
+        height: 100vh;
+        overflow: hidden;
+    }
+
+    .ls-root {
+        height: 100vh;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .lsc {
+        flex: 1;
+        min-height: 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Header gọn lại để nhường chỗ cho phần điểm. */
+    .lt {
+        padding: 1vh 2vw;
+        gap: 1vw;
+    }
+
+    .ls-logo {
+        width: 2.4vw;
+        height: 2.4vw;
+    }
+
+    .ls-sponsor {
+        width: 6vw;
+        height: 3.2vw;
+    }
+
+    .lb {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: stretch;
+        gap: 0;
+        padding: 0;
+        min-height: 0;
+    }
+
+    .side {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 1.5vh;
+        padding: 3vh 3vw;
+    }
+
+    .tnm {
+        font-size: min(3vw, 6.4vh);
+        font-weight: 900;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+    }
+
+    .avs {
+        display: flex;
+        justify-content: center;
+        gap: 2vw;
+        flex-wrap: wrap;
+    }
+
+    .member {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .6vh;
+    }
+
+    .av {
+        width: min(5vw, 10.5vh);
+        height: min(5vw, 10.5vh);
+        min-width: 60px;
+        min-height: 60px;
+        border-radius: 50%;
+        border-width: 2px;
+        font-size: min(1.5vw, 3.2vh);
+        font-weight: 800;
+    }
+
+    .pn {
+        font-size: 1.5vw;
+        font-weight: 800;
+        max-width: 10vw;
+        text-align: center;
+        overflow-wrap: break-word;
+    }
+
+    .dupr {
+        font-size: .9vw;
+        padding: .2vh .5vw;
+        font-weight: 700;
+    }
+
+    .srv {
+        font-size: .7vw;
+        padding: .3vh .7vw;
+        border-radius: .3vw;
+        font-weight: 900;
+    }
+
+    .timeout {
+        font-size: .75vw;
+        padding: .3vh .7vw;
+        border-radius: .3vw;
+    }
+
+    /* Score: chiếm trung tâm — phần quan trọng nhất. */
+    .mid {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        padding: 4vh 2vw;
+        min-width: 28vw;
+    }
+
+    .sc {
+        display: flex;
+        align-items: baseline;
+        justify-content: center;
+    }
+
+    /* Chặn trên bằng vh để không tràn chiều cao trên màn siêu rộng/thấp. */
+    .scn {
+        font-size: min(10vw, 21vh);
+        font-weight: 900;
+        letter-spacing: -.3vw;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+    }
+
+    .scd {
+        font-size: min(5vw, 11vh);
+        font-weight: 200;
+        color: var(--t3);
+        margin: 0 1vw;
+        line-height: 1;
+    }
+
+    .set-row {
+        margin-top: 1.5vh;
+        gap: .8vw;
+    }
+
+    .set-lbl {
+        font-size: 1.2vw;
+        letter-spacing: .1em;
+    }
+
+    .verified {
+        font-size: .8vw;
+        padding: .2vh .5vw;
+    }
+
+    .tabs {
+        margin-top: 1.2vh;
+        gap: .5vw;
+    }
+
+    .tab {
+        font-size: .95vw;
+        padding: .3vh .6vw;
+    }
+
+    .tab-dot {
+        font-size: .9vw;
+        margin: 0 .4vw;
+    }
+
+    .fmt {
+        font-size: .85vw;
+        margin-top: 1vh;
+    }
+
+    /* Footer nhỏ lại — chỉ BTC cần thông tin. */
+    .lf {
+        padding: 1vh 2vw;
+        gap: 2vw;
+        min-height: auto;
+    }
+
+    .lf-left {
+        font-size: .85vw;
+    }
+
+    .lf-hold {
+        font-size: .65vw;
+    }
+
+    .lf-clock {
+        font-size: .8vw;
+    }
+
+    .lf-clock svg {
+        width: 1vw;
+        height: 1vw;
+    }
+
+    .lf-ref {
+        gap: .5vw;
+    }
+
+    .ref-av {
+        width: 2.5vw;
+        height: 2.5vw;
+        min-width: 28px;
+        min-height: 28px;
+        font-size: .9vw;
+    }
+
+    .ref-lbl {
+        font-size: .55vw;
+    }
+
+    .ref-val {
+        font-size: .75vw;
+    }
 }
 </style>
