@@ -44,8 +44,14 @@
 
                             <div class="flex-1">
                                 <div class="font-medium">{{ user.full_name }}</div>
-                                <div class="text-sm text-gray-500">
-                                    {{ user.gender_text }}
+                                <div class="text-sm text-gray-500 flex items-center gap-2">
+                                    <span>{{ user.gender_text }}</span>
+                                    <span v-if="formatLevel(user)" class="text-xs px-1.5 py-0.5 bg-orange-50 text-orange-600 rounded">
+                                        ⭐ {{ formatLevel(user) }}
+                                    </span>
+                                    <span v-if="user.is_guest" class="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
+                                        Khách
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -91,10 +97,23 @@ const closeModal = () => {
 const search = ref('')
 
 const filteredUsers = computed(() => {
-    return props.users.filter(u =>
-        u.full_name.toLowerCase().includes(search.value.toLowerCase())
-    )
+    const q = search.value.toLowerCase()
+    return props.users.filter(u => (u.full_name || '').toLowerCase().includes(q))
 })
+
+// Ưu tiên: sports[0].scores.vndupr_score (user thật) → estimated_level range (guest) → 0
+const formatLevel = (user) => {
+    const vndupr = user?.sports?.[0]?.scores?.vndupr_score
+        ?? user?.sports?.[0]?.scores?.vndupr
+    if (vndupr != null && vndupr !== '') {
+        return Number(vndupr).toFixed(1)
+    }
+    const level = user?.estimated_level
+    if (level != null && level !== '') {
+        return Number(level).toFixed(1)
+    }
+    return null
+}
 
 const selectUser = (user) => {
     emit('select', user)
