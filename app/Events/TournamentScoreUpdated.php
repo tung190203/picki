@@ -58,7 +58,12 @@ class TournamentScoreUpdated implements ShouldBroadcastNow
             ->get()
             ->map(function (Matches $m) {
                 $currentSet = (int) ($m->current_set ?: 1);
-                $result = $m->results->firstWhere('set_number', $currentSet);
+                // Phải lấy dòng của ĐỘI NHÀ: `team_score` là điểm của chính đội đó,
+                // lấy nhầm dòng đội khách sẽ đảo ngược tỉ số team1/team2.
+                $result = $m->results->firstWhere(
+                    fn ($r) => (int) $r->set_number === $currentSet
+                        && (int) $r->team_id === (int) $m->home_team_id
+                );
 
                 return [
                     'match_id' => $m->id,
@@ -68,6 +73,10 @@ class TournamentScoreUpdated implements ShouldBroadcastNow
                     'team2_score' => (int) ($result?->opponent_score ?? 0),
                     'version' => (int) $m->match_version,
                     'is_going_on' => static::isGoingOn($m),
+                    // `status`/`is_finished` để FE không phải gọi lại API sau khi confirm.
+                    'status' => $m->status,
+                    'is_finished' => $m->status === Matches::STATUS_COMPLETED
+                        || $m->live_status === Matches::LIVE_STATUS_FINISHED,
                 ];
             })
             ->values()
@@ -92,6 +101,10 @@ class TournamentScoreUpdated implements ShouldBroadcastNow
             return false;
         }
         if ($match->status === 'completed') {
+            return false;
+        }
+        // Trận đã kết thúc (trọng tài bấm "finish") -> không còn "đang đá".
+        if ($match->live_status === Matches::LIVE_STATUS_FINISHED) {
             return false;
         }
         // Hai đội đã xác nhận => kết quả chốt, không còn "đang đá".

@@ -196,7 +196,7 @@
               <input
                 v-model="keyword"
                 type="text"
-                placeholder="Tìm theo tên đội hoặc vòng đấu..."
+                placeholder="Tìm theo tên đội, tên người chơi hoặc vòng đấu..."
                 class="ls-input w-full h-9 pl-9 pr-3 text-[13px] rounded-lg"
               />
             </div>
@@ -351,7 +351,15 @@ const filteredMatches = computed(() => {
         if (filter.value === 'finished' && !m.is_finished) return false;
 
         if (kw) {
-            const haystack = `${m.team1?.name || ''} ${m.team2?.name || ''} ${m.round || ''}`.toLowerCase();
+            const haystack = [
+                m.team1?.name || '',
+                m.team2?.name || '',
+                m.round || '',
+                ...(m.team1?.members || []).map((x) => x.full_name || x.name || ''),
+                ...(m.team2?.members || []).map((x) => x.full_name || x.name || ''),
+            ]
+                .join(' ')
+                .toLowerCase();
             if (!haystack.includes(kw)) return false;
         }
         return true;
@@ -440,7 +448,15 @@ const applySnapshot = (payload) => {
         m.live_status = row.live_status;
         m.is_going_on = row.is_going_on;
 
-        // Snapshot không mang `status` — nhưng `live_status = finish` thì chắc chắn xong.
+        // Snapshot đã mang `status`/`is_finished` => không cần gọi lại API để
+        // đồng bộ 2 field này sau khi confirm.
+        if (row.status !== undefined) m.status = row.status;
+        if (row.is_finished !== undefined) {
+            m.is_finished = row.is_finished;
+            if (row.is_finished) m.is_going_on = false;
+        }
+
+        // Chốt an toàn: live_status = finish thì chắc chắn trận đã xong.
         if (row.live_status === 'finish') {
             m.is_finished = true;
             m.is_going_on = false;
