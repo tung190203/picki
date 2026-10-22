@@ -167,24 +167,44 @@ class MatchCacheObserver
             return;
         }
 
-        $tournamentType = $tournament->tournamentTypes->first();
-        if (!$tournamentType) {
+        $tournamentTypes = $tournament->tournamentTypes;
+        if ($tournamentTypes->isEmpty()) {
             return;
         }
 
-        $allMatches = $tournamentType->matches()->get();
-        if ($allMatches->isEmpty()) {
+        // Giải có thể có nhiều tournament_type (và nhiều group trong 1 type).
+        // Phải kiểm tra TẤT CẢ — trước đây chỉ lấy type đầu tiên nên giải bị đóng
+        // sớm khi type[0] xong trong khi type[1] còn trận chưa đá.
+        // Trận bye (is_bye) không có winner_id nên không tính vào "đã có kết quả".
+        $allHasResult = true;
+        $hasRealMatch = false;
+
+        foreach ($tournamentTypes as $type) {
+            $typeMatches = $type->matches()->get();
+
+            foreach ($typeMatches as $typeMatch) {
+                if ($typeMatch->is_bye) {
+                    continue;
+                }
+
+                $hasRealMatch = true;
+
+                if ($typeMatch->winner_id === null) {
+                    $allHasResult = false;
+                    break 2;
+                }
+            }
+        }
+
+        if (!$hasRealMatch || !$allHasResult) {
             return;
         }
 
-        $allHasResult = $allMatches->every(fn($m) => $m->winner_id !== null);
-        if ($allHasResult) {
-            Log::info('[MatchCacheObserver] All matches have results, auto-completing tournament', [
-                'tournament_id' => $tournament->id,
-                'match_id' => $match->id,
-            ]);
-            $tournament->update(['status' => \App\Models\Tournament::CLOSED]);
-        }
+        Log::info('[MatchCacheObserver] All matches have results, auto-completing tournament', [
+            'tournament_id' => $tournament->id,
+            'match_id' => $match->id,
+        ]);
+        $tournament->update(['status' => \App\Models\Tournament::CLOSED]);
     }
 
     protected function completeMiniTournamentIfAllMatchesDone(MiniMatch $match): void
@@ -245,14 +265,25 @@ class MatchCacheObserver
             return;
         }
 
-        $tournamentType = $tournament->tournamentTypes->first();
-        if (!$tournamentType) {
+        $tournamentTypes = $tournament->tournamentTypes;
+        if ($tournamentTypes->isEmpty()) {
             return;
         }
 
-        $hasIncomplete = $tournamentType->matches()
-            ->whereNull('winner_id')
-            ->exists();
+        // Xem tất cả tournament_type và bỏ qua trận bye (không có winner_id
+        // nhưng cũng không phải trận chưa đá) — khớp với điều kiện đóng giải.
+        $hasIncomplete = false;
+
+        foreach ($tournamentTypes as $type) {
+            $hasIncomplete = $type->matches()
+                ->where('is_bye', false)
+                ->whereNull('winner_id')
+                ->exists();
+
+            if ($hasIncomplete) {
+                break;
+            }
+        }
 
         if ($hasIncomplete) {
             Log::info('[MatchCacheObserver] Result removed, reverting tournament status', [

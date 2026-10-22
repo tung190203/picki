@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Events\SuperAdmin\TournamentMatchUpdated;
 use App\Events\MatchScorePublicUpdated;
+use App\Events\TournamentScoreUpdated;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MatchDetailResource;
 use App\Http\Resources\MatchesResource;
@@ -82,7 +83,12 @@ class MatchesController extends Controller
             return ResponseHelper::error('Bạn không có quyền thực hiện hành động này', 400);
         }
 
-        if ($match->status === Matches::STATUS_COMPLETED || $match->home_team_confirm == 1 || $match->away_team_confirm == 1) {
+        // Trận đã chốt kết quả (cả 2 đội confirm) => không được sửa điểm.
+        // Nếu chỉ 1 đội đã confirm, BTC vẫn sửa được và cờ confirm sẽ bị reset
+        // bên dưới (đội đã confirm phải xác nhận lại) — nếu chặn ở đây thì đoạn
+        // reset cờ confirm phía dưới là dead code.
+        if ($match->status === Matches::STATUS_COMPLETED
+            || ($match->home_team_confirm == 1 && $match->away_team_confirm == 1)) {
             return ResponseHelper::error('Kết quả trận đấu đã được xác nhận không thể thay đổi điểm số', 400);
         }
 
@@ -93,9 +99,10 @@ class MatchesController extends Controller
         }
         $match->update($matchUpdate);
 
-        // Validate cơ bản: mỗi set phải có đủ 2 đội
+        // Validate cơ bọc: mỗi set phải có đủ 2 đội
         $sets = collect($validated['results'] ?? [])->groupBy('set_number');
         $keepIds = [];
+        $maxSetNumber = 0;
 
         foreach ($sets as $setNumber => $setResults) {
             // chỉ xử lý khi có đủ 2 đội trong set
@@ -103,26 +110,37 @@ class MatchesController extends Controller
                 return ResponseHelper::error("Set $setNumber thiếu kết quả của một đội. Vui lòng cung cấp điểm số cho cả hai đội.", 400);
             }
 
-            $teamA = $setResults[0];
-            $teamB = $setResults[1];
-            $A = (int)$teamA['score'];
-            $B = (int)$teamB['score'];
+            $homeEntry = $setResults->firstWhere('team_id', $match->home_team_id);
+            $awayEntry = $setResults->firstWhere('team_id', $match->away_team_id);
+            if (!$homeEntry || !$awayEntry) {
+                return ResponseHelper::error("Set $setNumber: kết quả không khớp với 2 đội của trận đấu.", 400);
+            }
+
+            $A = (int)$homeEntry['score'];
+            $B = (int)$awayEntry['score'];
 
             // Kiểm tra điểm số không âm
             if ($A < 0 || $B < 0) {
                 return ResponseHelper::error("Điểm số không hợp lệ trong set $setNumber.", 400);
             }
 
+            $maxSetNumber = max($maxSetNumber, (int) $setNumber);
+
             // Lưu kết quả (won_match tạm thời = false, sẽ tính lại khi confirm)
-            foreach ($setResults as $r) {
+            // Ghi CẢ `score` (legacy) và `team_score`/`opponent_score` (màn chiếu livescore)
+            // — trước đây chỉ ghi `score` nên màn picker đọc `team_score` luôn thấy 0-0.
+            foreach ([$homeEntry, $awayEntry] as $entry) {
+                $isHome = (int) $entry['team_id'] === (int) $match->home_team_id;
                 $result = $match->results()->updateOrCreate(
                     [
                         'match_id' => $match->id,
-                        'team_id' => $r['team_id'],
-                        'set_number' => $r['set_number'],
+                        'team_id' => $entry['team_id'],
+                        'set_number' => $entry['set_number'],
                     ],
                     [
-                        'score' => $r['score'],
+                        'score' => $entry['score'],
+                        'team_score' => $entry['score'],
+                        'opponent_score' => $isHome ? $B : $A,
                         'won_match' => false, // Sẽ được tính lại khi confirm
                     ]
                 );
@@ -137,8 +155,30 @@ class MatchesController extends Controller
             'away_team_confirm' => 0,
         ]);
 
+        // Đồng bộ trạng thái live để màn chiếu / picker thấy đúng:
+        // - current_set = set cuối BTC vừa nhập
+        // - started_at: BTC nhập điểm => trận đã bắt đầu (nếu chưa có)
+        // - match_version tăng để FE bỏ qua event realtime đến lệch thứ tự
+        $matchUpdate = [];
+        if ($maxSetNumber > 0) {
+            $matchUpdate['current_set'] = $maxSetNumber;
+        }
+        if (!$match->started_at) {
+            $matchUpdate['started_at'] = now();
+        }
+        if ($match->live_status === 'waiting') {
+            $matchUpdate['live_status'] = 'playing';
+        }
+        $matchUpdate['match_version'] = DB::raw('match_version + 1');
+        $match->update($matchUpdate);
+
         $match->load(['results', 'homeTeam', 'awayTeam', 'referee', 'tournamentType.tournament']);
         TournamentMatchUpdated::dispatch($match);
+
+        // Realtime cho màn picker + màn chiếu: BTC nhập điểm cũng phải đẩy snapshot
+        // lên kênh `tournament.{id}` — trước đây chỉ có màn trọng tài mới bắn.
+        $this->broadcastTournamentScore($match->fresh());
+        Broadcast::event(new MatchScorePublicUpdated($match->fresh(['results'])));
 
         return ResponseHelper::success(new MatchDetailResource($match));
     }
@@ -1287,9 +1327,15 @@ class MatchesController extends Controller
             $this->processMatchCompletionBig($match, $tournament, $setsPerMatch);
         }
 
+        // Tăng phiên bản trận => FE bỏ qua event realtime đến lệch thứ tự.
+        $match->match_version = DB::raw('match_version + 1');
         $match->save();
 
         Broadcast::event(new MatchScorePublicUpdated($match->fresh(['results'])));
+
+        // Màn picker nghe kênh tournament.{id} — confirm làm is_going_on chuyển false,
+        // nên phải đẩy lại snapshot để app bỏ chấm đỏ khỏi dòng trận này.
+        $this->broadcastTournamentScore($match->fresh());
 
         $confirmedByAdmin = $isOrganizer;
         $confirmedByUser  = !$isOrganizer && $userTeam;
@@ -1604,7 +1650,13 @@ class MatchesController extends Controller
     private function processMatchCompletionBig($match, $tournament, $setsPerMatch)
     {
         $match->status = Matches::STATUS_COMPLETED;
+        // Trận đã chốt => live_status = 'finish' để màn chiếu và picker biết
+        // trận đã xong mà không cần chờ FE gọi lại API (payload realtime không có
+        // `status`/`is_finished`).
+        $match->live_status = Matches::LIVE_STATUS_FINISHED;
         $match->save();
+        // `match_version` tăng ở confirmResult (nơi save lần cuối) để tránh
+        // tăng 2 lần do processMatchCompletionBig save trước đó.
 
         // Batch confirm all results
         $resultIds = $match->results->pluck('id');
@@ -2372,6 +2424,19 @@ class MatchesController extends Controller
         foreach ($userIds as $userId) {
             SendPushJob::dispatch($userId, $title, $body, $data);
         }
+    }
+
+    /**
+     * Đẩy snapshot cấp giải lên kênh tournament.{id} cho màn picker.
+     * Trận không thuộc giải (quick match) thì bỏ qua — không có tournament id.
+     */
+    private function broadcastTournamentScore(?Matches $match): void
+    {
+        $tournamentId = $match?->tournament?->id ?? $match?->tournamentType?->tournament_id;
+        if (!$tournamentId || !$match) {
+            return;
+        }
+        event(new TournamentScoreUpdated($tournamentId, $match));
     }
 
     /**

@@ -47,6 +47,8 @@ import MapPage from '@/components/pages/map/MapPage.vue'
 import CheckInSuccessPage from '@/components/pages/checkin/CheckInSuccessPage.vue'
 import PairingWheelPage from '@/components/pages/tools/PairingWheelPage.vue'
 import GroupDrawWheelPage from '@/components/pages/tools/GroupDrawWheelPage.vue'
+import ToolsPage from '@/components/pages/tools/ToolsPage.vue'
+import LivescorePickerPage from '@/components/pages/tools/LivescorePickerPage.vue'
 import PublicLiveScorePage from '@/components/pages/live-score/PublicLiveScorePage.vue'
 import { ROLE } from '@/constants/index.js'
 
@@ -487,6 +489,16 @@ export const route = [
     path: '/live-score/:type/:matchId',
     name: 'public-live-score',
     component: PublicLiveScorePage
+  },
+  {
+    path: '/tools',
+    name: 'tools',
+    component: ToolsPage
+  },
+  {
+    path: '/tools/livescore',
+    name: 'livescore-picker',
+    component: LivescorePickerPage
   },
   {
     path: '/pairing-wheel',
