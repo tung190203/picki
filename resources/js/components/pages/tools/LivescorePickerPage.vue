@@ -289,7 +289,6 @@ const FILTERS = [
 ];
 
 const channels = new Map();
-const refreshTimers = new Map();
 
 /** Trạng thái kết nối realtime để BTC biết tỉ số có đang cập nhật hay không. */
 const realtimeState = ref('connecting');
@@ -422,7 +421,46 @@ const syncChannel = (tournamentId) => {
     channel.listen('.tournament.score_updated', (payload) => {
         applySnapshot(payload);
     });
+    // Đội vừa điền vào vòng sau — đây là lý do refetch là chuyện của `score_updated`,
+    // không phải của tên đội. Patch thẳng, không gọi lại API.
+    channel.listen('.tournament.advanced', (payload) => {
+        applyAdvanced(payload);
+    });
     channels.set(tournamentId, channel);
+};
+
+const applyAdvanced = (payload) => {
+    const tournamentId = payload?.tournament_id;
+    const rows = payload?.matches || [];
+    if (!rows.length) return;
+
+    const list = matchesByTournament[tournamentId];
+    if (!list?.length) return;
+
+    // `id` null = chưa có đội, tên "TBD". Bỏ qua: match đang có đội phải giữ nguyên,
+    // không được ghi đè bằng TBD.
+    const isKnown = (t) => t && t.id != null;
+
+    const byId = new Map(rows.map((r) => [r.match_id, r]));
+
+    let touched = false;
+    for (const m of list) {
+        const row = byId.get(m.match_id);
+        if (!row) continue;
+
+        // Shape đội giống hệt API (id/name/members) nên replace thẳng, không
+        // cần giữ lại field cũ.
+        if (isKnown(row.team1)) {
+            m.team1 = row.team1;
+            touched = true;
+        }
+        if (isKnown(row.team2)) {
+            m.team2 = row.team2;
+            touched = true;
+        }
+    }
+
+    if (touched) matchesByTournament[tournamentId] = [...list];
 };
 
 const applySnapshot = (payload) => {
@@ -468,17 +506,8 @@ const applySnapshot = (payload) => {
     // Vue 3 tự bắt thay đổi trên object lồng nhau (deep reactivity).
     if (touched) matchesByTournament[tournamentId] = [...list];
 
-    // Snapshot không mang `status` / `is_finished` -> gọi lại API sau nhịp ngắn.
-    scheduleMatchRefresh(tournamentId);
-};
-
-/** Gọi lại API lấy trận (debounce) để đồng bộ status / is_finished. */
-const scheduleMatchRefresh = (tournamentId) => {
-    if (refreshTimers.has(tournamentId)) clearTimeout(refreshTimers.get(tournamentId));
-    refreshTimers.set(tournamentId, setTimeout(() => {
-        refreshTimers.delete(tournamentId);
-        loadMatches(tournamentId, true);
-    }, 1500));
+    // Không còn gọi lại API: snapshot đã mang đủ tỉ số + status + is_finished,
+    // còn đội vòng trong đi qua `tournament.advanced`.
 };
 
 const loadMatches = async (tournamentId, silent = false) => {
@@ -600,13 +629,9 @@ onMounted(() => {
 onUnmounted(() => {
     for (const channel of channels.values()) {
         channel.stopListening('.tournament.score_updated');
+        channel.stopListening('.tournament.advanced');
     }
     channels.clear();
-
-    for (const timer of refreshTimers.values()) {
-        clearTimeout(timer);
-    }
-    refreshTimers.clear();
 
     const pusher = getPusher();
     if (pusher?.connection) {

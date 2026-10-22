@@ -217,8 +217,8 @@ class LivescorePickerController extends Controller
             'is_finished' => $m->status === 'completed' || $m->live_status === 'finish',
             'team1_score' => $score['team1_score'],
             'team2_score' => $score['team2_score'],
-            'team1' => $this->formatPickerTeam($m->home_team_id, $m->homeTeam),
-            'team2' => $this->formatPickerTeam($m->away_team_id, $m->awayTeam),
+            'team1' => self::formatPickerTeam($m->home_team_id, $m->homeTeam),
+            'team2' => self::formatPickerTeam($m->away_team_id, $m->awayTeam),
         ];
     }
 
@@ -234,7 +234,7 @@ class LivescorePickerController extends Controller
      * @param  \App\Models\Team|null  $team
      * @return array{id: int|null, name: string, members: array<int, array>}
      */
-    private function formatPickerTeam(?int $teamId, $team): array
+    public static function formatPickerTeam(?int $teamId, $team): array
     {
         if (!$team) {
             return [
