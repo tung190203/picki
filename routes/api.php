@@ -21,6 +21,7 @@ use App\Http\Controllers\ParticipantController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentGuestController;
 use App\Http\Controllers\PublicLiveScoreController;
+use App\Http\Controllers\LivescorePickerController;
 use App\Http\Controllers\TournamentPaymentController;
 use App\Http\Controllers\TournamentTypeController;
 use App\Http\Controllers\UserController;
@@ -157,6 +158,12 @@ Route::prefix('tournaments')->group(function () {
 Route::prefix('live-score')->group(function () {
     // {type} = 'tournament' | 'mini'
     Route::get('/{type}/{matchId}', [PublicLiveScoreController::class, 'show']);
+});
+
+// Màn chọn trận Livescore — cần đăng nhập (đây là màn BTC dùng).
+Route::middleware('auth:api')->prefix('livescore')->group(function () {
+    Route::get('/tournaments', [LivescorePickerController::class, 'index']);
+    Route::get('/tournaments/{id}/matches', [LivescorePickerController::class, 'matches']);
 });
 
 // Search V2 API - Unified search endpoint

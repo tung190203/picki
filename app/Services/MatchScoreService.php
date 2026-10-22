@@ -3,15 +3,28 @@
 namespace App\Services;
 
 use App\Events\MatchScorePublicUpdated;
+use App\Events\TournamentScoreUpdated;
 use App\Models\MatchResult;
 use App\Models\Matches;
 use Illuminate\Support\Facades\DB;
 
 class MatchScoreService
 {
+    /**
+     * Đẩy thêm event cấp giải cho màn picker (kênh tournament.{id}).
+     * Gọi sau khi transaction đã commit để snapshot không đọc trạng thái cũ.
+     */
+    private function broadcastTournament(?Matches $match): void
+    {
+        $tournamentId = $match?->tournament?->id ?? $match?->tournamentType?->tournament_id;
+        if (!$tournamentId || !$match) {
+            return;
+        }
+        event(new TournamentScoreUpdated($tournamentId, $match));
+    }
     public function startMatch(int $matchId, int $servingTeamId, int $userId, ?string $startedAt = null): array
     {
-        return DB::transaction(function () use ($matchId, $servingTeamId, $userId, $startedAt) {
+        $response = DB::transaction(function () use ($matchId, $servingTeamId, $userId, $startedAt) {
             $match = Matches::lockForUpdate()->find($matchId);
             if (!$match) {
                 throw new \Illuminate\Database\Eloquent\ModelNotFoundException();
@@ -53,11 +66,15 @@ class MatchScoreService
 
             return $this->formatMatchResponse($match);
         });
+
+        $this->broadcastTournament(Matches::find($matchId));
+
+        return $response;
     }
 
     public function updateState(int $matchId, array $data, int $userId): array
     {
-        return DB::transaction(function () use ($matchId, $data, $userId) {
+        $response = DB::transaction(function () use ($matchId, $data, $userId) {
             $match = Matches::lockForUpdate()->find($matchId);
             if (!$match) {
                 throw new \Illuminate\Database\Eloquent\ModelNotFoundException();
@@ -120,6 +137,10 @@ class MatchScoreService
                 'referee_name' => $match->referee?->full_name,
             ];
         });
+
+        $this->broadcastTournament(Matches::find($matchId));
+
+        return $response;
     }
 
     public function getCurrentState(int $matchId): array
