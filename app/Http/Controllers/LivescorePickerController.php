@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\TournamentScoreUpdated;
 use App\Helpers\ResponseHelper;
 use App\Models\Matches;
+use App\Models\Tournament;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -12,10 +13,11 @@ use Illuminate\Support\Facades\DB;
 class LivescorePickerController extends Controller
 {
     /**
-     * Danh sách giải đang diễn ra cho màn chọn trận Livescore.
+     * Danh sách giải cho màn chọn trận Livescore.
      *
-     * Scope: các giải user THAM GIA (đăng ký làm VĐV) hoặc thuộc BTC / trọng tài
-     * (`tournament_staff`). Giống logic `upcoming_tournaments` ở API `/api/home`.
+     * Dùng CHUNG đúng bộ lọc với `api/home` (`upcoming_tournaments`):
+     *   - quyền: user là VĐV (`participants`) HOẶC BTC / trọng tài (`tournament_staff`)
+     *   - thời gian: `start_date >= hôm nay` (giải sắp tới / hôm nay)
      *
      * `data` trả thẳng list giải, mỗi giải KHÔNG kèm danh sách trận.
      */
@@ -26,39 +28,23 @@ class LivescorePickerController extends Controller
             return ResponseHelper::error('Cần đăng nhập để dùng Livescore', 401);
         }
 
-        $tournamentIds = $this->accessibleTournamentIds($user->id);
-        if (empty($tournamentIds)) {
-            return ResponseHelper::success([]);
-        }
-
-        $today = now()->toDateString();
-
-        $tournaments = DB::table('tournaments')
-            ->whereIn('id', $tournamentIds)
-            ->whereNull('deleted_at')
-            // Giải đang diễn ra: đã bắt đầu và chưa kết thúc.
-            ->whereNotNull('start_date')
-            ->whereDate('start_date', '<=', $today)
-            ->where(function ($q) use ($today) {
-                $q->whereNull('end_date')->orWhereDate('end_date', '>=', $today);
-            })
-            ->orderByDesc('start_date')
+        $tournaments = Tournament::query()
+            ->accessibleByUser($user->id)
+            ->startingFromToday()
+            ->with('competitionLocation:id,name')
+            ->orderBy('start_date', 'asc')
             ->get([
                 'id', 'name', 'poster', 'description', 'start_date', 'end_date',
                 'competition_location_id',
             ]);
 
-        $locationNames = $this->locationMap(array_filter($tournaments->pluck('competition_location_id')->all()));
-
-        $payload = $tournaments->map(function ($t) use ($locationNames) {
+        $payload = $tournaments->map(function ($t) {
             return [
                 'id' => (int) $t->id,
                 'name' => $t->name,
-                'poster_url' => $t->poster ? \Illuminate\Support\Str::startsWith($t->poster, 'http')
-                    ? $t->poster
-                    : url('/storage/' . ltrim($t->poster, '/')) : null,
+                'poster_url' => $this->posterUrl($t->poster),
                 'description' => $t->description,
-                'location_name' => $locationNames[$t->competition_location_id] ?? null,
+                'location_name' => $t->competitionLocation?->name ?? null,
                 'start_date' => $t->start_date ? \Carbon\Carbon::parse($t->start_date)->toIso8601String() : null,
                 'end_date' => $t->end_date ? \Carbon\Carbon::parse($t->end_date)->toIso8601String() : null,
             ];
@@ -79,45 +65,23 @@ class LivescorePickerController extends Controller
             return ResponseHelper::error('Cần đăng nhập để dùng Livescore', 401);
         }
 
-        $exists = DB::table('tournaments')
-            ->where('id', $id)
-            ->whereNull('deleted_at')
-            ->exists();
+        $tournament = Tournament::query()->find($id);
 
-        if (!$exists) {
+        if (!$tournament) {
             return ResponseHelper::error('Không tìm thấy giải đấu', 404);
         }
 
-        if (!in_array($id, $this->accessibleTournamentIds($user->id), true)) {
+        // Cùng bộ lọc quyền với `api/home`: phải là VĐV hoặc BTC / trọng tài.
+        $allowed = Tournament::query()
+            ->accessibleByUser($user->id)
+            ->whereKey($id)
+            ->exists();
+
+        if (!$allowed) {
             return ResponseHelper::error('Bạn không có quyền xem trận của giải này', 403);
         }
 
         return ResponseHelper::success($this->tournamentMatches($id));
-    }
-
-    /**
-     * Giải user được phép xem: user THAM GIA giải (VĐV trong `participants`)
-     * hoặc thuộc BTC / trọng tài (`tournament_staff`).
-     *
-     * Giống logic `upcoming_tournaments` ở API `/api/home`.
-     */
-    private function accessibleTournamentIds(int $userId): array
-    {
-        $participantIds = DB::table('participants')
-            ->where('user_id', $userId)
-            ->distinct()
-            ->pluck('tournament_id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
-        $staffIds = DB::table('tournament_staff')
-            ->where('user_id', $userId)
-            ->distinct()
-            ->pluck('tournament_id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
-        return array_values(array_unique(array_merge($participantIds, $staffIds)));
     }
 
     /**
@@ -199,15 +163,17 @@ class LivescorePickerController extends Controller
         ];
     }
 
-    private function locationMap(array $locationIds): array
+    /**
+     * Poster: DB lưu đường dẫn tương đối (`posters/xxx.jpg`) hoặc URL tuyệt đối.
+     */
+    private function posterUrl(?string $poster): ?string
     {
-        if (empty($locationIds)) {
-            return [];
+        if (!$poster) {
+            return null;
         }
 
-        return DB::table('competition_locations')
-            ->whereIn('id', $locationIds)
-            ->pluck('name', 'id')
-            ->all();
+        return \Illuminate\Support\Str::startsWith($poster, 'http')
+            ? $poster
+            : url('/storage/' . ltrim($poster, '/'));
     }
 }

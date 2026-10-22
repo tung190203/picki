@@ -93,12 +93,10 @@ class HomeController extends Controller
     
         // Lấy upcoming tournaments
         // Logic: VĐV/staff/referee đã được add vào giải thì nhìn thấy giải đó (kể cả DRAFT)
+        // Dùng chung scope với Livescore (`accessibleByUser` + `startingFromToday`).
         $upcomingTournaments = Tournament::withFullRelations()
-            ->whereDate('start_date', '>=', $nowVN)
-            ->where(function ($query) use ($userId) {
-                $query->whereHas('participants', fn($p) => $p->where('user_id', $userId))
-                      ->orWhereHas('tournamentStaffs', fn($s) => $s->where('user_id', $userId));
-            })
+            ->accessibleByUser($userId)
+            ->startingFromToday()
             ->orderBy('start_date', 'asc')
             ->take($validated['tournament_per_page'] ?? Tournament::PER_PAGE)
             ->get();

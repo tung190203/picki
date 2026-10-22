@@ -440,7 +440,15 @@ const applySnapshot = (payload) => {
         m.live_status = row.live_status;
         m.is_going_on = row.is_going_on;
 
-        // Snapshot không mang `status` — nhưng `live_status = finish` thì chắc chắn xong.
+        // Snapshot đã mang `status`/`is_finished` => không cần gọi lại API để
+        // đồng bộ 2 field này sau khi confirm.
+        if (row.status !== undefined) m.status = row.status;
+        if (row.is_finished !== undefined) {
+            m.is_finished = row.is_finished;
+            if (row.is_finished) m.is_going_on = false;
+        }
+
+        // Chốt an toàn: live_status = finish thì chắc chắn trận đã xong.
         if (row.live_status === 'finish') {
             m.is_finished = true;
             m.is_going_on = false;

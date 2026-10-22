@@ -181,7 +181,9 @@ channel.stopListening('.tournament.score_updated');
       "team1_score": 17,
       "team2_score": 15,
       "version": 42,
-      "is_going_on": true
+      "is_going_on": true,
+      "status": "pending",
+      "is_finished": false
     }
   ]
 }
@@ -200,11 +202,13 @@ channel.stopListening('.tournament.score_updated');
 | `matches[].team2_score` | int | Điểm set hiện tại của đội 2 (đội khách) |
 | `matches[].version` | int | `match_version` của trận đó — dùng để bỏ qua dữ liệu cũ nếu event đến lệch thứ tự |
 | `matches[].is_going_on` | bool | Cùng định nghĩa với field `is_going_on` ở trên: đã bắt đầu **và** chưa xác nhận kết quả |
+| `matches[].status` | string | Trạng thái trận: `pending` / `completed` / `disputed` |
+| `matches[].is_finished` | bool | `status === 'completed'` hoặc `live_status === 'finish'` |
 
-**Cách FE áp dụng payload:** với mỗi phần tử trong `matches`, tìm trận trùng `match_id` trong list trận của giải (đã tải từ `/api/livescore/tournaments/{id}/matches`) và ghi đè `team1_score`, `team2_score`, `live_status`, `is_going_on`. Trận nào không có trong list thì bỏ qua.
+**Cách FE áp dụng payload:** với mỗi phần tử trong `matches`, tìm trận trùng `match_id` trong list trận của giải (đã tải từ `/api/livescore/tournaments/{id}/matches`) và ghi đè `team1_score`, `team2_score`, `live_status`, `is_going_on`, `status`, `is_finished`. Trận nào không có trong list thì bỏ qua.
 
 **Lưu ý:**
-- Payload **không có** `status` và `is_finished`. Hai field này chỉ cập nhật khi gọi lại API lấy trận.
+- Payload **có** `status` và `is_finished` → sau khi confirm, FE không cần gọi lại API để đồng bộ 2 field này.
 - `team1_score` / `team2_score` ở payload và ở response API lấy trận cùng nghĩa (điểm set hiện tại), nên có thể trộn dữ liệu 2 nguồn.
 - Cần `window.Echo` đã khởi tạo (xem `resources/js/bootstrap.js`; cấu hình qua biến `VITE_PUSHER_*`). Nếu chưa có Echo, FE bỏ qua realtime và chỉ hiển thị dữ liệu lúc gọi API.
 - Hiện **chưa có** cơ chế poll dự phòng khi Pusher rớt kết nối. Muốn lấy lại dữ liệu mới nhất, gọi lại API lấy trận của giải tương ứng.
@@ -213,7 +217,7 @@ channel.stopListening('.tournament.score_updated');
 
 - Subscribe kênh `tournament.{id}` **chỉ khi người dùng đang xem giải đó** → tránh nhận nhiễm.
 - So sánh `payload.matches[].version` với `version` của trận trong list: nếu `payload.version < list.version` thì bỏ qua event.
-- Payload **không có** `status` / `is_finished`. Khi nhận event nên gọi lại `GET /api/livescore/tournaments/{id}/matches` (debounce ~1.5s) để đồng bộ 2 field này.
+- Payload có `status` / `is_finished` → ghi đè thẳng. Vẫn nên gọi lại `GET /api/livescore/tournaments/{id}/matches` (debounce ~1.5s) để đồng bộ các field khác (ví dụ `round`, `scheduled_at`) và phòng trường hợp socket rớt.
 - Trạng thái kết nối Pusher: `Echo.connector.pusher.connection.bind('state_change', ...)` → hiển thị badge "Realtime" / "Mất kết nối" cho BTC.
 
 ---

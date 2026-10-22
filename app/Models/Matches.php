@@ -42,6 +42,10 @@ class Matches extends Model
         'team1_timeout_used',
         'team2_timeout_used',
         'qualified_for_ranking',
+        // Cờ xác nhận của 2 đội — phải nằm trong fillable, nếu không
+        // `$match->update([...])` sẽ bị Laravel drop im lặng.
+        'home_team_confirm',
+        'away_team_confirm',
     ];
 
     protected $casts = [
