@@ -196,7 +196,7 @@
               <input
                 v-model="keyword"
                 type="text"
-                placeholder="Tìm theo tên đội hoặc vòng đấu..."
+                placeholder="Tìm theo tên đội, tên người chơi hoặc vòng đấu..."
                 class="ls-input w-full h-9 pl-9 pr-3 text-[13px] rounded-lg"
               />
             </div>
@@ -351,7 +351,15 @@ const filteredMatches = computed(() => {
         if (filter.value === 'finished' && !m.is_finished) return false;
 
         if (kw) {
-            const haystack = `${m.team1?.name || ''} ${m.team2?.name || ''} ${m.round || ''}`.toLowerCase();
+            const haystack = [
+                m.team1?.name || '',
+                m.team2?.name || '',
+                m.round || '',
+                ...(m.team1?.members || []).map((x) => x.full_name || x.name || ''),
+                ...(m.team2?.members || []).map((x) => x.full_name || x.name || ''),
+            ]
+                .join(' ')
+                .toLowerCase();
             if (!haystack.includes(kw)) return false;
         }
         return true;

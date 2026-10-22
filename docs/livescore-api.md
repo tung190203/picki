@@ -83,7 +83,9 @@ Chỉ trả về giải **đang diễn ra**: đã bắt đầu (`start_date <= h
 **Method:** `GET`
 **Path param:** `id` — ID giải (lấy từ API `/api/livescore/tournaments`)
 
-Trả về **toàn bộ trận** của giải (không chỉ trận hôm nay), đã bốc sẵn field cho màn chiếu. Bỏ qua trận `bye` và trận chưa xác định đủ 2 đội.
+Trả về **toàn bộ trận** của giải (không chỉ trận hôm nay), đã bốc sẵn field cho màn chiếu. Bỏ qua trận `bye`. **Trận vòng trong chưa xác định đủ 2 đội vẫn được trả** với tên đội là `TBD` (xem phần *Trận chưa rõ đội* bên dưới).
+
+Trận được sắp xếp theo `round` → `scheduled_at` → `id`.
 
 `data` trả thẳng **list trận** (mảng), không bọc trong key `matches`.
 
@@ -95,6 +97,54 @@ Trả về **toàn bộ trận** của giải (không chỉ trận hôm nay), đ
   "message": "Success",
   "data": [
     {
+      "match_id": 12670,
+      "round": "Vòng bảng",
+      "scheduled_at": "2026-10-21T07:30:00Z",
+      "live_status": "waiting",
+      "status": "pending",
+      "version": 8,
+      "is_going_on": false,
+      "is_finished": false,
+      "team1_score": 0,
+      "team2_score": 0,
+      "team1": {
+        "id": 12,
+        "name": "Đội Đỏ",
+        "members": [
+          {
+            "id": 301,
+            "full_name": "Nguyễn Văn A",
+            "name": "Nguyễn Văn A",
+            "avatar_url": "https://picki.vn/storage/avatars/a.jpg",
+            "avatar": "https://picki.vn/storage/avatars/a.jpg",
+            "is_guest": false
+          },
+          {
+            "id": 512,
+            "full_name": "Trần Thị B",
+            "name": "Trần Thị B",
+            "avatar_url": null,
+            "avatar": null,
+            "is_guest": true
+          }
+        ]
+      },
+      "team2": {
+        "id": 18,
+        "name": "Đội Xanh",
+        "members": [
+          {
+            "id": 302,
+            "full_name": "Lê Văn C",
+            "name": "Lê Văn C",
+            "avatar_url": "https://picki.vn/storage/avatars/c.jpg",
+            "avatar": "https://picki.vn/storage/avatars/c.jpg",
+            "is_guest": false
+          }
+        ]
+      }
+    },
+    {
       "match_id": 12673,
       "round": "Bán kết",
       "scheduled_at": "2026-10-21T09:00:00Z",
@@ -105,8 +155,22 @@ Trả về **toàn bộ trận** của giải (không chỉ trận hôm nay), đ
       "is_finished": false,
       "team1_score": 17,
       "team2_score": 15,
-      "team1": { "id": 12, "name": "Đội Đỏ" },
-      "team2": { "id": 18, "name": "Đội Xanh" }
+      "team1": { "id": 12, "name": "Đội Đỏ", "members": [] },
+      "team2": { "id": 18, "name": "Đội Xanh", "members": [] }
+    },
+    {
+      "match_id": 12674,
+      "round": "Chung kết",
+      "scheduled_at": null,
+      "live_status": "waiting",
+      "status": "pending",
+      "version": 1,
+      "is_going_on": false,
+      "is_finished": false,
+      "team1_score": 0,
+      "team2_score": 0,
+      "team1": { "id": null, "name": "TBD" },
+      "team2": { "id": null, "name": "TBD" }
     }
   ],
   "meta": null
@@ -118,7 +182,7 @@ Trả về **toàn bộ trận** của giải (không chỉ trận hôm nay), đ
 | Field | Kiểu | Mô tả |
 |---|---|---|
 | `match_id` | int | ID trận — dùng để mở màn chiếu `/live-score/tournament/{match_id}` |
-| `round` | string \| null | Vòng đấu |
+| `round` | string \| null | **Tên** vòng đấu: `Vòng bảng` / `Vòng 1/32` / `Vòng 1/16` / `Vòng 1/8` / `Tứ kết` / `Bán kết` / `Chung kết` / `Tranh hạng Ba` (`null` nếu trận không thuộc vòng nào) |
 | `scheduled_at` | string \| null | Giờ bắt đầu (ISO-8601) |
 | `live_status` | string | Trạng thái live: `waiting` / `playing` / `timeout` / `between_sets` / `finish` / `cancelled` |
 | `status` | string | Trạng thái trận: `pending` / `completed` / `disputed` |
@@ -127,8 +191,41 @@ Trả về **toàn bộ trận** của giải (không chỉ trận hôm nay), đ
 | `is_finished` | bool | `status === 'completed'` hoặc `live_status === 'finish'` |
 | `team1_score` | int | Điểm set hiện tại của đội 1 |
 | `team2_score` | int | Điểm set hiện tại của đội 2 |
-| `team1` | object | `{ id, name }` |
-| `team2` | object | `{ id, name }` |
+| `team1` | object | `{ id, name, members }` — `name` = `'TBD'` và `id` = `null` nếu đối thủ chưa xác định |
+| `team2` | object | `{ id, name, members }` — `name` = `'TBD'` và `id` = `null` nếu đối thủ chưa xác định |
+
+#### Field đội (`team1` / `team2`)
+
+| Field | Kiểu | Mô tả |
+|---|---|---|
+| `id` | int \| null | ID đội — `null` nếu đối thủ của trận vòng trong chưa xác định |
+| `name` | string | Tên đội — `'TBD'` nếu chưa xác định |
+| `members` | array | Danh sách thành viên đội (user thật + guest) — mảng rỗng nếu đội chưa xác định |
+
+Mỗi phần tử trong `members`:
+
+| Field | Kiểu | Mô tả |
+|---|---|---|
+| `id` | int | ID user (user thật) hoặc ID participant (guest) |
+| `full_name` | string | Tên hiển thị thành viên |
+| `name` | string | Alias của `full_name` |
+| `avatar_url` | string \| null | Link ảnh đại diện |
+| `avatar` | string \| null | Alias của `avatar_url` |
+| `is_guest` | bool | `true` nếu là VĐV ảo (guest) — không có bản ghi User riêng |
+
+#### Trận chưa rõ đội (vòng trong)
+
+Ở thể thức hỗn hợp / loại trực tiếp, các trận vòng trong được tạo sẵn trước khi biết đội nào đi tiếp. Những trận đó **vẫn xuất hiện** trong response với:
+
+- `team1` / `team2` có `id: null` và `name: 'TBD'`;
+- `round` vẫn là tên vòng đúng (ví dụ `Chung kết`);
+- `team1_score` / `team2_score` = `0`.
+
+Trận `bye` (`is_bye = 1`) thì không bao giờ được trả.
+
+> **Realtime không phát sự kiện cho các trận này.** Payload `tournament.score_updated` chỉ gồm trận đã xác định đủ 2 đội, nên tên đội / nút "Phát" của trận vòng trong chỉ cập nhật khi FE gọi lại `GET /api/livescore/tournaments/{id}/matches` (màn `/tools/livescore` đã debounce ~1.5s rồi gọi lại).
+
+> **Màn chiếu không mở được với trận `TBD`** vì cần cả 2 đội — FE nên ẩn nút "Phát" cho các trận này.
 
 #### Lỗi
 
@@ -217,7 +314,7 @@ channel.stopListening('.tournament.score_updated');
 
 - Subscribe kênh `tournament.{id}` **chỉ khi người dùng đang xem giải đó** → tránh nhận nhiễm.
 - So sánh `payload.matches[].version` với `version` của trận trong list: nếu `payload.version < list.version` thì bỏ qua event.
-- Payload có `status` / `is_finished` → ghi đè thẳng. Vẫn nên gọi lại `GET /api/livescore/tournaments/{id}/matches` (debounce ~1.5s) để đồng bộ các field khác (ví dụ `round`, `scheduled_at`) và phòng trường hợp socket rớt.
+- Payload có `status` / `is_finished` → ghi đè thẳng. Vẫn nên gọi lại `GET /api/livescore/tournaments/{id}/matches` (debounce ~1.5s) để đồng bộ các field khác (ví dụ `round`, `scheduled_at`, tên đội của trận vòng trong vừa được BTC xác định) và phòng trường hợp socket rớt.
 - Trạng thái kết nối Pusher: `Echo.connector.pusher.connection.bind('state_change', ...)` → hiển thị badge "Realtime" / "Mất kết nối" cho BTC.
 
 ---
