@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Events\SuperAdmin\TournamentMatchUpdated;
 use App\Events\MatchScorePublicUpdated;
+use App\Events\TournamentScoreUpdated;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MatchDetailResource;
 use App\Http\Resources\MatchesResource;
@@ -1291,6 +1292,10 @@ class MatchesController extends Controller
 
         Broadcast::event(new MatchScorePublicUpdated($match->fresh(['results'])));
 
+        // Màn picker nghe kênh tournament.{id} — confirm làm is_going_on chuyển false,
+        // nên phải đẩy lại snapshot để app bỏ chấm đỏ khỏi dòng trận này.
+        $this->broadcastTournamentScore($match->fresh());
+
         $confirmedByAdmin = $isOrganizer;
         $confirmedByUser  = !$isOrganizer && $userTeam;
 
@@ -2372,6 +2377,19 @@ class MatchesController extends Controller
         foreach ($userIds as $userId) {
             SendPushJob::dispatch($userId, $title, $body, $data);
         }
+    }
+
+    /**
+     * Đẩy snapshot cấp giải lên kênh tournament.{id} cho màn picker.
+     * Trận không thuộc giải (quick match) thì bỏ qua — không có tournament id.
+     */
+    private function broadcastTournamentScore(?Matches $match): void
+    {
+        $tournamentId = $match?->tournament?->id ?? $match?->tournamentType?->tournament_id;
+        if (!$tournamentId || !$match) {
+            return;
+        }
+        event(new TournamentScoreUpdated($tournamentId, $match));
     }
 
     /**
