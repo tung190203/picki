@@ -53,6 +53,11 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\Chat\ConversationController;
+use App\Http\Controllers\Chat\UserBlockController;
+use App\Http\Controllers\Chat\ChatReportController;
+use App\Http\Controllers\Chat\ChatShortcutController;
+use App\Http\Controllers\Chat\InboxController;
 use App\Http\Controllers\MiniTournamentController;
 use App\Http\Controllers\MiniTournamentSearchController;
 use App\Http\Controllers\SearchV2Controller;
@@ -1004,6 +1009,42 @@ Route::get('/members/candidates', [ClubMemberController::class, 'getCandidates']
         Route::match(['get', 'post'], '/conversation/{userId}', [MessageController::class, 'getConversation']);
         Route::post('/store', [MessageController::class, 'store']);
         Route::post('/mark-as-read/{senderId}', [MessageController::class, 'markConversationAsRead']);
+    });
+
+    // Unified Chat, Conversations, Blocks, Reports
+    Route::prefix('chat')->group(function () {
+        Route::prefix('conversations')->group(function () {
+            Route::post('/dm', [ConversationController::class, 'startDm']);
+            Route::post('/group', [ConversationController::class, 'getGroupConversation']);
+            Route::get('/{id}', [ConversationController::class, 'show']);
+            Route::get('/{id}/messages', [ConversationController::class, 'getMessages']);
+            Route::post('/{id}/messages', [ConversationController::class, 'sendMessage']);
+            Route::post('/{id}/read', [ConversationController::class, 'markAsRead']);
+        });
+
+        Route::prefix('users')->group(function () {
+            Route::get('/blocks', [UserBlockController::class, 'index']);
+            Route::post('/{id}/block', [UserBlockController::class, 'block']);
+            Route::delete('/{id}/unblock', [UserBlockController::class, 'unblock']);
+        });
+
+        Route::prefix('shortcuts')->group(function () {
+            Route::get('/matches', [ChatShortcutController::class, 'matches']);
+            Route::get('/tournaments', [ChatShortcutController::class, 'tournaments']);
+            Route::get('/players', [ChatShortcutController::class, 'players']);
+            Route::get('/clubs', [ChatShortcutController::class, 'clubs']);
+        });
+
+        Route::post('/reports', [ChatReportController::class, 'store']);
+    });
+
+    // Unified Inbox (All, Messages, Alerts, Strangers, Unread-count, Search, Read-all)
+    Route::prefix('inbox')->group(function () {
+        Route::get('/', [InboxController::class, 'index']);
+        Route::get('/strangers', [InboxController::class, 'strangers']);
+        Route::get('/unread-count', [InboxController::class, 'unreadCount']);
+        Route::get('/search', [InboxController::class, 'search']);
+        Route::post('/read-all', [InboxController::class, 'markAllAsRead']);
     });
 
     Route::prefix('competition-locations')->group(function () {

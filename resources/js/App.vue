@@ -6,6 +6,7 @@
       <router-view />
       <ScrollToTop />
       <ChatWidget v-if="showChatWidget" />
+      <ChatRoomModal />
     </template>
   </div>
 </template>
@@ -17,6 +18,7 @@ import ScrollToTop from './components/atoms/ScrollToTop.vue'
 import SplashScreen from './components/atoms/SplashScreen.vue'
 import ChatWidget from './components/chatbot/ChatWidget.vue'
 import AppInstallBanner from './components/molecules/AppInstallBanner.vue'
+import ChatRoomModal from '@/components/chat/ChatRoomModal.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { useMobileDetect } from '@/composables/useMobileDetect'
 

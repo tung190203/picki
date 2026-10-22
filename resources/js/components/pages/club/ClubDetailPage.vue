@@ -275,7 +275,7 @@
                                 <BellSlashIcon class="w-4 h-4 sm:w-5 sm:h-5" />
                                 Đang theo dõi
                             </Button>
-                            <Button v-if="club.profile?.qr_zalo_enabled || club.profile?.zalo_link_enabled" size="md"
+                            <Button v-if="is_joined || club.profile?.qr_zalo_enabled || club.profile?.zalo_link_enabled" size="md"
                                 color="white" class="w-full sm:w-auto bg-[#FBEAEB] rounded-full p-2 sm:p-2.5" @click="openClubChat">
                                 <MessageIcon class="w-5 h-5 sm:w-6 sm:h-6 text-[#D72D36]" />
                             </Button>
@@ -638,6 +638,7 @@ import ClubNotificationModal from '@/components/organisms/ClubNotificationModal.
 import ClubNotificationDetailModal from '@/components/organisms/ClubNotificationDetailModal.vue';
 import { CLUB_STATS, CLUB_MODULES } from '@/data/club/index.js';
 import * as ClubService from '@/service/club.js'
+import { useChatStore } from '@/store/chat.js'
 import { toast } from 'vue3-toastify';
 import { useUserStore } from '@/store/auth'
 import { storeToRefs } from 'pinia'
@@ -698,6 +699,7 @@ const club = ref([]);
 const clubId = ref(route.params.id);
 const userStore = useUserStore()
 const { getUser } = storeToRefs(userStore)
+const chatStore = useChatStore()
 const notifications = ref([])
 const pinnedNotifications = ref([])
 const notificationMeta = ref({})
@@ -978,7 +980,17 @@ const closeActivityModal = () => {
     isActivityModalOpen.value = false
 }
 
-const openClubChat = () => {
+const openClubChat = async () => {
+    if (is_joined.value) {
+        try {
+            await chatStore.openGroupChat('club', Number(clubId.value))
+            return
+        } catch (err) {
+            console.error(err)
+            toast.error(err?.response?.data?.message || 'Không thể mở phòng chat CLB')
+            return
+        }
+    }
     // Priority: zalo_link_enabled > qr_zalo_enabled
     if (club.value?.profile?.zalo_link_enabled && club.value?.profile?.zalo_link) {
         // Show confirmation modal before redirecting to Zalo
@@ -987,7 +999,7 @@ const openClubChat = () => {
         // Show QR modal
         isZaloQRModalOpen.value = true
     } else {
-        toast.info('Chức năng nhóm chat chưa được cấu hình')
+        toast.info('Bạn cần là thành viên CLB để tham gia nhóm trò chuyện')
     }
 }
 

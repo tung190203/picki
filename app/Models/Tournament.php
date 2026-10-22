@@ -183,6 +183,11 @@ class Tournament extends Model
         return $this->belongsTo(CompetitionLocation::class);
     }
 
+    public function competition_location()
+    {
+        return $this->competitionLocation();
+    }
+
     public function fundCollection()
     {
         return $this->belongsTo(TournamentFundCollection::class, 'tournament_fund_collection_id');
