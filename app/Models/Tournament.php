@@ -252,6 +252,30 @@ class Tournament extends Model
             'competitionLocation'
         ]);
     }
+    /**
+     * Giải mà user được phép thấy — nguồn sự thật duy nhất, dùng chung cho
+     * `api/home` (`upcoming_tournaments`) và Livescore.
+     *
+     * User là VĐV (bảng `participants`) HOẶC thuộc BTC / trọng tài
+     * (bảng `tournament_staff`). Không yêu cầu `is_confirmed`, không lọc role.
+     */
+    public function scopeAccessibleByUser($query, int $userId)
+    {
+        return $query->where(function ($q) use ($userId) {
+            $q->whereHas('participants', fn ($p) => $p->where('user_id', $userId))
+                ->orWhereHas('tournamentStaffs', fn ($s) => $s->where('user_id', $userId));
+        });
+    }
+
+    /**
+     * Cửa sổ thời gian của `api/home`: giải đã tới hoặc đang diễn ra —
+     * `start_date >= hôm nay` (theo giờ Việt Nam).
+     */
+    public function scopeStartingFromToday($query)
+    {
+        return $query->whereDate('start_date', '>=', Carbon::now('Asia/Ho_Chi_Minh')->toDateString());
+    }
+
     public function scopeUpcoming($query)
     {
         return $query->where('start_date', '>', now());

@@ -319,7 +319,7 @@ class Club extends Model
                 ->withCount([
                     'tournaments as active_tournaments_count' => fn($q) => $q
                         ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
-                        ->where(fn($sub) => $sub->whereNull('end_date')->orWhereDate('end_date', '>=', now())),
+                        ->where(fn($sub) => $sub->whereNull('end_date')->orWhere('end_date', '>=', now())),
                 ])
                 ->orderBy('active_tournaments_count', $sortDir),
             default => $query
