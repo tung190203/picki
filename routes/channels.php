@@ -111,3 +111,19 @@ Broadcast::channel('match.{matchId}', function ($user, $matchId) {
     // Authorization to UPDATE score is enforced at controller level (referee/super_admin).
     return true;
 });
+
+/*
+|--------------------------------------------------------------------------
+| Unified Chat & Inbox Channels
+|--------------------------------------------------------------------------
+*/
+
+Broadcast::channel('conversation.{conversationId}', function ($user, $conversationId) {
+    return \App\Models\Chat\ConversationParticipant::where('conversation_id', $conversationId)
+        ->where('user_id', $user->id)
+        ->exists();
+});
+
+Broadcast::channel('user.{userId}', function ($user, $userId) {
+    return (int) $user->id === (int) $userId;
+});

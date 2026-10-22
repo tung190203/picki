@@ -275,6 +275,14 @@ export const route = [
         }
       },
       {
+        path: '/inbox',
+        name: 'inbox',
+        component: NotificationsPage,
+        meta: {
+          role: [ROLE.REFEREE, ROLE.ADMIN, ROLE.PLAYER]
+        }
+      },
+      {
         path: '/settings',
         name: 'settings',
         component: SettingsPage,
