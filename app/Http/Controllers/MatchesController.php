@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Events\SuperAdmin\TournamentMatchUpdated;
 use App\Events\MatchScorePublicUpdated;
+use App\Events\TournamentAdvanced;
 use App\Events\TournamentScoreUpdated;
 use App\Helpers\ResponseHelper;
 use App\Http\Resources\MatchDetailResource;
@@ -24,6 +25,7 @@ use App\Models\VnduprHistory;
 use App\Models\Group;
 use App\Services\TournamentService;
 use App\Services\TournamentType\GroupStandingRanker;
+use App\Services\TournamentType\TournamentRankService;
 use Illuminate\Support\Facades\Auth;
 
 class MatchesController extends Controller
@@ -912,6 +914,9 @@ class MatchesController extends Controller
             }
             TeamRanking::insert($records);
         }
+
+        // ✅ Xoá cache rank của tournament (UserTournamentResource dùng cho stats)
+        TournamentRankService::forgetTournament((int) $tournament_id);
     }
 
     /**
@@ -1336,6 +1341,10 @@ class MatchesController extends Controller
         // Màn picker nghe kênh tournament.{id} — confirm làm is_going_on chuyển false,
         // nên phải đẩy lại snapshot để app bỏ chấm đỏ khỏi dòng trận này.
         $this->broadcastTournamentScore($match->fresh());
+
+        // Trận vừa chốt có thể vừa điền đội vào vòng sau -> bắn riêng để màn
+        // picker hiện tên đội ngay, không phải chờ refetch.
+        $this->broadcastTournamentAdvanced($match->fresh());
 
         $confirmedByAdmin = $isOrganizer;
         $confirmedByUser  = !$isOrganizer && $userTeam;
@@ -2277,6 +2286,9 @@ class MatchesController extends Controller
 
             DB::commit();
 
+            // Sau commit: snapshot đọc được đội vừa ghi vào vòng sau.
+            $this->broadcastTournamentAdvanced($match->fresh());
+
             return ResponseHelper::success(
                 [
                     'winner_team' => $winnerTeamId == $match->home_team_id
@@ -2437,6 +2449,19 @@ class MatchesController extends Controller
             return;
         }
         event(new TournamentScoreUpdated($tournamentId, $match));
+    }
+
+    /**
+     * Đẩy đội vừa điền vào vòng sau lên kênh tournament.{id} (event riêng).
+     * Xem TournamentAdvanced.
+     */
+    private function broadcastTournamentAdvanced(?Matches $match): void
+    {
+        $tournamentId = $match?->tournament?->id ?? $match?->tournamentType?->tournament_id;
+        if (!$tournamentId || !$match) {
+            return;
+        }
+        event(new TournamentAdvanced($tournamentId, $match));
     }
 
     /**

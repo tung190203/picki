@@ -1,550 +1,1240 @@
 <template>
-  <div class="min-h-screen bg-gray-50 dark:bg-[#0B1120]">
-    <!-- Header -->
-    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-      <div class="flex items-center justify-end">
-        <button
-          @click="markAllAsRead"
-          class="flex items-center gap-2 bg-[#D72D36] hover:bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-md dark:shadow-none"
-        >
-          <CheckIcon class="w-5 h-5" />
-          <span class="hidden sm:inline">Đánh dấu tất cả</span>
-        </button>
-      </div>
-    </div>
+  <div class="min-h-screen bg-gray-50 dark:bg-[#0B1120] text-gray-900 dark:text-slate-100 py-6">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+      <!-- Header & Search -->
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-extrabold tracking-tight flex items-center gap-2.5">
+            <span>Inbox</span>
+            <span
+              v-if="unreadCounts.total_unread > 0"
+              class="bg-[#D72D36] text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-sm"
+            >
+              {{ unreadCounts.total_unread }} mới
+            </span>
+          </h1>
+          <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+            Hộp thư hợp nhất tin nhắn cá nhân, nhóm và thông báo hệ thống
+          </p>
+        </div>
 
-    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <!-- Tabs -->
-      <div class="flex gap-2 bg-white dark:bg-[#161F33] border border-gray-100 dark:border-slate-800 rounded-lg p-2 shadow-md mb-6 overflow-x-auto">
-        <button
-          v-for="tab in filterTabs"
-          :key="tab.value"
-          @click="changeFilter(tab.value)"
-          :class="[
-            'px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition',
-            activeFilter === tab.value
-              ? 'bg-[#D72D36] text-white shadow-sm'
-              : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800'
-          ]"
-        >
-          {{ tab.label }} ({{ tab.count }})
-        </button>
-      </div>
-
-      <!-- Empty -->
-      <div
-        v-if="notifications.length === 0 && !loading"
-        class="text-center pt-8 text-gray-500 dark:text-slate-400"
-      >
-        Không có thông báo nào
-      </div>
-
-      <!-- List -->
-      <div class="space-y-4">
-        <div
-          v-for="notification in notifications"
-          :key="notification.id"
-          @click="handleClick(notification)"
-          :class="[
-            'cursor-pointer rounded-lg shadow-sm p-4 sm:p-6 transition hover:shadow-md',
-            getNotificationClass(notification)
-          ]"
-        >
-          <div class="flex gap-4">
-            <!-- ICON -->
-            <component
-              :is="getIcon(notification.type)"
-              class="w-6 h-6 flex-shrink-0"
-              :class="{
-                'text-green-500 dark:text-emerald-400': notification.type === 'success',
-                'text-yellow-500 dark:text-amber-400': notification.type === 'warning',
-                'text-blue-500 dark:text-red-400': notification.type === 'info',
-              }"
+        <div class="flex items-center gap-2">
+          <!-- Search Bar -->
+          <div class="relative flex-1 sm:w-64">
+            <input
+              v-model="searchQuery"
+              @input="onSearchInput"
+              type="text"
+              placeholder="Tìm kiếm tin nhắn, thông báo..."
+              class="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl px-3.5 py-2 pl-9 pr-8 text-xs focus:ring-2 focus:ring-[#D72D36] outline-none shadow-sm transition"
             />
+            <MagnifyingGlassIcon class="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+            <button
+              v-if="searchQuery"
+              @click="clearSearch"
+              class="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition"
+              title="Xóa tìm kiếm"
+            >
+              <XMarkIcon class="w-4 h-4" />
+            </button>
+          </div>
 
-            <div class="flex-1 min-w-0">
-              <div class="flex items-start justify-between gap-2 mb-2">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-slate-100 flex items-center gap-2">
-                  {{ notification.title }}
-                  <span
-                    v-if="!notification.read"
-                    class="w-2.5 h-2.5 bg-blue-600 dark:bg-red-500 rounded-full flex-shrink-0"
-                  />
-                </h3>
-                <span class="text-xs sm:text-sm text-gray-500 dark:text-slate-400 whitespace-nowrap">
-                  {{ notification.time }}
-                </span>
+          <!-- Mark all as read button -->
+          <button
+            @click="markAllAsRead"
+            class="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition"
+            title="Đánh dấu đã đọc tất cả"
+          >
+            <CheckIcon class="w-4 h-4 text-emerald-500" />
+            <span class="hidden md:inline">Đã đọc tất cả</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search Results Overlay (If searching) -->
+      <div
+        v-if="searchQuery.trim()"
+        class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl p-5 shadow-lg space-y-4"
+      >
+        <div class="flex items-center justify-between border-b border-gray-100 dark:border-slate-800 pb-3">
+          <h3 class="font-bold text-sm text-gray-700 dark:text-slate-200">
+            Kết quả tìm kiếm cho "{{ searchQuery }}"
+          </h3>
+          <span class="text-xs text-gray-400">
+            {{ searchResults.conversations.length + searchResults.alerts.length }} kết quả
+          </span>
+        </div>
+
+        <div v-if="searching" class="text-center py-6 text-xs text-gray-400">
+          Đang tìm kiếm...
+        </div>
+
+        <div v-else-if="searchResults.conversations.length === 0 && searchResults.alerts.length === 0" class="text-center py-8 text-xs text-gray-400">
+          Không tìm thấy tin nhắn hay thông báo nào phù hợp
+        </div>
+
+        <div v-else class="space-y-4">
+          <!-- Search Conversations -->
+          <div v-if="searchResults.conversations.length > 0" class="space-y-2">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400">Tin nhắn & Nhóm</h4>
+            <div
+              v-for="conv in searchResults.conversations"
+              :key="'search_conv_' + conv.id"
+              @click="openConversation(conv.id)"
+              class="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-slate-800/60 hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer transition border border-gray-100 dark:border-slate-800"
+            >
+              <div class="flex items-center gap-3 min-w-0">
+                <img
+                  :src="conv.avatar_url || '/images/default-avatar.png'"
+                  class="w-10 h-10 rounded-full object-cover"
+                  @error="$event.target.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(conv.title || 'Chat')"
+                />
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="font-bold text-xs truncate">{{ conv.title }}</span>
+                    <span v-if="conv.is_archived" class="bg-amber-100 dark:bg-amber-950/60 text-amber-600 text-[10px] px-1.5 py-0.2 rounded font-semibold">
+                      [Lưu trữ]
+                    </span>
+                  </div>
+                  <p class="text-[11px] text-gray-500 dark:text-slate-400 truncate mt-0.5">
+                    {{ conv.last_message?.content || 'Đã gửi một tin nhắn' }}
+                  </p>
+                </div>
               </div>
+              <span class="text-[10px] text-gray-400 whitespace-nowrap">{{ formatRelativeTime(conv.last_message_at) }}</span>
+            </div>
+          </div>
 
-              <p class="text-gray-600 dark:text-slate-300 mb-4 text-sm sm:text-base leading-relaxed">
-                {{ notification.message }}
-              </p>
-
-              <div class="flex gap-2 flex-wrap">
-                <button
-                  v-if="!notification.read"
-                  @click.stop="markOneAsRead(notification.id)"
-                  class="flex items-center gap-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 px-3 py-1.5 rounded-md text-sm font-semibold transition-colors"
-                >
-                  <CheckIcon class="w-4 h-4" />
-                  Đánh dấu đã đọc
-                </button>
-
-                <button
-                  @click.stop="deleteOne(notification.id)"
-                  class="flex items-center gap-2 bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-600 dark:text-red-300 border border-transparent dark:border-red-900/60 px-3 py-1.5 rounded-md text-sm font-semibold transition-colors"
-                >
-                  <TrashIcon class="w-4 h-4" />
-                  Xóa
-                </button>
+          <!-- Search Alerts -->
+          <div v-if="searchResults.alerts.length > 0" class="space-y-2">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400">Thông báo hệ thống</h4>
+            <div
+              v-for="alert in searchResults.alerts"
+              :key="'search_alert_' + alert.id"
+              @click="handleAlertClick(alert)"
+              class="p-3 rounded-xl bg-gray-50 dark:bg-slate-800/60 hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer transition border border-gray-100 dark:border-slate-800 flex items-start gap-3"
+            >
+              <div :class="['w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5', getAlertBadgeClass(alert)]">
+                <component :is="getAlertIcon(alert)" class="w-4 h-4" />
+              </div>
+              <div class="min-w-0">
+                <h5 class="font-bold text-xs">{{ parseAlert(alert).title }}</h5>
+                <p class="text-[11px] text-gray-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                  {{ parseAlert(alert).message }}
+                </p>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Loading -->
-        <div v-if="loading" class="flex justify-center py-8 text-gray-500 dark:text-slate-400">
-          Đang tải...
+      <!-- Main Navigation Tabs -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-200 dark:border-slate-800 pb-3">
+        <!-- 3 Main Tabs -->
+        <div class="flex items-center gap-1.5 p-1 bg-gray-100 dark:bg-slate-800/80 rounded-xl w-fit">
+          <button
+            v-for="t in mainTabs"
+            :key="t.key"
+            @click="changeTab(t.key)"
+            :class="[
+              'px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 relative',
+              currentTab === t.key
+                ? 'bg-white dark:bg-slate-900 text-gray-900 dark:text-white shadow-sm'
+                : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
+            ]"
+          >
+            <span>{{ t.label }}</span>
+            <span
+              v-if="t.badge > 0"
+              class="bg-[#D72D36] text-white text-[10px] font-extrabold px-1.5 py-0.2 rounded-full"
+            >
+              {{ t.badge }}
+            </span>
+          </button>
         </div>
 
+        <!-- Filter Pill: Chưa đọc & Danh sách đã chặn -->
+        <div class="flex items-center gap-2">
+          <button
+            v-if="currentTab === 'messages'"
+            @click="isBlockedModalOpen = true"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition flex items-center gap-1.5"
+            title="Quản lý danh sách người dùng đã chặn"
+          >
+            <NoSymbolIcon class="w-3.5 h-3.5 text-gray-500" />
+            <span>Đã chặn</span>
+          </button>
+
+          <button
+            @click="toggleUnreadFilter"
+            :class="[
+              'px-3 py-1.5 rounded-lg text-xs font-semibold border transition flex items-center gap-1.5',
+              isUnreadOnly
+                ? 'bg-red-50 dark:bg-red-950/40 border-[#D72D36] text-[#D72D36] dark:text-red-400'
+                : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-50'
+            ]"
+          >
+            <span class="w-2 h-2 rounded-full" :class="isUnreadOnly ? 'bg-[#D72D36]' : 'bg-gray-400'"></span>
+            <span>Chưa đọc</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ================= TAB 2: TIN NHẮN (MESSAGES) ================= -->
+      <div v-if="currentTab === 'messages'" class="space-y-4">
+        <!-- Pinned Card: Tin nhắn từ người lạ -->
         <div
-          v-if="!hasMore && notifications.length"
-          class="text-center py-8 text-gray-400 dark:text-slate-500"
+          v-if="strangersSummary && strangersSummary.total_conversations > 0"
+          @click="isStrangersModalOpen = true"
+          class="p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200/80 dark:border-amber-800/40 hover:border-amber-400 cursor-pointer shadow-sm hover:shadow transition flex items-center justify-between"
         >
-          Đã hiển thị tất cả thông báo
+          <div class="flex items-center gap-3.5 min-w-0 pr-3">
+            <div class="relative flex-shrink-0">
+              <img
+                :src="strangersSummary.latest_sender_avatar || '/images/default-avatar.png'"
+                class="w-12 h-12 rounded-full object-cover border-2 border-amber-400 shadow-sm"
+                @error="$event.target.src = 'https://ui-avatars.com/api/?background=f59e0b&color=fff&name=' + encodeURIComponent(strangersSummary.latest_sender_name || 'Stranger')"
+              />
+              <span
+                v-if="strangersSummary.unread_count > 0"
+                class="absolute -top-1 -right-1 bg-amber-500 text-white font-extrabold text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow"
+              >
+                {{ strangersSummary.unread_count }}
+              </span>
+            </div>
+
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <h4 class="font-extrabold text-sm text-gray-900 dark:text-white">
+                  Tin nhắn từ người lạ
+                </h4>
+                <span class="bg-amber-200 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  {{ strangersSummary.total_conversations }} hội thoại
+                </span>
+              </div>
+              <p class="text-xs text-gray-600 dark:text-slate-300 truncate mt-0.5">
+                <span class="font-semibold">{{ strangersSummary.latest_sender_name }}:</span>
+                {{ strangersSummary.latest_message }}
+              </p>
+            </div>
+          </div>
+
+          <button class="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex-shrink-0 shadow transition">
+            Xem ngay →
+          </button>
         </div>
 
-        <div ref="scrollTrigger" class="h-4"></div>
+        <!-- Conversations List -->
+        <div v-if="loadingFeed && page === 1 && conversationItems.length === 0" class="text-center py-12 text-xs text-gray-400">
+          Đang tải danh sách tin nhắn...
+        </div>
+
+        <div v-else-if="conversationItems.length === 0" class="flex flex-col items-center justify-center py-16 text-gray-400 space-y-2">
+          <p class="text-4xl text-gray-300 dark:text-slate-600">
+            <ChatBubbleOvalLeftEllipsisIcon class="w-12 h-12 stroke-[1.5]" />
+          </p>
+          <p class="text-sm font-medium">Chưa có cuộc trò chuyện nào</p>
+          <p class="text-xs text-gray-500">Tin nhắn từ bạn bè, CLB và Kèo đấu sẽ hiển thị tại đây.</p>
+        </div>
+
+        <div v-else class="space-y-2.5">
+          <div
+            v-for="conv in conversationItems"
+            :key="conv.id"
+            @click="openConversation(conv.id)"
+            class="flex items-center justify-between p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800/80 hover:border-gray-300 dark:hover:border-slate-700 cursor-pointer shadow-sm hover:shadow transition"
+          >
+            <div class="flex items-center gap-3.5 min-w-0 pr-3">
+              <div class="relative flex-shrink-0">
+                <img
+                  :src="conv.avatar_url || '/images/default-avatar.png'"
+                  class="w-12 h-12 rounded-full object-cover border border-gray-200 dark:border-slate-700"
+                  @error="$event.target.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(conv.title || 'Chat')"
+                />
+                <span
+                  v-if="conv.unread_count > 0"
+                  class="absolute -top-1 -right-1 bg-[#D72D36] text-white font-extrabold text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow"
+                >
+                  {{ conv.unread_count }}
+                </span>
+              </div>
+
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <h4 class="font-bold text-sm text-gray-900 dark:text-white truncate">
+                    {{ conv.title }}
+                  </h4>
+                  <span
+                    v-if="conv.context_tag"
+                    class="bg-gray-100 dark:bg-slate-800 text-[#D72D36] dark:text-red-400 text-[10px] font-semibold px-2 py-0.5 rounded-full truncate"
+                  >
+                    {{ conv.context_tag }}
+                  </span>
+                  <span
+                    v-if="conv.is_blocked_by_me"
+                    class="bg-gray-100 dark:bg-slate-800 text-gray-500 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                  >
+                    Đã chặn
+                  </span>
+                  <span
+                    v-if="conv.is_archived"
+                    class="bg-amber-100 dark:bg-amber-950/60 text-amber-700 text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                  >
+                    Lưu trữ
+                  </span>
+                </div>
+
+                <p class="text-xs text-gray-500 dark:text-slate-400 truncate mt-1">
+                  {{ conv.last_message?.content || 'Đã gửi một tin nhắn' }}
+                </p>
+              </div>
+            </div>
+
+            <span class="text-[11px] text-gray-400 whitespace-nowrap flex-shrink-0">
+              {{ formatRelativeTime(conv.last_message_at || conv.updated_at) }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= TAB 3: THÔNG BÁO (ALERTS) ================= -->
+      <div v-else-if="currentTab === 'alerts'" class="space-y-4">
+        <div v-if="loadingFeed && page === 1 && alertItems.length === 0" class="text-center py-12 text-xs text-gray-400">
+          Đang tải thông báo...
+        </div>
+
+        <div v-else-if="alertItems.length === 0" class="flex flex-col items-center justify-center py-16 text-gray-400 space-y-2">
+          <p class="text-4xl text-gray-300 dark:text-slate-600">
+            <BellOutlineIcon class="w-12 h-12 stroke-[1.5]" />
+          </p>
+          <p class="text-sm font-medium">Không có thông báo nào</p>
+          <p class="text-xs text-gray-500">Thông báo về kèo đấu, giải đấu và CLB sẽ hiển thị tại đây.</p>
+        </div>
+
+        <div v-else class="space-y-2.5">
+          <div
+            v-for="alert in alertItems"
+            :key="alert.id"
+            @click="handleAlertClick(alert)"
+            :class="[
+              'p-4 rounded-2xl border transition cursor-pointer shadow-sm hover:shadow',
+              alert.read_at
+                ? 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800 text-gray-600 dark:text-slate-300'
+                : 'bg-red-50/40 dark:bg-slate-800/80 border-red-200 dark:border-red-950/60 text-gray-900 dark:text-white font-medium'
+            ]"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex items-start gap-3.5 min-w-0">
+                <!-- Heroicon Badge Container -->
+                <div :class="['w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs', getAlertBadgeClass(alert)]">
+                  <component :is="getAlertIcon(alert)" class="w-5 h-5" />
+                </div>
+
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2">
+                    <h4 class="font-bold text-sm">{{ parseAlert(alert).title }}</h4>
+                    <span
+                      v-if="!alert.read_at"
+                      class="w-2 h-2 rounded-full bg-[#D72D36] flex-shrink-0"
+                    />
+                  </div>
+                  <p class="text-xs text-gray-600 dark:text-slate-300 mt-1 leading-relaxed">
+                    {{ parseAlert(alert).message }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex flex-col items-end gap-2.5 flex-shrink-0">
+                <span class="text-[11px] text-gray-400 whitespace-nowrap">
+                  {{ formatRelativeTime(alert.created_at) }}
+                </span>
+
+                <!-- Quick actions -->
+                <div class="flex items-center gap-1.5" @click.stop>
+                  <button
+                    v-if="!alert.read_at"
+                    @click.stop="markOneAsRead(alert.id)"
+                    class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xs transition"
+                    title="Đánh dấu đã đọc"
+                  >
+                    <CheckIcon class="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Đã đọc</span>
+                  </button>
+                  <button
+                    @click.stop="deleteOneAlert(alert.id)"
+                    class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 border border-transparent rounded-lg transition"
+                    title="Xóa thông báo"
+                  >
+                    <TrashIcon class="w-3.5 h-3.5" />
+                    <span>Xóa</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= TAB 1: TẤT CẢ (ALL) ================= -->
+      <div v-else class="space-y-4">
+        <!-- Pinned Card for Strangers in Tab All as well -->
+        <div
+          v-if="strangersSummary && strangersSummary.unread_count > 0"
+          @click="isStrangersModalOpen = true"
+          class="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 hover:border-amber-400 cursor-pointer shadow-sm transition flex items-center justify-between"
+        >
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300 flex items-center justify-center flex-shrink-0 shadow-xs">
+              <EnvelopeIcon class="w-5 h-5" />
+            </div>
+            <div>
+              <h4 class="font-bold text-xs text-amber-900 dark:text-amber-200">
+                Bạn có {{ strangersSummary.unread_count }} tin nhắn từ người lạ
+              </h4>
+              <p class="text-[11px] text-amber-700 dark:text-amber-300">
+                {{ strangersSummary.latest_message }}
+              </p>
+            </div>
+          </div>
+          <span class="text-xs font-bold text-amber-600">Xem ngay →</span>
+        </div>
+
+        <!-- Merged Feed -->
+        <div v-if="loadingFeed && page === 1 && allItems.length === 0" class="text-center py-12 text-xs text-gray-400">
+          Đang tải dữ liệu...
+        </div>
+
+        <div v-else-if="allItems.length === 0" class="flex flex-col items-center py-16 text-gray-400 space-y-2">
+          <p class="flex justify-center text-gray-300 dark:text-slate-600">
+            <InboxIcon class="w-12 h-12 stroke-[1.5]" />
+          </p>
+          <p class="text-sm font-medium">Hộp thư trống</p>
+        </div>
+
+        <div v-else class="space-y-2.5">
+          <div
+            v-for="item in allItems"
+            :key="item.id"
+            @click="handleUnifiedItemClick(item)"
+            class="flex items-center justify-between p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 hover:border-gray-300 dark:hover:border-slate-700 cursor-pointer shadow-sm hover:shadow transition"
+          >
+            <!-- Conversation Item -->
+            <template v-if="item.item_type === 'conversation'">
+              <div class="flex items-center gap-3.5 min-w-0 pr-3">
+                <div class="relative flex-shrink-0">
+                  <img
+                    :src="item.data?.avatar_url || '/images/default-avatar.png'"
+                    class="w-12 h-12 rounded-full object-cover border border-gray-200 dark:border-slate-700"
+                    @error="$event.target.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(item.data?.title || 'Chat')"
+                  />
+                  <span
+                    v-if="item.data?.unread_count > 0"
+                    class="absolute -top-1 -right-1 bg-[#D72D36] text-white font-extrabold text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow"
+                  >
+                    {{ item.data.unread_count }}
+                  </span>
+                </div>
+
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2">
+                    <h4 class="font-bold text-sm truncate">{{ item.data?.title }}</h4>
+                    <span
+                      v-if="item.data?.context_tag"
+                      class="bg-gray-100 dark:bg-slate-800 text-[#D72D36] text-[10px] font-semibold px-2 py-0.5 rounded-full truncate"
+                    >
+                      {{ item.data.context_tag }}
+                    </span>
+                    <span
+                      v-if="item.data?.is_blocked_by_me"
+                      class="bg-gray-100 dark:bg-slate-800 text-gray-500 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                    >
+                      Đã chặn
+                    </span>
+                  </div>
+                  <p class="text-xs text-gray-500 dark:text-slate-400 truncate mt-1">
+                    {{ item.data?.last_message?.content || 'Đã gửi một tin nhắn' }}
+                  </p>
+                </div>
+              </div>
+
+              <span class="text-[11px] text-gray-400 whitespace-nowrap flex-shrink-0">
+                {{ formatRelativeTime(item.timestamp) }}
+              </span>
+            </template>
+
+            <!-- Alert Item -->
+            <template v-else>
+              <div class="flex items-start gap-3.5 min-w-0 pr-3">
+                <!-- Heroicon Badge Container -->
+                <div :class="['w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs', getAlertBadgeClass(item.data)]">
+                  <component :is="getAlertIcon(item.data)" class="w-5 h-5" />
+                </div>
+
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2">
+                    <h4 class="font-bold text-sm">{{ parseAlert(item.data).title }}</h4>
+                    <span
+                      v-if="!item.data?.read_at"
+                      class="w-2 h-2 rounded-full bg-[#D72D36] flex-shrink-0"
+                    />
+                  </div>
+                  <p class="text-xs text-gray-500 dark:text-slate-400 truncate mt-1">
+                    {{ parseAlert(item.data).message }}
+                  </p>
+                </div>
+              </div>
+
+              <span class="text-[11px] text-gray-400 whitespace-nowrap flex-shrink-0">
+                {{ formatRelativeTime(item.timestamp) }}
+              </span>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- Load More Button -->
+      <div v-if="hasMore" class="flex justify-center pt-2 pb-6">
+        <button
+          @click="loadMore"
+          :disabled="loadingMore"
+          class="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 shadow-sm transition disabled:opacity-50"
+        >
+          <span v-if="loadingMore">Đang tải thêm...</span>
+          <span v-else>Xem thêm thông báo & tin nhắn</span>
+        </button>
       </div>
     </div>
+
+    <!-- Modals -->
+    <StrangersQueueModal
+      :isOpen="isStrangersModalOpen"
+      @close="isStrangersModalOpen = false"
+    />
+
+    <ChatBlockedUsersModal
+      :isOpen="isBlockedModalOpen"
+      @close="isBlockedModalOpen = false"
+      @unblocked="handleUserUnblocked"
+    />
   </div>
 </template>
 
 <script setup>
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import { useRouter } from "vue-router";
 import {
   CheckIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
-  InformationCircleIcon
-} from '@heroicons/vue/24/solid'
-import { TrashIcon } from '@heroicons/vue/24/outline'
+  InformationCircleIcon,
+  TrophyIcon,
+  UserGroupIcon,
+  UserIcon,
+  EnvelopeIcon,
+  BellIcon,
+  MagnifyingGlassIcon,
+  XMarkIcon,
+  NoSymbolIcon,
+} from "@heroicons/vue/24/solid";
+import {
+  BellIcon as BellOutlineIcon,
+  ChatBubbleOvalLeftEllipsisIcon,
+  InboxIcon,
+  TrashIcon,
+} from "@heroicons/vue/24/outline";
+import { toast } from "vue3-toastify";
+import { inboxService } from "@/service/chat.js";
+import * as NotificationService from "@/service/notifications.js";
+import { useChatStore } from "@/store/chat.js";
+import { useUserStore } from "@/store/auth.js";
+import StrangersQueueModal from "@/components/chat/StrangersQueueModal.vue";
+import ChatBlockedUsersModal from "@/components/chat/ChatBlockedUsersModal.vue";
 
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import * as NotificationService from '@/service/notifications'
-import { toast } from 'vue3-toastify'
+const router = useRouter();
+const chatStore = useChatStore();
+const userStore = useUserStore();
 
-/* ================= ROUTER ================= */
-const router = useRouter()
+const currentTab = ref("all"); // 'all', 'messages', 'alerts'
+const isUnreadOnly = ref(false);
+const loadingFeed = ref(false);
+const loadingMore = ref(false);
+const page = ref(1);
+const hasMore = ref(false);
 
-/* ================= STATE ================= */
-const notifications = ref([])
-const unreadCount = ref(0)
-const readCount = ref(0)
-const totalCount = ref(0)
+const feedData = ref({
+  items: [],
+  strangers_summary: null,
+});
 
-const activeFilter = ref('all')
-const page = ref(1)
-const perPage = 15
+const isStrangersModalOpen = ref(false);
+const isBlockedModalOpen = ref(false);
 
-const loading = ref(false)
-const hasMore = ref(true)
-const scrollTrigger = ref(null)
+const handleUserUnblocked = (unblockedUserId) => {
+  feedData.value.items.forEach((item) => {
+    if (item.other_user?.id === unblockedUserId) {
+      item.is_blocked_by_me = false;
+      item.is_blocked = false;
+    }
+    if (item.data?.other_user?.id === unblockedUserId) {
+      item.data.is_blocked_by_me = false;
+      item.data.is_blocked = false;
+    }
+  });
+};
 
-/* ================= HELPERS ================= */
-const formatTime = (date) =>
-  new Date(date).toLocaleString('vi-VN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  })
+// Search state
+const searchQuery = ref("");
+const searching = ref(false);
+const searchResults = ref({
+  conversations: [],
+  alerts: [],
+});
 
-/* ================= PARSE ================= */
-const parseNotification = (n) => {
-  const data = n.data || {}
+const unreadCounts = computed(() => chatStore.unreadCounts);
+const strangersSummary = computed(() => feedData.value.strangers_summary);
 
-  let title = data.title || 'Thông báo'
-  let message = data.message || ''
+const mainTabs = computed(() => [
+  { key: "all", label: "Tất cả", badge: unreadCounts.value.total_unread },
+  { key: "messages", label: "Tin nhắn", badge: unreadCounts.value.messages_unread },
+  { key: "alerts", label: "Thông báo", badge: unreadCounts.value.alerts_unread },
+]);
 
-  switch (n.type) {
-    case 'MiniTournamentMessageNotification':
-    case 'PrivateMessageNotification':
-    case 'TournamentMessageNotification':
-      title = data.sender_name
-        ? `${data.sender_name} đã gửi tin nhắn`
-        : 'Tin nhắn mới'
-      message =
-        data.type === 'image'
-          ? 'Đã gửi một hình ảnh'
-          : data.content || ''
-      break
+const conversationItems = computed(() => {
+  return feedData.value.items || [];
+});
 
-    case 'MiniMatchCreatedNotification':
-    case 'MiniMatchUpdatedNotification':
-    case 'MiniMatchResultConfirmedNotification':
-      title = data.title || 'Cập nhật trận đấu'
-      message = data.message || 'Có cập nhật mới về trận đấu'
-      break
+const alertItems = computed(() => {
+  return feedData.value.items || [];
+});
 
-    case 'MiniTournamentInvitationNotification':
-    case 'MiniTournamentCreatorInvitationNotification':
-    case 'TournamentInvitationNotification':
-      title = data.title || 'Lời mời tham gia'
-      message = data.message || 'Bạn được mời tham gia'
-      break
+const allItems = computed(() => {
+  return feedData.value.items || [];
+});
 
-    case 'MiniTournamentJoinRequestNotification':
-    case 'TournamentJoinRequestNotification':
-      title = 'Yêu cầu tham gia'
-      message = 'Có người gửi yêu cầu tham gia'
-      break
+/**
+ * Chọn Heroicon phù hợp theo từng loại thông báo
+ */
+const getAlertIcon = (alert) => {
+  const type = alert?.type || alert?.data?.type || "";
 
-    case 'MiniTournamentJoinConfirmedNotification':
-    case 'TournamentJoinConfirmedNotification':
-      title = 'Tham gia thành công'
-      message = 'Yêu cầu tham gia của bạn đã được chấp nhận'
-      break
+  if (
+    type.includes("cleanup") ||
+    type.includes("Removed") ||
+    type.includes("Cancelled") ||
+    type.includes("Rejected")
+  ) {
+    return ExclamationTriangleIcon;
+  }
+  if (
+    type.includes("Confirmed") ||
+    type.includes("Approved") ||
+    type.includes("success")
+  ) {
+    return CheckCircleIcon;
+  }
+  if (
+    type.includes("Tournament") ||
+    type.includes("tournament") ||
+    type.includes("Match") ||
+    type.includes("match")
+  ) {
+    return TrophyIcon;
+  }
+  if (type.includes("Club") || type.includes("CLUB")) {
+    return UserGroupIcon;
+  }
+  if (type.includes("Follow") || type.includes("PrivateMessage")) {
+    return UserIcon;
+  }
 
-    case 'MiniTournamentRemovedNotification':
-    case 'TournamentRemovedNotification':
-      title = data.title || 'Giải đấu đã bị hủy'
-      message = data.message || 'Giải đấu không còn tồn tại'
-      break
+  return BellIcon;
+};
 
-    case 'MiniTournamentReminder':
-      title = data.title || 'Nhắc nhở giải đấu'
-      message = data.message || 'Giải đấu sắp diễn ra'
-      break
+/**
+ * Chọn màu nền badge phù hợp theo từng loại thông báo
+ */
+const getAlertBadgeClass = (alert) => {
+  const type = alert?.type || alert?.data?.type || "";
 
-    case 'FollowNotification':
-      title = 'Theo dõi mới'
-      message = 'Có người vừa theo dõi bạn'
-      break
+  if (
+    type.includes("cleanup") ||
+    type.includes("Removed") ||
+    type.includes("Cancelled") ||
+    type.includes("Rejected")
+  ) {
+    return "bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400";
+  }
+  if (
+    type.includes("Confirmed") ||
+    type.includes("Approved") ||
+    type.includes("success")
+  ) {
+    return "bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400";
+  }
+  if (type.includes("Club") || type.includes("CLUB")) {
+    return "bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400";
+  }
+  if (
+    type.includes("Tournament") ||
+    type.includes("tournament") ||
+    type.includes("Match") ||
+    type.includes("match")
+  ) {
+    return "bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400";
+  }
 
-    case 'CLUB_ACTIVITY_PROMOTION':
-      title = data.title || 'Lời mời tham gia sự kiện'
-      message = data.message || 'Bạn được mời tham gia sự kiện'
-      break
+  return "bg-red-100 text-[#D72D36] dark:bg-red-950/60 dark:text-red-400";
+};
 
-    case 'CLUB_PROMOTION':
-      title = data.title || 'Lời mời tham gia CLB'
-      message = data.message || 'Bạn được mời tham gia CLB'
-      break
+/**
+ * Chuẩn hóa title, message và icon cho từng loại thông báo
+ */
+const parseAlert = (raw) => {
+  if (!raw) return { title: "Thông báo", message: "" };
+  const d = raw.data || {};
+  const type = raw.type || "";
 
-    case 'MINI_TOURNAMENT_PROMOTION':
-      title = data.title || 'Lời mời tham gia kèo đấu'
-      message = data.message || 'Bạn được mời tham gia kèo đấu'
-      break
+  let title = d.title || "Thông báo";
+  let message = d.message || d.body || "";
 
-    case 'VerifyEmailNotification':
-      title = 'Xác thực email'
-      message = 'Vui lòng xác thực email của bạn'
-      break
+  switch (type) {
+    case "MiniTournamentMessageNotification":
+    case "PrivateMessageNotification":
+    case "TournamentMessageNotification":
+      title = d.sender_name ? `${d.sender_name} đã gửi tin nhắn` : "Tin nhắn mới";
+      message = d.type === "image" ? "Đã gửi một hình ảnh" : d.content || message;
+      break;
+
+    case "MiniMatchCreatedNotification":
+    case "MiniMatchUpdatedNotification":
+    case "MiniMatchResultConfirmedNotification":
+      title = d.title || "Cập nhật trận đấu";
+      message = d.message || "Có cập nhật mới về trận đấu";
+      break;
+
+    case "MiniTournamentInvitationNotification":
+    case "MiniTournamentCreatorInvitationNotification":
+    case "TournamentInvitationNotification":
+      title = d.title || "Lời mời tham gia";
+      message = d.message || "Bạn được mời tham gia";
+      break;
+
+    case "MiniTournamentJoinRequestNotification":
+    case "TournamentJoinRequestNotification":
+      title = d.title || "Yêu cầu tham gia";
+      message = d.message || "Có người gửi yêu cầu tham gia";
+      break;
+
+    case "MiniTournamentJoinConfirmedNotification":
+    case "TournamentJoinConfirmedNotification":
+      title = d.title || "Tham gia thành công";
+      message = d.message || "Yêu cầu tham gia của bạn đã được chấp nhận";
+      break;
+
+    case "MiniTournamentRemovedNotification":
+    case "TournamentRemovedNotification":
+      title = d.title || "Giải đấu đã bị hủy";
+      message = d.message || "Giải đấu không còn tồn tại";
+      break;
+
+    case "MiniTournamentReminder":
+      title = d.title || "Nhắc nhở giải đấu";
+      message = d.message || "Giải đấu sắp diễn ra";
+      break;
+
+    case "FollowNotification":
+      title = "Theo dõi mới";
+      message = d.message || (d.follower_name ? `${d.follower_name} vừa theo dõi bạn` : "Có người vừa theo dõi bạn");
+      break;
+
+    case "CLUB_ACTIVITY_PROMOTION":
+      title = d.title || "Lời mời tham gia sự kiện";
+      message = d.message || "Bạn được mời tham gia sự kiện";
+      break;
+
+    case "CLUB_PROMOTION":
+      title = d.title || "Lời mời tham gia CLB";
+      message = d.message || "Bạn được mời tham gia CLB";
+      break;
+
+    case "MINI_TOURNAMENT_PROMOTION":
+      title = d.title || "Lời mời tham gia kèo đấu";
+      message = d.message || "Bạn được mời tham gia kèo đấu";
+      break;
+
+    case "VerifyEmailNotification":
+      title = "Xác thực email";
+      message = "Vui lòng xác thực email của bạn";
+      break;
+
+    case "tournament_cleanup":
+      title = d.title || "Kèo đấu đã được xóa tự động";
+      message = d.message || "";
+      break;
+
+    case "tournament_guest_added":
+      title = d.title || "Khách mời được thêm vào giải";
+      message = d.message || "";
+      break;
   }
 
   return {
-    id: n.id,
-    read: !!n.read_at,
-    time: formatTime(n.created_at),
-
-    type: 'info',
+    id: raw.id,
+    type,
     title,
     message,
+    read: !!raw.read_at,
+    read_at: raw.read_at,
+    created_at: raw.created_at,
+    rawData: d,
+  };
+};
 
-    rawType: n.type,
-    rawData: data,
+const loadFeed = async (isFirstPage = true, isSilent = false) => {
+  try {
+    if (isFirstPage) {
+      page.value = 1;
+      if (!isSilent && (!feedData.value.items || feedData.value.items.length === 0)) {
+        loadingFeed.value = true;
+      }
+    } else {
+      loadingMore.value = true;
+    }
+
+    const res = await inboxService.getInbox({
+      tab: currentTab.value,
+      is_unread: isUnreadOnly.value ? 1 : 0,
+      page: page.value,
+      per_page: 25,
+    });
+
+    const data = res.data || { items: [], strangers_summary: null, pagination: {} };
+
+    if (isFirstPage) {
+      feedData.value = {
+        items: data.items || [],
+        strangers_summary: data.strangers_summary || null,
+      };
+    } else {
+      feedData.value.items.push(...(data.items || []));
+      if (data.strangers_summary) {
+        feedData.value.strangers_summary = data.strangers_summary;
+      }
+    }
+
+    const p = data.pagination || {};
+    hasMore.value = p.current_page && p.last_page ? p.current_page < p.last_page : false;
+  } catch (err) {
+    console.error("loadFeed error:", err);
+  } finally {
+    loadingFeed.value = false;
+    loadingMore.value = false;
   }
-}
+};
 
-/* ================= API ================= */
-const loadData = async () => {
-  if (loading.value || !hasMore.value) return
-  loading.value = true
+const loadMore = () => {
+  if (loadingMore.value || !hasMore.value) return;
+  page.value++;
+  loadFeed(false);
+};
 
-  const res = await NotificationService.getNotifications({
-    type: activeFilter.value,
-    page: page.value,
-    per_page: perPage,
-  })
+const changeTab = (tabKey) => {
+  currentTab.value = tabKey;
+  feedData.value.items = [];
+  loadFeed(true, false);
+};
 
-  const items = res.data.notifications.map(parseNotification)
-
-  if (page.value === 1) notifications.value = []
-  notifications.value.push(...items)
-
-  totalCount.value = res.meta.total
-  unreadCount.value = res.meta.unread_count
-  readCount.value = res.meta.read_count
-
-  hasMore.value = page.value < res.meta.last_page
-  loading.value = false
-}
-
-const changeFilter = (filter) => {
-  activeFilter.value = filter
-  page.value = 1
-  hasMore.value = true
-  loadData()
-}
-
-/* ================= ACTIONS ================= */
-const markOneAsRead = async (id) => {
-  await NotificationService.markAsRead(id)
-
-  const item = notifications.value.find(n => n.id === id)
-  if (item && !item.read) {
-    item.read = true
-    unreadCount.value--
-    readCount.value++
-  }
-}
+const toggleUnreadFilter = () => {
+  isUnreadOnly.value = !isUnreadOnly.value;
+  loadFeed(true);
+};
 
 const markAllAsRead = async () => {
-  await NotificationService.markAsRead(null)
-  toast.success('Đã đánh dấu tất cả thông báo là đã đọc')
-
-  notifications.value.forEach(n => (n.read = true))
-  unreadCount.value = 0
-  readCount.value = totalCount.value
-}
-
-const deleteOne = async (id) => {
-  await NotificationService.deleteNotification(id)
-  toast.success('Đã xóa thông báo')
-
-  const item = notifications.value.find(n => n.id === id)
-  if (item) {
-    item.read ? readCount.value-- : unreadCount.value--
-    totalCount.value--
+  try {
+    await inboxService.markAllAsRead(currentTab.value);
+    toast.success("Đã đánh dấu tất cả là đã đọc");
+    await chatStore.fetchUnreadCounts();
+    await loadFeed(true);
+  } catch (err) {
+    console.error("markAllAsRead error:", err);
   }
+};
 
-  notifications.value = notifications.value.filter(n => n.id !== id)
-}
-
-/* ================= CLICK → ROUTE ================= */
-const handleClick = async (notification) => {
-  if (!notification.read) {
-    await markOneAsRead(notification.id)
+const markOneAsRead = async (alertId) => {
+  try {
+    await NotificationService.markAsRead(alertId);
+    // Cập nhật trạng thái item hiện tại
+    const target = feedData.value.items.find((item) => {
+      const id = item.item_type === "alert" ? item.data?.id : item.id;
+      return id === alertId;
+    });
+    if (target) {
+      if (target.item_type === "alert" && target.data) {
+        target.data.read_at = new Date().toISOString();
+      } else {
+        target.read_at = new Date().toISOString();
+      }
+    }
+    await chatStore.fetchUnreadCounts();
+    toast.success("Đã đánh dấu đã đọc");
+  } catch (err) {
+    console.error("markOneAsRead error:", err);
   }
+};
 
-  redirectByType(notification)
-}
+const deleteOneAlert = async (alertId) => {
+  try {
+    await NotificationService.deleteNotification(alertId);
+    feedData.value.items = feedData.value.items.filter((item) => {
+      const id = item.item_type === "alert" ? item.data?.id : item.id;
+      return id !== alertId;
+    });
+    await chatStore.fetchUnreadCounts();
+    toast.success("Đã xóa thông báo");
+  } catch (err) {
+    console.error("deleteOneAlert error:", err);
+  }
+};
 
-const redirectByType = (n) => {
-  const d = n.rawData || {}
+const handleConversationReadLocally = (convId) => {
+  if (!convId) return;
+  const targetId = Number(convId);
+  if (Array.isArray(feedData.value?.items)) {
+    feedData.value.items.forEach((item) => {
+      // Tab "Tất cả": item.item_type === 'conversation', item.data.id === targetId
+      if (item.item_type === "conversation" && item.data && Number(item.data.id) === targetId) {
+        item.data.unread_count = 0;
+      }
+      // Tab "Tin nhắn": item.id === targetId
+      if (Number(item.id) === targetId) {
+        item.unread_count = 0;
+      }
+    });
+  }
+};
 
-  switch (n.rawType) {
-    case 'PrivateMessageNotification':
-      if (!d.sender_id) return
+const handleConversationReadEvent = (e) => {
+  const convId = e?.detail?.conversationId;
+  if (convId) {
+    handleConversationReadLocally(convId);
+  }
+};
+
+const openConversation = (convId) => {
+  handleConversationReadLocally(convId);
+  chatStore.openChat(convId);
+};
+
+const redirectByType = (alertObj) => {
+  const d = alertObj.rawData || alertObj.data || {};
+  const type = alertObj.type || "";
+
+  switch (type) {
+    case "PrivateMessageNotification":
+      if (!d.sender_id) return;
+      router.push({ name: "profile", params: { id: d.sender_id } });
+      break;
+
+    case "TournamentMessageNotification":
+      if (!d.tournament_id) return;
       router.push({
-        name: 'profile',
-        params: { id: d.sender_id }
-      })
-      break
-
-    case 'TournamentMessageNotification':
-      if (!d.tournament_id) return
-      router.push({
-        name: 'tournament-detail',
+        name: "tournament-detail",
         params: { id: d.tournament_id },
-        query: { tab: 'discuss' }
-      })
-      break
+        query: { tab: "discuss" },
+      });
+      break;
 
-    case 'MiniTournamentMessageNotification':
-      if (!d.mini_tournament_id) return
+    case "MiniTournamentMessageNotification":
+      if (!d.mini_tournament_id) return;
       router.push({
-        name: 'mini-tournament-detail',
+        name: "mini-tournament-detail",
         params: { id: d.mini_tournament_id },
-        query: { tab: 'chat' }
-      })
-      break
+        query: { tab: "chat" },
+      });
+      break;
 
-    case 'MiniMatchCreatedNotification':
-      if (!d.mini_tournament_id) return
+    case "MiniMatchCreatedNotification":
+    case "MiniMatchUpdatedNotification":
+      if (!d.mini_tournament_id) return;
       router.push({
-        name: 'mini-tournament-detail',
+        name: "mini-tournament-detail",
         params: { id: d.mini_tournament_id },
-        query: { tab: 'matches' }
-      })
-      break
+        query: { tab: "matches" },
+      });
+      break;
 
-    case 'MiniMatchUpdatedNotification':
-      if (!d.mini_tournament_id) return
+    case "MiniMatchResultConfirmedNotification":
+      if (!d.match_id) return;
       router.push({
-        name: 'mini-tournament-detail',
-        params: { id: d.mini_tournament_id },
-        query: { tab: 'matches' }
-      })
-      break
+        name: "mini-match-verify",
+        params: { id: d.match_id },
+      });
+      break;
 
-    case 'MiniMatchResultConfirmedNotification':
-      if (!d.match_id) return
+    case "MiniTournamentInvitationNotification":
+    case "MiniTournamentJoinConfirmedNotification":
+    case "MiniTournamentCreatorInvitationNotification":
+      if (!d.tournament_id && !d.mini_tournament_id) return;
       router.push({
-        name: 'mini-match-verify',
-        params: { id: d.match_id }
-      })
-      break
+        name: "mini-tournament-detail",
+        params: { id: d.tournament_id || d.mini_tournament_id },
+      });
+      break;
 
-    case 'MiniTournamentInvitationNotification':
-    case 'MiniTournamentJoinConfirmedNotification':
-      if (!d.tournament_id) return
+    case "TournamentInvitationNotification":
+    case "TournamentJoinConfirmedNotification":
+      if (!d.tournament_id) return;
       router.push({
-        name: 'mini-tournament-detail',
-        params: { id: d.tournament_id }
-      })
-      break
+        name: "tournament-detail",
+        params: { id: d.tournament_id },
+      });
+      break;
 
-    case 'TournamentInvitationNotification':
-    case 'TournamentJoinConfirmedNotification':
-      if (!d.tournament_id) return
+    case "ClubRoleChangeNotification":
+    case "ClubInvitationNotification":
+    case "ClubInvitationCancelledNotification":
+    case "ClubInvitationDeclinedNotification":
+    case "ClubJoinRequestApprovedNotification":
+    case "ClubJoinRequestReceivedNotification":
+    case "ClubJoinRequestRejectedNotification":
+    case "ClubMemberKickedNotification":
+    case "ClubNotificationSentNotification":
+    case "ClubRenamedNotification":
+      if (!d.club_id) return;
       router.push({
-        name: 'tournament-detail',
-        params: { id: d.tournament_id }
-      })
-      break
-    
-    case 'ClubRoleChangeNotification':
-    case 'ClubInvitationNotification':
-    case 'ClubInvitationCancelledNotification':
-    case 'ClubInvitationDeclinedNotification':
-    case 'ClubJoinRequestApprovedNotification':
-    case 'ClubJoinRequestReceivedNotification':
-    case 'ClubJoinRequestRejectedNotification':
-    case 'ClubMemberKickedNotification':
-    case 'ClubNotificationSentNotification':
-    case 'ClubRenamedNotification':
-      if (!d.club_id) return
-      router.push({
-        name: 'club-detail',
+        name: "club-detail",
         params: { id: d.club_id },
-        query: { showNotifications: true }
-      })
-      break
-    
-    case 'ClubActivityCancelledNotification':
-    case 'ClubActivityInvitationNotification':
-    case 'ClubActivityJoinApprovedNotification':
-    case 'ClubActivityJoinRejectedNotification':
-    case 'ClubActivityJoinRequestNotification':
-      if (!d.club_id || !d.club_activity_id) return
+        query: { showNotifications: true },
+      });
+      break;
 
+    case "ClubActivityCancelledNotification":
+    case "ClubActivityInvitationNotification":
+    case "ClubActivityJoinApprovedNotification":
+    case "ClubActivityJoinRejectedNotification":
+    case "ClubActivityJoinRequestNotification":
+      if (!d.club_id || !d.club_activity_id) return;
       router.push({
-        name: 'club-detail-activity',
-        params: { id: d.club_id, activityId: d.club_activity_id }
-      })
-      break
+        name: "club-detail-activity",
+        params: { id: d.club_id, activityId: d.club_activity_id },
+      });
+      break;
 
-    case 'ClubFundCollectionCreatedNotification':
-    case 'ClubFundCollectionReminderNotification':
-    case 'ClubFundContributionApprovedNotification':
-    case 'ClubFundContributionRejectedNotification':
-    case 'ClubFundContributionSubmittedNotification':
-      if (!d.club_id || !d.club_fund_collection_id) return
-
+    case "ClubFundCollectionCreatedNotification":
+    case "ClubFundCollectionReminderNotification":
+    case "ClubFundContributionApprovedNotification":
+    case "ClubFundContributionRejectedNotification":
+    case "ClubFundContributionSubmittedNotification":
+      if (!d.club_id || !d.club_fund_collection_id) return;
       router.push({
-        name: 'club-fund',
+        name: "club-fund",
         params: { id: d.club_id },
-        query: { 
+        query: {
           collectionId: d.club_fund_collection_id,
-          contributionId: d.club_fund_contribution_id
-        }
-      })
-      break
+          contributionId: d.club_fund_contribution_id,
+        },
+      });
+      break;
 
-    case 'CLUB_ACTIVITY_PROMOTION':
-      if (!d.club_id || !d.club_activity_id) return
+    case "CLUB_ACTIVITY_PROMOTION":
+      if (!d.club_id || !d.club_activity_id) return;
       router.push({
-        name: 'club-detail-activity',
-        params: { id: d.club_id, activityId: d.club_activity_id }
-      })
-      break
+        name: "club-detail-activity",
+        params: { id: d.club_id, activityId: d.club_activity_id },
+      });
+      break;
 
-    case 'CLUB_PROMOTION':
-      if (!d.club_id) return
+    case "CLUB_PROMOTION":
+      if (!d.club_id) return;
       router.push({
-        name: 'club-detail',
-        params: { id: d.club_id }
-      })
-      break
+        name: "club-detail",
+        params: { id: d.club_id },
+      });
+      break;
 
-    case 'CLUB_TOURNAMENT_CREATED':
-      if (!d.tournament_id) return
-      if (d.tournament_type === 'mini_tournament') {
+    case "CLUB_TOURNAMENT_CREATED":
+      if (!d.tournament_id) return;
+      if (d.tournament_type === "mini_tournament") {
         router.push({
-          name: 'mini-tournament-detail',
-          params: { id: d.tournament_id }
-        })
+          name: "mini-tournament-detail",
+          params: { id: d.tournament_id },
+        });
       } else {
         router.push({
-          name: 'tournament-detail',
-          params: { id: d.tournament_id }
-        })
+          name: "tournament-detail",
+          params: { id: d.tournament_id },
+        });
       }
-      break
+      break;
 
-    case 'MINI_TOURNAMENT_PROMOTION':
-      if (!d.mini_tournament_id) return
+    case "MINI_TOURNAMENT_PROMOTION":
+      if (!d.mini_tournament_id) return;
       router.push({
-        name: 'mini-tournament-detail',
-        params: { id: d.mini_tournament_id }
-      })
-      break
+        name: "mini-tournament-detail",
+        params: { id: d.mini_tournament_id },
+      });
+      break;
 
     default:
-      router.push({ name: 'notifications' })
+      if (d.tournament_id) {
+        router.push(`/tournament/${d.tournament_id}`);
+      } else if (d.mini_tournament_id) {
+        router.push(`/mini-tournament/${d.mini_tournament_id}`);
+      } else if (d.club_id) {
+        router.push(`/club/${d.club_id}`);
+      } else if (d.sender_id || d.user_id) {
+        router.push(`/profile/${d.sender_id || d.user_id}`);
+      }
   }
-}
+};
 
-/* ================= SCROLL ================= */
-let observer = null
+const handleAlertClick = async (alert) => {
+  const parsed = parseAlert(alert);
+  if (!parsed.read && parsed.id) {
+    try {
+      await NotificationService.markAsRead(parsed.id);
+      alert.read_at = new Date().toISOString();
+      chatStore.fetchUnreadCounts();
+    } catch {}
+  }
+  redirectByType(parsed);
+};
+
+const handleUnifiedItemClick = (item) => {
+  if (item.item_type === "conversation") {
+    openConversation(item.data.id);
+  } else {
+    handleAlertClick(item.data);
+  }
+};
+
+let searchDebounce = null;
+const onSearchInput = () => {
+  clearTimeout(searchDebounce);
+  if (!searchQuery.value.trim()) {
+    searchResults.value = { conversations: [], alerts: [] };
+    return;
+  }
+
+  searchDebounce = setTimeout(async () => {
+    try {
+      searching.value = true;
+      const res = await inboxService.search(searchQuery.value.trim());
+      searchResults.value = res.data || { conversations: [], alerts: [] };
+    } catch (err) {
+      console.error("search error:", err);
+    } finally {
+      searching.value = false;
+    }
+  }, 300);
+};
+
+const clearSearch = () => {
+  searchQuery.value = "";
+  searchResults.value = { conversations: [], alerts: [] };
+};
+
+const formatRelativeTime = (timeStr) => {
+  if (!timeStr) return "";
+  try {
+    const d = new Date(timeStr);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return "Vừa xong";
+    if (diffMins < 60) return `${diffMins} phút trước`;
+    if (diffHours < 24) return `${diffHours} giờ trước`;
+    if (diffDays < 7) return `${diffDays} ngày trước`;
+
+    return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+  } catch {
+    return timeStr;
+  }
+};
+
+const handleRealtimeConversationUpdated = (e) => {
+  chatStore.fetchUnreadCounts();
+  const conv = e?.detail?.conversation;
+  const unreadCount = e?.detail?.unread_count ?? 0;
+  if (!conv || !Array.isArray(feedData.value?.items)) {
+    loadFeed(true, true);
+    return;
+  }
+
+  // Nếu cuộc trò chuyện này đang được mở bởi chính người dùng, unread_count hiển thị trên list sẽ là 0
+  const isThisChatCurrentlyOpen = chatStore.isChatOpen && Number(chatStore.activeConversation?.id) === Number(conv.id);
+  const effectiveUnreadCount = isThisChatCurrentlyOpen ? 0 : unreadCount;
+
+  // 1. Cập nhật trong tab "Tin nhắn" (items chứa conversation objects)
+  const idxInMessages = feedData.value.items.findIndex(
+    (item) => Number(item.id) === Number(conv.id)
+  );
+
+  // 2. Cập nhật trong tab "Tất cả" (items chứa { item_type: 'conversation', data: conv })
+  const idxInAll = feedData.value.items.findIndex(
+    (item) => item.item_type === "conversation" && Number(item.data?.id) === Number(conv.id)
+  );
+
+  if (idxInMessages !== -1) {
+    const existing = feedData.value.items[idxInMessages];
+    feedData.value.items.splice(idxInMessages, 1);
+    const updated = {
+      ...existing,
+      ...conv,
+      unread_count: effectiveUnreadCount,
+      last_message: conv.last_message || existing.last_message,
+      last_message_at: conv.last_message_at || new Date().toISOString(),
+    };
+    feedData.value.items.unshift(updated);
+  } else if (idxInAll !== -1) {
+    const existingWrapper = feedData.value.items[idxInAll];
+    feedData.value.items.splice(idxInAll, 1);
+    const updatedWrapper = {
+      ...existingWrapper,
+      sort_time: Date.now(),
+      timestamp: new Date().toISOString(),
+      data: {
+        ...existingWrapper.data,
+        ...conv,
+        unread_count: effectiveUnreadCount,
+        last_message: conv.last_message || existingWrapper.data?.last_message,
+        last_message_at: conv.last_message_at || new Date().toISOString(),
+      },
+    };
+    feedData.value.items.unshift(updatedWrapper);
+  } else {
+    // Hội thoại chưa có trong trang 1 -> Tải ngầm không làm gián đoạn UI
+    loadFeed(true, true);
+  }
+};
+
+const handleRepliedStranger = () => {
+  chatStore.fetchUnreadCounts();
+  loadFeed(true, true);
+};
 
 onMounted(() => {
-  loadData()
+  chatStore.fetchUnreadCounts();
+  loadFeed(true);
 
-  if (scrollTrigger.value) {
-    observer = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore.value && !loading.value) {
-        page.value++
-        loadData()
-      }
-    }, { rootMargin: '100px' })
+  // Listen to custom window events from chatStore
+  window.addEventListener("chat:replied-stranger", handleRepliedStranger);
+  window.addEventListener("chat:conversation-updated", handleRealtimeConversationUpdated);
+  window.addEventListener("chat:conversation-read", handleConversationReadEvent);
 
-    observer.observe(scrollTrigger.value)
+  // Listen to user socket channel for real-time conversation updates
+  const userId = userStore.getUser?.id;
+  if (userId) {
+    chatStore.listenUserChannel(userId);
   }
-})
+});
 
-onUnmounted(() => {
-  if (observer && scrollTrigger.value) {
-    observer.unobserve(scrollTrigger.value)
-    observer.disconnect()
-  }
-})
-
-/* ================= UI ================= */
-const getIcon = (type) => {
-  return {
-    success: CheckCircleIcon,
-    warning: ExclamationTriangleIcon,
-    info: InformationCircleIcon,
-  }[type] || InformationCircleIcon
-}
-
-const getNotificationClass = (n) => {
-  if (n.read) return 'bg-white dark:bg-[#161F33]/60 border border-gray-100 dark:border-slate-800/80 text-gray-900 dark:text-slate-100'
-
-  return {
-    success: 'bg-green-50 dark:bg-emerald-950/40 border-l-4 border-green-500 dark:border-emerald-500 text-gray-900 dark:text-slate-100 border-y border-r border-transparent dark:border-slate-800',
-    warning: 'bg-yellow-50 dark:bg-amber-950/40 border-l-4 border-yellow-500 dark:border-amber-500 text-gray-900 dark:text-slate-100 border-y border-r border-transparent dark:border-slate-800',
-    info: 'bg-[#F0F7FF] dark:bg-slate-800 border-l-4 border-blue-500 dark:border-red-500 text-gray-900 dark:text-slate-100 border-y border-r border-transparent dark:border-slate-700/80 shadow-md dark:shadow-none',
-  }[n.type]
-}
-
-const filterTabs = computed(() => [
-  { value: 'all', label: 'Tất cả', count: totalCount.value },
-  { value: 'unread', label: 'Chưa đọc', count: unreadCount.value },
-  { value: 'read', label: 'Đã đọc', count: readCount.value },
-])
+onBeforeUnmount(() => {
+  window.removeEventListener("chat:replied-stranger", handleRepliedStranger);
+  window.removeEventListener("chat:conversation-updated", handleRealtimeConversationUpdated);
+  window.removeEventListener("chat:conversation-read", handleConversationReadEvent);
+});
 </script>

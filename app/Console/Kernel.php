@@ -139,6 +139,12 @@ class Kernel extends ConsoleKernel
             ->dailyAt('02:30')
             ->runInBackground();
 
+        // === Auto-archive inactive chat groups (daily at 02:20) ===
+        $schedule->command('chat:auto-archive-inactive --days=30')
+            ->dailyAt('02:20')
+            ->withoutOverlapping(1800)
+            ->runInBackground();
+
         // === Device token cleanup (daily) ===
         $schedule->command('device-tokens:cleanup-stale --days=60')
             ->dailyAt('03:30')

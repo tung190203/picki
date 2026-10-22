@@ -223,7 +223,7 @@ Mỗi phần tử trong `members`:
 
 Trận `bye` (`is_bye = 1`) thì không bao giờ được trả.
 
-> **Realtime không phát sự kiện cho các trận này.** Payload `tournament.score_updated` chỉ gồm trận đã xác định đủ 2 đội, nên tên đội / nút "Phát" của trận vòng trong chỉ cập nhật khi FE gọi lại `GET /api/livescore/tournaments/{id}/matches` (màn `/tools/livescore` đã debounce ~1.5s rồi gọi lại).
+> **Realtime không phát sự kiện cho các trận này.** Payload `tournament.score_updated` chỉ gồm trận đã xác định đủ 2 đội. Tên đội của trận chỉ có **1 đội** (vòng trong chưa đủ) được cập nhật qua event riêng `tournament.advanced` — xem [mục dưới](#sự-kiện-tournamentadvanced--đội-vừa-điền-vào-vòng-trong). Nếu vẫn cần đồng bộ toàn bộ trạng thái (ngoài tỉ số và tên đội), gọi lại `GET /api/livescore/tournaments/{id}/matches`.
 
 > **Màn chiếu không mở được với trận `TBD`** vì cần cả 2 đội — FE nên ẩn nút "Phát" cho các trận này.
 
@@ -244,8 +244,8 @@ Sau khi gọi `GET /api/livescore/tournaments`, FE subscribe kênh `tournament.{
 |---|---|
 | Broadcaster | Pusher (qua `laravel-echo` + `pusher-js`) |
 | Kênh | `tournament.{tournament_id}` — **public channel** (`Echo.channel`), không cần auth cho kênh này |
-| Tên sự kiện (server) | `tournament.score_updated` |
-| Tên sự kiện (client) | `.tournament.score_updated` (có dấu `.` đầu vì event dùng `broadcastAs`, không có namespace) |
+| Tên sự kiện (server) | `tournament.score_updated`, `tournament.advanced` |
+| Tên sự kiện (client) | `.tournament.score_updated`, `.tournament.advanced` (có dấu `.` đầu vì event dùng `broadcastAs`, không có namespace) |
 | Chế độ phát | `ShouldBroadcastNow` — phát đồng bộ, không qua queue |
 
 Ví dụ subscribe:
@@ -257,8 +257,14 @@ channel.listen('.tournament.score_updated', (payload) => {
   // payload.matches: snapshot tỉ số hiện tại của các trận trong giải
 });
 
+// Đội vừa được điền vào vòng trong (sau khi BTC xác nhận trận vòng trước)
+channel.listen('.tournament.advanced', (payload) => {
+  // payload.matches: danh sách trận vòng sau + tên đội/member
+});
+
 // Khi rời màn:
 channel.stopListening('.tournament.score_updated');
+channel.stopListening('.tournament.advanced');
 ```
 
 **Khi nào server phát event:** mỗi lần tỉ số/trạng thái trận của giải thay đổi (bắt đầu trận, cộng/trừ điểm, đổi set, kết thúc...), phát từ `MatchScoreService` và `MatchesController`. Mỗi lần phát đều gửi **snapshot toàn giải**, không phải delta, nên FE chỉ cần ghi đè theo `match_id`.
@@ -314,8 +320,101 @@ channel.stopListening('.tournament.score_updated');
 
 - Subscribe kênh `tournament.{id}` **chỉ khi người dùng đang xem giải đó** → tránh nhận nhiễm.
 - So sánh `payload.matches[].version` với `version` của trận trong list: nếu `payload.version < list.version` thì bỏ qua event.
-- Payload có `status` / `is_finished` → ghi đè thẳng. Vẫn nên gọi lại `GET /api/livescore/tournaments/{id}/matches` (debounce ~1.5s) để đồng bộ các field khác (ví dụ `round`, `scheduled_at`, tên đội của trận vòng trong vừa được BTC xác định) và phòng trường hợp socket rớt.
+- Ghi đè thẳng `status` / `is_finished` — không cần gọi lại API để đồng bộ 2 field này.
+- Tên đội của trận vòng trong vừa được BTC xác định đi qua event `.tournament.advanced` (mục dưới) → không cần debounce gọi lại `/matches`.
 - Trạng thái kết nối Pusher: `Echo.connector.pusher.connection.bind('state_change', ...)` → hiển thị badge "Realtime" / "Mất kết nối" cho BTC.
+
+---
+
+### Sự kiện `tournament.advanced` — đội vừa điền vào vòng trong
+
+| Thuộc tính | Giá trị |
+|---|---|
+| Kênh | `tournament.{tournament_id}` — **cùng channel** với `tournament.score_updated`, không cần subscribe thêm |
+| Tên sự kiện (server) | `tournament.advanced` |
+| Tên sự kiện (client) | `.tournament.advanced` |
+| Chế độ phát | `ShouldBroadcastNow` |
+| Event class | `app/Events/TournamentAdvanced.php` |
+| Bắn từ | `MatchesController::confirmResult()` và `MatchesController::advanceTeamManual()` |
+
+**Payload:**
+
+```json
+{
+  "tournament_id": 1358,
+  "trigger_match_id": 13012,
+  "matches": [
+    {
+      "match_id": 12704,
+      "round": 2,
+      "team1": {
+        "id": 1852,
+        "name": "Đội số 1",
+        "members": [
+          {
+            "id": 58,
+            "full_name": "Thang Tagz",
+            "name": "Thang Tagz",
+            "avatar_url": "https://picki.vn/storage/avatars/xxx.jpg",
+            "avatar": "https://picki.vn/storage/avatars/xxx.jpg",
+            "is_guest": false
+          }
+        ]
+      },
+      "team2": {
+        "id": 1854,
+        "name": "Đội số 3",
+        "members": []
+      }
+    }
+  ]
+}
+```
+
+| Field | Kiểu | Mô tả |
+|---|---|---|
+| `tournament_id` | int | ID giải — trùng với `{id}` của kênh |
+| `trigger_match_id` | int | Trận vừa chốt kết quả, làm sinh ra event này |
+| `matches` | array | Các trận vòng **sau** vòng của `trigger_match_id`, đã có ít nhất 1 đội |
+| `matches[].match_id` | int | ID trận — khớp với `match_id` trong response `/matches` |
+| `matches[].round` | int | Vòng của trận đó |
+| `matches[].team1` | object | Đội nhà — shape **giống hệt** `team1` trong response `/matches` |
+| `matches[].team2` | object | Đội khách — shape giống `team2` trong response `/matches` |
+
+**Về shape của `team1` / `team2`:**
+
+- Được tạo bằng đúng hàm `LivescorePickerController::formatPickerTeam()` mà API `/matches` dùng → payload và response API **cùng cấu trúc**, FE có thể `replace` thẳng mà không mất field.
+- Trận chỉ mới có **1 đội** (điển hình là bán kết ngay sau khi chốt vòng bảng) → đội còn lại là shape TBD: `{ "id": null, "name": "TBD", "members": [] }`, **không phải** `null`.
+- `members` gồm cả user thật (`is_guest: false`) và guest (`is_guest: true`) — dùng cho hiển thị tên/avatar người chơi và tìm kiếm theo tên trên màn picker.
+
+**Cách FE áp dụng payload:** với mỗi phần tử trong `matches`, tìm trận trùng `match_id` trong list của giải rồi ghi đè `team1` / `team2` **nếu `id` khác `null`** (bỏ qua shape TBD để không xoá mất đội đang có). Trận không có trong list thì bỏ qua.
+
+```js
+const isKnown = (t) => t && t.id != null; // TBD = chưa có đội, bỏ qua
+
+const applyAdvanced = (payload) => {
+  const list = matchesByTournament[payload.tournament_id];
+  if (!list?.length) return;
+
+  const byId = new Map(payload.matches.map((r) => [r.match_id, r]));
+  let touched = false;
+
+  for (const m of list) {
+    const row = byId.get(m.match_id);
+    if (!row) continue;
+    if (isKnown(row.team1)) { m.team1 = row.team1; touched = true; }
+    if (isKnown(row.team2)) { m.team2 = row.team2; touched = true; }
+  }
+
+  if (touched) matchesByTournament[payload.tournament_id] = [...list];
+};
+```
+
+**Lưu ý:**
+- Chỉ gửi trận có `round > round(trigger_match_id)` — trận vừa ghi đội thắng vào đó đã đi qua `tournament.score_updated`, không gửi lại.
+- Payload này **không** đồng bộ các field khác của trận (`round`, `scheduled_at`, `status`…) — nếu cần thì gọi lại `/matches`.
+- Trận BTC **tạo mới** không có trong list sẽ không được patch (event không mang phần tử mới). Hiện BTC tạo trận ở màn khác nên không ảnh hưởng; nếu sau này cho tạo trận ngay trong `/tools/livescore` thì cần bắn thêm event khi tạo.
+- Màn chiếu `/live-score/...` **không** nghe event này (chỉ nghe `score_updated`) — trận vòng trong sẽ chỉ cập nhật tên khi màn chiếu được mở lại / refetch.
 
 ---
 

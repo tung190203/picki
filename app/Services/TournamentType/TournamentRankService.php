@@ -6,6 +6,7 @@ use App\Models\Matches;
 use App\Models\PoolAdvancementRule;
 use App\Models\TournamentType;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Service tính rank tổng (overall_rank + rank_label) cho teams trong tournament.
@@ -29,6 +30,13 @@ use Illuminate\Support\Collection;
  */
 class TournamentRankService
 {
+    /**
+     * Cache key prefix cho rank theo tournament (xem bestRanksForTournament).
+     */
+    private const CACHE_PREFIX = 'tournament:ranks:';
+
+    private const CACHE_TTL_MINUTES = 10;
+
     public function __construct(
         private \App\Services\TournamentType\BracketService $bracketService,
         private \App\Services\TournamentType\StandingsService $standingsService,
@@ -72,6 +80,50 @@ class TournamentRankService
             'group_rankings' => $groupRankings,
             'overall_rankings' => $overallRankings,
         ];
+    }
+
+    /**
+     * Rank tốt nhất của mỗi team trong toàn bộ tournament (gộp nhiều tournament_type).
+     *
+     * Mirror logic merge của LeaderboardController: team thuộc nhiều type thì lấy
+     * rank nhỏ nhất (thứ hạng tốt nhất).
+     *
+     * Có cache vì compute() rất nặng (load toàn bộ matches + results mỗi type).
+     *
+     * @return array<int, array{overall_rank: int, rank_label: string, is_champion: bool}>
+     *         key = team_id
+     */
+    public function bestRanksForTournament(int $tournamentId): array
+    {
+        $cacheKey = self::CACHE_PREFIX . $tournamentId;
+
+        return Cache::remember($cacheKey, now()->addMinutes(self::CACHE_TTL_MINUTES), function () use ($tournamentId) {
+            $typeIds = TournamentType::where('tournament_id', $tournamentId)->pluck('id');
+            if ($typeIds->isEmpty()) {
+                return [];
+            }
+
+            $merged = [];
+            foreach ($typeIds as $typeId) {
+                foreach ($this->rankLabelsByTeam((int) $typeId) as $teamId => $info) {
+                    $currentRank = $merged[$teamId]['overall_rank'] ?? null;
+
+                    if ($currentRank === null || $info['overall_rank'] < $currentRank) {
+                        $merged[$teamId] = $info;
+                    }
+                }
+            }
+
+            return $merged;
+        });
+    }
+
+    /**
+     * Xoá cache rank của tournament sau khi có kết quả trận mới.
+     */
+    public static function forgetTournament(int $tournamentId): void
+    {
+        Cache::forget(self::CACHE_PREFIX . $tournamentId);
     }
 
     /**
@@ -664,7 +716,10 @@ class TournamentRankService
         });
 
         $thirdPlaceMatch = $knockoutMatches->first(function ($m) {
-            return ($m->is_third_place ?? false) === true;
+            // Không dùng `=== true`: matches.is_third_place không có boolean cast
+            // nên PDO trả về 1 (int), khiến trận hạng 3 không được nhận ra và
+            // cả 2 đội thua bán kết đều bị gán hạng 3.
+            return (bool) ($m->is_third_place ?? false);
         });
         $hasThirdPlace = $thirdPlaceMatch !== null && $thirdPlaceMatch->status === 'completed';
 

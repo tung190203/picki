@@ -12,6 +12,13 @@ axiosInstance.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Gắn socket_id để Laravel broadcast(...)->toOthers() loại trừ người gửi
+    if (typeof window !== "undefined" && window.Echo && typeof window.Echo.socketId === "function") {
+      const socketId = window.Echo.socketId();
+      if (socketId) {
+        config.headers["X-Socket-ID"] = socketId;
+      }
+    }
     // FormData: để axios tự gắn multipart boundary (tránh Content-Type sai làm mất file)
     if (config.data instanceof FormData && config.headers) {
       const h = config.headers;
