@@ -26,13 +26,22 @@
       <!-- Đội 1 -->
       <div class="flex-1 min-w-0 flex items-center gap-2 sm:gap-3">
         <span class="hidden sm:flex w-6 h-6 rounded-md ls-team-badge-a text-[10.5px] font-bold items-center justify-center shrink-0">A</span>
-        <span
-          class="text-[14px] sm:text-[15px] font-bold truncate"
-          :class="teamNameClass(1)"
-          :title="match.team1?.name"
-        >
-          {{ match.team1?.name || 'Đội A' }}
-        </span>
+        <div class="min-w-0">
+          <span
+            class="block text-[14px] sm:text-[15px] font-bold truncate"
+            :class="teamNameClass(1)"
+            :title="match.team1?.name"
+          >
+            {{ match.team1?.name || 'Đội A' }}
+          </span>
+          <span
+            v-if="membersText(1)"
+            class="block text-[11px] ls-text-muted truncate"
+            :title="membersText(1)"
+          >
+            {{ membersText(1) }}
+          </span>
+        </div>
       </div>
 
       <!-- Tỉ số -->
@@ -48,13 +57,22 @@
 
       <!-- Đội 2 -->
       <div class="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 justify-end">
-        <span
-          class="text-[14px] sm:text-[15px] font-bold truncate"
-          :class="teamNameClass(2)"
-          :title="match.team2?.name"
-        >
-          {{ match.team2?.name || 'Đội B' }}
-        </span>
+        <div class="min-w-0 text-right">
+          <span
+            class="block text-[14px] sm:text-[15px] font-bold truncate"
+            :class="teamNameClass(2)"
+            :title="match.team2?.name"
+          >
+            {{ match.team2?.name || 'Đội B' }}
+          </span>
+          <span
+            v-if="membersText(2)"
+            class="block text-[11px] ls-text-muted truncate"
+            :title="membersText(2)"
+          >
+            {{ membersText(2) }}
+          </span>
+        </div>
         <span class="hidden sm:flex w-6 h-6 rounded-md ls-team-badge-b text-[10.5px] font-bold items-center justify-center shrink-0">B</span>
       </div>
 
@@ -69,7 +87,7 @@
         </span>
 
         <button
-          v-if="!match.is_finished"
+          v-if="!match.is_finished && hasBothTeams"
           type="button"
           class="px-3 py-1.5 rounded-lg text-[12px] sm:text-[12.5px] font-bold transition-colors whitespace-nowrap shrink-0"
           :class="match.is_going_on ? 'ls-play-live' : 'ls-play-idle'"
@@ -98,6 +116,23 @@ const props = defineProps({
 });
 
 defineEmits(['play']);
+
+// Trận vòng trong chưa biết đội (API trả tên 'TBD', id null) thì không phát được
+// — màn chiếu cần cả 2 đội. Ẩn nút "Phát" cho các trận này.
+const hasBothTeams = computed(() => !!props.match.team1?.id && !!props.match.team2?.id);
+
+// Tên các thành viên đội (user thật + guest) để BTC dễ biết ai đang đá.
+// side: 1 = team1, 2 = team2.
+const membersText = (side) => {
+    const team = side === 1 ? props.match.team1 : props.match.team2;
+    const members = team?.members || [];
+    if (!members.length) return '';
+
+    return members
+        .map((m) => m.full_name || m.name)
+        .filter(Boolean)
+        .join(', ');
+};
 
 const formatTime = (value) => {
     if (!value) return '';

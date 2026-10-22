@@ -759,6 +759,8 @@ onMounted(async () => {
                 live_status: row.live_status,
                 current_set: row.current_set,
                 version: row.version,
+                // Trận đã chốt -> màn chiếu biết ngay, không cần chờ fetch lại.
+                status: row.status ?? matchData.value.status,
             }
             // Snapshot cấp giải không mang chi tiết set — lấy lại khi điểm đổi.
             if (row.team1_score !== undefined) {

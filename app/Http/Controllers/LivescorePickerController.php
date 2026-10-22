@@ -5,17 +5,23 @@ namespace App\Http\Controllers;
 use App\Events\TournamentScoreUpdated;
 use App\Helpers\ResponseHelper;
 use App\Models\Matches;
+use App\Models\Tournament;
+use App\Models\TournamentType;
+use App\Services\TournamentType\RoundNameResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class LivescorePickerController extends Controller
 {
+    public function __construct(private RoundNameResolver $roundNameResolver) {}
+
     /**
-     * Danh sách giải đang diễn ra cho màn chọn trận Livescore.
+     * Danh sách giải cho màn chọn trận Livescore.
      *
-     * Scope: các giải user THAM GIA (đăng ký làm VĐV) hoặc thuộc BTC / trọng tài
-     * (`tournament_staff`). Giống logic `upcoming_tournaments` ở API `/api/home`.
+     * Dùng CHUNG đúng bộ lọc với `api/home` (`upcoming_tournaments`):
+     *   - quyền: user là VĐV (`participants`) HOẶC BTC / trọng tài (`tournament_staff`)
+     *   - thời gian: `start_date >= hôm nay` (giải sắp tới / hôm nay)
      *
      * `data` trả thẳng list giải, mỗi giải KHÔNG kèm danh sách trận.
      */
@@ -26,39 +32,23 @@ class LivescorePickerController extends Controller
             return ResponseHelper::error('Cần đăng nhập để dùng Livescore', 401);
         }
 
-        $tournamentIds = $this->accessibleTournamentIds($user->id);
-        if (empty($tournamentIds)) {
-            return ResponseHelper::success([]);
-        }
-
-        $today = now()->toDateString();
-
-        $tournaments = DB::table('tournaments')
-            ->whereIn('id', $tournamentIds)
-            ->whereNull('deleted_at')
-            // Giải đang diễn ra: đã bắt đầu và chưa kết thúc.
-            ->whereNotNull('start_date')
-            ->whereDate('start_date', '<=', $today)
-            ->where(function ($q) use ($today) {
-                $q->whereNull('end_date')->orWhereDate('end_date', '>=', $today);
-            })
-            ->orderByDesc('start_date')
+        $tournaments = Tournament::query()
+            ->accessibleByUser($user->id)
+            ->startingFromToday()
+            ->with('competitionLocation:id,name')
+            ->orderBy('start_date', 'asc')
             ->get([
                 'id', 'name', 'poster', 'description', 'start_date', 'end_date',
                 'competition_location_id',
             ]);
 
-        $locationNames = $this->locationMap(array_filter($tournaments->pluck('competition_location_id')->all()));
-
-        $payload = $tournaments->map(function ($t) use ($locationNames) {
+        $payload = $tournaments->map(function ($t) {
             return [
                 'id' => (int) $t->id,
                 'name' => $t->name,
-                'poster_url' => $t->poster ? \Illuminate\Support\Str::startsWith($t->poster, 'http')
-                    ? $t->poster
-                    : url('/storage/' . ltrim($t->poster, '/')) : null,
+                'poster_url' => $this->posterUrl($t->poster),
                 'description' => $t->description,
-                'location_name' => $locationNames[$t->competition_location_id] ?? null,
+                'location_name' => $t->competitionLocation?->name ?? null,
                 'start_date' => $t->start_date ? \Carbon\Carbon::parse($t->start_date)->toIso8601String() : null,
                 'end_date' => $t->end_date ? \Carbon\Carbon::parse($t->end_date)->toIso8601String() : null,
             ];
@@ -79,45 +69,23 @@ class LivescorePickerController extends Controller
             return ResponseHelper::error('Cần đăng nhập để dùng Livescore', 401);
         }
 
-        $exists = DB::table('tournaments')
-            ->where('id', $id)
-            ->whereNull('deleted_at')
-            ->exists();
+        $tournament = Tournament::query()->find($id);
 
-        if (!$exists) {
+        if (!$tournament) {
             return ResponseHelper::error('Không tìm thấy giải đấu', 404);
         }
 
-        if (!in_array($id, $this->accessibleTournamentIds($user->id), true)) {
+        // Cùng bộ lọc quyền với `api/home`: phải là VĐV hoặc BTC / trọng tài.
+        $allowed = Tournament::query()
+            ->accessibleByUser($user->id)
+            ->whereKey($id)
+            ->exists();
+
+        if (!$allowed) {
             return ResponseHelper::error('Bạn không có quyền xem trận của giải này', 403);
         }
 
         return ResponseHelper::success($this->tournamentMatches($id));
-    }
-
-    /**
-     * Giải user được phép xem: user THAM GIA giải (VĐV trong `participants`)
-     * hoặc thuộc BTC / trọng tài (`tournament_staff`).
-     *
-     * Giống logic `upcoming_tournaments` ở API `/api/home`.
-     */
-    private function accessibleTournamentIds(int $userId): array
-    {
-        $participantIds = DB::table('participants')
-            ->where('user_id', $userId)
-            ->distinct()
-            ->pluck('tournament_id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
-        $staffIds = DB::table('tournament_staff')
-            ->where('user_id', $userId)
-            ->distinct()
-            ->pluck('tournament_id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
-        return array_values(array_unique(array_merge($participantIds, $staffIds)));
     }
 
     /**
@@ -127,12 +95,24 @@ class LivescorePickerController extends Controller
     {
         $matches = Matches::query()
             ->whereHas('tournamentType', fn ($q) => $q->where('tournament_id', $tournamentId))
-            ->where('is_bye', 0)
-            ->whereNotNull('home_team_id')
-            ->whereNotNull('away_team_id')
+            // KHÔNG lọc home_team_id / away_team_id: trận vòng trong của thể thức
+            // hỗn hợp được tạo sẵn với đội = null chờ kết quả vòng trước, và có
+            // những flow để is_bye = 0 cho các trận dạng đó (xem MatchesController).
             // Phải chọn cả khoá chính 'id' — thiếu nó thì Eloquent trả null
             // cho toàn bộ quan hệ (đã dính bug này một lần).
-            ->with(['homeTeam:id,name', 'awayTeam:id,name', 'tournamentType:id,tournament_id'])
+            ->with([
+                'homeTeam:id,name',
+                'awayTeam:id,name',
+                // Thành viên đội (user thật + guest) để FE hiển thị tên người chơi.
+                'homeTeam.members',
+                'homeTeam.guestMembers.participant',
+                'awayTeam.members',
+                'awayTeam.guestMembers.participant',
+                'tournamentType:id,tournament_id,format,num_legs',
+            ])
+            // Round trước để trận vòng trong nằm đúng chỗ; trong cùng vòng thì
+            // theo giờ đã xếp, cuối cùng theo id cho ổn định.
+            ->orderBy('round')
             ->orderBy('scheduled_at')
             ->orderBy('id')
             ->get();
@@ -141,12 +121,57 @@ class LivescorePickerController extends Controller
             return [];
         }
 
-        $currentScores = $this->currentScores($matches->pluck('id')->all());
+        // Tên vòng phải tính trên TOÀN BỘ trận (kể cả trận bye) để khớp với
+        // màn bracket: một trận bye vẫn chiếm 1 chỗ trong vòng, nên loại nó ra
+        // khỏi số cặp đấu sẽ làm sai tên vòng (ví dụ 2 vòng khác nhau cùng
+        // bị gọi là "Chung kết"). Vòng tranh hạng Ba cũng được xác định theo
+        // cờ is_third_place nên việc này không ảnh hưởng tới nó.
+        $roundNames = $this->roundNames($matches);
 
-        return $matches->map(fn ($m) => $this->formatPickerMatch(
+        // Trận bye không hiển thị cho BTC.
+        $visibleMatches = $matches->where('is_bye', 0)->values();
+
+        if ($visibleMatches->isEmpty()) {
+            return [];
+        }
+
+        $currentScores = $this->currentScores($visibleMatches->pluck('id')->all());
+
+        return $visibleMatches->map(fn ($m) => $this->formatPickerMatch(
             $m,
-            $currentScores[$m->id] ?? ['team1_score' => 0, 'team2_score' => 0]
+            $currentScores[$m->id] ?? ['team1_score' => 0, 'team2_score' => 0],
+            $roundNames
         ))->values()->all();
+    }
+
+    /**
+     * Tên vòng của mọi trận, khoá theo `tournament_type_id:round`.
+     *
+     * Một giải có thể có nhiều thể thức (`Tournament::tournamentTypes()`) và mỗi
+     * thể thức đánh số `round` lại từ 1, nên bắt buộc phải khoá theo cả hai.
+     *
+     * @param  \Illuminate\Support\Collection<int, Matches>  $matches
+     * @return array<string, string>
+     */
+    private function roundNames($matches): array
+    {
+        $roundNames = [];
+
+        foreach ($matches->groupBy('tournament_type_id') as $typeId => $typeMatches) {
+            $type = $typeMatches->first()->tournamentType;
+
+            $names = $this->roundNameResolver->resolve(
+                $typeMatches,
+                (int) ($type?->format ?? TournamentType::FORMAT_ELIMINATION),
+                (int) ($type?->num_legs ?? 1)
+            );
+
+            foreach ($names as $round => $name) {
+                $roundNames["{$typeId}:{$round}"] = $name;
+            }
+        }
+
+        return $roundNames;
     }
 
     /**
@@ -173,11 +198,15 @@ class LivescorePickerController extends Controller
         ])->all();
     }
 
-    private function formatPickerMatch(Matches $m, array $score): array
+    /**
+     * @param  array<string, string>  $roundNames  khoá `tournament_type_id:round`
+     */
+    private function formatPickerMatch(Matches $m, array $score, array $roundNames = []): array
     {
         return [
             'match_id' => (int) $m->id,
-            'round' => $m->round,
+            // Tên vòng ("Vòng bảng" / "Tứ kết" / ...) chứ không phải số thứ tự.
+            'round' => $roundNames["{$m->tournament_type_id}:{$m->round}"] ?? null,
             'scheduled_at' => $m->scheduled_at?->toIso8601String(),
             'live_status' => $m->live_status,
             'status' => $m->status,
@@ -188,26 +217,81 @@ class LivescorePickerController extends Controller
             'is_finished' => $m->status === 'completed' || $m->live_status === 'finish',
             'team1_score' => $score['team1_score'],
             'team2_score' => $score['team2_score'],
-            'team1' => [
-                'id' => $m->home_team_id,
-                'name' => $m->homeTeam?->name ?? 'Đội A',
-            ],
-            'team2' => [
-                'id' => $m->away_team_id,
-                'name' => $m->awayTeam?->name ?? 'Đội B',
-            ],
+            'team1' => $this->formatPickerTeam($m->home_team_id, $m->homeTeam),
+            'team2' => $this->formatPickerTeam($m->away_team_id, $m->awayTeam),
         ];
     }
 
-    private function locationMap(array $locationIds): array
+    /**
+     * Format 1 đội cho màn livescore: id, tên đội và danh sách thành viên.
+     *
+     * Trận vòng trong chưa biết đội: `id` = null, tên hiển thị là `TBD`,
+     * `members` = mảng rỗng.
+     *
+     * Thành viên gồm cả user thật (`team.members`) và guest (`team.guestMembers`
+     * — user thật không có bản ghi User riêng).
+     *
+     * @param  \App\Models\Team|null  $team
+     * @return array{id: int|null, name: string, members: array<int, array>}
+     */
+    private function formatPickerTeam(?int $teamId, $team): array
     {
-        if (empty($locationIds)) {
-            return [];
+        if (!$team) {
+            return [
+                'id' => $teamId,
+                'name' => 'TBD',
+                'members' => [],
+            ];
         }
 
-        return DB::table('competition_locations')
-            ->whereIn('id', $locationIds)
-            ->pluck('name', 'id')
-            ->all();
+        $realMembers = $team->members->map(fn ($user) => [
+            'id' => (int) $user->id,
+            'full_name' => $user->full_name,
+            'name' => $user->full_name,
+            'avatar_url' => $user->avatar_url,
+            'avatar' => $user->avatar_url,
+            'is_guest' => false,
+        ])->values();
+
+        $guestMembers = collect($team->guestMembers ?? [])
+            ->map(function ($teamMember) {
+                $participant = $teamMember->participant;
+                if (!$participant) {
+                    return null;
+                }
+
+                $fullName = $participant->guest_name ?? 'Thành viên ảo';
+
+                return [
+                    'id' => (int) $participant->id,
+                    'full_name' => $fullName,
+                    'name' => $fullName,
+                    'avatar_url' => $participant->guest_avatar,
+                    'avatar' => $participant->guest_avatar,
+                    'is_guest' => true,
+                ];
+            })
+            ->filter()
+            ->values();
+
+        return [
+            'id' => $teamId ?? (int) $team->id,
+            'name' => $team->name,
+            'members' => $realMembers->concat($guestMembers)->values()->all(),
+        ];
+    }
+
+    /**
+     * Poster: DB lưu đường dẫn tương đối (`posters/xxx.jpg`) hoặc URL tuyệt đối.
+     */
+    private function posterUrl(?string $poster): ?string
+    {
+        if (!$poster) {
+            return null;
+        }
+
+        return \Illuminate\Support\Str::startsWith($poster, 'http')
+            ? $poster
+            : url('/storage/' . ltrim($poster, '/'));
     }
 }
