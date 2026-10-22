@@ -243,7 +243,13 @@ const sendMessage = async () => {
   newMessage.value = ''
   try {
     sending.value = true
-    await SendMessageService.sendTournamentMessage(props.tournamentId, { type: 'text', content })
+    const res = await SendMessageService.sendTournamentMessage(props.tournamentId, { type: 'text', content })
+    if (res?.data) {
+      const msg = addIsOwn(res.data)
+      if (!messages.value.some(m => m.id === msg.id)) {
+        messages.value.push(msg)
+      }
+    }
     await nextTick()
     scrollToBottom(true)
   } catch (err) {
@@ -282,9 +288,21 @@ const sendImageWithCaption = async () => {
     const form = new FormData()
     form.append('type', 'image')
     form.append('file', selectedImageFile.value)
-    await SendMessageService.sendTournamentMessage(props.tournamentId, form)
+    const res = await SendMessageService.sendTournamentMessage(props.tournamentId, form)
+    if (res?.data) {
+      const msg = addIsOwn(res.data)
+      if (!messages.value.some(m => m.id === msg.id)) {
+        messages.value.push(msg)
+      }
+    }
     if (imageCaption.value.trim()) {
-      await SendMessageService.sendTournamentMessage(props.tournamentId, { type: 'text', content: imageCaption.value.trim() })
+      const captionRes = await SendMessageService.sendTournamentMessage(props.tournamentId, { type: 'text', content: imageCaption.value.trim() })
+      if (captionRes?.data) {
+        const msg = addIsOwn(captionRes.data)
+        if (!messages.value.some(m => m.id === msg.id)) {
+          messages.value.push(msg)
+        }
+      }
     }
     cancelImagePreview()
     await nextTick()
@@ -325,7 +343,9 @@ const setupRealtime = () => {
   echoChannel = window.Echo.private(`tournament.${props.tournamentId}`)
   echoChannel.listen('.tournament-sent', async (e) => {
     const messageWithOwnership = addIsOwn(e.message)
-    messages.value.push(messageWithOwnership)
+    if (!messages.value.some(m => m.id === messageWithOwnership.id)) {
+      messages.value.push(messageWithOwnership)
+    }
     await nextTick()
     scrollToBottom(true)
   })

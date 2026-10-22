@@ -15,6 +15,7 @@ use App\Notifications\MiniTournamentMessageNotification;
 use App\Notifications\TournamentMessageNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Notification;
 
 class SendMessageController extends Controller
 {
@@ -54,19 +55,65 @@ class SendMessageController extends Controller
             'type' => $request->type,
             'content' => $content,
             'meta' => $meta,
-        ])->load('user');
+        ])->load(['user', 'tournament']);
+
         // Gửi thông báo đến tất cả user trong tournament, trừ người gửi
-        foreach ($allUserIds as $userId) {
-            if ($userId != Auth::id()) {
-                $user = User::find($userId);
-                if ($user) {
-                    $user->notify(new MiniTournamentMessageNotification($message));
-                }
+        $recipientIds = $allUserIds->filter(fn ($id) => (int) $id !== (int) Auth::id())->values();
+        if ($recipientIds->isNotEmpty()) {
+            $recipients = User::whereIn('id', $recipientIds)->get();
+            if ($recipients->isNotEmpty()) {
+                Notification::send($recipients, new MiniTournamentMessageNotification($message));
             }
         }
-        broadcast(new MiniTournamentMessageSent(new MessageResource($message->load('user'))))->toOthers();
 
-        return ResponseHelper::success(new MessageResource($message->load('user')), 'Gửi tin nhắn thành công');
+        // Đồng bộ tin nhắn sang Unified Conversation để hiển thị trong Hộp thư (Inbox)
+        try {
+            $syncService = app(\App\Services\Chat\GroupChatSyncService::class);
+            $conversation = $syncService->syncMiniTournament($tournament);
+
+            $chatMessage = \App\Models\Chat\ChatMessage::create([
+                'conversation_id' => $conversation->id,
+                'user_id' => Auth::id(),
+                'type' => in_array($request->type, ['text', 'image', 'voice', 'file']) ? $request->type : 'text',
+                'content' => $content,
+                'metadata' => $meta,
+            ]);
+
+            $conversation->update([
+                'last_message_id' => $chatMessage->id,
+                'last_message_at' => now(),
+                'is_archived' => false,
+            ]);
+
+            $conversation->participants()
+                ->where('user_id', Auth::id())
+                ->update([
+                    'last_read_message_id' => $chatMessage->id,
+                    'last_read_at' => now(),
+                    'unread_count' => 0,
+                ]);
+
+            $conversation->participants()
+                ->where('user_id', '!=', Auth::id())
+                ->increment('unread_count');
+
+            $freshConversation = $conversation->fresh(['participants.user', 'lastMessage.sender']);
+            foreach ($freshConversation->participants as $participant) {
+                broadcast(new \App\Events\Chat\ConversationUpdated(
+                    $freshConversation,
+                    $participant->user_id,
+                    (int) $participant->unread_count
+                ));
+            }
+
+            broadcast(new \App\Events\Chat\ChatMessageSent($chatMessage, $conversation->id))->toOthers();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Lỗi đồng bộ tin nhắn kèo vào Inbox: ' . $e->getMessage());
+        }
+
+        broadcast(new MiniTournamentMessageSent(new MessageResource($message)))->toOthers();
+
+        return ResponseHelper::success(new MessageResource($message), 'Gửi tin nhắn thành công');
     }
 
     public function getMessagesMiniTour(Request $request, $tournamentId)
@@ -130,20 +177,64 @@ class SendMessageController extends Controller
             'type' => $request->type,
             'content' => $content,
             'meta' => $meta,
-        ])->load('user');
+        ])->load(['user', 'tournament']);
 
-        foreach ($allUserIds as $userId) {
-            if ($userId != Auth::id()) {
-                $user = User::find($userId);
-                if ($user) {
-                    $user->notify(new TournamentMessageNotification($message));
-                }
+        $recipientIds = $allUserIds->filter(fn ($id) => (int) $id !== (int) Auth::id())->values();
+        if ($recipientIds->isNotEmpty()) {
+            $recipients = User::whereIn('id', $recipientIds)->get();
+            if ($recipients->isNotEmpty()) {
+                Notification::send($recipients, new TournamentMessageNotification($message));
             }
         }
 
-        broadcast(new TournamentMessageSent(new MessageResource($message->load('user'))))->toOthers();
+        // Đồng bộ tin nhắn sang Unified Conversation để hiển thị trong Hộp thư (Inbox)
+        try {
+            $syncService = app(\App\Services\Chat\GroupChatSyncService::class);
+            $conversation = $syncService->syncTournament($tournament);
 
-        return ResponseHelper::success(new MessageResource($message->load('user')), 'Gửi tin nhắn thành công');
+            $chatMessage = \App\Models\Chat\ChatMessage::create([
+                'conversation_id' => $conversation->id,
+                'user_id' => Auth::id(),
+                'type' => in_array($request->type, ['text', 'image', 'voice', 'file']) ? $request->type : 'text',
+                'content' => $content,
+                'metadata' => $meta,
+            ]);
+
+            $conversation->update([
+                'last_message_id' => $chatMessage->id,
+                'last_message_at' => now(),
+                'is_archived' => false,
+            ]);
+
+            $conversation->participants()
+                ->where('user_id', Auth::id())
+                ->update([
+                    'last_read_message_id' => $chatMessage->id,
+                    'last_read_at' => now(),
+                    'unread_count' => 0,
+                ]);
+
+            $conversation->participants()
+                ->where('user_id', '!=', Auth::id())
+                ->increment('unread_count');
+
+            $freshConversation = $conversation->fresh(['participants.user', 'lastMessage.sender']);
+            foreach ($freshConversation->participants as $participant) {
+                broadcast(new \App\Events\Chat\ConversationUpdated(
+                    $freshConversation,
+                    $participant->user_id,
+                    (int) $participant->unread_count
+                ));
+            }
+
+            broadcast(new \App\Events\Chat\ChatMessageSent($chatMessage, $conversation->id))->toOthers();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Lỗi đồng bộ tin nhắn giải đấu vào Inbox: ' . $e->getMessage());
+        }
+
+        broadcast(new TournamentMessageSent(new MessageResource($message)))->toOthers();
+
+        return ResponseHelper::success(new MessageResource($message), 'Gửi tin nhắn thành công');
     }
 
     public function getMessagesTour(Request $request, $tournamentId)
