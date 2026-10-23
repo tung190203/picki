@@ -8,6 +8,7 @@ use App\Enums\ClubMemberStatus;
 use App\Exceptions\BusinessException;
 use App\Models\Club\Club;
 use App\Models\Club\ClubGuest;
+use App\Models\Club\ClubGuestProfile;
 use App\Models\Club\ClubMember;
 use App\Models\Follow;
 use App\Models\MiniParticipant;
@@ -26,7 +27,9 @@ class ClubGuestService
      */
     public function getGuestsWithSegments(Club $club, \DateTimeInterface $oneMonthAgo): array
     {
-        $memberUserIds = $club->activeMembers()->pluck('user_id')->toArray();
+        // Khách = user KHÔNG thuộc CLB. Cả member thật lẫn thành viên ảo (CLB guest)
+        // đều thuộc CLB → không được xuất hiện trong danh sách khách.
+        $memberUserIds = $club->memberAndVirtualUserIds();
         $tournamentIds = $club->tournaments()->pluck('id');
         $miniIds = $club->miniTournaments()->pluck('id');
 
@@ -107,6 +110,15 @@ class ClubGuestService
     public function upsertFromEvent(int $clubId, Collection $participantUserIds): void
     {
         if ($participantUserIds->isEmpty() || !$clubId) {
+            return;
+        }
+
+        // Thành viên ảo (CLB guest) coi như thuộc CLB → không ghi vào club_guests,
+        // nếu không họ sẽ xuất hiện trong danh sách khách của CLB.
+        $participantUserIds = $participantUserIds->diff(
+            ClubGuestProfile::where('club_id', $clubId)->pluck('user_id')
+        );
+        if ($participantUserIds->isEmpty()) {
             return;
         }
 
