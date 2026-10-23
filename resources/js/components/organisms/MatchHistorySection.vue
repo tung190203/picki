@@ -12,13 +12,6 @@
         >
           <component :is="tab.icon" class="w-4 h-4" />
           <span>{{ tab.label }}</span>
-          <span
-            v-if="tabCounts[tab.key] > 0"
-            class="text-xs px-1.5 py-0.5 rounded-full min-w-[20px] text-center"
-            :class="activeTab === tab.key ? 'bg-[#4392E0]/10 text-[#4392E0]' : 'bg-gray-100 text-gray-500'"
-          >
-            {{ tabCounts[tab.key] }}
-          </span>
           <div
             v-if="activeTab === tab.key"
             class="absolute bottom-0 left-0 right-0 h-0.5 bg-[#4392E0]"
@@ -119,6 +112,29 @@
     <!-- MATCHES TAB (Trận đấu) -->
     <!-- ================================================ -->
     <template v-else-if="activeTab === 'match'">
+      <!-- Overview stats -->
+      <div v-if="matchesOverview" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
+        <h3 class="text-sm font-semibold text-gray-700 mb-3">Tổng kết trận đấu</h3>
+        <div class="grid grid-cols-4 gap-3">
+          <div class="text-center">
+            <p class="text-lg font-bold text-gray-800">{{ matchesOverview.total_matches ?? 0 }}</p>
+            <p class="text-xs text-gray-500">Trận</p>
+          </div>
+          <div class="text-center">
+            <p class="text-lg font-bold text-green-600">{{ matchesOverview.total_win ?? 0 }}</p>
+            <p class="text-xs text-gray-500">Thắng</p>
+          </div>
+          <div class="text-center">
+            <p class="text-lg font-bold text-red-500">{{ matchesOverview.total_lose ?? 0 }}</p>
+            <p class="text-xs text-gray-500">Thua</p>
+          </div>
+          <div class="text-center">
+            <p class="text-lg font-bold text-blue-600">{{ matchesOverview.win_rate ?? 0 }}%</p>
+            <p class="text-xs text-gray-500">Tỷ lệ thắng</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Loading -->
       <div v-if="matchesLoading" class="space-y-3">
         <div v-for="i in 3" :key="i" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 animate-pulse">
@@ -154,7 +170,7 @@
       <div v-else class="space-y-3">
         <MatchHistoryCard
           v-for="match in matches"
-          :key="`${match.type}-${match.id}`"
+          :key="`${match.format}-${match.id}`"
           :match="match"
           @click="handleMatchClick"
         />
@@ -171,7 +187,7 @@
         <h3 class="text-sm font-semibold text-gray-700 mb-3">Tổng kết giải đấu</h3>
         <div class="grid grid-cols-4 gap-3">
           <div class="text-center">
-            <p class="text-lg font-bold text-gray-800">{{ tournamentOverview.total_tournaments ?? 0 }}</p>
+            <p class="text-lg font-bold text-gray-800">{{ tournamentOverview.total_joined ?? 0 }}</p>
             <p class="text-xs text-gray-500">Giải</p>
           </div>
           <div class="text-center">
@@ -283,6 +299,7 @@ const tournamentPerPage = 10;
 const matches = ref([]);
 const matchesLoading = ref(false);
 const matchesError = ref('');
+const matchesOverview = ref(null);
 const matchesMeta = ref({ current_page: 1, last_page: 1, total: 0 });
 const matchesPerPage = 20;
 
@@ -379,6 +396,7 @@ const fetchMatches = async (page = 1) => {
       : res.data?.data || {};
 
     matches.value = Array.isArray(data.matches) ? data.matches : [];
+    matchesOverview.value = data.overview || null;
     matchesMeta.value = res.data?.meta || { current_page: page, last_page: page, total: matches.value.length };
   } catch (e) {
     const status = e.response?.status;
@@ -425,6 +443,7 @@ watch(
     matches.value = [];
     miniOverview.value = null;
     tournamentOverview.value = null;
+    matchesOverview.value = null;
     miniMeta.value = { current_page: 1, last_page: 1, total: 0 };
     tournamentMeta.value = { current_page: 1, last_page: 1, total: 0 };
     matchesMeta.value = { current_page: 1, last_page: 1, total: 0 };

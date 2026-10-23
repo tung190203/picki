@@ -19,6 +19,13 @@ class GeocodingManager
     ];
 
     /**
+     * Legacy driver names kept working after the Google -> Goong migration.
+     */
+    protected array $aliases = [
+        'google' => 'goong',
+    ];
+
+    /**
      * Singleton instances.
      */
     protected array $instances = [];
@@ -29,6 +36,7 @@ class GeocodingManager
     public function provider(): GeocodingProvider
     {
         $driver = config('geocoder.driver', 'osm');
+        $driver = $this->aliases[$driver] ?? $driver;
 
         if (! isset($this->providers[$driver])) {
             throw new InvalidArgumentException(
