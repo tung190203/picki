@@ -112,9 +112,9 @@ class GiantSlayerBadgeRule implements BadgeRuleInterface
             return;
         }
 
-        // Kiểm tra điều kiện: Thắng người có trình cao hơn mình >= 0.5
-        // Nghĩa là: trình của đội thắng <= trình của đội thua - 0.5
-        if ($winnerAvgRating <= ($loserAvgRating - 0.5)) {
+        // Kiểm tra điều kiện: Thắng người có trình cao hơn mình >= 1
+        // Nghĩa là: trình của đội thắng <= trình của đội thua - 1
+        if ($winnerAvgRating <= ($loserAvgRating - 1)) {
             /** @var BadgeService $badgeService */
             $badgeService = app(BadgeService::class);
 
