@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Club\Club;
 use App\Models\Club\ClubGuest;
+use App\Models\Club\ClubGuestProfile;
 use App\Models\Club\ClubMember;
 use App\Models\MiniParticipant;
 use App\Models\MiniTournament;
@@ -105,6 +106,12 @@ class BackfillClubGuests extends Command
             ->whereIn('membership_status', ['joined', 'left'])
             ->pluck('user_id')
             ->all();
+
+        // Thành viên ảo (CLB guest) coi như thuộc CLB → không tính là khách.
+        $memberUserIds = array_values(array_unique(array_merge(
+            $memberUserIds,
+            ClubGuestProfile::where('club_id', $club->id)->pluck('user_id')->all()
+        )));
 
         $merged = [];
         if (!empty($tournamentIds)) {

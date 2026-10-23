@@ -93,6 +93,27 @@ class Club extends Model
         return $this->hasMany(\App\Models\Club\ClubGuestProfile::class, 'club_id');
     }
 
+    /**
+     * User id của thành viên ảo (CLB guest) — coi như "thuộc CLB" nên không được
+     * xuất hiện trong danh sách khách, dù họ có tham gia kèo của CLB.
+     */
+    public function virtualUserIds(): array
+    {
+        return $this->guestProfiles()->pluck('user_id')->all();
+    }
+
+    /**
+     * User id thuộc CLB: member thật (đang active) + thành viên ảo.
+     * Dùng để loại khỏi danh sách khách / club_guests.
+     */
+    public function memberAndVirtualUserIds(): array
+    {
+        return array_values(array_unique(array_merge(
+            $this->activeMembers()->pluck('user_id')->all(),
+            $this->virtualUserIds()
+        )));
+    }
+
     /** Thành viên đang tham gia (membership_status = joined, status = active). */
     public function activeMembers()
     {
