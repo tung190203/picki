@@ -207,7 +207,7 @@ class ClubDetailAssembler
     {
         $oneMonthAgo = now()->subDays(30)->toDateString();
         $today = now()->toDateString();
-        $memberUserIds = $club->activeMembers()->pluck('user_id')->all();
+        $memberUserIds = $club->memberAndVirtualUserIds();
         $tournamentIds = $club->tournaments()->pluck('id');
         $miniIds = $club->miniTournaments()->pluck('id');
 
