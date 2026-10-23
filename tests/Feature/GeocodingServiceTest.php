@@ -253,6 +253,16 @@ class GeocodingServiceTest extends TestCase
         $this->assertInstanceOf(\App\Services\Geocoding\OsmProvider::class, $provider);
     }
 
+    public function test_manager_aliases_legacy_google_driver_to_goong(): void
+    {
+        config(['geocoder.driver' => 'google']);
+
+        $manager = app(\App\Services\Geocoding\GeocodingManager::class);
+
+        $provider = $manager->provider();
+        $this->assertInstanceOf(\App\Services\Geocoding\GoongProvider::class, $provider);
+    }
+
     public function test_manager_throws_on_unknown_driver(): void
     {
         config(['geocoder.driver' => 'nonexistent']);
