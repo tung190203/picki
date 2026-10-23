@@ -3,6 +3,7 @@
 namespace App\Services\Club;
 
 use App\Models\Club\ClubGuest;
+use App\Models\Club\ClubGuestProfile;
 use App\Models\MiniParticipant;
 use App\Models\MiniTournament;
 use App\Models\Participant;
@@ -24,6 +25,15 @@ class ClubGuestEventService
     public function upsertFromEvent(int $clubId, Collection $participantUserIds, $startTime = null): int
     {
         if ($participantUserIds->isEmpty() || !$clubId) {
+            return 0;
+        }
+
+        // Thành viên ảo (CLB guest) coi như thuộc CLB → không ghi vào club_guests,
+        // nếu không họ sẽ xuất hiện trong danh sách khách của CLB.
+        $participantUserIds = $participantUserIds->diff(
+            ClubGuestProfile::where('club_id', $clubId)->pluck('user_id')
+        );
+        if ($participantUserIds->isEmpty()) {
             return 0;
         }
 
