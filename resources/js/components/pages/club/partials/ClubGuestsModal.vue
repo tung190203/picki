@@ -100,12 +100,12 @@
                                         class="text-[10px] font-bold uppercase tracking-wider bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-full">
                                         Đã mời
                                     </span>
-                                    <button v-else @click="handleInvite(guest)" :disabled="invitingId === guest.user_id"
+                                    <button v-else-if="canManage" @click="handleInvite(guest)" :disabled="invitingId === guest.user_id"
                                         class="text-xs font-semibold bg-[#D72D36] hover:bg-red-700 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                                         <span v-if="invitingId === guest.user_id">...</span>
                                         <span v-else>Mời</span>
                                     </button>
-                                    <button @click="handleDelete(guest)" :disabled="deletingId === guest.user_id"
+                                    <button v-if="canManage" @click="handleDelete(guest)" :disabled="deletingId === guest.user_id"
                                         class="p-1.5 text-gray-400 hover:text-[#D72D36] hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors disabled:opacity-50">
                                         <TrashIcon class="w-4 h-4" />
                                     </button>
@@ -136,6 +136,11 @@ const props = defineProps({
     clubId: {
         type: [String, Number],
         required: true
+    },
+    // Quyền GHI (mời/xoá khách) — admin/manager/secretary. XEM thì mọi thành viên active.
+    canManage: {
+        type: Boolean,
+        default: false
     }
 })
 
