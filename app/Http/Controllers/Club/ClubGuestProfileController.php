@@ -22,8 +22,8 @@ class ClubGuestProfileController extends Controller
     {
         $club = Club::findOrFail($clubId);
 
-        if (!$club->canManage(auth()->id())) {
-            return ResponseHelper::error('Chỉ admin/manager/secretary mới có quyền xem danh sách CLB guest', 403);
+        if (!$club->canViewGuests(auth()->id())) {
+            return ResponseHelper::error('Bạn không có quyền xem danh sách CLB guest', 403);
         }
 
         $query = $club->guestProfiles()->with('user');

@@ -453,6 +453,25 @@ class Club extends Model
             ->exists();
     }
 
+    /**
+     * Quyền XEM danh sách guest/CLB guest của CLB.
+     * Mọi thành viên active đều được xem (FE tab "Thành viên" hiện list này cho cả thành viên thường).
+     * Quyền GHI (tạo/sửa/xoá/mời) vẫn thuộc canManage() — admin/manager/secretary.
+     */
+    public function canViewGuests($userId): bool
+    {
+        if (!$userId) {
+            return false;
+        }
+
+        // Người tạo CLB luôn có quyền (nhất quán với canManage).
+        if ((int) $this->created_by === (int) $userId) {
+            return true;
+        }
+
+        return $this->activeMembers()->where('user_id', $userId)->exists();
+    }
+
     public function canManage($userId)
     {
         // Người tạo CLB luôn có quyền quản lý, kể cả khi thiếu/legacy club_members row.

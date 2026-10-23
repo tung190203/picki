@@ -110,7 +110,7 @@ Response:
 }
 ```
 
-Quyền: chỉ admin/manager/secretary (xem `Club::canManage()`).
+Quyền: mọi thành viên active của CLB (xem `Club::canViewGuests()`). Quyền ghi (mời/xoá) vẫn chỉ admin/manager/secretary (`Club::canManage()`).
 
 ## Phần 2.5 — CLB guests (User.is_guest + club_guest_profiles)
 
@@ -142,10 +142,10 @@ club_guest_profiles
 ### API mới — CRUD `club_guest_profiles`
 
 ```
-GET    /api/clubs/{clubId}/guests/profiles          List CLB guest của CLB
-POST   /api/clubs/{clubId}/guests/profiles          Tạo CLB guest mới
-PUT    /api/clubs/{clubId}/guests/profiles/{id}     Cập nhật CLB guest
-DELETE /api/clubs/{clubId}/guests/profiles/{id}     Xoá mềm CLB guest
+GET    /api/clubs/{clubId}/guests/profiles          List CLB guest của CLB (mọi thành viên active)
+POST   /api/clubs/{clubId}/guests/profiles          Tạo CLB guest mới (admin/manager/secretary)
+PUT    /api/clubs/{clubId}/guests/profiles/{id}     Cập nhật CLB guest (admin/manager/secretary)
+DELETE /api/clubs/{clubId}/guests/profiles/{id}     Xoá mềm CLB guest (admin/manager/secretary)
 ```
 
 #### Tạo CLB guest (từ tab Member của CLB)

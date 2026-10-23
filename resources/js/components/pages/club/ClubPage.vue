@@ -162,10 +162,10 @@ const subTabs = [
     { key: 'suit_level', label: 'Hợp trình tôi' },
 ]
 
-// 'suggest' is the default tab; BE treats it as no sub_tab (all clubs).
-// 'following' and 'suit_level' map directly to sub_tab.
+// 'suggest' → BE trả về list đã gắn category (4 nhóm: friend_in_club, following, suit_level, nearby).
+// 'following' và 'suit_level' map thẳng sang sub_tab tương ứng của BE.
 const SUB_TAB_MAP = {
-    suggest: 'all',
+    suggest: 'suggest',
     following: 'following',
     suit_level: 'suit_level',
 }
@@ -178,7 +178,23 @@ const search = ref('')
 const hasAnyContent = computed(() => clubs.value.length > 0)
 const suggestSections = computed(() => orderedSections(clubs.value))
 
-const buildParams = () => {
+// Resolve toạ độ user 1 lần để nhóm "nearby" của suggest có dữ liệu.
+// BE đọc lat/lng từ query params (X-User-Lat header chỉ dùng cho endpoint cũ).
+let anchorPromise = null
+const getAnchor = () => {
+    if (anchorPromise) return anchorPromise
+    anchorPromise = new Promise((resolve) => {
+        if (!('geolocation' in navigator)) return resolve(null)
+        navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+            () => resolve(null),
+            { enableHighAccuracy: false, timeout: 5000, maximumAge: 5 * 60 * 1000 }
+        )
+    })
+    return anchorPromise
+}
+
+const buildParams = async () => {
     const params = {
         tab: 'club',
         sub_tab: SUB_TAB_MAP[activeSubTab.value] ?? 'all',
@@ -186,16 +202,24 @@ const buildParams = () => {
     }
     const q = search.value?.trim()
     if (q) params.keyword = q
+
+    const anchor = await getAnchor()
+    if (anchor) {
+        params.lat = anchor.lat
+        params.lng = anchor.lng
+    }
+
     return params
 }
 
 const fetchClubs = async (silent = false) => {
     if (!silent) loading.value = true
     try {
-        // Best-effort geolocation for distance; never blocks
+        // Best-effort geolocation cho header anchor (dùng cho các endpoint khác); không chặn render
         requestUserAnchor()
-        const response = await searchApi(buildParams())
-        const list = response?.data
+        const response = await searchApi(await buildParams())
+        // BE trả { status, message, data: { data: [...], meta: {...} } }
+        const list = response?.data?.data
         clubs.value = Array.isArray(list) ? list : []
     } catch (error) {
         if (error?.response?.status === 401) {

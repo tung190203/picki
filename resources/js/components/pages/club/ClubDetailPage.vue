@@ -592,6 +592,7 @@
     <ClubGuestsModal
         v-model="isGuestsModalOpen"
         :club-id="Number(clubId)"
+        :can-manage="canManageGuests"
         @refresh="getClubDetail"
     />
 </template>
@@ -793,6 +794,10 @@ const hasAnyRole = (roles = []) => {
 
 const currentUserRole = computed(() => {
     return currentUserMember.value?.role || null
+})
+
+const canManageGuests = computed(() => {
+    return hasAnyRole(['admin', 'manager', 'secretary'])
 })
 
 const adminCount = computed(() => {
