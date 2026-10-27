@@ -36,6 +36,9 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(\App\Services\Club\ClubDetailAssembler::class);
         $this->app->singleton(\App\Services\Geocoding\GeocodingManager::class);
         $this->app->singleton(\App\Services\Geocoding\GoongKeyResolver::class);
+        // Singleton để cache kết quả check dùng chung cho resource + controller
+        // trong cùng 1 request (tránh query lặp).
+        $this->app->singleton(\App\Services\EventEditGuardService::class);
     }
 
     /**

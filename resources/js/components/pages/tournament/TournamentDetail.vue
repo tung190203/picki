@@ -183,14 +183,22 @@
                   class="flex items-center justify-center gap-2 bg-[#D72D36] hover:bg-white text-white hover:text-[#D72D36] border hover:border-[#D72D36] font-medium px-6 py-2 rounded-md transition">
                   {{ tournament?.status == 1 ? 'Công bố giải' : 'Huỷ công bố' }}
                 </button>
-                <button @click="goToEditPage"
-                  class="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium px-4 py-2 rounded-md transition">
+                <button @click="goToEditPage" :disabled="tournament.can_edit === false"
+                  :title="tournament.can_edit === false ? (tournament.delete_block_reason || 'Kèo/giải đã hoàn thành nên không thể sửa.') : ''"
+                  :class="tournament.can_edit === false
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-900'"
+                  class="flex items-center justify-center gap-2 font-medium px-4 py-2 rounded-md transition">
                   Chỉnh sửa
                   <PencilIcon class="w-4 h-4" />
                 </button>
 
-                <button @click="confirmRemoval"
-                  class="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium px-4 py-2 rounded-md transition">
+                <button @click="confirmRemoval" :disabled="tournament.can_delete === false"
+                  :title="tournament.can_delete === false ? (tournament.delete_block_reason || 'Không thể xoá kèo/giải này.') : ''"
+                  :class="tournament.can_delete === false
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-900'"
+                  class="flex items-center justify-center gap-2 font-medium px-4 py-2 rounded-md transition">
                   Hủy bỏ
                   <XCircleIcon class="w-5 h-5" />
                 </button>

@@ -151,14 +151,22 @@
                                 {{ mini?.status == 1 ? 'Công bố kèo đấu' : 'Huỷ công bố' }}
                             </button>
 
-                            <button @click="goToEditPage"
-                                    class="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium px-4 py-2 rounded-md transition">
+                            <button @click="goToEditPage" :disabled="mini.can_edit === false"
+                                    :title="mini.can_edit === false ? (mini.delete_block_reason || 'Kèo đấu đã hoàn thành nên không thể sửa.') : ''"
+                                    :class="mini.can_edit === false
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : 'bg-gray-100 hover:bg-gray-200 text-gray-900'"
+                                    class="flex items-center justify-center gap-2 font-medium px-4 py-2 rounded-md transition">
                                 Chỉnh sửa
                                 <PencilIcon class="w-4 h-4" />
                             </button>
 
-                            <button v-if="mini?.allow_cancellation" @click="confirmRemoval"
-                                    class="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium px-4 py-2 rounded-md transition">
+                            <button v-if="mini?.allow_cancellation" @click="confirmRemoval" :disabled="mini.can_delete === false"
+                                    :title="mini.can_delete === false ? (mini.delete_block_reason || 'Không thể xoá kèo đấu này.') : ''"
+                                    :class="mini.can_delete === false
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : 'bg-gray-100 hover:bg-gray-200 text-gray-900'"
+                                    class="flex items-center justify-center gap-2 font-medium px-4 py-2 rounded-md transition">
                                 Hủy bỏ
                                 <XCircleIcon class="w-5 h-5" />
                             </button>

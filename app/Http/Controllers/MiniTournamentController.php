@@ -48,6 +48,7 @@ use App\Notifications\PaymentConfirmedNotification;
 use App\Notifications\PaymentRejectedNotification;
 use App\Notifications\PaymentReminderNotification;
 use App\Services\Club\ClubFundContributionService;
+use App\Services\EventEditGuardService;
 use App\Services\ImageOptimizationService;
 use App\Services\MiniTournamentService;
 use App\Services\UserSportMatchCounter;
@@ -444,6 +445,12 @@ class MiniTournamentController extends Controller
             return ResponseHelper::error('Bạn không có quyền cập nhật kèo đấu', 403);
         }
 
+        // Kèo đã hoàn thành → không cho sửa (kể cả thông tin chung).
+        $guard = app(EventEditGuardService::class);
+        if ($guard->isUpdateLocked($miniTournament)) {
+            return ResponseHelper::error('Kèo đấu đã hoàn thành nên không thể cập nhật.', 403);
+        }
+
         $oldStatus = $miniTournament->status;
 
         if ($editScope === 'entire_series' && !empty($miniTournament->recurrence_series_id)) {
@@ -503,6 +510,11 @@ class MiniTournamentController extends Controller
         $oldClubId = $miniTournament->club_id;
         $miniTournament->update($data);
         $newClubId = $miniTournament->club_id;
+
+        // Đổi CLB → chuyển toàn bộ dấu vết tài chính sang CLB mới.
+        if ($newClubId && (int) $newClubId !== (int) $oldClubId) {
+            $guard->moveFinanceToClub($miniTournament, (int) $newClubId);
+        }
 
         // Invalidate club content cache for both old and new club (in case club was changed)
         if ($oldClubId) {
@@ -622,10 +634,10 @@ class MiniTournamentController extends Controller
             return ResponseHelper::error('Bạn không có quyền huỷ kèo đấu', 403);
         }
 
-        $hasCompletedMatch = MiniMatch::where('mini_tournament_id', $miniTournament->id)->where('status', MiniMatch::STATUS_COMPLETED)->exists();
-
-        if($hasCompletedMatch && !$isSuperAdmin) {
-            return ResponseHelper::error('Không thể huỷ bỏ kèo đã có trận đấu được xác nhận', 404);
+        // Đã thu tiền hoặc đã nhập trận → không cho xoá (kể cả super admin).
+        $blockReason = app(EventEditGuardService::class)->deletionBlockReason($miniTournament);
+        if ($blockReason) {
+            return ResponseHelper::error($blockReason, 403);
         }
 
         // Admin/organizer được huỷ kèo bất cứ lúc nào (không bị giới hạn bởi allow_cancellation).
