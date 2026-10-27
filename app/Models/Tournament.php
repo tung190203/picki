@@ -212,7 +212,7 @@ class Tournament extends Model
     {
         return $query->with([
             'createdBy',
-            'club' => fn($q) => $q->withCount('members'),
+            'club' => fn($q) => $q->withCount(['members', 'guestProfiles']),
             'sport',
             'tournamentTypes.groups.matches.homeTeam',
             'tournamentTypes.groups.matches.homeTeam.members',
@@ -251,7 +251,7 @@ class Tournament extends Model
     {
         return $query->with([
             'createdBy',
-            'club' => fn($q) => $q->withCount('members'),
+            'club' => fn($q) => $q->withCount(['members', 'guestProfiles']),
             'sport',
             'tournamentStaffs',
             'competitionLocation'

@@ -339,7 +339,7 @@ class MiniTournament extends Model
             return true;
         }
 
-        $matches = $this->matches()->get();
+        $matches = $this->relationLoaded('matches') ? $this->matches : $this->matches()->get();
         if ($matches->isEmpty()) {
             return false;
         }
@@ -580,7 +580,9 @@ class MiniTournament extends Model
         return $query->with([
             'sport',
             'competitionLocation',
-            'club.members',
+            // Không eager-load `club.members`: resource chi tiết không trả danh sách
+            // thành viên CLB, chỉ cần số lượng → withCount rẻ hơn nhiều.
+            'club' => fn ($q) => $q->withCount(['members', 'guestProfiles']),
             'recurringSchedule',
             'participants.user.sports.sport',
             'participants.user.sports.scores',
