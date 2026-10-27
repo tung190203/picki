@@ -117,6 +117,7 @@ class MiniTournamentResource extends JsonResource
 
             'status' => $this->status,
             'status_text' => $this->status_text,
+            'is_completed' => $this->is_completed,
 
             // Invitation info for current user
             'has_invitation' => $hasInvitation,

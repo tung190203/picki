@@ -36,6 +36,13 @@ class UserAchievementRecorder
      */
     public function recordForMiniTournament(MiniTournament $mini): int
     {
+        // Chỉ ghi star khi kèo đã đá xong TẤT CẢ trận — status = CLOSED chỉ
+        // là "đóng", auto-close theo end_time có thể đóng kèo còn trận chưa
+        // đá, lúc đó bảng xếp hạng chưa chính.
+        if (! $mini->hasAllMatchesCompleted()) {
+            return 0;
+        }
+
         $clubId = $mini->club_id;
 
         $result = $this->roundRobinService->calculateLeaderboard($mini->id);
@@ -92,6 +99,14 @@ class UserAchievementRecorder
      */
     public function recordForTournament(Tournament $tournament): int
     {
+        // Chỉ ghi cup khi giải đã đá xong TẤT CẢ trận.
+        // status = CLOSED chỉ là "đóng đăng ký" — auto-close theo end_date
+        // có thể đóng giải còn trận chưa đá, lúc đó xếp hạng chưa chính
+        // (rank top-3 là ngẫu nhiên) → cup sẽ bị ghi sai.
+        if (! $tournament->hasAllMatchesCompleted()) {
+            return 0;
+        }
+
         $tournamentDate = $tournament->start_date
             ?? $tournament->end_date
             ?? $tournament->created_at;
@@ -155,6 +170,41 @@ class UserAchievementRecorder
         }
 
         return $count;
+    }
+
+    /**
+     * Gỡ cup đã ghi cho giải CHƯA đá xong tất cả trận.
+     *
+     * Dùng cho cleanup/backfill: trước đây `status = CLOSED` là đủ để ghi cup
+     * nên giải đóng theo `end_date` còn trận chưa đá vẫn có cup.
+     *
+     * @return int số row đã xóa
+     */
+    public function purgeForTournament(Tournament $tournament): int
+    {
+        if ($tournament->hasAllMatchesCompleted()) {
+            return 0;
+        }
+
+        return UserAchievement::where('event_type', UserAchievement::TYPE_TOURNAMENT)
+            ->where('event_id', $tournament->id)
+            ->delete();
+    }
+
+    /**
+     * Gỡ star đã ghi cho kèo CHƯA đá xong tất cả trận.
+     *
+     * @return int số row đã xóa
+     */
+    public function purgeForMiniTournament(MiniTournament $mini): int
+    {
+        if ($mini->hasAllMatchesCompleted()) {
+            return 0;
+        }
+
+        return UserAchievement::where('event_type', UserAchievement::TYPE_MINI_TOURNAMENT)
+            ->where('event_id', $mini->id)
+            ->delete();
     }
 
     /**
