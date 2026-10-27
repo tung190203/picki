@@ -339,7 +339,7 @@ class MiniTournament extends Model
             return true;
         }
 
-        $matches = $this->matches()->get();
+        $matches = $this->relationLoaded('matches') ? $this->matches : $this->matches()->get();
         if ($matches->isEmpty()) {
             return false;
         }
@@ -427,6 +427,47 @@ class MiniTournament extends Model
     public function matches()
     {
         return $this->hasMany(MiniMatch::class);
+    }
+
+    /**
+     * Kèo đã đá xong TẤT CẢ trận hay chưa.
+     *
+     * `status = CLOSED` chỉ là "đóng" — auto-close theo `end_time` có thể đóng
+     * kèo còn trận chưa đá, lúc đó bảng xếp hạng chưa chính nên không được
+     * ghi star.
+     *
+     * - Bỏ qua trận bye (`is_bye`).
+     * - Trận chưa có `team_win_id`/`participant_win_id` => chưa hoàn tất.
+     * - Phải có ÍT NHẤT 1 trận thật: kèo chưa đánh trận nào thì bảng xếp
+     *   hạng chỉ là ngẫu nhiên → không được ghi star.
+     */
+    public function hasAllMatchesCompleted(): bool
+    {
+        $realMatches = $this->matches()->where('is_bye', false);
+
+        if (! $realMatches->exists()) {
+            return false;
+        }
+
+        return ! (clone $realMatches)
+            ->whereNull('team_win_id')
+            ->whereNull('participant_win_id')
+            ->exists();
+    }
+
+    /**
+     * Scope: chỉ lấy kèo đã đá xong tất cả trận.
+     * Phải khớp với `hasAllMatchesCompleted()`: kèo 0 trận thật không tính.
+     */
+    public function scopeAllMatchesCompleted(Builder $query)
+    {
+        return $query->whereHas('matches', fn ($q) => $q->where('is_bye', false))
+            ->whereDoesntHave(
+                'matches',
+                fn ($q) => $q->where('is_bye', false)
+                    ->whereNull('team_win_id')
+                    ->whereNull('participant_win_id')
+            );
     }
 
     public function payments()
@@ -539,7 +580,9 @@ class MiniTournament extends Model
         return $query->with([
             'sport',
             'competitionLocation',
-            'club.members',
+            // Không eager-load `club.members`: resource chi tiết không trả danh sách
+            // thành viên CLB, chỉ cần số lượng → withCount rẻ hơn nhiều.
+            'club' => fn ($q) => $q->withCount(['members', 'guestProfiles']),
             'recurringSchedule',
             'participants.user.sports.sport',
             'participants.user.sports.scores',
