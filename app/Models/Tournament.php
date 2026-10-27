@@ -227,7 +227,31 @@ class Tournament extends Model
             'participants.guarantor',
             'competitionLocation',
             'teams',
-        ]);
+        ])->withCount([
+            // Số payment đã thu (paid/confirmed) — dùng cho EventEditGuardService.
+            'payments as paid_payments_count' => fn ($q) => $q->whereIn('status', ['paid', 'confirmed']),
+        ])->selectSub(
+            // Số trận đã nhập.
+            Matches::query()->selectRaw('count(*)')
+                ->join('tournament_types', 'tournament_types.id', '=', 'matches.tournament_type_id')
+                ->whereColumn('tournament_types.tournament_id', 'tournaments.id'),
+            'match_count'
+        )->selectSub(
+            // Số trận thật (không bye) — dùng cho hasAllMatchesCompleted().
+            Matches::query()->selectRaw('count(*)')
+                ->join('tournament_types', 'tournament_types.id', '=', 'matches.tournament_type_id')
+                ->whereColumn('tournament_types.tournament_id', 'tournaments.id')
+                ->where('matches.is_bye', false),
+            'real_match_count'
+        )->selectSub(
+            // Số trận thật chưa có kết quả — dùng cho hasAllMatchesCompleted().
+            Matches::query()->selectRaw('count(*)')
+                ->join('tournament_types', 'tournament_types.id', '=', 'matches.tournament_type_id')
+                ->whereColumn('tournament_types.tournament_id', 'tournaments.id')
+                ->where('matches.is_bye', false)
+                ->whereNull('matches.winner_id'),
+            'pending_match_count'
+        );
     }
 
     /**
@@ -862,20 +886,39 @@ class Tournament extends Model
      */
     public function hasAllMatchesCompleted(): bool
     {
-        $hasRealMatch = $this->tournamentTypes()
-            ->whereHas('matches', fn ($q) => $q->where('is_bye', false))
-            ->exists();
+        $counts = $this->matchCompletionCounts();
 
-        if (! $hasRealMatch) {
-            return false;
+        return $counts['real'] > 0 && $counts['pending'] === 0;
+    }
+
+    /**
+     * Bản đếm 1 query cho `hasAllMatchesCompleted()` — dùng khi cần gọi cho
+     * nhiều giải trong 1 request (tránh N+1).
+     *
+     * @return array{real: int, pending: int}
+     */
+    public function matchCompletionCounts(): array
+    {
+        // selectSub từ scopeWithFullRelations → có sẵn 2 attribute này.
+        if ($this->getAttribute('real_match_count') !== null) {
+            return [
+                'real' => (int) $this->getAttribute('real_match_count'),
+                'pending' => (int) $this->getAttribute('pending_match_count'),
+            ];
         }
 
-        return ! $this->tournamentTypes()
-            ->whereHas(
-                'matches',
-                fn ($q) => $q->where('is_bye', false)->whereNull('winner_id')
-            )
-            ->exists();
+        $matches = \App\Models\Matches::query()
+            ->join('tournament_types', 'tournament_types.id', '=', 'matches.tournament_type_id')
+            ->where('tournament_types.tournament_id', $this->id)
+            ->where('matches.is_bye', false)
+            ->selectRaw('count(*) as real_count')
+            ->selectRaw('sum(case when matches.winner_id is null then 1 else 0 end) as pending_count')
+            ->first();
+
+        return [
+            'real' => (int) ($matches->real_count ?? 0),
+            'pending' => (int) ($matches->pending_count ?? 0),
+        ];
     }
 
     /**

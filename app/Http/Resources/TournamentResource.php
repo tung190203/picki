@@ -14,6 +14,8 @@ class TournamentResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $guard = app(\App\Services\EventEditGuardService::class);
+
         return  [
             'id' => $this->id,
             'poster' => $this->poster_url,
@@ -63,6 +65,12 @@ class TournamentResource extends JsonResource
             'status' => $this->status,
             'status_text' => $this->status_text,
             'is_completed' => $this->is_completed,
+
+            // Quyền sửa / xoá: đã hoàn thành → khoá cả hai; đã thu tiền hoặc
+            // đã nhập trận → chỉ sửa thông tin chung, không xoá.
+            'can_edit' => ! $guard->isUpdateLocked($this->resource),
+            'can_delete' => $guard->deletionBlockReason($this->resource) === null,
+            'delete_block_reason' => $guard->deletionBlockReason($this->resource),
             'description' => $this->description,
             'created_by' => new UserResource($this->whenLoaded('createdBy')),
             'club' => $this->whenLoaded('club', function () {
