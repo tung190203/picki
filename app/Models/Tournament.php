@@ -838,6 +838,77 @@ class Tournament extends Model
     }
 
     /**
+     * Giải đã đá xong TẤT CẢ trận hay chưa.
+     *
+     * Nguồn chân lý duy nhất cho "giải đã hoàn tất". `status = CLOSED` chỉ
+     * nghĩa là "đóng đăng ký" — giải đóng theo `end_date` vẫn có thể còn
+     * trận chưa đá, lúc đó xếp hạng là sai nên không được ghi cup.
+     *
+     * - Bỏ qua trận bye (`is_bye`): không có đối thủ nên không cần đá.
+     * - Trận đã đá nhưng chưa có `winner_id` => chưa hoàn tất.
+     * - Phải có ÍT NHẤT 1 trận thật: giải chưa đánh trận nào thì xếp hạng
+     *   chỉ là ngẫu nhiên → không được ghi cup.
+     *
+     * Đi qua `tournamentTypes.matches` chứ không qua `matches`
+     * (hasManyThrough qua `groups`) vì 506 trận có `group_id = NULL` —
+     * hasManyThrough sẽ bỏ sót chúng.
+     *
+     * NOT EXISTS (type nào còn trận chưa đá) — tương đương SQL:
+     *   NOT EXISTS (SELECT 1 FROM tournament_types tt
+     *               WHERE tt.tournament_id = tournaments.id
+     *                 AND EXISTS (SELECT 1 FROM matches m
+     *                             WHERE m.tournament_type_id = tt.id
+     *                               AND m.is_bye = 0 AND m.winner_id IS NULL))
+     */
+    public function hasAllMatchesCompleted(): bool
+    {
+        $hasRealMatch = $this->tournamentTypes()
+            ->whereHas('matches', fn ($q) => $q->where('is_bye', false))
+            ->exists();
+
+        if (! $hasRealMatch) {
+            return false;
+        }
+
+        return ! $this->tournamentTypes()
+            ->whereHas(
+                'matches',
+                fn ($q) => $q->where('is_bye', false)->whereNull('winner_id')
+            )
+            ->exists();
+    }
+
+    /**
+     * Scope: chỉ lấy giải đã đá xong tất cả trận.
+     * Phải khớp với `hasAllMatchesCompleted()`: giải 0 trận thật không tính.
+     */
+    public function scopeAllMatchesCompleted(Builder $query)
+    {
+        return $query->whereHas(
+            'tournamentTypes',
+            fn ($q) => $q->whereHas('matches', fn ($q2) => $q2->where('is_bye', false))
+        )->whereDoesntHave(
+            'tournamentTypes',
+            fn ($q) => $q->whereHas(
+                'matches',
+                fn ($q2) => $q2->where('is_bye', false)->whereNull('winner_id')
+            )
+        );
+    }
+
+    /**
+     * Giải đã kết thúc (đóng đăng ký) nhưng CÒN trận chưa đá.
+     * Dùng để gỡ cup đã ghi nhầm.
+     */
+    public function scopeHasIncompleteMatches(Builder $query)
+    {
+        return $query->whereHas(
+            'tournamentTypes.matches',
+            fn ($q) => $q->where('is_bye', false)->whereNull('winner_id')
+        );
+    }
+
+    /**
      * Kiểm tra tournament có trận đấu đã lưu/xác nhận kết quả hay không.
      * @return bool
      */

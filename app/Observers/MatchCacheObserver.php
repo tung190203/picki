@@ -158,12 +158,17 @@ class MatchCacheObserver
 
     protected function completeTournamentIfAllMatchesDone(Matches $match): void
     {
-        $tournament = $match->group?->tournamentType?->tournament;
+        $tournament = $this->resolveTournament($match);
         if (!$tournament) {
             return;
         }
 
         if ($tournament->status === \App\Models\Tournament::CLOSED) {
+            // Giải đã đóng trước (theo end_date) nhưng trận cuối vừa xong
+            // → giờ đã đủ điều kiện ghi cup. Trước đây nhánh này return
+            // luôn nên cup bị mất vĩnh viễn.
+            $this->recordAchievementIfComplete($tournament, $match->id);
+
             return;
         }
 
@@ -205,6 +210,47 @@ class MatchCacheObserver
             'match_id' => $match->id,
         ]);
         $tournament->update(['status' => \App\Models\Tournament::CLOSED]);
+    }
+
+    /**
+     * Resolve tournament từ match.
+     *
+     * KHÔNG dùng `$match->group?->tournamentType?->tournament`: 506 trận có
+     * `group_id = NULL` (trận TH không có group) → resolve ra null → observer
+     * bỏ qua, giải không bao giờ tự đóng. Phải đi qua `tournament_type_id`
+     * (luôn có, FK NOT NULL) rồi tới tournament.
+     */
+    protected function resolveTournament(Matches $match): ?\App\Models\Tournament
+    {
+        return $match->tournamentType?->tournament;
+    }
+
+    /**
+     * Ghi cup khi giải đã CLOSED và mọi trận đã đá xong.
+     */
+    protected function recordAchievementIfComplete(\App\Models\Tournament $tournament, int $matchId): void
+    {
+        if (! $tournament->hasAllMatchesCompleted()) {
+            return;
+        }
+
+        try {
+            $written = app(\App\Services\Club\UserAchievementRecorder::class)
+                ->recordForTournament($tournament);
+
+            if ($written > 0) {
+                Log::info('[MatchCacheObserver] Recorded cup for closed tournament', [
+                    'tournament_id' => $tournament->id,
+                    'match_id' => $matchId,
+                    'rows' => $written,
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('MatchCacheObserver: Failed to record achievement', [
+                'tournament_id' => $tournament->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     protected function completeMiniTournamentIfAllMatchesDone(MiniMatch $match): void
@@ -256,7 +302,7 @@ class MatchCacheObserver
 
     protected function revertTournamentStatus(Matches $match): void
     {
-        $tournament = $match->group?->tournamentType?->tournament;
+        $tournament = $this->resolveTournament($match);
         if (!$tournament) {
             return;
         }
@@ -290,6 +336,19 @@ class MatchCacheObserver
                 'tournament_id' => $tournament->id,
                 'match_id' => $match->id,
             ]);
+
+            // Gỡ cup đã ghi: giải không còn đá xong hết trận → thành tích
+            // phải bị rút lại (nếu không cup vẫn còn trong BXH CLB).
+            try {
+                app(\App\Services\Club\UserAchievementRecorder::class)
+                    ->purgeForTournament($tournament);
+            } catch (\Exception $e) {
+                Log::error('MatchCacheObserver: Failed to purge achievement', [
+                    'tournament_id' => $tournament->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             $tournament->update(['status' => \App\Models\Tournament::OPEN]);
         }
     }
@@ -305,7 +364,9 @@ class MatchCacheObserver
             return;
         }
 
+        // Bỏ qua trận bye (không có winner) — khớp với hasAllMatchesCompleted().
         $hasIncomplete = $miniTournament->matches()
+            ->where('is_bye', false)
             ->where(function ($q) {
                 $q->whereNull('team_win_id')
                   ->whereNull('participant_win_id');
@@ -317,6 +378,18 @@ class MatchCacheObserver
                 'mini_tournament_id' => $miniTournament->id,
                 'match_id' => $match->id,
             ]);
+
+            // Gỡ star đã ghi — kèo không còn đá xong hết trận.
+            try {
+                app(\App\Services\Club\UserAchievementRecorder::class)
+                    ->purgeForMiniTournament($miniTournament);
+            } catch (\Exception $e) {
+                Log::error('MatchCacheObserver: Failed to purge achievement', [
+                    'mini_tournament_id' => $miniTournament->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             $miniTournament->update(['status' => MiniTournament::STATUS_OPEN]);
         }
     }

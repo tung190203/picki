@@ -33,6 +33,21 @@ class TournamentObserver
         if ((int) $tournament->status !== Tournament::CLOSED) {
             return;
         }
+
+        // Ghi cup vào bảng user_achievements (idempotent).
+        // KHÔNG phụ thuộc club_id: giải ngoài CLB vẫn được ghi cho mọi CLB mà
+        // user đã từng là member (logic nằm trong recorder). Trước đây
+        // `if (!$clubId) return;` chặn luôn → cup của giải không thuộc CLB
+        // bị mất vĩnh viễn.
+        try {
+            $this->achievementRecorder->recordForTournament($tournament);
+        } catch (\Exception $e) {
+            Log::error('TournamentObserver: Failed to record achievement', [
+                'tournament_id' => $tournament->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         $clubId = $tournament->club_id;
         if (!$clubId) {
             return;
@@ -46,16 +61,6 @@ class TournamentObserver
             $this->guestEventService->upsertFromEvent($clubId, $participantUserIds, $tournament->start_date);
         } catch (\Exception $e) {
             Log::error('TournamentObserver: Failed to update club_guests', [
-                'tournament_id' => $tournament->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
-
-        // Ghi cup vào bảng user_achievements (idempotent).
-        try {
-            $this->achievementRecorder->recordForTournament($tournament);
-        } catch (\Exception $e) {
-            Log::error('TournamentObserver: Failed to record achievement', [
                 'tournament_id' => $tournament->id,
                 'error' => $e->getMessage(),
             ]);

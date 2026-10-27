@@ -429,6 +429,47 @@ class MiniTournament extends Model
         return $this->hasMany(MiniMatch::class);
     }
 
+    /**
+     * Kèo đã đá xong TẤT CẢ trận hay chưa.
+     *
+     * `status = CLOSED` chỉ là "đóng" — auto-close theo `end_time` có thể đóng
+     * kèo còn trận chưa đá, lúc đó bảng xếp hạng chưa chính nên không được
+     * ghi star.
+     *
+     * - Bỏ qua trận bye (`is_bye`).
+     * - Trận chưa có `team_win_id`/`participant_win_id` => chưa hoàn tất.
+     * - Phải có ÍT NHẤT 1 trận thật: kèo chưa đánh trận nào thì bảng xếp
+     *   hạng chỉ là ngẫu nhiên → không được ghi star.
+     */
+    public function hasAllMatchesCompleted(): bool
+    {
+        $realMatches = $this->matches()->where('is_bye', false);
+
+        if (! $realMatches->exists()) {
+            return false;
+        }
+
+        return ! (clone $realMatches)
+            ->whereNull('team_win_id')
+            ->whereNull('participant_win_id')
+            ->exists();
+    }
+
+    /**
+     * Scope: chỉ lấy kèo đã đá xong tất cả trận.
+     * Phải khớp với `hasAllMatchesCompleted()`: kèo 0 trận thật không tính.
+     */
+    public function scopeAllMatchesCompleted(Builder $query)
+    {
+        return $query->whereHas('matches', fn ($q) => $q->where('is_bye', false))
+            ->whereDoesntHave(
+                'matches',
+                fn ($q) => $q->where('is_bye', false)
+                    ->whereNull('team_win_id')
+                    ->whereNull('participant_win_id')
+            );
+    }
+
     public function payments()
     {
         return $this->hasMany(MiniParticipantPayment::class);
