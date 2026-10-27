@@ -26,6 +26,7 @@ use App\Support\MiniTeamNameBuilder;
 use App\Notifications\MiniTournamentInvitationNotification;
 use App\Services\Club\ClubExpenseService;
 use App\Services\Club\ClubFundContributionService;
+use App\Services\EventEditGuardService;
 use App\Services\ImageOptimizationService;
 use App\Services\MiniTournamentService;
 use App\Services\RoundRobinSchedulerService;
@@ -324,6 +325,12 @@ class ClubMiniTournamentController extends Controller
         $editScope = $request->input('edit_scope', 'this_occurrence');
         $data = $request->safe()->except(['invite_user', 'poster', 'qr_code_url', 'remove_poster']);
 
+        // Kèo đã hoàn thành → không cho sửa (kể cả thông tin chung).
+        $guard = app(EventEditGuardService::class);
+        if ($guard->isUpdateLocked($miniTournament)) {
+            return ResponseHelper::error('Kèo đấu đã hoàn thành nên không thể cập nhật.', 403);
+        }
+
         // === Chặn submit nếu sân thi đấu đã bị admin khoá (is_banned = true) ===
         if (!empty($data['competition_location_id'])) {
             $location = CompetitionLocation::find($data['competition_location_id']);
@@ -360,8 +367,16 @@ class ClubMiniTournamentController extends Controller
 
         unset($data['edit_scope']);
 
+        $oldClubId = $miniTournament->club_id;
+
         $wasPartnerRotation = $miniTournament->match_format === \App\Models\MiniTournament::MATCH_FORMAT_PARTNER_ROTATION;
         $miniTournament->update($data);
+
+        // Đổi CLB → chuyển toàn bộ dấu vết tài chính sang CLB mới.
+        $newClubId = $miniTournament->club_id;
+        if ($newClubId && (int) $newClubId !== (int) $oldClubId) {
+            $guard->moveFinanceToClub($miniTournament, (int) $newClubId);
+        }
 
         // Sync session fields when match_format changes (same logic as createTournament)
         if (isset($data['match_format'])) {

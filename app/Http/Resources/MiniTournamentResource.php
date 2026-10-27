@@ -22,6 +22,8 @@ class MiniTournamentResource extends JsonResource
             ? $model->participants
             : collect();
 
+        $guard = app(\App\Services\EventEditGuardService::class);
+
         if ($participants->isNotEmpty()) {
             app(\App\Services\MiniTournamentService::class)
                 ->loadPlayedMatchesForParticipants($participants, $this->id);
@@ -118,6 +120,12 @@ class MiniTournamentResource extends JsonResource
             'status' => $this->status,
             'status_text' => $this->status_text,
             'is_completed' => $this->is_completed,
+
+            // Quyền sửa / xoá: đã hoàn thành → khoá cả hai; đã thu tiền hoặc
+            // đã nhập trận → chỉ sửa thông tin chung, không xoá.
+            'can_edit' => ! $guard->isUpdateLocked($model),
+            'can_delete' => $guard->deletionBlockReason($model) === null,
+            'delete_block_reason' => $guard->deletionBlockReason($model),
 
             // Invitation info for current user
             'has_invitation' => $hasInvitation,
