@@ -481,6 +481,12 @@ class MiniTournamentController extends Controller
 
         $originalFormat = $miniTournament->match_format;
 
+        // Snapshot giá trị phí TRƯỚC khi update — $miniTournament->update($data) bên dưới
+        // sẽ mutate model nên đọc has_fee sau update luôn trùng với $data.
+        $oldHasFee = (bool) $miniTournament->has_fee;
+        $oldAutoSplitFee = (bool) $miniTournament->auto_split_fee;
+        $oldFeeAmount = (float) $miniTournament->fee_amount;
+
         // Sync creator_join: thêm/xóa organizer khỏi participant list
         // So sánh giá trị CŨ từ model với giá trị MỚI từ request, TRƯỚC khi update
         $oldCreatorJoin = (bool) $miniTournament->creator_join;
@@ -557,16 +563,15 @@ class MiniTournamentController extends Controller
         }
 
         // Sync payment status khi has_fee thay đổi (free→paid hoặc paid→free)
-        $wasPaid = (bool) $miniTournament->has_fee;
-        $isNowPaid = isset($data['has_fee']) ? (bool) $data['has_fee'] : $wasPaid;
-        if ($wasPaid !== $isNowPaid) {
+        $isNowPaid = isset($data['has_fee']) ? (bool) $data['has_fee'] : $oldHasFee;
+        if ($oldHasFee !== $isNowPaid) {
             $this->syncParticipantsPaymentStatus($miniTournament, $isNowPaid);
         }
 
         // Sync payment status khi auto_split_fee hoặc fee_amount thay đổi (giữ nguyên has_fee)
         if ($miniTournament->has_fee) {
-            $autoSplitChanged = isset($data['auto_split_fee']) && (bool) $data['auto_split_fee'] !== (bool) $miniTournament->auto_split_fee;
-            $feeAmountChanged = isset($data['fee_amount']) && (float) $data['fee_amount'] !== (float) $miniTournament->fee_amount;
+            $autoSplitChanged = isset($data['auto_split_fee']) && (bool) $data['auto_split_fee'] !== $oldAutoSplitFee;
+            $feeAmountChanged = isset($data['fee_amount']) && (float) $data['fee_amount'] !== $oldFeeAmount;
             if ($autoSplitChanged || $feeAmountChanged) {
                 $this->syncParticipantsPaymentStatus($miniTournament, true);
             }
@@ -700,86 +705,7 @@ class MiniTournamentController extends Controller
 
     private function syncParticipantsPaymentStatus(MiniTournament $miniTournament, bool $isNowPaid): void
     {
-        $organizerIds = $miniTournament->staff()->pluck('user_id')->toArray();
-
-        $sponsoredByOrganizerGuestIds = [];
-        if (!empty($organizerIds)) {
-            $sponsoredByOrganizerGuestIds = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
-                ->where('is_guest', true)
-                ->whereIn('guarantor_user_id', $organizerIds)
-                ->pluck('user_id')
-                ->toArray();
-        }
-
-        $confirmedParticipants = $miniTournament->participants()
-            ->where('is_confirmed', true)
-            ->get();
-
-        if ($confirmedParticipants->isEmpty()) {
-            return;
-        }
-
-        $feePerPerson = 0;
-        if ($isNowPaid) {
-            $participantCount = $confirmedParticipants->count();
-            if ($miniTournament->auto_split_fee) {
-                $feePerPerson = $miniTournament->final_fee_per_person !== null
-                    ? $miniTournament->final_fee_per_person
-                    : round($miniTournament->fee_amount / $participantCount);
-            } else {
-                $feePerPerson = $miniTournament->fee_amount;
-            }
-        }
-
-        foreach ($confirmedParticipants as $participant) {
-            $isOrganizer = in_array($participant->user_id, $organizerIds);
-            $isSponsoredByOrganizer = in_array($participant->user_id, $sponsoredByOrganizerGuestIds);
-
-            if (!$isNowPaid) {
-                if ($participant->payment_status !== \App\Enums\PaymentStatusEnum::CANCELLED) {
-                    $participant->update(['payment_status' => \App\Enums\PaymentStatusEnum::CANCELLED]);
-                }
-                MiniParticipantPayment::where('mini_tournament_id', $miniTournament->id)
-                    ->where('participant_id', $participant->id)
-                    ->update(['status' => MiniParticipantPayment::STATUS_REJECTED]);
-            } elseif ($isOrganizer || $isSponsoredByOrganizer) {
-                if ($participant->payment_status !== PaymentStatusEnum::CONFIRMED) {
-                    $participant->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
-                }
-                $this->upsertPaymentRecord($miniTournament, $participant, 0, MiniParticipantPayment::STATUS_CONFIRMED);
-            } else {
-                if ($participant->payment_status !== \App\Enums\PaymentStatusEnum::PENDING) {
-                    $participant->update(['payment_status' => \App\Enums\PaymentStatusEnum::PENDING]);
-                }
-                $this->upsertPaymentRecord($miniTournament, $participant, $feePerPerson, MiniParticipantPayment::STATUS_PENDING);
-            }
-        }
-    }
-
-    /**
-     * Tao hoac cap nhat payment record cho participant
-     */
-    private function upsertPaymentRecord(
-        MiniTournament $tournament,
-        MiniParticipant $participant,
-        float $amount,
-        string $status
-    ): void {
-        $existing = MiniParticipantPayment::where('mini_tournament_id', $tournament->id)
-            ->where('participant_id', $participant->id)
-            ->first();
-
-        if ($existing) {
-            $existing->update(['amount' => $amount, 'status' => $status]);
-        } else {
-            MiniParticipantPayment::create([
-                'mini_tournament_id' => $tournament->id,
-                'participant_id' => $participant->id,
-                'user_id' => $participant->user_id,
-                'amount' => $amount,
-                'status' => $status,
-            ]);
-        }
+        $this->tournamentService->syncParticipantsPaymentStatus($miniTournament, $isNowPaid);
     }
 
     /**

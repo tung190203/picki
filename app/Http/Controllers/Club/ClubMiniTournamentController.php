@@ -368,9 +368,17 @@ class ClubMiniTournamentController extends Controller
         unset($data['edit_scope']);
 
         $oldClubId = $miniTournament->club_id;
+        $oldHasFee = (bool) $miniTournament->has_fee;
 
         $wasPartnerRotation = $miniTournament->match_format === \App\Models\MiniTournament::MATCH_FORMAT_PARTNER_ROTATION;
         $miniTournament->update($data);
+
+        // free→paid / paid→free (kèo CLB) → sync payment cho member đã tham gia từ trước
+        $newHasFee = array_key_exists('has_fee', $data) ? (bool) $data['has_fee'] : $oldHasFee;
+        if ($oldHasFee !== $newHasFee) {
+            $miniTournament->refresh();
+            $this->tournamentService->syncParticipantsPaymentStatus($miniTournament, $newHasFee);
+        }
 
         // Đổi CLB → chuyển toàn bộ dấu vết tài chính sang CLB mới.
         $newClubId = $miniTournament->club_id;

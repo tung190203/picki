@@ -49,6 +49,13 @@ class MiniParticipantResource extends JsonResource
             'guarantor_user_id'     => $this->when($this->is_guest, $this->guarantor_user_id),
             'guarantor_name'       => $this->when($this->is_guest, fn() => $this->guarantor?->full_name),
             'guarantor_participant_id' => $this->when($this->is_guest, function () {
+                // ponytail: dùng map đã batch ở controller, chỉ query khi thiếu (giữ nguyên response).
+                if ($this->getAttribute('_guarantor_participant_id') !== null || array_key_exists('_guarantor_participant_id', $this->getAttributes())) {
+                    return $this->getAttribute('_guarantor_participant_id');
+                }
+                if (!$this->relationLoaded('miniTournament') && !$this->relationLoaded('guarantor')) {
+                    return null;
+                }
                 return $this->guarantor
                     ? $this->miniTournament
                         ->participants()
