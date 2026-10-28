@@ -291,6 +291,24 @@ class ConversationService
     }
 
     /**
+     * Bật/tắt thông báo (mute/unmute) cho một cuộc trò chuyện.
+     */
+    public function toggleMute(Conversation $conversation, int $userId, ?bool $isMuted = null): Conversation
+    {
+        $participant = $conversation->participants()->where('user_id', $userId)->first();
+        if (!$participant) {
+            throw new Exception('Bạn không thuộc cuộc trò chuyện này');
+        }
+
+        $newMutedState = $isMuted !== null ? $isMuted : !$participant->is_muted;
+        $participant->update([
+            'is_muted' => $newMutedState,
+        ]);
+
+        return $conversation->fresh(['participants.user', 'lastMessage.sender']);
+    }
+
+    /**
      * Xác thực quyền chia sẻ thẻ:
      * - Kèo & Giải đấu: nếu private thì người gửi bắt buộc phải đã tham gia hoặc tạo.
      * - Người dùng: không được gửi user private/banned/guest; nếu friend-only thì phải quen biết/cùng tham gia.
@@ -301,6 +319,8 @@ class ConversationService
         if (empty($metadata['target_id'])) {
             return;
         }
+
+        $targetId = (int) $metadata['target_id'];
 
         if ($type === ChatMessage::TYPE_CARD_MINI_TOURNAMENT || $type === 'card_match') {
             $match = MiniTournament::find($targetId);

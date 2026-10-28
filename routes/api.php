@@ -1027,6 +1027,7 @@ Route::get('/members/candidates', [ClubMemberController::class, 'getCandidates']
             Route::get('/{id}/messages', [ConversationController::class, 'getMessages']);
             Route::post('/{id}/messages', [ConversationController::class, 'sendMessage']);
             Route::post('/{id}/read', [ConversationController::class, 'markAsRead']);
+            Route::match(['post', 'put', 'patch'], '/{id}/mute', [ConversationController::class, 'toggleMute']);
         });
 
         Route::prefix('users')->group(function () {
@@ -1045,12 +1046,11 @@ Route::get('/members/candidates', [ClubMemberController::class, 'getCandidates']
         Route::post('/reports', [ChatReportController::class, 'store']);
     });
 
-    // Unified Inbox (All, Messages, Alerts, Strangers, Unread-count, Search, Read-all)
+    // Unified Inbox (All, Messages, Alerts, Strangers, Unread-count, Read-all)
     Route::prefix('inbox')->group(function () {
         Route::get('/', [InboxController::class, 'index']);
         Route::get('/strangers', [InboxController::class, 'strangers']);
         Route::get('/unread-count', [InboxController::class, 'unreadCount']);
-        Route::get('/search', [InboxController::class, 'search']);
         Route::post('/read-all', [InboxController::class, 'markAllAsRead']);
     });
 
@@ -1079,12 +1079,14 @@ Route::get('/members/candidates', [ClubMemberController::class, 'getCandidates']
     // user_notification: thông báo riêng từng thành viên (Laravel notifications)
     Route::prefix('user-notifications')->group(function () {
         Route::match(['get', 'post'], '/index', [NotificationController::class, 'index']);
+        Route::match(['get', 'post'], '/list', [NotificationController::class, 'index']);
         Route::post('/mark-as-read', [NotificationController::class, 'markAsRead']);
         Route::post('/delete', [NotificationController::class, 'delete']);
     });
-    // Alias: api/notifications/* (để client gọi api/notifications/index thay vì api/user-notifications/index)
+    // Alias: api/notifications/* (để client gọi api/notifications/index hoặc api/notifications/list thay vì api/user-notifications/index)
     Route::prefix('notifications')->group(function () {
         Route::match(['get', 'post'], '/index', [NotificationController::class, 'index']);
+        Route::match(['get', 'post'], '/list', [NotificationController::class, 'index']);
         Route::post('/mark-as-read', [NotificationController::class, 'markAsRead']);
         Route::post('/delete', [NotificationController::class, 'delete']);
     });

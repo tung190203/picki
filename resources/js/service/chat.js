@@ -15,9 +15,6 @@ export const inboxService = {
     getUnreadCounts: () =>
         axiosInstance.get("/inbox/unread-count").then((res) => res.data),
 
-    search: (q, per_page = 20) =>
-        axiosInstance.get("/inbox/search", { params: { q, per_page } }).then((res) => res.data),
-
     markAllAsRead: (tab = "all") =>
         axiosInstance.post("/inbox/read-all", { tab }).then((res) => res.data),
 };
@@ -40,6 +37,11 @@ export const chatService = {
 
     markRead: (conversationId) =>
         axiosInstance.post(`/chat/conversations/${conversationId}/read`).then((res) => res.data),
+
+    toggleMute: (conversationId, is_muted = undefined) =>
+        axiosInstance
+            .post(`/chat/conversations/${conversationId}/mute`, is_muted !== undefined ? { is_muted } : {})
+            .then((res) => res.data),
 
     getShortcuts: (type, q = "") =>
         axiosInstance.get(`/chat/shortcuts/${type}`, { params: { q } }).then((res) => res.data),

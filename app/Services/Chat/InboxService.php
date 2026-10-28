@@ -15,19 +15,20 @@ use Illuminate\Support\Collection;
 class InboxService
 {
     /**
-     * Lấy danh sách Inbox theo tab (all, messages, alerts) và bộ lọc chưa đọc (is_unread).
+     * Lấy danh sách Inbox theo tab (all, messages, alerts), bộ lọc chưa đọc (is_unread) và từ khóa (q).
      */
     public function getInbox(User $user, array $params = []): array
     {
         $tab = $params['tab'] ?? 'all';
         $isUnread = filter_var($params['is_unread'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $keyword = isset($params['q']) ? trim((string) $params['q']) : null;
         $page = max(1, (int) ($params['page'] ?? 1));
         $perPage = max(1, min(100, (int) ($params['per_page'] ?? 20)));
 
         return match ($tab) {
-            'messages' => $this->getMessagesTab($user, $isUnread, $page, $perPage),
-            'alerts' => $this->getAlertsTab($user, $isUnread, $page, $perPage),
-            default => $this->getAllTab($user, $isUnread, $page, $perPage),
+            'messages' => $this->getMessagesTab($user, $isUnread, $page, $perPage, $keyword),
+            'alerts' => $this->getAlertsTab($user, $isUnread, $page, $perPage, $keyword),
+            default => $this->getAllTab($user, $isUnread, $page, $perPage, $keyword),
         };
     }
 
@@ -35,7 +36,7 @@ class InboxService
      * Tab Tin nhắn: Chỉ lấy các cuộc trò chuyện của người quen (is_stranger = false).
      * Đính kèm strangers_summary cho thẻ ghim Người lạ ở đầu danh sách.
      */
-    protected function getMessagesTab(User $user, bool $isUnread, int $page, int $perPage): array
+    protected function getMessagesTab(User $user, bool $isUnread, int $page, int $perPage, ?string $keyword = null): array
     {
         $query = Conversation::query()
             ->whereHas('participants', function ($p) use ($user, $isUnread) {
@@ -44,8 +45,12 @@ class InboxService
                 if ($isUnread) {
                     $p->where('unread_count', '>', 0);
                 }
-            })
-            ->with([
+            });
+
+        $this->applyNonEmptyConversationFilter($query);
+        $this->applyConversationKeywordFilter($query, $user, $keyword);
+
+        $query->with([
                 'participants.user',
                 'lastMessage.sender',
             ])
@@ -70,12 +75,13 @@ class InboxService
     /**
      * Tab Thông báo: Lấy danh sách thông báo hệ thống.
      */
-    protected function getAlertsTab(User $user, bool $isUnread, int $page, int $perPage): array
+    protected function getAlertsTab(User $user, bool $isUnread, int $page, int $perPage, ?string $keyword = null): array
     {
         $query = $user->notifications();
         if ($isUnread) {
             $query->whereNull('read_at');
         }
+        $this->applyNotificationKeywordFilter($query, $keyword);
         $query->latest();
 
         $paginator = $query->paginate($perPage, ['*'], 'page', $page);
@@ -95,7 +101,7 @@ class InboxService
     /**
      * Tab Tất cả: Trộn chung Thông báo hệ thống và Tin nhắn cá nhân người quen theo thời gian thực (latest_time DESC).
      */
-    protected function getAllTab(User $user, bool $isUnread, int $page, int $perPage): array
+    protected function getAllTab(User $user, bool $isUnread, int $page, int $perPage, ?string $keyword = null): array
     {
         // 1. Lấy conversations (is_stranger = false)
         $convQuery = Conversation::query()
@@ -105,8 +111,12 @@ class InboxService
                 if ($isUnread) {
                     $p->where('unread_count', '>', 0);
                 }
-            })
-            ->with(['participants.user', 'lastMessage.sender'])
+            });
+
+        $this->applyNonEmptyConversationFilter($convQuery);
+        $this->applyConversationKeywordFilter($convQuery, $user, $keyword);
+
+        $convQuery->with(['participants.user', 'lastMessage.sender'])
             ->orderByDesc('last_message_at')
             ->orderByDesc('updated_at');
 
@@ -119,6 +129,7 @@ class InboxService
         if ($isUnread) {
             $alertQuery->whereNull('read_at');
         }
+        $this->applyNotificationKeywordFilter($alertQuery, $keyword);
         $alertQuery->latest();
 
         $totalAlerts = (clone $alertQuery)->count();
@@ -164,19 +175,29 @@ class InboxService
      */
     public function getStrangersSummary(int $userId): array
     {
-        $strangerParticipants = ConversationParticipant::where('user_id', $userId)
-            ->where('is_stranger', true)
-            ->pluck('conversation_id');
+        $strangerConversationsQuery = Conversation::query()
+            ->whereHas('participants', function ($p) use ($userId) {
+                $p->where('user_id', $userId)
+                    ->where('is_stranger', true);
+            });
+        $this->applyNonEmptyConversationFilter($strangerConversationsQuery);
+
+        $strangerParticipants = $strangerConversationsQuery->pluck('id');
 
         $total = $strangerParticipants->count();
-        $unreadCount = ConversationParticipant::where('user_id', $userId)
-            ->where('is_stranger', true)
-            ->sum('unread_count');
+        $unreadCount = $total > 0
+            ? ConversationParticipant::where('user_id', $userId)
+                ->where('is_stranger', true)
+                ->whereIn('conversation_id', $strangerParticipants)
+                ->sum('unread_count')
+            : 0;
 
-        $latestConversation = Conversation::whereIn('id', $strangerParticipants)
-            ->with(['lastMessage.sender', 'participants.user'])
-            ->orderByDesc('last_message_at')
-            ->first();
+        $latestConversation = $total > 0
+            ? Conversation::whereIn('id', $strangerParticipants)
+                ->with(['lastMessage.sender', 'participants.user'])
+                ->orderByDesc('last_message_at')
+                ->first()
+            : null;
 
         $latestMessage = null;
         $latestSenderAvatar = null;
@@ -218,14 +239,18 @@ class InboxService
     /**
      * Danh sách hàng đợi Tin nhắn từ người lạ.
      */
-    public function getStrangersQueue(User $user, int $page = 1, int $perPage = 20): array
+    public function getStrangersQueue(User $user, int $page = 1, int $perPage = 20, ?string $keyword = null): array
     {
         $query = Conversation::query()
             ->whereHas('participants', function ($p) use ($user) {
                 $p->where('user_id', $user->id)
                     ->where('is_stranger', true);
-            })
-            ->with([
+            });
+
+        $this->applyNonEmptyConversationFilter($query);
+        $this->applyConversationKeywordFilter($query, $user, $keyword);
+
+        $query->with([
                 'participants.user',
                 'lastMessage.sender',
             ])
@@ -253,10 +278,12 @@ class InboxService
     {
         $messagesUnread = (int) ConversationParticipant::where('user_id', $user->id)
             ->where('is_stranger', false)
+            ->where('is_muted', false)
             ->sum('unread_count');
 
         $strangersUnread = (int) ConversationParticipant::where('user_id', $user->id)
             ->where('is_stranger', true)
+            ->where('is_muted', false)
             ->sum('unread_count');
 
         $alertsUnread = (int) $user->unreadNotifications()->count();
@@ -272,48 +299,68 @@ class InboxService
     }
 
     /**
-     * Tìm kiếm hợp nhất: Tin nhắn (tên người gửi, nhóm, nội dung tin nhắn, cả lưu trữ) + Thông báo.
+     * Loại bỏ các cuộc trò chuyện 1-1 (DM) mới khởi tạo khi mở màn hình chat nhưng chưa gửi bất kỳ tin nhắn nào.
      */
-    public function search(User $user, string $query, int $perPage = 20): array
+    protected function applyNonEmptyConversationFilter($query): void
     {
-        $keyword = trim($query);
+        $query->where(function ($sub) {
+            $sub->where('type', '!=', Conversation::TYPE_DM)
+                ->orWhereNotNull('last_message_id')
+                ->orWhereHas('messages');
+        });
+    }
+
+    /**
+     * Bộ lọc từ khóa chung cho Conversation (tên hội thoại, tên người tham gia, nội dung tin nhắn, tên Kèo/Giải/CLB).
+     */
+    protected function applyConversationKeywordFilter($query, User $user, ?string $keyword): void
+    {
+        $keyword = trim((string) $keyword);
         if ($keyword === '') {
-            return [
-                'conversations' => [],
-                'alerts' => [],
-            ];
+            return;
         }
 
-        // 1. Tìm trong conversations
-        $conversations = Conversation::query()
-            ->whereHas('participants', fn ($p) => $p->where('user_id', $user->id))
-            ->where(function ($sub) use ($keyword, $user) {
-                $sub->where('title', 'like', "%{$keyword}%")
-                    ->orWhereHas('participants', function ($p2) use ($keyword, $user) {
-                        $p2->where('user_id', '!=', $user->id)
-                            ->whereHas('user', fn ($u) => $u->where('full_name', 'like', "%{$keyword}%"));
-                    })
-                    ->orWhereHas('messages', fn ($m) => $m->where('content', 'like', "%{$keyword}%"));
-            })
-            ->with([
-                'participants.user',
-                'lastMessage.sender',
-            ])
-            ->orderByDesc('last_message_at')
-            ->limit($perPage)
-            ->get();
+        $query->where(function ($sub) use ($keyword, $user) {
+            $sub->where('title', 'like', "%{$keyword}%")
+                ->orWhereHas('participants', function ($p2) use ($keyword, $user) {
+                    $p2->where('user_id', '!=', $user->id)
+                        ->whereHas('user', fn ($u) => $u->where('full_name', 'like', "%{$keyword}%"));
+                })
+                ->orWhereHas('messages', fn ($m) => $m->where('content', 'like', "%{$keyword}%"))
+                ->orWhere(function ($mt) use ($keyword) {
+                    $mt->where('type', Conversation::TYPE_MINI_TOURNAMENT)
+                        ->whereIn('target_id', \App\Models\MiniTournament::where('name', 'like', "%{$keyword}%")->select('id'));
+                })
+                ->orWhere(function ($t) use ($keyword) {
+                    $t->where('type', Conversation::TYPE_TOURNAMENT)
+                        ->whereIn('target_id', \App\Models\Tournament::where('name', 'like', "%{$keyword}%")->select('id'));
+                })
+                ->orWhere(function ($c) use ($keyword) {
+                    $c->where('type', Conversation::TYPE_CLUB)
+                        ->whereIn('target_id', \App\Models\Club\Club::where('name', 'like', "%{$keyword}%")->select('id'));
+                });
+        });
+    }
 
-        // 2. Tìm trong notifications
-        $notifications = $user->notifications()
-            ->where('data', 'like', "%{$keyword}%")
-            ->latest()
-            ->limit($perPage)
-            ->get();
+    /**
+     * Bộ lọc từ khóa cho Notification (hỗ trợ cả UTF-8 trực tiếp lẫn chuỗi Unicode bị json_encode \uXXXX trong cột data).
+     */
+    public function applyNotificationKeywordFilter($query, ?string $keyword): void
+    {
+        $keyword = trim((string) $keyword);
+        if ($keyword === '') {
+            return;
+        }
 
-        return [
-            'conversations' => ConversationResource::collection($conversations),
-            'alerts' => NotificationResource::collection($notifications),
-        ];
+        $jsonEscaped = substr((string) json_encode($keyword), 1, -1);
+        $sqlEscapedJson = str_replace('\\', '\\\\', $jsonEscaped);
+
+        $query->where(function ($sub) use ($keyword, $jsonEscaped, $sqlEscapedJson) {
+            $sub->where('data', 'like', "%{$keyword}%");
+            if ($jsonEscaped !== '' && $jsonEscaped !== $keyword) {
+                $sub->orWhere('data', 'like', "%{$sqlEscapedJson}%");
+            }
+        });
     }
 
     /**
