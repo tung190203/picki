@@ -14,25 +14,20 @@ use App\Http\Requests\Club\UpdateActivityRequest;
 use App\Http\Resources\Club\ClubActivityListResource;
 use App\Http\Resources\Club\ClubActivityParticipantResource;
 use App\Http\Resources\Club\ClubActivityResource;
-use App\Http\Resources\Club\ClubMixedContentResource;
-use App\Http\Resources\ListTournamentResource;
 use App\Models\Club\Club;
 use App\Models\Club\ClubActivity;
+use App\Models\Club\ClubMember;
 use App\Models\MiniTournament;
-use App\Models\MiniTournamentStaff;
-use App\Models\Participant;
 use App\Models\Tournament;
-use App\Models\TournamentStaff;
-use App\Models\User;
+use App\Services\BadgeService;
 use App\Services\Club\ClubActivityService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class ClubActivityController extends Controller
 {
     private const ACTIVITY_COLLECTED_SUM = 'activityFeeTransactions as collected_amount';
-
-    // Caching disabled — see note in index()
 
     public function __construct(
         protected ClubActivityService $activityService
@@ -63,13 +58,9 @@ class ClubActivityController extends Controller
         $userId = auth()->id();
         $filters = $request->validated();
 
-        // Chuẩn hóa category để cache key nhất quán bất kể client có truyền hay không
         $category = $filters['category'] ?? 'all';
         $filters['category'] = $category;
 
-        // statuses param is intentionally ignored — endpoint always returns both
-        // active (scheduled/ongoing) and ended (completed/cancelled) groups, merged
-        // with active first, then paginated.
         unset($filters['statuses']);
 
         $clientSentDate = $request->has('date_from') || $request->has('from_date') || $request->has('date_to') || $request->has('to_date');
@@ -82,15 +73,17 @@ class ClubActivityController extends Controller
             }
         }
 
-        // NOTE: Caching disabled — ClubContentCache was causing stale data after mutations
-        // (Cache::increment + forget patterns couldn't cover all filter combinations reliably).
-        // Performance impact is acceptable for clubs with small-to-medium datasets.
-        // Re-enable only when a more robust cache invalidation strategy is implemented.
-
-        // Build two lists independently: active (scheduled/ongoing, ascending) and
-        // ended (completed/cancelled, descending), then merge with active first.
-        $activeItems = $this->fetchContents($club, $category, $filters, $userId, 'active');
-        $endedItems = $this->fetchContents($club, $category, $filters, $userId, 'ended');
+        $isClubStaff = $userId && ClubMember::where('club_id', $club->id)
+            ->where('user_id', $userId)
+            ->whereIn('role', [
+                ClubMemberRole::Admin,
+                ClubMemberRole::Manager,
+                ClubMemberRole::Secretary,
+                ClubMemberRole::Treasurer,
+            ])
+            ->exists();
+        $activeItems = $this->fetchContents($club, $category, $filters, $userId, 'active', $isClubStaff);
+        $endedItems = $this->fetchContents($club, $category, $filters, $userId, 'ended', $isClubStaff);
 
         $activeItems = $activeItems->sortBy(fn($i) => $i['data']->resource->start_time ?? '')->values();
         $endedItems = $endedItems->sortByDesc(fn($i) => $i['data']->resource->start_time ?? '')->values();
@@ -102,6 +95,8 @@ class ClubActivityController extends Controller
         $currentPage = $filters['page'] ?? 1;
         $offset = ($currentPage - 1) * $perPage;
         $paginatedItems = $merged->slice($offset, $perPage)->values();
+
+        $this->preloadUserCardData($paginatedItems);
 
         $data = [
             'items' => $paginatedItems,
@@ -117,11 +112,7 @@ class ClubActivityController extends Controller
         return ResponseHelper::success($data, 'Lấy danh sách nội dung thành công', 200, $meta);
     }
 
-    /**
-     * Fetch contents for a given status group (active|ended) across selected categories.
-     * Returns a Collection of ['id', 'type', 'data' => resource] entries.
-     */
-    private function fetchContents(Club $club, string $category, array $filters, ?int $userId, string $group): \Illuminate\Support\Collection
+    private function fetchContents(Club $club, string $category, array $filters, ?int $userId, string $group, bool $isClubStaff = false): \Illuminate\Support\Collection
     {
         $statuses = $group === 'active'
             ? ['scheduled', 'ongoing']
@@ -144,7 +135,8 @@ class ClubActivityController extends Controller
         }
 
         if ($category === 'all' || $category === 'mini_tournament') {
-            $miniTournaments = $this->getMiniTournaments($club, $groupFilters, $userId, $statuses);
+            $miniTournaments = $this->getMiniTournaments($club, $groupFilters, $userId, $statuses, $isClubStaff);
+            $this->preloadMiniListRelations($miniTournaments);
             foreach ($miniTournaments as $tournament) {
                 $items->push([
                     'id' => $tournament->id,
@@ -155,7 +147,7 @@ class ClubActivityController extends Controller
         }
 
         if ($category === 'all' || $category === 'tournament') {
-            $tournaments = $this->getTournaments($club, $groupFilters, $userId, $statuses);
+            $tournaments = $this->getTournaments($club, $groupFilters, $userId, $statuses, $isClubStaff);
             foreach ($tournaments as $tournament) {
                 $items->push([
                     'id' => $tournament->id,
@@ -169,33 +161,162 @@ class ClubActivityController extends Controller
     }
 
     /**
+     * Batch preload user-card data cho mọi user xuất hiện trong items của group
+     */
+    private function preloadUserCardData(\Illuminate\Support\Collection $items): void
+    {
+        $users = collect();
+        foreach ($items as $item) {
+            $resource = $item['data']->resource ?? null;
+            if (!$resource) {
+                continue;
+            }
+            match ($item['type']) {
+                'activity' => $users->push(
+                    $resource->creator,
+                    ...$resource->relationLoaded('participants')
+                        ? $resource->participants->map(fn ($p) => $p->user)
+                        : []
+                ),
+                'mini_tournament' => $users->push(
+                    $resource->creator,
+                    ...$resource->relationLoaded('participants') ? $resource->participants->flatMap(
+                        fn ($p) => [$p->user, $p->guarantor, $p->invitedBy]
+                    ) : [],
+                    ...$resource->relationLoaded('staff') ? $resource->staff : [],
+                ),
+                'tournament' => $users->push(
+                    $resource->createdBy,
+                    ...$resource->relationLoaded('participants')
+                        ? $resource->participants->map(fn ($p) => $p->user)
+                        : []
+                ),
+                default => null,
+            };
+        }
+
+        $users = $users->filter()->unique('id')->values();
+        if ($users->isEmpty()) {
+            return;
+        }
+        $userIds = $users->pluck('id')->all();
+
+        // ponytail: 1 query — trước đó UserResource::$this->platform query per user.
+        // $users là Support collection nên không loadMissing được → batch 1 query rồi setRelation.
+        $tokensByUser = \App\Models\DeviceToken::whereIn('user_id', $userIds)
+            ->orderByDesc('last_seen_at')
+            ->get()
+            ->groupBy('user_id');
+        foreach ($users as $u) {
+            $u->setRelation('deviceTokens', $tokensByUser->get($u->id, collect()));
+        }
+
+        request()->attributes->set(
+            'batch_badges',
+            app(BadgeService::class)->getBatchUserBadges($userIds)
+        );
+
+        $counts = DB::table('mini_tournament_staff as mts')
+            ->join('mini_tournaments as mnt', 'mnt.id', '=', 'mts.mini_tournament_id')
+            ->join('mini_participants as mp', 'mp.mini_tournament_id', '=', 'mnt.id')
+            ->whereIn('mts.user_id', $userIds)
+            ->where('mts.role', \App\Models\MiniTournamentStaff::ROLE_ADMIN)
+            ->where('mnt.status', '!=', MiniTournament::STATUS_DRAFT)
+            ->where('mnt.status', '!=', MiniTournament::STATUS_CANCELLED)
+            ->where('mp.is_confirmed', 1)
+            ->select('mts.user_id', DB::raw('COUNT(DISTINCT mnt.id) as cnt'))
+            ->groupBy('mts.user_id')
+            ->pluck('cnt', 'user_id');
+
+        foreach ($users as $user) {
+            $user->setAttribute(
+                'has_advanced_mini_tournament',
+                ((int) ($counts[$user->id] ?? 0)) >= 3
+            );
+        }
+    }
+
+    /**
+     * Preload quan hệ mà ListMiniTournamentResource cần cho list:
+     * staff.user (MiniTournamentStaffResource find() per row), guarantor, invitedBy,
+     * user.sports (UserListResource) và guarantor_participant_id (batch 1 query).
+     */
+    private function preloadMiniListRelations($tournaments): void
+    {
+        $tournaments = $tournaments instanceof \Illuminate\Support\Collection
+            ? $tournaments
+            : collect($tournaments);
+        if ($tournaments->isEmpty()) {
+            return;
+        }
+
+        $tournaments->loadMissing([
+            'staff.sports.scores',
+            'staff.sports.sport',
+            'participants.guarantor',
+            'participants.invitedBy',
+            'participants.user.sports.scores',
+            'participants.user.sports.sport',
+        ]);
+
+        $participants = $tournaments->flatMap(fn ($t) => $t->relationLoaded('participants') ? $t->participants : []);
+        $guestRows = $participants->filter(fn ($p) => $p->is_guest && $p->guarantor_user_id);
+        if ($guestRows->isEmpty()) {
+            return;
+        }
+
+        $byTournament = $guestRows->groupBy('mini_tournament_id');
+        $map = [];
+        // ponytail: 1 query cho mọi giải — trước đó MiniTournament::find() + pluck per giải.
+        $allGuarantorIds = $guestRows->pluck('guarantor_user_id')->unique()->values()->all();
+        // query 1 lần rồi group trong PHP (pluck composite key không hỗ trợ trực tiếp).
+        $rows = \App\Models\MiniParticipant::whereIn('mini_tournament_id', $byTournament->keys()->all())
+            ->whereIn('user_id', $allGuarantorIds)
+            ->get(['id', 'mini_tournament_id', 'user_id'])
+            ->groupBy('mini_tournament_id');
+        foreach ($byTournament as $tournamentId => $tournamentRows) {
+            $idByUser = isset($rows[$tournamentId])
+                ? $rows[$tournamentId]->pluck('id', 'user_id')
+                : collect();
+            foreach ($tournamentRows as $row) {
+                $map[$row->id] = $idByUser[$row->guarantor_user_id] ?? null;
+            }
+        }
+
+        foreach ($participants as $p) {
+            $p->setAttribute('_guarantor_participant_id', $map[$p->id] ?? null);
+        }
+    }
+
+    /**
      * Lấy danh sách mini tournaments của club
      */
-    private function getMiniTournaments(Club $club, array $filters, ?int $userId, array $statuses)
+    private function getMiniTournaments(Club $club, array $filters, ?int $userId, array $statuses, bool $isClubStaff = false)
     {
-        $query = MiniTournament::withFullRelations()
-            ->with('fundCollection')
+        // ponytail: eager-load lean cho list — withFullRelations() kéo cả matches + cây bracket + 3 selectSub.
+        // 'fundCollection' bỏ: list chỉ đọc cột club_fund_collection_id, không render relation.
+        $query = MiniTournament::with([
+                'sport',
+                'competitionLocation',
+                'club' => fn ($q) => $q->withCount(['members', 'guestProfiles']),
+                'creator',
+                'staff',
+                'participants.user',
+                'participants.guarantor',
+                'participants.invitedBy',
+            ])
+            ->withCount([
+                'participantPayments as paid_payments_count' => fn ($q) => $q->whereIn('status', ['paid', 'confirmed']),
+            ])
             ->where('club_id', $club->id);
 
         $dateFrom = $filters['date_from'] ?? null;
         $dateTo = $filters['date_to'] ?? null;
 
-        // Check if user is club staff (admin/manager/secretary/treasurer) — they can see ALL content in their club
-        $isClubStaff = $userId && $club->activeMembers()
-            ->where('user_id', $userId)
-            ->whereIn('role', [
-                ClubMemberRole::Admin,
-                ClubMemberRole::Manager,
-                ClubMemberRole::Secretary,
-                ClubMemberRole::Treasurer,
-            ])
-            ->exists();
-
         $hasAll = in_array('all', $statuses);
         $isHistoryOnly = !empty($statuses)
             && empty(array_diff($statuses, ['completed', 'cancelled']));
 
-        // Map statuses từ client sang status constants
         $mappedStatuses = [];
         foreach ($statuses as $status) {
             $mapped = match ($status) {
@@ -218,7 +339,6 @@ class ClubActivityController extends Controller
             MiniTournament::STATUS_CANCELLED,
         ];
 
-        // Filter status cho kèo thường
         $filterStatuses = (! $hasAll && ! empty($mappedStatuses))
             ? $mappedStatuses
             : $normalStatuses;
@@ -322,21 +442,21 @@ class ClubActivityController extends Controller
     /**
      * Lấy danh sách tournaments của club
      */
-    private function getTournaments(Club $club, array $filters, ?int $userId, array $statuses)
+    private function getTournaments(Club $club, array $filters, ?int $userId, array $statuses, bool $isClubStaff = false)
     {
-        $query = Tournament::withFullRelations()->where('club_id', $club->id);
+        // ponytail: eager-load lean cho list — withFullRelations() kéo cả cây tournamentTypes.groups.matches.
+        $query = Tournament::with([
+                'createdBy',
+                'club' => fn ($q) => $q->withCount(['members', 'guestProfiles']),
+                'sport',
+                'competitionLocation',
+                'tournamentStaffs',
+                'participants.user',
+                'participants.guarantor',
+            ])->where('club_id', $club->id);
 
         $dateFrom = $filters['date_from'] ?? null;
         $dateTo = $filters['date_to'] ?? null;
-        $isClubStaff = $userId && $club->activeMembers()
-            ->where('user_id', $userId)
-            ->whereIn('role', [
-                ClubMemberRole::Admin,
-                ClubMemberRole::Manager,
-                ClubMemberRole::Secretary,
-                ClubMemberRole::Treasurer,
-            ])
-            ->exists();
 
         $hasAll = in_array('all', $statuses);
         $isHistoryOnly = !empty($statuses)
