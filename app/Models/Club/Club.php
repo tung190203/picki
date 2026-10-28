@@ -210,6 +210,10 @@ class Club extends Model
      */
     public function getScoreRangeAttribute(): ?string
     {
+        // ponytail: assembler đã tính sẵn bằng 1 aggregate SQL — dùng luôn, tránh query lại.
+        if (array_key_exists('score_range', $this->attributes)) {
+            return $this->attributes['score_range'];
+        }
         $members = $this->activeMembers()->with('user.vnduprScores')->get();
 
         $scores = [];

@@ -597,13 +597,106 @@ class MiniTournamentService
                 }
 
                 if (!empty($updateData)) {
+                    $oldHasFee = (bool) $t->has_fee;
                     $t->update($updateData);
+
+                    // free→paid / paid→free trên từng kèo trong chuỗi → sync payment
+                    $newHasFee = array_key_exists('has_fee', $updateData) ? (bool) $updateData['has_fee'] : $oldHasFee;
+                    if ($oldHasFee !== $newHasFee) {
+                        $t->refresh();
+                        $this->syncParticipantsPaymentStatus($t, $newHasFee);
+                    }
                     $updatedCount++;
                 }
             }
 
             return $allTournaments->first()->fresh();
         });
+    }
+
+    /**
+     * Đồng bộ payment_status + payment record khi has_fee/fee thay đổi.
+     * Dùng chung cho update thường, update phía CLB và update cả chuỗi.
+     */
+    public function syncParticipantsPaymentStatus(MiniTournament $miniTournament, bool $isNowPaid): void
+    {
+        $organizerIds = $miniTournament->staff()->pluck('user_id')->toArray();
+
+        $sponsoredByOrganizerGuestIds = [];
+        if (!empty($organizerIds)) {
+            $sponsoredByOrganizerGuestIds = MiniParticipant::where('mini_tournament_id', $miniTournament->id)
+                ->where('is_guest', true)
+                ->whereIn('guarantor_user_id', $organizerIds)
+                ->pluck('user_id')
+                ->toArray();
+        }
+
+        $confirmedParticipants = $miniTournament->participants()
+            ->where('is_confirmed', true)
+            ->get();
+
+        if ($confirmedParticipants->isEmpty()) {
+            return;
+        }
+
+        $feePerPerson = 0;
+        if ($isNowPaid) {
+            $participantCount = $confirmedParticipants->count();
+            if ($miniTournament->auto_split_fee) {
+                $feePerPerson = $miniTournament->final_fee_per_person !== null
+                    ? $miniTournament->final_fee_per_person
+                    : round($miniTournament->fee_amount / $participantCount);
+            } else {
+                $feePerPerson = $miniTournament->fee_amount;
+            }
+        }
+
+        foreach ($confirmedParticipants as $participant) {
+            $isOrganizer = in_array($participant->user_id, $organizerIds);
+            $isSponsoredByOrganizer = in_array($participant->user_id, $sponsoredByOrganizerGuestIds);
+
+            if (!$isNowPaid) {
+                if ($participant->payment_status !== PaymentStatusEnum::CANCELLED) {
+                    $participant->update(['payment_status' => PaymentStatusEnum::CANCELLED]);
+                }
+                MiniParticipantPayment::where('mini_tournament_id', $miniTournament->id)
+                    ->where('participant_id', $participant->id)
+                    ->update(['status' => MiniParticipantPayment::STATUS_REJECTED]);
+            } elseif ($isOrganizer || $isSponsoredByOrganizer) {
+                if ($participant->payment_status !== PaymentStatusEnum::CONFIRMED) {
+                    $participant->update(['payment_status' => PaymentStatusEnum::CONFIRMED]);
+                }
+                $this->upsertParticipantPaymentRecord($miniTournament, $participant, 0, MiniParticipantPayment::STATUS_CONFIRMED);
+            } else {
+                if ($participant->payment_status !== PaymentStatusEnum::PENDING) {
+                    $participant->update(['payment_status' => PaymentStatusEnum::PENDING]);
+                }
+                $this->upsertParticipantPaymentRecord($miniTournament, $participant, $feePerPerson, MiniParticipantPayment::STATUS_PENDING);
+            }
+        }
+    }
+
+    private function upsertParticipantPaymentRecord(
+        MiniTournament $tournament,
+        MiniParticipant $participant,
+        float $amount,
+        string $status
+    ): void {
+        $existing = MiniParticipantPayment::where('mini_tournament_id', $tournament->id)
+            ->where('participant_id', $participant->id)
+            ->first();
+
+        if ($existing) {
+            $existing->update(['amount' => $amount, 'status' => $status]);
+        } else {
+            MiniParticipantPayment::create([
+                'mini_tournament_id' => $tournament->id,
+                'participant_id' => $participant->id,
+                'user_id' => $participant->user_id,
+                'amount' => $amount,
+                'status' => $status,
+            ]);
+        }
     }
 
     /**
