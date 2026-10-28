@@ -127,6 +127,7 @@ Phát ra khi đối phương vừa đọc tin nhắn. App cập nhật icon "Đ�
 **Query Parameters:**
 * `tab`: `all` (mặc định), `messages` (chỉ tin nhắn người quen), `alerts` (chỉ thông báo hệ thống).
 * `is_unread`: `1` hoặc `true` để lọc riêng tin chưa đọc.
+* `q`: Từ khóa tìm kiếm theo tab tương ứng (tên cuộc trò chuyện, tên người dùng, tên Kèo/Giải/CLB, nội dung tin nhắn hoặc thông báo).
 * `page`: Số trang (mặc định 1).
 * `per_page`: Số lượng mỗi trang (mặc định 20, max 100).
 
@@ -205,6 +206,11 @@ Dùng để cập nhật badge số đỏ trên Navigation Bar / Tabbar của Mo
 `GET /api/inbox/strangers`
 
 Hiển thị danh sách các cuộc trò chuyện từ những người dùng chưa từng quen biết gửi đến.
+
+**Query Parameters:**
+* `q`: Từ khóa tìm kiếm theo tên người gửi hoặc nội dung tin nhắn.
+* `page`: Số trang (mặc định 1).
+* `per_page`: Số lượng mỗi trang (mặc định 20, max 100).
 
 **Response:**
 ```json
@@ -405,6 +411,21 @@ Dùng khi bấm vào Chat CLB, Chat Kèo đấu, hoặc Chat Giải đấu. Hệ
 `POST /api/chat/conversations/{id}/read`
 
 Gọi khi người dùng bấm mở màn hình chat. Backend sẽ tự động reset `unread_count = 0` và bắn event `.messages.read` sang cho đối phương.
+
+### 4.7. Bật / Tắt thông báo cuộc trò chuyện (Mute / Unmute)
+`POST /api/chat/conversations/{id}/mute`
+
+Dùng để bật hoặc tắt thông báo đẩy (FCM Push Notification) của một cuộc trò chuyện.
+
+**Request Body (optional):**
+```json
+{
+  "is_muted": true
+}
+```
+*(Nếu không truyền `is_muted`, hệ thống sẽ tự động đảo trạng thái hiện tại `true <-> false`)*
+
+**Response:** Trả về đối tượng `ConversationResource` đã cập nhật cờ `is_muted`.
 
 ---
 

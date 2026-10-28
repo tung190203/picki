@@ -37,6 +37,27 @@
         </span>
       </div>
 
+      <!-- Search Input -->
+      <div class="px-3 pt-3">
+        <div class="relative">
+          <input
+            v-model="searchQuery"
+            @input="onSearchInput"
+            type="text"
+            placeholder="Tìm kiếm tin nhắn người lạ..."
+            class="w-full bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-white text-xs pl-8 pr-8 py-2 rounded-xl border border-transparent focus:border-[#D72D36] outline-none transition"
+          />
+          <MagnifyingGlassIcon class="w-4 h-4 text-gray-400 absolute left-2.5 top-2" />
+          <button
+            v-if="searchQuery"
+            @click="clearSearch"
+            class="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+          >
+            <XMarkIcon class="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
       <!-- List -->
       <div class="flex-1 overflow-y-auto p-3 space-y-2">
         <div v-if="loading" class="text-center py-10 text-gray-400 text-xs">
@@ -95,7 +116,7 @@
 
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount } from "vue";
-import { UserIcon, LightBulbIcon, XMarkIcon } from "@heroicons/vue/24/solid";
+import { UserIcon, LightBulbIcon, XMarkIcon, MagnifyingGlassIcon } from "@heroicons/vue/24/solid";
 import { ChatBubbleOvalLeftEllipsisIcon } from "@heroicons/vue/24/outline";
 import { inboxService } from "@/service/chat.js";
 import { useChatStore } from "@/store/chat.js";
@@ -109,17 +130,35 @@ const emit = defineEmits(["close"]);
 const chatStore = useChatStore();
 const strangers = ref([]);
 const loading = ref(false);
+const searchQuery = ref("");
 
 const loadStrangers = async () => {
   try {
     loading.value = true;
-    const res = await inboxService.getStrangers({ per_page: 50 });
+    const keyword = searchQuery.value.trim();
+    const res = await inboxService.getStrangers({
+      per_page: 50,
+      ...(keyword ? { q: keyword } : {}),
+    });
     strangers.value = res.data?.items || [];
   } catch (err) {
     console.error("loadStrangers error:", err);
   } finally {
     loading.value = false;
   }
+};
+
+let searchTimeout = null;
+const onSearchInput = () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    loadStrangers();
+  }, 300);
+};
+
+const clearSearch = () => {
+  searchQuery.value = "";
+  loadStrangers();
 };
 
 const openConversation = (convId) => {

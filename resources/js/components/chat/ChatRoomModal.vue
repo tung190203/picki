@@ -27,6 +27,11 @@
             <h3 class="font-bold text-gray-900 dark:text-white text-xs sm:text-sm truncate max-w-[170px] sm:max-w-[190px]">
               {{ conversation.title }}
             </h3>
+            <BellSlashIcon
+              v-if="conversation.is_muted"
+              class="w-3.5 h-3.5 text-gray-400 dark:text-slate-500 flex-shrink-0"
+              title="Đã tắt thông báo"
+            />
             <!-- Unread badge when minimized -->
             <span
               v-if="isMinimized && hasUnreadWhileMinimized"
@@ -77,6 +82,14 @@
             v-if="isMenuOpen"
             class="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl shadow-xl py-1 z-50 text-xs"
           >
+            <button
+              @click="toggleMuteConversation"
+              class="w-full text-left px-3 py-2 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
+            >
+              <BellIcon v-if="conversation.is_muted" class="w-4 h-4 text-emerald-500" />
+              <BellSlashIcon v-else class="w-4 h-4 text-gray-500" />
+              <span>{{ conversation.is_muted ? 'Bật thông báo' : 'Tắt thông báo' }}</span>
+            </button>
             <button
               v-if="otherUserId && !conversation.is_blocked_by_me"
               @click="blockUser"
@@ -331,6 +344,8 @@ import {
   CheckIcon,
   CheckCircleIcon,
   CheckBadgeIcon,
+  BellIcon,
+  BellSlashIcon,
 } from "@heroicons/vue/24/solid";
 import { ChatBubbleOvalLeftEllipsisIcon } from "@heroicons/vue/24/outline";
 import { useChatStore } from "@/store/chat.js";
@@ -471,6 +486,18 @@ const handleSendCard = async ({ type, target_id, title }) => {
   } catch (err) {
     console.error("send card error:", err);
     toast.error(err?.response?.data?.message || "Không thể gửi thẻ");
+  }
+};
+
+const toggleMuteConversation = async () => {
+  if (!conversation.value?.id) return;
+  try {
+    const res = await chatStore.toggleMute(conversation.value.id);
+    const muted = Boolean(res?.data?.is_muted);
+    toast.success(muted ? "Đã tắt thông báo cuộc trò chuyện" : "Đã bật thông báo cuộc trò chuyện");
+    isMenuOpen.value = false;
+  } catch (err) {
+    toast.error(err?.response?.data?.message || "Không thể cập nhật cài đặt thông báo");
   }
 };
 

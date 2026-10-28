@@ -90,72 +90,133 @@ class ChatShortcutController extends Controller
     }
 
     /**
-     * Danh sách Người chơi (bạn bè, thành viên cùng CLB, tìm kiếm) để chọn gửi thẻ.
+     * Danh sách Người chơi có liên quan gần với user (hay chơi cùng kèo/giải, cùng CLB, ở gần) để chọn gửi thẻ hoặc bắt đầu chat.
      */
-    public function players(Request $request)
+    public function players(Request $request, \App\Services\User\UserSuggestService $suggestService)
     {
-        $userId = Auth::id();
-        $q = $request->query('q');
+        /** @var User $authUser */
+        $authUser = Auth::user();
+        $userId = (int) $authUser->id;
+        $q = trim((string) $request->query('q', ''));
 
-        // Loại trừ user bị khóa, user ảo, và user để chế độ riêng tư (visibility = private)
-        // Nếu user để friend-only: chỉ cho phép nếu đã từng cùng CLB hoặc cùng giải/kèo
-        $query = User::query()
-            ->where('id', '!=', $userId)
-            ->where('is_banned', false)
-            ->where('is_guest', false)
-            ->where('visibility', '!=', 'private')
-            ->where(function ($sub) use ($userId) {
-                $sub->where('visibility', 'open')
-                    ->orWhere(function ($f) use ($userId) {
-                        $f->where('visibility', 'friend-only')
-                            ->where(function ($rel) use ($userId) {
-                                // Cùng CLB
-                                $rel->whereHas('clubs', function ($cq) use ($userId) {
-                                    $cq->whereIn('clubs.id', function ($subClub) use ($userId) {
-                                        $subClub->select('club_id')
-                                            ->from('club_members')
-                                            ->where('user_id', $userId)
-                                            ->where('membership_status', 'joined')
-                                            ->where('status', 'active');
-                                    });
-                                })
-                                // Hoặc cùng tham gia giải đấu
-                                ->orWhereHas('participants', function ($tp) use ($userId) {
-                                    $tp->whereIn('tournament_id', function ($tq) use ($userId) {
-                                        $tq->select('tournament_id')
-                                            ->from('participants')
-                                            ->where('user_id', $userId);
-                                    });
-                                })
-                                // Hoặc cùng tham gia kèo đấu
-                                ->orWhereHas('miniParticipants', function ($mp) use ($userId) {
-                                    $mp->whereIn('mini_tournament_id', function ($mq) use ($userId) {
-                                        $mq->select('mini_tournament_id')
-                                            ->from('mini_participants')
-                                            ->where('user_id', $userId);
-                                    });
-                                });
-                            });
-                    });
+        $lat = $request->query('lat') !== null
+            ? (float) $request->query('lat')
+            : ($authUser->latitude !== null ? (float) $authUser->latitude : null);
+        $lng = $request->query('lng') !== null
+            ? (float) $request->query('lng')
+            : ($authUser->longitude !== null ? (float) $authUser->longitude : null);
+
+        // 1. Tận dụng UserSuggestService để lấy các user có quan hệ gần (played_tournament -> same_club -> nearby)
+        $groups = $suggestService->suggest($userId, $lat, $lng);
+
+        $relatedUsers = $groups['played_tournament']
+            ->merge($groups['same_club'])
+            ->merge($groups['nearby'])
+            ->filter(function (User $u) {
+                if ($u->is_banned || $u->is_guest || $u->visibility === 'private') {
+                    return false;
+                }
+                if ($u->visibility === 'friend-only') {
+                    $rel = $u->preloaded_relation;
+                    $hasRelation = $rel && (
+                        ($rel->matches_together ?? 0) > 0 ||
+                        ($rel->mini_tournaments_together ?? 0) > 0 ||
+                        ($rel->tournaments_together ?? 0) > 0 ||
+                        ($rel->clubs_together ?? 0) > 0
+                    );
+                    return $hasRelation || in_array($u->category ?? '', ['played_tournament', 'same_club'], true);
+                }
+                return true;
             })
-            ->limit(20);
+            ->values();
 
-        if ($q) {
-            $query->where('full_name', 'like', "%{$q}%");
-        } else {
-            // Mặc định lấy user mới nhất
-            $query->latest('id');
+        if ($q !== '') {
+            $relatedUsers = $relatedUsers
+                ->filter(fn (User $u) => mb_stripos((string) $u->full_name, $q) !== false)
+                ->values();
         }
 
-        $users = $query->get(['id', 'full_name', 'avatar_url', 'self_score']);
+        $users = $relatedUsers->take(20);
 
-        $data = $users->map(fn ($u) => [
-            'id' => $u->id,
-            'full_name' => $u->full_name,
-            'avatar_url' => $u->avatar_url,
-            'rating' => $u->self_score ?? null,
-            'card_type' => 'card_player',
-        ]);
+        // 2. Nếu có từ khóa tìm kiếm q mà danh sách người quen chưa đủ 20 kết quả -> tìm thêm user hợp lệ theo tên
+        if ($q !== '' && $users->count() < 20) {
+            $excludeIds = $users->pluck('id')->push($userId)->unique()->all();
+            $remaining = 20 - $users->count();
+
+            $extraUsers = User::query()
+                ->with(['sports.sport', 'sports.scores', 'clubs'])
+                ->whereNotIn('id', $excludeIds)
+                ->where('is_banned', false)
+                ->where('is_guest', false)
+                ->where('visibility', '!=', 'private')
+                ->where('full_name', 'like', "%{$q}%")
+                ->where(function ($sub) use ($userId) {
+                    $sub->where('visibility', 'open')
+                        ->orWhere(function ($f) use ($userId) {
+                            $f->where('visibility', 'friend-only')
+                                ->where(function ($rel) use ($userId) {
+                                    $rel->whereHas('clubs', function ($cq) use ($userId) {
+                                        $cq->whereIn('clubs.id', function ($subClub) use ($userId) {
+                                            $subClub->select('club_id')
+                                                ->from('club_members')
+                                                ->where('user_id', $userId)
+                                                ->where('membership_status', 'joined')
+                                                ->where('status', 'active');
+                                        });
+                                    })
+                                    ->orWhereHas('participants', function ($tp) use ($userId) {
+                                        $tp->whereIn('tournament_id', function ($tq) use ($userId) {
+                                            $tq->select('tournament_id')
+                                                ->from('participants')
+                                                ->where('user_id', $userId);
+                                        });
+                                    })
+                                    ->orWhereHas('miniParticipants', function ($mp) use ($userId) {
+                                        $mp->whereIn('mini_tournament_id', function ($mq) use ($userId) {
+                                            $mq->select('mini_tournament_id')
+                                                ->from('mini_participants')
+                                                ->where('user_id', $userId);
+                                        });
+                                    });
+                                });
+                        });
+                })
+                ->limit($remaining)
+                ->get();
+
+            if ($extraUsers->isNotEmpty()) {
+                $suggestService->attachPlayedTogetherRelations($userId, $extraUsers);
+                $users = $users->concat($extraUsers)->values();
+            }
+        }
+
+        $data = $users->map(function (User $u) {
+            $scores = $u->relationLoaded('sports')
+                ? ($u->sports->firstWhere('sport_id', 1)?->scores ?? collect())
+                : collect();
+            $vnduprScore = $scores->firstWhere('score_type', 'vndupr_score');
+            $rating = $vnduprScore?->score_value !== null
+                ? round((float) $vnduprScore->score_value, 2)
+                : ($u->self_score !== null ? (float) $u->self_score : null);
+
+            $rel = $u->preloaded_relation ?? null;
+
+            return [
+                'id' => $u->id,
+                'full_name' => $u->full_name,
+                'avatar_url' => $u->avatar_url,
+                'rating' => $rating,
+                'category' => $u->category ?? null,
+                'category_text' => $u->category_text ?? null,
+                'relation' => $rel ? [
+                    'matches_together' => (int) ($rel->matches_together ?? 0),
+                    'mini_tournaments_together' => (int) ($rel->mini_tournaments_together ?? 0),
+                    'tournaments_together' => (int) ($rel->tournaments_together ?? 0),
+                    'clubs_together' => (int) ($rel->clubs_together ?? 0),
+                ] : null,
+                'card_type' => 'card_player',
+            ];
+        })->values();
 
         return ResponseHelper::success($data, 'Lấy danh sách người chơi thành công');
     }

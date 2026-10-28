@@ -93,6 +93,26 @@ export const useChatStore = defineStore("chat", () => {
         messages.value = [];
     };
 
+    const toggleMute = async (conversationId, isMuted = undefined) => {
+        const res = await chatService.toggleMute(conversationId, isMuted);
+        const updatedConv = res?.data;
+        if (updatedConv) {
+            if (activeConversation.value && Number(activeConversation.value.id) === Number(conversationId)) {
+                activeConversation.value.is_muted = Boolean(updatedConv.is_muted);
+            }
+            fetchUnreadCounts();
+            window.dispatchEvent(
+                new CustomEvent("chat:conversation-muted", {
+                    detail: {
+                        conversationId: Number(conversationId),
+                        is_muted: Boolean(updatedConv.is_muted),
+                    },
+                })
+            );
+        }
+        return res;
+    };
+
     const sendMessage = async (payload) => {
         if (!activeConversation.value) return;
         const convId = activeConversation.value.id;
@@ -203,6 +223,7 @@ export const useChatStore = defineStore("chat", () => {
         startDm,
         openGroupChat,
         closeChat,
+        toggleMute,
         sendMessage,
         listenUserChannel,
     };
