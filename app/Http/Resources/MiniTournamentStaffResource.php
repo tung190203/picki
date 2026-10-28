@@ -25,7 +25,18 @@ class MiniTournamentStaffResource extends JsonResource
             : $this->resource->pivot;
 
         $userId = $record->user_id ?? null;
-        $user = $userId ? User::with(['sports.scores', 'sports.sport'])->find($userId) : null;
+
+        // ponytail: tái dùng user đã eager-load (controller preload staff.sports),
+        // chỉ query khi thiếu — trước đó find() per staff gây N+1.
+        $user = null;
+        if ($this->resource instanceof User) {
+            $user = $this->resource;
+            if (!$user->relationLoaded('sports')) {
+                $user->loadMissing(['sports.scores', 'sports.sport']);
+            }
+        } elseif ($userId) {
+            $user = User::with(['sports.scores', 'sports.sport'])->find($userId);
+        }
 
         return [
             'id' => $record->id,

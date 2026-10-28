@@ -459,6 +459,16 @@ class ClubController extends Controller
         $offset = ($currentPage - 1) * $perPage;
         $paginatedData = $rankedLeaderboard->slice($offset, $perPage)->values();
 
+        // ponytail: batch primary_badge cho user hiển thị ở trang hiện tại (1 query).
+        // Trước đó ClubLeaderboardResource::$user->primary_badge query per row.
+        $pageUsers = $paginatedData->map(fn ($row) => $row['user'] ?? null)->filter();
+        if ($pageUsers->isNotEmpty()) {
+            request()->attributes->set(
+                'batch_badges',
+                app(\App\Services\BadgeService::class)->getBatchUserBadges($pageUsers->pluck('id')->all())
+            );
+        }
+
         $response = [
             'club_info' => [
                 'id' => $club->id,
