@@ -51,83 +51,6 @@
         </div>
       </div>
 
-      <!-- Search Results Overlay (If searching) -->
-      <div
-        v-if="searchQuery.trim()"
-        class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl p-5 shadow-lg space-y-4"
-      >
-        <div class="flex items-center justify-between border-b border-gray-100 dark:border-slate-800 pb-3">
-          <h3 class="font-bold text-sm text-gray-700 dark:text-slate-200">
-            Kết quả tìm kiếm cho "{{ searchQuery }}"
-          </h3>
-          <span class="text-xs text-gray-400">
-            {{ searchResults.conversations.length + searchResults.alerts.length }} kết quả
-          </span>
-        </div>
-
-        <div v-if="searching" class="text-center py-6 text-xs text-gray-400">
-          Đang tìm kiếm...
-        </div>
-
-        <div v-else-if="searchResults.conversations.length === 0 && searchResults.alerts.length === 0" class="text-center py-8 text-xs text-gray-400">
-          Không tìm thấy tin nhắn hay thông báo nào phù hợp
-        </div>
-
-        <div v-else class="space-y-4">
-          <!-- Search Conversations -->
-          <div v-if="searchResults.conversations.length > 0" class="space-y-2">
-            <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400">Tin nhắn & Nhóm</h4>
-            <div
-              v-for="conv in searchResults.conversations"
-              :key="'search_conv_' + conv.id"
-              @click="openConversation(conv.id)"
-              class="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-slate-800/60 hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer transition border border-gray-100 dark:border-slate-800"
-            >
-              <div class="flex items-center gap-3 min-w-0">
-                <img
-                  :src="conv.avatar_url || '/images/default-avatar.png'"
-                  class="w-10 h-10 rounded-full object-cover"
-                  @error="$event.target.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(conv.title || 'Chat')"
-                />
-                <div class="min-w-0">
-                  <div class="flex items-center gap-2">
-                    <span class="font-bold text-xs truncate">{{ conv.title }}</span>
-                    <span v-if="conv.is_archived" class="bg-amber-100 dark:bg-amber-950/60 text-amber-600 text-[10px] px-1.5 py-0.2 rounded font-semibold">
-                      [Lưu trữ]
-                    </span>
-                  </div>
-                  <p class="text-[11px] text-gray-500 dark:text-slate-400 truncate mt-0.5">
-                    {{ conv.last_message?.content || 'Đã gửi một tin nhắn' }}
-                  </p>
-                </div>
-              </div>
-              <span class="text-[10px] text-gray-400 whitespace-nowrap">{{ formatRelativeTime(conv.last_message_at) }}</span>
-            </div>
-          </div>
-
-          <!-- Search Alerts -->
-          <div v-if="searchResults.alerts.length > 0" class="space-y-2">
-            <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400">Thông báo hệ thống</h4>
-            <div
-              v-for="alert in searchResults.alerts"
-              :key="'search_alert_' + alert.id"
-              @click="handleAlertClick(alert)"
-              class="p-3 rounded-xl bg-gray-50 dark:bg-slate-800/60 hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer transition border border-gray-100 dark:border-slate-800 flex items-start gap-3"
-            >
-              <div :class="['w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5', getAlertBadgeClass(alert)]">
-                <component :is="getAlertIcon(alert)" class="w-4 h-4" />
-              </div>
-              <div class="min-w-0">
-                <h5 class="font-bold text-xs">{{ parseAlert(alert).title }}</h5>
-                <p class="text-[11px] text-gray-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                  {{ parseAlert(alert).message }}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- Main Navigation Tabs -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-200 dark:border-slate-800 pb-3">
         <!-- 3 Main Tabs -->
@@ -264,6 +187,11 @@
                   <h4 class="font-bold text-sm text-gray-900 dark:text-white truncate">
                     {{ conv.title }}
                   </h4>
+                  <BellSlashIcon
+                    v-if="conv.is_muted"
+                    class="w-3.5 h-3.5 text-gray-400 dark:text-slate-500 flex-shrink-0"
+                    title="Đã tắt thông báo"
+                  />
                   <span
                     v-if="conv.context_tag"
                     class="bg-gray-100 dark:bg-slate-800 text-[#D72D36] dark:text-red-400 text-[10px] font-semibold px-2 py-0.5 rounded-full truncate"
@@ -290,9 +218,19 @@
               </div>
             </div>
 
-            <span class="text-[11px] text-gray-400 whitespace-nowrap flex-shrink-0">
-              {{ formatRelativeTime(conv.last_message_at || conv.updated_at) }}
-            </span>
+            <div class="flex items-center gap-2 flex-shrink-0" @click.stop>
+              <button
+                @click.stop="toggleMuteConv(conv.id)"
+                class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition"
+                :title="conv.is_muted ? 'Bật thông báo' : 'Tắt thông báo'"
+              >
+                <BellSlashIcon v-if="conv.is_muted" class="w-4 h-4 text-amber-500" />
+                <BellOutlineIcon v-else class="w-4 h-4" />
+              </button>
+              <span class="text-[11px] text-gray-400 whitespace-nowrap">
+                {{ formatRelativeTime(conv.last_message_at || conv.updated_at) }}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -438,6 +376,11 @@
                 <div class="min-w-0">
                   <div class="flex items-center gap-2">
                     <h4 class="font-bold text-sm truncate">{{ item.data?.title }}</h4>
+                    <BellSlashIcon
+                      v-if="item.data?.is_muted"
+                      class="w-3.5 h-3.5 text-gray-400 dark:text-slate-500 flex-shrink-0"
+                      title="Đã tắt thông báo"
+                    />
                     <span
                       v-if="item.data?.context_tag"
                       class="bg-gray-100 dark:bg-slate-800 text-[#D72D36] text-[10px] font-semibold px-2 py-0.5 rounded-full truncate"
@@ -457,9 +400,19 @@
                 </div>
               </div>
 
-              <span class="text-[11px] text-gray-400 whitespace-nowrap flex-shrink-0">
-                {{ formatRelativeTime(item.timestamp) }}
-              </span>
+              <div class="flex items-center gap-2 flex-shrink-0" @click.stop>
+                <button
+                  @click.stop="toggleMuteConv(item.data?.id)"
+                  class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition"
+                  :title="item.data?.is_muted ? 'Bật thông báo' : 'Tắt thông báo'"
+                >
+                  <BellSlashIcon v-if="item.data?.is_muted" class="w-4 h-4 text-amber-500" />
+                  <BellOutlineIcon v-else class="w-4 h-4" />
+                </button>
+                <span class="text-[11px] text-gray-400 whitespace-nowrap">
+                  {{ formatRelativeTime(item.timestamp) }}
+                </span>
+              </div>
             </template>
 
             <!-- Alert Item -->
@@ -532,6 +485,7 @@ import {
   UserIcon,
   EnvelopeIcon,
   BellIcon,
+  BellSlashIcon,
   MagnifyingGlassIcon,
   XMarkIcon,
   NoSymbolIcon,
@@ -801,9 +755,11 @@ const loadFeed = async (isFirstPage = true, isSilent = false) => {
       loadingMore.value = true;
     }
 
+    const keyword = searchQuery.value.trim();
     const res = await inboxService.getInbox({
       tab: currentTab.value,
       is_unread: isUnreadOnly.value ? 1 : 0,
+      ...(keyword ? { q: keyword } : {}),
       page: page.value,
       per_page: 25,
     });
@@ -917,6 +873,38 @@ const handleConversationReadEvent = (e) => {
   const convId = e?.detail?.conversationId;
   if (convId) {
     handleConversationReadLocally(convId);
+  }
+};
+
+const applyConversationMutedLocally = (convId, isMuted) => {
+  if (!convId || !Array.isArray(feedData.value?.items)) return;
+  const targetId = Number(convId);
+  feedData.value.items.forEach((item) => {
+    if (item.item_type === "conversation" && item.data && Number(item.data.id) === targetId) {
+      item.data.is_muted = Boolean(isMuted);
+    }
+    if (Number(item.id) === targetId) {
+      item.is_muted = Boolean(isMuted);
+    }
+  });
+};
+
+const handleConversationMutedEvent = (e) => {
+  const convId = e?.detail?.conversationId;
+  if (convId) {
+    applyConversationMutedLocally(convId, e?.detail?.is_muted);
+  }
+};
+
+const toggleMuteConv = async (convId) => {
+  if (!convId) return;
+  try {
+    const res = await chatStore.toggleMute(convId);
+    const muted = Boolean(res?.data?.is_muted);
+    applyConversationMutedLocally(convId, muted);
+    toast.success(muted ? "Đã tắt thông báo cuộc trò chuyện" : "Đã bật thông báo cuộc trò chuyện");
+  } catch (err) {
+    toast.error(err?.response?.data?.message || "Không thể cập nhật cài đặt thông báo");
   }
 };
 
@@ -1111,27 +1099,14 @@ const handleUnifiedItemClick = (item) => {
 let searchDebounce = null;
 const onSearchInput = () => {
   clearTimeout(searchDebounce);
-  if (!searchQuery.value.trim()) {
-    searchResults.value = { conversations: [], alerts: [] };
-    return;
-  }
-
-  searchDebounce = setTimeout(async () => {
-    try {
-      searching.value = true;
-      const res = await inboxService.search(searchQuery.value.trim());
-      searchResults.value = res.data || { conversations: [], alerts: [] };
-    } catch (err) {
-      console.error("search error:", err);
-    } finally {
-      searching.value = false;
-    }
+  searchDebounce = setTimeout(() => {
+    loadFeed(true);
   }, 300);
 };
 
 const clearSearch = () => {
   searchQuery.value = "";
-  searchResults.value = { conversations: [], alerts: [] };
+  loadFeed(true);
 };
 
 const formatRelativeTime = (timeStr) => {
@@ -1224,6 +1199,7 @@ onMounted(() => {
   window.addEventListener("chat:replied-stranger", handleRepliedStranger);
   window.addEventListener("chat:conversation-updated", handleRealtimeConversationUpdated);
   window.addEventListener("chat:conversation-read", handleConversationReadEvent);
+  window.addEventListener("chat:conversation-muted", handleConversationMutedEvent);
 
   // Listen to user socket channel for real-time conversation updates
   const userId = userStore.getUser?.id;
@@ -1236,5 +1212,6 @@ onBeforeUnmount(() => {
   window.removeEventListener("chat:replied-stranger", handleRepliedStranger);
   window.removeEventListener("chat:conversation-updated", handleRealtimeConversationUpdated);
   window.removeEventListener("chat:conversation-read", handleConversationReadEvent);
+  window.removeEventListener("chat:conversation-muted", handleConversationMutedEvent);
 });
 </script>
