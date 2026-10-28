@@ -157,6 +157,12 @@ class ConversationController extends Controller
 
         $content = $request->input('content');
         $metadata = $request->input('metadata', []);
+        if (!is_array($metadata)) {
+            $metadata = json_decode((string) $metadata, true) ?: [];
+        }
+        if (empty($metadata['target_id']) && $request->filled('target_id')) {
+            $metadata['target_id'] = (int) $request->input('target_id');
+        }
 
         // Xử lý upload file nếu có
         if ($request->hasFile('file')) {
@@ -203,5 +209,42 @@ class ConversationController extends Controller
         $this->conversationService->markAsRead($conversation, $currentUserId);
 
         return ResponseHelper::success(null, 'Đánh dấu đã đọc thành công');
+    }
+
+    /**
+     * Bật/tắt thông báo cho một cuộc trò chuyện.
+     * Nếu truyền is_muted (boolean) sẽ set theo giá trị đó; nếu không truyền sẽ tự động đảo trạng thái (toggle).
+     */
+    public function toggleMute(Request $request, int $id)
+    {
+        $request->validate([
+            'is_muted' => 'nullable|boolean',
+        ]);
+
+        $currentUserId = Auth::id();
+
+        $conversation = Conversation::whereHas('participants', fn ($q) => $q->where('user_id', $currentUserId))
+            ->find($id);
+
+        if (!$conversation) {
+            return ResponseHelper::error('Không tìm thấy cuộc trò chuyện', 404);
+        }
+
+        $isMuted = $request->has('is_muted')
+            ? filter_var($request->input('is_muted'), FILTER_VALIDATE_BOOLEAN)
+            : null;
+
+        try {
+            $updatedConversation = $this->conversationService->toggleMute($conversation, $currentUserId, $isMuted);
+            $participant = $updatedConversation->getParticipantForUser($currentUserId);
+            $mutedState = (bool) ($participant?->is_muted ?? false);
+
+            return ResponseHelper::success(
+                new ConversationResource($updatedConversation),
+                $mutedState ? 'Đã tắt thông báo cuộc trò chuyện' : 'Đã bật thông báo cuộc trò chuyện'
+            );
+        } catch (Exception $e) {
+            return ResponseHelper::error($e->getMessage(), 400);
+        }
     }
 }

@@ -16,13 +16,14 @@ class InboxController extends Controller
     }
 
     /**
-     * Lấy danh sách Inbox hợp nhất theo tab (all, messages, alerts) và lọc chưa đọc.
+     * Lấy danh sách Inbox hợp nhất theo tab (all, messages, alerts), lọc chưa đọc và tìm kiếm theo từ khóa q.
      */
     public function index(Request $request)
     {
         $validated = $request->validate([
             'tab' => 'nullable|in:all,messages,alerts',
             'is_unread' => 'nullable',
+            'q' => 'nullable|string',
             'page' => 'nullable|integer|min:1',
             'per_page' => 'nullable|integer|min:1|max:100',
         ]);
@@ -39,6 +40,7 @@ class InboxController extends Controller
     public function strangers(Request $request)
     {
         $validated = $request->validate([
+            'q' => 'nullable|string',
             'page' => 'nullable|integer|min:1',
             'per_page' => 'nullable|integer|min:1|max:100',
         ]);
@@ -46,8 +48,9 @@ class InboxController extends Controller
         $user = Auth::user();
         $page = (int) ($validated['page'] ?? 1);
         $perPage = (int) ($validated['per_page'] ?? 20);
+        $q = $validated['q'] ?? null;
 
-        $data = $this->inboxService->getStrangersQueue($user, $page, $perPage);
+        $data = $this->inboxService->getStrangersQueue($user, $page, $perPage, $q);
 
         return ResponseHelper::success($data, 'Lấy danh sách tin nhắn người lạ thành công');
     }
@@ -61,25 +64,6 @@ class InboxController extends Controller
         $counts = $this->inboxService->getUnreadCounts($user);
 
         return ResponseHelper::success($counts, 'Lấy số lượng chưa đọc thành công');
-    }
-
-    /**
-     * Tìm kiếm hợp nhất trong Inbox (Tin nhắn + Thông báo).
-     */
-    public function search(Request $request)
-    {
-        $validated = $request->validate([
-            'q' => 'required|string|min:1',
-            'per_page' => 'nullable|integer|min:1|max:50',
-        ]);
-
-        $user = Auth::user();
-        $query = $validated['q'];
-        $perPage = (int) ($validated['per_page'] ?? 20);
-
-        $results = $this->inboxService->search($user, $query, $perPage);
-
-        return ResponseHelper::success($results, 'Tìm kiếm inbox thành công');
     }
 
     /**

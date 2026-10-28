@@ -20,12 +20,14 @@ class NotificationController extends Controller
     {
         $validated = $request->validate([
             'type' => 'nullable|in:all,unread,read',
+            'q' => 'nullable|string',
             'per_page' => 'integer|min:1|max:200',
         ]);
 
         /** @var User $user */
         $user = auth()->user();
         $type = $validated['type'] ?? 'all';
+        $keyword = isset($validated['q']) ? trim((string) $validated['q']) : '';
 
         if ($type === 'unread') {
             $query = $user->unreadNotifications()->latest();
@@ -35,6 +37,18 @@ class NotificationController extends Controller
                 ->latest();
         } else {
             $query = $user->notifications()->latest();
+        }
+
+        if ($keyword !== '') {
+            $jsonEscaped = substr((string) json_encode($keyword), 1, -1);
+            $sqlEscapedJson = str_replace('\\', '\\\\', $jsonEscaped);
+
+            $query->where(function ($sub) use ($keyword, $jsonEscaped, $sqlEscapedJson) {
+                $sub->where('data', 'like', "%{$keyword}%");
+                if ($jsonEscaped !== '' && $jsonEscaped !== $keyword) {
+                    $sub->orWhere('data', 'like', "%{$sqlEscapedJson}%");
+                }
+            });
         }
 
         $notifications = $query->paginate(
@@ -51,7 +65,7 @@ class NotificationController extends Controller
         ], 'Lấy danh sách thông báo thành công', 200, [
             'current_page' => $notifications->currentPage(),
             'per_page' => $notifications->perPage(),
-            'total'        => $totalCount,
+            'total'        => $keyword !== '' ? $notifications->total() : $totalCount,
             'unread_count' => $unreadCount,
             'read_count'   => $readCount,
             'last_page'    => $notifications->lastPage(),
