@@ -51,7 +51,7 @@ class BadgeController extends Controller
     public function setFeatured(Request $request)
     {
         $request->validate([
-            'user_badge_ids' => 'required|array|max:3',
+            'user_badge_ids' => 'present|array',
             'user_badge_ids.*' => 'integer|exists:user_badges,id',
         ]);
 
