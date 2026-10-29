@@ -24,9 +24,15 @@ class InboxController extends Controller
             'tab' => 'nullable|in:all,messages,alerts',
             'is_unread' => 'nullable',
             'q' => 'nullable|string',
+            'search' => 'nullable|string',
+            'keyword' => 'nullable|string',
             'page' => 'nullable|integer|min:1',
             'per_page' => 'nullable|integer|min:1|max:100',
         ]);
+
+        if (!isset($validated['q'])) {
+            $validated['q'] = $validated['search'] ?? $validated['keyword'] ?? null;
+        }
 
         $user = Auth::user();
         $data = $this->inboxService->getInbox($user, $validated);
@@ -41,6 +47,8 @@ class InboxController extends Controller
     {
         $validated = $request->validate([
             'q' => 'nullable|string',
+            'search' => 'nullable|string',
+            'keyword' => 'nullable|string',
             'page' => 'nullable|integer|min:1',
             'per_page' => 'nullable|integer|min:1|max:100',
         ]);
@@ -48,7 +56,7 @@ class InboxController extends Controller
         $user = Auth::user();
         $page = (int) ($validated['page'] ?? 1);
         $perPage = (int) ($validated['per_page'] ?? 20);
-        $q = $validated['q'] ?? null;
+        $q = $validated['q'] ?? $validated['search'] ?? $validated['keyword'] ?? null;
 
         $data = $this->inboxService->getStrangersQueue($user, $page, $perPage, $q);
 

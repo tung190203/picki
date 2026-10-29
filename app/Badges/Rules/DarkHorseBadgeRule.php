@@ -37,17 +37,31 @@ class DarkHorseBadgeRule implements BadgeRuleInterface
 
         $sportId = $tournament->sport_id ?? 1;
 
-        // Lấy tất cả user_id để truy vấn rank 1 lần
+        // Lấy tất cả user_id để truy vấn điểm trình (vndupr_score) 1 lần
         $userIds = [];
         foreach ($teams as $team) {
             foreach ($team->members as $member) {
                 if ($member->id) {
-                    $userIds[] = $member->id;
+                    $userIds[] = (int) $member->id;
                 }
             }
         }
-        $userIds = array_unique($userIds);
-        $userRanks = User::getBatchVNRanks($userIds, $sportId);
+        $userIds = array_values(array_unique($userIds));
+        $userRatings = [];
+        if (!empty($userIds)) {
+            $scoreRows = \Illuminate\Support\Facades\DB::table('user_sport')
+                ->join('user_sport_scores', 'user_sport.id', '=', 'user_sport_scores.user_sport_id')
+                ->whereIn('user_sport.user_id', $userIds)
+                ->where('user_sport.sport_id', (int) $sportId)
+                ->where('user_sport_scores.score_type', 'vndupr_score')
+                ->select('user_sport.user_id', \Illuminate\Support\Facades\DB::raw('MAX(user_sport_scores.score_value) as rating'))
+                ->groupBy('user_sport.user_id')
+                ->get();
+
+            foreach ($scoreRows as $row) {
+                $userRatings[(int) $row->user_id] = (float) $row->rating;
+            }
+        }
 
         // Tính điểm trung bình cho từng đội
         $teamRatings = [];
@@ -55,8 +69,8 @@ class DarkHorseBadgeRule implements BadgeRuleInterface
             $sum = 0;
             $count = 0;
             foreach ($team->members as $member) {
-                if (isset($userRanks[$member->id]) && $userRanks[$member->id] > 0) {
-                    $sum += (float) $userRanks[$member->id];
+                if (isset($userRatings[$member->id]) && $userRatings[$member->id] > 0) {
+                    $sum += (float) $userRatings[$member->id];
                     $count++;
                 }
             }
