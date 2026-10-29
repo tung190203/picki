@@ -2,7 +2,9 @@
 
 namespace App\Services\Club;
 
+use App\Enums\ClubMembershipStatus;
 use App\Models\Club\Club;
+use App\Models\Club\ClubMember;
 use App\Models\User;
 use App\Models\UserAchievement;
 use Carbon\Carbon;
@@ -53,6 +55,20 @@ class ClubAchievementLeaderboardService
                 MAX(is_guest_snapshot) as is_guest', ['gold', 'silver', 'bronze'])
             ->groupBy('user_id')
             ->get();
+
+        // BXH chỉ dành cho thành viên CLB — loại khách/vãng lai có thành tích
+        // ở giải/kèo của CLB nhưng không thuộc club_members (joined).
+        $memberSet = ClubMember::where('club_id', $club->id)
+            ->where('membership_status', ClubMembershipStatus::Joined->value)
+            ->pluck('user_id')
+            ->map(fn ($v) => (int) $v)
+            ->flip()
+            ->all();
+        $rows = $rows->filter(fn ($row) => isset($memberSet[(int) $row->user_id]))->values();
+
+        if ($rows->isEmpty()) {
+            return collect();
+        }
 
         $userIds = $rows->pluck('user_id')->all();
         $users = $userIds
