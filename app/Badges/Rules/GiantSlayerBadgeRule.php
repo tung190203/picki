@@ -29,46 +29,54 @@ class GiantSlayerBadgeRule implements BadgeRuleInterface
     public function handle($event): void
     {
         /** @var MatchResultConfirmed $event */
-        $winnerUserIds = $this->getQualifiedWinnerUserIds($event->match);
-        if (empty($winnerUserIds)) {
+        $evaluation = $this->evaluateMatch($event->match);
+        if (empty($evaluation['winner_user_ids'])) {
             return;
         }
 
         /** @var BadgeService $badgeService */
         $badgeService = app(BadgeService::class);
 
-        foreach ($winnerUserIds as $uid) {
+        foreach ($evaluation['winner_user_ids'] as $uid) {
             if ($uid > 0) {
-                $badgeService->awardBadge((int) $uid, $this->badgeCode());
+                $badgeService->awardBadge((int) $uid, $this->badgeCode(), null, $evaluation['context'] ?? []);
             }
         }
     }
 
     /**
-     * Trả về danh sách user_id của đội thắng nếu trận đấu thỏa điều kiện Giant Slayer
-     * (đội thắng đánh bại đội thua có điểm trình trung bình cao hơn >= MIN_RATING_DIFF).
+     * Trả về danh sách user_id của đội thắng nếu trận đấu thỏa điều kiện Giant Slayer.
      *
      * @param  mixed  $match
      * @return array<int>
      */
     public function getQualifiedWinnerUserIds($match): array
     {
+        return $this->evaluateMatch($match)['winner_user_ids'];
+    }
+
+    /**
+     * Đánh giá trận đấu cho huy hiệu Giant Slayer và trả về kèm thông tin truy vết (context).
+     *
+     * @param  mixed  $match
+     * @return array{winner_user_ids: array<int>, context: array<string, mixed>}
+     */
+    public function evaluateMatch($match): array
+    {
         $winnerUserIds = [];
         $loserUserIds = [];
         $sportId = 1;
         $historyMatchColumn = null;
+        $matchContext = [];
 
         // Phân tách thành viên thắng và thua dựa theo loại match
         if ($match instanceof Matches) {
-            $sportId = (int) (
-                $match->tournamentType?->tournament?->sport_id
-                ?? $match->group?->tournamentType?->tournament?->sport_id
-                ?? 1
-            );
+            $tournament = $match->tournamentType?->tournament ?? $match->group?->tournamentType?->tournament;
+            $sportId = (int) ($tournament?->sport_id ?? 1);
             $winnerTeamId = $match->winner_id;
 
             if (!$winnerTeamId) {
-                return [];
+                return ['winner_user_ids' => [], 'context' => []];
             }
 
             if ($winnerTeamId == $match->home_team_id) {
@@ -76,15 +84,31 @@ class GiantSlayerBadgeRule implements BadgeRuleInterface
             } elseif ($winnerTeamId == $match->away_team_id) {
                 $loserTeamId = $match->home_team_id;
             } else {
-                return [];
+                return ['winner_user_ids' => [], 'context' => []];
             }
 
             $winnerUserIds = DB::table('team_members')->where('team_id', $winnerTeamId)->pluck('user_id')->toArray();
             $loserUserIds = DB::table('team_members')->where('team_id', $loserTeamId)->pluck('user_id')->toArray();
             $historyMatchColumn = 'match_id';
+            $matchContext = [
+                'source_type' => 'tournament_match',
+                'match_id' => $match->id,
+                'tournament_type_id' => $match->tournament_type_id,
+                'tournament_id' => $tournament?->id,
+                'tournament_name' => $tournament?->name,
+                'winner_team_id' => $winnerTeamId,
+                'loser_team_id' => $loserTeamId,
+            ];
         } elseif ($match instanceof MiniMatch) {
-            $sportId = (int) ($match->miniTournament?->sport_id ?? 1);
+            $miniTournament = $match->miniTournament;
+            $sportId = (int) ($miniTournament?->sport_id ?? 1);
             $historyMatchColumn = 'mini_match_id';
+            $matchContext = [
+                'source_type' => 'mini_match',
+                'mini_match_id' => $match->id,
+                'mini_tournament_id' => $match->mini_tournament_id,
+                'mini_tournament_name' => $miniTournament?->name,
+            ];
 
             if ($match->team_win_id) {
                 // Đấu đội
@@ -94,11 +118,13 @@ class GiantSlayerBadgeRule implements BadgeRuleInterface
                 } elseif ($winnerTeamId == $match->team2_id) {
                     $loserTeamId = $match->team1_id;
                 } else {
-                    return [];
+                    return ['winner_user_ids' => [], 'context' => []];
                 }
 
                 $winnerUserIds = DB::table('mini_team_members')->where('mini_team_id', $winnerTeamId)->pluck('user_id')->toArray();
                 $loserUserIds = DB::table('mini_team_members')->where('mini_team_id', $loserTeamId)->pluck('user_id')->toArray();
+                $matchContext['team_win_id'] = $winnerTeamId;
+                $matchContext['team_lose_id'] = $loserTeamId;
             } elseif ($match->participant_win_id) {
                 // Đấu đơn: participant1_id / participant2_id / participant_win_id là mini_participants.id
                 $winnerParticipantId = $match->participant_win_id;
@@ -107,7 +133,7 @@ class GiantSlayerBadgeRule implements BadgeRuleInterface
                 } elseif ($winnerParticipantId == $match->participant2_id) {
                     $loserParticipantId = $match->participant1_id;
                 } else {
-                    return [];
+                    return ['winner_user_ids' => [], 'context' => []];
                 }
 
                 $participantUsers = DB::table('mini_participants')
@@ -119,8 +145,10 @@ class GiantSlayerBadgeRule implements BadgeRuleInterface
 
                 $winnerUserIds = $winnerUid ? [(int) $winnerUid] : [];
                 $loserUserIds = $loserUid ? [(int) $loserUid] : [];
+                $matchContext['participant_win_id'] = $winnerParticipantId;
+                $matchContext['participant_lose_id'] = $loserParticipantId;
             } else {
-                return [];
+                return ['winner_user_ids' => [], 'context' => []];
             }
         } elseif ($match instanceof QuickMatch) {
             $sportId = (int) ($match->sport_id ?? 1);
@@ -128,7 +156,7 @@ class GiantSlayerBadgeRule implements BadgeRuleInterface
             $historyMatchColumn = 'quick_match_id';
 
             if (!in_array($winnerSide, ['team_a', 'team_b'], true)) {
-                return [];
+                return ['winner_user_ids' => [], 'context' => []];
             }
 
             $loserSide = ($winnerSide === 'team_a') ? 'team_b' : 'team_a';
@@ -149,13 +177,19 @@ class GiantSlayerBadgeRule implements BadgeRuleInterface
                     ->where('team_side', $loserSide)
                     ->pluck('user_id')->toArray();
             }
+
+            $matchContext = [
+                'source_type' => 'quick_match',
+                'quick_match_id' => $match->id,
+                'winner_side' => $winnerSide,
+            ];
         }
 
         $winnerUserIds = array_values(array_unique(array_filter(array_map('intval', $winnerUserIds))));
         $loserUserIds = array_values(array_unique(array_filter(array_map('intval', $loserUserIds))));
 
         if (empty($winnerUserIds) || empty($loserUserIds)) {
-            return [];
+            return ['winner_user_ids' => [], 'context' => []];
         }
 
         // Lấy điểm trình độ (vndupr_score) của các thành viên:
@@ -182,16 +216,35 @@ class GiantSlayerBadgeRule implements BadgeRuleInterface
 
         // Nếu bất kỳ đội nào chưa có điểm trình (> 0) thì bỏ qua.
         if ($winnerAvgRating <= 0 || $loserAvgRating <= 0) {
-            return [];
+            return ['winner_user_ids' => [], 'context' => []];
         }
+
+        $diff = round($loserAvgRating - $winnerAvgRating, 3);
 
         // Điều kiện Giant Slayer: Đội thắng có điểm trình thấp hơn đội thua >= MIN_RATING_DIFF (1)
         // Tức là đội thắng đã đánh bại đối thủ có điểm trình cao hơn mình >= 1.
-        if (($loserAvgRating - $winnerAvgRating) >= self::MIN_RATING_DIFF) {
-            return $winnerUserIds;
+        if ($diff >= self::MIN_RATING_DIFF) {
+            return [
+                'winner_user_ids' => $winnerUserIds,
+                'context' => array_filter($matchContext + [
+                    'reason' => sprintf(
+                        'Thắng đối thủ có điểm trình TB cao hơn (Đội thắng: %.3f vs Đội thua: %.3f, chênh +%.3f >= %s)',
+                        $winnerAvgRating,
+                        $loserAvgRating,
+                        $diff,
+                        self::MIN_RATING_DIFF
+                    ),
+                    'winner_user_ids' => $winnerUserIds,
+                    'loser_user_ids' => $loserUserIds,
+                    'winner_avg_rating' => round($winnerAvgRating, 3),
+                    'loser_avg_rating' => round($loserAvgRating, 3),
+                    'rating_diff' => $diff,
+                    'player_ratings' => $ratings,
+                ], fn ($v) => $v !== null),
+            ];
         }
 
-        return [];
+        return ['winner_user_ids' => [], 'context' => []];
     }
 
     /**

@@ -8,9 +8,25 @@ use App\Models\UserBadge;
 use App\Notifications\BadgeGrantedNotification;
 use App\Notifications\BadgeRevokedNotification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class BadgeService
 {
+    /**
+     * Ngữ cảnh tạm thời khi chạy qua BadgeAchievementSubscriber hoặc command
+     * để ghi log truy vết tự động (event, rule, match_id, mini_match_id, tournament_id...).
+     */
+    protected static array $activeTriggerContext = [];
+
+    public static function setTriggerContext(array $context): void
+    {
+        self::$activeTriggerContext = $context;
+    }
+
+    public static function clearTriggerContext(): void
+    {
+        self::$activeTriggerContext = [];
+    }
     /**
      * 4 loại huy hiệu được phép hiển thị bên ngoài BXH / primary_badge.
      * Thứ tự ưu tiên mặc định khi không ghim: PICKI > CHAMPION > ANCHOR > VERIFIED.
@@ -230,7 +246,7 @@ class BadgeService
         return $this->has_badge($userId, $code);
     }
 
-    private function _create_badge(int $userId, string $code, ?int $createdBy = null): ?UserBadge
+    private function _create_badge(int $userId, string $code, ?int $createdBy = null, array $context = []): ?UserBadge
     {
         $badge = Badge::where('code', $code)->first();
         if (!$badge) {
@@ -261,15 +277,25 @@ class BadgeService
             $user->notify(new BadgeGrantedNotification($code, $createdBy));
         }
 
+        $this->writeBadgeAuditLog(
+            action: 'AWARDED',
+            userId: $userId,
+            userName: $user?->full_name,
+            badge: $badge,
+            userBadgeId: $userBadge->id,
+            createdBy: $createdBy,
+            context: $context
+        );
+
         return $userBadge;
     }
 
-    public function awardBadge(int $userId, string $code, ?int $createdBy = null): ?UserBadge
+    public function awardBadge(int $userId, string $code, ?int $createdBy = null, array $context = []): ?UserBadge
     {
-        return $this->_create_badge($userId, $code, $createdBy);
+        return $this->_create_badge($userId, $code, $createdBy, $context);
     }
 
-    public function revokeBadge(int $userId, string $code): bool
+    public function revokeBadge(int $userId, string $code, array $context = []): bool
     {
         $badge = Badge::where('code', $code)->first();
         if (!$badge) {
@@ -289,9 +315,81 @@ class BadgeService
             if ($user) {
                 $user->notify(new BadgeRevokedNotification($code));
             }
+
+            $this->writeBadgeAuditLog(
+                action: 'REVOKED',
+                userId: $userId,
+                userName: $user?->full_name,
+                badge: $badge,
+                userBadgeId: null,
+                createdBy: auth()->id(),
+                context: $context
+            );
         }
 
         return $deleted;
+    }
+
+    /**
+     * Ghi log truy vết cấp/thu hồi huy hiệu vào file riêng: storage/logs/badges.log
+     */
+    public function writeBadgeAuditLog(
+        string $action,
+        int $userId,
+        ?string $userName,
+        Badge $badge,
+        ?int $userBadgeId = null,
+        ?int $createdBy = null,
+        array $context = []
+    ): void {
+        try {
+            $caller = $this->detectCallerSource();
+            $mergedContext = array_merge(self::$activeTriggerContext, $context);
+
+            $logPayload = array_filter([
+                'action' => $action,
+                'user_badge_id' => $userBadgeId,
+                'user_id' => $userId,
+                'user_name' => $userName ?? 'N/A',
+                'badge_id' => $badge->id,
+                'badge_code' => $badge->code,
+                'badge_name' => $badge->name,
+                'created_by' => $createdBy,
+                'trigger_source' => $mergedContext['rule'] ?? $caller,
+                'caller' => $caller,
+            ], fn ($v) => $v !== null) + $mergedContext;
+
+            $summary = sprintf(
+                '[BADGE_%s] badge=%s user_id=%d (%s) source=%s',
+                $action,
+                $badge->code,
+                $userId,
+                $userName ?? 'N/A',
+                $logPayload['trigger_source'] ?? 'unknown'
+            );
+
+            Log::channel('badges')->info($summary, $logPayload);
+        } catch (\Throwable $e) {
+            // Không làm gián đoạn luồng chính nếu ghi file log gặp lỗi quyền ghi
+        }
+    }
+
+    private function detectCallerSource(): string
+    {
+        $frames = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10);
+        $skipClasses = [self::class, AwardBadgeService::class];
+
+        foreach ($frames as $frame) {
+            $class = $frame['class'] ?? null;
+            if ($class && in_array($class, $skipClasses, true)) {
+                continue;
+            }
+            if ($class) {
+                return $class . '::' . ($frame['function'] ?? 'unknown');
+            }
+        }
+
+        return 'unknown';
     }
 
     public function syncFromLegacyFields(User $user): void

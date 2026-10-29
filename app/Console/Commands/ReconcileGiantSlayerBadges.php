@@ -37,16 +37,17 @@ class ReconcileGiantSlayerBadges extends Command
 
         $this->info('Đang quét lịch sử các trận đấu đã hoàn thành...');
 
-        $qualifiedUserIds = [];
+        $qualifiedContextsByUser = [];
 
         // 1. Quét giải đấu (Matches)
         Matches::with(['tournamentType.tournament', 'group.tournamentType.tournament'])
             ->whereNotNull('winner_id')
             ->where('is_bye', false)
-            ->chunkById(200, function ($matches) use ($rule, &$qualifiedUserIds) {
+            ->chunkById(200, function ($matches) use ($rule, &$qualifiedContextsByUser) {
                 foreach ($matches as $match) {
-                    foreach ($rule->getQualifiedWinnerUserIds($match) as $uid) {
-                        $qualifiedUserIds[$uid] = true;
+                    $evaluation = $rule->evaluateMatch($match);
+                    foreach ($evaluation['winner_user_ids'] as $uid) {
+                        $qualifiedContextsByUser[$uid] ??= $evaluation['context'];
                     }
                 }
             });
@@ -58,25 +59,27 @@ class ReconcileGiantSlayerBadges extends Command
                 $q->whereNotNull('team_win_id')
                     ->orWhereNotNull('participant_win_id');
             })
-            ->chunkById(200, function ($miniMatches) use ($rule, &$qualifiedUserIds) {
+            ->chunkById(200, function ($miniMatches) use ($rule, &$qualifiedContextsByUser) {
                 foreach ($miniMatches as $miniMatch) {
-                    foreach ($rule->getQualifiedWinnerUserIds($miniMatch) as $uid) {
-                        $qualifiedUserIds[$uid] = true;
+                    $evaluation = $rule->evaluateMatch($miniMatch);
+                    foreach ($evaluation['winner_user_ids'] as $uid) {
+                        $qualifiedContextsByUser[$uid] ??= $evaluation['context'];
                     }
                 }
             });
 
         // 3. Quét QuickMatch
         QuickMatch::whereNotNull('winner')
-            ->chunkById(200, function ($quickMatches) use ($rule, &$qualifiedUserIds) {
+            ->chunkById(200, function ($quickMatches) use ($rule, &$qualifiedContextsByUser) {
                 foreach ($quickMatches as $quickMatch) {
-                    foreach ($rule->getQualifiedWinnerUserIds($quickMatch) as $uid) {
-                        $qualifiedUserIds[$uid] = true;
+                    $evaluation = $rule->evaluateMatch($quickMatch);
+                    foreach ($evaluation['winner_user_ids'] as $uid) {
+                        $qualifiedContextsByUser[$uid] ??= $evaluation['context'];
                     }
                 }
             });
 
-        $eligibleIds = array_map('intval', array_keys($qualifiedUserIds));
+        $eligibleIds = array_map('intval', array_keys($qualifiedContextsByUser));
         $existingHolderIds = UserBadge::where('badge_id', $badge->id)
             ->pluck('user_id')
             ->map(fn ($id) => (int) $id)
@@ -105,6 +108,17 @@ class ReconcileGiantSlayerBadges extends Command
                 $deleted = UserBadge::where('badge_id', $badge->id)
                     ->whereIn('user_id', $toRevokeIds)
                     ->delete();
+                foreach ($toRevokeIds as $uid) {
+                    $badgeService->writeBadgeAuditLog(
+                        action: 'REVOKED',
+                        userId: $uid,
+                        userName: $revokeUsers[$uid] ?? null,
+                        badge: $badge,
+                        context: [
+                            'reason' => 'Thu hồi huy hiệu GIANT_SLAYER cấp sai qua lệnh badges:reconcile-giant-slayer',
+                        ]
+                    );
+                }
                 $this->info("✅ Đã thu hồi {$deleted} huy hiệu GIANT_SLAYER cấp sai.");
             }
         }
@@ -117,9 +131,10 @@ class ReconcileGiantSlayerBadges extends Command
 
             foreach ($toAwardIds as $uid) {
                 $name = $awardUsers[$uid] ?? 'N/A';
-                $this->line("   [Cấp bù] User #{$uid} ({$name})");
+                $ctx = $qualifiedContextsByUser[$uid] ?? [];
+                $this->line("   [Cấp bù] User #{$uid} ({$name}) - " . ($ctx['reason'] ?? ''));
                 if (!$dryRun) {
-                    if ($badgeService->awardBadge($uid, 'GIANT_SLAYER')) {
+                    if ($badgeService->awardBadge($uid, 'GIANT_SLAYER', null, $ctx)) {
                         $awardedCount++;
                     }
                 }
