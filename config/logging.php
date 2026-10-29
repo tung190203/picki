@@ -150,6 +150,13 @@ return [
             'days' => 7,
             'replace_placeholders' => true,
         ],
+
+        'badges' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/badges.log'),
+            'level' => 'info',
+            'replace_placeholders' => true,
+        ],
     ],
 
 ];

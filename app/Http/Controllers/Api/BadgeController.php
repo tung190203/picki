@@ -38,6 +38,9 @@ class BadgeController extends Controller
                 'priority' => $badge->priority,
                 'is_unlocked' => $userBadge ? true : false,
                 'is_featured' => $userBadge ? (bool) $userBadge->is_featured : false,
+                'featured_order' => ($userBadge && $userBadge->is_featured)
+                    ? ($userBadge->updated_at ? $userBadge->updated_at->getTimestamp() : (int) $badge->id)
+                    : null,
                 'acquired_at' => $userBadge ? $userBadge->acquired_at : null,
             ];
         });
@@ -66,8 +69,16 @@ class BadgeController extends Controller
         // Reset all to not featured
         UserBadge::where('user_id', $userId)->update(['is_featured' => false]);
 
-        // Set new featured
-        UserBadge::whereIn('id', $request->user_badge_ids)->update(['is_featured' => true]);
+        // Set new featured and preserve exact slot order (1 -> 2 -> 3) via updated_at
+        $baseTime = now();
+        foreach (array_values($request->user_badge_ids) as $index => $userBadgeId) {
+            UserBadge::where('id', $userBadgeId)
+                ->where('user_id', $userId)
+                ->update([
+                    'is_featured' => true,
+                    'updated_at' => $baseTime->copy()->addSeconds($index),
+                ]);
+        }
 
         return response()->json(['message' => 'Featured badges updated successfully']);
     }

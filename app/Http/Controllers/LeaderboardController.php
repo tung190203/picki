@@ -821,50 +821,71 @@ class LeaderboardController extends Controller
     }
 
     /**
-     * Format badges data from userBadges relationship.
+     * Format badges data from userBadges relationship for Leaderboard display.
+     * Chỉ cho phép hiển thị 4 loại huy hiệu chuẩn (PICKI, CHAMPION, ANCHOR, VERIFIED) ngoài BXH.
+     * - Nếu user có ghim (is_featured) huy hiệu thuộc 1 trong 4 loại này -> hiển thị huy hiệu ghim đó.
+     * - Nếu không ghim (hoặc ghim huy hiệu khác chỉ dùng trong profile) -> tự động chọn 1 trong 4 loại huy hiệu nếu có.
+     * - Nếu không có 1 trong 4 loại huy hiệu này -> không hiển thị huy hiệu nào (primary_badge = null).
      *
-     * @return array{badges: array<string>, primary_badge: string|null}
+     * @return array{badges: array, featured_badges: array, primary_badge: array|null}
      */
     private function formatUserBadges(array $userBadges): array
     {
         if (empty($userBadges)) {
             return [
                 'badges' => [],
+                'featured_badges' => [],
                 'primary_badge' => null,
             ];
         }
 
-        usort($userBadges, function($a, $b) {
-            $pA = $a->badge->priority ?? 0;
-            $pB = $b->badge->priority ?? 0;
-            return $pB <=> $pA;
+        // Chỉ giữ lại 4 loại huy hiệu được phép xuất hiện ngoài BXH
+        $allowedUserBadges = array_values(array_filter($userBadges, function ($userBadge) {
+            if (!$userBadge?->badge) {
+                return false;
+            }
+            $code = strtoupper((string) $userBadge->badge->code);
+            return in_array($code, BadgeService::LEADERBOARD_BADGE_CODES, true);
+        }));
+
+        if (empty($allowedUserBadges)) {
+            return [
+                'badges' => [],
+                'featured_badges' => [],
+                'primary_badge' => null,
+            ];
+        }
+
+        usort($allowedUserBadges, function ($a, $b) {
+            $pA = (int) ($a->badge->priority ?? 0);
+            $pB = (int) ($b->badge->priority ?? 0);
+            if ($pA !== $pB) {
+                return $pB <=> $pA;
+            }
+            $orderA = BadgeService::LEADERBOARD_BADGE_PRIORITY[strtoupper((string) $a->badge->code)] ?? 0;
+            $orderB = BadgeService::LEADERBOARD_BADGE_PRIORITY[strtoupper((string) $b->badge->code)] ?? 0;
+            return $orderB <=> $orderA;
         });
 
-        $badges = array_filter(array_map(function ($userBadge) {
-            if (!$userBadge->badge) return null;
-            return [
-                'name' => $userBadge->badge->name,
-                'type' => $userBadge->badge->code,
-                'icon_url' => $userBadge->badge->icon_url,
-            ];
-        }, $userBadges));
+        $badges = array_map(fn ($userBadge) => [
+            'name' => $userBadge->badge->name,
+            'type' => $userBadge->badge->code,
+            'icon_url' => $userBadge->badge->icon_url,
+        ], $allowedUserBadges);
 
-        $featuredBadges = array_filter(array_map(function ($userBadge) {
-            if (!$userBadge->badge || !$userBadge->is_featured) return null;
-            return [
-                'name' => $userBadge->badge->name,
-                'type' => $userBadge->badge->code,
-                'icon_url' => $userBadge->badge->icon_url,
-            ];
-        }, $userBadges));
+        $badgeService = app(BadgeService::class);
 
-        $primaryBadge = !empty($featuredBadges) 
-            ? array_values($featuredBadges)[0] 
-            : (array_values($badges)[0] ?? null);
+        $featuredBadges = $badgeService->sortFeaturedUserBadges($allowedUserBadges)->map(fn ($userBadge) => [
+            'name' => $userBadge->badge->name,
+            'type' => $userBadge->badge->code,
+            'icon_url' => $userBadge->badge->icon_url,
+        ])->values()->all();
+
+        $primaryBadge = $badgeService->resolvePrimaryBadge($allowedUserBadges);
 
         return [
-            'badges' => array_values($badges),
-            'featured_badges' => array_values($featuredBadges),
+            'badges' => $badges,
+            'featured_badges' => $featuredBadges,
             'primary_badge' => $primaryBadge,
         ];
     }
