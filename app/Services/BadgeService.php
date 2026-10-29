@@ -11,6 +11,95 @@ use Illuminate\Support\Facades\DB;
 
 class BadgeService
 {
+    /**
+     * 4 loại huy hiệu được phép hiển thị bên ngoài BXH / primary_badge.
+     * Thứ tự ưu tiên mặc định khi không ghim: PICKI > CHAMPION > ANCHOR > VERIFIED.
+     */
+    public const LEADERBOARD_BADGE_CODES = ['PICKI', 'CHAMPION', 'ANCHOR', 'VERIFIED'];
+
+    public const LEADERBOARD_BADGE_PRIORITY = [
+        'PICKI' => 4,
+        'CHAMPION' => 3,
+        'ANCHOR' => 2,
+        'VERIFIED' => 1,
+    ];
+
+    /**
+     * Sắp xếp danh sách huy hiệu đã ghim (is_featured = true) theo đúng thứ tự vị trí người dùng đã chọn.
+     */
+    public function sortFeaturedUserBadges(iterable $userBadges): \Illuminate\Support\Collection
+    {
+        return collect($userBadges)
+            ->filter(fn ($ub) => $ub?->badge && (bool) $ub->is_featured)
+            ->sort(function ($a, $b) {
+                $tA = $a->updated_at ? strtotime((string) $a->updated_at) : 0;
+                $tB = $b->updated_at ? strtotime((string) $b->updated_at) : 0;
+                if ($tA !== $tB) {
+                    return $tA <=> $tB;
+                }
+                return ((int) ($a->badge_id ?? $a->id ?? 0)) <=> ((int) ($b->badge_id ?? $b->id ?? 0));
+            })
+            ->values();
+    }
+
+    /**
+     * Xác định primary_badge từ danh sách UserBadge của người chơi:
+     * - Chỉ xét trong 4 loại huy hiệu được phép hiển thị ra ngoài (PICKI, CHAMPION, ANCHOR, VERIFIED).
+     * - Nếu người chơi có ghim (is_featured = true) huy hiệu thuộc 1 trong 4 loại này -> lấy theo đúng thứ tự vị trí ghim từ đầu đến cuối.
+     * - Nếu không ghim (hoặc chỉ ghim huy hiệu thành tựu khác trong profile) -> tự động lấy 1 trong 4 huy hiệu này nếu người chơi sở hữu.
+     * - Nếu không sở hữu bất kỳ huy hiệu nào trong 4 loại trên -> trả về null.
+     */
+    public function resolvePrimaryBadge(iterable $userBadges): ?array
+    {
+        $collection = collect($userBadges)->filter(fn ($ub) => (bool) $ub?->badge);
+        if ($collection->isEmpty()) {
+            return null;
+        }
+
+        // 1. Ưu tiên theo đúng thứ tự ghim của người dùng (ô 1 -> ô 2 -> ô 3)
+        $featuredAllowed = $this->sortFeaturedUserBadges($collection)
+            ->first(function ($ub) {
+                $code = strtoupper((string) ($ub->badge->code ?? ''));
+                return in_array($code, self::LEADERBOARD_BADGE_CODES, true);
+            });
+
+        if ($featuredAllowed) {
+            return [
+                'name' => $featuredAllowed->badge->name,
+                'type' => $featuredAllowed->badge->code,
+                'icon_url' => $featuredAllowed->badge->icon_url,
+            ];
+        }
+
+        // 2. Nếu không ghim huy hiệu nào thuộc 4 loại trên -> tự động lấy 1 trong 4 huy hiệu đang sở hữu
+        $ownedAllowed = $collection
+            ->filter(function ($ub) {
+                $code = strtoupper((string) ($ub->badge->code ?? ''));
+                return in_array($code, self::LEADERBOARD_BADGE_CODES, true);
+            })
+            ->sort(function ($a, $b) {
+                $pA = (int) ($a->badge->priority ?? 0);
+                $pB = (int) ($b->badge->priority ?? 0);
+                if ($pA !== $pB) {
+                    return $pB <=> $pA;
+                }
+                $orderA = self::LEADERBOARD_BADGE_PRIORITY[strtoupper((string) $a->badge->code)] ?? 0;
+                $orderB = self::LEADERBOARD_BADGE_PRIORITY[strtoupper((string) $b->badge->code)] ?? 0;
+                return $orderB <=> $orderA;
+            })
+            ->first();
+
+        if (!$ownedAllowed) {
+            return null;
+        }
+
+        return [
+            'name' => $ownedAllowed->badge->name,
+            'type' => $ownedAllowed->badge->code,
+            'icon_url' => $ownedAllowed->badge->icon_url,
+        ];
+    }
+
     public function getUserBadges(int $userId): array
     {
         $userBadges = UserBadge::with('badge')
@@ -27,16 +116,15 @@ class BadgeService
             ];
         })->filter()->values()->toArray();
 
-        $featuredBadges = $userBadges->filter(fn($ub) => $ub->is_featured)->map(function ($ub) {
-            if (!$ub->badge) return null;
+        $featuredBadges = $this->sortFeaturedUserBadges($userBadges)->map(function ($ub) {
             return [
                 'name' => $ub->badge->name,
                 'type' => $ub->badge->code,
                 'icon_url' => $ub->badge->icon_url,
             ];
-        })->filter()->values()->toArray();
+        })->values()->toArray();
 
-        $primaryBadge = $badges[0] ?? null;
+        $primaryBadge = $this->resolvePrimaryBadge($userBadges);
 
         return [
             'badges' => $badges,
@@ -52,18 +140,11 @@ class BadgeService
 
     public function getPrimaryBadge(int $userId): ?array
     {
-        $userBadge = UserBadge::with('badge')
+        $userBadges = UserBadge::with('badge')
             ->where('user_id', $userId)
-            ->get()
-            ->sortByDesc(fn($ub) => $ub->badge->priority ?? 0)
-            ->first();
+            ->get();
 
-        if (!$userBadge?->badge) return null;
-        return [
-            'name' => $userBadge->badge->name,
-            'type' => $userBadge->badge->code,
-            'icon_url' => $userBadge->badge->icon_url,
-        ];
+        return $this->resolvePrimaryBadge($userBadges);
     }
 
     public function get_primary_badge(int $userId): ?array
@@ -85,12 +166,7 @@ class BadgeService
         $result = [];
         foreach ($userIds as $userId) {
             $badges = $userBadges->get($userId, collect());
-            $primary = $badges->sortByDesc(fn($ub) => $ub->badge->priority ?? 0)->first();
-            $result[$userId] = $primary?->badge ? [
-                'name' => $primary->badge->name,
-                'type' => $primary->badge->code,
-                'icon_url' => $primary->badge->icon_url,
-            ] : null;
+            $result[$userId] = $this->resolvePrimaryBadge($badges);
         }
 
         return $result;
@@ -119,19 +195,18 @@ class BadgeService
                 ];
             })->filter()->values()->toArray();
 
-            $featuredBadges = $badges->filter(fn($ub) => $ub->is_featured)->map(function ($ub) {
-                if (!$ub->badge) return null;
+            $featuredBadges = $this->sortFeaturedUserBadges($badges)->map(function ($ub) {
                 return [
                     'name' => $ub->badge->name,
                     'type' => $ub->badge->code,
                     'icon_url' => $ub->badge->icon_url,
                 ];
-            })->filter()->values()->toArray();
+            })->values()->toArray();
 
             $result[$userId] = [
                 'badges' => $badgesArray,
                 'featured_badges' => $featuredBadges,
-                'primary_badge' => $badgesArray[0] ?? null,
+                'primary_badge' => $this->resolvePrimaryBadge($badges),
             ];
         }
 

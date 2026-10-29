@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\ResponseHelper;
+use App\Helpers\StringHelper;
 use App\Http\Resources\NotificationResource;
 use App\Models\User;
 use App\Notifications\ClubNotificationSentNotification;
@@ -21,13 +22,16 @@ class NotificationController extends Controller
         $validated = $request->validate([
             'type' => 'nullable|in:all,unread,read',
             'q' => 'nullable|string',
+            'search' => 'nullable|string',
+            'keyword' => 'nullable|string',
             'per_page' => 'integer|min:1|max:200',
         ]);
 
         /** @var User $user */
         $user = auth()->user();
         $type = $validated['type'] ?? 'all';
-        $keyword = isset($validated['q']) ? trim((string) $validated['q']) : '';
+        $rawKeyword = $validated['q'] ?? $validated['search'] ?? $validated['keyword'] ?? '';
+        $keyword = trim((string) $rawKeyword);
 
         if ($type === 'unread') {
             $query = $user->unreadNotifications()->latest();
@@ -40,15 +44,7 @@ class NotificationController extends Controller
         }
 
         if ($keyword !== '') {
-            $jsonEscaped = substr((string) json_encode($keyword), 1, -1);
-            $sqlEscapedJson = str_replace('\\', '\\\\', $jsonEscaped);
-
-            $query->where(function ($sub) use ($keyword, $jsonEscaped, $sqlEscapedJson) {
-                $sub->where('data', 'like', "%{$keyword}%");
-                if ($jsonEscaped !== '' && $jsonEscaped !== $keyword) {
-                    $sub->orWhere('data', 'like', "%{$sqlEscapedJson}%");
-                }
-            });
+            StringHelper::applyNotificationDataKeywordFilter($query, $keyword);
         }
 
         $notifications = $query->paginate(

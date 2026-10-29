@@ -2,6 +2,7 @@
 
 namespace App\Services\Chat;
 
+use App\Helpers\StringHelper;
 use App\Http\Resources\Chat\ChatMessageResource;
 use App\Http\Resources\Chat\ConversationResource;
 use App\Http\Resources\NotificationResource;
@@ -312,6 +313,7 @@ class InboxService
 
     /**
      * Bộ lọc từ khóa chung cho Conversation (tên hội thoại, tên người tham gia, nội dung tin nhắn, tên Kèo/Giải/CLB).
+     * Hỗ trợ tìm kiếm tiếng Việt cả có dấu lẫn không dấu.
      */
     protected function applyConversationKeywordFilter($query, User $user, ?string $keyword): void
     {
@@ -321,46 +323,49 @@ class InboxService
         }
 
         $query->where(function ($sub) use ($keyword, $user) {
-            $sub->where('title', 'like', "%{$keyword}%")
-                ->orWhereHas('participants', function ($p2) use ($keyword, $user) {
-                    $p2->where('user_id', '!=', $user->id)
-                        ->whereHas('user', fn ($u) => $u->where('full_name', 'like', "%{$keyword}%"));
-                })
-                ->orWhereHas('messages', fn ($m) => $m->where('content', 'like', "%{$keyword}%"))
-                ->orWhere(function ($mt) use ($keyword) {
-                    $mt->where('type', Conversation::TYPE_MINI_TOURNAMENT)
-                        ->whereIn('target_id', \App\Models\MiniTournament::where('name', 'like', "%{$keyword}%")->select('id'));
-                })
-                ->orWhere(function ($t) use ($keyword) {
-                    $t->where('type', Conversation::TYPE_TOURNAMENT)
-                        ->whereIn('target_id', \App\Models\Tournament::where('name', 'like', "%{$keyword}%")->select('id'));
-                })
-                ->orWhere(function ($c) use ($keyword) {
-                    $c->where('type', Conversation::TYPE_CLUB)
-                        ->whereIn('target_id', \App\Models\Club\Club::where('name', 'like', "%{$keyword}%")->select('id'));
-                });
+            StringHelper::applyWhereLikeIgnoreAccents($sub, 'title', $keyword);
+
+            $sub->orWhereHas('participants', function ($p2) use ($keyword, $user) {
+                $p2->where('user_id', '!=', $user->id)
+                    ->whereHas('user', fn ($u) => StringHelper::applyWhereLikeIgnoreAccents($u, 'full_name', $keyword));
+            })
+            ->orWhereHas('messages', fn ($m) => StringHelper::applyWhereLikeIgnoreAccents($m, 'content', $keyword))
+            ->orWhere(function ($mt) use ($keyword) {
+                $mt->where('type', Conversation::TYPE_MINI_TOURNAMENT)
+                    ->whereIn(
+                        'target_id',
+                        \App\Models\MiniTournament::query()
+                            ->tap(fn ($q) => StringHelper::applyWhereLikeIgnoreAccents($q, 'name', $keyword))
+                            ->select('id')
+                    );
+            })
+            ->orWhere(function ($t) use ($keyword) {
+                $t->where('type', Conversation::TYPE_TOURNAMENT)
+                    ->whereIn(
+                        'target_id',
+                        \App\Models\Tournament::query()
+                            ->tap(fn ($q) => StringHelper::applyWhereLikeIgnoreAccents($q, 'name', $keyword))
+                            ->select('id')
+                    );
+            })
+            ->orWhere(function ($c) use ($keyword) {
+                $c->where('type', Conversation::TYPE_CLUB)
+                    ->whereIn(
+                        'target_id',
+                        \App\Models\Club\Club::query()
+                            ->tap(fn ($q) => StringHelper::applyWhereLikeIgnoreAccents($q, 'name', $keyword))
+                            ->select('id')
+                    );
+            });
         });
     }
 
     /**
-     * Bộ lọc từ khóa cho Notification (hỗ trợ cả UTF-8 trực tiếp lẫn chuỗi Unicode bị json_encode \uXXXX trong cột data).
+     * Bộ lọc từ khóa cho Notification (hỗ trợ UTF-8 trực tiếp, chuỗi Unicode json_encode \uXXXX và tìm kiếm không dấu).
      */
     public function applyNotificationKeywordFilter($query, ?string $keyword): void
     {
-        $keyword = trim((string) $keyword);
-        if ($keyword === '') {
-            return;
-        }
-
-        $jsonEscaped = substr((string) json_encode($keyword), 1, -1);
-        $sqlEscapedJson = str_replace('\\', '\\\\', $jsonEscaped);
-
-        $query->where(function ($sub) use ($keyword, $jsonEscaped, $sqlEscapedJson) {
-            $sub->where('data', 'like', "%{$keyword}%");
-            if ($jsonEscaped !== '' && $jsonEscaped !== $keyword) {
-                $sub->orWhere('data', 'like', "%{$sqlEscapedJson}%");
-            }
-        });
+        StringHelper::applyNotificationDataKeywordFilter($query, $keyword);
     }
 
     /**
