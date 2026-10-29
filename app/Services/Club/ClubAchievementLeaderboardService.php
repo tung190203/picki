@@ -74,14 +74,18 @@ class ClubAchievementLeaderboardService
         $users = $userIds
             ? User::whereIn('id', $userIds)->get()->keyBy('id')
             : collect();
+        $primaryBadges = $userIds
+            ? app(\App\Services\BadgeService::class)->getBatchPrimaryBadges($userIds)
+            : [];
 
-        $scored = $rows->map(function ($row) use ($users) {
+        $scored = $rows->map(function ($row) use ($users, $primaryBadges) {
             $user = $users->get($row->user_id);
             return [
                 'user_id' => (int) $row->user_id,
                 'is_guest' => (bool) $row->is_guest,
                 'name' => $user?->full_name ?? 'Khách',
                 'avatar_url' => $user?->avatar_url,
+                'primary_badge' => $primaryBadges[$row->user_id] ?? null,
                 'gold' => (int) $row->gold,
                 'silver' => (int) $row->silver,
                 'bronze' => (int) $row->bronze,
@@ -164,6 +168,7 @@ class ClubAchievementLeaderboardService
             'id' => $userId,
             'full_name' => $user?->full_name,
             'avatar_url' => $user?->avatar_url,
+            'primary_badge' => $user ? app(\App\Services\BadgeService::class)->getPrimaryBadge($user->id) : null,
         ];
     }
 

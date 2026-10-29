@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Chat;
 
 use App\Helpers\ResponseHelper;
+use App\Helpers\StringHelper;
 use App\Http\Controllers\Controller;
 use App\Models\Club\Club;
 use App\Models\MiniTournament;
@@ -19,7 +20,7 @@ class ChatShortcutController extends Controller
     public function matches(Request $request)
     {
         $userId = Auth::id();
-        $q = $request->query('q');
+        $q = trim((string) ($request->query('q') ?? $request->query('search') ?? $request->query('keyword') ?? ''));
 
         // Chỉ hiển thị kèo đấu công khai (is_private = false) hoặc kèo riêng tư mà chính user đã tham gia/tạo
         $query = MiniTournament::query()
@@ -33,8 +34,8 @@ class ChatShortcutController extends Controller
             ->latest('id')
             ->limit(20);
 
-        if ($q) {
-            $query->where('name', 'like', "%{$q}%");
+        if ($q !== '') {
+            StringHelper::applyWhereLikeIgnoreAccents($query, 'name', $q);
         }
 
         $matches = $query->get(['id', 'name', 'poster', 'start_time', 'end_time', 'max_players']);
@@ -57,7 +58,7 @@ class ChatShortcutController extends Controller
     public function tournaments(Request $request)
     {
         $userId = Auth::id();
-        $q = $request->query('q');
+        $q = trim((string) ($request->query('q') ?? $request->query('search') ?? $request->query('keyword') ?? ''));
 
         // Chỉ hiển thị giải đấu công khai (is_private = false) hoặc giải riêng tư mà chính user đã tham gia/tạo
         $query = Tournament::query()
@@ -71,8 +72,8 @@ class ChatShortcutController extends Controller
             ->latest('id')
             ->limit(20);
 
-        if ($q) {
-            $query->where('name', 'like', "%{$q}%");
+        if ($q !== '') {
+            StringHelper::applyWhereLikeIgnoreAccents($query, 'name', $q);
         }
 
         $tournaments = $query->get(['id', 'name', 'poster', 'start_date', 'end_date', 'status']);
@@ -97,7 +98,7 @@ class ChatShortcutController extends Controller
         /** @var User $authUser */
         $authUser = Auth::user();
         $userId = (int) $authUser->id;
-        $q = trim((string) $request->query('q', ''));
+        $q = trim((string) ($request->query('q') ?? $request->query('search') ?? $request->query('keyword') ?? ''));
 
         $lat = $request->query('lat') !== null
             ? (float) $request->query('lat')
@@ -132,7 +133,7 @@ class ChatShortcutController extends Controller
 
         if ($q !== '') {
             $relatedUsers = $relatedUsers
-                ->filter(fn (User $u) => mb_stripos((string) $u->full_name, $q) !== false)
+                ->filter(fn (User $u) => StringHelper::containsIgnoreAccents((string) $u->full_name, $q))
                 ->values();
         }
 
@@ -149,7 +150,7 @@ class ChatShortcutController extends Controller
                 ->where('is_banned', false)
                 ->where('is_guest', false)
                 ->where('visibility', '!=', 'private')
-                ->where('full_name', 'like', "%{$q}%")
+                ->tap(fn ($uq) => StringHelper::applyWhereLikeIgnoreAccents($uq, 'full_name', $q))
                 ->where(function ($sub) use ($userId) {
                     $sub->where('visibility', 'open')
                         ->orWhere(function ($f) use ($userId) {
@@ -227,14 +228,14 @@ class ChatShortcutController extends Controller
     public function clubs(Request $request)
     {
         $userId = Auth::id();
-        $q = $request->query('q');
+        $q = trim((string) ($request->query('q') ?? $request->query('search') ?? $request->query('keyword') ?? ''));
 
         $query = Club::query()
             ->whereHas('members', fn ($m) => $m->where('user_id', $userId)->where('membership_status', 'joined')->where('status', 'active'))
             ->limit(20);
 
-        if ($q) {
-            $query->where('name', 'like', "%{$q}%");
+        if ($q !== '') {
+            StringHelper::applyWhereLikeIgnoreAccents($query, 'name', $q);
         }
 
         $clubs = $query->get(['id', 'name', 'logo_url']);
