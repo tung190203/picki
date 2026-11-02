@@ -162,6 +162,7 @@ const fetchBadges = async () => {
       
       selectedIds.value = badges.value
         .filter(b => b.is_unlocked && b.is_featured)
+        .sort((a, b) => (a.featured_order ?? a.id) - (b.featured_order ?? b.id))
         .slice(0, 3)
         .map(b => b.user_badge_id)
     }

@@ -256,12 +256,12 @@
                 </div>
               </div>
               <div class="flex items-center gap-2 flex-shrink-0">
-                <button v-if="!guest.is_invited" @click="handleInviteGuest(guest)" :disabled="invitingGuestId === guest.user_id"
+                <button v-if="!guest.is_invited && canManageMembers" @click="handleInviteGuest(guest)" :disabled="invitingGuestId === guest.user_id"
                   class="text-xs font-semibold bg-[#D72D36] hover:bg-red-700 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
                   <span v-if="invitingGuestId === guest.user_id">...</span>
                   <span v-else>Mời</span>
                 </button>
-                <button @click="handleDeleteGuest(guest)" :disabled="deletingGuestId === guest.user_id"
+                <button v-if="canManageMembers" @click="handleDeleteGuest(guest)" :disabled="deletingGuestId === guest.user_id"
                   class="p-1.5 text-gray-400 hover:text-[#D72D36] hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50">
                   <TrashIcon class="w-4 h-4" />
                 </button>
@@ -293,12 +293,12 @@
                 </div>
               </div>
               <div class="flex items-center gap-2 flex-shrink-0">
-                <button v-if="!guest.is_invited" @click="handleInviteGuest(guest)" :disabled="invitingGuestId === guest.user_id"
+                <button v-if="!guest.is_invited && canManageMembers" @click="handleInviteGuest(guest)" :disabled="invitingGuestId === guest.user_id"
                   class="text-xs font-semibold bg-[#D72D36] hover:bg-red-700 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
                   <span v-if="invitingGuestId === guest.user_id">...</span>
                   <span v-else>Mời</span>
                 </button>
-                <button @click="handleDeleteGuest(guest)" :disabled="deletingGuestId === guest.user_id"
+                <button v-if="canManageMembers" @click="handleDeleteGuest(guest)" :disabled="deletingGuestId === guest.user_id"
                   class="p-1.5 text-gray-400 hover:text-[#D72D36] hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50">
                   <TrashIcon class="w-4 h-4" />
                 </button>
@@ -429,14 +429,15 @@ const ROLE_COLORS = {
   secretary: 'bg-green-600'
 }
 
+// Quyền GHI (thêm/xoá thành viên, mời/xoá khách) — BE chỉ cho admin/manager/secretary.
+// Quyền XEM danh sách đã mở cho mọi thành viên active (Club::canViewGuests).
 const canManageMembers = computed(() => {
   if (getUser.value?.is_super_admin) return true
   if (props.currentUserRole && ['admin', 'manager', 'secretary'].includes(props.currentUserRole)) return true
   const currentUserId = getUser.value?.id
-  if (currentUserId && allManagementMembers.value.some(m => (m.user_id === currentUserId || m.user?.id === currentUserId) && ['admin', 'manager', 'secretary'].includes(m.role))) {
-    return true
-  }
-  return true
+  return !!currentUserId && allManagementMembers.value.some(m =>
+    (m.user_id === currentUserId || m.user?.id === currentUserId) && ['admin', 'manager', 'secretary'].includes(m.role)
+  )
 })
 
 const managementMembers = computed(() => {

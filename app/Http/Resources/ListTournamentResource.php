@@ -46,6 +46,7 @@ class ListTournamentResource extends JsonResource
             'max_players' => $this->max_player ?? $this->max_team ?? null,
             'max_participants' => $this->max_player ?? $this->max_team ?? null,
             'participants_count' => ($participants && is_countable($participants)) ? $participants->count() : ($this->participants_count ?? 0),
+            'is_completed' => in_array((int) $this->status, [\App\Models\Tournament::CLOSED, \App\Models\Tournament::CANCELLED], true),
         ];
     }
 }

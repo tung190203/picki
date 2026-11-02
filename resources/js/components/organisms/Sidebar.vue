@@ -226,8 +226,8 @@
                     </button>
                 </router-link>
 
-                <!-- Notification -->
-                <router-link to="/notifications" v-slot="{ isActive }">
+                <!-- Inbox & Notification -->
+                <router-link to="/inbox" v-slot="{ isActive }">
                 <button
                     class="flex items-center h-12 px-3 rounded-xl transition-all relative w-full text-left"
                     :class="isActive ? 'bg-gray-100 text-gray-900 dark:bg-slate-800 dark:text-white font-semibold' : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800/60'"
@@ -235,20 +235,26 @@
                     <div class="relative flex-shrink-0">
                         <BellIcon class="w-5 h-5" />
                         <span
-                            v-if="hasNotification"
-                            class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"
+                            v-if="chatStore.hasUnread || hasNotification"
+                            class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#D72D36] rounded-full border border-white dark:border-slate-800"
                         ></span>
                     </div>
 
                     <span
-                        class="font-medium whitespace-nowrap overflow-hidden transition-all duration-300"
+                        class="font-medium whitespace-nowrap overflow-hidden transition-all duration-300 flex items-center justify-between flex-1"
                         :class="
                             isExpanded
                                 ? 'opacity-100 ml-3 max-w-xs'
                                 : 'opacity-0 ml-0 max-w-0'
                         "
                     >
-                        Thông báo
+                        <span>Hộp thư & Thông báo</span>
+                        <span
+                            v-if="chatStore.unreadCounts.total_unread > 0"
+                            class="bg-[#D72D36] text-white text-[10px] font-extrabold px-1.5 py-0.2 rounded-full ml-1"
+                        >
+                            {{ chatStore.unreadCounts.total_unread }}
+                        </span>
                     </span>
                 </button>
                 </router-link>
@@ -332,6 +338,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useUserStore } from "@/store/auth";
+import { useChatStore } from "@/store/chat";
 import { storeToRefs } from "pinia";
 import { toast } from "vue3-toastify";
 import { ROLE } from "@/constants/index";
@@ -368,6 +375,7 @@ const emit = defineEmits(['close']);
 const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
+const chatStore = useChatStore();
 const { getRole, getUser } = storeToRefs(userStore);
 const defaultAvatar = "/images/default-avatar.png";
 
@@ -455,12 +463,13 @@ const loadData = async () => {
     return;
   }
   try {
+    chatStore.fetchUnreadCounts();
     const res = await NotificationService.getNotifications({
       type: 'all',
       page: 1,
       per_page: 1,
     })
-    hasNotification.value = res.meta.unread_count > 0;
+    hasNotification.value = res.meta?.unread_count > 0;
   } catch {}
 }
 

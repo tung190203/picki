@@ -145,13 +145,15 @@ import {
     PuzzlePieceIcon,
     BellIcon,
     Cog6ToothIcon,
-    UserIcon
+    UserIcon,
+    TvIcon
 } from '@heroicons/vue/24/outline'
 
 export const ALL_FAVORITE_FEATURES = [
     { id: 'club', label: 'CLB', icon: UserGroupIcon, route: '/club' },
     { id: 'club_create', label: 'Tạo câu lạc bộ mới', icon: UserPlusIcon, route: '/clubs/create' },
     { id: 'quick_match', label: 'Tạo trận đấu nhanh', icon: PlusCircleIcon, route: '/quick-match/create' },
+    { id: 'livescore', label: 'Livescore', icon: TvIcon, route: '/tools/livescore' },
     { id: 'map', label: 'Tìm sân', icon: MapPinIcon, route: '/map' },
     { id: 'leaderboard', label: 'Bảng xếp hạng', icon: ChartBarIcon, route: '/leaderboard' },
     { id: 'tournament_create', label: 'Tạo giải đấu', icon: TrophyIcon, route: '/tournament/create' },

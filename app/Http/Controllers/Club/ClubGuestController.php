@@ -22,8 +22,8 @@ class ClubGuestController extends Controller
         $club = Club::findOrFail($clubId);
         $userId = auth()->id();
 
-        if (!$club->canManage($userId)) {
-            return ResponseHelper::error('Chỉ admin/manager/secretary mới có quyền xem danh sách khách', 403);
+        if (!$club->canViewGuests($userId)) {
+            return ResponseHelper::error('Bạn không có quyền xem danh sách khách', 403);
         }
 
         $oneMonthAgo = now()->subDays(30);

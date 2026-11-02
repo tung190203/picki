@@ -93,6 +93,27 @@ class Club extends Model
         return $this->hasMany(\App\Models\Club\ClubGuestProfile::class, 'club_id');
     }
 
+    /**
+     * User id của thành viên ảo (CLB guest) — coi như "thuộc CLB" nên không được
+     * xuất hiện trong danh sách khách, dù họ có tham gia kèo của CLB.
+     */
+    public function virtualUserIds(): array
+    {
+        return $this->guestProfiles()->pluck('user_id')->all();
+    }
+
+    /**
+     * User id thuộc CLB: member thật (đang active) + thành viên ảo.
+     * Dùng để loại khỏi danh sách khách / club_guests.
+     */
+    public function memberAndVirtualUserIds(): array
+    {
+        return array_values(array_unique(array_merge(
+            $this->activeMembers()->pluck('user_id')->all(),
+            $this->virtualUserIds()
+        )));
+    }
+
     /** Thành viên đang tham gia (membership_status = joined, status = active). */
     public function activeMembers()
     {
@@ -189,6 +210,10 @@ class Club extends Model
      */
     public function getScoreRangeAttribute(): ?string
     {
+        // ponytail: assembler đã tính sẵn bằng 1 aggregate SQL — dùng luôn, tránh query lại.
+        if (array_key_exists('score_range', $this->attributes)) {
+            return $this->attributes['score_range'];
+        }
         $members = $this->activeMembers()->with('user.vnduprScores')->get();
 
         $scores = [];
@@ -319,7 +344,7 @@ class Club extends Model
                 ->withCount([
                     'tournaments as active_tournaments_count' => fn($q) => $q
                         ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
-                        ->where(fn($sub) => $sub->whereNull('end_date')->orWhereDate('end_date', '>=', now())),
+                        ->where(fn($sub) => $sub->whereNull('end_date')->orWhere('end_date', '>=', now())),
                 ])
                 ->orderBy('active_tournaments_count', $sortDir),
             default => $query
@@ -432,8 +457,33 @@ class Club extends Model
             ->exists();
     }
 
+    /**
+     * Quyền XEM danh sách guest/CLB guest của CLB.
+     * Mọi thành viên active đều được xem (FE tab "Thành viên" hiện list này cho cả thành viên thường).
+     * Quyền GHI (tạo/sửa/xoá/mời) vẫn thuộc canManage() — admin/manager/secretary.
+     */
+    public function canViewGuests($userId): bool
+    {
+        if (!$userId) {
+            return false;
+        }
+
+        // Người tạo CLB luôn có quyền (nhất quán với canManage).
+        if ((int) $this->created_by === (int) $userId) {
+            return true;
+        }
+
+        return $this->activeMembers()->where('user_id', $userId)->exists();
+    }
+
     public function canManage($userId)
     {
+        // Người tạo CLB luôn có quyền quản lý, kể cả khi thiếu/legacy club_members row.
+        // Đây là data integrity net — CLB được tạo qua factory/seeder/SQL cũ có thể không enroll creator.
+        if ($userId && (int) $this->created_by === (int) $userId) {
+            return true;
+        }
+
         $member = $this->activeMembers()->where('user_id', $userId)->first();
         if (!$member) return false;
 
@@ -558,19 +608,11 @@ class Club extends Model
                 fn($q) => $q->where(function ($sub) use ($filters) {
                     $keyword = $filters['keyword'];
                     $sub->where('name', 'like', '%' . $keyword . '%')
-                        // Search theo tên admin/chủ nhiệm CLB (Admin, Manager, Secretary)
-                        ->orWhereExists(function ($adminQuery) use ($keyword) {
-                            $adminQuery->select(DB::raw(1))
-                                ->from('club_members')
-                                ->join('users', 'users.id', '=', 'club_members.user_id')
-                                ->whereColumn('club_members.club_id', 'clubs.id')
-                                ->whereIn('club_members.role', [
-                                    ClubMemberRole::Admin->value,
-                                    ClubMemberRole::Manager->value,
-                                    ClubMemberRole::Secretary->value,
-                                ])
-                                ->where('club_members.membership_status', ClubMembershipStatus::Joined->value)
-                                ->where('club_members.status', ClubMemberStatus::Active->value)
+                        // Tìm theo tên người tạo CLB (clubs.created_by → users.full_name)
+                        ->orWhereExists(function ($creatorQuery) use ($keyword) {
+                            $creatorQuery->select(DB::raw(1))
+                                ->from('users')
+                                ->whereColumn('users.id', 'clubs.created_by')
                                 ->where('users.full_name', 'like', '%' . $keyword . '%');
                         });
                 })

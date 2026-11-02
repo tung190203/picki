@@ -6,6 +6,7 @@ use App\Models\Matches;
 use App\Models\PoolAdvancementRule;
 use App\Models\TournamentType;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Service tính rank tổng (overall_rank + rank_label) cho teams trong tournament.
@@ -29,6 +30,13 @@ use Illuminate\Support\Collection;
  */
 class TournamentRankService
 {
+    /**
+     * Cache key prefix cho rank theo tournament (xem bestRanksForTournament).
+     */
+    private const CACHE_PREFIX = 'tournament:ranks:';
+
+    private const CACHE_TTL_MINUTES = 10;
+
     public function __construct(
         private \App\Services\TournamentType\BracketService $bracketService,
         private \App\Services\TournamentType\StandingsService $standingsService,
@@ -75,6 +83,50 @@ class TournamentRankService
     }
 
     /**
+     * Rank tốt nhất của mỗi team trong toàn bộ tournament (gộp nhiều tournament_type).
+     *
+     * Mirror logic merge của LeaderboardController: team thuộc nhiều type thì lấy
+     * rank nhỏ nhất (thứ hạng tốt nhất).
+     *
+     * Có cache vì compute() rất nặng (load toàn bộ matches + results mỗi type).
+     *
+     * @return array<int, array{overall_rank: int, rank_label: string, is_champion: bool}>
+     *         key = team_id
+     */
+    public function bestRanksForTournament(int $tournamentId): array
+    {
+        $cacheKey = self::CACHE_PREFIX . $tournamentId;
+
+        return Cache::remember($cacheKey, now()->addMinutes(self::CACHE_TTL_MINUTES), function () use ($tournamentId) {
+            $typeIds = TournamentType::where('tournament_id', $tournamentId)->pluck('id');
+            if ($typeIds->isEmpty()) {
+                return [];
+            }
+
+            $merged = [];
+            foreach ($typeIds as $typeId) {
+                foreach ($this->rankLabelsByTeam((int) $typeId) as $teamId => $info) {
+                    $currentRank = $merged[$teamId]['overall_rank'] ?? null;
+
+                    if ($currentRank === null || $info['overall_rank'] < $currentRank) {
+                        $merged[$teamId] = $info;
+                    }
+                }
+            }
+
+            return $merged;
+        });
+    }
+
+    /**
+     * Xoá cache rank của tournament sau khi có kết quả trận mới.
+     */
+    public static function forgetTournament(int $tournamentId): void
+    {
+        Cache::forget(self::CACHE_PREFIX . $tournamentId);
+    }
+
+    /**
      * Lấy nhanh rank + label cho từng team trong tournament (dùng cho LeaderboardController).
      *
      * @return array<int, array{overall_rank: int, rank_label: string, is_champion: bool}>
@@ -84,15 +136,13 @@ class TournamentRankService
     {
         $result = $this->compute($tournamentTypeId);
         $out = [];
-        $prevRank = 0;
         // overall_rankings đã sorted đúng thứ tự - dùng rank đã tính sẵn
-        // (rankPos + 1 chỉ là position, không tính đồng hạng skip)
         foreach ($result['overall_rankings'] as $rankPos => $r) {
-            $actualRank = (int) ($r['overall_rank'] ?? ($rankPos + 1));
+            $actualRank = (int) ($r['overall_rank'] ?? ($r['rank'] ?? ($rankPos + 1)));
             $out[(int) $r['team_id']] = [
                 'overall_rank' => $actualRank,
                 'rank_label' => $r['rank_label'] ?? "Hạng {$actualRank}",
-                'is_champion' => !empty($r['_is_champion']) || ($rankPos === 0),
+                'is_champion' => !empty($r['_is_champion']),
             ];
         }
         return $out;
@@ -121,31 +171,115 @@ class TournamentRankService
 
         if ($isKnockoutFormat) {
             $results = $this->buildTournamentResults((int) $type->id);
+
+            $rankings = $rankings->sort(function ($a, $b) use ($results) {
+                $rankA = $this->computeOverallRank(0, $a, $results);
+                $rankB = $this->computeOverallRank(0, $b, $results);
+                $rA = $rankA ?? 9999;
+                $rB = $rankB ?? 9999;
+                if ($rA !== $rB) {
+                    return $rA <=> $rB;
+                }
+                if (($a['points'] ?? 0) !== ($b['points'] ?? 0)) {
+                    return ($b['points'] ?? 0) <=> ($a['points'] ?? 0);
+                }
+                if (($a['point_diff'] ?? 0) !== ($b['point_diff'] ?? 0)) {
+                    return ($b['point_diff'] ?? 0) <=> ($a['point_diff'] ?? 0);
+                }
+                return $a['team_id'] <=> $b['team_id'];
+            })->values();
+
+            $hasThirdPlace = Matches::where('tournament_type_id', $type->id)
+                ->where('is_third_place', true)
+                ->where('status', 'completed')
+                ->exists();
+
             $rankIndex = 0;
             $items = $rankings->all();
             foreach ($items as &$item) {
                 $rankIndex++;
-                $item['overall_rank'] = $this->computeOverallRank($rankIndex, $item, $results) ?? $rankIndex;
+                $computedRank = $this->computeOverallRank(0, $item, $results);
+                $item['overall_rank'] = $computedRank ?? $rankIndex;
                 $item['rank_label'] = $this->getOverallRankLabel(
                     (int) $item['overall_rank'],
                     (int) $type->format,
-                    $this->hasThirdPlace($type->id),
+                    $hasThirdPlace,
                     (int) $type->id,
-                    true
+                    $computedRank !== null
                 );
                 $item['_rank'] = $item['overall_rank'];
-                $item['_is_champion'] = ((int) $item['overall_rank']) === 1;
+                $item['_is_champion'] = !empty($results['champion_team_id'])
+                    && (int) $item['team_id'] === (int) $results['champion_team_id'];
             }
             unset($item);
-            $rankings = collect($items);
+            $rankings = collect($items)->sort(function ($a, $b) {
+                $rA = $a['overall_rank'] ?? 9999;
+                $rB = $b['overall_rank'] ?? 9999;
+                if ($rA !== $rB) return $rA <=> $rB;
+                if (($a['points'] ?? 0) !== ($b['points'] ?? 0)) {
+                    return ($b['points'] ?? 0) <=> ($a['points'] ?? 0);
+                }
+                return $a['team_id'] <=> $b['team_id'];
+            })->values();
         } else {
+            $rankingRules = $this->extractRankingRules($type);
+            $allMatches = Matches::where('tournament_type_id', $type->id)
+                ->where('status', 'completed')
+                ->get();
+
+            $rankings = $rankings->sort(function ($a, $b) use ($rankingRules, $allMatches) {
+                if (($a['played'] ?? 0) == 0 && ($b['played'] ?? 0) > 0) return 1;
+                if (($b['played'] ?? 0) == 0 && ($a['played'] ?? 0) > 0) return -1;
+
+                foreach ($rankingRules as $ruleId) {
+                    switch ($ruleId) {
+                        case TournamentType::RANKING_WIN_DRAW_LOSE_POINTS:
+                            if ($a['points'] !== $b['points']) return $b['points'] <=> $a['points'];
+                            break;
+                        case TournamentType::RANKING_WIN_RATE:
+                            if (($a['win_rate'] ?? 0) !== ($b['win_rate'] ?? 0)) {
+                                return ($b['win_rate'] ?? 0) <=> ($a['win_rate'] ?? 0);
+                            }
+                            break;
+                        case TournamentType::RANKING_SETS_WON:
+                            if (($a['sets_diff'] ?? 0) !== ($b['sets_diff'] ?? 0)) {
+                                return ($b['sets_diff'] ?? 0) <=> ($a['sets_diff'] ?? 0);
+                            }
+                            break;
+                        case TournamentType::RANKING_POINTS_WON:
+                            if ($a['point_diff'] !== $b['point_diff']) {
+                                return $b['point_diff'] <=> $a['point_diff'];
+                            }
+                            break;
+                        case TournamentType::RANKING_HEAD_TO_HEAD:
+                            $h2h = $this->getHeadToHeadResultForRank($a['team_id'], $b['team_id'], $allMatches);
+                            if ($h2h !== 0) return $h2h;
+                            break;
+                        case TournamentType::RANKING_RANDOM_DRAW:
+                            return $a['team_id'] <=> $b['team_id'];
+                        case TournamentType::RANKING_GOALS_SCORED:
+                            if (($a['points_for'] ?? 0) !== ($b['points_for'] ?? 0)) {
+                                return ($b['points_for'] ?? 0) <=> ($a['points_for'] ?? 0);
+                            }
+                            break;
+                    }
+                }
+                if ($a['point_diff'] !== $b['point_diff']) {
+                    return $b['point_diff'] <=> $a['point_diff'];
+                }
+                return $a['team_id'] <=> $b['team_id'];
+            })->values();
+
             $rankIndex = 0;
-            $rankings = $rankings->map(function ($item) use (&$rankIndex) {
+            $hasAnyPlayed = $rankings->contains(fn($item) => ($item['played'] ?? 0) > 0);
+            $isTournamentCompleted = $type->tournament && $type->tournament->status === \App\Models\Tournament::CLOSED;
+
+            $rankings = $rankings->map(function ($item) use (&$rankIndex, $hasAnyPlayed, $isTournamentCompleted) {
                 $rankIndex++;
                 $item['overall_rank'] = $rankIndex;
                 $item['_rank'] = $rankIndex;
                 $item['rank_label'] = "Hạng {$rankIndex}";
-                $item['_is_champion'] = $rankIndex === 1;
+                $item['_is_champion'] = ($hasAnyPlayed || $isTournamentCompleted) && ($rankIndex === 1);
                 return $item;
             });
         }
@@ -348,9 +482,14 @@ class TournamentRankService
                 if ($inA && $inB) {
                     $rankA = $this->computeOverallRank(0, $a, $results);
                     $rankB = $this->computeOverallRank(0, $b, $results);
-                    if ($rankA !== $rankB) return $rankA <=> $rankB;
+                    $rA = $rankA ?? 9999;
+                    $rB = $rankB ?? 9999;
+                    if ($rA !== $rB) return $rA <=> $rB;
                     if (($a['points'] ?? 0) !== ($b['points'] ?? 0)) {
                         return ($b['points'] ?? 0) <=> ($a['points'] ?? 0);
+                    }
+                    if (($a['point_diff'] ?? 0) !== ($b['point_diff'] ?? 0)) {
+                        return ($b['point_diff'] ?? 0) <=> ($a['point_diff'] ?? 0);
                     }
                     return $a['team_id'] <=> $b['team_id'];
                 }
@@ -360,6 +499,12 @@ class TournamentRankService
                 $grA = $a['_group_rank'] ?? 999;
                 $grB = $b['_group_rank'] ?? 999;
                 if ($grA !== $grB) return $grA <=> $grB;
+                if (($a['points'] ?? 0) !== ($b['points'] ?? 0)) {
+                    return ($b['points'] ?? 0) <=> ($a['points'] ?? 0);
+                }
+                if (($a['point_diff'] ?? 0) !== ($b['point_diff'] ?? 0)) {
+                    return ($b['point_diff'] ?? 0) <=> ($a['point_diff'] ?? 0);
+                }
                 return $a['team_id'] <=> $b['team_id'];
             })->values();
 
@@ -391,7 +536,7 @@ class TournamentRankService
             // ✅ Olympic convention: nếu 2 teams đồng hạng 3, next rank = 5 (skip 4)
             // Nếu chỉ 1 team ở maxBracketRank, next = maxBracketRank + 1
             $tieCount = count(array_filter($bracketRanks, fn($r) => $r === $maxBracketRank));
-            $startRank = $maxBracketRank + $tieCount;
+            $startRank = $maxBracketRank > 0 ? ($maxBracketRank + $tieCount) : 1;
             $nonBracketAssignments = $this->assignRanksForNonBracketTeams($nonBracketTeams, $startRank);
 
             foreach ($nonBracketTeams as $nb) {
@@ -415,20 +560,83 @@ class TournamentRankService
                     );
                 }
                 if (!isset($item['_is_champion'])) {
-                    $item['_is_champion'] = ((int) $item['overall_rank']) === 1;
+                    $item['_is_champion'] = !empty($results['champion_team_id'])
+                        && (int) $item['team_id'] === (int) $results['champion_team_id'];
                 }
             }
             unset($item);
 
-            $overallRankings = collect($rankedItems);
+            $overallRankings = collect($rankedItems)->sort(function ($a, $b) {
+                $rA = $a['overall_rank'] ?? 9999;
+                $rB = $b['overall_rank'] ?? 9999;
+                if ($rA !== $rB) return $rA <=> $rB;
+                if (($a['points'] ?? 0) !== ($b['points'] ?? 0)) {
+                    return ($b['points'] ?? 0) <=> ($a['points'] ?? 0);
+                }
+                if (($a['point_diff'] ?? 0) !== ($b['point_diff'] ?? 0)) {
+                    return ($b['point_diff'] ?? 0) <=> ($a['point_diff'] ?? 0);
+                }
+                return $a['team_id'] <=> $b['team_id'];
+            })->values();
         } else {
-            // Round Robin: rank = index thứ tự sau sort
+            // Round Robin có groups
+            $rankingRules = $this->extractRankingRules($type);
+            $allMatches = Matches::where('tournament_type_id', $type->id)
+                ->where('status', 'completed')
+                ->get();
+
+            $overallRankings = $overallRankings->sort(function ($a, $b) use ($rankingRules, $allMatches) {
+                if (($a['played'] ?? 0) == 0 && ($b['played'] ?? 0) > 0) return 1;
+                if (($b['played'] ?? 0) == 0 && ($a['played'] ?? 0) > 0) return -1;
+
+                foreach ($rankingRules as $ruleId) {
+                    switch ($ruleId) {
+                        case TournamentType::RANKING_WIN_DRAW_LOSE_POINTS:
+                            if ($a['points'] !== $b['points']) return $b['points'] <=> $a['points'];
+                            break;
+                        case TournamentType::RANKING_WIN_RATE:
+                            if (($a['win_rate'] ?? 0) !== ($b['win_rate'] ?? 0)) {
+                                return ($b['win_rate'] ?? 0) <=> ($a['win_rate'] ?? 0);
+                            }
+                            break;
+                        case TournamentType::RANKING_SETS_WON:
+                            if (($a['sets_diff'] ?? 0) !== ($b['sets_diff'] ?? 0)) {
+                                return ($b['sets_diff'] ?? 0) <=> ($a['sets_diff'] ?? 0);
+                            }
+                            break;
+                        case TournamentType::RANKING_POINTS_WON:
+                            if ($a['point_diff'] !== $b['point_diff']) {
+                                return $b['point_diff'] <=> $a['point_diff'];
+                            }
+                            break;
+                        case TournamentType::RANKING_HEAD_TO_HEAD:
+                            $h2h = $this->getHeadToHeadResultForRank($a['team_id'], $b['team_id'], $allMatches);
+                            if ($h2h !== 0) return $h2h;
+                            break;
+                        case TournamentType::RANKING_RANDOM_DRAW:
+                            return $a['team_id'] <=> $b['team_id'];
+                        case TournamentType::RANKING_GOALS_SCORED:
+                            if (($a['points_for'] ?? 0) !== ($b['points_for'] ?? 0)) {
+                                return ($b['points_for'] ?? 0) <=> ($a['points_for'] ?? 0);
+                            }
+                            break;
+                    }
+                }
+                if ($a['point_diff'] !== $b['point_diff']) {
+                    return $b['point_diff'] <=> $a['point_diff'];
+                }
+                return $a['team_id'] <=> $b['team_id'];
+            })->values();
+
             $rankIndex = 0;
-            $overallRankings = $overallRankings->map(function ($item) use (&$rankIndex) {
+            $hasAnyPlayed = $overallRankings->contains(fn($item) => ($item['played'] ?? 0) > 0);
+            $isTournamentCompleted = $type->tournament && $type->tournament->status === \App\Models\Tournament::CLOSED;
+
+            $overallRankings = $overallRankings->map(function ($item) use (&$rankIndex, $hasAnyPlayed, $isTournamentCompleted) {
                 $rankIndex++;
                 $item['overall_rank'] = $rankIndex;
                 $item['rank_label'] = "Hạng {$rankIndex}";
-                $item['_is_champion'] = $rankIndex === 1;
+                $item['_is_champion'] = ($hasAnyPlayed || $isTournamentCompleted) && ($rankIndex === 1);
                 return $item;
             });
         }
@@ -508,7 +716,10 @@ class TournamentRankService
         });
 
         $thirdPlaceMatch = $knockoutMatches->first(function ($m) {
-            return ($m->is_third_place ?? false) === true;
+            // Không dùng `=== true`: matches.is_third_place không có boolean cast
+            // nên PDO trả về 1 (int), khiến trận hạng 3 không được nhận ra và
+            // cả 2 đội thua bán kết đều bị gán hạng 3.
+            return (bool) ($m->is_third_place ?? false);
         });
         $hasThirdPlace = $thirdPlaceMatch !== null && $thirdPlaceMatch->status === 'completed';
 

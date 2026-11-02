@@ -339,7 +339,7 @@ class MiniTournament extends Model
             return true;
         }
 
-        $matches = $this->matches()->get();
+        $matches = $this->relationLoaded('matches') ? $this->matches : $this->matches()->get();
         if ($matches->isEmpty()) {
             return false;
         }
@@ -427,6 +427,68 @@ class MiniTournament extends Model
     public function matches()
     {
         return $this->hasMany(MiniMatch::class);
+    }
+
+    /**
+     * Kèo đã đá xong TẤT CẢ trận hay chưa.
+     *
+     * `status = CLOSED` chỉ là "đóng" — auto-close theo `end_time` có thể đóng
+     * kèo còn trận chưa đá, lúc đó bảng xếp hạng chưa chính nên không được
+     * ghi star.
+     *
+     * - Bỏ qua trận bye (`is_bye`).
+     * - Trận chưa có `team_win_id`/`participant_win_id` => chưa hoàn tất.
+     * - Phải có ÍT NHẤT 1 trận thật: kèo chưa đánh trận nào thì bảng xếp
+     *   hạng chỉ là ngẫu nhiên → không được ghi star.
+     */
+    public function hasAllMatchesCompleted(): bool
+    {
+        $counts = $this->matchCompletionCounts();
+
+        return $counts['real'] > 0 && $counts['pending'] === 0;
+    }
+
+    /**
+     * Bản đếm 1 query cho `hasAllMatchesCompleted()` — dùng khi cần gọi cho
+     * nhiều kèo trong 1 request (tránh N+1).
+     *
+     * @return array{real: int, pending: int}
+     */
+    public function matchCompletionCounts(): array
+    {
+        // selectSub từ scopeWithFullRelations → có sẵn 2 attribute này.
+        if ($this->getAttribute('real_match_count') !== null) {
+            return [
+                'real' => (int) $this->getAttribute('real_match_count'),
+                'pending' => (int) $this->getAttribute('pending_match_count'),
+            ];
+        }
+
+        $counts = $this->matches()
+            ->where('is_bye', false)
+            ->selectRaw('count(*) as real_count')
+            ->selectRaw('sum(case when team_win_id is null and participant_win_id is null then 1 else 0 end) as pending_count')
+            ->first();
+
+        return [
+            'real' => (int) ($counts->real_count ?? 0),
+            'pending' => (int) ($counts->pending_count ?? 0),
+        ];
+    }
+
+    /**
+     * Scope: chỉ lấy kèo đã đá xong tất cả trận.
+     * Phải khớp với `hasAllMatchesCompleted()`: kèo 0 trận thật không tính.
+     */
+    public function scopeAllMatchesCompleted(Builder $query)
+    {
+        return $query->whereHas('matches', fn ($q) => $q->where('is_bye', false))
+            ->whereDoesntHave(
+                'matches',
+                fn ($q) => $q->where('is_bye', false)
+                    ->whereNull('team_win_id')
+                    ->whereNull('participant_win_id')
+            );
     }
 
     public function payments()
@@ -539,7 +601,9 @@ class MiniTournament extends Model
         return $query->with([
             'sport',
             'competitionLocation',
-            'club.members',
+            // Không eager-load `club.members`: resource chi tiết không trả danh sách
+            // thành viên CLB, chỉ cần số lượng → withCount rẻ hơn nhiều.
+            'club' => fn ($q) => $q->withCount(['members', 'guestProfiles']),
             'recurringSchedule',
             'participants.user.sports.sport',
             'participants.user.sports.scores',
@@ -549,7 +613,28 @@ class MiniTournament extends Model
             'staff',
             'creator',
             'matches',
-        ]);
+        ])->withCount([
+            // Số payment đã thu (paid/confirmed) — dùng cho EventEditGuardService.
+            'participantPayments as paid_payments_count' => fn ($q) => $q->whereIn('status', ['paid', 'confirmed']),
+        ])->selectSub(
+            // Số trận đã nhập.
+            MiniMatch::query()->selectRaw('count(*)')->whereColumn('mini_matches.mini_tournament_id', 'mini_tournaments.id'),
+            'match_count'
+        )->selectSub(
+            // Số trận thật (không bye) — dùng cho hasAllMatchesCompleted().
+            MiniMatch::query()->selectRaw('count(*)')
+                ->whereColumn('mini_matches.mini_tournament_id', 'mini_tournaments.id')
+                ->where('is_bye', false),
+            'real_match_count'
+        )->selectSub(
+            // Số trận thật chưa có kết quả — dùng cho hasAllMatchesCompleted().
+            MiniMatch::query()->selectRaw('count(*)')
+                ->whereColumn('mini_matches.mini_tournament_id', 'mini_tournaments.id')
+                ->where('is_bye', false)
+                ->whereNull('team_win_id')
+                ->whereNull('participant_win_id'),
+            'pending_match_count'
+        );
     }
 
     /**

@@ -88,14 +88,14 @@ class CompetitionLocation extends Model
             'competitionLocationYards',
             'facilities',
             'creator',
-            'tournaments' => fn($q) => $q
-                ->with('creator')
-                ->where('status', Tournament::OPEN)
-                ->where(fn($sub) => $sub->whereNull('end_date')->orWhereDate('end_date', '>=', now())),
-            'miniTournaments' => fn($q) => $q
-                ->with('creator')
-                ->where('status', MiniTournament::STATUS_OPEN)
-                ->where(fn($sub) => $sub->whereNull('end_time')->orWhere('end_time', '>=', now())),
+                'tournaments' => fn($q) => $q
+                    ->with('creator')
+                    ->where('status', Tournament::OPEN)
+                    ->where(fn($sub) => $sub->whereNull('end_date')->orWhere('end_date', '>=', now())),
+                'miniTournaments' => fn($q) => $q
+                    ->with('creator')
+                    ->where('status', MiniTournament::STATUS_OPEN)
+                    ->where(fn($sub) => $sub->whereNull('end_time')->orWhere('end_time', '>=', now())),
         ]);
     }
 

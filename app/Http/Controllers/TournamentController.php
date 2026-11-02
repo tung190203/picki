@@ -34,6 +34,7 @@ use App\Models\TournamentStaff;
 use App\Models\TournamentParticipantPayment;
 use App\Models\TournamentType;
 use App\Services\ImageOptimizationService;
+use App\Services\EventEditGuardService;
 use App\Services\TournamentFundService;
 use App\Services\TournamentService;
 use Illuminate\Http\Request;
@@ -379,6 +380,12 @@ class TournamentController extends Controller
             return ResponseHelper::error('Bạn không có quyền thay đổi giải đấu', 400);
         }
 
+        // Giải đã hoàn thành → không cho sửa (kể cả thông tin chung).
+        $guard = app(EventEditGuardService::class);
+        if ($guard->isUpdateLocked($tournament)) {
+            return ResponseHelper::error('Giải đấu đã hoàn thành nên không thể cập nhật.', 403);
+        }
+
         $oldCreatorJoin = $tournament->creator_join;
         $oldStatus = $tournament->status;
 
@@ -494,6 +501,12 @@ class TournamentController extends Controller
 
         // Invalidate club content cache for both old and new club (in case club was changed)
         $newClubId = $tournament->club_id;
+
+        // Đổi CLB → chuyển toàn bộ dấu vết tài chính sang CLB mới.
+        if ($newClubId && (int) $newClubId !== (int) $oldClubId) {
+            $guard->moveFinanceToClub($tournament, (int) $newClubId);
+        }
+
         if ($oldClubId) {
             \App\Http\Controllers\Club\ClubActivityController::forgetClubContentCache($oldClubId);
         }
@@ -522,17 +535,10 @@ class TournamentController extends Controller
             return ResponseHelper::error('Giải đấu đã bị hủy trước đó rồi', 422);
         }
 
-        $hasCompletedMatch = Matches::whereHas('tournamentType', function ($q) use ($tournament) {
-            $q->where('tournament_id', $tournament->id);
-        })
-        ->where('status', Matches::STATUS_COMPLETED)
-        ->exists();
-
-        if ($hasCompletedMatch && !$isSuperAdmin) {
-            return ResponseHelper::error(
-                'Không thể hủy giải. Đã có trận đấu hoàn thành thuộc giải này.',
-                400
-            );
+        // Đã thu tiền hoặc đã nhập trận → không cho xoá (kể cả super admin).
+        $blockReason = app(EventEditGuardService::class)->deletionBlockReason($tournament);
+        if ($blockReason) {
+            return ResponseHelper::error($blockReason, 403);
         }
 
         $tournamentName = $tournament->name;

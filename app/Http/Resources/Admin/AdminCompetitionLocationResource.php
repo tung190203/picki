@@ -24,7 +24,7 @@ class AdminCompetitionLocationResource extends JsonResource
         $activeTournaments = $this->relationLoaded('tournaments')
             ? $this->tournaments->filter(fn($t) =>
                 $t->status === Tournament::OPEN
-                && ($t->end_date === null || Carbon::parse($t->end_date)->endOfDay()->gte($now))
+                && ($t->end_date === null || Carbon::parse($t->end_date)->gte($now))
             )
             : collect();
 

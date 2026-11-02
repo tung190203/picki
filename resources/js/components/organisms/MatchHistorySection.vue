@@ -12,13 +12,6 @@
         >
           <component :is="tab.icon" class="w-4 h-4" />
           <span>{{ tab.label }}</span>
-          <span
-            v-if="tabCounts[tab.key] > 0"
-            class="text-xs px-1.5 py-0.5 rounded-full min-w-[20px] text-center"
-            :class="activeTab === tab.key ? 'bg-[#4392E0]/10 text-[#4392E0]' : 'bg-gray-100 text-gray-500'"
-          >
-            {{ tabCounts[tab.key] }}
-          </span>
           <div
             v-if="activeTab === tab.key"
             class="absolute bottom-0 left-0 right-0 h-0.5 bg-[#4392E0]"
@@ -56,7 +49,7 @@
       <div v-else-if="miniError" class="flex flex-col items-center justify-center py-12 text-center">
         <ExclamationCircleIcon class="w-12 h-12 text-red-400 mb-3" />
         <p class="text-sm text-gray-500 mb-3">{{ miniError }}</p>
-        <button @click="fetchMiniTournaments" class="text-sm text-[#4392E0] hover:underline font-medium">Thử lại</button>
+        <button @click="fetchMiniTournaments(1)" class="text-sm text-[#4392E0] hover:underline font-medium">Thử lại</button>
       </div>
 
       <!-- Content -->
@@ -110,6 +103,7 @@
               @click="handleMiniTournamentClick"
             />
           </div>
+          <Pagination :meta="miniMeta" class="!mt-4" @page-change="changeMiniPage" />
         </div>
       </template>
     </template>
@@ -118,6 +112,29 @@
     <!-- MATCHES TAB (Trận đấu) -->
     <!-- ================================================ -->
     <template v-else-if="activeTab === 'match'">
+      <!-- Overview stats -->
+      <div v-if="matchesOverview" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
+        <h3 class="text-sm font-semibold text-gray-700 mb-3">Tổng kết trận đấu</h3>
+        <div class="grid grid-cols-4 gap-3">
+          <div class="text-center">
+            <p class="text-lg font-bold text-gray-800">{{ matchesOverview.total_matches ?? 0 }}</p>
+            <p class="text-xs text-gray-500">Trận</p>
+          </div>
+          <div class="text-center">
+            <p class="text-lg font-bold text-green-600">{{ matchesOverview.total_win ?? 0 }}</p>
+            <p class="text-xs text-gray-500">Thắng</p>
+          </div>
+          <div class="text-center">
+            <p class="text-lg font-bold text-red-500">{{ matchesOverview.total_lose ?? 0 }}</p>
+            <p class="text-xs text-gray-500">Thua</p>
+          </div>
+          <div class="text-center">
+            <p class="text-lg font-bold text-blue-600">{{ matchesOverview.win_rate ?? 0 }}%</p>
+            <p class="text-xs text-gray-500">Tỷ lệ thắng</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Loading -->
       <div v-if="matchesLoading" class="space-y-3">
         <div v-for="i in 3" :key="i" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 animate-pulse">
@@ -140,7 +157,7 @@
       <div v-else-if="matchesError" class="flex flex-col items-center justify-center py-12 text-center">
         <ExclamationCircleIcon class="w-12 h-12 text-red-400 mb-3" />
         <p class="text-sm text-gray-500 mb-3">{{ matchesError }}</p>
-        <button @click="fetchMatches" class="text-sm text-[#4392E0] hover:underline font-medium">Thử lại</button>
+        <button @click="fetchMatches(1)" class="text-sm text-[#4392E0] hover:underline font-medium">Thử lại</button>
       </div>
 
       <!-- Empty -->
@@ -153,16 +170,11 @@
       <div v-else class="space-y-3">
         <MatchHistoryCard
           v-for="match in matches"
-          :key="`${match.type}-${match.id}`"
+          :key="`${match.format}-${match.id}`"
           :match="match"
           @click="handleMatchClick"
         />
-        <div v-if="matchesHasMore" class="flex justify-center pt-2">
-          <button @click="loadMoreMatches" :disabled="matchesLoadingMore"
-            class="px-6 py-2 text-sm text-[#4392E0] border border-[#4392E0] rounded-full hover:bg-blue-50 transition-colors disabled:opacity-50">
-            {{ matchesLoadingMore ? 'Đang tải...' : 'Xem thêm' }}
-          </button>
-        </div>
+        <Pagination :meta="matchesMeta" class="!mt-4" @page-change="changeMatchesPage" />
       </div>
     </template>
 
@@ -175,7 +187,7 @@
         <h3 class="text-sm font-semibold text-gray-700 mb-3">Tổng kết giải đấu</h3>
         <div class="grid grid-cols-4 gap-3">
           <div class="text-center">
-            <p class="text-lg font-bold text-gray-800">{{ tournamentOverview.total_tournaments ?? 0 }}</p>
+            <p class="text-lg font-bold text-gray-800">{{ tournamentOverview.total_joined ?? 0 }}</p>
             <p class="text-xs text-gray-500">Giải</p>
           </div>
           <div class="text-center">
@@ -213,7 +225,7 @@
       <div v-else-if="tournamentError" class="flex flex-col items-center justify-center py-12 text-center">
         <ExclamationCircleIcon class="w-12 h-12 text-red-400 mb-3" />
         <p class="text-sm text-gray-500 mb-3">{{ tournamentError }}</p>
-        <button @click="fetchTournaments" class="text-sm text-[#4392E0] hover:underline font-medium">Thử lại</button>
+        <button @click="fetchTournaments(1)" class="text-sm text-[#4392E0] hover:underline font-medium">Thử lại</button>
       </div>
 
       <!-- Empty -->
@@ -230,12 +242,7 @@
           :tournament="t"
           @click="handleTournamentClick"
         />
-        <div v-if="tournamentHasMore" class="flex justify-center pt-2">
-          <button @click="loadMoreTournaments" :disabled="tournamentLoadingMore"
-            class="px-6 py-2 text-sm text-[#4392E0] border border-[#4392E0] rounded-full hover:bg-blue-50 transition-colors disabled:opacity-50">
-            {{ tournamentLoadingMore ? 'Đang tải...' : 'Xem thêm' }}
-          </button>
-        </div>
+        <Pagination :meta="tournamentMeta" class="!mt-4" @page-change="changeTournamentPage" />
       </div>
     </template>
   </div>
@@ -254,6 +261,7 @@ import { userService } from '@/service/user.js';
 import MatchHistoryCard from '@/components/molecules/MatchHistoryCard.vue';
 import TournamentHistoryCard from '@/components/molecules/TournamentHistoryCard.vue';
 import MiniTournamentHistoryCard from '@/components/molecules/MiniTournamentHistoryCard.vue';
+import Pagination from '@/components/molecules/Pagination.vue';
 
 const props = defineProps({
   userId: {
@@ -271,70 +279,57 @@ const tabs = [
 const activeTab = ref('mini_tournament');
 
 // Mini Tournament state
-const miniTournaments = ref([]);
+const miniCurrent = ref(null);
+const miniCompleted = ref([]);
 const miniLoading = ref(false);
 const miniError = ref('');
 const miniOverview = ref(null);
+const miniMeta = ref({ current_page: 1, last_page: 1, total: 0 });
+const miniPerPage = 10;
 
 // Tournament state
 const tournaments = ref([]);
 const tournamentLoading = ref(false);
-const tournamentLoadingMore = ref(false);
 const tournamentError = ref('');
-const tournamentCurrentPage = ref(1);
-const tournamentLastPage = ref(1);
-const tournamentPerPage = 10;
-const tournamentHasMore = computed(() => tournamentCurrentPage.value < tournamentLastPage.value);
 const tournamentOverview = ref(null);
+const tournamentMeta = ref({ current_page: 1, last_page: 1, total: 0 });
+const tournamentPerPage = 10;
 
 // Matches state
 const matches = ref([]);
 const matchesLoading = ref(false);
-const matchesLoadingMore = ref(false);
 const matchesError = ref('');
-const matchesCurrentPage = ref(1);
-const matchesLastPage = ref(1);
+const matchesOverview = ref(null);
+const matchesMeta = ref({ current_page: 1, last_page: 1, total: 0 });
 const matchesPerPage = 20;
-const matchesHasMore = computed(() => matchesCurrentPage.value < matchesLastPage.value);
-
-// Mini tournament grouped
-const miniCurrent = computed(() =>
-  miniTournaments.value.find(m => !m.is_completed) || null
-);
-
-const miniCompleted = computed(() =>
-  miniTournaments.value.filter(m => m.is_completed)
-);
 
 // Tab counts
 const tabCounts = computed(() => ({
-  mini_tournament: miniTournaments.value.length,
-  match: matches.value.length,
-  tournament: tournaments.value.length,
+  mini_tournament: miniMeta.value.total + (miniCurrent.value ? 1 : 0),
+  match: matchesMeta.value.total,
+  tournament: tournamentMeta.value.total,
 }));
 
 // --- Mini Tournament API ---
-const fetchMiniTournaments = async () => {
+const fetchMiniTournaments = async (page = 1) => {
   miniLoading.value = true;
   miniError.value = '';
 
   try {
     const res = await userService.getMiniTournaments({
       user_id: props.userId,
-      per_page: 100,
+      per_page: miniPerPage,
+      page,
     });
 
     const data = res.data?.data || res.data || {};
     const list = Array.isArray(data.mini_tournaments) ? data.mini_tournaments : [];
 
-    // Prepend current mini tournament if any
-    const current = data.current_mini_tournament || null;
-    if (current) {
-      miniTournaments.value = [current, ...list];
-    } else {
-      miniTournaments.value = list;
-    }
     miniOverview.value = data.overview || null;
+    miniCurrent.value = data.current_mini_tournament || null;
+    miniCompleted.value = list;
+
+    miniMeta.value = res.data?.meta || { current_page: page, last_page: page, total: list.length };
   } catch (e) {
     const status = e.response?.status;
     if (status === 401) {
@@ -348,14 +343,12 @@ const fetchMiniTournaments = async () => {
   }
 };
 
+const changeMiniPage = (page) => fetchMiniTournaments(page);
+
 // --- Tournament API ---
 const fetchTournaments = async (page = 1) => {
-  if (page === 1) {
-    tournamentLoading.value = true;
-    tournamentError.value = '';
-  } else {
-    tournamentLoadingMore.value = true;
-  }
+  tournamentLoading.value = true;
+  tournamentError.value = '';
 
   try {
     const res = await userService.getTournaments({
@@ -365,18 +358,10 @@ const fetchTournaments = async (page = 1) => {
     });
 
     const data = res.data?.data || res.data || {};
-    const list = Array.isArray(data.tournaments) ? data.tournaments : [];
-    const meta = data.meta || {};
 
-    if (page === 1) {
-      tournaments.value = list;
-      tournamentOverview.value = data.overview || null;
-    } else {
-      tournaments.value.push(...list);
-    }
-
-    tournamentLastPage.value = meta.last_page || 1;
-    tournamentCurrentPage.value = meta.current_page || 1;
+    tournaments.value = Array.isArray(data.tournaments) ? data.tournaments : [];
+    tournamentOverview.value = data.overview || null;
+    tournamentMeta.value = res.data?.meta || { current_page: page, last_page: page, total: tournaments.value.length };
   } catch (e) {
     const status = e.response?.status;
     if (status === 401) {
@@ -387,23 +372,15 @@ const fetchTournaments = async (page = 1) => {
     toast.error(tournamentError.value);
   } finally {
     tournamentLoading.value = false;
-    tournamentLoadingMore.value = false;
   }
 };
 
-const loadMoreTournaments = () => {
-  if (!tournamentHasMore.value || tournamentLoadingMore.value) return;
-  fetchTournaments(tournamentCurrentPage.value + 1);
-};
+const changeTournamentPage = (page) => fetchTournaments(page);
 
 // --- Matches API ---
 const fetchMatches = async (page = 1) => {
-  if (page === 1) {
-    matchesLoading.value = true;
-    matchesError.value = '';
-  } else {
-    matchesLoadingMore.value = true;
-  }
+  matchesLoading.value = true;
+  matchesError.value = '';
 
   try {
     const res = await userService.getMatches({
@@ -417,17 +394,10 @@ const fetchMatches = async (page = 1) => {
       : res.data?.matches
       ? res.data
       : res.data?.data || {};
-    const list = Array.isArray(data.matches) ? data.matches : [];
-    const meta = data.meta || {};
 
-    if (page === 1) {
-      matches.value = list;
-    } else {
-      matches.value.push(...list);
-    }
-
-    matchesLastPage.value = meta.last_page || 1;
-    matchesCurrentPage.value = meta.current_page || 1;
+    matches.value = Array.isArray(data.matches) ? data.matches : [];
+    matchesOverview.value = data.overview || null;
+    matchesMeta.value = res.data?.meta || { current_page: page, last_page: page, total: matches.value.length };
   } catch (e) {
     const status = e.response?.status;
     if (status === 401) {
@@ -438,22 +408,18 @@ const fetchMatches = async (page = 1) => {
     toast.error(matchesError.value);
   } finally {
     matchesLoading.value = false;
-    matchesLoadingMore.value = false;
   }
 };
 
-const loadMoreMatches = () => {
-  if (!matchesHasMore.value || matchesLoadingMore.value) return;
-  fetchMatches(matchesCurrentPage.value + 1);
-};
+const changeMatchesPage = (page) => fetchMatches(page);
 
 // --- Tab switching ---
 const switchTab = (tabKey) => {
   if (activeTab.value === tabKey) return;
   activeTab.value = tabKey;
 
-  if (tabKey === 'mini_tournament' && miniTournaments.value.length === 0) {
-    fetchMiniTournaments();
+  if (tabKey === 'mini_tournament' && miniCompleted.value.length === 0) {
+    fetchMiniTournaments(1);
   } else if (tabKey === 'tournament' && tournaments.value.length === 0) {
     fetchTournaments(1);
   } else if (tabKey === 'match' && matches.value.length === 0) {
@@ -471,16 +437,19 @@ watch(
   () => props.userId,
   (newId) => {
     if (!newId) return;
-    miniTournaments.value = [];
+    miniCompleted.value = [];
+    miniCurrent.value = null;
     tournaments.value = [];
     matches.value = [];
     miniOverview.value = null;
     tournamentOverview.value = null;
-    tournamentCurrentPage.value = 1;
-    matchesCurrentPage.value = 1;
+    matchesOverview.value = null;
+    miniMeta.value = { current_page: 1, last_page: 1, total: 0 };
+    tournamentMeta.value = { current_page: 1, last_page: 1, total: 0 };
+    matchesMeta.value = { current_page: 1, last_page: 1, total: 0 };
 
     if (activeTab.value === 'mini_tournament') {
-      fetchMiniTournaments();
+      fetchMiniTournaments(1);
     } else if (activeTab.value === 'tournament') {
       fetchTournaments(1);
     } else {

@@ -51,6 +51,37 @@ class ClubNotificationController extends Controller
         $notifications = $this->notificationService->getNotifications($club, $userId, $validated, $canManage);
         $unreadCount = $this->notificationService->getUnreadCount($club, $userId);
 
+        // ponytail: batch creator card (badges + deviceTokens + has_advanced) — trước đó UserResource query per creator.
+        $creators = $notifications->getCollection()->map(fn ($n) => $n->creator)->filter()->unique('id')->values();
+        if ($creators->isNotEmpty()) {
+            $creatorIds = $creators->pluck('id')->all();
+            $tokensByUser = \App\Models\DeviceToken::whereIn('user_id', $creatorIds)
+                ->orderByDesc('last_seen_at')
+                ->get()
+                ->groupBy('user_id');
+            foreach ($creators as $u) {
+                $u->setRelation('deviceTokens', $tokensByUser->get($u->id, collect()));
+            }
+            request()->attributes->set(
+                'batch_badges',
+                app(\App\Services\BadgeService::class)->getBatchUserBadges($creatorIds)
+            );
+            $counts = \Illuminate\Support\Facades\DB::table('mini_tournament_staff as mts')
+                ->join('mini_tournaments as mnt', 'mnt.id', '=', 'mts.mini_tournament_id')
+                ->join('mini_participants as mp', 'mp.mini_tournament_id', '=', 'mnt.id')
+                ->whereIn('mts.user_id', $creatorIds)
+                ->where('mts.role', \App\Models\MiniTournamentStaff::ROLE_ADMIN)
+                ->where('mnt.status', '!=', \App\Models\MiniTournament::STATUS_DRAFT)
+                ->where('mnt.status', '!=', \App\Models\MiniTournament::STATUS_CANCELLED)
+                ->where('mp.is_confirmed', 1)
+                ->select('mts.user_id', \Illuminate\Support\Facades\DB::raw('COUNT(DISTINCT mnt.id) as cnt'))
+                ->groupBy('mts.user_id')
+                ->pluck('cnt', 'user_id');
+            foreach ($creators as $u) {
+                $u->setAttribute('has_advanced_mini_tournament', ((int) ($counts[$u->id] ?? 0)) >= 3);
+            }
+        }
+
         $data = ['notifications' => ClubNotificationResource::collection($notifications)];
         $meta = [
             'current_page' => $notifications->currentPage(),

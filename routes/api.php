@@ -21,6 +21,7 @@ use App\Http\Controllers\ParticipantController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentGuestController;
 use App\Http\Controllers\PublicLiveScoreController;
+use App\Http\Controllers\LivescorePickerController;
 use App\Http\Controllers\TournamentPaymentController;
 use App\Http\Controllers\TournamentTypeController;
 use App\Http\Controllers\UserController;
@@ -53,6 +54,11 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\Chat\ConversationController;
+use App\Http\Controllers\Chat\UserBlockController;
+use App\Http\Controllers\Chat\ChatReportController;
+use App\Http\Controllers\Chat\ChatShortcutController;
+use App\Http\Controllers\Chat\InboxController;
 use App\Http\Controllers\MiniTournamentController;
 use App\Http\Controllers\MiniTournamentSearchController;
 use App\Http\Controllers\SearchV2Controller;
@@ -157,6 +163,12 @@ Route::prefix('tournaments')->group(function () {
 Route::prefix('live-score')->group(function () {
     // {type} = 'tournament' | 'mini'
     Route::get('/{type}/{matchId}', [PublicLiveScoreController::class, 'show']);
+});
+
+// Màn chọn trận Livescore — cần đăng nhập (đây là màn BTC dùng).
+Route::middleware('auth:api')->prefix('livescore')->group(function () {
+    Route::get('/tournaments', [LivescorePickerController::class, 'index']);
+    Route::get('/tournaments/{id}/matches', [LivescorePickerController::class, 'matches']);
 });
 
 // Search V2 API - Unified search endpoint
@@ -858,7 +870,7 @@ Route::get('/members/candidates', [ClubMemberController::class, 'getCandidates']
                 Route::post('/', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'store']);
                 Route::match(['put', 'patch'], '/{homeCourtId}', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'update']);
                 Route::delete('/{homeCourtId}', [\App\Http\Controllers\Club\ClubHomeCourtController::class, 'destroy']);
-            });
+            }); 
 
 
             Route::post('/mini-tournaments', [ClubMiniTournamentController::class, 'store']);
@@ -1011,6 +1023,42 @@ Route::get('/members/candidates', [ClubMemberController::class, 'getCandidates']
         Route::post('/mark-as-read/{senderId}', [MessageController::class, 'markConversationAsRead']);
     });
 
+    // Unified Chat, Conversations, Blocks, Reports
+    Route::prefix('chat')->group(function () {
+        Route::prefix('conversations')->group(function () {
+            Route::post('/dm', [ConversationController::class, 'startDm']);
+            Route::post('/group', [ConversationController::class, 'getGroupConversation']);
+            Route::get('/{id}', [ConversationController::class, 'show']);
+            Route::get('/{id}/messages', [ConversationController::class, 'getMessages']);
+            Route::post('/{id}/messages', [ConversationController::class, 'sendMessage']);
+            Route::post('/{id}/read', [ConversationController::class, 'markAsRead']);
+            Route::match(['post', 'put', 'patch'], '/{id}/mute', [ConversationController::class, 'toggleMute']);
+        });
+
+        Route::prefix('users')->group(function () {
+            Route::get('/blocks', [UserBlockController::class, 'index']);
+            Route::post('/{id}/block', [UserBlockController::class, 'block']);
+            Route::delete('/{id}/unblock', [UserBlockController::class, 'unblock']);
+        });
+
+        Route::prefix('shortcuts')->group(function () {
+            Route::get('/matches', [ChatShortcutController::class, 'matches']);
+            Route::get('/tournaments', [ChatShortcutController::class, 'tournaments']);
+            Route::get('/players', [ChatShortcutController::class, 'players']);
+            Route::get('/clubs', [ChatShortcutController::class, 'clubs']);
+        });
+
+        Route::post('/reports', [ChatReportController::class, 'store']);
+    });
+
+    // Unified Inbox (All, Messages, Alerts, Strangers, Unread-count, Read-all)
+    Route::prefix('inbox')->group(function () {
+        Route::get('/', [InboxController::class, 'index']);
+        Route::get('/strangers', [InboxController::class, 'strangers']);
+        Route::get('/unread-count', [InboxController::class, 'unreadCount']);
+        Route::post('/read-all', [InboxController::class, 'markAllAsRead']);
+    });
+
     Route::prefix('competition-locations')->group(function () {
         Route::match(['get', 'post'], '/index', [CompetitionLocationController::class, 'index']);
     });
@@ -1036,12 +1084,14 @@ Route::get('/members/candidates', [ClubMemberController::class, 'getCandidates']
     // user_notification: thông báo riêng từng thành viên (Laravel notifications)
     Route::prefix('user-notifications')->group(function () {
         Route::match(['get', 'post'], '/index', [NotificationController::class, 'index']);
+        Route::match(['get', 'post'], '/list', [NotificationController::class, 'index']);
         Route::post('/mark-as-read', [NotificationController::class, 'markAsRead']);
         Route::post('/delete', [NotificationController::class, 'delete']);
     });
-    // Alias: api/notifications/* (để client gọi api/notifications/index thay vì api/user-notifications/index)
+    // Alias: api/notifications/* (để client gọi api/notifications/index hoặc api/notifications/list thay vì api/user-notifications/index)
     Route::prefix('notifications')->group(function () {
         Route::match(['get', 'post'], '/index', [NotificationController::class, 'index']);
+        Route::match(['get', 'post'], '/list', [NotificationController::class, 'index']);
         Route::post('/mark-as-read', [NotificationController::class, 'markAsRead']);
         Route::post('/delete', [NotificationController::class, 'delete']);
     });

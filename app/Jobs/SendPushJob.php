@@ -19,11 +19,11 @@ class SendPushJob implements ShouldQueue
      * Create a new job instance.
      */
     public function __construct(
-        protected int $userId,
-        protected string $title,
-        protected string $body,
-        protected array $data = [],
-        protected ?int $campaignId = null
+        public int $userId,
+        public string $title,
+        public string $body,
+        public array $data = [],
+        public ?int $campaignId = null
     ) {}
 
     /**

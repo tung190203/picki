@@ -39,6 +39,7 @@ export const API_ENDPOINT = {
   MATCHES: '/matches',
   SCORE: '/score',
   LIVE_SCORE: '/live-score',
+  LIFESCORE: '/livescore',
   // user_notification: thông báo riêng từng thành viên (không phải thông báo CLB)
   NOTIFICATION: '/user-notifications',
   MAP: '/map',

@@ -169,7 +169,7 @@
                     <CalendarIcon class="w-7 h-7 mb-2" />
                     <span class="text-xs font-semibold">Mời bạn</span>
                 </div>
-                <div class="flex flex-col items-center cursor-pointer">
+                <div @click="startChatWithUser" class="flex flex-col items-center cursor-pointer hover:opacity-80 transition">
                     <ChatBubbleBottomCenterTextIcon class="w-7 h-7 mb-2" />
                     <span class="text-xs font-semibold">Trò chuyện</span>
                 </div>
@@ -405,6 +405,7 @@ import BadgeIcon from "@/components/atoms/BadgeIcon.vue";
 import { useRoute, useRouter } from "vue-router";
 import { toast } from "vue3-toastify";
 import { useUserStore } from "@/store/auth";
+import { useChatStore } from "@/store/chat.js";
 import { storeToRefs } from "pinia";
 import { getVisibilityText }  from "@/composables/formatVisibilityText";
 
@@ -416,6 +417,17 @@ const defaultAvatar = "/images/default-avatar.png";
 
 const userStore = useUserStore();
 const { getUser } = storeToRefs(userStore);
+const chatStore = useChatStore();
+
+const startChatWithUser = async () => {
+    const targetUserId = user.value?.id || id;
+    if (!targetUserId) return;
+    try {
+        await chatStore.startDm(Number(targetUserId));
+    } catch (err) {
+        toast.error(err?.response?.data?.message || "Không thể mở cuộc trò chuyện");
+    }
+};
 
 const sports = ref([]);
 const clubs = ref([]);

@@ -71,9 +71,12 @@
                                 class="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover border-2 border-gray-300 dark:border-slate-600 shadow-md" />
                             <span class="absolute -bottom-1 -right-1 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-200 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center border border-white dark:border-slate-800">2</span>
                         </div>
-                        <h4 class="font-bold text-xs sm:text-sm text-gray-800 dark:text-slate-100 truncate max-w-[90px] sm:max-w-[120px]">
-                            {{ achievementTopThree[1].name }}
-                        </h4>
+                        <div class="flex items-center justify-center gap-1 max-w-[110px] sm:max-w-[140px]">
+                            <h4 class="font-bold text-xs sm:text-sm text-gray-800 dark:text-slate-100 truncate">
+                                {{ achievementTopThree[1].name }}
+                            </h4>
+                            <BadgeIcon v-for="badge in getDisplayBadges(achievementTopThree[1])" :key="badge?.type || badge" :badge="badge" size="sm" />
+                        </div>
                         <span v-if="achievementTopThree[1].is_guest" class="text-[9px] bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 font-bold px-1 rounded mt-0.5">CLB GUEST</span>
                         <div class="text-xs font-extrabold text-[#D72D36] dark:text-red-400 mt-1">
                             {{ achievementTopThree[1].total_points }} {{ subType === 'star' ? '⭐' : '🏆' }}
@@ -93,9 +96,12 @@
                                 class="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border-2 border-amber-400 dark:border-amber-500 shadow-lg ring-4 ring-amber-100 dark:ring-amber-950/60" />
                             <span class="absolute -bottom-1 -right-1 bg-amber-400 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border border-white dark:border-slate-800">1</span>
                         </div>
-                        <h4 class="font-bold text-sm sm:text-base text-gray-900 dark:text-slate-100 truncate max-w-[100px] sm:max-w-[140px]">
-                            {{ achievementTopThree[0].name }}
-                        </h4>
+                        <div class="flex items-center justify-center gap-1 max-w-[120px] sm:max-w-[160px]">
+                            <h4 class="font-bold text-sm sm:text-base text-gray-900 dark:text-slate-100 truncate">
+                                {{ achievementTopThree[0].name }}
+                            </h4>
+                            <BadgeIcon v-for="badge in getDisplayBadges(achievementTopThree[0])" :key="badge?.type || badge" :badge="badge" size="sm" />
+                        </div>
                         <span v-if="achievementTopThree[0].is_guest" class="text-[9px] bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 font-bold px-1 rounded mt-0.5">CLB GUEST</span>
                         <div class="text-sm font-extrabold text-[#D72D36] dark:text-red-400 mt-1">
                             {{ achievementTopThree[0].total_points }} {{ subType === 'star' ? '⭐' : '🏆' }}
@@ -115,9 +121,12 @@
                                 class="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover border-2 border-amber-700/40 dark:border-amber-600/50 shadow-md" />
                             <span class="absolute -bottom-1 -right-1 bg-amber-700 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center border border-white dark:border-slate-800">3</span>
                         </div>
-                        <h4 class="font-bold text-xs sm:text-sm text-gray-800 dark:text-slate-100 truncate max-w-[90px] sm:max-w-[120px]">
-                            {{ achievementTopThree[2].name }}
-                        </h4>
+                        <div class="flex items-center justify-center gap-1 max-w-[110px] sm:max-w-[140px]">
+                            <h4 class="font-bold text-xs sm:text-sm text-gray-800 dark:text-slate-100 truncate">
+                                {{ achievementTopThree[2].name }}
+                            </h4>
+                            <BadgeIcon v-for="badge in getDisplayBadges(achievementTopThree[2])" :key="badge?.type || badge" :badge="badge" size="sm" />
+                        </div>
                         <span v-if="achievementTopThree[2].is_guest" class="text-[9px] bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 font-bold px-1 rounded mt-0.5">CLB GUEST</span>
                         <div class="text-xs font-extrabold text-[#D72D36] dark:text-red-400 mt-1">
                             {{ achievementTopThree[2].total_points }} {{ subType === 'star' ? '⭐' : '🏆' }}
@@ -141,6 +150,7 @@
                             <div>
                                 <div class="flex items-center space-x-1.5">
                                     <span class="font-semibold text-sm text-gray-800 dark:text-slate-100">{{ item.name }}</span>
+                                    <BadgeIcon v-for="badge in getDisplayBadges(item)" :key="badge?.type || badge" :badge="badge" size="sm" />
                                     <span v-if="item.is_guest" class="text-[9px] bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-bold px-1.5 py-0.5 rounded">CLB GUEST</span>
                                 </div>
                                 <div class="text-xs text-gray-400 dark:text-slate-400 space-x-2 mt-0.5">
@@ -305,11 +315,35 @@ import { ref, computed, watch, onMounted } from 'vue'
 import dayjs from 'dayjs'
 import 'dayjs/locale/vi'
 import ClubRanking from '@/components/molecules/ClubRanking.vue'
+import BadgeIcon from '@/components/atoms/BadgeIcon.vue'
 const defaultAvatar = 'https://picki.vn/images/default-avatar.png'
 import axiosInstance from "@/utils/httpRequest.js";
 import { API_ENDPOINT } from "@/constants/index.js";
 
 dayjs.locale('vi');
+
+const ALLOWED_LEADERBOARD_BADGES = ['picki', 'champion', 'anchor', 'verified']
+
+const isAllowedLeaderboardBadge = (badge) => {
+    const type = typeof badge === 'string' ? badge : badge?.type
+    return type ? ALLOWED_LEADERBOARD_BADGES.includes(String(type).toLowerCase()) : false
+}
+
+const getDisplayBadges = (item) => {
+    if (!item) return []
+    if (item.primary_badge && isAllowedLeaderboardBadge(item.primary_badge)) {
+        return [item.primary_badge]
+    }
+    if (item.featured_badges && item.featured_badges.length > 0) {
+        const allowedFeatured = item.featured_badges.find(isAllowedLeaderboardBadge)
+        if (allowedFeatured) return [allowedFeatured]
+    }
+    if (item.badges && item.badges.length > 0) {
+        const allowedBadge = item.badges.find(isAllowedLeaderboardBadge)
+        if (allowedBadge) return [allowedBadge]
+    }
+    return []
+}
 
 const props = defineProps({
     clubId: {

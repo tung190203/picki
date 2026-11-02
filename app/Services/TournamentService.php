@@ -259,7 +259,6 @@ class TournamentService
                 FROM user_sport us
                 JOIN users u ON u.id = us.user_id
                 JOIN user_sport_scores uss ON uss.user_sport_id = us.id
-                JOIN users u ON u.id = us.user_id
                 WHERE us.sport_id = ?
                   AND uss.score_type = 'vndupr_score'
                   AND u.is_anchor = false

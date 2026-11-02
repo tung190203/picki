@@ -334,6 +334,12 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 
     public function getPrimaryBadgeAttribute(): ?array
     {
+        // ponytail: dùng batch đã preload ở controller (request batch_badges) để hết N+1.
+        $batch = request()->attributes->get('batch_badges', []);
+        if (is_array($batch) && array_key_exists($this->id, $batch)) {
+            $pre = $batch[$this->id]['primary_badge'] ?? null;
+            return is_array($pre) ? $pre : null;
+        }
         return app(\App\Services\BadgeService::class)->getPrimaryBadge($this->id);
     }
 

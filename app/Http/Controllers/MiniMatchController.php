@@ -240,6 +240,8 @@ class MiniMatchController extends Controller
                     'is_guest' => $p->is_guest,
                     'is_absent' => $p->is_absent,
                     'checked_in_at' => $p->checked_in_at?->toIsoString(),
+                    // Guest: trình độ ước tính (nếu có)
+                    'estimated_level' => $p->estimated_level,
                 ]),
                 'statistics' => [
                     'total_participants' => $miniTournament->participants()->count(),
@@ -298,6 +300,8 @@ class MiniMatchController extends Controller
                 'is_guest' => $p->is_guest,
                 'is_absent' => $p->is_absent,
                 'checked_in_at' => $p->checked_in_at?->toIsoString(),
+                // Guest: trình độ ước tính (nếu có)
+                'estimated_level' => $p->estimated_level,
             ]),
             'statistics' => [
                 'total_participants' => $miniTournament->participants()->count(),
@@ -628,14 +632,14 @@ class MiniMatchController extends Controller
 
             $isGuest = (bool) $p->is_guest;
             $records[] = [
-                'user_id' => $isGuest ? null : $p->user_id,
+                'user_id' => $p->user_id,
                 'is_guest' => $isGuest,
                 'guest_name' => $isGuest ? ($p->guest_name ?? ('User #' . $p->id)) : null,
                 'guest_avatar' => $isGuest ? $p->guest_avatar : null,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
-            if (!$isGuest && $p->user_id) {
+            if ($p->user_id) {
                 $validUserIds[] = $p->user_id;
             }
         }

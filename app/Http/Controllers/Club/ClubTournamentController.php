@@ -20,6 +20,7 @@ use App\Models\TournamentStaff;
 use App\Models\TournamentParticipantPayment;
 use App\Services\ImageOptimizationService;
 use App\Services\Club\ClubNotificationService;
+use App\Services\EventEditGuardService;
 use App\Services\TournamentFundService;
 use App\Services\TournamentService;
 use Illuminate\Http\Request;
@@ -208,6 +209,14 @@ class ClubTournamentController extends Controller
 
         $validated = $request->validated();
 
+        // Giải đã hoàn thành → không cho sửa (kể cả thông tin chung).
+        $guard = app(EventEditGuardService::class);
+        if ($guard->isUpdateLocked($tournament)) {
+            return ResponseHelper::error('Giải đấu đã hoàn thành nên không thể cập nhật.', 403);
+        }
+
+        $oldClubId = $tournament->club_id;
+
         DB::transaction(function () use ($validated, $tournament, $request) {
             $imageService = app(ImageOptimizationService::class);
 
@@ -273,6 +282,13 @@ class ClubTournamentController extends Controller
         });
 
         $tournament = Tournament::withFullRelations()->find($tournament->id);
+
+        // Đổi CLB → chuyển toàn bộ dấu vết tài chính sang CLB mới.
+        $newClubId = $tournament->club_id;
+        if ($newClubId && (int) $newClubId !== (int) $oldClubId) {
+            $guard->moveFinanceToClub($tournament, (int) $newClubId);
+        }
+
         Cache::increment('club_content_version:' . $club->id);
 
         return ResponseHelper::success(new TournamentResource($tournament), 'Cập nhật giải đấu cho CLB thành công');
@@ -392,12 +408,9 @@ class ClubTournamentController extends Controller
             }
         }
 
-        $hasCompletedMatch = \App\Models\Matches::whereHas('tournamentType', fn($q) => $q->where('tournament_id', $tournament->id))
-            ->where('status', \App\Models\Matches::STATUS_COMPLETED)
-            ->exists();
-
-        if ($hasCompletedMatch) {
-            return ResponseHelper::error('Không thể hủy giải. Đã có trận đấu hoàn thành thuộc giải này.', 400);
+        $blockReason = app(EventEditGuardService::class)->deletionBlockReason($tournament);
+        if ($blockReason) {
+            return ResponseHelper::error($blockReason, 403);
         }
 
         // Lấy thông tin trước khi xóa (hard delete cascade)

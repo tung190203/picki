@@ -4,7 +4,8 @@ namespace App\Http\Resources;
 
 use App\Models\User;
 use App\Models\Matches;
-use App\Models\TeamRanking;
+use App\Services\TournamentType\RoundNameResolver;
+use App\Services\TournamentType\TournamentRankService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,13 @@ class UserTournamentResource extends JsonResource
     protected ?int $targetUserId = null;
     protected static array $preloadedRanks = [];
     protected static array $preloadedRatings = [];
+
+    /**
+     * Memo hoá rank của tournament cho instance resource này.
+     *
+     * @var array<int, array{overall_rank: int, rank_label: string, is_champion: bool}>|null
+     */
+    protected ?array $resolvedRanks = null;
 
     public static function preloadRanks(array $userIds, int $sportId = 1): void
     {
@@ -329,15 +337,29 @@ class UserTournamentResource extends JsonResource
      */
     protected function getCurrentRound(): ?string
     {
-        $maxRound = $this->tournamentTypes()
-            ->whereHas('groups.matches', fn($q) => $q->where('status', '!=', 'completed'))
-            ->get()
-            ->flatMap(fn($type) => $type->groups)
-            ->flatMap(fn($group) => $group->matches)
-            ->where('status', '!=', 'completed')
-            ->max('round');
+        $bestRound = null;
+        $bestFormat = null;
+        $bestMatches = null;
 
-        return $this->roundName($maxRound ?: null);
+        foreach ($this->tournamentTypes()->with('matches')->get() as $type) {
+            $maxRound = $type->matches
+                ->where('status', '!=', 'completed')
+                ->max('round');
+
+            if ($maxRound !== null && ($bestRound === null || $maxRound > $bestRound)) {
+                $bestRound = $maxRound;
+                $bestFormat = (int) $type->format;
+                $bestMatches = $type->matches;
+            }
+        }
+
+        if ($bestRound === null || $bestMatches === null || $bestFormat === null) {
+            return null;
+        }
+
+        $roundNames = app(RoundNameResolver::class)->resolve($bestMatches, $bestFormat);
+
+        return $roundNames[$bestRound] ?? $this->roundName($bestRound);
     }
 
     /**
@@ -359,6 +381,7 @@ class UserTournamentResource extends JsonResource
     /**
      * Số trận thắng của user trong giải.
      * Win = trận completed mà team chứa user là winner.
+     * Bỏ trận tranh hạng 3 để khớp chuẩn LeaderboardController::getTeamStats().
      */
     protected function getTeamWinCount(int $teamId): int
     {
@@ -371,6 +394,8 @@ class UserTournamentResource extends JsonResource
         return DB::table('matches')
             ->where('tournament_type_id', $typeIds)
             ->where('status', 'completed')
+            ->where('is_third_place', '!=', true)
+            ->whereNotNull('winner_id')
             ->where('winner_id', $teamId)
             ->where(function ($q) use ($teamId) {
                 $q->where('home_team_id', $teamId)
@@ -381,7 +406,8 @@ class UserTournamentResource extends JsonResource
 
     /**
      * Số trận thua của user trong giải.
-     * Lose = tổng trận completed mà team tham gia - số trận thắng.
+     * Lose = tổng trận có kết quả (không tính trận hạng 3) - số trận thắng,
+     * nên trận hòa không bị tính nhầm là thua.
      */
     protected function getTeamLoseCount(int $teamId): int
     {
@@ -394,6 +420,7 @@ class UserTournamentResource extends JsonResource
         $totalCompleted = DB::table('matches')
             ->where('tournament_type_id', $typeIds)
             ->where('status', 'completed')
+            ->where('is_third_place', '!=', true)
             ->whereNotNull('winner_id')
             ->where(function ($q) use ($teamId) {
                 $q->where('home_team_id', $teamId)
@@ -406,63 +433,75 @@ class UserTournamentResource extends JsonResource
 
     /**
      * Xếp hạng của team trong giải đấu.
+     * Lấy từ TournamentRankService - cùng nguồn dữ liệu với API leaderboard,
+     * nên khớp đúng thứ hạng hiển thị trên bảng xếp hạng của tournament.
      */
     protected function getTournamentRank(int $teamId): ?int
     {
-        $typeId = $this->tournamentTypes()->value('id');
+        return $this->getResolvedRanks()[$teamId]['overall_rank'] ?? null;
+    }
 
-        if (!$typeId) {
-            return null;
+    /**
+     * Rank label của team (Vô địch / Á quân / Hạng 3 / Tứ kết ...).
+     */
+    protected function getTournamentRankLabel(int $teamId): ?string
+    {
+        return $this->getResolvedRanks()[$teamId]['rank_label'] ?? null;
+    }
+
+    /**
+     * Rank của mọi team trong tournament, memo hoá cho từng instance resource
+     * để không gọi service lặp lại giữa buildStats() và getFinalRound().
+     */
+    protected function getResolvedRanks(): array
+    {
+        if ($this->resolvedRanks === null) {
+            $this->resolvedRanks = app(TournamentRankService::class)
+                ->bestRanksForTournament((int) $this->id);
         }
 
-        $rank = TeamRanking::where('tournament_type_id', $typeId)
-            ->where('team_id', $teamId)
-            ->value('rank');
-
-        return $rank ?: null;
+        return $this->resolvedRanks;
     }
 
     /**
      * Vòng cuối cùng mà team tham gia trong giải (final round user participated).
-     * Fallback: dùng tournament_rank từ team_rankings làm lower bound khi match data không đầy đủ.
+     * Ưu tiên rank_label từ TournamentRankService (đúng theo bracket thật),
+     * fallback về tên vòng cao nhất từ matches khi chưa có label.
      */
     protected function getFinalRound(int $teamId): ?string
     {
-        // Lấy vòng cao nhất từ matches đã ghi nhận
-        $maxMatchRound = $this->tournamentTypes()
-            ->with('groups.matches')
-            ->get()
-            ->flatMap(fn($type) => $type->groups)
-            ->flatMap(fn($group) => $group->matches)
-            ->filter(fn($match) =>
-                ($match->home_team_id === $teamId || $match->away_team_id === $teamId)
-                && $match->status === 'completed'
-            )
-            ->max('round');
-
-        // Fallback từ team_rankings khi match data không đầy đủ
-        $rank = $this->getTournamentRank($teamId);
-        $minRoundByRank = null;
-
-        if ($rank !== null) {
-            $minRoundByRank = match (true) {
-                $rank === 1 => 4,          // Vô địch -> Chung kết (round 4)
-                $rank === 2 => 4,          // Á quân -> Chung kết (round 4)
-                $rank === 3, $rank === 4 => 3, // Hạng 3/4 -> Bán kết (round 3)
-                $rank <= 8 => 2,           // Tứ kết
-                $rank <= 16 => 1,          // Vòng 1/8
-                default => 0,              // Vòng bảng
-            };
+        $label = $this->getTournamentRankLabel($teamId);
+        if ($label !== null) {
+            return $label;
         }
 
-        // Dùng round cao hơn giữa match thực tế và suy ra từ rank
-        $effectiveRound = max($maxMatchRound ?? -1, $minRoundByRank ?? -1);
+        // Fallback: vòng cao nhất mà team đã đá có kết quả.
+        // Tên vòng lấy từ RoundNameResolver vì matches.round chỉ là số thứ tự.
+        $bestRound = null;
+        $bestFormat = null;
+        $bestMatches = null;
 
-        if ($effectiveRound < 0) {
+        foreach ($this->tournamentTypes()->with('matches')->get() as $type) {
+            $teamMatches = $type->matches->filter(
+                fn($match) => ($match->home_team_id === $teamId || $match->away_team_id === $teamId)
+                    && $match->status === 'completed'
+            );
+
+            $maxRound = $teamMatches->max('round');
+            if ($maxRound !== null && ($bestRound === null || $maxRound > $bestRound)) {
+                $bestRound = $maxRound;
+                $bestFormat = (int) $type->format;
+                $bestMatches = $type->matches;
+            }
+        }
+
+        if ($bestRound === null || $bestMatches === null || $bestFormat === null) {
             return null;
         }
 
-        return $this->roundName($effectiveRound ?: null);
+        $roundNames = app(RoundNameResolver::class)->resolve($bestMatches, $bestFormat);
+
+        return $roundNames[$bestRound] ?? null;
     }
 
     /**

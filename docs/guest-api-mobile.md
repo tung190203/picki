@@ -22,7 +22,7 @@ Auth: `Authorization: Bearer <token>` (Laravel Sanctum)
 
 | Nhánh | Trigger | Lưu CLB guest? | Lưu trình? |
 |---|---|---|---|
-| **A. Per-event** | POST event mà KHÔNG truyền `club_id` | Không | `estimated_level_min/max` lưu trên participant (kèo) hoặc `estimated_level` (giải) |
+| **A. Per-event** | POST event mà KHÔNG truyền `club_id` | Không | `estimated_level` lưu trên participant (kèo) hoặc participant (giải) |
 | **B. CLB guest** | POST event CÓ truyền `club_id` | Có (`club_guest_profiles`) | `estimated_level` lưu trên profile, snapshot xuống participant |
 
 > Quy tắc chung: `club_id` truyền lên ⇒ tạo/lấy CLB guest. Không truyền ⇒ guest inline cho event đó.
@@ -201,7 +201,7 @@ POST /api/mini-participants/invite/{miniTournamentId}
 | `club_guest_profile_ids` | int[] | CLB guest có sẵn (resolve sang `user_id` qua `club_guest_profiles.user_id`) |
 | `is_invite_around` | int/bool | Bật cờ "mời người xung quanh" |
 
-**Lưu ý quan trọng:** Khi resolve `club_guest_profile_ids`, BE **snapshot `estimated_level` từ `ClubGuestProfile` xuống `mini_participants.estimated_level_min/max`** (nếu profile có). Nếu 1 user xuất hiện cả ở `user_ids` và `club_guest_profile_ids` thì `user_ids` thắng (không ghi đè `estimated_level`).
+**Lưu ý quan trọng:** Khi resolve `club_guest_profile_ids`, BE **snapshot `estimated_level` từ `ClubGuestProfile` xuống `mini_participants.estimated_level`** (nếu profile có). Nếu 1 user xuất hiện cả ở `user_ids` và `club_guest_profile_ids` thì `user_ids` thắng (không ghi đè `estimated_level`).
 
 **Response 201/207:** giống §4.1.
 

@@ -3,15 +3,28 @@
 namespace App\Services;
 
 use App\Events\MatchScorePublicUpdated;
+use App\Events\TournamentScoreUpdated;
 use App\Models\MatchResult;
 use App\Models\Matches;
 use Illuminate\Support\Facades\DB;
 
 class MatchScoreService
 {
+    /**
+     * Đẩy thêm event cấp giải cho màn picker (kênh tournament.{id}).
+     * Gọi sau khi transaction đã commit để snapshot không đọc trạng thái cũ.
+     */
+    private function broadcastTournament(?Matches $match): void
+    {
+        $tournamentId = $match?->tournament?->id ?? $match?->tournamentType?->tournament_id;
+        if (!$tournamentId || !$match) {
+            return;
+        }
+        event(new TournamentScoreUpdated($tournamentId, $match));
+    }
     public function startMatch(int $matchId, int $servingTeamId, int $userId, ?string $startedAt = null): array
     {
-        return DB::transaction(function () use ($matchId, $servingTeamId, $userId, $startedAt) {
+        $response = DB::transaction(function () use ($matchId, $servingTeamId, $userId, $startedAt) {
             $match = Matches::lockForUpdate()->find($matchId);
             if (!$match) {
                 throw new \Illuminate\Database\Eloquent\ModelNotFoundException();
@@ -34,11 +47,11 @@ class MatchScoreService
 
             MatchResult::updateOrCreate(
                 ['match_id' => $matchId, 'team_id' => $match->home_team_id, 'set_number' => 1],
-                ['team_score' => 0, 'opponent_score' => 0, 'serving_position' => 0]
+                ['score' => 0, 'team_score' => 0, 'opponent_score' => 0, 'serving_position' => 0]
             );
             MatchResult::updateOrCreate(
                 ['match_id' => $matchId, 'team_id' => $match->away_team_id, 'set_number' => 1],
-                ['team_score' => 0, 'opponent_score' => 0, 'serving_position' => 0]
+                ['score' => 0, 'team_score' => 0, 'opponent_score' => 0, 'serving_position' => 0]
             );
 
             $match->refresh();
@@ -53,11 +66,15 @@ class MatchScoreService
 
             return $this->formatMatchResponse($match);
         });
+
+        $this->broadcastTournament(Matches::find($matchId));
+
+        return $response;
     }
 
     public function updateState(int $matchId, array $data, int $userId): array
     {
-        return DB::transaction(function () use ($matchId, $data, $userId) {
+        $response = DB::transaction(function () use ($matchId, $data, $userId) {
             $match = Matches::lockForUpdate()->find($matchId);
             if (!$match) {
                 throw new \Illuminate\Database\Eloquent\ModelNotFoundException();
@@ -70,6 +87,10 @@ class MatchScoreService
             MatchResult::updateOrCreate(
                 ['match_id' => $matchId, 'team_id' => $homeTeamId, 'set_number' => $setNumber],
                 [
+                    // `score` là cột legacy (dùng cho validate/confirm/xếp hạng),
+                    // `team_score`/`opponent_score` là cột mới (dùng cho màn chiếu livescore).
+                    // Ghi cả hai để 2 luồng luôn thấy cùng dữ liệu.
+                    'score' => $data['team1_score'],
                     'team_score' => $data['team1_score'],
                     'opponent_score' => $data['team2_score'],
                     'serving_position' => $data['serving_position'] ?? 0,
@@ -78,6 +99,7 @@ class MatchScoreService
             MatchResult::updateOrCreate(
                 ['match_id' => $matchId, 'team_id' => $awayTeamId, 'set_number' => $setNumber],
                 [
+                    'score' => $data['team2_score'],
                     'team_score' => $data['team2_score'],
                     'opponent_score' => $data['team1_score'],
                     'serving_position' => $data['serving_position'] ?? 0,
@@ -120,6 +142,10 @@ class MatchScoreService
                 'referee_name' => $match->referee?->full_name,
             ];
         });
+
+        $this->broadcastTournament(Matches::find($matchId));
+
+        return $response;
     }
 
     public function getCurrentState(int $matchId): array
@@ -130,6 +156,8 @@ class MatchScoreService
             'awayTeam.members.sports.scores',
             'awayTeam.members.sports.sport',
             'results' => fn ($q) => $q->orderBy('set_number'),
+            // `tournamentType` là nguồn chính của luật thi đấu + giải (mọi trận đều có).
+            'tournamentType.tournament.competitionLocation',
             'group.tournamentType.tournament.competitionLocation',
             'referee',
         ])->findOrFail($matchId);
@@ -140,8 +168,10 @@ class MatchScoreService
     protected function formatMatchResponse(Matches $match): array
     {
         $currentSetResults = $match->results->where('team_id', $match->home_team_id);
-        $tournament = $match->group?->tournamentType?->tournament;
-        $tournamentType = $match->group?->tournamentType;
+        // Trận knockout không có `group` -> luật thi đấu và thông tin giải bị mất.
+        // Luôn resolve qua `tournamentType` (mọi trận đều có), group chỉ là fallback.
+        $tournamentType = $match->tournamentType ?? $match->group?->tournamentType;
+        $tournament = $tournamentType?->tournament;
         $location = $tournament?->competitionLocation;
         $rawMatchRules = $tournamentType?->match_rules ?? [];
         // match_rules in DB may be stored as [{...}] (array of one) or {...} (associative).
@@ -197,6 +227,12 @@ class MatchScoreService
             'elapsed_seconds' => $elapsedSeconds,
             'referee_name' => $match->referee?->full_name,
             'side_switch_interval' => $matchRules['side_switch_interval'] ?? null,
+            // Trạng thái trận + cờ xác nhận: FE cần để biết trận đã xong
+            // (không phải chờ FE gọi lại API sau khi confirm).
+            'status' => $match->status,
+            'home_team_confirm' => (int) $match->home_team_confirm,
+            'away_team_confirm' => (int) $match->away_team_confirm,
+            'updated_at' => $match->updated_at?->toIso8601String(),
             'team1' => $formatTeam($match->homeTeam),
             'team2' => $formatTeam($match->awayTeam),
             'sets' => $currentSetResults->map(fn ($r) => [

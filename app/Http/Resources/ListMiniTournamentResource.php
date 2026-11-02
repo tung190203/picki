@@ -38,6 +38,7 @@ class ListMiniTournamentResource extends JsonResource
                 : null,
             'status' => $this->status,
             'status_text' => $this->status_text,
+            'is_completed' => in_array((int) $this->status, [\App\Models\MiniTournament::STATUS_CLOSED, \App\Models\MiniTournament::STATUS_CANCELLED], true),
             'has_fee' => $this->has_fee,
             'fee_amount' => $this->fee_amount,
             'gender' => $this->gender,

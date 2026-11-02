@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\ResponseHelper;
+use App\Helpers\StringHelper;
 use App\Http\Resources\NotificationResource;
 use App\Models\User;
 use App\Notifications\ClubNotificationSentNotification;
@@ -20,12 +21,17 @@ class NotificationController extends Controller
     {
         $validated = $request->validate([
             'type' => 'nullable|in:all,unread,read',
+            'q' => 'nullable|string',
+            'search' => 'nullable|string',
+            'keyword' => 'nullable|string',
             'per_page' => 'integer|min:1|max:200',
         ]);
 
         /** @var User $user */
         $user = auth()->user();
         $type = $validated['type'] ?? 'all';
+        $rawKeyword = $validated['q'] ?? $validated['search'] ?? $validated['keyword'] ?? '';
+        $keyword = trim((string) $rawKeyword);
 
         if ($type === 'unread') {
             $query = $user->unreadNotifications()->latest();
@@ -35,6 +41,10 @@ class NotificationController extends Controller
                 ->latest();
         } else {
             $query = $user->notifications()->latest();
+        }
+
+        if ($keyword !== '') {
+            StringHelper::applyNotificationDataKeywordFilter($query, $keyword);
         }
 
         $notifications = $query->paginate(
@@ -51,7 +61,7 @@ class NotificationController extends Controller
         ], 'Lấy danh sách thông báo thành công', 200, [
             'current_page' => $notifications->currentPage(),
             'per_page' => $notifications->perPage(),
-            'total'        => $totalCount,
+            'total'        => $keyword !== '' ? $notifications->total() : $totalCount,
             'unread_count' => $unreadCount,
             'read_count'   => $readCount,
             'last_page'    => $notifications->lastPage(),

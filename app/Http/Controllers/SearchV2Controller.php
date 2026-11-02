@@ -383,6 +383,7 @@ class SearchV2Controller extends Controller
     {
         $lat = $params['lat'] ?? null;
         $lng = $params['lng'] ?? null;
+        $keyword = $params['keyword'] ?? null;
 
         /** @var ClubSuggestService $service */
         $service = app(ClubSuggestService::class);
@@ -391,7 +392,12 @@ class SearchV2Controller extends Controller
         if (!$userId) {
             $items = collect();
         } else {
-            $items = $service->suggest($userId, $lat !== null ? (float) $lat : null, $lng !== null ? (float) $lng : null);
+            $items = $service->suggest(
+                $userId,
+                $lat !== null ? (float) $lat : null,
+                $lng !== null ? (float) $lng : null,
+                $keyword !== null ? (string) $keyword : null
+            );
             // ClubSuggestService does not eager-load creator/members (3 separate rank queries);
             // SearchClubResource needs both to render admin + membership flags + vndupr_score
             // (hasManyThrough via user_sport_scores). Load here at the boundary — single batch.

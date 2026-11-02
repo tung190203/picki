@@ -176,18 +176,126 @@ class ClubDetailAssembler
     {
         $club->is_following = $club->isFollowedBy($userId);
 
-        // Lấy danh sách user_id đang joined + active trong CLB
-        $memberIds = DB::table('club_members')
-            ->where('club_id', $club->id)
-            ->where('membership_status', ClubMembershipStatus::Joined->value)
-            ->where('status', ClubMemberStatus::Active->value)
-            ->pluck('user_id')
-            ->all();
-
-        // Đếm follower KHÔNG thuộc member list
+        // ponytail: whereNotExists thay vì pluck memberIds vào PHP rồi whereNotIn.
         $club->followers_count = (int) $club->followers()
-            ->whereNotIn('user_id', $memberIds ?: [0]) // [0] để whereNotIn không lỗi khi rỗng
+            ->whereNotExists(function ($q) use ($club) {
+                $q->select(DB::raw(1))
+                    ->from('club_members')
+                    ->whereColumn('club_members.user_id', 'follows.user_id')
+                    ->where('club_members.club_id', $club->id)
+                    ->where('club_members.membership_status', ClubMembershipStatus::Joined->value)
+                    ->where('club_members.status', ClubMemberStatus::Active->value);
+            })
             ->count();
+    }
+
+    /**
+     * Attach admin stats — chỉ attach khi user có quyền manage CLB.
+     */
+    public function attachAdminStats(Club $club): void
+    {
+        $oneMonthAgo = now()->subDays(30)->toDateString();
+        $today = now()->toDateString();
+
+        // ponytail: gom về count SQL, không pluck id list vào PHP rồi whereIn/whereNotIn.
+        // Trước đó: pluck tournamentIds/miniIds/memberUserIds + merge 3 pluck user_id rồi unique()->count().
+
+        // activities_count: tổng hợp activities đang diễn ra
+        $this->attachActivitiesCount($club);
+
+        // 1. mini_tournaments_today — tổng event (mini + tournament) diễn ra hôm nay
+        $club->mini_tournaments_today =
+            $club->miniTournaments()->whereDate('start_time', $today)->count()
+            + $club->tournaments()->whereDate('start_date', $today)->count();
+
+        // 2. unpaid_members_count — distinct user chưa confirmed trên cả 3 nguồn (1 query UNION).
+        $club->unpaid_members_count = (int) DB::selectOne(
+            "SELECT COUNT(*) AS cnt FROM (
+                SELECT user_id FROM club_fund_contributions
+                WHERE status = ? AND user_id IS NOT NULL
+                  AND club_fund_collection_id IN (
+                    SELECT id FROM club_fund_collections WHERE club_id = ? AND status = ?
+                  )
+                UNION
+                SELECT user_id FROM participants
+                WHERE payment_status != 'confirmed' AND user_id IS NOT NULL
+                  AND tournament_id IN (SELECT id FROM tournaments WHERE club_id = ?)
+                UNION
+                SELECT user_id FROM mini_participants
+                WHERE payment_status != 'confirmed' AND user_id IS NOT NULL
+                  AND mini_tournament_id IN (SELECT id FROM mini_tournaments WHERE club_id = ?)
+             ) AS u",
+            [
+                ClubFundContributionStatus::Pending->value,
+                $club->id,
+                ClubFundCollectionStatus::Active->value,
+                $club->id,
+                $club->id,
+            ]
+        )->cnt ?? 0;
+
+        // 3-4. returning_guests_percent + guests_count — whereNotExists thay vì whereNotIn(pluck).
+        //    member = activeMembers (joined+active, có user) + guestProfiles (thành viên ảo).
+        $memberExistsSql = "(
+            EXISTS (SELECT 1 FROM club_members cm
+                     JOIN users u ON u.id = cm.user_id
+                     WHERE cm.club_id = club_guests.club_id
+                       AND cm.user_id = club_guests.user_id
+                       AND cm.membership_status = ? AND cm.status = ?)
+            OR EXISTS (SELECT 1 FROM club_guest_profiles cgp
+                        WHERE cgp.club_id = club_guests.club_id
+                          AND cgp.user_id = club_guests.user_id)
+        )";
+        $bindings = [ClubMembershipStatus::Joined->value, ClubMemberStatus::Active->value];
+
+        $recentTotal = (int) ClubGuest::where('club_id', $club->id)
+            ->where('last_played_at', '>=', $oneMonthAgo)
+            ->whereRaw("NOT {$memberExistsSql}", $bindings)
+            ->count();
+
+        if ($recentTotal === 0) {
+            $club->returning_guests_percent = 0;
+        } else {
+            $returning = (int) ClubGuest::where('club_id', $club->id)
+                ->where('last_played_at', '>=', $oneMonthAgo)
+                ->where('play_count', '>', 1)
+                ->whereRaw("NOT {$memberExistsSql}", $bindings)
+                ->count();
+            $club->returning_guests_percent = (int) round($returning / $recentTotal * 100);
+        }
+
+        $club->guests_count = (int) ClubGuest::where('club_id', $club->id)
+            ->whereRaw("NOT {$memberExistsSql}", $bindings)
+            ->count();
+    }
+
+    /**
+     * Đếm tổng số hoạt động đang diễn ra của CLB:
+     * - ClubActivity với status Scheduled hoặc Ongoing (không phân biệt có mini_tournament_id hay không)
+     * - MiniTournament với status DRAFT hoặc OPEN
+     * - Tournament với status DRAFT hoặc OPEN
+     */
+    protected function attachActivitiesCount(Club $club): void
+    {
+        $club->activities_count =
+            $club->activities()
+                ->whereIn('status', [
+                    \App\Enums\ClubActivityStatus::Scheduled,
+                    \App\Enums\ClubActivityStatus::Ongoing,
+                ])
+                ->count()
+            + $club->miniTournaments()
+                ->whereIn('status', [
+                    \App\Models\MiniTournament::STATUS_DRAFT,
+                    \App\Models\MiniTournament::STATUS_OPEN,
+                ])
+                ->count()
+            + $club->tournaments()
+                ->whereIn('status', [
+                    \App\Models\Tournament::DRAFT,
+                    \App\Models\Tournament::OPEN,
+                ])
+                ->count();
     }
 
     /**

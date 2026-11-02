@@ -84,12 +84,18 @@ export default {
             (props.miniTournament?.participants || props.miniTournament?.mini_participants || [])
                 .filter(p => p.is_confirmed)
                 .map(p => {
-                    // Ưu tiên p.user cho user thật — nhưng id dùng p.id (MiniParticipant.id) để BE map đúng.
-                    const userPayload = p.user && typeof p.user === 'object'
-                        ? { ...p.user }
+                    // p.user có 2 shape: UserListResource (full_name) cho user thật,
+                    // array literal (name) cho guest — và {} rỗng nếu không có user.
+                    const u = (p.user && typeof p.user === 'object') ? p.user : null
+                    const userPayload = (u && (u.id || u.name || u.full_name))
+                        ? {
+                            ...u,
+                            full_name: u.full_name || u.name || p.guest_name || 'Khách',
+                            avatar_url: u.avatar_url || u.thumbnail || p.guest_avatar || '',
+                        }
                         : {
                             full_name: p.guest_name || 'Khách',
-                            avatar_url: p.guest_avatar || '',
+                            avatar_url: p.guest_avatar || p.avatar_url || '',
                         }
                     return {
                         ...userPayload,
@@ -97,6 +103,11 @@ export default {
                         participant_id: p.id,
                         user_id: p.user_id,
                         is_guest: Boolean(p.is_guest),
+                        gender_text: userPayload.gender_text
+                            ?? (p.player_group === 'male' ? 'Nam'
+                                : p.player_group === 'female' ? 'Nữ' : null),
+                        // Guest: trình độ ước tính (1 số)
+                        estimated_level: p.estimated_level ?? null,
                     }
                 })
                 .filter(Boolean)

@@ -183,6 +183,11 @@ class Tournament extends Model
         return $this->belongsTo(CompetitionLocation::class);
     }
 
+    public function competition_location()
+    {
+        return $this->competitionLocation();
+    }
+
     public function fundCollection()
     {
         return $this->belongsTo(TournamentFundCollection::class, 'tournament_fund_collection_id');
@@ -207,7 +212,7 @@ class Tournament extends Model
     {
         return $query->with([
             'createdBy',
-            'club' => fn($q) => $q->withCount('members'),
+            'club' => fn($q) => $q->withCount(['members', 'guestProfiles']),
             'sport',
             'tournamentTypes.groups.matches.homeTeam',
             'tournamentTypes.groups.matches.homeTeam.members',
@@ -222,7 +227,31 @@ class Tournament extends Model
             'participants.guarantor',
             'competitionLocation',
             'teams',
-        ]);
+        ])->withCount([
+            // Số payment đã thu (paid/confirmed) — dùng cho EventEditGuardService.
+            'payments as paid_payments_count' => fn ($q) => $q->whereIn('status', ['paid', 'confirmed']),
+        ])->selectSub(
+            // Số trận đã nhập.
+            Matches::query()->selectRaw('count(*)')
+                ->join('tournament_types', 'tournament_types.id', '=', 'matches.tournament_type_id')
+                ->whereColumn('tournament_types.tournament_id', 'tournaments.id'),
+            'match_count'
+        )->selectSub(
+            // Số trận thật (không bye) — dùng cho hasAllMatchesCompleted().
+            Matches::query()->selectRaw('count(*)')
+                ->join('tournament_types', 'tournament_types.id', '=', 'matches.tournament_type_id')
+                ->whereColumn('tournament_types.tournament_id', 'tournaments.id')
+                ->where('matches.is_bye', false),
+            'real_match_count'
+        )->selectSub(
+            // Số trận thật chưa có kết quả — dùng cho hasAllMatchesCompleted().
+            Matches::query()->selectRaw('count(*)')
+                ->join('tournament_types', 'tournament_types.id', '=', 'matches.tournament_type_id')
+                ->whereColumn('tournament_types.tournament_id', 'tournaments.id')
+                ->where('matches.is_bye', false)
+                ->whereNull('matches.winner_id'),
+            'pending_match_count'
+        );
     }
 
     /**
@@ -246,12 +275,36 @@ class Tournament extends Model
     {
         return $query->with([
             'createdBy',
-            'club' => fn($q) => $q->withCount('members'),
+            'club' => fn($q) => $q->withCount(['members', 'guestProfiles']),
             'sport',
             'tournamentStaffs',
             'competitionLocation'
         ]);
     }
+    /**
+     * Giải mà user được phép thấy — nguồn sự thật duy nhất, dùng chung cho
+     * `api/home` (`upcoming_tournaments`) và Livescore.
+     *
+     * User là VĐV (bảng `participants`) HOẶC thuộc BTC / trọng tài
+     * (bảng `tournament_staff`). Không yêu cầu `is_confirmed`, không lọc role.
+     */
+    public function scopeAccessibleByUser($query, int $userId)
+    {
+        return $query->where(function ($q) use ($userId) {
+            $q->whereHas('participants', fn ($p) => $p->where('user_id', $userId))
+                ->orWhereHas('tournamentStaffs', fn ($s) => $s->where('user_id', $userId));
+        });
+    }
+
+    /**
+     * Cửa sổ thời gian của `api/home`: giải đã tới hoặc đang diễn ra —
+     * `start_date >= hôm nay` (theo giờ Việt Nam).
+     */
+    public function scopeStartingFromToday($query)
+    {
+        return $query->whereDate('start_date', '>=', Carbon::now('Asia/Ho_Chi_Minh')->toDateString());
+    }
+
     public function scopeUpcoming($query)
     {
         return $query->where('start_date', '>', now());
@@ -806,6 +859,96 @@ class Tournament extends Model
             ", [$lat, $lng, $lat])
             ->orderByRaw('competition_locations.latitude IS NULL OR competition_locations.longitude IS NULL')
             ->orderBy('distance', 'asc');
+    }
+
+    /**
+     * Giải đã đá xong TẤT CẢ trận hay chưa.
+     *
+     * Nguồn chân lý duy nhất cho "giải đã hoàn tất". `status = CLOSED` chỉ
+     * nghĩa là "đóng đăng ký" — giải đóng theo `end_date` vẫn có thể còn
+     * trận chưa đá, lúc đó xếp hạng là sai nên không được ghi cup.
+     *
+     * - Bỏ qua trận bye (`is_bye`): không có đối thủ nên không cần đá.
+     * - Trận đã đá nhưng chưa có `winner_id` => chưa hoàn tất.
+     * - Phải có ÍT NHẤT 1 trận thật: giải chưa đánh trận nào thì xếp hạng
+     *   chỉ là ngẫu nhiên → không được ghi cup.
+     *
+     * Đi qua `tournamentTypes.matches` chứ không qua `matches`
+     * (hasManyThrough qua `groups`) vì 506 trận có `group_id = NULL` —
+     * hasManyThrough sẽ bỏ sót chúng.
+     *
+     * NOT EXISTS (type nào còn trận chưa đá) — tương đương SQL:
+     *   NOT EXISTS (SELECT 1 FROM tournament_types tt
+     *               WHERE tt.tournament_id = tournaments.id
+     *                 AND EXISTS (SELECT 1 FROM matches m
+     *                             WHERE m.tournament_type_id = tt.id
+     *                               AND m.is_bye = 0 AND m.winner_id IS NULL))
+     */
+    public function hasAllMatchesCompleted(): bool
+    {
+        $counts = $this->matchCompletionCounts();
+
+        return $counts['real'] > 0 && $counts['pending'] === 0;
+    }
+
+    /**
+     * Bản đếm 1 query cho `hasAllMatchesCompleted()` — dùng khi cần gọi cho
+     * nhiều giải trong 1 request (tránh N+1).
+     *
+     * @return array{real: int, pending: int}
+     */
+    public function matchCompletionCounts(): array
+    {
+        // selectSub từ scopeWithFullRelations → có sẵn 2 attribute này.
+        if ($this->getAttribute('real_match_count') !== null) {
+            return [
+                'real' => (int) $this->getAttribute('real_match_count'),
+                'pending' => (int) $this->getAttribute('pending_match_count'),
+            ];
+        }
+
+        $matches = \App\Models\Matches::query()
+            ->join('tournament_types', 'tournament_types.id', '=', 'matches.tournament_type_id')
+            ->where('tournament_types.tournament_id', $this->id)
+            ->where('matches.is_bye', false)
+            ->selectRaw('count(*) as real_count')
+            ->selectRaw('sum(case when matches.winner_id is null then 1 else 0 end) as pending_count')
+            ->first();
+
+        return [
+            'real' => (int) ($matches->real_count ?? 0),
+            'pending' => (int) ($matches->pending_count ?? 0),
+        ];
+    }
+
+    /**
+     * Scope: chỉ lấy giải đã đá xong tất cả trận.
+     * Phải khớp với `hasAllMatchesCompleted()`: giải 0 trận thật không tính.
+     */
+    public function scopeAllMatchesCompleted(Builder $query)
+    {
+        return $query->whereHas(
+            'tournamentTypes',
+            fn ($q) => $q->whereHas('matches', fn ($q2) => $q2->where('is_bye', false))
+        )->whereDoesntHave(
+            'tournamentTypes',
+            fn ($q) => $q->whereHas(
+                'matches',
+                fn ($q2) => $q2->where('is_bye', false)->whereNull('winner_id')
+            )
+        );
+    }
+
+    /**
+     * Giải đã kết thúc (đóng đăng ký) nhưng CÒN trận chưa đá.
+     * Dùng để gỡ cup đã ghi nhầm.
+     */
+    public function scopeHasIncompleteMatches(Builder $query)
+    {
+        return $query->whereHas(
+            'tournamentTypes.matches',
+            fn ($q) => $q->where('is_bye', false)->whereNull('winner_id')
+        );
     }
 
     /**

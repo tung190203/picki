@@ -20,7 +20,10 @@
                     </div>
                 </div>
                 <div class="text-center">
-                    <h3 class="font-semibold text-gray-800 dark:text-slate-100 text-lg leading-tight line-clamp-1">{{ topThree[1].user.full_name }}</h3>
+                    <div class="flex items-center justify-center gap-1">
+                        <h3 class="font-semibold text-gray-800 dark:text-slate-100 text-lg leading-tight line-clamp-1">{{ topThree[1].user.full_name }}</h3>
+                        <BadgeIcon v-for="badge in getDisplayBadges(topThree[1].user)" :key="badge?.type || badge" :badge="badge" size="sm" />
+                    </div>
                     <div class="text-[#4F80FF] font-bold text-xl">{{ topThree[1].vndupr_score }}</div>
                 </div>
             </div>
@@ -43,7 +46,10 @@
                     </div>
                 </div>
                 <div class="text-center">
-                    <h3 class="font-semibold text-gray-800 dark:text-slate-100 text-xl leading-tight line-clamp-1">{{ topThree[0].user.full_name }}</h3>
+                    <div class="flex items-center justify-center gap-1">
+                        <h3 class="font-semibold text-gray-800 dark:text-slate-100 text-xl leading-tight line-clamp-1">{{ topThree[0].user.full_name }}</h3>
+                        <BadgeIcon v-for="badge in getDisplayBadges(topThree[0].user)" :key="badge?.type || badge" :badge="badge" size="sm" />
+                    </div>
                     <div class="text-[#D72D36] dark:text-red-400 font-bold text-2xl">{{ topThree[0].vndupr_score }}</div>
                 </div>
             </div>
@@ -60,7 +66,10 @@
                     </div>
                 </div>
                 <div class="text-center">
-                    <h3 class="font-semibold text-gray-800 dark:text-slate-100 text-lg leading-tight line-clamp-1">{{ topThree[2].user.full_name }}</h3>
+                    <div class="flex items-center justify-center gap-1">
+                        <h3 class="font-semibold text-gray-800 dark:text-slate-100 text-lg leading-tight line-clamp-1">{{ topThree[2].user.full_name }}</h3>
+                        <BadgeIcon v-for="badge in getDisplayBadges(topThree[2].user)" :key="badge?.type || badge" :badge="badge" size="sm" />
+                    </div>
                     <div class="text-[#FFB84F] font-bold text-xl">{{ topThree[2].vndupr_score }}</div>
                 </div>
             </div>
@@ -90,7 +99,10 @@
                                     </div>
                                 </div>
                                 <div>
-                                    <h4 class="font-bold text-gray-800 dark:text-slate-100 line-clamp-1">{{ item.user.full_name }}</h4>
+                                    <div class="flex items-center gap-1.5">
+                                        <h4 class="font-bold text-gray-800 dark:text-slate-100 line-clamp-1">{{ item.user.full_name }}</h4>
+                                        <BadgeIcon v-for="badge in getDisplayBadges(item.user)" :key="badge?.type || badge" :badge="badge" size="sm" />
+                                    </div>
                                     <div class="flex items-center gap-2">
                                         <span class="text-xs text-gray-400 dark:text-slate-400">{{ item.all_time_stats?.matches_played || 0 }} Trận • Win {{ item.all_time_stats?.win_rate || 0 }}%</span>
                                         <!-- Score change badge -->
@@ -141,7 +153,31 @@ import { ref, computed } from 'vue'
 import TriangleUp from '@/assets/images/triangle_up.svg'
 import TriangleDown from '@/assets/images/triangle_down.svg'
 import Pagination from '@/components/molecules/Pagination.vue'
+import BadgeIcon from '@/components/atoms/BadgeIcon.vue'
 import dayjs from 'dayjs'
+
+const ALLOWED_LEADERBOARD_BADGES = ['picki', 'champion', 'anchor', 'verified']
+
+const isAllowedLeaderboardBadge = (badge) => {
+    const type = typeof badge === 'string' ? badge : badge?.type
+    return type ? ALLOWED_LEADERBOARD_BADGES.includes(String(type).toLowerCase()) : false
+}
+
+const getDisplayBadges = (user) => {
+    if (!user) return []
+    if (user.primary_badge && isAllowedLeaderboardBadge(user.primary_badge)) {
+        return [user.primary_badge]
+    }
+    if (user.featured_badges && user.featured_badges.length > 0) {
+        const allowedFeatured = user.featured_badges.find(isAllowedLeaderboardBadge)
+        if (allowedFeatured) return [allowedFeatured]
+    }
+    if (user.badges && user.badges.length > 0) {
+        const allowedBadge = user.badges.find(isAllowedLeaderboardBadge)
+        if (allowedBadge) return [allowedBadge]
+    }
+    return []
+}
 
 const props = defineProps({
     topThree: {

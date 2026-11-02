@@ -50,6 +50,32 @@ class TournamentMessageNotification extends Notification implements ShouldQueue
         ];
     }
 
+    public function toFcm(object $notifiable): array
+    {
+        $this->message->loadMissing(['user', 'tournament']);
+        $senderName = $this->message->user?->full_name ?? 'Một thành viên';
+        $tourName = $this->message->tournament?->name ?? 'Giải đấu';
+
+        $body = match ($this->message->type) {
+            'image' => 'Đã gửi một hình ảnh',
+            'voice' => 'Đã gửi một đoạn ghi âm',
+            'file'  => 'Đã gửi một tệp đính kèm',
+            default => $this->message->content ?? 'Đã gửi một tin nhắn',
+        };
+
+        return [
+            'title' => "[{$tourName}] {$senderName}",
+            'body'  => $body,
+            'data'  => [
+                'type'          => 'TOURNAMENT_CHAT',
+                'tournament_id' => (string) $this->message->tournament_id,
+                'message_id'    => (string) $this->message->id,
+                'sender_id'     => (string) $this->message->user_id,
+                'action'        => 'open_chat',
+            ],
+        ];
+    }
+
     /**
      * Get the array representation of the notification.
      *

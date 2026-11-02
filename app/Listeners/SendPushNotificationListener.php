@@ -20,9 +20,10 @@ class SendPushNotificationListener
             return;
         }
 
-        // Skip push notifications in non-production environments (local/dev/staging).
+        // Skip push notifications in non-production environments (local/dev/staging) unless explicitly enabled for testing.
         // Database notifications are still saved by Laravel before this listener fires.
-        if (in_array(config('app.env'), ['local', 'development', 'dev', 'staging'], true)) {
+        $allowNonProd = filter_var(env('ENABLE_PUSH_NON_PROD', false), FILTER_VALIDATE_BOOLEAN);
+        if (! $allowNonProd && in_array(config('app.env'), ['local', 'development', 'dev', 'staging'], true)) {
             return;
         }
 

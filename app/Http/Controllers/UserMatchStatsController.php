@@ -6,7 +6,10 @@ use App\Helpers\ResponseHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MiniTeamResource;
 use App\Http\Resources\TeamResource;
+use App\Models\MiniParticipant;
+use App\Models\MiniTeam;
 use App\Models\MiniTournament;
+use App\Models\Team;
 use App\Support\MiniTournamentTeamMemberHydrator;
 use App\Support\TournamentTeamMemberHydrator;
 use Illuminate\Http\Request;
@@ -731,12 +734,18 @@ class UserMatchStatsController extends Controller
                     $opponentTeam,
                     $match->tournamentType->tournament->id ?? null
                 ),
+                'my_member_names' => $this->tournamentTeamMemberNames($myTeam),
+                'opponent_member_names' => $this->tournamentTeamMemberNames($opponentTeam),
                 'my_team_id' => $myTeamId,
                 'opponent_team_id' => $opponentTeamId,
                 'scores' => $scores,
                 'is_win' => $is_win,
                 'status' => $match->status,
-                'match_date' => $match->match_date,
+                'match_date' => $this->resolveMatchDate(
+                    $match->started_at,
+                    $matchResults->get($match->id)?->min('created_at'),
+                    $match->tournamentType->tournament->start_date ?? null
+                ),
                 'created_at' => $match->updated_at,
                 'match_type' => $this->getMatchTypeFromTournament($match),
                 'vndupr_score_change' => $vnduprChange,
@@ -822,12 +831,18 @@ class UserMatchStatsController extends Controller
                     'match_name' => $mini->name,
                     'my_participant' => $myParticipant,
                     'opponent_participant' => $oppParticipant,
+                    'my_member_names' => $this->miniParticipantName($myParticipant),
+                    'opponent_member_names' => $this->miniParticipantName($oppParticipant),
                     'my_participant_id' => $myParticipantId,
                     'opponent_participant_id' => $oppParticipantId,
                     'scores' => $scores,
                     'is_win' => $is_win,
                     'status' => $mini->status,
-                    'match_date' => $mini->match_date,
+                    'match_date' => $this->resolveMatchDate(
+                        null,
+                        $miniResults->get($mini->id)?->min('created_at'),
+                        $mini->miniTournament->start_time ?? null
+                    ),
                     'created_at' => $mini->updated_at,
                     'match_type' => $this->getMatchTypeFromMiniTournament($mini),
                     'vndupr_score_change' => $vnduprChange,
@@ -909,12 +924,18 @@ class UserMatchStatsController extends Controller
                 'match_name' => $mini->name,
                 'my_team' => (new MiniTeamResource($myTeam))->forMiniTournament($mini->miniTournament->id ?? null),
                 'opponent_team' => (new MiniTeamResource($opponentTeam))->forMiniTournament($mini->miniTournament->id ?? null),
+                'my_member_names' => $this->miniTeamMemberNames($myTeam),
+                'opponent_member_names' => $this->miniTeamMemberNames($opponentTeam),
                 'my_team_id' => $myTeamId,
                 'opponent_team_id' => $opponentTeamId,
                 'scores' => $scores,
                 'is_win' => $is_win,
                 'status' => $mini->status,
-                'match_date' => $mini->match_date,
+                'match_date' => $this->resolveMatchDate(
+                    null,
+                    $miniResults->get($mini->id)?->min('created_at'),
+                    $mini->miniTournament->start_time ?? null
+                ),
                 'created_at' => $mini->updated_at,
                 'match_type' => $this->getMatchTypeFromMiniTournament($mini),
                 'vndupr_score_change' => $vnduprChange,
@@ -1038,6 +1059,8 @@ class UserMatchStatsController extends Controller
                     ],
                     'my_team_id' => null,
                     'opponent_team_id' => null,
+                    'my_member_names' => $myTeamUsers->pluck('full_name')->values()->all(),
+                    'opponent_member_names' => $oppTeamUsers->pluck('full_name')->values()->all(),
                     'scores' => $scores,
                     'is_win' => $qm->winner === $teamSide,
                     'status' => $qm->status,
@@ -1085,6 +1108,95 @@ class UserMatchStatsController extends Controller
         ];
 
         return ResponseHelper::success($matches, 'Lấy danh sách trận đấu thành công', 200,  $meta);
+    }
+
+    /**
+     * Resolve ngày thi đấu.
+     *
+     * `matches`/`mini_matches` không có cột match_date. Thứ tự ưu tiên:
+     *   1. started_at (trận có bắt đầu live)
+     *   2. created_at của set kết quả đầu tiên (thời điểm trận thực sự được ghi điểm)
+     *   3. start_date/start_time của giải (fallback cuối)
+     */
+    private function resolveMatchDate($startedAt, $firstResultAt, $tournamentStart): ?string
+    {
+        $candidates = [$startedAt, $firstResultAt, $tournamentStart];
+
+        foreach ($candidates as $candidate) {
+            if ($candidate === null || $candidate === '') {
+                continue;
+            }
+
+            try {
+                return \Carbon\Carbon::parse($candidate)->toIso8601String();
+            } catch (\Throwable) {
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Tên các thành viên trong team (user thật + guest), dùng để FE hiển thị tên đội.
+     * Trả về mảng tên thuần để FE join bằng dấu phẩy.
+     */
+    private function tournamentTeamMemberNames(?Team $team): array
+    {
+        if (!$team) {
+            return [];
+        }
+
+        $names = $team->members->pluck('full_name')->filter()->values()->all();
+
+        foreach ($team->guestMembers as $guestMember) {
+            $guestName = $guestMember->participant?->guest_name;
+            if ($guestName) {
+                $names[] = $guestName;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * Tên thành viên trong mini team (user thật + guest ảo).
+     */
+    private function miniTeamMemberNames(?MiniTeam $team): array
+    {
+        if (!$team) {
+            return [];
+        }
+
+        $names = [];
+
+        foreach ($team->members as $member) {
+            $name = $member->is_guest
+                ? ($member->guest_name ?: $member->user?->full_name)
+                : $member->user?->full_name;
+
+            if ($name) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * Tên 1 mini participant (solo format).
+     */
+    private function miniParticipantName(?MiniParticipant $participant): array
+    {
+        if (!$participant) {
+            return [];
+        }
+
+        $name = $participant->is_guest
+            ? ($participant->guest_name ?: $participant->user?->full_name)
+            : $participant->user?->full_name;
+
+        return $name ? [$name] : [];
     }
 
     /**

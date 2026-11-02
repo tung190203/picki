@@ -52,18 +52,9 @@
                 </option>
               </select>
               <div v-if="createScope === 'club'" class="mt-2">
-                <label class="block text-[11px] text-[#6B7280] dark:text-slate-400 mb-1">
-                  Trình độ ước tính của CLB guest (1.0–8.0, tùy chọn)
-                </label>
-                <input
-                  v-model.number="form.estimated_level"
-                  type="number"
-                  min="1"
-                  max="8"
-                  step="0.5"
-                  placeholder="VD: 4.5"
-                  class="w-full bg-[#F9FAFB] dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
-                />
+                <p class="text-[11px] text-[#6B7280] dark:text-slate-400">
+                  Trình độ lưu cùng CLB sẽ dùng làm mặc định khi mời khách này vào kèo khác.
+                </p>
               </div>
             </div>
 
@@ -155,36 +146,20 @@
 
             <!-- Trình độ ước tính -->
             <div>
-              <label class="block text-[13px] font-semibold text-[#6B7280] dark:text-slate-300 mb-1.5 uppercase tracking-wide">
+              <label for="add-guest-level" class="block text-[13px] font-semibold text-[#6B7280] dark:text-slate-300 mb-1.5 uppercase tracking-wide">
                 Trình độ ước tính
               </label>
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <p class="text-[11px] text-[#9CA3AF] dark:text-slate-400 mb-1">Từ</p>
-                  <input
-                    v-model.number="form.estimated_level_min"
-                    type="number"
-                    min="1"
-                    max="8"
-                    step="0.5"
-                    placeholder="1.0"
-                    class="w-full bg-[#F9FAFB] dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
-                  />
-                </div>
-                <div>
-                  <p class="text-[11px] text-[#9CA3AF] dark:text-slate-400 mb-1">Đến</p>
-                  <input
-                    v-model.number="form.estimated_level_max"
-                    type="number"
-                    min="1"
-                    max="8"
-                    step="0.5"
-                    placeholder="8.0"
-                    class="w-full bg-[#F9FAFB] dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
-                  />
-                </div>
-              </div>
-              <p class="text-[11px] text-[#9CA3AF] dark:text-slate-400 mt-1">Khoảng trình độ ước tính từ 1.0 đến 8.0</p>
+              <input
+                id="add-guest-level"
+                v-model.number="form.estimated_level"
+                type="number"
+                min="1"
+                max="8"
+                step="0.5"
+                placeholder="VD: 4.5"
+                class="w-full bg-[#F9FAFB] dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg py-2.5 px-3 text-[13px] text-[#1F2937] dark:text-slate-100 placeholder:text-[#9CA3AF] dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#D72D36]/30 focus:border-[#D72D36] transition"
+              />
+              <p class="text-[11px] text-[#9CA3AF] dark:text-slate-400 mt-1">Khoảng trình độ ước tính từ 1.0 đến 8.0 (tùy chọn)</p>
             </div>
 
             <!-- Người bảo lãnh (Thu tiền) - luôn hiển thị như trong ảnh -->
@@ -286,9 +261,7 @@ const form = ref({
   guest_phone: '',
   guest_avatar: null,
   guarantor_user_id: '',
-  estimated_level_min: null,
-  estimated_level_max: null,
-  estimated_level: null, // CLB scope only: trình độ lưu trên ClubGuestProfile
+  estimated_level: null, // dùng cho cả event scope lẫn CLB scope
 })
 
 const avatarInput = ref(null)
@@ -333,8 +306,6 @@ const resetForm = () => {
     guest_phone: '',
     guest_avatar: null,
     guarantor_user_id: '',
-    estimated_level_min: null,
-    estimated_level_max: null,
     estimated_level: null,
   }
   avatarPreview.value = ''
@@ -432,17 +403,11 @@ const handleSubmit = async () => {
     if (props.miniTournament?.has_fee && form.value.guarantor_user_id) {
       payload.append('guarantor_user_id', Number(form.value.guarantor_user_id))
     }
-    if (form.value.estimated_level_min != null) {
-      payload.append('estimated_level_min', Number(form.value.estimated_level_min))
-    }
-    if (form.value.estimated_level_max != null) {
-      payload.append('estimated_level_max', Number(form.value.estimated_level_max))
+    if (form.value.estimated_level != null && form.value.estimated_level !== '') {
+      payload.append('estimated_level', Number(form.value.estimated_level))
     }
     if (createScope.value === 'club' && createGuestClubId.value) {
       payload.append('club_id', Number(createGuestClubId.value))
-      if (form.value.estimated_level != null) {
-        payload.append('estimated_level', Number(form.value.estimated_level))
-      }
     }
 
     const response = await addGuest(props.miniTournament.id, payload)
