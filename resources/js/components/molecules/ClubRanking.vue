@@ -156,27 +156,9 @@ import Pagination from '@/components/molecules/Pagination.vue'
 import BadgeIcon from '@/components/atoms/BadgeIcon.vue'
 import dayjs from 'dayjs'
 
-const ALLOWED_LEADERBOARD_BADGES = ['picki', 'champion', 'anchor', 'verified']
-
-const isAllowedLeaderboardBadge = (badge) => {
-    const type = typeof badge === 'string' ? badge : badge?.type
-    return type ? ALLOWED_LEADERBOARD_BADGES.includes(String(type).toLowerCase()) : false
-}
-
 const getDisplayBadges = (user) => {
-    if (!user) return []
-    if (user.primary_badge && isAllowedLeaderboardBadge(user.primary_badge)) {
-        return [user.primary_badge]
-    }
-    if (user.featured_badges && user.featured_badges.length > 0) {
-        const allowedFeatured = user.featured_badges.find(isAllowedLeaderboardBadge)
-        if (allowedFeatured) return [allowedFeatured]
-    }
-    if (user.badges && user.badges.length > 0) {
-        const allowedBadge = user.badges.find(isAllowedLeaderboardBadge)
-        if (allowedBadge) return [allowedBadge]
-    }
-    return []
+    if (!user || !user.primary_badge) return []
+    return [user.primary_badge]
 }
 
 const props = defineProps({

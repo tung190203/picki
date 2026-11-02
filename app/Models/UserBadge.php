@@ -16,6 +16,7 @@ class UserBadge extends Model
         'user_id',
         'badge_id',
         'is_featured',
+        'is_avatar',
         'acquired_at',
         'created_by',
     ];
@@ -23,6 +24,7 @@ class UserBadge extends Model
     protected $casts = [
         'acquired_at' => 'datetime',
         'is_featured' => 'boolean',
+        'is_avatar' => 'boolean',
     ];
 
     public function user(): BelongsTo

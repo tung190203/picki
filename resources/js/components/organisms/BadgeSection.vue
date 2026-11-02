@@ -112,11 +112,7 @@ const togglePin = async (badge) => {
     // Unpin
     badge.is_featured = false
   } else {
-    // Pin (limit to 3)
-    if (newUserBadgeIds.length >= 3) {
-      toast.warning('Bạn chỉ có thể ghim tối đa 3 huy hiệu!')
-      return
-    }
+    // Pin (không giới hạn số lượng)
     newUserBadgeIds.push(badge.user_badge_id)
     badge.is_featured = true
   }

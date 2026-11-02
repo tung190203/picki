@@ -548,6 +548,8 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     });
     Route::prefix('user')->group(function () {
         Route::put('/badges/featured', [\App\Http\Controllers\Api\BadgeController::class, 'setFeatured']);
+        Route::put('/badges/avatar', [\App\Http\Controllers\Api\BadgeController::class, 'setAvatar']);
+        Route::put('/badges/primary', [\App\Http\Controllers\Api\BadgeController::class, 'setAvatar']);
         Route::match(['get', 'post'], '/index', [UserController::class, 'index']);
         Route::get('/{id}', [UserController::class, 'show']);
         Route::get('/{id}/clubs', [UserController::class, 'getUserClubs']);
