@@ -25,6 +25,8 @@ class TournamentTypeResource extends JsonResource
             'num_legs' => $this->num_legs,
             'num_legs_label' => $this->num_legs_label,
             'match_rules' => $this->match_rules,
+            'scoring_type' => $this->match_rules['scoring_type'] ?? null,
+            'stage_points' => array_values($this->match_rules['stage_points'] ?? []),
             'rules' => $this->rules,
             'rules_file_path' => $this->rules_file_path ? asset('storage/' . $this->rules_file_path) : null,
             'format_specific_config' => $this->normalizeFormatSpecificConfig($this->format_specific_config),

@@ -322,27 +322,9 @@ import { API_ENDPOINT } from "@/constants/index.js";
 
 dayjs.locale('vi');
 
-const ALLOWED_LEADERBOARD_BADGES = ['picki', 'champion', 'anchor', 'verified']
-
-const isAllowedLeaderboardBadge = (badge) => {
-    const type = typeof badge === 'string' ? badge : badge?.type
-    return type ? ALLOWED_LEADERBOARD_BADGES.includes(String(type).toLowerCase()) : false
-}
-
 const getDisplayBadges = (item) => {
-    if (!item) return []
-    if (item.primary_badge && isAllowedLeaderboardBadge(item.primary_badge)) {
-        return [item.primary_badge]
-    }
-    if (item.featured_badges && item.featured_badges.length > 0) {
-        const allowedFeatured = item.featured_badges.find(isAllowedLeaderboardBadge)
-        if (allowedFeatured) return [allowedFeatured]
-    }
-    if (item.badges && item.badges.length > 0) {
-        const allowedBadge = item.badges.find(isAllowedLeaderboardBadge)
-        if (allowedBadge) return [allowedBadge]
-    }
-    return []
+    if (!item || !item.primary_badge) return []
+    return [item.primary_badge]
 }
 
 const props = defineProps({

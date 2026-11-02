@@ -75,17 +75,22 @@
                     class="font-bold text-lg pointer-events-none flex-shrink-0 ml-2 self-start mt-0.5"
                     :class="[
                         {
-                            'text-green-600 dark:text-green-400': isHomeWinner,
+                            'text-green-600 dark:text-green-400': isHomeWinner || rallyHomeWinner,
                         },
                         {
-                            'text-red-600 dark:text-red-400': isHomeLoser,
+                            'text-red-600 dark:text-red-400': isHomeLoser || rallyAwayWinner,
                         },
                         {
-                            'text-gray-700 dark:text-slate-100': !isHomeWinner && !isHomeLoser,
+                            'text-gray-700 dark:text-slate-100': !isHomeWinner && !isHomeLoser && !rallyHomeWinner && !rallyAwayWinner,
                         }
                     ]"
                 >
-                    {{ match.aggregate_score?.home ?? match.home_score ?? 0 }}
+                    <template v-if="hasRallyData && lastStage">
+                        {{ lastStage.cumulative_score_a ?? '--' }}
+                    </template>
+                    <template v-else>
+                        {{ match.aggregate_score?.home ?? match.home_score ?? 0 }}
+                    </template>
                 </span>
             </div>
 
@@ -127,17 +132,22 @@
                     class="font-bold text-lg pointer-events-none flex-shrink-0 ml-2 self-start mt-0.5"
                     :class="[
                         {
-                            'text-green-600 dark:text-green-400': isAwayWinner,
+                            'text-green-600 dark:text-green-400': isAwayWinner || rallyAwayWinner,
                         },
                         {
-                            'text-red-600 dark:text-red-400': isAwayLoser,
+                            'text-red-600 dark:text-red-400': isAwayLoser || rallyHomeWinner,
                         },
                         {
-                            'text-gray-700 dark:text-slate-100': !isAwayWinner && !isAwayLoser,
+                            'text-gray-700 dark:text-slate-100': !isAwayWinner && !isAwayLoser && !rallyAwayWinner && !rallyHomeWinner,
                         }
                     ]"
                 >
-                    {{ match.aggregate_score?.away ?? match.away_score ?? 0 }}
+                    <template v-if="hasRallyData && lastStage">
+                        {{ lastStage.cumulative_score_b ?? '--' }}
+                    </template>
+                    <template v-else>
+                        {{ match.aggregate_score?.away ?? match.away_score ?? 0 }}
+                    </template>
                 </span>
             </div>
         </div>
@@ -147,6 +157,7 @@
 <script setup>
 import { computed } from 'vue';
 import { VideoCameraIcon } from '@heroicons/vue/24/solid';
+import { useMatchRallyDisplay } from '@/composables/useRallyScoringDisplay.js'
 
 const props = defineProps({
     match: {
@@ -180,6 +191,9 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['match-click', 'drag-start', 'drag-end', 'drag-over', 'drag-leave', 'drop']);
+
+// Rally Scoring display
+const { rallyStages, hasRallyData, lastStage, lastCompletedStage, rallyHomeScore, rallyAwayScore, rallyHomeWinner, rallyAwayWinner } = useMatchRallyDisplay(computed(() => props.match))
 
 const hasAnyLegInProgress = computed(() => {
     if (props.match.status === 'in_progress') return true;

@@ -548,6 +548,8 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
     });
     Route::prefix('user')->group(function () {
         Route::put('/badges/featured', [\App\Http\Controllers\Api\BadgeController::class, 'setFeatured']);
+        Route::put('/badges/avatar', [\App\Http\Controllers\Api\BadgeController::class, 'setAvatar']);
+        Route::put('/badges/primary', [\App\Http\Controllers\Api\BadgeController::class, 'setAvatar']);
         Route::match(['get', 'post'], '/index', [UserController::class, 'index']);
         Route::get('/{id}', [UserController::class, 'show']);
         Route::get('/{id}/clubs', [UserController::class, 'getUserClubs']);
@@ -666,6 +668,11 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/confirm-result/{matchId}', [MatchesController::class, 'confirmResult']);
         Route::post('/{matchId}/advance-team-manual', [MatchesController::class, 'advanceTeamManual']);
         Route::get('/{matchId}/score/current', [MatchScoreController::class, 'current']);
+        // ✅ Phase 3 — Rally Scoring: lưu/đọc stages
+        Route::middleware(['auth:api'])->group(function () {
+            Route::get('/{matchId}/stages', [MatchesController::class, 'getStages']);
+            Route::post('/{matchId}/stages', [MatchesController::class, 'saveStages']);
+        });
         Route::middleware(['auth:api'])->prefix('{matchId}/score')->group(function () {
             Route::post('/start', [MatchScoreController::class, 'start']);
             Route::post('/update', [MatchScoreController::class, 'update']);

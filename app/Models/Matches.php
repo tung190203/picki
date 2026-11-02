@@ -82,6 +82,11 @@ class Matches extends Model
         return $this->hasMany(MatchResult::class, 'match_id');
     }
 
+    public function stages()
+    {
+        return $this->hasMany(MatchStage::class, 'match_id')->orderBy('stage_no');
+    }
+
     public function poolAdvancementRules()
     {
         return $this->hasMany(PoolAdvancementRule::class, 'next_match_id');
@@ -135,6 +140,9 @@ class Matches extends Model
 
         static::deleting(function ($match) {
             $match->results()->delete();
+            $match->stages()->each(function ($stage) {
+                $stage->delete();
+            });
             $match->poolAdvancementRules()->delete();
             $match->vnduprHistory()->delete();
         });

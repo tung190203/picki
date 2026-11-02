@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 use App\Events\TournamentCompleted;
 use App\Events\MatchResultConfirmed;
 use App\Events\SuperAdmin\MiniTournamentCreated;
+use App\Events\SuperAdmin\TournamentCreated;
 use App\Events\UserProfileCompleted;
 use App\Badges\Rules\ChampionBadgeRule;
 use App\Badges\Rules\PerfectRunBadgeRule;
@@ -56,6 +57,9 @@ class BadgeAchievementSubscriber
         ],
         MiniTournamentCreated::class => [
             HostBadgeRule::class,
+        ],
+        TournamentCreated::class => [
+            OrganizerBadgeRule::class,
         ],
         UserProfileCompleted::class => [
             ProfileCompletedBadgeRule::class,
@@ -144,7 +148,7 @@ class BadgeAchievementSubscriber
                     'winner_side' => $match->winner,
                 ];
             }
-        } elseif ($event instanceof TournamentCompleted) {
+        } elseif ($event instanceof TournamentCompleted || $event instanceof TournamentCreated) {
             $tournament = $event->tournament;
             $context += [
                 'source_type' => 'tournament',

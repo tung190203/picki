@@ -38,6 +38,8 @@ class BadgeController extends Controller
                 'priority' => $badge->priority,
                 'is_unlocked' => $userBadge ? true : false,
                 'is_featured' => $userBadge ? (bool) $userBadge->is_featured : false,
+                'is_avatar' => $userBadge ? (bool) $userBadge->is_avatar : false,
+                'is_primary' => $userBadge ? (bool) $userBadge->is_avatar : false,
                 'featured_order' => ($userBadge && $userBadge->is_featured)
                     ? ($userBadge->updated_at ? $userBadge->updated_at->getTimestamp() : (int) $badge->id)
                     : null,
@@ -53,11 +55,12 @@ class BadgeController extends Controller
         $request->validate([
             'user_badge_ids' => 'present|array',
             'user_badge_ids.*' => 'integer|exists:user_badges,id',
+            'avatar_user_badge_id' => 'nullable|integer|exists:user_badges,id',
         ]);
 
         $userId = auth()->id();
 
-        // Verify ownership
+        // Verify ownership for featured badges
         $owned = UserBadge::whereIn('id', $request->user_badge_ids)
             ->where('user_id', $userId)
             ->count();
@@ -80,6 +83,46 @@ class BadgeController extends Controller
                 ]);
         }
 
+        // If avatar_user_badge_id is provided in the same request, update it as well
+        if ($request->has('avatar_user_badge_id')) {
+            $avatarId = $request->input('avatar_user_badge_id');
+            if ($avatarId !== null) {
+                $ownedAvatar = UserBadge::where('id', $avatarId)->where('user_id', $userId)->exists();
+                if (!$ownedAvatar) {
+                    return response()->json(['message' => 'Invalid avatar badge selection'], 403);
+                }
+            }
+            app(\App\Services\BadgeService::class)->setAvatarBadge($userId, $avatarId);
+        }
+
         return response()->json(['message' => 'Featured badges updated successfully']);
+    }
+
+    public function setAvatar(Request $request)
+    {
+        $request->validate([
+            'user_badge_id' => 'nullable|integer|exists:user_badges,id',
+        ]);
+
+        $userId = auth()->id();
+        $userBadgeId = $request->input('user_badge_id');
+
+        if ($userBadgeId !== null) {
+            $owned = UserBadge::where('id', $userBadgeId)
+                ->where('user_id', $userId)
+                ->exists();
+
+            if (!$owned) {
+                return response()->json(['message' => 'Invalid badge selection'], 403);
+            }
+        }
+
+        app(\App\Services\BadgeService::class)->setAvatarBadge($userId, $userBadgeId);
+
+        return response()->json([
+            'message' => $userBadgeId
+                ? 'Avatar badge updated successfully'
+                : 'Avatar badge removed successfully',
+        ]);
     }
 }

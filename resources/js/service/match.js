@@ -22,3 +22,11 @@ export const swapTeams = async(match_id, payload) => {
 export const advanceTeamManual = async(match_id, data) => {
     return axiosInstance.post(`${matchEndpoint}/${match_id}/advance-team-manual`, data).then((response) => response.data.data);
 }
+
+export const saveRallyStages = async(match_id, data) => {
+    return axiosInstance.post(`${matchEndpoint}/${match_id}/stages`, data).then((response) => response.data.data);
+}
+
+export const getRallyStages = async(match_id) => {
+    return axiosInstance.get(`${matchEndpoint}/${match_id}/stages`).then((response) => response.data.data);
+}

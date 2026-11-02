@@ -378,6 +378,11 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         return $this->hasMany(UserBadge::class)->where('is_featured', true);
     }
 
+    public function avatarBadge(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(UserBadge::class)->where('is_avatar', true);
+    }
+
     public function deviceTokens(): HasMany
     {
         return $this->hasMany(DeviceToken::class);

@@ -365,6 +365,8 @@
             v-if="user?.id"
             v-model:show="showPinModal"
             :userId="user.id"
+            :userAvatar="user.avatar_url"
+            :userName="user.full_name"
             @saved="onPinSaved"
         />
     </div>
@@ -469,25 +471,6 @@ const isOwner = computed(() => user.value.id === getUser.value.id);
 const displayBadges = computed(() => {
   if (user.value.featured_badges?.length > 0) {
     return user.value.featured_badges
-  }
-
-  if (user.value.badges?.length) {
-    const badgeOrder = ['picki', 'champion', 'anchor', 'verified']
-    const sorted = [...user.value.badges].sort((a, b) => {
-      const aCode = (typeof a === 'string' ? a : (a?.type || '')).toLowerCase()
-      const bCode = (typeof b === 'string' ? b : (b?.type || '')).toLowerCase()
-      
-      const indexA = badgeOrder.indexOf(aCode)
-      const indexB = badgeOrder.indexOf(bCode)
-      
-      if (indexA === -1 && indexB === -1) return 0
-      if (indexA === -1) return 1
-      if (indexB === -1) return -1
-      
-      return indexA - indexB
-    })
-    // Only show up to 3 badges next to the name if no featured badges are explicitly set
-    return sorted.slice(0, 3)
   }
   return []
 })
