@@ -822,10 +822,9 @@ class LeaderboardController extends Controller
 
     /**
      * Format badges data from userBadges relationship for Leaderboard display.
-     * Chỉ cho phép hiển thị 4 loại huy hiệu chuẩn (PICKI, CHAMPION, ANCHOR, VERIFIED) ngoài BXH.
-     * - Nếu user có ghim (is_featured) huy hiệu thuộc 1 trong 4 loại này -> hiển thị huy hiệu ghim đó.
-     * - Nếu không ghim (hoặc ghim huy hiệu khác chỉ dùng trong profile) -> tự động chọn 1 trong 4 loại huy hiệu nếu có.
-     * - Nếu không có 1 trong 4 loại huy hiệu này -> không hiển thị huy hiệu nào (primary_badge = null).
+     * Mở toàn bộ huy hiệu (không còn giới hạn 4 loại như trước).
+     * primary_badge được lấy từ huy hiệu người dùng chọn khoe lên avatar (is_avatar = true).
+     * Nếu không chọn thì primary_badge = null.
      *
      * @return array{badges: array, featured_badges: array, primary_badge: array|null}
      */
@@ -839,16 +838,11 @@ class LeaderboardController extends Controller
             ];
         }
 
-        // Chỉ giữ lại 4 loại huy hiệu được phép xuất hiện ngoài BXH
-        $allowedUserBadges = array_values(array_filter($userBadges, function ($userBadge) {
-            if (!$userBadge?->badge) {
-                return false;
-            }
-            $code = strtoupper((string) $userBadge->badge->code);
-            return in_array($code, BadgeService::LEADERBOARD_BADGE_CODES, true);
+        $validUserBadges = array_values(array_filter($userBadges, function ($userBadge) {
+            return (bool) $userBadge?->badge;
         }));
 
-        if (empty($allowedUserBadges)) {
+        if (empty($validUserBadges)) {
             return [
                 'badges' => [],
                 'featured_badges' => [],
@@ -856,32 +850,27 @@ class LeaderboardController extends Controller
             ];
         }
 
-        usort($allowedUserBadges, function ($a, $b) {
+        usort($validUserBadges, function ($a, $b) {
             $pA = (int) ($a->badge->priority ?? 0);
             $pB = (int) ($b->badge->priority ?? 0);
-            if ($pA !== $pB) {
-                return $pB <=> $pA;
-            }
-            $orderA = BadgeService::LEADERBOARD_BADGE_PRIORITY[strtoupper((string) $a->badge->code)] ?? 0;
-            $orderB = BadgeService::LEADERBOARD_BADGE_PRIORITY[strtoupper((string) $b->badge->code)] ?? 0;
-            return $orderB <=> $orderA;
+            return $pB <=> $pA;
         });
 
         $badges = array_map(fn ($userBadge) => [
             'name' => $userBadge->badge->name,
             'type' => $userBadge->badge->code,
             'icon_url' => $userBadge->badge->icon_url,
-        ], $allowedUserBadges);
+        ], $validUserBadges);
 
         $badgeService = app(BadgeService::class);
 
-        $featuredBadges = $badgeService->sortFeaturedUserBadges($allowedUserBadges)->map(fn ($userBadge) => [
+        $featuredBadges = $badgeService->sortFeaturedUserBadges($validUserBadges)->map(fn ($userBadge) => [
             'name' => $userBadge->badge->name,
             'type' => $userBadge->badge->code,
             'icon_url' => $userBadge->badge->icon_url,
         ])->values()->all();
 
-        $primaryBadge = $badgeService->resolvePrimaryBadge($allowedUserBadges);
+        $primaryBadge = $badgeService->resolvePrimaryBadge($validUserBadges);
 
         return [
             'badges' => $badges,

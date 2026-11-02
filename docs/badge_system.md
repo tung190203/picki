@@ -9,7 +9,7 @@ Tài liệu này tổng hợp toàn bộ các API, cấu trúc cơ sở dữ li�
 Hệ thống sử dụng 3 bảng chính:
 - **`badge_types`**: Danh mục phân loại huy hiệu (`id`, `code`, `name`, `description`).
 - **`badges`**: Chứa thông tin huy hiệu (`id`, `code`, `name`, `description`, `icon_url`, `type`, `priority`, `is_active`).
-- **`user_badges`**: Bảng trung gian lưu lịch sử user nhận huy hiệu (`id`, `user_id`, `badge_id`, `is_featured`, `acquired_at`). *Đã chuyển từ cột `badge_code` sang dùng `badge_id`.*
+- **`user_badges`**: Bảng trung gian lưu lịch sử user nhận huy hiệu (`id`, `user_id`, `badge_id`, `is_featured`, `is_avatar`, `acquired_at`). *Đã chuyển từ cột `badge_code` sang dùng `badge_id`.*
 
 ---
 
@@ -23,8 +23,9 @@ Hệ thống sử dụng 3 bảng chính:
 | 4 | `GET` | `/api/admin/badges` | Admin | Lấy danh sách toàn bộ huy hiệu |
 | 5 | `POST` | `/api/admin/badges` | Admin | Tạo mới huy hiệu (có hỗ trợ upload icon) |
 | 6 | `PUT` | `/api/admin/badges/{badge}` | Admin | Cập nhật huy hiệu (có hỗ trợ thay đổi icon) |
-| 7 | `GET` | `/api/user/{id}/badges` | User | Lấy danh sách huy hiệu của một User cụ thể |
-| 8 | `PUT` | `/api/user/badges/featured` | User | Cập nhật (Ghim) các huy hiệu nổi bật của User đang đăng nhập |
+| 7 | `GET` | `/api/user/{id}/badges` | User | Lấy danh sách huy hiệu của một User cụ thể (gồm `is_featured` và `is_avatar`) |
+| 8 | `PUT` | `/api/user/badges/featured` | User | Cập nhật (Ghim) các huy hiệu hiển thị trong Profile cá nhân (không giới hạn số lượng) |
+| 9 | `PUT` | `/api/user/badges/avatar` | User | Cập nhật (Khoe) huy hiệu lên avatar hiển thị BXH và các nơi khác (chọn tối đa 1 hoặc gỡ) |
 
 ---
 
@@ -88,7 +89,7 @@ Thêm mới một huy hiệu vào hệ thống.
 ---
 
 ### 3.3. Lấy danh sách huy hiệu của một User
-Lấy toàn bộ huy hiệu trong hệ thống, kèm theo trạng thái người dùng này đã mở khoá hay chưa (`is_unlocked`).
+Lấy toàn bộ huy hiệu trong hệ thống, kèm theo trạng thái người dùng này đã mở khoá hay chưa (`is_unlocked`), đã ghim trong profile (`is_featured`), và đã chọn khoe lên avatar (`is_avatar`).
 
 * **Endpoint:** `GET /api/user/{id}/badges`
 * **Headers:** `Authorization: Bearer {token}`
@@ -107,6 +108,9 @@ Lấy toàn bộ huy hiệu trong hệ thống, kèm theo trạng thái người
       "type_name": "Hiếm",
       "is_unlocked": true,
       "is_featured": true,
+      "is_avatar": true,
+      "is_primary": true,
+      "featured_order": 1730000000,
       "acquired_at": "2026-10-05T09:28:28.000000Z"
     },
     {
@@ -115,7 +119,11 @@ Lấy toàn bộ huy hiệu trong hệ thống, kèm theo trạng thái người
       "code": "CHAMPION",
       "name": "Quán quân",
       "is_unlocked": false,
-      "is_featured": false
+      "is_featured": false,
+      "is_avatar": false,
+      "is_primary": false,
+      "featured_order": null,
+      "acquired_at": null
     }
   ]
 }
@@ -123,8 +131,8 @@ Lấy toàn bộ huy hiệu trong hệ thống, kèm theo trạng thái người
 
 ---
 
-### 3.4. Cập nhật huy hiệu nổi bật (Ghim huy hiệu)
-Thiết lập danh sách tối đa 3 huy hiệu nổi bật cho người dùng đang đăng nhập.
+### 3.4. Cập nhật huy hiệu ghim trong Profile cá nhân
+Thiết lập danh sách các huy hiệu ghim hiển thị trong trang Profile cá nhân của người dùng đang đăng nhập (**không giới hạn số lượng ghim**). Có thể truyền thêm `avatar_user_badge_id` để cập nhật đồng thời huy hiệu avatar nếu muốn.
 
 * **Endpoint:** `PUT /api/user/badges/featured`
 * **Headers:** `Authorization: Bearer {token}`
@@ -132,7 +140,8 @@ Thiết lập danh sách tối đa 3 huy hiệu nổi bật cho người dùng �
 
 | Trường | Kiểu dữ liệu | Bắt buộc | Mô tả |
 | --- | --- | --- | --- |
-| `user_badge_ids` | array | **Có** | Mảng chứa các `id` trong bảng `user_badges` cần ghim (VD: `[92, 95]`) |
+| `user_badge_ids` | array | **Có** | Mảng chứa các `id` trong bảng `user_badges` cần ghim trong profile (VD: `[92, 95]`, truyền mảng rỗng `[]` nếu gỡ hết) |
+| `avatar_user_badge_id` | integer \| null | Không | (Tuỳ chọn) ID của `user_badge` muốn ghim lên avatar trong cùng request |
 
 #### Response mẫu (`200 OK`):
 ```json
@@ -140,7 +149,27 @@ Thiết lập danh sách tối đa 3 huy hiệu nổi bật cho người dùng �
   "message": "Featured badges updated successfully"
 }
 ```
-*(Hệ thống sẽ chặn tự động nếu gửi lên mảng rỗng trong khi user vẫn đang sở hữu huy hiệu, bắt buộc hiển thị ít nhất 1 cái).*
+
+---
+
+### 3.5. Cập nhật huy hiệu khoe lên avatar (Avatar Badge / Primary Badge)
+Thiết lập đúng 1 huy hiệu duy nhất để khoe lên avatar (hiển thị cạnh avatar ở BXH và các nơi khác trong app). Nếu người dùng không chọn hoặc gỡ bỏ, hệ thống fallback về `null` (không hiển thị). Ngoài BXH cho phép hiển thị bất kỳ huy hiệu nào người dùng chọn khoe lên avatar.
+
+* **Endpoint:** `PUT /api/user/badges/avatar` *(hoặc alias: `PUT /api/user/badges/primary`)*
+* **Headers:** `Authorization: Bearer {token}`
+* **Request Body (`application/json`):**
+
+| Trường | Kiểu dữ liệu | Bắt buộc | Mô tả |
+| --- | --- | --- | --- |
+| `user_badge_id` | integer \| null | Không | `id` trong bảng `user_badges` muốn khoe lên avatar. Truyền `null` nếu muốn gỡ bỏ hoàn toàn |
+
+#### Response mẫu (`200 OK`):
+```json
+{
+  "message": "Avatar badge updated successfully"
+}
+```
+*(Khi truyền `user_badge_id: null`: `"message": "Avatar badge removed successfully"`)*
 
 ---
 
@@ -226,6 +255,8 @@ Các lệnh này dùng để cấp phát bù huy hiệu cho các dữ liệu/ho�
   - **Chức năng:** Đánh giá lại lịch sử tham gia của user để cấp bù huy hiệu **Lính bắn tỉa** (Tham gia kèo ít nhất X lần).
 - `php artisan badges:seed-champion`
   - **Chức năng:** Quét lại toàn bộ các Giải đấu (Tournament) đã đóng (Closed) từ trước đến nay, và cấp bù huy hiệu **Vô địch**, **Ngựa ô**, **Huỷ diệt**, v.v. cho người chơi.
+- `php artisan db:seed --class=BackfillCreatorBadgesSeeder`
+  - **Chức năng:** Quét toàn bộ kèo đấu và giải đấu hợp lệ từ trước đến nay để cấp bù huy hiệu **Tạo Kèo** (`HOST_20`, `HOST_50`, `HOST_100`, `HOST_500`) và **Tạo Giải** (`ORGANIZER_1`, `ORGANIZER_5`, `ORGANIZER_20`, `ORGANIZER_50`) cho người tạo đạt mốc.
 
 *(Lưu ý quan trọng: Trước khi chạy các lệnh hồi tố, hãy đảm bảo bạn đã vào Admin CMS tạo đầy đủ các Huy Hiệu với Mã (Code) tương ứng cho từng loại).*
 
@@ -276,6 +307,7 @@ Chạy các lệnh cấp bù huy hiệu cho các hành vi user đã thực hiệ
 php artisan badges:seed-champion
 php artisan badges:evaluate-sniper
 php artisan badges:evaluate-profile
+php artisan db:seed --class=BackfillCreatorBadgesSeeder
 ```
 
 ### Bước 7: Kiểm tra Cronjob

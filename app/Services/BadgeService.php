@@ -59,11 +59,10 @@ class BadgeService
     }
 
     /**
-     * Xác định primary_badge từ danh sách UserBadge của người chơi:
-     * - Chỉ xét trong 4 loại huy hiệu được phép hiển thị ra ngoài (PICKI, CHAMPION, ANCHOR, VERIFIED).
-     * - Nếu người chơi có ghim (is_featured = true) huy hiệu thuộc 1 trong 4 loại này -> lấy theo đúng thứ tự vị trí ghim từ đầu đến cuối.
-     * - Nếu không ghim (hoặc chỉ ghim huy hiệu thành tựu khác trong profile) -> tự động lấy 1 trong 4 huy hiệu này nếu người chơi sở hữu.
-     * - Nếu không sở hữu bất kỳ huy hiệu nào trong 4 loại trên -> trả về null.
+     * Xác định primary_badge (khoe lên avatar / hiển thị bên ngoài BXH):
+     * - Chỉ lấy huy hiệu được người dùng chọn khoe lên avatar (is_avatar = true).
+     * - Mở rộng cho toàn bộ huy hiệu (không còn giới hạn danh sách 4 loại cũ).
+     * - Nếu người dùng chưa chọn hoặc đã gỡ -> fallback rỗng (trả về null).
      */
     public function resolvePrimaryBadge(iterable $userBadges): ?array
     {
@@ -72,48 +71,36 @@ class BadgeService
             return null;
         }
 
-        // 1. Ưu tiên theo đúng thứ tự ghim của người dùng (ô 1 -> ô 2 -> ô 3)
-        $featuredAllowed = $this->sortFeaturedUserBadges($collection)
-            ->first(function ($ub) {
-                $code = strtoupper((string) ($ub->badge->code ?? ''));
-                return in_array($code, self::LEADERBOARD_BADGE_CODES, true);
-            });
+        // Lấy huy hiệu được chọn khoe lên avatar (is_avatar = true)
+        $avatarBadge = $collection->first(fn ($ub) => (bool) ($ub->is_avatar ?? false));
 
-        if ($featuredAllowed) {
-            return [
-                'name' => $featuredAllowed->badge->name,
-                'type' => $featuredAllowed->badge->code,
-                'icon_url' => $featuredAllowed->badge->icon_url,
-            ];
-        }
-
-        // 2. Nếu không ghim huy hiệu nào thuộc 4 loại trên -> tự động lấy 1 trong 4 huy hiệu đang sở hữu
-        $ownedAllowed = $collection
-            ->filter(function ($ub) {
-                $code = strtoupper((string) ($ub->badge->code ?? ''));
-                return in_array($code, self::LEADERBOARD_BADGE_CODES, true);
-            })
-            ->sort(function ($a, $b) {
-                $pA = (int) ($a->badge->priority ?? 0);
-                $pB = (int) ($b->badge->priority ?? 0);
-                if ($pA !== $pB) {
-                    return $pB <=> $pA;
-                }
-                $orderA = self::LEADERBOARD_BADGE_PRIORITY[strtoupper((string) $a->badge->code)] ?? 0;
-                $orderB = self::LEADERBOARD_BADGE_PRIORITY[strtoupper((string) $b->badge->code)] ?? 0;
-                return $orderB <=> $orderA;
-            })
-            ->first();
-
-        if (!$ownedAllowed) {
+        if (!$avatarBadge) {
             return null;
         }
 
         return [
-            'name' => $ownedAllowed->badge->name,
-            'type' => $ownedAllowed->badge->code,
-            'icon_url' => $ownedAllowed->badge->icon_url,
+            'name' => $avatarBadge->badge->name,
+            'type' => $avatarBadge->badge->code,
+            'icon_url' => $avatarBadge->badge->icon_url,
         ];
+    }
+
+    /**
+     * Cập nhật huy hiệu được khoe lên avatar (chọn 1 hoặc gỡ bỏ bằng null).
+     */
+    public function setAvatarBadge(int $userId, ?int $userBadgeId): bool
+    {
+        UserBadge::where('user_id', $userId)->update(['is_avatar' => false]);
+
+        if ($userBadgeId === null) {
+            return true;
+        }
+
+        $updated = UserBadge::where('id', $userBadgeId)
+            ->where('user_id', $userId)
+            ->update(['is_avatar' => true]);
+
+        return $updated > 0;
     }
 
     public function getUserBadges(int $userId): array
@@ -146,6 +133,7 @@ class BadgeService
             'badges' => $badges,
             'featured_badges' => $featuredBadges,
             'primary_badge' => $primaryBadge,
+            'avatar_badge' => $primaryBadge,
         ];
     }
 
@@ -219,10 +207,12 @@ class BadgeService
                 ];
             })->values()->toArray();
 
+            $primaryBadge = $this->resolvePrimaryBadge($badges);
             $result[$userId] = [
                 'badges' => $badgesArray,
                 'featured_badges' => $featuredBadges,
-                'primary_badge' => $this->resolvePrimaryBadge($badges),
+                'primary_badge' => $primaryBadge,
+                'avatar_badge' => $primaryBadge,
             ];
         }
 
