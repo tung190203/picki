@@ -69,16 +69,18 @@
 
                             <div>
                                 <label class="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2 sm:mb-3">Chọn đội</label>
-                                <div class="grid grid-cols-[1.5fr_auto_1.5fr] sm:grid-cols-[2fr_1fr_2fr] gap-2 sm:gap-4 items-stretch mb-4 sm:mb-6">
+                                <div class="grid grid-cols-[1fr_auto_1fr] gap-2 sm:gap-4 items-center sm:items-stretch mb-4 sm:mb-6">
                                     <div
                                         class="border border-1 border-[#DCDEE6] dark:border-slate-700/60 bg-[#F2F7FC] dark:bg-[#1E293B] rounded-lg p-2 sm:p-3 flex flex-col min-w-0">
                                         <p class="text-center mb-2 sm:mb-4 font-semibold text-xs sm:text-sm text-gray-800 dark:text-slate-200 break-words">{{ data.home_team?.name || 'Team A' }}</p>
-                                        <div class="flex gap-1 sm:gap-2 justify-around items-stretch flex-wrap">
+                                        <div :class="teamGridClass">
                                             <UserCard v-for="member in data.home_team?.members || []" :key="member.id"
                                                 :showHoverDelete="false" :name="member.name" :avatar="member.avatar"
-                                                :size="10" :badgeSize="4" class="cursor-pointer" />
+                                                :size="cardAvatarSize" :badgeSize="4" :maxWidth="cardMaxWidth"
+                                                :nameClass="cardNameClass" class="cursor-pointer" />
                                             <UserCard v-for="n in emptySlots('home')" :key="'empty-home-' + n" empty
-                                                :size="10" :badgeSize="4" class="cursor-pointer" />
+                                                :size="cardAvatarSize" :badgeSize="4" :maxWidth="cardMaxWidth"
+                                                class="cursor-pointer" />
                                         </div>
                                     </div>
 
@@ -89,17 +91,20 @@
                                     <div
                                         class="border border-1 border-[#DCDEE6] dark:border-slate-700/60 bg-[#F2F7FC] dark:bg-[#1E293B] rounded-lg p-2 sm:p-3 flex flex-col min-w-0">
                                         <p class="text-center mb-2 sm:mb-4 font-semibold text-xs sm:text-sm text-gray-800 dark:text-slate-200 break-words">{{ data.away_team?.name || 'Team B' }}</p>
-                                        <div class="flex gap-1 sm:gap-2 justify-around items-stretch flex-wrap">
+                                        <div :class="teamGridClass">
                                             <UserCard v-for="member in data.away_team?.members || []" :key="member.id"
                                                 :showHoverDelete="false" :name="member.name" :avatar="member.avatar"
-                                                :size="10" :badgeSize="4" class="cursor-pointer" />
+                                                :size="cardAvatarSize" :badgeSize="4" :maxWidth="cardMaxWidth"
+                                                :nameClass="cardNameClass" class="cursor-pointer" />
                                             <UserCard v-for="n in emptySlots('away')" :key="'empty-away-' + n" empty
-                                                :size="10" :badgeSize="4" class="cursor-pointer" />
+                                                :size="cardAvatarSize" :badgeSize="4" :maxWidth="cardMaxWidth"
+                                                class="cursor-pointer" />
                                         </div>
                                     </div>
                                 </div>
 
-                                <MatchScoreInput
+                                <!-- SIDE-OUT SCORING -->
+                                <MatchScoreInput v-if="!isRally"
                                     v-model="scores"
                                     label="Kết quả"
                                     :can-edit="true"
@@ -110,6 +115,23 @@
                                     @open-referee="openRefereeScreen"
                                     @open-live-score="goToLiveScore"
                                 />
+
+                                <!-- RALLY SCORING INPUT -->
+                                <RallyScoreInput v-else
+                                    v-model="rallyStageData"
+                                    :stage-points="stagePoints"
+                                    :members-per-stage="Math.min(playerPerTeam, 2)"
+                                    :home-members="data.home_team?.members || []"
+                                    :away-members="data.away_team?.members || []"
+                                    :can-edit="true"
+                                />
+
+                                <button v-if="isRally && currentLeg.id"
+                                    @click="goToLiveScore({ matchId: currentLeg.id, matchType: 'tournament' })"
+                                    class="w-full flex justify-center items-center gap-2 border-2 border-blue-400 mt-3 p-3 rounded-lg text-blue-500 hover:bg-blue-50 transition-colors font-semibold">
+                                    <PlayIcon class="w-5 h-5" />
+                                    <span class="text-sm">Xem điểm trực tiếp</span>
+                                </button>
 
                                 <!-- Nút tiến vào vòng trong -->
                                 <div v-if="shouldShowAdvanceButtons" class="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -206,6 +228,7 @@
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { MinusIcon, PlusIcon, XMarkIcon, CheckBadgeIcon } from '@heroicons/vue/24/solid'
 import { ClipboardIcon, CalendarDaysIcon, MapPinIcon } from '@heroicons/vue/24/outline'
+import { PlayIcon } from '@heroicons/vue/24/solid'
 import UserCard from './UserCard.vue'
 import { formatEventDate } from '@/composables/formatDatetime.js'
 import QrcodeVue from 'qrcode.vue'
@@ -216,7 +239,9 @@ import { useUserStore } from '@/store/auth'
 import { storeToRefs } from 'pinia'
 import RefereeScoringScreen from '@/components/molecules/referee-scoring/RefereeScoringScreen.vue'
 import MatchScoreInput from './MatchScoreInput.vue'
+import RallyScoreInput from './RallyScoreInput.vue'
 import { useRouter } from 'vue-router'
+import { useMatchRallyDisplay } from '@/composables/useRallyScoringDisplay.js'
 
 /* ===================== PROPS ===================== */
 const props = defineProps({
@@ -239,6 +264,65 @@ const isReferee = computed(() => {
     return props.tournament?.tournament_staff?.some(
         staff => staff.role === 3 && staff.staff?.id === getUser.value.id
     )
+})
+
+/* ===================== RALLY SCORING DISPLAY ===================== */
+// Read-only display composable. For loading saved stages into the modal, see
+// fetchRallyStages() below — it uses the dedicated /stages endpoint so we
+// don't depend on the match payload (list/detail responses don't always embed
+// `rally_stages`).
+const { hasRallyData } = useMatchRallyDisplay(computed(() => props.data))
+
+// Primary source: infer from tournament player_per_team (works for fresh matches
+// where rally_stages haven't been created yet). Fallback: existing stage data.
+const isRallyFromTournament = computed(() => {
+    const ppt = playerPerTeam.value
+    if (ppt == null) return false
+    return ppt >= 3
+})
+const isRally = computed(() => isRallyFromTournament.value || hasRallyData.value)
+
+// Rally config from tournament
+const stagePoints = computed(() => {
+    return props.tournament?.tournament_types?.[0]?.match_rules?.[0]?.stage_points
+        || [10, 20, 30]
+})
+
+const playerPerTeam = computed(() => {
+    return props.tournament?.player_per_team
+        || Math.max(props.data?.home_team?.members?.length || 0, props.data?.away_team?.members?.length || 0)
+        || 2
+})
+
+const teamGridClass = computed(() => {
+    const count = playerPerTeam.value
+    if (count <= 1) {
+        return 'flex justify-center items-center'
+    }
+    if (count === 2) {
+        return 'grid grid-cols-2 gap-1.5 sm:gap-2 justify-items-center'
+    }
+    if (count === 3) {
+        return 'grid grid-cols-3 gap-1 justify-items-center'
+    }
+    // 4 hoặc nhiều hơn: grid 2 cột cân đối (2x2 cho 4 người)
+    return 'grid grid-cols-2 gap-2 sm:gap-3 justify-items-center'
+})
+
+const cardAvatarSize = computed(() => {
+    return playerPerTeam.value >= 4 ? 10 : 10
+})
+
+const cardMaxWidth = computed(() => {
+    if (playerPerTeam.value >= 4) return 72
+    if (playerPerTeam.value === 3) return 60
+    return 80
+})
+
+const cardNameClass = computed(() => {
+    if (playerPerTeam.value >= 4) return 'text-[11px] sm:text-xs'
+    if (playerPerTeam.value === 3) return 'text-[10px] sm:text-xs'
+    return 'text-xs sm:text-sm'
 })
 
 /* ===================== MODAL ===================== */
@@ -271,6 +355,7 @@ const decrementCourt = () => {
 
 /* ===================== SCORES ===================== */
 const scores = ref([])
+const rallyStageData = ref([])
 
 /* ===================== LIVE SCORE ===================== */
 const isLiveMatch = computed(() =>
@@ -318,18 +403,84 @@ const initializeScores = () => {
     return [{ team1: 0, team2: 0 }]
 }
 
+/* ===================== RALLY STAGES (saved → modal) ===================== */
+// Map a stage from the /stages API into the shape the modal uses.
+// API spec §2.4: { stage_no, cumulative_score_a/b, target_point,
+//   members: { team_a: [{user_id, name}], team_b: [{user_id, name}] } }
+function buildStageFromApi(stage) {
+    // Defensive: compute stage_score from cumulative diff, then re-derive cumulative
+    // as prev + stage_score. This ensures the displayed cumulative matches what's in DB
+    // even if there's any prior delta/state mismatch.
+    const cumA = stage.cumulative_score_a ?? 0
+    const cumB = stage.cumulative_score_b ?? 0
+    return {
+        stage_no: stage.stage_no,
+        cumulative_score_a: cumA,
+        cumulative_score_b: cumB,
+        target_point: stage.target_point,
+        members: {
+            team_a: (stage.members?.team_a || []).map(m => ({ user_id: m.user_id, name: m.name })),
+            team_b: (stage.members?.team_b || []).map(m => ({ user_id: m.user_id, name: m.name })),
+        }
+    }
+}
+
+function emptyStages() {
+    return stagePoints.value.map((t, i) => ({
+        stage_no: i + 1,
+        cumulative_score_a: 0,
+        cumulative_score_b: 0,
+        target_point: t,
+        members: { team_a: [], team_b: [] }
+    }))
+}
+
+// Fetch the persisted rally stages for a match. Non-fatal: returns [] on error
+// (e.g. match not rally yet, or 404) so the modal can still open with defaults.
+async function fetchRallyStages(matchId) {
+    try {
+        const data = await MatchesServices.getRallyStages(matchId)
+        return Array.isArray(data?.stages) ? data.stages.map(buildStageFromApi) : []
+    } catch {
+        return []
+    }
+}
+
 /* ===================== WATCH LEG ===================== */
+// ponytail: hoisted from earlier — watch with `immediate` runs during setup,
+// before subsequent `const` declarations in source order are reachable.
 watch(
     currentLeg,
     async (leg) => {
         courtNumber.value = leg?.court || 1
         scores.value = initializeScores()
+        // Rally: fetch persisted stages from /stages (synchronous set is the
+        // source of truth, not the composable's lazy fetch).
+        const matchId = leg?.id
+        if (isRally.value && matchId) {
+            const stages = await fetchRallyStages(matchId)
+            rallyStageData.value = stages.length > 0 ? stages : emptyStages()
+        } else {
+            rallyStageData.value = []
+        }
         cleanupEchoLiveScore()
         await fetchLiveScore()
         setupEchoLiveScore()
     },
     { immediate: true }
 )
+
+// ponytail: re-fetch rally stages every time the modal is re-opened.
+// Without this, switching tabs and coming back shows stale state from the
+// previous open — and a Save can send an out-of-sync payload
+// (e.g. stage 2 still has old cumulative, stage 3 has new value) → BE rejects.
+watch(isOpen, async (open) => {
+    if (!open || !isRally.value) return
+    const matchId = currentLeg.value?.id
+    if (!matchId) return
+    const stages = await fetchRallyStages(matchId)
+    rallyStageData.value = stages.length > 0 ? stages : emptyStages()
+})
 
 /* ===================== WATCH DATA ===================== */
 watch(
@@ -491,17 +642,47 @@ const team2ForReferee = computed(() => ({
 }))
 
 // Format tournament data to match RefereeScoringScreen expectations
-const tournamentRulesForReferee = computed(() => ({
-    name: props.tournament?.name || '',
-    base_points: props.tournament?.tournament_types?.[0]?.match_rules?.[0]?.base_points || 11,
-    points_difference: props.tournament?.tournament_types?.[0]?.match_rules?.[0]?.points_difference || 2,
-    max_points: props.tournament?.tournament_types?.[0]?.match_rules?.[0]?.max_points || 15,
-    set_number: props.tournament?.tournament_types?.[0]?.match_rules?.[0]?.set_number || 3,
-    player_per_team: props.tournament?.player_per_team || 1,
-}))
+// For rally: use stage_points from match_rules
+// For side-out: use base_points, max_points, etc.
+const tournamentRulesForReferee = computed(() => {
+    const matchRules = props.tournament?.tournament_types?.[0]?.match_rules?.[0] || {}
+    if (isRally.value) {
+        return {
+            name: props.tournament?.name || '',
+            scoring_type: 'rally',
+            stage_points: matchRules.stage_points || [10, 20, 30],
+            sets_per_match: matchRules.sets_per_match || 3,
+            winning_rule: matchRules.winning_rule || 2,
+            player_per_team: props.tournament?.player_per_team || 3,
+        }
+    }
+    return {
+        name: props.tournament?.name || '',
+        scoring_type: 'side_out',
+        base_points: matchRules.points_to_win_set || 11,
+        points_difference: matchRules.winning_rule === 1 ? 1 : 2,
+        max_points: matchRules.max_points || 15,
+        set_number: matchRules.sets_per_match || 3,
+        player_per_team: props.tournament?.player_per_team || 2,
+    }
+})
 
 /* ===================== FORMAT API ===================== */
 const formatResultsForAPI = () => {
+    if (isRally.value) {
+        // ponytail: for rally scoring, pack 1 set per stage using cumulative
+        // scores as the "set" score. Backend derives winner from won_match flags
+        // at confirm time; we only need a non-empty results array.
+        const homeId = props.data.home_team?.id
+        const awayId = props.data.away_team?.id
+        if (!homeId || !awayId) return []
+        return rallyStageData.value
+            .filter(s => (s.cumulative_score_a ?? 0) > 0 || (s.cumulative_score_b ?? 0) > 0)
+            .flatMap(s => [
+                { set_number: s.stage_no, team_id: homeId, score: s.cumulative_score_a || 0 },
+                { set_number: s.stage_no, team_id: awayId, score: s.cumulative_score_b || 0 }
+            ])
+    }
     return scores.value.flatMap((score, idx) => [
         {
             set_number: idx + 1,
@@ -516,6 +697,31 @@ const formatResultsForAPI = () => {
     ])
 }
 
+/* ===================== RALLY STAGE API FORMAT ===================== */
+// API spec §2.3: { stage_no, cumulative_score_a, cumulative_score_b, members: [{user_id, team_id, role}] }
+const formatRallyStagesForAPI = () => {
+    const homeId = props.data.home_team?.id
+    const awayId = props.data.away_team?.id
+    return rallyStageData.value.map(stage => {
+        const members = []
+        const collect = (list, teamId) => {
+            for (const slot of (list || [])) {
+                const userId = slot?.user_id
+                if (userId == null) continue
+                members.push({ user_id: userId, team_id: teamId, role: 'player' })
+            }
+        }
+        collect(stage.members?.team_a, homeId)
+        collect(stage.members?.team_b, awayId)
+        return {
+            stage_no: stage.stage_no,
+            cumulative_score_a: stage.cumulative_score_a || 0,
+            cumulative_score_b: stage.cumulative_score_b || 0,
+            members
+        }
+    })
+}
+
 /* ===================== SAVE MATCH ===================== */
 const persistMatchScores = async () => {
     if (isSaving.value) return
@@ -526,6 +732,18 @@ const persistMatchScores = async () => {
             results: formatResultsForAPI()
         }
         const res = await MatchesServices.updateMatches(currentLeg.value.id, payload)
+
+        // Also save rally stages if rally scoring
+        if (isRally.value && rallyStageData.value.length > 0) {
+            try {
+                await MatchesServices.saveRallyStages(currentLeg.value.id, {
+                    stages: formatRallyStagesForAPI()
+                })
+            } catch (rallyErr) {
+                console.warn('Rally stages save failed:', rallyErr)
+            }
+        }
+
         emit('updated', res.data)
         return res
     } catch (err) {
@@ -543,14 +761,37 @@ const saveMatch = async () => {
 }
 
 /* ===================== CONFIRM MATCH ===================== */
-const canConfirmMatch = computed(() =>
-    scores.value.some(s => s.team1 > 0 || s.team2 > 0)
-)
+const canConfirmMatch = computed(() => {
+    if (isRally.value) {
+        // ponytail: only allow confirm once every stage has reached its target.
+        // "any score > 0" was a confusing requirement that let users confirm
+        // with half-finished stages.
+        const stages = rallyStageData.value
+        if (stages.length === 0) return false
+        return stages.every(s => {
+            const target = s.target_point || props.data?.stage_points?.[s.stage_no - 1] || 10
+            return (s.cumulative_score_a ?? 0) >= target || (s.cumulative_score_b ?? 0) >= target
+        })
+    }
+    return scores.value.some(s => s.team1 > 0 || s.team2 > 0)
+})
 
 const confirmMatchResult = async () => {
     if (isSaving.value || !canConfirmMatch.value) return
     try {
         isSaving.value = true
+        // ponytail: rally stages live in a separate table — persist them first,
+        // otherwise confirm can mark a match done with stale/empty stages.
+        if (isRally.value && rallyStageData.value.length > 0) {
+            try {
+                const payload = formatRallyStagesForAPI()
+                console.debug('[Rally] Confirm: saving stages first', JSON.stringify(payload, null, 2))
+                await MatchesServices.saveRallyStages(currentLeg.value.id, { stages: payload })
+            } catch (rallyErr) {
+                toast.error(rallyErr.response?.data?.message || 'Lưu điểm rally thất bại')
+                return
+            }
+        }
         const res = await MatchesServices.confirmResults(currentLeg.value.id)
         toast.success('Xác nhận kết quả thành công!')
         emit('updated', res)
@@ -570,7 +811,7 @@ const emptySlots = (team) => {
         ? props.data.home_team?.members?.length || 0
         : props.data.away_team?.members?.length || 0
 
-    const slots = props.tournament.player_per_team - members
+    const slots = (playerPerTeam.value || 2) - members
     return slots > 0 ? Array.from({ length: slots }, (_, i) => i + 1) : []
 }
 
@@ -578,11 +819,13 @@ const emptySlots = (team) => {
 const showConfirmClose = ref(false)
 const initialCourtNumber = ref(1)
 const initialScores = ref([])
+const initialRallyStages = ref([])
 
 // Cập nhật state ban đầu khi dữ liệu thay đổi
 const updateInitialState = () => {
     initialCourtNumber.value = courtNumber.value
     initialScores.value = JSON.parse(JSON.stringify(scores.value))
+    initialRallyStages.value = JSON.parse(JSON.stringify(rallyStageData.value))
 }
 
 watch(
@@ -599,7 +842,8 @@ watch(
 const hasUnsavedChanges = computed(() => {
     const isCourtChanged = courtNumber.value !== initialCourtNumber.value
     const isScoresChanged = JSON.stringify(scores.value) !== JSON.stringify(initialScores.value)
-    return isCourtChanged || isScoresChanged
+    const isRallyChanged = JSON.stringify(rallyStageData.value) !== JSON.stringify(initialRallyStages.value)
+    return isCourtChanged || isScoresChanged || isRallyChanged
 })
 
 // Override closeModal

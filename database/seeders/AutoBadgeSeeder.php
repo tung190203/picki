@@ -371,6 +371,62 @@ class AutoBadgeSeeder extends Seeder
     'type' => 'discover',
     'description' => 'Người dùng nhận được huy hiệu này khi tham gia đấu ít nhất tại 100 CLB khác nhau',
   ),
+  44 => 
+  array (
+    'code' => 'HOST_20',
+    'name' => 'Chủ Kèo Năng Động',
+    'type' => 'contribute',
+    'description' => 'Huy hiệu được cấp khi người chơi tạo thành công từ 20 kèo đấu',
+  ),
+  45 => 
+  array (
+    'code' => 'HOST_50',
+    'name' => 'Chủ Kèo Nhiệt Huyết',
+    'type' => 'contribute',
+    'description' => 'Huy hiệu được cấp khi người chơi tạo thành công từ 50 kèo đấu',
+  ),
+  46 => 
+  array (
+    'code' => 'HOST_100',
+    'name' => 'Chủ Kèo Uy Tín',
+    'type' => 'contribute',
+    'description' => 'Huy hiệu được cấp khi người chơi tạo thành công từ 100 kèo đấu',
+  ),
+  47 => 
+  array (
+    'code' => 'HOST_500',
+    'name' => 'Chủ Kèo Huyền Thoại',
+    'type' => 'contribute',
+    'description' => 'Huy hiệu được cấp khi người chơi tạo thành công từ 500 kèo đấu',
+  ),
+  48 => 
+  array (
+    'code' => 'ORGANIZER_1',
+    'name' => 'Nhà Tổ Chức Tân Binh',
+    'type' => 'contribute',
+    'description' => 'Huy hiệu được cấp khi người chơi tạo thành công từ 1 giải đấu',
+  ),
+  49 => 
+  array (
+    'code' => 'ORGANIZER_5',
+    'name' => 'Nhà Tổ Chức Tiềm Năng',
+    'type' => 'contribute',
+    'description' => 'Huy hiệu được cấp khi người chơi tạo thành công từ 5 giải đấu',
+  ),
+  50 => 
+  array (
+    'code' => 'ORGANIZER_20',
+    'name' => 'Nhà Tổ Chức Uy Tín',
+    'type' => 'contribute',
+    'description' => 'Huy hiệu được cấp khi người chơi tạo thành công từ 20 giải đấu',
+  ),
+  51 => 
+  array (
+    'code' => 'ORGANIZER_50',
+    'name' => 'Đại Sứ Giải Đấu',
+    'type' => 'contribute',
+    'description' => 'Huy hiệu được cấp khi người chơi tạo thành công từ 50 giải đấu',
+  ),
 );
 
         foreach ($badges as $b) {

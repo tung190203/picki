@@ -2,18 +2,11 @@
 
 namespace App\Services\Club;
 
-use App\Enums\ClubFundCollectionStatus;
-use App\Enums\ClubFundContributionStatus;
 use App\Enums\ClubMemberRole;
 use App\Enums\ClubMemberStatus;
 use App\Enums\ClubMembershipStatus;
 use App\Models\Club\Club;
-use App\Models\Club\ClubFundCollection;
-use App\Models\Club\ClubFundContribution;
-use App\Models\Club\ClubGuest;
 use App\Models\Club\ClubMember;
-use App\Models\MiniParticipant;
-use App\Models\Participant;
 use App\Models\User;
 use App\Models\UserSportScore;
 use Illuminate\Support\Collection;
@@ -67,10 +60,7 @@ class ClubDetailAssembler
             $this->attachFollowStatus($club, $userId);
         }
 
-        // 0b. Admin/BTC stats — chỉ attach khi user có quyền manage CLB.
-        if ($userId && $club->canManage($userId)) {
-            $this->attachAdminStats($club);
-        }
+        // 0b. Admin/BTC stats — removed (unused)
 
         // 1a. Member count = user thật (joined/active) + CLB guest (club_guest_profiles).
         // `_real_members_count` giữ raw count để assemble() gọi lại không cộng dồn VM nhiều lần.

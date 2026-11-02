@@ -16,6 +16,7 @@ class MatchDetailResource extends JsonResource
         $homeTeam = $this->homeTeam;
         $awayTeam = $this->awayTeam;
         $tournamentType = $this->tournamentType;
+        $scoringType = $tournamentType?->match_rules['scoring_type'] ?? null;
 
         // ✅ ROUND LẤY TRỰC TIẾP
         $roundNumber = $this->round;
@@ -142,6 +143,31 @@ class MatchDetailResource extends JsonResource
 
             // ✅ QUAN TRỌNG NHẤT
             'legs' => $legs->values(),
+
+            // ✅ Phase 3 — Rally Scoring stages
+            'rally_stages' => $scoringType === \App\Services\TournamentScoringTypeInferrer::RALLY
+                ? $this->whenLoaded('stages', fn () => $this->stages->map(fn ($stage) => [
+                    'stage_no' => $stage->stage_no,
+                    'cumulative_score_a' => $stage->cumulative_score_a,
+                    'cumulative_score_b' => $stage->cumulative_score_b,
+                    'stage_score_a' => $stage->stage_score_a,
+                    'stage_score_b' => $stage->stage_score_b,
+                    'status' => $stage->status,
+                    'winner_team_id' => $stage->winner_team_id,
+                    'target_point' => $stage->target_point,
+                    'completed_at' => $stage->completed_at?->toIso8601String(),
+                    'members' => [
+                        'team_a' => $stage->members->where('team_id', $this->home_team_id)->map(fn ($m) => [
+                            'user_id' => $m->user_id,
+                            'name' => $m->user?->full_name,
+                        ])->values(),
+                        'team_b' => $stage->members->where('team_id', $this->away_team_id)->map(fn ($m) => [
+                            'user_id' => $m->user_id,
+                            'name' => $m->user?->full_name,
+                        ])->values(),
+                    ],
+                ])->values())
+                : null,
 
             'is_bye' => $this->is_bye,
             'is_loser_bracket' => $this->is_loser_bracket,
