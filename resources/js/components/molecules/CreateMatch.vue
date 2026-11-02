@@ -69,16 +69,18 @@
 
                             <div>
                                 <label class="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2 sm:mb-3">Chọn đội</label>
-                                <div class="grid grid-cols-[1.5fr_auto_1.5fr] sm:grid-cols-[2fr_1fr_2fr] gap-2 sm:gap-4 items-stretch mb-4 sm:mb-6">
+                                <div class="grid grid-cols-[1fr_auto_1fr] gap-2 sm:gap-4 items-center sm:items-stretch mb-4 sm:mb-6">
                                     <div
                                         class="border border-1 border-[#DCDEE6] dark:border-slate-700/60 bg-[#F2F7FC] dark:bg-[#1E293B] rounded-lg p-2 sm:p-3 flex flex-col min-w-0">
                                         <p class="text-center mb-2 sm:mb-4 font-semibold text-xs sm:text-sm text-gray-800 dark:text-slate-200 break-words">{{ data.home_team?.name || 'Team A' }}</p>
-                                        <div class="flex gap-1 sm:gap-2 justify-around items-stretch flex-wrap">
+                                        <div :class="teamGridClass">
                                             <UserCard v-for="member in data.home_team?.members || []" :key="member.id"
                                                 :showHoverDelete="false" :name="member.name" :avatar="member.avatar"
-                                                :size="10" :badgeSize="4" class="cursor-pointer" />
+                                                :size="cardAvatarSize" :badgeSize="4" :maxWidth="cardMaxWidth"
+                                                :nameClass="cardNameClass" class="cursor-pointer" />
                                             <UserCard v-for="n in emptySlots('home')" :key="'empty-home-' + n" empty
-                                                :size="10" :badgeSize="4" class="cursor-pointer" />
+                                                :size="cardAvatarSize" :badgeSize="4" :maxWidth="cardMaxWidth"
+                                                class="cursor-pointer" />
                                         </div>
                                     </div>
 
@@ -89,12 +91,14 @@
                                     <div
                                         class="border border-1 border-[#DCDEE6] dark:border-slate-700/60 bg-[#F2F7FC] dark:bg-[#1E293B] rounded-lg p-2 sm:p-3 flex flex-col min-w-0">
                                         <p class="text-center mb-2 sm:mb-4 font-semibold text-xs sm:text-sm text-gray-800 dark:text-slate-200 break-words">{{ data.away_team?.name || 'Team B' }}</p>
-                                        <div class="flex gap-1 sm:gap-2 justify-around items-stretch flex-wrap">
+                                        <div :class="teamGridClass">
                                             <UserCard v-for="member in data.away_team?.members || []" :key="member.id"
                                                 :showHoverDelete="false" :name="member.name" :avatar="member.avatar"
-                                                :size="10" :badgeSize="4" class="cursor-pointer" />
+                                                :size="cardAvatarSize" :badgeSize="4" :maxWidth="cardMaxWidth"
+                                                :nameClass="cardNameClass" class="cursor-pointer" />
                                             <UserCard v-for="n in emptySlots('away')" :key="'empty-away-' + n" empty
-                                                :size="10" :badgeSize="4" class="cursor-pointer" />
+                                                :size="cardAvatarSize" :badgeSize="4" :maxWidth="cardMaxWidth"
+                                                class="cursor-pointer" />
                                         </div>
                                     </div>
                                 </div>
@@ -121,13 +125,6 @@
                                     :away-members="data.away_team?.members || []"
                                     :can-edit="true"
                                 />
-
-                                <!-- Button to open referee screen -->
-                                <button v-if="isRally" @click="openRefereeScreen"
-                                    class="w-full flex justify-center items-center gap-2 border-2 border-red-400 p-3 rounded-lg text-red-500 hover:bg-red-50 transition-colors font-semibold mt-3">
-                                    <ClipboardIcon class="w-5 h-5" />
-                                    <span class="text-sm">Nhập điểm trọng tài</span>
-                                </button>
 
                                 <button v-if="isRally && currentLeg.id"
                                     @click="goToLiveScore({ matchId: currentLeg.id, matchType: 'tournament' })"
@@ -291,7 +288,42 @@ const stagePoints = computed(() => {
         || [10, 20, 30]
 })
 
-const playerPerTeam = computed(() => props.tournament?.player_per_team || 2)
+const playerPerTeam = computed(() => {
+    return props.tournament?.player_per_team
+        || Math.max(props.data?.home_team?.members?.length || 0, props.data?.away_team?.members?.length || 0)
+        || 2
+})
+
+const teamGridClass = computed(() => {
+    const count = playerPerTeam.value
+    if (count <= 1) {
+        return 'flex justify-center items-center'
+    }
+    if (count === 2) {
+        return 'grid grid-cols-2 gap-1.5 sm:gap-2 justify-items-center'
+    }
+    if (count === 3) {
+        return 'grid grid-cols-3 gap-1 justify-items-center'
+    }
+    // 4 hoặc nhiều hơn: grid 2 cột cân đối (2x2 cho 4 người)
+    return 'grid grid-cols-2 gap-2 sm:gap-3 justify-items-center'
+})
+
+const cardAvatarSize = computed(() => {
+    return playerPerTeam.value >= 4 ? 10 : 10
+})
+
+const cardMaxWidth = computed(() => {
+    if (playerPerTeam.value >= 4) return 72
+    if (playerPerTeam.value === 3) return 60
+    return 80
+})
+
+const cardNameClass = computed(() => {
+    if (playerPerTeam.value >= 4) return 'text-[11px] sm:text-xs'
+    if (playerPerTeam.value === 3) return 'text-[10px] sm:text-xs'
+    return 'text-xs sm:text-sm'
+})
 
 /* ===================== MODAL ===================== */
 const emit = defineEmits(['update:modelValue', 'updated'])
@@ -779,7 +811,7 @@ const emptySlots = (team) => {
         ? props.data.home_team?.members?.length || 0
         : props.data.away_team?.members?.length || 0
 
-    const slots = props.tournament.player_per_team - members
+    const slots = (playerPerTeam.value || 2) - members
     return slots > 0 ? Array.from({ length: slots }, (_, i) => i + 1) : []
 }
 

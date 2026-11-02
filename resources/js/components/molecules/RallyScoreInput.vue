@@ -12,14 +12,16 @@
         </div>
 
         <!-- Total cumulative result -->
-        <div v-if="hasAnyData" class="mb-4 p-4 bg-green-50 border border-green-200 rounded-xl text-center">
-            <div class="text-xs font-bold text-green-700 uppercase tracking-wide mb-1">Kết quả chung cuộc</div>
-            <div class="flex items-center justify-center gap-3">
-                <span class="text-3xl font-black" :class="homeWins ? 'text-green-600' : 'text-blue-600'">{{ homeTotal }}</span>
-                <span class="text-2xl font-light text-gray-400">–</span>
-                <span class="text-3xl font-black" :class="awayWins ? 'text-green-600' : 'text-red-500'">{{ awayTotal }}</span>
+        <div v-if="hasAnyData" class="mb-3 p-2.5 bg-green-50 border border-green-200 rounded-lg text-center">
+            <div class="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-0.5">
+                {{ isAllStagesComplete ? 'Kết quả chung cuộc' : 'Kết quả hiện tại' }}
             </div>
-            <div class="mt-2 text-sm font-semibold" :class="matchWinner ? 'text-green-700' : 'text-gray-500'">
+            <div class="flex items-center justify-center gap-2">
+                <span class="text-2xl font-black" :class="homeWins ? 'text-green-600' : 'text-blue-600'">{{ homeTotal }}</span>
+                <span class="text-xl font-light text-gray-400">–</span>
+                <span class="text-2xl font-black" :class="awayWins ? 'text-green-600' : 'text-red-500'">{{ awayTotal }}</span>
+            </div>
+            <div class="mt-0.5 text-xs font-semibold" :class="matchWinner ? 'text-green-700' : 'text-gray-500'">
                 {{ matchWinnerText }}
             </div>
         </div>
@@ -31,130 +33,129 @@
                 :class="isStageComplete(stage) ? 'border-green-300 bg-white' : isStageEditable(idx) ? 'border-blue-300 bg-white' : 'border-gray-200 bg-gray-50 opacity-75'">
 
                 <!-- Stage header -->
-                <div class="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+                <div class="flex items-center justify-between px-3.5 py-2 bg-gray-50/80 border-b border-gray-200">
                     <div class="flex items-center gap-2">
-                        <span class="font-bold text-sm" :class="isStageComplete(stage) ? 'text-green-700' : 'text-blue-700'">
+                        <span class="font-bold text-xs sm:text-sm" :class="isStageComplete(stage) ? 'text-green-700' : 'text-blue-700'">
                             Chặng {{ stage.stage_no }}
+                        </span>
+                        <span class="text-[11px] text-gray-500 font-medium bg-gray-100 px-2 py-0.5 rounded-full">
+                            mốc {{ stage.target_point || stagePoints[idx] }}
                         </span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span class="text-xs text-gray-500 font-medium">mốc {{ stage.target_point || stagePoints[idx] }}</span>
-                        <span v-if="isStageComplete(stage)" class="text-xs font-bold px-2 py-0.5 rounded-full text-white" :class="getStageWinnerClass(stage)">
+                        <span v-if="isStageComplete(stage)" class="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" :class="getStageWinnerClass(stage)">
                             THẮNG CHẶNG
                         </span>
+                        <div v-if="isStageComplete(stage) || hasStageScore(stage)" class="text-[11px] font-semibold text-gray-500">
+                            Điểm riêng: <span class="text-gray-800 font-bold">{{ getStageScore(stage, 'home') }}–{{ getStageScore(stage, 'away') }}</span>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Stage body -->
-                <div class="p-4">
+                <div class="p-3 space-y-2.5">
                     <!-- Member selection per team -->
-                    <div class="grid grid-cols-[1fr_auto_1fr] gap-3 items-center mb-4">
+                    <div class="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
                         <!-- Home team members -->
-                        <div class="space-y-1.5">
-                            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Đội nhà</div>
-                            <div v-for="n in membersPerStage" :key="'home-' + n"
-                                @click="canSelectMembers && isStageEditable(idx) && selectMember('home', idx, n - 1)"
-                                class="border rounded-lg p-2 flex items-center gap-2 transition-all cursor-pointer"
-                                :class="getMemberCardClass('home', stage, n - 1)">
-                                <template v-if="getSelectedMember('home', stage, n - 1)">
-                                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" :style="{ background: getMemberBg(getSelectedMember('home', stage, n - 1)) }">
-                                        {{ getMemberInitials(getSelectedMember('home', stage, n - 1)) }}
+                        <div>
+                            <div class="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Đội nhà</div>
+                            <div class="space-y-1">
+                                <div v-for="n in membersPerStage" :key="'home-' + n"
+                                    @click="canSelectMembers && isStageEditable(idx) && selectMember('home', idx, n - 1)"
+                                    class="border rounded-md px-2 py-1 flex items-center gap-1.5 transition-all cursor-pointer h-8"
+                                    :class="getMemberCardClass('home', stage, n - 1)">
+                                    <template v-if="getSelectedMember('home', stage, n - 1)">
+                                        <div class="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" :style="{ background: getMemberBg(getSelectedMember('home', stage, n - 1)) }">
+                                            {{ getMemberInitials(getSelectedMember('home', stage, n - 1)) }}
+                                        </div>
+                                        <span class="font-bold truncate text-[11px] text-gray-800">{{ getSelectedMember('home', stage, n - 1).name }}</span>
+                                    </template>
+                                    <div v-else class="flex items-center gap-1.5 text-gray-400">
+                                        <div class="w-5 h-5 rounded-full border border-dashed border-gray-400 flex items-center justify-center text-[10px]">+</div>
+                                        <span class="text-[11px]">Chọn</span>
                                     </div>
-                                    <div class="flex-1 min-w-0">
-                                        <div class="text-xs font-bold truncate">{{ getSelectedMember('home', stage, n - 1).name }}</div>
-                                        <div class="text-[10px] text-gray-400">{{ getSelectedMember('home', stage, n - 1).gender_label || '' }}</div>
-                                    </div>
-                                </template>
-                                <div v-else class="flex items-center gap-2 flex-1 text-gray-400">
-                                    <div class="w-8 h-8 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-sm">+</div>
-                                    <span class="text-xs">Chọn</span>
                                 </div>
                             </div>
                         </div>
 
                         <!-- VS -->
-                        <div class="text-xs font-bold text-gray-400 self-start mt-5">VS</div>
+                        <div class="text-[11px] font-bold text-gray-400 px-1 pt-3">VS</div>
 
                         <!-- Away team members -->
-                        <div class="space-y-1.5">
-                            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 text-right">Đội khách</div>
-                            <div v-for="n in membersPerStage" :key="'away-' + n"
-                                @click="canSelectMembers && isStageEditable(idx) && selectMember('away', idx, n - 1)"
-                                class="border rounded-lg p-2 flex items-center gap-2 transition-all cursor-pointer"
-                                :class="getMemberCardClass('away', stage, n - 1)">
-                                <template v-if="getSelectedMember('away', stage, n - 1)">
-                                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" :style="{ background: getMemberBg(getSelectedMember('away', stage, n - 1)) }">
-                                        {{ getMemberInitials(getSelectedMember('away', stage, n - 1)) }}
+                        <div>
+                            <div class="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1 text-right">Đội khách</div>
+                            <div class="space-y-1">
+                                <div v-for="n in membersPerStage" :key="'away-' + n"
+                                    @click="canSelectMembers && isStageEditable(idx) && selectMember('away', idx, n - 1)"
+                                    class="border rounded-md px-2 py-1 flex items-center gap-1.5 transition-all cursor-pointer h-8 justify-end"
+                                    :class="getMemberCardClass('away', stage, n - 1)">
+                                    <template v-if="getSelectedMember('away', stage, n - 1)">
+                                        <span class="font-bold truncate text-[11px] text-gray-800">{{ getSelectedMember('away', stage, n - 1).name }}</span>
+                                        <div class="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" :style="{ background: getMemberBg(getSelectedMember('away', stage, n - 1)) }">
+                                            {{ getMemberInitials(getSelectedMember('away', stage, n - 1)) }}
+                                        </div>
+                                    </template>
+                                    <div v-else class="flex items-center gap-1.5 text-gray-400 flex-row-reverse">
+                                        <div class="w-5 h-5 rounded-full border border-dashed border-gray-400 flex items-center justify-center text-[10px]">+</div>
+                                        <span class="text-[11px]">Chọn</span>
                                     </div>
-                                    <div class="flex-1 min-w-0">
-                                        <div class="text-xs font-bold truncate">{{ getSelectedMember('away', stage, n - 1).name }}</div>
-                                        <div class="text-[10px] text-gray-400">{{ getSelectedMember('away', stage, n - 1).gender_label || '' }}</div>
-                                    </div>
-                                </template>
-                                <div v-else class="flex items-center gap-2 flex-1 text-gray-400 flex-row-reverse">
-                                    <div class="w-8 h-8 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-sm">+</div>
-                                    <span class="text-xs">Chọn</span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Score input -->
-                    <div class="flex items-center justify-center gap-3">
+                    <!-- Score input (Horizontal Stepper) -->
+                    <div class="flex items-center justify-between px-3 py-1.5 bg-gray-50/80 border border-gray-100 rounded-lg">
                         <!-- Home score -->
-                        <div class="flex flex-col items-center">
+                        <div class="flex items-center gap-1.5">
                             <button v-if="isStageEditable(idx)" @click="decrementStageScore(idx, 'home')"
-                                class="w-12 h-10 bg-gray-100 hover:bg-gray-200 rounded-t-lg flex items-center justify-center text-gray-600 transition-colors">
-                                <MinusIcon class="w-5 h-5" />
+                                class="w-7 h-7 sm:w-8 sm:h-8 bg-white border border-gray-200 hover:bg-gray-100 active:scale-95 rounded-md flex items-center justify-center text-gray-600 shadow-sm transition-all"
+                                title="Giảm điểm đội nhà">
+                                <MinusIcon class="w-3.5 h-3.5" />
                             </button>
-                            <div class="w-20 h-14 rounded-lg border-2 flex items-center justify-center font-black text-2xl transition-colors"
+                            <div class="w-12 sm:w-14 h-8 sm:h-9 rounded-md border-2 flex items-center justify-center font-black text-lg sm:text-xl transition-colors"
                                 :class="isStageEditable(idx)
-                                    ? 'border-blue-300 bg-white text-blue-600'
+                                    ? 'border-blue-400 bg-white text-blue-600 shadow-sm'
                                     : getStageScore(stage, 'home') > getStageScore(stage, 'away')
                                         ? 'border-green-400 bg-green-50 text-green-600'
                                         : 'border-gray-200 bg-gray-50 text-gray-400'">
                                 {{ getDisplayCumulative(stage, 'home') }}
                             </div>
                             <button v-if="isStageEditable(idx)" @click="incrementStageScore(idx, 'home')"
-                                class="w-12 h-10 bg-gray-100 hover:bg-gray-200 rounded-b-lg flex items-center justify-center text-gray-600 transition-colors">
-                                <PlusIcon class="w-5 h-5" />
+                                class="w-7 h-7 sm:w-8 sm:h-8 bg-white border border-gray-200 hover:bg-gray-100 active:scale-95 rounded-md flex items-center justify-center text-gray-600 shadow-sm transition-all"
+                                title="Tăng điểm đội nhà">
+                                <PlusIcon class="w-3.5 h-3.5" />
                             </button>
                         </div>
 
-                        <span class="text-xl font-bold text-gray-400 mt-2">–</span>
+                        <!-- Milestone center label -->
+                        <div class="text-center px-1">
+                            <span class="text-gray-400 font-bold text-base sm:text-lg">–</span>
+                            <div class="text-[10px] text-gray-400 font-medium whitespace-nowrap">
+                                Mốc {{ stage.target_point || stagePoints[idx] }}
+                            </div>
+                        </div>
 
                         <!-- Away score -->
-                        <div class="flex flex-col items-center">
-                            <button v-if="isStageEditable(idx)" @click="incrementStageScore(idx, 'away')"
-                                class="w-12 h-10 bg-gray-100 hover:bg-gray-200 rounded-t-lg flex items-center justify-center text-gray-600 transition-colors">
-                                <PlusIcon class="w-5 h-5" />
+                        <div class="flex items-center gap-1.5">
+                            <button v-if="isStageEditable(idx)" @click="decrementStageScore(idx, 'away')"
+                                class="w-7 h-7 sm:w-8 sm:h-8 bg-white border border-gray-200 hover:bg-gray-100 active:scale-95 rounded-md flex items-center justify-center text-gray-600 shadow-sm transition-all"
+                                title="Giảm điểm đội khách">
+                                <MinusIcon class="w-3.5 h-3.5" />
                             </button>
-                            <div class="w-20 h-14 rounded-lg border-2 flex items-center justify-center font-black text-2xl transition-colors"
+                            <div class="w-12 sm:w-14 h-8 sm:h-9 rounded-md border-2 flex items-center justify-center font-black text-lg sm:text-xl transition-colors"
                                 :class="isStageEditable(idx)
-                                    ? 'border-red-300 bg-white text-red-500'
+                                    ? 'border-red-400 bg-white text-red-500 shadow-sm'
                                     : getStageScore(stage, 'away') > getStageScore(stage, 'home')
                                         ? 'border-green-400 bg-green-50 text-green-600'
                                         : 'border-gray-200 bg-gray-50 text-gray-400'">
                                 {{ getDisplayCumulative(stage, 'away') }}
                             </div>
-                            <button v-if="isStageEditable(idx)" @click="decrementStageScore(idx, 'away')"
-                                class="w-12 h-10 bg-gray-100 hover:bg-gray-200 rounded-b-lg flex items-center justify-center text-gray-600 transition-colors">
-                                <MinusIcon class="w-5 h-5" />
+                            <button v-if="isStageEditable(idx)" @click="incrementStageScore(idx, 'away')"
+                                class="w-7 h-7 sm:w-8 sm:h-8 bg-white border border-gray-200 hover:bg-gray-100 active:scale-95 rounded-md flex items-center justify-center text-gray-600 shadow-sm transition-all"
+                                title="Tăng điểm đội khách">
+                                <PlusIcon class="w-3.5 h-3.5" />
                             </button>
-                        </div>
-                    </div>
-
-                    <div class="text-center mt-2">
-                        <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
-                            Điểm luỹ kế tại mốc {{ stage.target_point || stagePoints[idx] }}
-                        </div>
-                    </div>
-
-                    <!-- Per-stage score breakdown -->
-                    <div v-if="isStageComplete(stage) || hasStageScore(stage)" class="mt-3 text-center">
-                        <div class="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 rounded-full text-xs font-semibold" :class="getStageScore(stage, 'home') > getStageScore(stage, 'away') ? 'text-green-700' : 'text-gray-600'">
-                            Chặng {{ stage.stage_no }} · {{ getStageScore(stage, 'home') }} – {{ getStageScore(stage, 'away') }}
-                            <span v-if="hasAnyData" class="text-gray-400 ml-1">(riêng)</span>
                         </div>
                     </div>
                 </div>
@@ -346,13 +347,31 @@ function hasStageScore(stage) {
     return getStageScore(stage, 'home') > 0 || getStageScore(stage, 'away') > 0
 }
 
+const isAllStagesComplete = computed(() => {
+    const stages = localStages.value
+    if (!stages || stages.length === 0) return false
+    return stages.every(s => isStageComplete(s))
+})
+
+const latestActiveStage = computed(() => {
+    const stages = localStages.value || []
+    if (stages.length === 0) return null
+    for (let i = stages.length - 1; i >= 0; i--) {
+        const s = stages[i]
+        if ((s.cumulative_score_a || 0) > 0 || (s.cumulative_score_b || 0) > 0) {
+            return s
+        }
+    }
+    return stages[0]
+})
+
 const homeTotal = computed(() => {
-    const last = localStages.value[localStages.value.length - 1]
-    return last?.cumulative_score_a || 0
+    if (!latestActiveStage.value) return 0
+    return getDisplayCumulative(latestActiveStage.value, 'home')
 })
 const awayTotal = computed(() => {
-    const last = localStages.value[localStages.value.length - 1]
-    return last?.cumulative_score_b || 0
+    if (!latestActiveStage.value) return 0
+    return getDisplayCumulative(latestActiveStage.value, 'away')
 })
 
 function isStageComplete(stage) {
@@ -375,10 +394,27 @@ const awayWins = computed(() => hasAnyData.value && awayTotal.value > homeTotal.
 const matchWinner = computed(() => homeWins.value || awayWins.value)
 const matchWinnerText = computed(() => {
     if (!hasAnyData.value) return ''
-    if (homeWins.value && awayWins.value) return 'Hòa'
-    const homeStages = localStages.value.filter(s => getStageScore(s, 'home') > getStageScore(s, 'away')).length
-    if (homeWins.value) return `Thắng ${homeStages}/${localStages.value.length} chặng`
-    if (awayWins.value) return `Thắng ${localStages.value.length - homeStages}/${localStages.value.length} chặng`
+    if (homeTotal.value === awayTotal.value) return 'Đang hòa'
+    const completedStages = localStages.value.filter(s => isStageComplete(s))
+    const homeWonStages = completedStages.filter(s => getStageScore(s, 'home') > getStageScore(s, 'away')).length
+    const awayWonStages = completedStages.filter(s => getStageScore(s, 'away') > getStageScore(s, 'home')).length
+
+    if (isAllStagesComplete.value) {
+        if (homeWins.value) return `Đội nhà thắng chung cuộc (${homeWonStages}/${localStages.value.length} chặng)`
+        if (awayWins.value) return `Đội khách thắng chung cuộc (${awayWonStages}/${localStages.value.length} chặng)`
+        return 'Hòa chung cuộc'
+    }
+
+    if (homeWins.value) {
+        return completedStages.length > 0
+            ? `Đội nhà đang dẫn · Thắng ${homeWonStages}/${completedStages.length} chặng đã đấu`
+            : 'Đội nhà đang dẫn'
+    }
+    if (awayWins.value) {
+        return completedStages.length > 0
+            ? `Đội khách đang dẫn · Thắng ${awayWonStages}/${completedStages.length} chặng đã đấu`
+            : 'Đội khách đang dẫn'
+    }
     return ''
 })
 
