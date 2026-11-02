@@ -1,6 +1,6 @@
 <template>
-  <div class="flex flex-col items-center gap-2" :style="{ maxWidth: `${maxWidth}px` }">
-    <div class="relative group mb-5">
+  <div class="flex flex-col items-center gap-1.5" :style="{ maxWidth: `${maxWidth}px` }">
+    <div :class="['relative group', showActions && status === 'pending' ? 'mb-5' : 'mb-1']">
       <div v-if="empty" @click="handleClick"
         :class="[
           `w-${computedSize} h-${computedSize}`,
@@ -9,10 +9,17 @@
         <PlusIcon :class="`w-${iconSize} h-${iconSize} text-gray-400`" />
       </div>
 
-      <div v-else :class="`w-${computedSize} h-${computedSize} rounded-full overflow-hidden`">
-        <img :src="computedSrc" :alt="name" @error="$event.target.src=computedFallbackSrc"
+      <div v-else :class="`w-${computedSize} h-${computedSize} rounded-full overflow-hidden flex items-center justify-center`">
+        <img v-if="!imageFailed && (computedSrc || computedFallbackSrc)"
+          :src="computedSrc || computedFallbackSrc" :alt="name" @error="handleImageError"
           class="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform duration-300"
           @click.stop="$emit('click', { ...props, checked_in_at: props.checkedInAt, is_absent: props.isAbsent, is_guest: props.isGuest, userId: props.userId })" />
+        <div v-else
+          class="w-full h-full flex items-center justify-center text-white text-xs font-bold cursor-pointer select-none"
+          :style="{ backgroundColor: avatarBgColor }"
+          @click.stop="$emit('click', { ...props, checked_in_at: props.checkedInAt, is_absent: props.isAbsent, is_guest: props.isGuest, userId: props.userId })">
+          {{ initials }}
+        </div>
       </div>
 
       <button
@@ -68,12 +75,12 @@
 
     <div
       v-if="name"
-      class="text-sm font-medium text-gray-700 text-center leading-4 max-w-[80px] overflow-hidden break-words"
+      :class="['font-medium text-gray-700 text-center leading-4 overflow-hidden break-words', nameClass || 'text-sm']"
       :style="{
         display: '-webkit-box',
         WebkitLineClamp: 2,
         WebkitBoxOrient: 'vertical',
-        minHeight: '32px',
+        minHeight: nameClass ? '24px' : '32px',
         maxWidth: `${maxWidth}px`
       }"
       v-tooltip="name"
@@ -173,11 +180,37 @@ const props = defineProps({
         type: String,
         default: null,
     },
+    nameClass: {
+        type: String,
+        default: '',
+    },
 })
 
 const emit = defineEmits(['clickEmpty', 'removeUser', 'confirm', 'reject', 'click'])
 
 const showModal = ref(false)
+const imageFailed = ref(false)
+
+const handleImageError = () => {
+  imageFailed.value = true
+}
+
+const initials = computed(() => {
+  if (!props.name) return '?'
+  const parts = props.name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+})
+
+const avatarBgColor = computed(() => {
+  if (!props.name) return '#3B82F6'
+  const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316']
+  let hash = 0
+  for (let i = 0; i < props.name.length; i++) {
+    hash = props.name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return colors[Math.abs(hash) % colors.length]
+})
 
 const confirmDelete = () => {
   emit('removeUser', {
