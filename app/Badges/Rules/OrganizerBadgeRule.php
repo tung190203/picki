@@ -2,6 +2,7 @@
 
 namespace App\Badges\Rules;
 
+use App\Events\SuperAdmin\TournamentCreated;
 use App\Events\TournamentCompleted;
 use App\Models\Badge;
 use App\Models\Tournament;
@@ -24,12 +25,12 @@ class OrganizerBadgeRule implements BadgeRuleInterface
 
     public function condition($event): bool
     {
-        return $event instanceof TournamentCompleted;
+        return $event instanceof TournamentCreated || $event instanceof TournamentCompleted;
     }
 
     public function handle($event): void
     {
-        /** @var TournamentCompleted $event */
+        /** @var TournamentCreated|TournamentCompleted $event */
         $tournament = $event->tournament;
         $userId = (int) $tournament->created_by;
 
@@ -37,9 +38,9 @@ class OrganizerBadgeRule implements BadgeRuleInterface
             return;
         }
 
-        // Count all tournaments organized by this user that have been completed
+        // Đếm tất cả giải đấu người dùng này đã tạo mà không bị huỷ
         $organizedCount = Tournament::where('created_by', $userId)
-            ->where('status', Tournament::CLOSED)
+            ->where('status', '!=', Tournament::CANCELLED)
             ->count();
 
         $badgeService = app(BadgeService::class);

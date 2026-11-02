@@ -11,10 +11,10 @@ use App\Services\BadgeService;
 class HostBadgeRule implements BadgeRuleInterface
 {
     protected array $tiers = [
-        1 => 'HOST_1',
-        10 => 'HOST_10',
+        20 => 'HOST_20',
         50 => 'HOST_50',
-        200 => 'HOST_200',
+        100 => 'HOST_100',
+        500 => 'HOST_500',
     ];
 
     public function badgeCode(): string
