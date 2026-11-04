@@ -14,6 +14,8 @@ class TournamentTypeResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $ruleConfig = $this->extractMatchRuleConfig($this->match_rules);
+
         return [
             'id' => $this->id,
             'tournament_id' => $this->tournament_id,
@@ -24,9 +26,9 @@ class TournamentTypeResource extends JsonResource
             'sub_bracket_name' => $this->sub_bracket_name ?? ($this->format_specific_config[0]['sub_bracket_name'] ?? 'Giải Tái sinh'),
             'num_legs' => $this->num_legs,
             'num_legs_label' => $this->num_legs_label,
-            'match_rules' => $this->match_rules,
-            'scoring_type' => $this->match_rules['scoring_type'] ?? null,
-            'stage_points' => array_values($this->match_rules['stage_points'] ?? []),
+            'match_rules' => $this->normalizeMatchRules($this->match_rules),
+            'scoring_type' => $this->resource->getScoringType(),
+            'stage_points' => array_values($ruleConfig['stage_points'] ?? []),
             'rules' => $this->rules,
             'rules_file_path' => $this->rules_file_path ? asset('storage/' . $this->rules_file_path) : null,
             'format_specific_config' => $this->normalizeFormatSpecificConfig($this->format_specific_config),
@@ -40,6 +42,26 @@ class TournamentTypeResource extends JsonResource
                 ]);
             }),
         ];
+    }
+
+    private function extractMatchRuleConfig($rules): array
+    {
+        if (!is_array($rules) || empty($rules)) {
+            return [];
+        }
+        $first = (isset($rules[0]) && is_array($rules[0])) ? $rules[0] : [];
+        $topLevel = array_filter($rules, fn ($key) => !is_int($key), ARRAY_FILTER_USE_KEY);
+        return array_merge($first, $topLevel);
+    }
+
+    private function normalizeMatchRules($rules): array
+    {
+        $item = $this->extractMatchRuleConfig($rules);
+        unset($item['scoring_type']);
+        if (empty($item)) {
+            return [];
+        }
+        return [$item];
     }
 
     private function normalizeFormatSpecificConfig($config)

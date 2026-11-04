@@ -108,11 +108,12 @@ class TournamentTypeController extends Controller
         }
 
         $matchRules = $validated['match_rules'] ?? [];
-        if($matchRules) {
-            $setPerMatch = (int) ($matchRules['sets_per_match'] ?? 0);
-            $winningRule = (int) ($matchRules['winning_rule'] ?? 0);
-            if($setPerMatch > 0 && $winningRule > 0) {
-                if($winningRule > $setPerMatch) {
+        if ($matchRules) {
+            $ruleItem = (isset($matchRules[0]) && is_array($matchRules[0])) ? $matchRules[0] : $matchRules;
+            $setPerMatch = (int) ($ruleItem['sets_per_match'] ?? 0);
+            $winningRule = (int) ($ruleItem['winning_rule'] ?? 0);
+            if ($setPerMatch > 0 && $winningRule > 0) {
+                if ($winningRule > $setPerMatch) {
                     return ResponseHelper::error('Quy tắc thắng phải nhỏ hơn số set trong trận', 422);
                 }
             }
@@ -355,9 +356,6 @@ class TournamentTypeController extends Controller
 
         $validated = $request->validate([
             'match_rules' => 'sometimes|array',
-            'match_rules.scoring_type' => 'sometimes|nullable|string|in:side_out,rally',
-            'match_rules.stage_points' => 'sometimes|nullable|array',
-            'match_rules.stage_points.*' => 'integer|min:1',
             'format_specific_config' => 'array|nullable',
             'rules' => 'string|nullable',
             'rules_file_path' => 'string|nullable',
@@ -400,11 +398,12 @@ class TournamentTypeController extends Controller
         }
 
         $matchRules = $validated['match_rules'] ?? [];
-        if($matchRules) {
-            $setPerMatch = (int) ($matchRules['sets_per_match'] ?? 0);
-            $winningRule = (int) ($matchRules['winning_rule'] ?? 0);
-            if($setPerMatch > 0 && $winningRule > 0) {
-                if($winningRule > $setPerMatch) {
+        if ($matchRules) {
+            $ruleItem = (isset($matchRules[0]) && is_array($matchRules[0])) ? $matchRules[0] : $matchRules;
+            $setPerMatch = (int) ($ruleItem['sets_per_match'] ?? 0);
+            $winningRule = (int) ($ruleItem['winning_rule'] ?? 0);
+            if ($setPerMatch > 0 && $winningRule > 0) {
+                if ($winningRule > $setPerMatch) {
                     return ResponseHelper::error('Quy tắc thắng phải nhỏ hơn số set trong trận', 422);
                 }
             }
@@ -4561,29 +4560,33 @@ class TournamentTypeController extends Controller
      */
     protected function normalizeMatchRules(Tournament $tournament, array $matchRules): array
     {
+        $first = (isset($matchRules[0]) && is_array($matchRules[0])) ? $matchRules[0] : [];
+        $topLevel = array_filter($matchRules, fn ($key) => !is_int($key), ARRAY_FILTER_USE_KEY);
+        $rule = array_merge($first, $topLevel);
+
         $expected = $this->scoringInferrer->inferScoringType((int) $tournament->player_per_team);
-        $matchRules['scoring_type'] = $expected;
+        unset($rule['scoring_type']);
 
         if ($expected === TournamentScoringTypeInferrer::RALLY) {
-            if (!array_key_exists('stage_points', $matchRules) || !is_array($matchRules['stage_points']) || empty($matchRules['stage_points'])) {
-                $matchRules['stage_points'] = $this->scoringInferrer->defaultStagePoints();
+            if (!array_key_exists('stage_points', $rule) || !is_array($rule['stage_points']) || empty($rule['stage_points'])) {
+                $rule['stage_points'] = $this->scoringInferrer->defaultStagePoints();
             } else {
-                $matchRules['stage_points'] = $this->scoringInferrer->validateStagePoints($matchRules['stage_points']);
+                $rule['stage_points'] = $this->scoringInferrer->validateStagePoints($rule['stage_points']);
             }
             // Rally không dùng 3 trường side_out-only — bỏ để tránh drift
             // khi payload bẩn (FE cũ, smoke test,...) vẫn gửi kèm.
             unset(
-                $matchRules['points_to_win_set'],
-                $matchRules['max_points'],
-                $matchRules['serve_change_interval']
+                $rule['points_to_win_set'],
+                $rule['max_points'],
+                $rule['serve_change_interval']
             );
         } else {
-            unset($matchRules['stage_points']);
+            unset($rule['stage_points']);
             // side_out: KHÔNG unset 3 trường points_to_win_set/max_points/serve_change_interval
             // để update() có chọn lọc vẫn giữ được dữ liệu cũ khi client không gửi lại.
         }
 
-        return $matchRules;
+        return [$rule];
     }
 
     /**

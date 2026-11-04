@@ -163,11 +163,13 @@ class TournamentType extends Model
         $baseConfig = [
             'num_legs' => 1,  // ✅ ĐÃ THÊM default
             'match_rules' => [
-                'sets_per_match' => 1,
-                'points_to_win_set' => 11,
-                'winning_rule' => self::WIN_RULE_TWO_POINT_AWAY,
-                'max_points' => 11,
-                'serve_change_interval' => null,
+                [
+                    'sets_per_match' => 1,
+                    'points_to_win_set' => 11,
+                    'winning_rule' => self::WIN_RULE_TWO_POINT_AWAY,
+                    'max_points' => 11,
+                    'serve_change_interval' => null,
+                ],
             ],
         ];
 
@@ -446,20 +448,49 @@ class TournamentType extends Model
         return $this->format === self::FORMAT_ROUND_ROBIN;
     }
 
+    /**
+     * Lấy cấu hình luật thi đấu dạng phẳng (single associative array)
+     * bất kể DB lưu dạng mảng bọc ngoài `[[...]]`, dạng phẳng `[...]`,
+     * hay dạng bị lẫn `['0' => [...], 'scoring_type' => ...]`.
+     */
+    public function getMatchRuleConfig(): array
+    {
+        $rules = $this->match_rules;
+        if (!is_array($rules) || empty($rules)) {
+            return [];
+        }
+        $first = (isset($rules[0]) && is_array($rules[0])) ? $rules[0] : [];
+        $topLevel = array_filter($rules, fn ($key) => !is_int($key), ARRAY_FILTER_USE_KEY);
+        return array_merge($first, $topLevel);
+    }
+
+    /**
+     * Suy luận scoring_type từ tournament.player_per_team (hoặc fallback từ match_rules nếu có).
+     */
+    public function getScoringType(): string
+    {
+        $ruleConfig = $this->getMatchRuleConfig();
+        if (!empty($ruleConfig['scoring_type'])) {
+            return (string) $ruleConfig['scoring_type'];
+        }
+        $ppt = (int) ($this->tournament?->player_per_team ?? 2);
+        return app(\App\Services\TournamentScoringTypeInferrer::class)->inferScoringType($ppt);
+    }
+
     public function getSetsPerMatch(): int
     {
-        return $this->match_rules['sets_per_match'] ?? 1;
+        return (int) ($this->getMatchRuleConfig()['sets_per_match'] ?? 1);
     }
 
     public function getWinningRuleLabel(): ?string
     {
-        $rule = $this->match_rules['winning_rule'] ?? self::WIN_RULE_TWO_POINT_AWAY;
+        $rule = $this->getMatchRuleConfig()['winning_rule'] ?? self::WIN_RULE_TWO_POINT_AWAY;
         return self::winningRuleLabels()[$rule] ?? null;
     }
 
     public function isLeadByTwoRule(): bool
     {
-        return $this->match_rules['winning_rule'] === self::WIN_RULE_TWO_POINT_AWAY;
+        return ($this->getMatchRuleConfig()['winning_rule'] ?? null) === self::WIN_RULE_TWO_POINT_AWAY;
     }
 
     public function getFormatConfig(string $key, $default = null)

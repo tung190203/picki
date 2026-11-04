@@ -1225,14 +1225,11 @@ class MatchesController extends Controller
             return ResponseHelper::error('Kết quả trận đấu đã được xác nhận trước đó', 400);
         }
 
-        $rules = $match->tournamentType->match_rules ?? null;
-        if (empty($rules)) {
+        $rulesConfig = $match->tournamentType?->getMatchRuleConfig() ?? [];
+        if (empty($rulesConfig)) {
             return ResponseHelper::error('Thể thức này chưa có luật thi đấu (match_rules).', 400);
         }
 
-        // $rules là array có cấu trúc như: ['sets_per_match' => 1, 'points_to_win_set' => 11, ...]
-        // Một số config cũ có dạng: [['sets_per_match' => 1, ...]] - array bọc ngoài
-        $rulesConfig = is_array($rules[0] ?? null) ? $rules[0] : $rules;
         $setsPerMatch = $rulesConfig['sets_per_match'] ?? 3;
         $numLegs = $match->tournamentType->num_legs ?? 1;
 

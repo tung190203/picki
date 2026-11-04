@@ -206,7 +206,7 @@ class MatchStageService
      */
     protected function resolveStagePoints(Matches $match): array
     {
-        $rules = $match->tournamentType->match_rules ?? [];
+        $rules = $match->tournamentType?->getMatchRuleConfig() ?? [];
         $raw = $rules['stage_points'] ?? null;
 
         if (!is_array($raw) || empty($raw)) {
@@ -231,7 +231,7 @@ class MatchStageService
             ]);
         }
 
-        $scoringType = $match->tournamentType->match_rules['scoring_type'] ?? null;
+        $scoringType = $match->tournamentType?->getScoringType();
         if ($scoringType !== TournamentScoringTypeInferrer::RALLY) {
             throw ValidationException::withMessages([
                 'match' => ['Trận đấu này không dùng Rally Scoring (player_per_team=2).'],

@@ -16,7 +16,7 @@ class MatchDetailResource extends JsonResource
         $homeTeam = $this->homeTeam;
         $awayTeam = $this->awayTeam;
         $tournamentType = $this->tournamentType;
-        $scoringType = $tournamentType?->match_rules['scoring_type'] ?? null;
+        $scoringType = $tournamentType?->getScoringType();
 
         // ✅ ROUND LẤY TRỰC TIẾP
         $roundNumber = $this->round;
