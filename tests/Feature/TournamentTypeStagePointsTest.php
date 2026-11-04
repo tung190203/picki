@@ -125,7 +125,8 @@ class TournamentTypeStagePointsTest extends TestCase
         $response->assertStatus(200);
 
         $type = $tournament->fresh()->tournamentTypes()->first();
-        $this->assertSame([8, 16, 24], array_values($type->match_rules['stage_points']));
+        $this->assertIsList($type->match_rules);
+        $this->assertSame([8, 16, 24], array_values($type->match_rules[0]['stage_points']));
     }
 
     public function test_rally_custom_stage_points_with_4_stages_is_accepted(): void
@@ -143,7 +144,8 @@ class TournamentTypeStagePointsTest extends TestCase
         $response->assertStatus(200);
 
         $type = $tournament->fresh()->tournamentTypes()->first();
-        $this->assertSame([10, 20, 30, 40], array_values($type->match_rules['stage_points']));
+        $this->assertIsList($type->match_rules);
+        $this->assertSame([10, 20, 30, 40], array_values($type->match_rules[0]['stage_points']));
     }
 
     // -------------------------------------------------------------------------
@@ -226,10 +228,13 @@ class TournamentTypeStagePointsTest extends TestCase
         ]);
 
         $response = $this->actingAs($user)->postJson('/api/tournament-types/store', $payload);
-        $response->assertStatus(200);
+        $response->assertStatus(200)
+            ->assertJsonPath('data.scoring_type', 'side_out');
 
         $type = $tournament->fresh()->tournamentTypes()->first();
-        $this->assertSame('side_out', $type->match_rules['scoring_type']);
-        $this->assertArrayNotHasKey('stage_points', $type->match_rules);
+        $this->assertIsList($type->match_rules);
+        $this->assertSame('side_out', $type->getScoringType());
+        $this->assertArrayNotHasKey('scoring_type', $type->match_rules[0]);
+        $this->assertArrayNotHasKey('stage_points', $type->match_rules[0]);
     }
 }

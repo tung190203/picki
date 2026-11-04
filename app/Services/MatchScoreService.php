@@ -173,14 +173,9 @@ class MatchScoreService
         $tournamentType = $match->tournamentType ?? $match->group?->tournamentType;
         $tournament = $tournamentType?->tournament;
         $location = $tournament?->competitionLocation;
-        $rawMatchRules = $tournamentType?->match_rules ?? [];
         // match_rules in DB may be stored as [{...}] (array of one) or {...} (associative).
         // Normalize to a single associative array so the FE gets a stable shape.
-        if (is_array($rawMatchRules) && count($rawMatchRules) > 0 && array_is_list($rawMatchRules)) {
-            $matchRules = $rawMatchRules[0] ?? [];
-        } else {
-            $matchRules = is_array($rawMatchRules) ? $rawMatchRules : [];
-        }
+        $matchRules = $tournamentType?->getMatchRuleConfig() ?? [];
 
         $elapsedSeconds = null;
         if ($match->started_at) {
