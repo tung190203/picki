@@ -18,16 +18,6 @@ class UpdateTournamentTypeRequest extends FormRequest
     {
         return [
             'match_rules' => 'sometimes|array',
-            'match_rules.scoring_type' => 'sometimes|nullable|string|in:side_out,rally',
-            'match_rules.sets_per_match' => 'sometimes|nullable|integer|min:1',
-            'match_rules.points_to_win_set' => 'sometimes|nullable|integer|min:1',
-            'match_rules.winning_rule' => 'sometimes|nullable|integer|min:1',
-            'match_rules.max_points' => 'sometimes|nullable|integer|min:1',
-            'match_rules.serve_change_interval' => 'sometimes|nullable|integer|min:0',
-
-            'match_rules.stage_points' => 'sometimes|nullable|array',
-            'match_rules.stage_points.*' => 'integer|min:1',
-
             'format_specific_config' => 'array|nullable',
             'rules' => 'string|nullable',
             'rules_file_path' => 'string|nullable',
@@ -38,7 +28,11 @@ class UpdateTournamentTypeRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
-            $stagePoints = $this->input('match_rules.stage_points');
+            $rawRules = $this->input('match_rules');
+            $ruleItem = (is_array($rawRules) && isset($rawRules[0]) && is_array($rawRules[0]))
+                ? $rawRules[0]
+                : (is_array($rawRules) ? $rawRules : []);
+            $stagePoints = $ruleItem['stage_points'] ?? $this->input('match_rules.stage_points');
             if (!is_array($stagePoints) || empty($stagePoints)) {
                 return;
             }

@@ -918,10 +918,6 @@ const tournamentConfigJson = computed(() => {
     const matchRules = {
         sets_per_match: setsPerMatch.value,
         winning_rule: winningRule.value,
-        // Phase 1 — Rally Scoring: server is source of truth, but we send
-        // scoring_type + stage_points to keep payload explicit (the server
-        // will still overwrite scoring_type from `player_per_team`).
-        scoring_type: isRally.value ? 'rally' : 'side_out',
     };
     if (isRally.value) {
         // Rally: chỉ dùng stage_points, bỏ 3 trường side_out-only
@@ -937,6 +933,7 @@ const tournamentConfigJson = computed(() => {
     const baseConfig = {
         format: activeTab.value === 'mixed' ? 1 : (activeTab.value === 'direct' ? 2 : 3),
         num_legs: parseInt(format.value),
+        scoring_type: isRally.value ? 'rally' : 'side_out',
 
         match_rules: [matchRules],
 
