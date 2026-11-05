@@ -13,12 +13,17 @@ class EvaluateRatingBadges extends Command
     protected $signature = 'badges:evaluate-rating';
     protected $description = 'Evaluate rating milestones (3.0, 3.5, 4.0, etc.) for all users';
 
+    /**
+     * Không dùng float làm key mảng: PHP ép key float về int (3.5 → 3, 4.5 → 4)
+     * khiến RATING_30/RATING_40 bị ghi đè và RATING_35/RATING_45 cấp sớm.
+     */
     protected array $ratingMilestones = [
-        3.0 => 'RATING_30',
-        3.5 => 'RATING_35',
-        4.0 => 'RATING_40',
-        4.5 => 'RATING_45',
-        5.0 => 'RATING_50',
+        ['min' => 2.5, 'code' => 'RATING_25'],
+        ['min' => 3.0, 'code' => 'RATING_30'],
+        ['min' => 3.5, 'code' => 'RATING_35'],
+        ['min' => 4.0, 'code' => 'RATING_40'],
+        ['min' => 4.5, 'code' => 'RATING_45'],
+        ['min' => 5.0, 'code' => 'RATING_50'],
     ];
 
     public function handle(BadgeService $badgeService)
@@ -39,7 +44,7 @@ class EvaluateRatingBadges extends Command
         foreach ($users as $user) {
             $rating = (float) $user->max_rating;
 
-            foreach ($this->ratingMilestones as $milestone => $code) {
+            foreach ($this->ratingMilestones as ['min' => $milestone, 'code' => $code]) {
                 if ($rating >= $milestone) {
                     $badge = Badge::where('code', $code)->first();
                     if ($badge && !UserBadge::where('user_id', $user->id)->where('badge_id', $badge->id)->exists()) {
