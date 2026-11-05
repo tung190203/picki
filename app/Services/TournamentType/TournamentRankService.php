@@ -510,7 +510,7 @@ class TournamentRankService
 
             // Gán overall_rank: bracket teams dùng computeOverallRank, non-bracket gán sau
             $maxBracketRank = 0;
-            $bracketRanks = []; // đếm đồng hạng: nếu có N teams cùng rank R thì next phải là R + N (Olympic convention)
+            $bracketRanks = [];
             $nonBracketTeams = [];
             $rankedItems = [];
 
@@ -533,10 +533,9 @@ class TournamentRankService
             }
             unset($item);
 
-            // ✅ Olympic convention: nếu 2 teams đồng hạng 3, next rank = 5 (skip 4)
-            // Nếu chỉ 1 team ở maxBracketRank, next = maxBracketRank + 1
-            $tieCount = count(array_filter($bracketRanks, fn($r) => $r === $maxBracketRank));
-            $startRank = $maxBracketRank > 0 ? ($maxBracketRank + $tieCount) : 1;
+            // ✅ Dense ranking: đồng hạng giữ cùng số, hạng kế tiếp = maxBracketRank + 1
+            // (VD: 2 đội đồng hạng 3 → hạng tiếp theo là 4, không nhảy lên 5)
+            $startRank = $maxBracketRank > 0 ? ($maxBracketRank + 1) : 1;
             $nonBracketAssignments = $this->assignRanksForNonBracketTeams($nonBracketTeams, $startRank);
 
             foreach ($nonBracketTeams as $nb) {
@@ -831,7 +830,10 @@ class TournamentRankService
         $knockoutRoundsDesc = array_keys($losersByRound);
         rsort($knockoutRoundsDesc);
 
-        $currentRank = 5;
+        // Dense ranking: đồng hạng giữ cùng số, hạng kế tiếp chỉ +1 (không nhảy cóc)
+        // - Có tranh hạng 3: đã gán 1,2,3,4 → bắt đầu từ 5
+        // - Không tranh hạng 3: đã gán 1,2,3 (2 đội đồng hạng 3) → bắt đầu từ 4
+        $currentRank = $results['has_third_place'] ? 5 : 4;
         foreach ($knockoutRoundsDesc as $round) {
             if (! $results['has_third_place'] && $round === $results['final_round'] - 1) {
                 continue;
@@ -839,10 +841,11 @@ class TournamentRankService
             if ($round === $results['final_round']) continue;
 
             $losers = $losersByRound[$round] ?? [];
+            if ($losers === []) continue;
             if (in_array($teamId, $losers, true)) {
                 return $currentRank;
             }
-            $currentRank += count($losers);
+            $currentRank++;
         }
 
         return null;
@@ -873,7 +876,8 @@ class TournamentRankService
             foreach ($items as $item) {
                 $result[(int) $item['team_id']] = $rank;
             }
-            $rank += count($items);
+            // Dense ranking: mỗi tầng group_rank chỉ tăng 1
+            $rank++;
         }
         return $result;
     }
@@ -910,7 +914,8 @@ class TournamentRankService
         $knockoutRoundsDesc = array_keys($losersByRound);
         rsort($knockoutRoundsDesc);
 
-        $currentRank = 5;
+        // Phải khớp tiến trình dense ranking trong computeOverallRank()
+        $currentRank = $hasThirdPlace ? 5 : 4;
         foreach ($knockoutRoundsDesc as $round) {
             if ($round === $results['final_round']) continue;
             if (! $hasThirdPlace && $round === $results['final_round'] - 1) continue;
@@ -918,10 +923,10 @@ class TournamentRankService
             $losers = $losersByRound[$round] ?? [];
             if ($losers === []) continue;
 
-            if ($overallRank >= $currentRank && $overallRank < $currentRank + count($losers)) {
+            if ($overallRank === $currentRank) {
                 return $this->roundLabel($finalRound, $round);
             }
-            $currentRank += count($losers);
+            $currentRank++;
         }
 
         return "Hạng {$overallRank}";
