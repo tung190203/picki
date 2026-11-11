@@ -9,6 +9,8 @@ use App\Jobs\SendPushJob;
 use App\Mail\ResetPasswordMail;
 use App\Models\DeviceToken;
 use App\Models\User;
+use App\Models\UserSport;
+use App\Models\UserSportScore;
 use App\Notifications\VerifyEmailNotification;
 use App\Models\SystemSetting;
 use App\Services\Club\ClubService;
@@ -199,6 +201,30 @@ class AuthController extends Controller
             $user->full_name = trim($validated['full_name']);
         }
         $user->save();
+
+        // Đảm bảo user đăng ký xong luôn có môn Pickleball (sport_id = 1) và điểm trình sàn 1.0
+        try {
+            $userSport = UserSport::firstOrCreate(
+                ['user_id' => $user->id, 'sport_id' => 1],
+                ['tier' => null]
+            );
+
+            $vnduprScore = UserSportScore::where('user_sport_id', $userSport->id)
+                ->where('score_type', 'vndupr_score')
+                ->first();
+
+            if (!$vnduprScore) {
+                UserSportScore::create([
+                    'user_sport_id' => $userSport->id,
+                    'score_type' => 'vndupr_score',
+                    'score_value' => 1.0,
+                ]);
+            } elseif ($vnduprScore->score_value < 1.0) {
+                $vnduprScore->update(['score_value' => 1.0]);
+            }
+        } catch (\Throwable $e) {
+            \Log::error("fillPassword - Failed to ensure default score for user {$user->id}: " . $e->getMessage());
+        }
 
         return ResponseHelper::success(['status_code' => 'COMPLETED'], 'Hoàn tất đăng ký');
     }
