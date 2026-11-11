@@ -35,7 +35,7 @@ async function fetchUser(token, type) {
     localStorage.setItem(LOCAL_STORAGE_USER.USER, JSON.stringify(res.data.data))
     if(res && res.data.data) {
       const u = res.data.data
-      const isDefaultName = !u?.full_name || /^PickiUser/i.test(String(u.full_name).trim())
+      const isDefaultName = !u?.full_name || /^picki([\s_-]*u?s*e*r*|\d+|$)/i.test(String(u.full_name).trim())
       if (u.is_profile_completed == 0 || isDefaultName) {
         setTimeout(() => {
           router.push({ path: '/update-profile' })

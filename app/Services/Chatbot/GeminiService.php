@@ -427,7 +427,7 @@ class GeminiService
         }
 
         // Priority 4: Greeting
-        $hasName = !empty($currentUser['name']) && $currentUser['name'] !== 'Khách' && $currentUser['name'] !== 'PickiUser';
+        $hasName = !empty($currentUser['name']) && $currentUser['name'] !== 'Khách' && !preg_match('/^picki([\s_-]*u?s*e*r*|\d+|$)/i', trim($currentUser['name']));
         $greetingTarget = $hasName ? $currentUser['name'] : 'bạn';
 
         $reply = "Dạ chào {$greetingTarget}! Picki có thể hỗ trợ gì cho bạn hôm nay ạ?\n\n" .
@@ -453,7 +453,7 @@ class GeminiService
      */
     protected function buildSystemPrompt(?array $currentUser, string $contextData): string
     {
-        $hasName = !empty($currentUser['name']) && $currentUser['name'] !== 'Khách' && $currentUser['name'] !== 'PickiUser';
+        $hasName = !empty($currentUser['name']) && $currentUser['name'] !== 'Khách' && !preg_match('/^picki([\s_-]*u?s*e*r*|\d+|$)/i', trim($currentUser['name']));
         $userGreetingInfo = $hasName 
             ? "Tên người dùng: {$currentUser['name']}. Xưng hô: gọi người dùng là 'bạn {$currentUser['name']}' hoặc 'bạn'."
             : "Xưng hô: Gọi người dùng là 'bạn'.";

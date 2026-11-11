@@ -19,7 +19,7 @@ class StoreTournamentRequest extends FormRequest
             'sport_id' => 'required|exists:sports,id',
             'name' => 'required|string|max:255',
             'competition_location_id' => [
-                'required',
+                'nullable',
                 Rule::exists('competition_locations', 'id')->where(fn($q) => $q->where('is_banned', false)),
             ],
             'start_date' => 'required|date|after_or_equal:today',
