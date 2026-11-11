@@ -32,6 +32,16 @@ class MapCourtResource extends JsonResource
             }),
             'distance'     => $this->when(isset($this->distance), fn() => round($this->distance, 1)),
             'marker_type'  => 'court',
+            'active_matches_count' => $this->when(
+                $this->relationLoaded('miniTournaments'),
+                fn() => $this->miniTournaments->where('status', \App\Models\MiniTournament::STATUS_OPEN)->count(),
+                $this->active_matches_count ?? 0
+            ),
+            'active_tournaments_count' => $this->when(
+                $this->relationLoaded('tournaments'),
+                fn() => $this->tournaments->where('status', \App\Models\Tournament::OPEN)->count(),
+                $this->active_tournaments_count ?? 0
+            ),
         ];
     }
 }

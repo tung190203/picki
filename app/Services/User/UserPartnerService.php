@@ -19,7 +19,10 @@ class UserPartnerService
     public function getTopPartners(int $userId, int $page = 1, int $perPage = 10): array
     {
         $stats = $this->buildPartnerStats($userId)
-            ->filter(fn($s) => $s['total_matches'] >= self::MIN_MATCHES)
+            ->filter(fn($s) => $s['total_matches'] >= self::MIN_MATCHES
+                && $s['wins'] > 0
+                && $s['wins'] >= $s['losses']
+            )
             ->values();
 
         $sorted = $stats
@@ -42,7 +45,10 @@ class UserPartnerService
     public function getTopOpponents(int $userId, int $page = 1, int $perPage = 10): array
     {
         $stats = $this->buildOpponentStats($userId)
-            ->filter(fn($s) => $s['total_matches'] >= self::MIN_MATCHES)
+            ->filter(fn($s) => $s['total_matches'] >= self::MIN_MATCHES
+                && $s['losses'] > 0
+                && ($s['losses'] >= $s['wins'] || $s['loss_rate'] >= 33.0)
+            )
             ->values();
 
         $sorted = $stats
