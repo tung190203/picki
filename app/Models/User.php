@@ -1396,9 +1396,9 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
      */
     public static function getSportStats(int $userId, int $sportId, bool $isOwnProfile = true): array
     {
-        // Filter strings
-        $tPrivateFilter = $isOwnProfile ? '' : ' AND t.is_private = 0';
-        $mntPrivateFilter = $isOwnProfile ? '' : ' AND mnt.is_private = 0';
+        // Filter strings (không lọc is_private để đảm bảo số đếm nhất quán với danh sách trận)
+        $tPrivateFilter = '';
+        $mntPrivateFilter = '';
         $ongoingT = $isOwnProfile ? '' : ' AND NOT (t.status = 2 AND t.start_date <= NOW() AND t.end_date IS NOT NULL AND t.end_date >= NOW())';
         $ongoingMnt = $isOwnProfile ? '' : ' AND NOT (mnt.status = 2 AND mnt.start_time <= NOW() AND mnt.end_time IS NOT NULL AND mnt.end_time >= NOW())';
         $tFilters = $tPrivateFilter . $ongoingT;
@@ -1662,9 +1662,9 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         // Used in raw SQL: tm.user_id IN ({$userIdsCsv}) — safe, IDs are validated ints
         $userIdsCsv = implode(',', $userIds);
 
-        // Filter strings
-        $tPrivateFilter = $isOwnProfile ? '' : ' AND t.is_private = 0';
-        $mntPrivateFilter = $isOwnProfile ? '' : ' AND mnt.is_private = 0';
+        // Filter strings (không lọc is_private để đảm bảo số đếm nhất quán với danh sách trận)
+        $tPrivateFilter = '';
+        $mntPrivateFilter = '';
         $ongoingT = $isOwnProfile ? '' : ' AND NOT (t.status = 2 AND t.start_date <= NOW() AND t.end_date IS NOT NULL AND t.end_date >= NOW())';
         $ongoingMnt = $isOwnProfile ? '' : ' AND NOT (mnt.status = 2 AND mnt.start_time <= NOW() AND mnt.end_time IS NOT NULL AND mnt.end_time >= NOW())';
         $tPrivateAndOngoing = $tPrivateFilter . $ongoingT;
@@ -1985,8 +1985,8 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         // Filters: align với list API
         $filterOngoingT = $isOwnProfile ? '' : 'AND t.status != 1';
         $filterOngoingMnt = $isOwnProfile ? '' : 'AND mnt.status != 1';
-        $filterPrivateT = $isOwnProfile ? '' : 'AND t.is_private = 0';
-        $filterPrivateMnt = $isOwnProfile ? '' : 'AND mnt.is_private = 0';
+        $filterPrivateT = '';
+        $filterPrivateMnt = '';
 
         // Tournament matches (team-based)
         $tSql = "
