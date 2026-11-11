@@ -15,17 +15,40 @@ class AdminCompetitionLocationResource extends JsonResource
         $now = Carbon::now();
 
         $activeMiniTournaments = $this->relationLoaded('miniTournaments')
-            ? $this->miniTournaments->filter(fn($t) =>
-                $t->status === MiniTournament::STATUS_OPEN
-                && ($t->end_time === null || $t->end_time->gte($now))
-            )
+            ? $this->miniTournaments->filter(function ($t) use ($now) {
+                if ($t->status !== MiniTournament::STATUS_OPEN) {
+                    return false;
+                }
+                if ($t->session_status === MiniTournament::SESSION_STATUS_FINISHED) {
+                    return false;
+                }
+                if ($t->relationLoaded('matches') && $t->is_completed) {
+                    return false;
+                }
+                if ($t->end_time !== null) {
+                    return $t->end_time->gte($now);
+                }
+                return $t->start_time === null || $t->start_time->gte($now->copy()->startOfDay());
+            })->values()
             : collect();
 
         $activeTournaments = $this->relationLoaded('tournaments')
-            ? $this->tournaments->filter(fn($t) =>
-                $t->status === Tournament::OPEN
-                && ($t->end_date === null || Carbon::parse($t->end_date)->gte($now))
-            )
+            ? $this->tournaments->filter(function ($t) use ($now) {
+                if ($t->status !== Tournament::OPEN) {
+                    return false;
+                }
+                if ($t->relationLoaded('tournamentTypes') && $t->is_completed) {
+                    return false;
+                }
+                if ($t->end_date !== null) {
+                    $end = Carbon::parse($t->end_date);
+                    if ($end->format('H:i:s') === '00:00:00') {
+                        return $end->endOfDay()->gte($now);
+                    }
+                    return $end->gte($now);
+                }
+                return $t->start_date === null || Carbon::parse($t->start_date)->endOfDay()->gte($now);
+            })->values()
             : collect();
 
         $activeMatchesCount = $activeMiniTournaments->count();

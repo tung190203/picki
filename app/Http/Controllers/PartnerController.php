@@ -59,7 +59,7 @@ class PartnerController extends Controller
                 'per_page' => $perPage,
                 'total' => $total,
             ],
-        ], 'Lấy top 3 partner thành công');
+        ], 'Lấy top partner thành công');
     }
 
     public function topOpponents(Request $request): JsonResponse
@@ -106,6 +106,6 @@ class PartnerController extends Controller
                 'per_page' => $perPage,
                 'total' => $total,
             ],
-        ], 'Lấy top 3 opponent thành công');
+        ], 'Lấy top opponent thành công');
     }
 }
