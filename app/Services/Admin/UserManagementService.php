@@ -121,6 +121,7 @@ class UserManagementService
                 'last_active_at',
                 'created_at',
                 'is_guest',
+                'visibility',
             ])
             ->where('is_guest', false);
 
