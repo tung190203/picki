@@ -651,9 +651,6 @@ class UserController extends Controller
                   ->orWhereHas('tournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1, 2]));
             })
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
-            ->when(!$isOwnProfile, function ($q) {
-                $q->where('is_private', false);
-            })
             ->when($dateFrom, fn($q) => $q->where('start_date', '>=', $dateFrom))
             ->when($dateTo, fn($q) => $q->where('end_date', '<=', $dateTo))
             ->where('start_date', '<=', now())
@@ -800,9 +797,6 @@ class UserController extends Controller
                   ->orWhereHas('miniTournamentStaffs', fn($sq) => $sq->where('user_id', $userId)->whereIn('role', [1]));
             })
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
-            ->when(!$isOwnProfile, function ($q) {
-                $q->where('is_private', false);
-            })
             ->when($dateFrom, fn($q) => $q->where('start_time', '>=', $dateFrom))
             ->when($dateTo, fn($q) => $q->where('end_time', '<=', $dateTo))
             ->where('start_time', '<=', now())
@@ -910,14 +904,14 @@ class UserController extends Controller
         $tournamentIdsAsParticipant = DB::table('participants')
             ->where('user_id', $userId)
             ->where('is_confirmed', true)
-            ->whereRaw("EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = participants.tournament_id AND tournaments.sport_id = 1 AND tournaments.status != 1 AND tournaments.start_date <= NOW() AND {$ongoingCondition}" . ($isOwnProfile ? '' : ' AND tournaments.is_private = false') . ") AND {$finalMatchCondition('participants')}")
+            ->whereRaw("EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = participants.tournament_id AND tournaments.sport_id = 1 AND tournaments.status != 1 AND tournaments.start_date <= NOW() AND {$ongoingCondition}) AND {$finalMatchCondition('participants')}")
             ->pluck('tournament_id');
 
         // Lấy tournament IDs user tham gia với vai trò BTC/staff (sport_id = 1, đã bắt đầu, không ongoing, không private nếu không phải chính mình)
         $tournamentIdsAsStaff = DB::table('tournament_staff')
             ->where('user_id', $userId)
             ->whereIn('role', [1, 2])
-            ->whereRaw("EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = tournament_staff.tournament_id AND tournaments.sport_id = 1 AND tournaments.status != 1 AND tournaments.start_date <= NOW() AND {$ongoingCondition}" . ($isOwnProfile ? '' : ' AND tournaments.is_private = false') . ") AND {$finalMatchCondition('tournament_staff')}")
+            ->whereRaw("EXISTS (SELECT 1 FROM tournaments WHERE tournaments.id = tournament_staff.tournament_id AND tournaments.sport_id = 1 AND tournaments.status != 1 AND tournaments.start_date <= NOW() AND {$ongoingCondition}) AND {$finalMatchCondition('tournament_staff')}")
             ->pluck('tournament_id');
 
         // total_joined = distinct tournament (participant + staff/organizer)
@@ -985,14 +979,14 @@ class UserController extends Controller
             ->where('user_id', $userId)
             ->where('is_confirmed', true)
             ->whereNull('declined_at')
-            ->whereRaw("EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_participants.mini_tournament_id AND mini_tournaments.sport_id = 1 AND mini_tournaments.status != 1 AND mini_tournaments.start_time <= NOW() AND {$ongoingCondition}" . ($isOwnProfile ? '' : ' AND mini_tournaments.is_private = false') . ")")
+            ->whereRaw("EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_participants.mini_tournament_id AND mini_tournaments.sport_id = 1 AND mini_tournaments.status != 1 AND mini_tournaments.start_time <= NOW() AND {$ongoingCondition})")
             ->pluck('mini_tournament_id');
 
         // Lấy mini tournament IDs user tham gia với vai trò BTC (role = 1 = organizer, sport_id = 1, đã bắt đầu, không ongoing, không private nếu không phải chính mình)
         $miniTournamentIdsAsStaff = DB::table('mini_tournament_staff')
             ->where('user_id', $userId)
             ->whereIn('role', [1])
-            ->whereRaw("EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_tournament_staff.mini_tournament_id AND mini_tournaments.sport_id = 1 AND mini_tournaments.status != 1 AND mini_tournaments.start_time <= NOW() AND {$ongoingCondition}" . ($isOwnProfile ? '' : ' AND mini_tournaments.is_private = false') . ")")
+            ->whereRaw("EXISTS (SELECT 1 FROM mini_tournaments WHERE mini_tournaments.id = mini_tournament_staff.mini_tournament_id AND mini_tournaments.sport_id = 1 AND mini_tournaments.status != 1 AND mini_tournaments.start_time <= NOW() AND {$ongoingCondition})")
             ->pluck('mini_tournament_id');
 
         // total_joined = distinct mini_tournament (participant + staff/organizer)
