@@ -19,7 +19,7 @@ router.beforeEach((to, from, next) => {
   const isSuperAdmin = user?.is_super_admin === true;
   const hasSeenOnboarding = localStorage.getItem(LOCAL_STORAGE_KEY.ONBOARDING) === "true";
 
-  const isDefaultName = !user?.full_name || /^PickiUser/i.test(String(user.full_name).trim());
+  const isDefaultName = !user?.full_name || /^picki([\s_-]*u?s*e*r*|\d+|$)/i.test(String(user.full_name).trim());
   const isProfileIncomplete = Boolean(user && ((user.is_profile_completed == 0 || user.is_profile_completed === false) || isDefaultName));
 
   const publicPages = [

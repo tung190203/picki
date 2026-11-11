@@ -274,7 +274,7 @@ class UserController extends Controller
 
         $validated = $request->validate([
             'user_id' => 'nullable|exists:users,id',
-            'full_name' => ['sometimes', 'string', 'max:255', 'not_regex:/^PickiUser/i'],
+            'full_name' => ['sometimes', 'string', 'max:255', 'not_regex:/^picki([\s_-]*u?s*e*r*|\d+|$)/i'],
             'phone' => ['nullable', 'string', 'max:10', Rule::unique('users', 'phone')->ignore($targetUserId)],
             'avatar_url' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
             'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
@@ -294,7 +294,7 @@ class UserController extends Controller
             'visibility' => 'nullable|in:open,friend-only,private',
             'self_score' => 'nullable|string|max:255',
         ], [
-            'full_name.not_regex' => 'Vui lòng nhập tên hiển thị thực tế của bạn (không sử dụng tên mặc định PickiUser).',
+            'full_name.not_regex' => 'Vui lòng nhập tên hiển thị thực tế của bạn (không sử dụng tên mặc định dạng PickiUser).',
         ]);
 
         $user = User::findOrFail($targetUserId);
@@ -338,7 +338,7 @@ class UserController extends Controller
 
         if (!empty($validated['is_profile_completed'])) {
             $effectiveName = $data['full_name'] ?? $user->full_name;
-            if ($effectiveName && !preg_match('/^PickiUser/i', trim($effectiveName))) {
+            if ($effectiveName && !preg_match('/^picki([\s_-]*u?s*e*r*|\d+|$)/i', trim($effectiveName))) {
                 $data['is_profile_completed'] = true;
             }
         }

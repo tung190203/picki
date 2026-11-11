@@ -70,7 +70,7 @@ const v$ = useVuelidate(rules, data)
 const handleRedirectAfterLogin = (res) => {
   toast.success('Đăng nhập thành công!')
   const user = res?.user
-  const isDefaultName = !user?.full_name || /^PickiUser/i.test(String(user.full_name).trim())
+  const isDefaultName = !user?.full_name || /^picki([\s_-]*u?s*e*r*|\d+|$)/i.test(String(user.full_name).trim())
   const isProfileIncomplete = user?.is_profile_completed == 0 || isDefaultName
 
   if (res && isProfileIncomplete) {
