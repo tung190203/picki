@@ -65,7 +65,7 @@ class StoreMiniTournamentRequest extends FormRequest
             'end_time' => 'nullable|date|after:start_time',
             'duration' => 'required|integer|min:1',
             'competition_location_id' => [
-                'required',
+                'nullable',
                 Rule::exists('competition_locations', 'id')->where(fn($q) => $q->where('is_banned', false)),
             ],
 

@@ -181,7 +181,13 @@ class AuthController extends Controller
 
     public function fillPassword(Request $request)
     {
-        $request->validate(['login' => 'required|string', 'password' => 'required|min:6|confirmed']);
+        $validated = $request->validate([
+            'login' => 'required|string',
+            'password' => 'required|min:6|confirmed',
+            'full_name' => ['nullable', 'string', 'min:2', 'max:255', 'not_regex:/^picki([\s_-]*u?s*e*r*|\d+|$)/i'],
+        ], [
+            'full_name.not_regex' => 'Vui lòng nhập họ và tên thực tế của bạn (không sử dụng tên mặc định dạng PickiUser).',
+        ]);
         $type = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
         $user = User::where($type, $request->login)->first();
 
@@ -189,6 +195,9 @@ class AuthController extends Controller
         if ($user->password) return ResponseHelper::error('Người dùng đã có mật khẩu.', 400, ['status_code' => 'PASSWORD_EXISTS']);
 
         $user->password = $request->password;
+        if (!empty($validated['full_name'])) {
+            $user->full_name = trim($validated['full_name']);
+        }
         $user->save();
 
         return ResponseHelper::success(['status_code' => 'COMPLETED'], 'Hoàn tất đăng ký');

@@ -15,11 +15,25 @@ const login = ref(route.query.login || '')
 
 const data = reactive({
   login: login,
+  full_name: '',
   password: '',
   password_confirmation: '',
 })
 
+const notDefaultName = helpers.withMessage(
+  'Vui lòng nhập họ và tên thực tế của bạn (không dùng tên mặc định dạng PickiUser)',
+  (value) => {
+    if (!value) return true
+    return !/^picki([\s_-]*u?s*e*r*|\d+|$)/i.test(value.trim())
+  }
+)
+
 const rules = computed(() => ({
+    full_name: {
+      required: helpers.withMessage('Họ và tên không được để trống', required),
+      minLength: helpers.withMessage('Họ và tên tối thiểu 2 ký tự', value => !value || value.trim().length >= 2),
+      notDefaultName,
+    },
     password: {
       required: helpers.withMessage('Không được để trống', required),
       minLength: helpers.withMessage('Mật khẩu phải có ít nhất 6 ký tự', value => !value || value.length >= 6)
@@ -61,6 +75,19 @@ const fillData = async () => {
     <div class="w-full max-w-md p-8 bg-white rounded-[12px] shadow">
       <form @submit.prevent="fillData" class="space-y-4">
         <div>
+          <label for="full_name" class="form-in font-semibold text-[14px]">Họ và tên</label>
+          <input
+            id="full_name"
+            type="text"
+            placeholder="Nhập họ và tên của bạn"
+            v-model="data.full_name"
+            class="w-full px-4 py-2 my-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-sm"
+          />
+          <p v-for="err in v$.full_name.$errors" class="text-sm text-red-500 mt-1">
+            {{ err.$message }}
+          </p>
+        </div>
+        <div>
           <label for="password" class="form-in font-semibold text-[14px]">Mật khẩu</label>
           <input
             id="password"
@@ -89,8 +116,8 @@ const fillData = async () => {
         <Button
           type="submit"
           :class="{
-            'w-full !bg-primary hover:!bg-secondary': data.password && data.password_confirmation,
-            'w-full !bg-[#edeef2] !text-[#333333] hover:!bg-[#edeefe]': !data.password || !data.password_confirmation
+            'w-full !bg-primary hover:!bg-secondary': data.full_name && data.password && data.password_confirmation,
+            'w-full !bg-[#edeef2] !text-[#333333] hover:!bg-[#edeefe]': !data.full_name || !data.password || !data.password_confirmation
           }"
         >
             Hoàn tất đăng ký

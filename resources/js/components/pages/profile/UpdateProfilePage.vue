@@ -40,9 +40,12 @@ const currentStep = ref(1); // 1: Profile form, 2: Sports selection, 3: Upload p
 const preview = ref(null);
 const selectedFile = ref(null);
 
+const isJunkName = (name) => !name || /^picki([\s_-]*u?s*e*r*|\d+|$)/i.test(String(name).trim());
+const rawFullName = getUser.value?.full_name || "";
+
 const data = reactive({
     avatar_url: getUser.value?.avatar_url || "",
-    full_name: getUser.value?.full_name || "",
+    full_name: isJunkName(rawFullName) ? "" : rawFullName,
     location_id: getUser.value?.location_id || "",
     skill_level: "",
     gender: getUser.value?.gender || null,
@@ -64,10 +67,10 @@ const defaultAvatar = "/images/default-avatar.png";
 
 // --- Validation ---
 const notDefaultName = helpers.withMessage(
-    "Vui lòng nhập tên hiển thị thực tế của bạn (không dùng tên mặc định PickiUser)",
+    "Vui lòng nhập tên hiển thị thực tế của bạn (không dùng tên mặc định dạng PickiUser)",
     (value) => {
         if (!value) return true;
-        return !/^PickiUser/i.test(value.trim());
+        return !isJunkName(value);
     }
 );
 

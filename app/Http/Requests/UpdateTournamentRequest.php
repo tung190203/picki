@@ -20,8 +20,7 @@ class UpdateTournamentRequest extends FormRequest
             'sport_id' => 'nullable|exists:sports,id',
             'name' => 'sometimes|required|string|max:255',
             'competition_location_id' => [
-                'sometimes',
-                'required',
+                'nullable',
                 Rule::exists('competition_locations', 'id')->where(fn($q) => $q->where('is_banned', false)),
             ],
             'start_date' => 'nullable|date',
