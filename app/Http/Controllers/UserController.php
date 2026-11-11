@@ -189,7 +189,9 @@ class UserController extends Controller
             return ResponseHelper::error('Người dùng không tồn tại', 404);
         }
 
-        User::loadSportStatsOnUsers(collect([$user]), 1, false);
+        $authUserId = auth()->id();
+        $isOwnProfile = ($authUserId && (int) $id === (int) $authUserId);
+        User::loadSportStatsOnUsers(collect([$user]), 1, $isOwnProfile);
 
         // Load social stats: friends_count (mutual follow), weekly_change, rank_percentile
         $sportId = 1;
@@ -197,7 +199,6 @@ class UserController extends Controller
         $user->weekly_change = User::getWeeklyChange($user->id, $sportId);
         $user->rank_percentile = User::getRankPercentile($user->id, $sportId);
 
-        $authUserId = auth()->id();
         if ($authUserId && (int) $id === (int) $authUserId) {
             $clubs = $user->clubs;
             if ($clubs->isNotEmpty()) {
@@ -809,9 +810,6 @@ class UserController extends Controller
             ->where(function ($q) {
                 $q->whereRaw('NOT (status = 2 AND start_time <= NOW() AND end_time IS NOT NULL AND end_time >= NOW())');
             })
-            // Chỉ lấy giải: status=CLOSED và có ít nhất 1 trận có kết quả (= is_completed=true)
-            ->where('status', 3)
-            ->whereHas('matches', fn($mq) => $mq->whereHas('results'))
             ->select('mini_tournaments.*')
             ->selectRaw("
                 CASE
@@ -852,7 +850,6 @@ class UserController extends Controller
             })
             ->when($sportId, fn($q) => $q->where('sport_id', $sportId))
             ->whereRaw('status = 2 AND start_time <= NOW() AND end_time IS NOT NULL AND end_time >= NOW()')
-            ->whereHas('matches', fn($mq) => $mq->whereHas('results'))
             ->orderBy('start_time', 'ASC')
             ->first();
 
