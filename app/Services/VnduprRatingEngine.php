@@ -80,23 +80,29 @@ class VnduprRatingEngine
                 ->get()
                 ->keyBy('user_sport_id');
 
-        $avgFor = function (array $userIds) use ($userSportRecords, $scoreMap): float {
+        // Helper lấy rating hiện tại (sàn tối thiểu 1.0)
+        $getUserRating = function (int $uid) use ($userSportRecords, $scoreMap): float {
+            $us = $userSportRecords->get($uid);
+            if ($us) {
+                $sc = $scoreMap->get($us->id);
+                if ($sc && $sc->score_value !== null) {
+                    return (float) $sc->score_value;
+                }
+            }
+            return 1.0;
+        };
+
+        $avgFor = function (array $userIds) use ($getUserRating): float {
             if (empty($userIds)) {
-                return 0.0;
+                return 1.0;
             }
             $total = 0.0;
             $count = 0;
             foreach ($userIds as $uid) {
-                $us = $userSportRecords->get($uid);
-                if ($us) {
-                    $sc = $scoreMap->get($us->id);
-                    if ($sc) {
-                        $total += (float) $sc->score_value;
-                        $count++;
-                    }
-                }
+                $total += max(1.0, $getUserRating($uid));
+                $count++;
             }
-            return $count > 0 ? $total / $count : 0.0;
+            return $count > 0 ? $total / $count : 1.0;
         };
         $homeRating = $avgFor($homeUserIds);
         $awayRating = $avgFor($awayUserIds);
@@ -117,6 +123,44 @@ class VnduprRatingEngine
         // Lấy users kèm attributes cần thiết cho K-factor
         $userMap = User::whereIn('id', $allUserIds)->get()->keyBy('id');
 
+        // =====================================================
+        // QUY TẮC ĐIỂM SÀN 1.0 & CHUYỂN THÀNH GIAO HỮU:
+        // Tất cả các trận có người 1.0 (hoặc <= 1.0) thua thì đều chuyển thành giao hữu,
+        // không tính điểm trình => không giảm về dưới 1.0.
+        // =====================================================
+        $homeLost = false;
+        $awayLost = false;
+        if ($winnerTeamId !== null) {
+            $homeLost = $winnerTeamId === ($inputs['away_team_id'] ?? null);
+            $awayLost = $winnerTeamId === ($inputs['home_team_id'] ?? null);
+        } else {
+            if ($S_home < $S_away) {
+                $homeLost = true;
+            } elseif ($S_away < $S_home) {
+                $awayLost = true;
+            }
+        }
+
+        $disableScoring = false;
+        if ($homeLost) {
+            foreach ($homeUserIds as $uid) {
+                $u = $userMap->get($uid);
+                if ($u && !$u->is_guest && $getUserRating($uid) <= 1.0) {
+                    $disableScoring = true;
+                    break;
+                }
+            }
+        }
+        if ($awayLost && !$disableScoring) {
+            foreach ($awayUserIds as $uid) {
+                $u = $userMap->get($uid);
+                if ($u && !$u->is_guest && $getUserRating($uid) <= 1.0) {
+                    $disableScoring = true;
+                    break;
+                }
+            }
+        }
+
         // Skip user đã có history cho (match, match_stage) — idempotent
         $existing = VnduprHistory::where('match_id', $matchId)
             ->where('match_stage_id', $matchStageId)
@@ -135,14 +179,15 @@ class VnduprRatingEngine
             &$scoreUpserts,
             &$skipped,
             $userSportRecords,
-            $scoreMap,
+            $getUserRating,
             $historyMap,
             $userMap,
             $matchId,
             $matchStageId,
             $W,
             $now,
-            $existingSet
+            $existingSet,
+            $disableScoring
         ) {
             if (isset($existingSet[$userId])) {
                 $skipped++;
@@ -156,32 +201,37 @@ class VnduprRatingEngine
             }
 
             $userSport = $userSportRecords->get($userId);
-            $scoreRecord = $userSport ? $scoreMap->get($userSport->id) : null;
-            $R_old = $scoreRecord ? (float) $scoreRecord->score_value : 0.0;
+            $R_old = max(1.0, $getUserRating($userId));
 
-            $history = $historyMap->get($userId, collect());
-
-            // K-factor theo rule cũ
-            $K = 0.3;
-            if ($user->is_anchor || $user->hasAnyBadge(['PICKI', 'CHAMPION', 'ANCHOR', 'VERIFIED'])) {
-                $K = 0.1;
+            if ($disableScoring) {
+                // Chế độ giao hữu: giữ nguyên điểm, không cộng trừ
+                $R_new = $R_old;
             } else {
-                $anchored = $user->total_matches_has_anchor ?? 0;
-                if ($anchored <= 10) {
-                    $K = 1;
-                } elseif ($anchored <= 50) {
-                    $K = 0.6;
-                }
-            }
-            if ($history->count() >= 2) {
-                $first = $history->first()->score_before;
-                $last = $history->last()->score_after;
-                if (($first - $last) > 0.5) {
-                    $K = 1;
-                }
-            }
+                $history = $historyMap->get($userId, collect());
 
-            $R_new = $R_old + ($W * $K * ($S - $E));
+                // K-factor theo rule cũ
+                $K = 0.3;
+                if ($user->is_anchor || $user->hasAnyBadge(['PICKI', 'CHAMPION', 'ANCHOR', 'VERIFIED'])) {
+                    $K = 0.1;
+                } else {
+                    $anchored = $user->total_matches_has_anchor ?? 0;
+                    if ($anchored <= 10) {
+                        $K = 1;
+                    } elseif ($anchored <= 50) {
+                        $K = 0.6;
+                    }
+                }
+                if ($history->count() >= 2) {
+                    $first = $history->first()->score_before;
+                    $last = $history->last()->score_after;
+                    if (($first - $last) > 0.5) {
+                        $K = 1;
+                    }
+                }
+
+                // Điểm mới không bao giờ nhỏ hơn sàn 1.0
+                $R_new = max(1.0, round($R_old + ($W * $K * ($S - $E)), 3));
+            }
 
             $vnduprHistoryRecords[] = [
                 'user_id' => $userId,

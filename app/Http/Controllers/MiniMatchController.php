@@ -1242,37 +1242,6 @@ class MiniMatchController extends Controller
         // Single source of truth for "this match counts toward leaderboard".
         app(\App\Services\LeaderboardQualifierService::class)->markQualified($match);
 
-        // ===== ANCHOR MATCH LOGIC =====
-        // Anchor count is only incremented for matches that affect rating
-        if (!$disableScoring) {
-            $allMemberUserIds = $match->team1->members->pluck('user_id')
-                ->merge($match->team2->members->pluck('user_id'))
-                ->unique()
-                ->values();
-
-            $badgeService = app(\App\Services\BadgeService::class);
-
-            $allUserIds = $allMemberUserIds->toArray();
-            $hasAnchorInMatch = false;
-            foreach ($allUserIds as $userId) {
-                if ($badgeService->has_any_badge($userId)) {
-                    $hasAnchorInMatch = true;
-                    break;
-                }
-            }
-
-            if ($hasAnchorInMatch) {
-                $nonAnchorIds = collect($allUserIds)
-                    ->filter(fn($userId) => !$badgeService->has_any_badge($userId))
-                    ->values();
-
-                if ($nonAnchorIds->isNotEmpty()) {
-                    DB::table('users')->whereIn('id', $nonAnchorIds)
-                        ->increment('total_matches_has_anchor');
-                }
-            }
-        }
-
         // B. Tính toán S (Actual Score)
         $scores = $match->results->groupBy('team_id')->map->sum('score');
         $t1Score = $scores->get($match->team1_id, 0);
@@ -1316,23 +1285,104 @@ class MiniMatchController extends Controller
             ->groupBy('user_id')
             ->map(fn($col) => $col->sortBy('id')->values());
 
+        // Helper lấy rating hiện tại (sàn mặc định 1.0)
+        $getUserRawRating = function ($user) use ($userSportRecords, $scoreMap, $historyMap): float {
+            $userSport = $userSportRecords->get($user->id);
+            $scoreRecord = $userSport ? $scoreMap->get($userSport->id) : null;
+            $rating = null;
+            if ($scoreRecord && $scoreRecord->score_value !== null) {
+                $rating = (float) $scoreRecord->score_value;
+            }
+            if ($rating === null) {
+                $history = $historyMap->get($user->id, collect());
+                if ($history->isNotEmpty()) {
+                    $rating = (float) $history->last()->score_after;
+                }
+            }
+            return $rating !== null ? (float) $rating : 1.0;
+        };
+
+        // =====================================================
+        // QUY TẮC ĐIỂM SÀN 1.0 & CHUYỂN THÀNH GIAO HỮU:
+        // Tất cả các trận có người 1.0 (hoặc <= 1.0) thua thì đều chuyển thành giao hữu,
+        // không tính điểm trình => không giảm về dưới 1.0.
+        // =====================================================
+        $team1Lost = false;
+        $team2Lost = false;
+        if ($winnerTeamId) {
+            if ($winnerTeamId === $match->team1_id) {
+                $team2Lost = true;
+            } elseif ($winnerTeamId === $match->team2_id) {
+                $team1Lost = true;
+            }
+        } else {
+            if ($S_t1 < $S_t2) {
+                $team1Lost = true;
+            } elseif ($S_t2 < $S_t1) {
+                $team2Lost = true;
+            }
+        }
+
+        $hasFloorPlayerInLosingTeam = false;
+        if ($team1Lost) {
+            foreach ($match->team1->members as $member) {
+                if (!$member->is_guest && $getUserRawRating($member->user) <= 1.0) {
+                    $hasFloorPlayerInLosingTeam = true;
+                    break;
+                }
+            }
+        }
+        if ($team2Lost && !$hasFloorPlayerInLosingTeam) {
+            foreach ($match->team2->members as $member) {
+                if (!$member->is_guest && $getUserRawRating($member->user) <= 1.0) {
+                    $hasFloorPlayerInLosingTeam = true;
+                    break;
+                }
+            }
+        }
+
+        if ($hasFloorPlayerInLosingTeam) {
+            $disableScoring = true;
+        }
+
+        // ===== ANCHOR MATCH LOGIC =====
+        // Anchor count is only incremented for matches that affect rating
+        if (!$disableScoring) {
+            $badgeService = app(\App\Services\BadgeService::class);
+
+            $allUserIds = $allMemberUserIds->toArray();
+            $hasAnchorInMatch = false;
+            foreach ($allUserIds as $userId) {
+                if ($badgeService->has_any_badge($userId)) {
+                    $hasAnchorInMatch = true;
+                    break;
+                }
+            }
+
+            if ($hasAnchorInMatch) {
+                $nonAnchorIds = collect($allUserIds)
+                    ->filter(fn($userId) => !$badgeService->has_any_badge($userId))
+                    ->values();
+
+                if ($nonAnchorIds->isNotEmpty()) {
+                    DB::table('users')->whereIn('id', $nonAnchorIds)
+                        ->increment('total_matches_has_anchor');
+                }
+            }
+        }
+
         // =====================================================
         // D. TÍNH RATING TRUNG BÌNH (E) — no N+1
         // =====================================================
-        $calcAvgRating = function ($team) use ($userSportRecords, $scoreMap) {
+        $calcAvgRating = function ($team) use ($getUserRawRating) {
             $total = 0;
             $count = 0;
             foreach ($team->members as $member) {
-                $userSport = $userSportRecords->get($member->user_id);
-                if ($userSport) {
-                    $score = $scoreMap->get($userSport->id);
-                    if ($score) {
-                        $total += (float) $score->score_value;
-                        $count++;
-                    }
-                }
+                $rating = max(1.0, $getUserRawRating($member->user));
+                $total += $rating;
+                $count++;
             }
-            return $count > 0 ? $total / $count : 0;
+            return $count > 0 ? $total / $count : 1.0;
         };
 
         $R_t1 = $calcAvgRating($match->team1);
@@ -1360,20 +1410,9 @@ class MiniMatchController extends Controller
                 }
                 $user = $member->user;
                 $userSport = $userSportRecords->get($user->id);
-                $scoreRecord = $userSport ? $scoreMap->get($userSport->id) : null;
 
-                // Lấy rating cũ: ưu tiên vndupr_score, fallback sang history gần nhất
-                $R_old = null;
-                if ($scoreRecord) {
-                    $R_old = (float) $scoreRecord->score_value;
-                }
-                if ($R_old === null) {
-                    $history = $historyMap->get($user->id, collect());
-                    if ($history->isNotEmpty()) {
-                        $R_old = (float) $history->last()->score_after;
-                    }
-                }
-                $R_old = $R_old ?? 0;
+                // Rating cũ: sàn tối thiểu 1.0
+                $R_old = max(1.0, $getUserRawRating($user));
 
                 $history = $historyMap->get($user->id, collect());
 
@@ -1399,7 +1438,8 @@ class MiniMatchController extends Controller
                         }
                     }
 
-                    $R_new = $R_old + (0.1 * $K * ($data['S'] - $data['E']));
+                    // Điểm mới không bao giờ được nhỏ hơn sàn 1.0
+                    $R_new = max(1.0, round($R_old + (0.1 * $K * ($data['S'] - $data['E'])), 3));
                 }
 
                 $vnduprHistoryRecords[] = [
