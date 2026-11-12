@@ -1,6 +1,6 @@
-# Score Verification API Documentation
+# Tài liệu API Xác minh Điểm trình (Score Verification)
 
-## Base URL
+## Đường dẫn gốc (Base URL)
 
 ```
 /api
@@ -8,9 +8,9 @@
 
 ---
 
-## User Endpoints (Authenticated)
+## Các API dành cho Người dùng (Đã đăng nhập)
 
-### 1. Create Score Verification Request
+### 1. Tạo yêu cầu xác minh điểm trình
 
 **POST** `/score-verifications`
 
@@ -21,17 +21,15 @@ Authorization: Bearer {token}
 Content-Type: multipart/form-data
 ```
 
-**Form Data:**
+**Dữ liệu gửi lên (Form Data):**
 
+| Trường (Field) | Kiểu dữ liệu | Bắt buộc | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `score_type` | string | Có | Loại điểm xác minh: `SPCN` hoặc `DUPR` |
+| `score` | number | Có | Giá trị điểm (từ 0 đến 8) |
+| `image` | file | Có | File ảnh bằng chứng (jpeg, png, jpg, gif; tối đa 5MB) |
 
-| Field        | Type   | Required | Description                               |
-| ------------ | ------ | -------- | ----------------------------------------- |
-| `score_type` | string | Yes      | `SPCN` or `DUPR`                          |
-| `score`      | number | Yes      | Score value (0 - 8)                       |
-| `image`      | file   | Yes      | Image file (jpeg, png, jpg, gif; max 5MB) |
-
-
-**Success Response (201):**
+**Phản hồi thành công (201 Created):**
 
 ```json
 {
@@ -42,6 +40,7 @@ Content-Type: multipart/form-data
         "request_number": "SV-20260717-000001",
         "score_type": "SPCN",
         "submitted_score": "2.000",
+        "picki_score": null,
         "current_picki_score": null,
         "difference": null,
         "threshold": 0.5,
@@ -53,7 +52,7 @@ Content-Type: multipart/form-data
 }
 ```
 
-**Error Response (422 - Pending request exists / Validation failed):**
+**Phản hồi lỗi (422 - Đang có yêu cầu chờ duyệt):**
 
 ```json
 {
@@ -67,12 +66,12 @@ Content-Type: multipart/form-data
 }
 ```
 
-**Error Response (422 - Validation failed):**
+**Phản hồi lỗi (422 - Dữ liệu không hợp lệ):**
 
 ```json
 {
     "success": false,
-    "message": "The given data was invalid.",
+    "message": "Dữ liệu cung cấp không hợp lệ.",
     "errors": {
         "score_type": ["Vui lòng chọn loại điểm."],
         "score": ["Vui lòng nhập điểm."],
@@ -83,7 +82,7 @@ Content-Type: multipart/form-data
 
 ---
 
-### 2. Get Verification History (Future)
+### 2. Xem lịch sử yêu cầu xác minh của bản thân
 
 **GET** `/score-verifications`
 
@@ -93,17 +92,15 @@ Content-Type: multipart/form-data
 Authorization: Bearer {token}
 ```
 
-**Query Parameters:**
+**Tham số truy vấn (Query Parameters):**
 
+| Tham số | Kiểu dữ liệu | Mặc định | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `status` | string | - | Lọc theo trạng thái: `PENDING`, `APPROVED`, hoặc `REJECTED` |
+| `page` | integer | 1 | Số trang |
+| `per_page` | integer | 20 | Số lượng bản ghi mỗi trang (tối đa 100) |
 
-| Parameter  | Type    | Default | Description                          |
-| ---------- | ------- | ------- | ------------------------------------ |
-| `status`   | string  | -       | `PENDING`, `APPROVED`, or `REJECTED` |
-| `page`     | integer | 1       | Page number                          |
-| `per_page` | integer | 20      | Items per page (max 100)             |
-
-
-**Success Response (200):**
+**Phản hồi thành công (200 OK):**
 
 ```json
 {
@@ -121,42 +118,39 @@ Authorization: Bearer {token}
 
 ---
 
-## Admin Endpoints
+## Các API dành cho Quản trị viên (Admin - `super_admin`)
 
-**Headers:**
+**Headers chung:**
 
 ```
 Authorization: Bearer {token}
-X-User-Role: super_admin
 ```
 
 ---
 
-### 4. Dashboard & List Requests
+### 3. Bảng điều khiển & Danh sách yêu cầu xác minh
 
 **GET** `/admin/score-verifications`
 
-**Query Parameters:**
+**Tham số truy vấn (Query Parameters):**
 
+| Tham số | Kiểu dữ liệu | Mặc định | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `status` | string | `PENDING` | Lọc theo trạng thái: `PENDING`, `APPROVED`, hoặc `REJECTED` |
+| `score_type` | string | - | Lọc theo loại điểm: `SPCN` hoặc `DUPR` |
+| `keyword` | string | - | Tìm kiếm theo họ và tên người dùng |
+| `from_date` | date | - | Lọc từ ngày (định dạng: YYYY-MM-DD) |
+| `to_date` | date | - | Lọc đến ngày (định dạng: YYYY-MM-DD) |
+| `page` | integer | 1 | Số trang |
+| `per_page` | integer | 20 | Số lượng bản ghi mỗi trang (tối đa 100) |
 
-| Parameter    | Type    | Default   | Description                          |
-| ------------ | ------- | --------- | ------------------------------------ |
-| `status`     | string  | `PENDING` | `PENDING`, `APPROVED`, or `REJECTED` |
-| `score_type` | string  | -         | `SPCN` or `DUPR`                     |
-| `keyword`    | string  | -         | Search by user name                  |
-| `from_date`  | date    | -         | Filter from date (YYYY-MM-DD)        |
-| `to_date`    | date    | -         | Filter to date (YYYY-MM-DD)          |
-| `page`       | integer | 1         | Page number                          |
-| `per_page`   | integer | 20        | Items per page (max 100)             |
-
-
-**Example:**
+**Ví dụ:**
 
 ```
 GET /admin/score-verifications?status=PENDING&score_type=SPCN&page=1&per_page=20
 ```
 
-**Success Response (200):**
+**Phản hồi thành công (200 OK):**
 
 ```json
 {
@@ -178,6 +172,7 @@ GET /admin/score-verifications?status=PENDING&score_type=SPCN&page=1&per_page=20
                 },
                 "score_type": "SPCN",
                 "submitted_score": "2.000",
+                "picki_score": null,
                 "current_picki_score": "1.448",
                 "difference": 0.552,
                 "threshold": 0.5,
@@ -198,11 +193,11 @@ GET /admin/score-verifications?status=PENDING&score_type=SPCN&page=1&per_page=20
 
 ---
 
-### 5. Get Request Detail
+### 4. Chi tiết yêu cầu xác minh
 
 **GET** `/admin/score-verifications/{verification}`
 
-**Success Response (200):**
+**Phản hồi thành công (200 OK):**
 
 ```json
 {
@@ -218,6 +213,7 @@ GET /admin/score-verifications?status=PENDING&score_type=SPCN&page=1&per_page=20
         "image_url": "https://storage.example.com/verification/xxx.jpg",
         "score_type": "SPCN",
         "submitted_score": "2.000",
+        "picki_score": 2.500,
         "current_picki_score": "1.448",
         "difference": 0.552,
         "threshold": 0.5,
@@ -235,25 +231,27 @@ GET /admin/score-verifications?status=PENDING&score_type=SPCN&page=1&per_page=20
 
 ---
 
-### 6. Approve Request
+### 5. Phê duyệt yêu cầu (Duyệt lần đầu)
 
 **POST** `/admin/score-verifications/{verification}/approve`
 
-**Request Body:**
+Dùng khi admin duyệt yêu cầu đang chờ xử lý (`PENDING`). Hệ thống sẽ cập nhật điểm SPCN/DUPR, điểm trình Picki (`vndupr_score`) nếu có điều chỉnh, chuyển trạng thái sang `APPROVED`, trao huy hiệu Anchor (nếu chọn) và gửi thông báo cho user.
+
+**Dữ liệu gửi lên (Request Body):**
 
 ```json
 {
+    "picki_score": 2.500,
     "award_anchor_badge": true
 }
 ```
 
+| Trường (Field) | Kiểu dữ liệu | Bắt buộc | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `picki_score` | number / string | Không | Điểm trình Picki (`vndupr_score`) được admin điều chỉnh lại cho user (tối thiểu: 1.0, tối đa: 10.0). Nếu không truyền hoặc truyền `null` thì điểm trình Picki hiện tại của user sẽ được giữ nguyên. |
+| `award_anchor_badge` | boolean | Không | Trao huy hiệu Anchor cho user (`true` / `false`, mặc định: `false`). |
 
-| Field                | Type    | Required | Description                                 |
-| -------------------- | ------- | -------- | ------------------------------------------- |
-| `award_anchor_badge` | boolean | No       | Award Anchor badge to user (default: false) |
-
-
-**Success Response (200):**
+**Phản hồi thành công (200 OK):**
 
 ```json
 {
@@ -265,23 +263,91 @@ GET /admin/score-verifications?status=PENDING&score_type=SPCN&page=1&per_page=20
 }
 ```
 
-**Error Response (400 - Already processed):**
+**Phản hồi lỗi (400 Bad Request):**
 
 ```json
 {
     "success": false,
-    "message": "Request has already been processed",
+    "message": "Request cannot be processed in its current status",
     "code": 400
 }
 ```
 
 ---
 
-### 7. Reject Request
+### 6. Cập nhật lại điểm trình Picki (Khi yêu cầu ĐÃ DUYỆT)
+
+**POST** `/admin/score-verifications/{verification}/update-picki-score`
+
+Dùng khi yêu cầu đã được duyệt (`APPROVED`), admin vào lại màn hình này để sửa lại điểm trình Picki của user.
+
+**Dữ liệu gửi lên (Request Body):**
+
+```json
+{
+    "picki_score": 2.800,
+    "award_anchor_badge": true
+}
+```
+
+| Trường (Field) | Kiểu dữ liệu | Bắt buộc | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `picki_score` | number / string | **Bắt buộc** | Điểm trình Picki (`vndupr_score`) mới cập nhật cho user (tối thiểu: 1.0, tối đa: 10.0). Hệ thống sẽ cập nhật trực tiếp vào bảng `user_sport_scores` của user. |
+| `award_anchor_badge` | boolean | Không | Cập nhật trạng thái trao huy hiệu Anchor (nếu truyền `true` và user chưa có thì hệ thống sẽ trao badge). |
+
+**Phản hồi thành công (200 OK):**
+
+```json
+{
+    "success": true,
+    "message": "Cập nhật điểm trình Picki thành công",
+    "data": {
+        "status": "APPROVED",
+        "picki_score": 2.8,
+        "item": {
+            "id": 1,
+            "request_number": "SV-20260717-000001",
+            "score_type": "SPCN",
+            "submitted_score": "2.000",
+            "picki_score": 2.8,
+            "current_picki_score": 2.8,
+            "difference": 0.8,
+            "threshold": 0.5,
+            "is_over_threshold": true,
+            "status": "APPROVED",
+            "award_anchor_badge": true,
+            "reviewed_at": "2026-11-12T03:30:00.000000Z",
+            "reviewer": {
+                "id": 10,
+                "full_name": "Admin Quản Trị"
+            },
+            "user": {
+                "id": 1,
+                "full_name": "Nguyễn Văn A",
+                "avatar_url": "https://..."
+            }
+        }
+    }
+}
+```
+
+**Phản hồi lỗi (400 - Yêu cầu chưa được duyệt):**
+
+```json
+{
+    "success": false,
+    "message": "Chỉ có thể sửa điểm trình Picki cho yêu cầu đã được phê duyệt",
+    "code": 400
+}
+```
+
+---
+
+### 7. Từ chối yêu cầu
 
 **POST** `/admin/score-verifications/{verification}/reject`
 
-**Request Body:**
+**Dữ liệu gửi lên (Request Body):**
 
 ```json
 {
@@ -289,13 +355,11 @@ GET /admin/score-verifications?status=PENDING&score_type=SPCN&page=1&per_page=20
 }
 ```
 
+| Trường (Field) | Kiểu dữ liệu | Bắt buộc | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `reason` | string | Có | Lý do từ chối (tối đa 500 ký tự) |
 
-| Field    | Type   | Required | Description                      |
-| -------- | ------ | -------- | -------------------------------- |
-| `reason` | string | Yes      | Rejection reason (max 500 chars) |
-
-
-**Success Response (200):**
+**Phản hồi thành công (200 OK):**
 
 ```json
 {
@@ -309,44 +373,48 @@ GET /admin/score-verifications?status=PENDING&score_type=SPCN&page=1&per_page=20
 
 ---
 
-## Route Summary
+## Bảng tổng hợp các Route (Route Summary)
 
 ```
-# User Routes (Authenticated)
-POST   /score-verifications                  - Create request
-GET    /score-verifications                  - Get history (future)
+# Các Route Người dùng (Cần đăng nhập)
+POST   /score-verifications                              - Tạo yêu cầu xác minh điểm
+GET    /score-verifications                              - Lấy lịch sử xác minh điểm
 
-# Score Verification via /me endpoint
-# spcn_request and dupr_request fields are included in GET /me response
+# Thông tin xác minh điểm qua endpoint /me
+# Các trường spcn_request và dupr_request được đính kèm trực tiếp trong response GET /me
 
-# Admin Routes (super_admin)
-GET    /admin/score-verifications           - Dashboard + List
-GET    /admin/score-verifications/{id}       - Detail
-POST   /admin/score-verifications/{id}/approve - Approve
-POST   /admin/score-verifications/{id}/reject  - Reject
+# Các Route Admin (Quyền super_admin)
+GET    /admin/score-verifications                       - Bảng tổng quan + Danh sách yêu cầu
+GET    /admin/score-verifications/{id}                   - Chi tiết yêu cầu
+POST   /admin/score-verifications/{id}/approve           - Duyệt yêu cầu (Trạng thái PENDING)
+POST   /admin/score-verifications/{id}/update-picki-score - Sửa lại điểm trình Picki (Trạng thái APPROVED)
+POST   /admin/score-verifications/{id}/reject            - Từ chối yêu cầu
 ```
 
 ---
 
-## Response Fields Description
+## Mô tả chi tiết các trường phản hồi (Response Fields)
 
+| Trường (Field) | Mô tả |
+| :--- | :--- |
+| `request_number` | Mã yêu cầu định danh duy nhất (định dạng: `SV-YYYYMMDD-NNNNNN`) |
+| `image_url` | Đường dẫn ảnh bằng chứng xác minh điểm đã tải lên |
+| `score_type` | Loại điểm xác minh (`SPCN` hoặc `DUPR`) |
+| `submitted_score` | Điểm số người dùng tự khai báo và gửi lên |
+| `picki_score` | Điểm trình Picki (`vndupr_score`) được admin phê duyệt hoặc điều chỉnh lại |
+| `current_picki_score` | Điểm trình Picki hiện tại của người dùng trong hệ thống (`user_sport_scores`) |
+| `difference` | Độ chênh lệch tuyệt đối giữa điểm người dùng khai báo và điểm Picki hiện tại |
+| `threshold` | Ngưỡng chênh lệch cảnh báo tối đa (mặc định: 0.5) |
+| `is_over_threshold` | `true` nếu độ chênh lệch vượt quá ngưỡng cảnh báo (`difference > threshold`) |
+| `is_new` | `true` nếu yêu cầu được tạo trong vòng 24 giờ qua |
 
-| Field                 | Description                                             |
-| --------------------- | ------------------------------------------------------- |
-| `request_number`      | Unique request ID (format: `SV-YYYYMMDD-NNNNNN`)        |
-| `image_url`           | URL of uploaded proof image                             |
-| `current_picki_score` | User's current score from `user_sport_scores` table      |
-| `difference`          | Absolute difference between submitted and current score |
-| `threshold`           | Max allowed difference (from config, default 0.5)       |
-| `is_over_threshold`   | `true` if difference > threshold                        |
-| `is_new`              | `true` if request is less than 24 hours old             |
+---
 
+## Thông tin xác minh điểm trong API `/me`
 
-## /me Endpoint - Score Verification Fields
+Endpoint `GET /me` trả về trực tiếp thông tin xác minh điểm qua 2 trường `spcn_request` và `dupr_request`.
 
-The `GET /me` endpoint includes `spcn_request` and `dupr_request` fields in the response.
-
-**Example Response (partial):**
+**Ví dụ phản hồi (trích đoạn):**
 
 ```json
 {
@@ -359,6 +427,7 @@ The `GET /me` endpoint includes `spcn_request` and `dupr_request` fields in the 
         "request_number": "SV-20260717-000001",
         "image_url": "https://storage.example.com/verification/xxx.jpg",
         "submitted_score": "2.000",
+        "picki_score": 2.500,
         "current_picki_score": "1.448",
         "difference": 0.552,
         "threshold": 0.5,
@@ -371,28 +440,15 @@ The `GET /me` endpoint includes `spcn_request` and `dupr_request` fields in the 
 }
 ```
 
-**Notes:**
-- If user has never submitted a request for that score type, the field will be `null`
-- `image_url` is only included when the request was made
-- Both fields use the same structure and field descriptions as the main Score Verification API
-
-## Score Types
-
-
-| Type   | Description |
-| ------ | ----------- |
-| `SPCN` | Điểm SPCN   |
-| `DUPR` | Điểm DUPR   |
-
+**Ghi chú:**
+- Nếu người dùng chưa từng gửi yêu cầu cho loại điểm đó, trường tương ứng sẽ trả về `null`.
+- Cấu trúc các trường trong `spcn_request` và `dupr_request` hoàn toàn giống với API chi tiết xác minh điểm.
 
 ---
 
-## Controller Structure
+## Phân loại điểm (Score Types)
 
-
-| Controller                              | Namespace                     | Description     |
-| --------------------------------------- | ----------------------------- | --------------- |
-| `ScoreVerificationController`           | `App\Http\Controllers\`       | User endpoints  |
-| `ScoreVerificationManagementController` | `App\Http\Controllers\Admin\` | Admin endpoints |
-
-
+| Loại (Type) | Tên hiển thị | Ý nghĩa |
+| :--- | :--- | :--- |
+| `SPCN` | Điểm SPCN | Điểm trình từ hệ thống SPCN |
+| `DUPR` | Điểm DUPR | Điểm trình quốc tế DUPR |

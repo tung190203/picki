@@ -67,9 +67,41 @@ class ScoreVerificationRepository
             ->first();
     }
 
+    public function getWithLockForApprove(int $id): ?ScoreVerificationRequest
+    {
+        return $this->model
+            ->where('id', $id)
+            ->whereIn('status', [
+                ScoreVerificationStatus::PENDING->value,
+                ScoreVerificationStatus::APPROVED->value,
+            ])
+            ->lockForUpdate()
+            ->first();
+    }
+
+    public function getApprovedWithLockForUpdate(int $id): ?ScoreVerificationRequest
+    {
+        return $this->model
+            ->where('id', $id)
+            ->where('status', ScoreVerificationStatus::APPROVED->value)
+            ->lockForUpdate()
+            ->first();
+    }
+
     public function isPending(int $id): bool
     {
         return $this->model->where('id', $id)->where('status', ScoreVerificationStatus::PENDING->value)->exists();
+    }
+
+    public function canBeApprovedOrUpdated(int $id): bool
+    {
+        return $this->model
+            ->where('id', $id)
+            ->whereIn('status', [
+                ScoreVerificationStatus::PENDING->value,
+                ScoreVerificationStatus::APPROVED->value,
+            ])
+            ->exists();
     }
 
     public function getSummary(): array

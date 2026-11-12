@@ -137,26 +137,34 @@ class ScoreVerificationService
     public function approveRequest(
         ScoreVerificationRequest $request,
         int $reviewerId,
-        bool $awardAnchor
+        bool $awardAnchor,
+        ?float $pickiScore = null
     ): array {
-        if (!$this->repository->isPending($request->id)) {
-            throw new \Exception('Request has already been processed');
+        if (!$this->repository->canBeApprovedOrUpdated($request->id)) {
+            throw new \Exception('Request cannot be processed in its current status');
         }
 
-        return DB::transaction(function () use ($request, $reviewerId, $awardAnchor) {
-            $lockedRequest = $this->repository->getWithLockForUpdate($request->id);
+        return DB::transaction(function () use ($request, $reviewerId, $awardAnchor, $pickiScore) {
+            $lockedRequest = $this->repository->getWithLockForApprove($request->id);
 
             if (!$lockedRequest) {
-                throw new \Exception('Request has already been processed');
+                throw new \Exception('Request cannot be processed in its current status');
             }
 
-            $lockedRequest->update(['award_anchor_badge' => $awardAnchor]);
+            $isAlreadyApproved = $lockedRequest->status === ScoreVerificationStatus::APPROVED;
 
-            $updated = $this->repository->updateStatus(
-                $lockedRequest,
-                ScoreVerificationStatus::APPROVED,
-                $reviewerId
-            );
+            $updateData = [
+                'award_anchor_badge' => $awardAnchor,
+                'status' => ScoreVerificationStatus::APPROVED->value,
+                'reviewer_id' => $reviewerId,
+                'reviewed_at' => now(),
+            ];
+
+            if ($pickiScore !== null) {
+                $updateData['picki_score'] = max(1.0, round($pickiScore, 3));
+            }
+
+            $lockedRequest->update($updateData);
 
             if ($awardAnchor) {
                 $this->badgeService->awardBadge($request->user_id, 'ANCHOR', $reviewerId);
@@ -166,15 +174,19 @@ class ScoreVerificationService
                 ]);
             }
 
-            $this->updateUserSportScore($request);
+            $this->updateUserSportScore($lockedRequest, $pickiScore);
 
-            ActivityLog::log($request->user_id, 'verification_approved', [
+            ActivityLog::log($request->user_id, $isAlreadyApproved ? 'verification_score_updated' : 'verification_approved', [
                 'request_id' => $request->id,
                 'reviewer_id' => $reviewerId,
                 'award_anchor_badge' => $awardAnchor,
+                'picki_score' => $pickiScore,
             ]);
 
-            $request->user->notify(new ScoreVerificationApprovedNotification($request));
+            // Chỉ gửi notification lần đầu khi duyệt (tránh spam thông báo khi admin sửa lại điểm)
+            if (!$isAlreadyApproved) {
+                $request->user->notify(new ScoreVerificationApprovedNotification($lockedRequest));
+            }
 
             return ['status' => ScoreVerificationStatus::APPROVED];
         });
@@ -215,6 +227,85 @@ class ScoreVerificationService
         });
     }
 
+    /**
+     * API sửa lại điểm trình Picki của user sau khi request đã được approved
+     */
+    public function updatePickiScore(
+        ScoreVerificationRequest $request,
+        int $reviewerId,
+        float $pickiScore,
+        ?bool $awardAnchor = null
+    ): array {
+        if ($request->status !== ScoreVerificationStatus::APPROVED) {
+            throw new \Exception('Chỉ có thể sửa điểm trình Picki cho yêu cầu đã được phê duyệt');
+        }
+
+        return DB::transaction(function () use ($request, $reviewerId, $pickiScore, $awardAnchor) {
+            $lockedRequest = $this->repository->getApprovedWithLockForUpdate($request->id);
+
+            if (!$lockedRequest) {
+                throw new \Exception('Yêu cầu không hợp lệ hoặc chưa được phê duyệt');
+            }
+
+            $finalPickiScore = max(1.0, round($pickiScore, 3));
+
+            $updateData = [
+                'picki_score' => $finalPickiScore,
+                'reviewer_id' => $reviewerId,
+                'reviewed_at' => now(),
+            ];
+
+            if ($awardAnchor !== null) {
+                $updateData['award_anchor_badge'] = $awardAnchor;
+                if ($awardAnchor) {
+                    $this->badgeService->awardBadge($request->user_id, 'ANCHOR', $reviewerId);
+                    ActivityLog::log($request->user_id, 'badge_awarded', [
+                        'badge' => 'Anchor',
+                        'request_id' => $request->id,
+                    ]);
+                }
+            }
+
+            $lockedRequest->update($updateData);
+
+            // Cập nhật vndupr_score trong user_sport_scores của user (Pickleball sport_id = 1)
+            $this->updateUserPickiScoreOnly($request->user_id, $finalPickiScore);
+
+            ActivityLog::log($request->user_id, 'verification_score_updated', [
+                'request_id' => $request->id,
+                'reviewer_id' => $reviewerId,
+                'picki_score' => $finalPickiScore,
+                'award_anchor_badge' => $awardAnchor,
+            ]);
+
+            return [
+                'status' => ScoreVerificationStatus::APPROVED,
+                'picki_score' => $finalPickiScore,
+                'item' => $this->enrichWithScoreData($lockedRequest->fresh(['user', 'reviewer']), true),
+            ];
+        });
+    }
+
+    private function updateUserPickiScoreOnly(int $userId, float $pickiScore): void
+    {
+        $userSport = UserSport::firstOrCreate(
+            ['user_id' => $userId, 'sport_id' => 1],
+            ['tier' => null]
+        );
+
+        $finalPickiScore = max(1.0, round($pickiScore, 3));
+        DB::table('user_sport_scores')->updateOrInsert(
+            [
+                'user_sport_id' => $userSport->id,
+                'score_type' => 'vndupr_score',
+            ],
+            [
+                'score_value' => $finalPickiScore,
+                'updated_at' => now(),
+            ]
+        );
+    }
+
     private function enrichWithScoreData(ScoreVerificationRequest $request, bool $isDetail = false): array
     {
         $currentScore = $this->getCurrentPickiScore($request->user_id);
@@ -228,6 +319,7 @@ class ScoreVerificationService
             'request_number' => $request->request_number,
             'score_type' => $request->score_type,
             'submitted_score' => $request->submitted_score,
+            'picki_score' => $request->picki_score !== null ? (float) $request->picki_score : null,
             'current_picki_score' => $currentScore,
             'difference' => $difference,
             'threshold' => $threshold,
@@ -256,29 +348,43 @@ class ScoreVerificationService
             ] : null;
             $data['rejection_reason'] = $request->rejection_reason;
             $data['award_anchor_badge'] = $request->award_anchor_badge;
+            $data['picki_score'] = $request->picki_score !== null ? (float) $request->picki_score : null;
         }
 
         return $data;
     }
 
-    private function updateUserSportScore(ScoreVerificationRequest $request): void
+    private function updateUserSportScore(ScoreVerificationRequest $request, ?float $pickiScore = null): void
     {
-        $userSports = UserSport::where('user_id', $request->user_id)->get();
-
-        if ($userSports->isEmpty()) {
-            return;
-        }
+        $userSport = UserSport::firstOrCreate(
+            ['user_id' => $request->user_id, 'sport_id' => 1],
+            ['tier' => null]
+        );
 
         $scoreType = \App\Enums\ScoreType::from($request->score_type)->toDbScoreType();
 
-        foreach ($userSports as $userSport) {
+        // 1. Cập nhật điểm SPCN hoặc DUPR (spcn_score hoặc dupr_score)
+        DB::table('user_sport_scores')->updateOrInsert(
+            [
+                'user_sport_id' => $userSport->id,
+                'score_type' => $scoreType,
+            ],
+            [
+                'score_value' => $request->submitted_score,
+                'updated_at' => now(),
+            ]
+        );
+
+        // 2. Cập nhật điểm trình Picki (vndupr_score) nếu admin gửi lên điều chỉnh
+        if ($pickiScore !== null) {
+            $finalPickiScore = max(1.0, round($pickiScore, 3));
             DB::table('user_sport_scores')->updateOrInsert(
                 [
                     'user_sport_id' => $userSport->id,
-                    'score_type' => $scoreType,
+                    'score_type' => 'vndupr_score',
                 ],
                 [
-                    'score_value' => $request->submitted_score,
+                    'score_value' => $finalPickiScore,
                     'updated_at' => now(),
                 ]
             );
