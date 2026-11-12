@@ -83,4 +83,3 @@ return new class extends Migration
         // Điểm sàn 1.0 không cần rollback
     }
 };
-
