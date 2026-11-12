@@ -426,6 +426,7 @@ Route::prefix('admin')->middleware(['auth:api', 'super_admin'])->group(function 
         Route::get('/{verification}', [ScoreVerificationManagementController::class, 'show'])->where('verification', '[0-9]+');
         Route::post('/{verification}/approve', [ScoreVerificationManagementController::class, 'approve'])->where('verification', '[0-9]+');
         Route::post('/{verification}/reject', [ScoreVerificationManagementController::class, 'reject'])->where('verification', '[0-9]+');
+        Route::post('/{verification}/update-picki-score', [ScoreVerificationManagementController::class, 'updatePickiScore'])->where('verification', '[0-9]+');
     });
 
     Route::get('/users', [UserManagementController::class, 'index']);

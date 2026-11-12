@@ -16,6 +16,7 @@ class ScoreVerificationRequest extends Model
         'user_id',
         'score_type',
         'submitted_score',
+        'picki_score',
         'image_path',
         'status',
         'reviewer_id',
@@ -26,6 +27,7 @@ class ScoreVerificationRequest extends Model
 
     protected $casts = [
         'submitted_score' => 'decimal:3',
+        'picki_score' => 'decimal:3',
         'award_anchor_badge' => 'boolean',
         'reviewed_at' => 'datetime',
         'status' => ScoreVerificationStatus::class,

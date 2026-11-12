@@ -15,6 +15,7 @@ class ApproveScoreVerificationRequest extends FormRequest
     {
         return [
             'award_anchor_badge' => ['sometimes', 'boolean'],
+            'picki_score' => ['sometimes', 'nullable', 'numeric', 'min:1.0', 'max:10.0'],
         ];
     }
 }
