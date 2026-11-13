@@ -955,7 +955,7 @@ class MiniTournamentService
         $participantIds = $confirmedParticipants->pluck('id')->toArray();
         $count = count($participantIds);
 
-        if ($confirmedParticipants->isEmpty() || $count < 3 || $count > 8) {
+        if ($confirmedParticipants->isEmpty() || $count < 4 || $count > 8) {
             $miniTournament->update([
                 'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
                 'is_session_started' => true,

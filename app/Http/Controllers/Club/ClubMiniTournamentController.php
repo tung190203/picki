@@ -339,6 +339,19 @@ class ClubMiniTournamentController extends Controller
             }
         }
 
+        if (isset($data['match_format']) && $data['match_format'] === \App\Models\MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
+            $confirmedCount = $miniTournament->participants()
+                ->where('is_confirmed', true)
+                ->where('is_absent', false)
+                ->count();
+            if ($confirmedCount > 8) {
+                return ResponseHelper::error(
+                    "Thể thức xoay vòng partner chỉ hỗ trợ tối đa 8 người chơi đã xác nhận (hiện có {$confirmedCount} người).",
+                    422
+                );
+            }
+        }
+
         if ($editScope === 'entire_series' && !empty($miniTournament->recurrence_series_id)) {
             // Xử lý poster cho entire_series: đưa poster mới vào data để updateTournamentAsNewSeries áp dụng cho tất cả kèo
             $imageService = app(ImageOptimizationService::class);
