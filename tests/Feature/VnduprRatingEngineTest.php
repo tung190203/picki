@@ -455,6 +455,7 @@ class VnduprRatingEngineTest extends TestCase
         $score = DB::table('user_sport_scores')
             ->whereIn('user_sport_id', DB::table('user_sport')->where('user_id', $u1->id)->pluck('id'))
             ->where('score_type', 'vndupr_score')
+            ->orderByDesc('id')
             ->value('score_value');
         $this->assertEquals(3.0, (float) $score);
     }
@@ -541,6 +542,7 @@ class VnduprRatingEngineTest extends TestCase
         $u1NewScore = DB::table('user_sport_scores')
             ->whereIn('user_sport_id', DB::table('user_sport')->where('user_id', $u1->id)->pluck('id'))
             ->where('score_type', 'vndupr_score')
+            ->orderByDesc('id')
             ->value('score_value');
         // 3.0 + delta K=0.3 W=0.6 S-E → score > 3.0
         $this->assertGreaterThan(3.0, (float) $u1NewScore);

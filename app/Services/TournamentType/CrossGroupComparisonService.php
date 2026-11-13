@@ -464,12 +464,22 @@ class CrossGroupComparisonService
 
         foreach ($countedMatches as $match) {
             $isHome = $match->home_team_id === $teamId;
-            $homeScore = (int) $match->results->where('team_id', $match->home_team_id)->sum('score');
-            $awayScore = (int) $match->results->where('team_id', $match->away_team_id)->sum('score');
-
-            // Số hiệp (set) thắng của từng đội
-            $homeSetsWon = (int) $match->results->where('team_id', $match->home_team_id)->where('won_match', true)->count();
-            $awaySetsWon = (int) $match->results->where('team_id', $match->away_team_id)->where('won_match', true)->count();
+            $isRally = $match->relationLoaded('stages') ? $match->stages->isNotEmpty() : $match->stages()->exists();
+            if ($isRally) {
+                $stages = $match->relationLoaded('stages') ? $match->stages : $match->stages()->orderBy('stage_no')->get();
+                $activeStage = $stages->where('status', \App\Models\MatchStage::STATUS_COMPLETED)->last()
+                    ?? $stages->filter(fn($s) => $s->cumulative_score_a > 0 || $s->cumulative_score_b > 0)->last()
+                    ?? $stages->first();
+                $homeScore = (int) ($activeStage->cumulative_score_a ?? 0);
+                $awayScore = (int) ($activeStage->cumulative_score_b ?? 0);
+                $homeSetsWon = ($match->winner_id === $match->home_team_id) ? 1 : 0;
+                $awaySetsWon = ($match->winner_id === $match->away_team_id) ? 1 : 0;
+            } else {
+                $homeScore = (int) $match->results->where('team_id', $match->home_team_id)->sum('score');
+                $awayScore = (int) $match->results->where('team_id', $match->away_team_id)->sum('score');
+                $homeSetsWon = (int) $match->results->where('team_id', $match->home_team_id)->where('won_match', true)->count();
+                $awaySetsWon = (int) $match->results->where('team_id', $match->away_team_id)->where('won_match', true)->count();
+            }
 
             if ($isHome) {
                 $pointsFor += $homeScore;
@@ -952,8 +962,18 @@ class CrossGroupComparisonService
             $opponent = $isHome ? $match->awayTeam : $match->homeTeam;
             $opponentId = $isHome ? $match->away_team_id : $match->home_team_id;
 
-            $homeScore = (int) $match->results->where('team_id', $match->home_team_id)->sum('score');
-            $awayScore = (int) $match->results->where('team_id', $match->away_team_id)->sum('score');
+            $isRally = $match->relationLoaded('stages') ? $match->stages->isNotEmpty() : $match->stages()->exists();
+            if ($isRally) {
+                $stages = $match->relationLoaded('stages') ? $match->stages : $match->stages()->orderBy('stage_no')->get();
+                $activeStage = $stages->where('status', \App\Models\MatchStage::STATUS_COMPLETED)->last()
+                    ?? $stages->filter(fn($s) => $s->cumulative_score_a > 0 || $s->cumulative_score_b > 0)->last()
+                    ?? $stages->first();
+                $homeScore = (int) ($activeStage->cumulative_score_a ?? 0);
+                $awayScore = (int) ($activeStage->cumulative_score_b ?? 0);
+            } else {
+                $homeScore = (int) $match->results->where('team_id', $match->home_team_id)->sum('score');
+                $awayScore = (int) $match->results->where('team_id', $match->away_team_id)->sum('score');
+            }
 
             $myScore = $isHome ? $homeScore : $awayScore;
             $opponentScore = $isHome ? $awayScore : $homeScore;

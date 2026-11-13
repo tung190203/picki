@@ -381,10 +381,8 @@ function isStageComplete(stage) {
 
 function isStageEditable(idx) {
     if (!props.canEdit) return false
-    for (let i = 0; i < localStages.value.length; i++) {
-        if (!isStageComplete(localStages.value[i])) return i === idx
-    }
-    return false
+    if (idx === 0) return true
+    return isStageComplete(localStages.value[idx - 1])
 }
 
 const canSelectMembers = computed(() => props.canEdit)

@@ -75,6 +75,47 @@ class StandingsService
 
         // Tính điểm từng LEG (không group)
         foreach ($matches as $leg) {
+            $isRally = $leg->relationLoaded('stages') ? $leg->stages->isNotEmpty() : $leg->stages()->exists();
+            if ($isRally) {
+                $stages = $leg->relationLoaded('stages') ? $leg->stages : $leg->stages()->orderBy('stage_no')->get();
+                $activeStage = $stages->where('status', \App\Models\MatchStage::STATUS_COMPLETED)->last()
+                    ?? $stages->filter(fn($s) => $s->cumulative_score_a > 0 || $s->cumulative_score_b > 0)->last()
+                    ?? $stages->first();
+
+                $homeScore = (int) ($activeStage->cumulative_score_a ?? 0);
+                $awayScore = (int) ($activeStage->cumulative_score_b ?? 0);
+
+                if ($leg->home_team_id == $teamId) {
+                    $pWon += $homeScore;
+                    $pLost += $awayScore;
+                } elseif ($leg->away_team_id == $teamId) {
+                    $pWon += $awayScore;
+                    $pLost += $homeScore;
+                }
+
+                if ($leg->winner_id !== null) {
+                    if ((int) $leg->winner_id === (int) $teamId) {
+                        $wins++;
+                        $totalPoints += 3;
+                    } else {
+                        $losses++;
+                    }
+                } else {
+                    $myScore = ($leg->home_team_id == $teamId) ? $homeScore : $awayScore;
+                    $oppScore = ($leg->home_team_id == $teamId) ? $awayScore : $homeScore;
+                    if ($myScore > $oppScore) {
+                        $wins++;
+                        $totalPoints += 3;
+                    } elseif ($myScore < $oppScore) {
+                        $losses++;
+                    } else {
+                        $draws++;
+                        $totalPoints += 1;
+                    }
+                }
+                continue;
+            }
+
             $homeSetWins = 0;
             $awaySetWins = 0;
 
@@ -130,6 +171,8 @@ class StandingsService
             'draws' => $draws,
             'losses' => $losses,
             'points' => $totalPoints,
+            'points_for' => $pWon,
+            'points_against' => $pLost,
             'point_diff' => $pWon - $pLost,
             'win_rate' => $played > 0 ? round(($wins / $played) * 100, 2) : 0,
         ];

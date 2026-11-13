@@ -390,7 +390,6 @@ class MatchStageServiceTest extends TestCase
         MatchResult::create([
             'match_id' => $ctx['match']->id,
             'team_id' => $ctx['teamA']->id,
-            'participant_id' => $ctx['teamA']->id,
             'score' => 11,
             'set_number' => 1,
             'won_match' => true,
@@ -460,5 +459,102 @@ class MatchStageServiceTest extends TestCase
             // Vẫn chỉ 1 stage (stage 1 không bị xóa, stage 2 không tạo)
             $this->assertSame(1, MatchStage::where('match_id', $ctx['match']->id)->count());
         }
+    }
+
+    public function test_edit_completed_stages_before_match_finishes_and_standings_point_diff(): void
+    {
+        $ctx = $this->makeRallyTournament(3);
+        $service = app(MatchStageService::class);
+
+        // 1. Nhập điểm 2 chặng đầu (đều chạm mốc -> completed) rồi Lưu
+        $service->upsertStages(
+            $ctx['match'],
+            [
+                ['stage_no' => 1, 'cumulative_score_a' => 10, 'cumulative_score_b' => 6],
+                ['stage_no' => 2, 'cumulative_score_a' => 20, 'cumulative_score_b' => 15],
+            ],
+            $ctx['user']->id,
+        );
+
+        $s1 = MatchStage::where('match_id', $ctx['match']->id)->where('stage_no', 1)->first();
+        $s2 = MatchStage::where('match_id', $ctx['match']->id)->where('stage_no', 2)->first();
+        $this->assertSame(MatchStage::STATUS_COMPLETED, $s1->status);
+        $this->assertSame(MatchStage::STATUS_COMPLETED, $s2->status);
+
+        // 2. Mở lại trận đấu, sửa lại điểm của chặng 1 và chặng 2 (trận chưa kết thúc)
+        // Thay đổi: chặng 1 thành 10 - 7, chặng 2 thành 20 - 14, thêm chặng 3 thành 30 - 27
+        $saved = $service->upsertStages(
+            $ctx['match']->fresh(),
+            [
+                ['stage_no' => 1, 'cumulative_score_a' => 10, 'cumulative_score_b' => 7],
+                ['stage_no' => 2, 'cumulative_score_a' => 20, 'cumulative_score_b' => 14],
+                ['stage_no' => 3, 'cumulative_score_a' => 30, 'cumulative_score_b' => 27],
+            ],
+            $ctx['user']->id,
+        );
+
+        $s1Fresh = MatchStage::where('match_id', $ctx['match']->id)->where('stage_no', 1)->first();
+        $s2Fresh = MatchStage::where('match_id', $ctx['match']->id)->where('stage_no', 2)->first();
+        $s3Fresh = MatchStage::where('match_id', $ctx['match']->id)->where('stage_no', 3)->first();
+
+        // Chặng 1 & 2 đã được cập nhật thành công (không bị skip vì completed)
+        $this->assertSame(7, $s1Fresh->cumulative_score_b);
+        $this->assertSame(14, $s2Fresh->cumulative_score_b);
+        $this->assertSame(27, $s3Fresh->cumulative_score_b);
+        $this->assertSame(30, $s3Fresh->cumulative_score_a);
+
+        // Trận đấu đã hoàn thành
+        $match = $ctx['match']->fresh();
+        $this->assertSame(Matches::STATUS_COMPLETED, $match->status);
+        $this->assertSame($ctx['teamA']->id, $match->winner_id);
+
+        // MatchResult chỉ có 1 set duy nhất (set_number = 1) với tỷ số 30 - 27
+        $results = MatchResult::where('match_id', $match->id)->get();
+        $this->assertCount(2, $results);
+        $this->assertTrue($results->every(fn($r) => $r->set_number === 1));
+
+        $resA = $results->firstWhere('team_id', $ctx['teamA']->id);
+        $resB = $results->firstWhere('team_id', $ctx['teamB']->id);
+        $this->assertSame(30, $resA->score);
+        $this->assertTrue((bool) $resA->won_match);
+        $this->assertSame(27, $resB->score);
+        $this->assertFalse((bool) $resB->won_match);
+
+        // Kiểm tra tính hiệu số trận rally trong StandingsService & GroupStandingRanker
+        $standingsService = app(\App\Services\TournamentType\StandingsService::class);
+        $statsA = $standingsService->calculateStatsFromMatches(collect([$match]), $ctx['teamA']->id);
+        $statsB = $standingsService->calculateStatsFromMatches(collect([$match]), $ctx['teamB']->id);
+
+        // Team A: thắng 30 - 27 => points_for = 30, points_against = 27, point_diff = +3
+        $this->assertSame(30, $statsA['points_for']);
+        $this->assertSame(27, $statsA['points_against']);
+        $this->assertSame(3, $statsA['point_diff']);
+        $this->assertSame(1, $statsA['wins']);
+        $this->assertSame(0, $statsA['losses']);
+        $this->assertSame(3, $statsA['points']);
+
+        $this->assertSame(27, $statsB['points_for']);
+        $this->assertSame(30, $statsB['points_against']);
+        $this->assertSame(-3, $statsB['point_diff']);
+        $this->assertSame(0, $statsB['wins']);
+        $this->assertSame(1, $statsB['losses']);
+        $this->assertSame(0, $statsB['points']);
+
+        // GroupStandingRanker
+        $groupStats = \App\Services\TournamentType\GroupStandingRanker::buildStatsFromMatches(collect([$match]));
+        $groupStatsA = $groupStats->firstWhere('team_id', $ctx['teamA']->id);
+        $groupStatsB = $groupStats->firstWhere('team_id', $ctx['teamB']->id);
+
+        $this->assertSame(30, $groupStatsA['points_for']);
+        $this->assertSame(27, $groupStatsA['points_against']);
+        $this->assertSame(3, $groupStatsA['point_diff']);
+        $this->assertSame(1, $groupStatsA['wins']);
+        $this->assertSame(3, $groupStatsA['points']);
+
+        $this->assertSame(27, $groupStatsB['points_for']);
+        $this->assertSame(30, $groupStatsB['points_against']);
+        $this->assertSame(-3, $groupStatsB['point_diff']);
+        $this->assertSame(0, $groupStatsB['wins']);
+        $this->assertSame(0, $groupStatsB['points']);
     }
 }

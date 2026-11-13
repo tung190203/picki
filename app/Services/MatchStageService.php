@@ -96,14 +96,22 @@ class MatchStageService
                         "stages.{$idx}.stage_no" => ["Chặng {$stageNo} chỉ ghi được sau khi chặng {$prev['stage_no']} chạm mốc."],
                     ]);
                 }
+                if ($cumA < $prev['cumulative_score_a'] || $cumB < $prev['cumulative_score_b']) {
+                    throw ValidationException::withMessages([
+                        "stages.{$idx}.cumulative_score_a" => ["Điểm lũy kế phải ≥ chặng trước."],
+                    ]);
+                }
             }
 
-            // ponytail: cumulative_score_* is the per-stage score (delta), not a
-            // running total. Earlier code compared cum vs prevCum and rejected
-            // "0 < 20" as a decrease, but that's the natural next-stage state
-            // (the team that lost simply scored 0). Treat cum == stage_score.
-            $stageA = $isPlaceholder ? 0 : $cumA;
-            $stageB = $isPlaceholder ? 0 : $cumB;
+            // Stage placeholder (0/0) hoặc chưa có prev → stageScore = 0
+            $stageA = $isPlaceholder ? 0 : ($cumA - $prevCumulativeA);
+            $stageB = $isPlaceholder ? 0 : ($cumB - $prevCumulativeB);
+
+            if (!$isPlaceholder && ($stageA < 0 || $stageB < 0)) {
+                throw ValidationException::withMessages([
+                    "stages.{$idx}" => ["Điểm riêng stage phải ≥ 0."],
+                ]);
+            }
 
             if (!$isPlaceholder && $cumA === $target && $cumB === $target) {
                 throw ValidationException::withMessages([
@@ -144,18 +152,17 @@ class MatchStageService
                     ->lockForUpdate()
                     ->first();
 
-                if ($existing && $existing->isCompleted()) {
-                    // Phase 3: stage đã completed → không cho ghi đè.
-                    // Phase 4 sẽ xử lý luồng sửa kết quả.
-                    $savedStages->push($existing);
-                    continue;
+                if ($existing && VnduprHistory::where('match_stage_id', $existing->id)->exists()) {
+                    app(VnduprRatingEngine::class)->reverse($match->id, $existing->id);
                 }
 
                 $stageWinner = null;
+                $completedAt = null;
                 if ($row['status'] === MatchStage::STATUS_COMPLETED) {
                     $stageWinner = $row['cumulative_score_a'] > $row['cumulative_score_b']
                         ? $match->home_team_id
                         : $match->away_team_id;
+                    $completedAt = $existing?->completed_at ?? $row['completed_at'] ?? now();
                 }
 
                 $stage = MatchStage::updateOrCreate(
@@ -168,7 +175,7 @@ class MatchStageService
                         'status' => $row['status'],
                         'winner_team_id' => $stageWinner,
                         'target_point' => $row['target_point'],
-                        'completed_at' => $row['completed_at'],
+                        'completed_at' => $completedAt,
                     ],
                 );
 
@@ -177,14 +184,14 @@ class MatchStageService
                 // Phase 4: trigger VNDUPR rating cho stage completed (idempotent).
                 $this->applyStageRatingIfReady($stage, $match);
 
-                // Mirror vào MatchResult để tương thích code cũ (standings, VNDUPR)
-                $this->mirrorToMatchResult($stage, $match);
-
                 $savedStages->push($stage);
             }
 
             // Quyết định trạng thái trận
             $this->maybeDecideMatchCompletion($match);
+
+            // Đồng bộ kết quả trận rally sang MatchResult (1 set duy nhất với điểm lũy kế)
+            $this->syncToMatchResult($match);
 
             // Re-fetch match từ DB để lấy attributes mới (winner_id, status, ...).
             // Dùng fresh() thay vì refresh() để tránh eager-load relations cũ (đã load từ controller)
@@ -298,10 +305,25 @@ class MatchStageService
                     'updated_at' => now(),
                 ];
             }
+        } elseif ($membersPayload === null) {
+            // Fallback: nếu caller không gửi members (null) -> lấy default từ team_members
+            foreach ([$homeTeamId, $awayTeamId] as $teamId) {
+                if (!$teamId) continue;
+                $teamMembers = TeamMember::where('team_id', $teamId)
+                    ->whereNotNull('user_id')
+                    ->get();
+                foreach ($teamMembers as $tm) {
+                    $rows[] = [
+                        'match_stage_id' => $stage->id,
+                        'team_id' => $teamId,
+                        'user_id' => (int) $tm->user_id,
+                        'role' => 'player',
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+            }
         }
-        // ponytail: nếu membersPayload null/empty → KHÔNG auto-fill. Stage đó
-        // đơn giản là chưa được gán member nào. Caller chịu trách nhiệm gửi
-        // members khi muốn gán — không ngầm đoán.
 
         // Replace
         MatchStageMember::where('match_stage_id', $stage->id)->delete();
@@ -311,40 +333,72 @@ class MatchStageService
     }
 
     /**
-     * Mirror stage_score sang MatchResult (set_number=stage_no) để tương thích code cũ.
-     * KHÔNG tính won_match ở đây — để decideMatchCompletion xử lý khi match hoàn thành.
-     *
-     * LƯU Ý: match_results KHÔNG còn cột participant_id (đã drop từ 2025-10-15).
-     * Unique key hiện tại là (match_id, team_id, set_number).
+     * Đồng bộ kết quả trận rally sang MatchResult.
+     * Trận rally là 1 set duy nhất (set_number = 1), điểm số là điểm lũy kế của chặng đang thi đấu / chặng cuối.
+     * Xóa các set_number > 1 để đảm bảo tính hiệu số và BXH không bị cộng dồn sai.
      */
-    protected function mirrorToMatchResult(MatchStage $stage, Matches $match): void
+    public function syncToMatchResult(Matches $match): void
     {
-        if ($stage->stage_no < 1) {
+        $stages = MatchStage::where('match_id', $match->id)->orderBy('stage_no')->get();
+        if ($stages->isEmpty()) {
             return;
         }
-        $homeTeamId = $match->home_team_id;
-        $awayTeamId = $match->away_team_id;
+
+        // Active/latest stage: stage cuối cùng có score hoặc completed, fallback stage 1
+        $activeStage = null;
+        for ($i = $stages->count() - 1; $i >= 0; $i--) {
+            $s = $stages[$i];
+            if ($s->isCompleted() || $s->cumulative_score_a > 0 || $s->cumulative_score_b > 0) {
+                $activeStage = $s;
+                break;
+            }
+        }
+        if (!$activeStage) {
+            $activeStage = $stages->first();
+        }
+
+        $homeTeamId = (int) $match->home_team_id;
+        $awayTeamId = (int) $match->away_team_id;
+        $homeScore = (int) $activeStage->cumulative_score_a;
+        $awayScore = (int) $activeStage->cumulative_score_b;
+
+        $isCompleted = ($match->status === Matches::STATUS_COMPLETED);
+        $homeWon = $isCompleted && ((int) $match->winner_id === $homeTeamId);
+        $awayWon = $isCompleted && ((int) $match->winner_id === $awayTeamId);
 
         MatchResult::updateOrCreate(
-            ['match_id' => $match->id, 'team_id' => $homeTeamId, 'set_number' => $stage->stage_no],
+            ['match_id' => $match->id, 'team_id' => $homeTeamId, 'set_number' => 1],
             [
-                'score' => $stage->stage_score_a,
-                'team_score' => $stage->stage_score_a,
-                'opponent_score' => $stage->stage_score_b,
+                'score' => $homeScore,
+                'team_score' => $homeScore,
+                'opponent_score' => $awayScore,
                 'serving_position' => 0,
-                'won_match' => false,
-            ],
+                'won_match' => $homeWon,
+                'confirmed' => $isCompleted,
+            ]
         );
+
         MatchResult::updateOrCreate(
-            ['match_id' => $match->id, 'team_id' => $awayTeamId, 'set_number' => $stage->stage_no],
+            ['match_id' => $match->id, 'team_id' => $awayTeamId, 'set_number' => 1],
             [
-                'score' => $stage->stage_score_b,
-                'team_score' => $stage->stage_score_b,
-                'opponent_score' => $stage->stage_score_a,
+                'score' => $awayScore,
+                'team_score' => $awayScore,
+                'opponent_score' => $homeScore,
                 'serving_position' => 0,
-                'won_match' => false,
-            ],
+                'won_match' => $awayWon,
+                'confirmed' => $isCompleted,
+            ]
         );
+
+        // Xóa các set_number > 1 vì trận rally chỉ có duy nhất 1 set tổng
+        MatchResult::where('match_id', $match->id)
+            ->where('set_number', '>', 1)
+            ->delete();
+    }
+
+    protected function mirrorToMatchResult(MatchStage $stage, Matches $match): void
+    {
+        $this->syncToMatchResult($match);
     }
 
     /**
@@ -484,12 +538,20 @@ class MatchStageService
                 ]);
             }
 
-            // ponytail: cumulative_score_* is the per-stage score (delta). See
-            // validateAndBuild() for the same reasoning. Drop the
-            // "≥ prev cumulative" check that rejected valid 0s on the
-            // losing side of a new stage.
-            $stageScoreA = $cumA;
-            $stageScoreB = $cumB;
+            // Tính lại stage_score từ cumulative hiện tại của các stage trước đó
+            $prev = MatchStage::where('match_id', $lockedMatch->id)
+                ->where('stage_no', '<', $stage->stage_no)
+                ->orderByDesc('stage_no')
+                ->first();
+            $prevCumA = $prev ? (int) $prev->cumulative_score_a : 0;
+            $prevCumB = $prev ? (int) $prev->cumulative_score_b : 0;
+            $stageScoreA = $cumA - $prevCumA;
+            $stageScoreB = $cumB - $prevCumB;
+            if ($stageScoreA < 0 || $stageScoreB < 0) {
+                throw ValidationException::withMessages([
+                    'cumulative_score_a' => ['Điểm lũy kế nhỏ hơn chặng trước.'],
+                ]);
+            }
             if ($cumA === $target && $cumB === $target) {
                 throw ValidationException::withMessages([
                     'cumulative_score_a' => ['Cả hai đội cùng chạm mốc — không hợp lệ.'],
@@ -521,6 +583,9 @@ class MatchStageService
 
             // Recompute match completion + re-evaluate winner
             $this->maybeDecideMatchCompletion($lockedMatch);
+
+            // Đồng bộ kết quả trận rally sang MatchResult
+            $this->syncToMatchResult($lockedMatch);
 
             return $stage->fresh();
         });
@@ -556,12 +621,8 @@ class MatchStageService
         $match->winner_id = $winnerId;
         $match->save();
 
-        // Cập nhật won_match cho MatchResult theo winner
-        $stages->each(function (MatchStage $s) use ($match, $winnerId) {
-            MatchResult::where('match_id', $match->id)
-                ->where('set_number', $s->stage_no)
-                ->update(['won_match' => DB::raw("team_id = {$winnerId}"), 'confirmed' => true]);
-        });
+        // Đồng bộ won_match và điểm lũy kế cho MatchResult theo winner
+        $this->syncToMatchResult($match);
 
         TournamentMatchUpdated::dispatch($match);
     }

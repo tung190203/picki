@@ -216,25 +216,53 @@ class GroupStandingRanker
                 continue;
             }
 
-            // Tính theo từng set trong leg
-            $sets = $leg->results->groupBy('set_number');
-            $homeSetWins = 0;
-            $awaySetWins = 0;
-            $homePoints = 0;
-            $awayPoints = 0;
+            $isRally = $leg->relationLoaded('stages') ? $leg->stages->isNotEmpty() : $leg->stages()->exists();
+            if ($isRally) {
+                $stages = $leg->relationLoaded('stages') ? $leg->stages : $leg->stages()->orderBy('stage_no')->get();
+                $activeStage = $stages->where('status', \App\Models\MatchStage::STATUS_COMPLETED)->last()
+                    ?? $stages->filter(fn($s) => $s->cumulative_score_a > 0 || $s->cumulative_score_b > 0)->last()
+                    ?? $stages->first();
 
-            foreach ($sets as $setGroup) {
-                $home = $setGroup->firstWhere('team_id', $homeId);
-                $away = $setGroup->firstWhere('team_id', $awayId);
+                $homePoints = (int) ($activeStage->cumulative_score_a ?? 0);
+                $awayPoints = (int) ($activeStage->cumulative_score_b ?? 0);
 
-                $hScore = (int) ($home->score ?? 0);
-                $aScore = (int) ($away->score ?? 0);
+                if ($leg->winner_id == $homeId) {
+                    $homeSetWins = 1;
+                    $awaySetWins = 0;
+                } elseif ($leg->winner_id == $awayId) {
+                    $homeSetWins = 0;
+                    $awaySetWins = 1;
+                } elseif ($homePoints > $awayPoints) {
+                    $homeSetWins = 1;
+                    $awaySetWins = 0;
+                } elseif ($awayPoints > $homePoints) {
+                    $homeSetWins = 0;
+                    $awaySetWins = 1;
+                } else {
+                    $homeSetWins = 0;
+                    $awaySetWins = 0;
+                }
+            } else {
+                // Tính theo từng set trong leg
+                $sets = $leg->results->groupBy('set_number');
+                $homeSetWins = 0;
+                $awaySetWins = 0;
+                $homePoints = 0;
+                $awayPoints = 0;
 
-                if ($hScore > $aScore) $homeSetWins++;
-                elseif ($aScore > $hScore) $awaySetWins++;
+                foreach ($sets as $setGroup) {
+                    $home = $setGroup->firstWhere('team_id', $homeId);
+                    $away = $setGroup->firstWhere('team_id', $awayId);
 
-                $homePoints += $hScore;
-                $awayPoints += $aScore;
+                    $hScore = (int) ($home->score ?? 0);
+                    $aScore = (int) ($away->score ?? 0);
+
+                    if ($hScore > $aScore) $homeSetWins++;
+                    elseif ($aScore > $hScore) $awaySetWins++;
+
+                    $homePoints += $hScore;
+                    $awayPoints += $aScore;
+                }
             }
 
             // Cộng dồn vào stats
