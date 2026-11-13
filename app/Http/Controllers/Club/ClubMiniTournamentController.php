@@ -346,7 +346,7 @@ class ClubMiniTournamentController extends Controller
                 ->count();
             if ($confirmedCount > 8) {
                 return ResponseHelper::error(
-                    "Thể thức xoay vòng partner chỉ hỗ trợ tối đa 8 người chơi đã xác nhận (hiện có {$confirmedCount} người).",
+                    'Thể thức Xoay vòng partner chỉ hỗ trợ cho kèo có tối đa 8 người chơi',
                     422
                 );
             }
