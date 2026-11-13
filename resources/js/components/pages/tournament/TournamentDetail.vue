@@ -675,8 +675,8 @@
                       <h3 class="font-semibold text-gray-900">Ghép cặp đấu vòng loại trực tiếp</h3>
                     </div>
                     <p class="text-sm text-gray-500 mb-3">Chọn cách ghép cặp đội từ vòng bảng vào vòng loại trực tiếp</p>
-                    <div class="grid grid-cols-3 gap-3">
-                      <button v-for="option in PAIRING_MODE_OPTIONS.slice(0, 2)" :key="option.id"
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <button v-for="option in PAIRING_MODE_OPTIONS.slice(0, 3)" :key="option.id"
                         @click="selectPairingMode(option.id)" :class="[
                           'p-3 rounded-lg border-2 text-center transition-all',
                           pairingMode === option.id
@@ -996,6 +996,7 @@ const isRebuildingPairing = ref(false);
 const PAIRING_MODE_OPTIONS = [
     { id: 'sequential', label: 'Tuần tự', subtitle: 'A-B, B-A, C-D, D-C...' },
     { id: 'symmetric', label: 'Đối xứng', subtitle: 'A-H, B-G, C-F, D-E...' },
+    { id: 'group_separation', label: 'Tách nhánh', subtitle: 'Cùng bảng khác nhánh' },
     { id: 'manual', label: 'Tự chọn', subtitle: 'Tự thiết kế cặp đấu' },
 ];
 

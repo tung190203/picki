@@ -138,7 +138,7 @@ class TournamentTypeController extends Controller
 
                 // Validate pairing mode
                 $newPairingMode = $knockoutConfig['pairing_mode'] ?? null;
-                if ($newPairingMode && !in_array($newPairingMode, ['sequential', 'symmetric', 'manual'])) {
+                if ($newPairingMode && !in_array($newPairingMode, ['sequential', 'symmetric', 'group_separation', 'manual'])) {
                     return ResponseHelper::error('Invalid pairing mode', 422);
                 }
 
@@ -420,7 +420,7 @@ class TournamentTypeController extends Controller
             
             // Validate pairing mode
             $newPairingMode = $knockoutConfig['pairing_mode'] ?? null;
-            if ($newPairingMode && !in_array($newPairingMode, ['sequential', 'symmetric', 'manual'])) {
+            if ($newPairingMode && !in_array($newPairingMode, ['sequential', 'symmetric', 'group_separation', 'manual'])) {
                 return ResponseHelper::error('Invalid pairing mode', 422);
             }
             
