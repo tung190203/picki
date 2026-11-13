@@ -13,7 +13,7 @@
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-CvNONrOB.js",
+    "file": "assets/app-CQE6jH5S.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -25,7 +25,7 @@
       "resources/js/components/pages/admin/AdminBadgesPage.vue"
     ],
     "css": [
-      "assets/app-DsnJNCK3.css",
+      "assets/app-hNXFu3od.css",
       "assets/app-ia4qo9v9.css"
     ],
     "assets": [
@@ -74,7 +74,7 @@
     "src": "resources/js/assets/images/splash-bg.png"
   },
   "resources/js/components/pages/admin/AdminBadgesPage.vue": {
-    "file": "assets/AdminBadgesPage-CNLJHHp6.js",
+    "file": "assets/AdminBadgesPage-RDwJHg7N.js",
     "name": "AdminBadgesPage",
     "src": "resources/js/components/pages/admin/AdminBadgesPage.vue",
     "isDynamicEntry": true,
@@ -86,7 +86,7 @@
     ]
   },
   "resources/js/components/pages/admin/AdminBannersPage.vue": {
-    "file": "assets/AdminBannersPage-iXXKey76.js",
+    "file": "assets/AdminBannersPage-ByQcICJh.js",
     "name": "AdminBannersPage",
     "src": "resources/js/components/pages/admin/AdminBannersPage.vue",
     "isDynamicEntry": true,
@@ -99,7 +99,7 @@
     ]
   },
   "resources/js/components/pages/admin/AdminConfig.vue": {
-    "file": "assets/AdminConfig-H8vSwBk0.js",
+    "file": "assets/AdminConfig-BOYoi1Tq.js",
     "name": "AdminConfig",
     "src": "resources/js/components/pages/admin/AdminConfig.vue",
     "isDynamicEntry": true,
@@ -112,7 +112,7 @@
     ]
   },
   "resources/js/components/pages/admin/AdminModeration.vue": {
-    "file": "assets/AdminModeration-BVVVbHxZ.js",
+    "file": "assets/AdminModeration-C_VujGPO.js",
     "name": "AdminModeration",
     "src": "resources/js/components/pages/admin/AdminModeration.vue",
     "isDynamicEntry": true,
@@ -125,7 +125,7 @@
     ]
   },
   "resources/js/components/pages/admin/AdminSponsorsPage.vue": {
-    "file": "assets/AdminSponsorsPage-B5F-Rsus.js",
+    "file": "assets/AdminSponsorsPage-DZ2PQT7q.js",
     "name": "AdminSponsorsPage",
     "src": "resources/js/components/pages/admin/AdminSponsorsPage.vue",
     "isDynamicEntry": true,
