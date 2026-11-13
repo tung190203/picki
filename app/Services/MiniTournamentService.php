@@ -7,7 +7,10 @@ use App\Models\MiniTournament;
 use App\Models\MiniMatch;
 use App\Models\MiniParticipant;
 use App\Models\MiniParticipantPayment;
+use App\Models\MiniTeam;
+use App\Models\MiniTeamMember;
 use App\Models\MiniTournamentStaff;
+use App\Support\MiniTeamNameBuilder;
 use App\Models\Club\ClubFundCollection;
 use App\Models\Club\ClubFundContribution;
 use App\Services\Club\ClubFundContributionService;
@@ -930,6 +933,141 @@ class MiniTournamentService
         foreach ($participants as $participant) {
             $userId = $participant->user_id;
             $participant->played_matches = (int) ($playedMatchesByUserId[$userId] ?? 0);
+        }
+    }
+
+    /**
+     * Generate partner_rotation matches for a MiniTournament if eligible (4-8 confirmed players, double format).
+     * Always keeps is_session_started = true and session_status = ongoing regardless of participant count.
+     */
+    public function generatePartnerRotationMatches(MiniTournament $miniTournament): void
+    {
+        if ($miniTournament->matches()->exists()) {
+            return;
+        }
+
+        $confirmedParticipants = $miniTournament->participants()
+            ->with('user:id,full_name,avatar_url')
+            ->where('is_confirmed', true)
+            ->where('is_absent', false)
+            ->get();
+
+        $participantIds = $confirmedParticipants->pluck('id')->toArray();
+        $count = count($participantIds);
+
+        if ($confirmedParticipants->isEmpty() || $count < 3 || $count > 8) {
+            $miniTournament->update([
+                'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
+                'is_session_started' => true,
+            ]);
+            return;
+        }
+
+        $isDouble = $miniTournament->format === 'double';
+        $matchType = $isDouble
+            ? RoundRobinSchedulerService::MATCH_TYPE_DOUBLE
+            : RoundRobinSchedulerService::MATCH_TYPE_SINGLE;
+
+        $scheduler = new RoundRobinSchedulerService();
+        try {
+            $schedule = $scheduler->generatePartnerRotationSchedule($participantIds, $matchType);
+        } catch (\InvalidArgumentException $e) {
+            $miniTournament->update([
+                'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
+                'is_session_started' => true,
+            ]);
+            return;
+        }
+
+        $participantUserMap = [];
+        foreach ($confirmedParticipants as $p) {
+            $participantUserMap[$p->id] = $p->user_id;
+        }
+
+        $miniTeamCache = [];
+        $getOrCreateTeam = function (string $key, array $playerIds) use ($miniTournament, $participantUserMap, &$miniTeamCache): int {
+            if (!isset($miniTeamCache[$key])) {
+                $userIds = array_map(fn($pid) => $participantUserMap[$pid] ?? $pid, $playerIds);
+                $team = MiniTeam::create([
+                    'name' => MiniTeamNameBuilder::buildFromUserIds($userIds, $miniTournament->id),
+                    'mini_tournament_id' => $miniTournament->id,
+                ]);
+                foreach ($playerIds as $pid) {
+                    MiniTeamMember::create([
+                        'mini_team_id' => $team->id,
+                        'user_id' => $participantUserMap[$pid] ?? $pid,
+                        'is_guest' => false,
+                    ]);
+                }
+                $miniTeamCache[$key] = $team->id;
+            }
+            return $miniTeamCache[$key];
+        };
+
+        $matchesToInsert = [];
+        foreach ($schedule['rounds'] as $round) {
+            foreach ($round['matches'] as $match) {
+                $isBye = !empty($match['is_bye']);
+                $row = [
+                    'mini_tournament_id' => $miniTournament->id,
+                    'round_number' => $round['round_number'],
+                    'is_bye' => $isBye,
+                    'status' => ($round['round_number'] === 1 && !$isBye)
+                        ? MiniMatch::STATUS_GOING_ON
+                        : MiniMatch::STATUS_PENDING,
+                    'team1_id' => null,
+                    'team2_id' => null,
+                    'participant1_id' => null,
+                    'participant2_id' => null,
+                    'participant_win_id' => null,
+                    'team_win_id' => null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+
+                if ($isDouble && !empty($match['team1_players'])) {
+                    $team1Key = implode('-', $match['team1_players']);
+                    $row['team1_id'] = $getOrCreateTeam($team1Key, $match['team1_players']);
+
+                    if ($isBye) {
+                        $row['status'] = MiniMatch::STATUS_COMPLETED;
+                    } elseif (!empty($match['team2_players'])) {
+                        $team2Key = implode('-', $match['team2_players']);
+                        $row['team2_id'] = $getOrCreateTeam($team2Key, $match['team2_players']);
+                    }
+                }
+
+                $matchesToInsert[] = $row;
+            }
+        }
+
+        DB::transaction(function () use ($miniTournament, $matchesToInsert) {
+            MiniMatch::insert($matchesToInsert);
+            $miniTournament->update([
+                'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
+                'session_started_at' => $miniTournament->session_started_at ?? now(),
+                'is_session_started' => true,
+            ]);
+        });
+
+        // Increment total_matches for bye matches (insert bypasses observer).
+        $byeMatches = collect($matchesToInsert)->where('status', MiniMatch::STATUS_COMPLETED);
+        if ($byeMatches->isNotEmpty()) {
+            $sportId = $miniTournament->sport_id;
+            $matchCounter = app(UserSportMatchCounter::class);
+            $insertedMatches = MiniMatch::where('mini_tournament_id', $miniTournament->id)
+                ->where('status', MiniMatch::STATUS_COMPLETED)
+                ->whereIn('round_number', $byeMatches->pluck('round_number')->unique()->values())
+                ->whereIn('team1_id', $byeMatches->pluck('team1_id')->filter()->unique()->values())
+                ->get();
+            foreach ($insertedMatches as $byeMatch) {
+                if ($byeMatch->team1_id) {
+                    $matchCounter->incrementForMiniTeam($byeMatch->team1_id, $sportId);
+                }
+                if ($byeMatch->team2_id) {
+                    $matchCounter->incrementForMiniTeam($byeMatch->team2_id, $sportId);
+                }
+            }
         }
     }
 }

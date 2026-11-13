@@ -560,6 +560,10 @@ class MiniTournamentController extends Controller
                     'is_session_started' => false,
                 ]);
             }
+        } elseif ($miniTournament->match_format === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION
+            && !$miniTournament->matches()->exists()
+        ) {
+            $this->generatePartnerRotationMatches($miniTournament);
         }
 
         // Sync payment status khi has_fee thay đổi (free→paid hoặc paid→free)
@@ -731,119 +735,7 @@ class MiniTournamentController extends Controller
      */
     private function generatePartnerRotationMatches(MiniTournament $miniTournament): void
     {
-        $confirmedParticipants = $miniTournament->participants()
-            ->with('user:id,full_name,avatar_url')
-            ->where('is_confirmed', true)
-            ->where('is_absent', false)
-            ->get();
-
-        if ($confirmedParticipants->isEmpty()) {
-            $miniTournament->update([
-                'session_status' => MiniTournament::SESSION_STATUS_PENDING_GROUP,
-                'is_session_started' => false,
-            ]);
-            return;
-        }
-
-        $participantIds = $confirmedParticipants->pluck('id')->toArray();
-        $count = count($participantIds);
-        if ($count < 3 || $count > 8) {
-            $miniTournament->update([
-                'session_status' => MiniTournament::SESSION_STATUS_PENDING_GROUP,
-                'is_session_started' => false,
-            ]);
-            return;
-        }
-
-        $isDouble = $miniTournament->format === 'double';
-        $matchType = $isDouble
-            ? RoundRobinSchedulerService::MATCH_TYPE_DOUBLE
-            : RoundRobinSchedulerService::MATCH_TYPE_SINGLE;
-
-        $scheduler = new RoundRobinSchedulerService();
-        try {
-            $schedule = $scheduler->generatePartnerRotationSchedule($participantIds, $matchType);
-        } catch (\InvalidArgumentException $e) {
-            $miniTournament->update([
-                'session_status' => MiniTournament::SESSION_STATUS_PENDING_GROUP,
-                'is_session_started' => false,
-            ]);
-            return;
-        }
-
-        $participantUserMap = [];
-        foreach ($confirmedParticipants as $p) {
-            $participantUserMap[$p->id] = $p->user_id;
-        }
-
-        $matchesToInsert = [];
-        foreach ($schedule['rounds'] as $round) {
-            foreach ($round['matches'] as $match) {
-                $isBye = !empty($match['is_bye']);
-                $row = [
-                    'mini_tournament_id' => $miniTournament->id,
-                    'round_number' => $round['round_number'],
-                    'is_bye' => $isBye,
-                    'status' => ($round['round_number'] === 1 && !$isBye)
-                        ? MiniMatch::STATUS_GOING_ON
-                        : MiniMatch::STATUS_PENDING,
-                    'team1_id' => null,
-                    'team2_id' => null,
-                    'participant1_id' => null,
-                    'participant2_id' => null,
-                    'participant_win_id' => null,
-                    'team_win_id' => null,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
-
-                if ($isDouble && !empty($match['team1_players'])) {
-                    $team1Key = implode('-', $match['team1_players']);
-                    $team1Id = $this->getOrCreateMiniTeam($team1Key, $match['team1_players'], $miniTournament->id, $participantUserMap);
-                    $row['team1_id'] = $team1Id;
-
-                    if (!empty($match['is_bye'])) {
-                        $row['is_bye'] = true;
-                        $row['status'] = MiniMatch::STATUS_COMPLETED;
-                    } elseif (!empty($match['team2_players'])) {
-                        $team2Key = implode('-', $match['team2_players']);
-                        $team2Id = $this->getOrCreateMiniTeam($team2Key, $match['team2_players'], $miniTournament->id, $participantUserMap);
-                        $row['team2_id'] = $team2Id;
-                    }
-                }
-
-                $matchesToInsert[] = $row;
-            }
-        }
-
-        DB::transaction(function () use ($miniTournament, $matchesToInsert) {
-            MiniMatch::insert($matchesToInsert);
-            $miniTournament->update([
-                'session_status' => MiniTournament::SESSION_STATUS_ONGOING,
-                'session_started_at' => now(),
-                'is_session_started' => true,
-            ]);
-        });
-
-        // Increment total_matches for bye matches (insert bypasses observer).
-        $byeMatches = collect($matchesToInsert)->where('status', MiniMatch::STATUS_COMPLETED);
-        if ($byeMatches->isNotEmpty()) {
-            $sportId = $miniTournament->sport_id;
-            $matchCounter = app(UserSportMatchCounter::class);
-            $insertedMatches = MiniMatch::where('mini_tournament_id', $miniTournament->id)
-                ->where('status', MiniMatch::STATUS_COMPLETED)
-                ->whereIn('round_number', $byeMatches->pluck('round_number')->unique()->values())
-                ->whereIn('team1_id', $byeMatches->pluck('team1_id')->filter()->unique()->values())
-                ->get();
-            foreach ($insertedMatches as $byeMatch) {
-                if ($byeMatch->team1_id) {
-                    $matchCounter->incrementForMiniTeam($byeMatch->team1_id, $sportId);
-                }
-                if ($byeMatch->team2_id) {
-                    $matchCounter->incrementForMiniTeam($byeMatch->team2_id, $sportId);
-                }
-            }
-        }
+        $this->tournamentService->generatePartnerRotationMatches($miniTournament);
     }
 
     public function cancelRecurrenceSeries(Request $request, $tournamentId)
@@ -1403,7 +1295,10 @@ class MiniTournamentController extends Controller
             return ResponseHelper::error('Round Robin chỉ hỗ trợ kèo đánh đôi.', 422);
         }
 
-        if ($miniTournament->session_status === MiniTournament::SESSION_STATUS_ONGOING) {
+        $hasMatches = $miniTournament->matches()->exists();
+        if ($miniTournament->session_status === MiniTournament::SESSION_STATUS_ONGOING
+            && ($format !== MiniTournament::MATCH_FORMAT_PARTNER_ROTATION || $hasMatches)
+        ) {
             return ResponseHelper::error('Session đã được bắt đầu', 422);
         }
 
