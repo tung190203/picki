@@ -92,18 +92,31 @@ class TournamentService
             $standings[$homeId]['played']++;
             $standings[$awayId]['played']++;
 
-            // Tính số set thắng cho mỗi đội
-            $homeSetsWon = $match->results->where('team_id', $homeId)->where('won_match', true)->count();
-            $awaySetsWon = $match->results->where('team_id', $awayId)->where('won_match', true)->count();
+            $isRally = $match->relationLoaded('stages') ? $match->stages->isNotEmpty() : $match->stages()->exists();
+            if ($isRally) {
+                $stages = $match->relationLoaded('stages') ? $match->stages : $match->stages()->orderBy('stage_no')->get();
+                $activeStage = $stages->where('status', \App\Models\MatchStage::STATUS_COMPLETED)->last()
+                    ?? $stages->filter(fn($s) => $s->cumulative_score_a > 0 || $s->cumulative_score_b > 0)->last()
+                    ?? $stages->first();
+
+                $homePoints = (int) ($activeStage->cumulative_score_a ?? 0);
+                $awayPoints = (int) ($activeStage->cumulative_score_b ?? 0);
+                $homeSetsWon = ($match->winner_id == $homeId) ? 1 : 0;
+                $awaySetsWon = ($match->winner_id == $awayId) ? 1 : 0;
+            } else {
+                // Tính số set thắng cho mỗi đội
+                $homeSetsWon = $match->results->where('team_id', $homeId)->where('won_match', true)->count();
+                $awaySetsWon = $match->results->where('team_id', $awayId)->where('won_match', true)->count();
+
+                // Tính tổng điểm số (score)
+                $homePoints = $match->results->where('team_id', $homeId)->sum('score');
+                $awayPoints = $match->results->where('team_id', $awayId)->sum('score');
+            }
 
             $standings[$homeId]['sets_won'] += $homeSetsWon;
             $standings[$homeId]['sets_lost'] += $awaySetsWon;
             $standings[$awayId]['sets_won'] += $awaySetsWon;
             $standings[$awayId]['sets_lost'] += $homeSetsWon;
-
-            // Tính tổng điểm số (score)
-            $homePoints = $match->results->where('team_id', $homeId)->sum('score');
-            $awayPoints = $match->results->where('team_id', $awayId)->sum('score');
 
             $standings[$homeId]['points_for'] += $homePoints;
             $standings[$homeId]['points_against'] += $awayPoints;

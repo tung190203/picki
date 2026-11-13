@@ -3461,6 +3461,49 @@ class TournamentTypeController extends Controller
 
         // ✅ TÍNH ĐIỂM TỪNG LEG (không group)
         foreach ($matches as $leg) {
+            $isRally = $leg->relationLoaded('stages') ? $leg->stages->isNotEmpty() : $leg->stages()->exists();
+            if ($isRally) {
+                $stages = $leg->relationLoaded('stages') ? $leg->stages : $leg->stages()->orderBy('stage_no')->get();
+                $activeStage = $stages->where('status', \App\Models\MatchStage::STATUS_COMPLETED)->last()
+                    ?? $stages->filter(fn($s) => $s->cumulative_score_a > 0 || $s->cumulative_score_b > 0)->last()
+                    ?? $stages->first();
+
+                $homeScore = (int) ($activeStage->cumulative_score_a ?? 0);
+                $awayScore = (int) ($activeStage->cumulative_score_b ?? 0);
+
+                if ($leg->home_team_id == $teamId) {
+                    $pWon += $homeScore;
+                    $pLost += $awayScore;
+                } elseif ($leg->away_team_id == $teamId) {
+                    $pWon += $awayScore;
+                    $pLost += $homeScore;
+                }
+
+                if ($leg->winner_id !== null) {
+                    $myWon = ((int) $leg->winner_id === (int) $teamId);
+                    $wins += $myWon ? 1 : 0;
+                    $losses += $myWon ? 0 : 1;
+                    $totalPoints += $myWon ? 3 : 0;
+                    $setsWon += $myWon ? 1 : 0;
+                    $setsLost += $myWon ? 0 : 1;
+                } else {
+                    $myScore = ($leg->home_team_id == $teamId) ? $homeScore : $awayScore;
+                    $oppScore = ($leg->home_team_id == $teamId) ? $awayScore : $homeScore;
+                    if ($myScore > $oppScore) {
+                        $wins++;
+                        $totalPoints += 3;
+                        $setsWon++;
+                    } elseif ($myScore < $oppScore) {
+                        $losses++;
+                        $setsLost++;
+                    } else {
+                        $draws++;
+                        $totalPoints += 1;
+                    }
+                }
+                continue;
+            }
+
             $homeSetWins = 0;
             $awaySetWins = 0;
 
