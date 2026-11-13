@@ -135,6 +135,15 @@ class MiniMatchController extends Controller
             return $carry;
         }, ['confirmed' => 0, 'male' => 0, 'female' => 0, 'group_a' => 0, 'group_b' => 0]);
 
+        if ($miniTournament->match_format === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION
+            && $miniTournament->format === 'double'
+            && $miniTournament->session_status !== MiniTournament::SESSION_STATUS_FINISHED
+            && !$miniTournament->matches()->exists()
+        ) {
+            app(\App\Services\MiniTournamentService::class)->generatePartnerRotationMatches($miniTournament);
+            $miniTournament->refresh();
+        }
+
         $totalMatches = (clone $baseQuery)->count();
         $confirmedMatches = (clone $baseQuery)
             ->where('status', MiniMatch::STATUS_COMPLETED)
