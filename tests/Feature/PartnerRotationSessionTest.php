@@ -196,7 +196,7 @@ class PartnerRotationSessionTest extends TestCase
             ]);
 
         $response->assertStatus(422);
-        $this->assertStringContainsString('tối đa 8 người', $response->json('message'));
+        $this->assertSame('Thể thức Xoay vòng partner chỉ hỗ trợ cho kèo có tối đa 8 người chơi', $response->json('message'));
 
         $tournament->refresh();
         $this->assertNull($tournament->match_format);
