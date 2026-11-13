@@ -670,18 +670,28 @@ const tournamentRulesForReferee = computed(() => {
 /* ===================== FORMAT API ===================== */
 const formatResultsForAPI = () => {
     if (isRally.value) {
-        // ponytail: for rally scoring, pack 1 set per stage using cumulative
-        // scores as the "set" score. Backend derives winner from won_match flags
-        // at confirm time; we only need a non-empty results array.
+        // Rally scoring: trận chỉ có 1 set duy nhất với điểm lũy kế chặng hiện tại / chặng cuối
         const homeId = props.data.home_team?.id
         const awayId = props.data.away_team?.id
         if (!homeId || !awayId) return []
-        return rallyStageData.value
-            .filter(s => (s.cumulative_score_a ?? 0) > 0 || (s.cumulative_score_b ?? 0) > 0)
-            .flatMap(s => [
-                { set_number: s.stage_no, team_id: homeId, score: s.cumulative_score_a || 0 },
-                { set_number: s.stage_no, team_id: awayId, score: s.cumulative_score_b || 0 }
-            ])
+        const stages = rallyStageData.value || []
+        let activeStage = null
+        for (let i = stages.length - 1; i >= 0; i--) {
+            const s = stages[i]
+            if ((s.cumulative_score_a || 0) > 0 || (s.cumulative_score_b || 0) > 0) {
+                activeStage = s
+                break
+            }
+        }
+        if (!activeStage && stages.length > 0) {
+            activeStage = stages[0]
+        }
+        const cumA = activeStage ? (activeStage.cumulative_score_a || 0) : 0
+        const cumB = activeStage ? (activeStage.cumulative_score_b || 0) : 0
+        return [
+            { set_number: 1, team_id: homeId, score: cumA },
+            { set_number: 1, team_id: awayId, score: cumB }
+        ]
     }
     return scores.value.flatMap((score, idx) => [
         {

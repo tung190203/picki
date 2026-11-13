@@ -1452,9 +1452,8 @@ class MatchesController extends Controller
             $match->winner_id = $winnerId;
             $match->save();
 
-            // Cập nhật won_match cho từng MatchResult theo stage_no
-            MatchResult::where('match_id', $match->id)
-                ->update(['won_match' => \DB::raw("team_id = {$winnerId}"), 'confirmed' => true]);
+            // Đồng bộ kết quả trận rally sang MatchResult (1 set duy nhất với điểm lũy kế chặng cuối)
+            app(\App\Services\MatchStageService::class)->syncToMatchResult($match);
 
             $this->processMatchCompletionBig($match, $tournament, $setsPerMatch);
         } else {
@@ -1828,19 +1827,22 @@ class MatchesController extends Controller
             ->map(fn ($id) => (int) $id)
             ->all();
 
-        // Phase 4: ủy thác toàn bộ logic rating cho VnduprRatingEngine.
-        app(\App\Services\VnduprRatingEngine::class)->computeAndApply([
-            'home_member_user_ids' => $homeUserIds,
-            'away_member_user_ids' => $awayUserIds,
-            'home_team_id' => (int) $match->home_team_id,
-            'away_team_id' => (int) $match->away_team_id,
-            'home_score' => $homeScore,
-            'away_score' => $awayScore,
-            'winner_team_id' => $winnerTeamId,
-            'match_id' => (int) $match->id,
-            'match_stage_id' => null, // side-out: 1 row per (user, match)
-            'sport_id' => (int) $tournament->sport_id,
-        ]);
+        // Phase 4: ủy thác toàn bộ logic rating cho VnduprRatingEngine (chỉ cho side-out; rally đã tính theo từng stage).
+        $isRally = MatchStage::where('match_id', $match->id)->exists();
+        if (!$isRally) {
+            app(\App\Services\VnduprRatingEngine::class)->computeAndApply([
+                'home_member_user_ids' => $homeUserIds,
+                'away_member_user_ids' => $awayUserIds,
+                'home_team_id' => (int) $match->home_team_id,
+                'away_team_id' => (int) $match->away_team_id,
+                'home_score' => $homeScore,
+                'away_score' => $awayScore,
+                'winner_team_id' => $winnerTeamId,
+                'match_id' => (int) $match->id,
+                'match_stage_id' => null, // side-out: 1 row per (user, match)
+                'sport_id' => (int) $tournament->sport_id,
+            ]);
+        }
 
         $this->checkAndAdvanceFromMultiLeg($match, $setsPerMatch);
     }

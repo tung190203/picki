@@ -1004,6 +1004,46 @@ class TournamentRankService
         $setsLost = 0;
 
         foreach ($matches as $leg) {
+            $isRally = $leg->relationLoaded('stages') ? $leg->stages->isNotEmpty() : $leg->stages()->exists();
+            if ($isRally) {
+                $stages = $leg->relationLoaded('stages') ? $leg->stages : $leg->stages()->orderBy('stage_no')->get();
+                $activeStage = $stages->where('status', \App\Models\MatchStage::STATUS_COMPLETED)->last()
+                    ?? $stages->filter(fn($s) => $s->cumulative_score_a > 0 || $s->cumulative_score_b > 0)->last()
+                    ?? $stages->first();
+
+                $hScore = (int) ($activeStage->cumulative_score_a ?? 0);
+                $aScore = (int) ($activeStage->cumulative_score_b ?? 0);
+
+                $homeSetWins = 0;
+                $awaySetWins = 0;
+                if ($leg->winner_id == $leg->home_team_id) {
+                    $homeSetWins = 1;
+                } elseif ($leg->winner_id == $leg->away_team_id) {
+                    $awaySetWins = 1;
+                } elseif ($hScore > $aScore) {
+                    $homeSetWins = 1;
+                } elseif ($aScore > $hScore) {
+                    $awaySetWins = 1;
+                }
+
+                $setsWon += $leg->home_team_id == $teamId ? $homeSetWins : $awaySetWins;
+                $setsLost += $leg->home_team_id == $teamId ? $awaySetWins : $homeSetWins;
+
+                $pWon += $leg->home_team_id == $teamId ? $hScore : $aScore;
+                $pLost += $leg->home_team_id == $teamId ? $aScore : $hScore;
+
+                $totalPoints += $leg->points;
+                if ($leg->winner_id === null) {
+                    $draws++;
+                } elseif ((int) $leg->winner_id === (int) $teamId) {
+                    $wins++;
+                    $totalPoints += 3;
+                } else {
+                    $losses++;
+                }
+                continue;
+            }
+
             $homeSetWins = 0;
             $awaySetWins = 0;
             $sets = $leg->results->groupBy('set_number');
@@ -1028,16 +1068,13 @@ class TournamentRankService
                 // ponytail: thua = 0 điểm xếp hạng (giống GroupStandingRanker)
                 $losses++;
             }
+
+            $pWon += $leg->results->where('team_id', $teamId)->sum('score');
+            $oppId = $leg->home_team_id == $teamId ? $leg->away_team_id : $leg->home_team_id;
+            $pLost += $leg->results->where('team_id', $oppId)->sum('score');
         }
 
         $played = $wins + $draws + $losses;
-        $pWon = $matches->sum(function ($m) use ($teamId) {
-            return $m->results->where('team_id', $teamId)->sum('score');
-        });
-        $pLost = $matches->sum(function ($m) use ($teamId) {
-            $oppId = $m->home_team_id == $teamId ? $m->away_team_id : $m->home_team_id;
-            return $m->results->where('team_id', $oppId)->sum('score');
-        });
 
         return [
             'team_id' => $teamId,

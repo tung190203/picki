@@ -264,6 +264,22 @@ class BracketService
      */
     public function calculateSingleMatchWins($match): array
     {
+        $isRally = $match->relationLoaded('stages') ? $match->stages->isNotEmpty() : $match->stages()->exists();
+        if ($isRally) {
+            if ($match->winner_id == $match->home_team_id) {
+                return ['home' => 1, 'away' => 0];
+            } elseif ($match->winner_id && $match->winner_id != $match->home_team_id) {
+                return ['home' => 0, 'away' => 1];
+            }
+            $stages = $match->relationLoaded('stages') ? $match->stages : $match->stages()->orderBy('stage_no')->get();
+            $last = $stages->where('status', \App\Models\MatchStage::STATUS_COMPLETED)->last()
+                ?? $stages->filter(fn($s) => $s->cumulative_score_a > 0 || $s->cumulative_score_b > 0)->last()
+                ?? $stages->first();
+            $h = (int) ($last->cumulative_score_a ?? 0);
+            $a = (int) ($last->cumulative_score_b ?? 0);
+            return ['home' => $h > $a ? 1 : 0, 'away' => $a > $h ? 1 : 0];
+        }
+
         $homeWins = 0;
         $awayWins = 0;
         $sets = $match->results->groupBy('set_number');
