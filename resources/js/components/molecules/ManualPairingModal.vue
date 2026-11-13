@@ -43,6 +43,9 @@
                             <button @click="resetToSymmetric" class="px-3 py-1.5 text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors">
                                 Mặc định (Đối xứng)
                             </button>
+                            <button @click="resetToGroupSeparation" class="px-3 py-1.5 text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors">
+                                Mặc định (Tách nhánh)
+                            </button>
                             <button @click="resetToEmpty" class="px-3 py-1.5 text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors">
                                 Xóa tất cả
                             </button>
@@ -821,6 +824,41 @@ const resetToSymmetric = () => {
         const g1 = groupList.value[(len - 1 - i) % len];
         pairingSlots.value[i][0] = buildEntry(g0, g0?.isVirtual ? 2 : 1);
         pairingSlots.value[i][1] = buildEntry(g1, g1?.isVirtual ? 2 : 2);
+    }
+};
+
+// Reset to group_separation: các đội cùng bảng nằm ở 2 nhánh khác nhau
+const resetToGroupSeparation = () => {
+    const groups = groupList.value;
+    const totalSlots = pairingSlots.value.length;
+    if (groups.length === 0 || totalSlots === 0) return;
+
+    const topPairs = [];
+    const bottomPairs = [];
+    for (let i = 0; i < groups.length; i += 2) {
+        const g0 = groups[i];
+        const g1 = groups[i + 1];
+        if (g1) {
+            topPairs.push([
+                buildEntry(g0, g0?.isVirtual ? 2 : 1),
+                buildEntry(g1, g1?.isVirtual ? 2 : 2),
+            ]);
+            bottomPairs.push([
+                buildEntry(g1, g1?.isVirtual ? 2 : 1),
+                buildEntry(g0, g0?.isVirtual ? 2 : 2),
+            ]);
+        } else {
+            bottomPairs.push([
+                buildEntry(g0, g0?.isVirtual ? 2 : 1),
+                buildEntry(g0, g0?.isVirtual ? 2 : 2),
+            ]);
+        }
+    }
+
+    const orderedPairs = [...topPairs, ...bottomPairs];
+    for (let i = 0; i < totalSlots; i++) {
+        const pair = orderedPairs[i];
+        pairingSlots.value[i] = pair ? [pair[0], pair[1]] : [null, null];
     }
 };
 

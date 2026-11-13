@@ -10,8 +10,9 @@ use Illuminate\Support\Collection;
 class TeamPairingService
 {
     // Pairing modes
-    const PAIRING_MODE_SEQUENTIAL = 'sequential';  // Tuần tự: A-B, C-D, E-F, G-H
-    const PAIRING_MODE_SYMMETRIC = 'symmetric';    // Đối xứng: A-H, B-G, C-F, D-E
+    const PAIRING_MODE_SEQUENTIAL = 'sequential';              // Tuần tự: A-B, C-D, E-F, G-H
+    const PAIRING_MODE_SYMMETRIC = 'symmetric';                // Đối xứng: A-H, B-G, C-F, D-E
+    const PAIRING_MODE_GROUP_SEPARATION = 'group_separation';  // Tách nhánh: cùng bảng khác nhánh
     const PAIRING_MODE_MANUAL = 'manual';
 
     /**
@@ -49,12 +50,18 @@ class TeamPairingService
             if ($pairingMode === self::PAIRING_MODE_SYMMETRIC) {
                 return $this->arrangeSymmetricWithVirtual($advancingByRank);
             }
+            if ($pairingMode === self::PAIRING_MODE_GROUP_SEPARATION) {
+                return $this->arrangeGroupSeparationWithVirtual($advancingByRank);
+            }
             return $this->arrangeSequentialWithVirtual($advancingByRank);
         }
 
         // === BÌNH THƯỜNG: mỗi bảng có Nhất + Nhì ===
         if ($pairingMode === self::PAIRING_MODE_SYMMETRIC) {
             return $this->arrangeSymmetric($advancingByRank);
+        }
+        if ($pairingMode === self::PAIRING_MODE_GROUP_SEPARATION) {
+            return $this->arrangeGroupSeparation($advancingByRank);
         }
         return $this->arrangeSequential($advancingByRank);
     }
@@ -270,6 +277,132 @@ class TeamPairingService
         if ($numRemaining % 2 === 1) {
             $advancing->push($remainingFirst->get($numPairsRemaining));
         }
+
+        foreach ($advancingByRank as $rank => $teamsAtRank) {
+            if ($rank < 2) continue;
+            foreach ($teamsAtRank as $team) {
+                $advancing->push($team);
+            }
+        }
+
+        return $advancing;
+    }
+
+    /**
+     * [BÌNH THƯỜNG] Tách nhánh (Group Separation):
+     * Đảm bảo các đội cùng bảng (Nhất, Nhì) nằm ở 2 nhánh khác nhau, không gặp nhau trước Chung kết.
+     *
+     * Ví dụ 4 bảng (A, B, C, D):
+     *   - Nhánh trên (Top half):    Nhất A - Nhì B, Nhất C - Nhì D
+     *   - Nhánh dưới (Bottom half): Nhất B - Nhì A, Nhất D - Nhì C
+     * Ví dụ 8 bảng (A..H):
+     *   - Nhánh trên:  A1-B2, C1-D2, E1-F2, G1-H2
+     *   - Nhánh dưới:  B1-A2, D1-C2, F1-E2, H1-G2
+     */
+    private function arrangeGroupSeparation($advancingByRank): Collection
+    {
+        $firstPlaceTeams = $advancingByRank->get(0, collect())->values();
+        $secondPlaceTeams = $advancingByRank->get(1, collect())->values();
+
+        $numFirstPlace = $firstPlaceTeams->count();
+        $numSecondPlace = $secondPlaceTeams->count();
+
+        if ($numSecondPlace === 0 && $numFirstPlace > 0) {
+            return $this->arrangeSymmetric($advancingByRank);
+        }
+
+        $topHalf = collect();
+        $bottomHalf = collect();
+        $pairCount = min($numFirstPlace, $numSecondPlace);
+
+        for ($i = 0; $i < $pairCount; $i += 2) {
+            if ($i + 1 < $pairCount) {
+                // Nhánh trên: Nhất[i] vs Nhì[i+1]
+                $topHalf->push($firstPlaceTeams->get($i));
+                $topHalf->push($secondPlaceTeams->get($i + 1));
+
+                // Nhánh dưới: Nhất[i+1] vs Nhì[i]
+                $bottomHalf->push($firstPlaceTeams->get($i + 1));
+                $bottomHalf->push($secondPlaceTeams->get($i));
+            } else {
+                // Trường hợp số bảng lẻ: cặp cuối cùng đưa vào nhánh dưới
+                $bottomHalf->push($firstPlaceTeams->get($i));
+                $bottomHalf->push($secondPlaceTeams->get($i));
+            }
+        }
+
+        for ($i = $pairCount; $i < $numFirstPlace; $i++) {
+            $bottomHalf->push($firstPlaceTeams->get($i));
+        }
+        for ($i = $pairCount; $i < $numSecondPlace; $i++) {
+            $bottomHalf->push($secondPlaceTeams->get($i));
+        }
+
+        $advancing = $topHalf->concat($bottomHalf)->values();
+
+        foreach ($advancingByRank as $rank => $teamsAtRank) {
+            if ($rank < 2) continue;
+            foreach ($teamsAtRank as $team) {
+                $advancing->push($team);
+            }
+        }
+
+        return $advancing;
+    }
+
+    /**
+     * [CÓ PICK NHÌ/BA TỐT NHẤT] Tách nhánh (Group Separation):
+     * Phân bổ đều các đội Nhất và Nhì tốt nhất vào 2 nhánh trên/dưới.
+     */
+    private function arrangeGroupSeparationWithVirtual($advancingByRank): Collection
+    {
+        $firstPlaceTeams = $advancingByRank->get(0, collect())->values();
+        $secondPlaceTeams = $advancingByRank->get(1, collect())->values();
+
+        $numFirstPlace = $firstPlaceTeams->count();
+        $numSecondPlace = $secondPlaceTeams->count();
+
+        if ($numSecondPlace === 0 && $numFirstPlace > 0) {
+            return $this->arrangeSymmetricWithVirtual($advancingByRank);
+        }
+
+        $reversedSecond = $secondPlaceTeams->reverse()->values();
+        $matches = [];
+
+        $numPairsWithSecond = min($numFirstPlace, $numSecondPlace);
+        for ($i = 0; $i < $numPairsWithSecond; $i++) {
+            $matches[] = [$firstPlaceTeams->get($i), $reversedSecond->get($i)];
+        }
+
+        $remainingFirst = $firstPlaceTeams->slice($numPairsWithSecond)->values();
+        for ($i = 0; $i < $remainingFirst->count(); $i += 2) {
+            if ($i + 1 < $remainingFirst->count()) {
+                $matches[] = [$remainingFirst->get($i), $remainingFirst->get($i + 1)];
+            } else {
+                $matches[] = [$remainingFirst->get($i)];
+            }
+        }
+
+        $remainingSecond = $reversedSecond->slice($numPairsWithSecond)->values();
+        for ($i = 0; $i < $remainingSecond->count(); $i += 2) {
+            if ($i + 1 < $remainingSecond->count()) {
+                $matches[] = [$remainingSecond->get($i), $remainingSecond->get($i + 1)];
+            } else {
+                $matches[] = [$remainingSecond->get($i)];
+            }
+        }
+
+        // Xen kẽ các trận vào nhánh trên (chẵn) và nhánh dưới (lẻ)
+        $topHalf = collect();
+        $bottomHalf = collect();
+        foreach ($matches as $idx => $pair) {
+            $target = ($idx % 2 === 0) ? $topHalf : $bottomHalf;
+            foreach ($pair as $team) {
+                $target->push($team);
+            }
+        }
+
+        $advancing = $topHalf->concat($bottomHalf)->values();
 
         foreach ($advancingByRank as $rank => $teamsAtRank) {
             if ($rank < 2) continue;
