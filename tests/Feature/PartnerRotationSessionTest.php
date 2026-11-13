@@ -180,5 +180,40 @@ class PartnerRotationSessionTest extends TestCase
         $this->assertNotEmpty($response->json('data.rounds'));
         $this->assertGreaterThan(0, MiniMatch::where('mini_tournament_id', $tournament->id)->count());
     }
+
+    public function test_partner_rotation_rejects_more_than_8_players_and_keeps_null_format_and_false_session(): void
+    {
+        $tournament = $this->createDoubleTournament(null, 10);
+        $tournament->update([
+            'match_format' => null,
+            'is_session_started' => false,
+            'session_status' => MiniTournament::SESSION_STATUS_PENDING_GROUP,
+        ]);
+
+        $response = $this->actingAs($this->organizer, 'api')
+            ->postJson("/api/mini-tournaments/update/{$tournament->id}", [
+                'match_format' => MiniTournament::MATCH_FORMAT_PARTNER_ROTATION,
+            ]);
+
+        $response->assertStatus(422);
+        $this->assertStringContainsString('tối đa 8 người', $response->json('message'));
+
+        $tournament->refresh();
+        $this->assertNull($tournament->match_format);
+        $this->assertFalse((bool) $tournament->is_session_started);
+    }
+
+    public function test_partner_rotation_works_up_to_8_players(): void
+    {
+        $tournament = $this->createDoubleTournament(MiniTournament::MATCH_FORMAT_PARTNER_ROTATION, 6);
+
+        $matchesResponse = $this->actingAs($this->organizer, 'api')
+            ->getJson("/api/mini-matches/index/{$tournament->id}");
+
+        $matchesResponse->assertStatus(200);
+        $this->assertTrue((bool) $matchesResponse->json('data.is_session_started'));
+        $this->assertNotEmpty($matchesResponse->json('data.rounds'));
+        $this->assertGreaterThan(0, MiniMatch::where('mini_tournament_id', $tournament->id)->count());
+    }
 }
 

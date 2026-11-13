@@ -453,6 +453,19 @@ class MiniTournamentController extends Controller
 
         $oldStatus = $miniTournament->status;
 
+        if (isset($data['match_format']) && $data['match_format'] === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
+            $confirmedCount = $miniTournament->participants()
+                ->where('is_confirmed', true)
+                ->where('is_absent', false)
+                ->count();
+            if ($confirmedCount > 8) {
+                return ResponseHelper::error(
+                    "Thể thức xoay vòng partner chỉ hỗ trợ tối đa 8 người chơi đã xác nhận (hiện có {$confirmedCount} người).",
+                    422
+                );
+            }
+        }
+
         if ($editScope === 'entire_series' && !empty($miniTournament->recurrence_series_id)) {
             // Xử lý poster cho entire_series: đưa poster mới vào data để updateTournamentAsNewSeries áp dụng cho tất cả kèo
             $imageService = app(ImageOptimizationService::class);
@@ -1363,8 +1376,11 @@ class MiniTournamentController extends Controller
         try {
             if ($format === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
                 $count = count($participantIds);
-                if ($count < 3 || $count > 8) {
-                    return ResponseHelper::error('partner_rotation cần 3 đến 8 người đã xác nhận, đang có ' . $count . ' người', 422);
+                if ($count < 4 || $count > 8) {
+                    return ResponseHelper::error(
+                        "Thể thức xoay vòng partner chỉ hỗ trợ từ 4 đến 8 người chơi đã xác nhận (hiện có {$count} người).",
+                        422
+                    );
                 }
                 $schedule = $scheduler->generatePartnerRotationSchedule($participantIds, $matchType);
             } elseif ($format === MiniTournament::MATCH_FORMAT_MIXED_GENDER) {
