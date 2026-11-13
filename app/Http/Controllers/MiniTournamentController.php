@@ -460,7 +460,7 @@ class MiniTournamentController extends Controller
                 ->count();
             if ($confirmedCount > 8) {
                 return ResponseHelper::error(
-                    "Thể thức xoay vòng partner chỉ hỗ trợ tối đa 8 người chơi đã xác nhận (hiện có {$confirmedCount} người).",
+                    'Thể thức Xoay vòng partner chỉ hỗ trợ cho kèo có tối đa 8 người chơi',
                     422
                 );
             }
@@ -1376,9 +1376,15 @@ class MiniTournamentController extends Controller
         try {
             if ($format === MiniTournament::MATCH_FORMAT_PARTNER_ROTATION) {
                 $count = count($participantIds);
-                if ($count < 4 || $count > 8) {
+                if ($count > 8) {
                     return ResponseHelper::error(
-                        "Thể thức xoay vòng partner chỉ hỗ trợ từ 4 đến 8 người chơi đã xác nhận (hiện có {$count} người).",
+                        'Thể thức Xoay vòng partner chỉ hỗ trợ cho kèo có tối đa 8 người chơi',
+                        422
+                    );
+                }
+                if ($count < 4) {
+                    return ResponseHelper::error(
+                        "Thể thức Xoay vòng partner cần ít nhất 4 người chơi đã xác nhận (hiện có {$count} người).",
                         422
                     );
                 }
