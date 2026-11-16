@@ -37,8 +37,10 @@ class SearchRequest extends FormRequest
             // Shared filters (root level)
             'keyword'      => 'nullable|string|max:255',
             'sport_id'     => 'nullable|integer|exists:sports,id',
-            'location_id'  => 'nullable|integer|exists:locations,id',
-            'club_id'      => 'nullable|integer|exists:clubs,id',
+            'location_id'        => 'nullable|integer|exists:locations,id',
+            'club_id'            => 'nullable|integer|exists:clubs,id',
+            'mini_tournament_id' => 'nullable|integer|exists:mini_tournaments,id',
+            'tournament_id'      => 'nullable|integer|exists:tournaments,id',
 
             // Filters bundle (V2 structured format)
             'filters'                => 'nullable|array',

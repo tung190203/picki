@@ -113,6 +113,7 @@ class SearchV2Controller extends Controller
                 ->filter($filters),
 
             SearchFilterConfig::TAB_USER => User::query()
+                ->where('is_guest', false)
                 ->with(['sports.sport', 'sports.scores', 'clubs'])
                 ->when($userId, fn($q) => $q->withInteractionStatus($userId))
                 ->filter($filters)
@@ -605,7 +606,7 @@ class SearchV2Controller extends Controller
     {
         if ($tab !== SearchFilterConfig::TAB_USER
             || ($params['sub_tab'] ?? null) !== 'same_club'
-            || empty($params['club_id'])
+            || !$this->shouldIncludeVirtualMembers($params)
         ) {
             return $resourceClass::collection($items)->toArray(request());
         }
@@ -623,6 +624,41 @@ class SearchV2Controller extends Controller
             $resourceClass::collection($items)->toArray(request()),
             $virtualArrays,
         );
+    }
+
+    /**
+     * Chỉ trả về user ảo của CLB nếu club_id truyền lên trùng với CLB đang tổ chức
+     * mini_tournament_id / tournament_id truyền lên.
+     */
+    private function shouldIncludeVirtualMembers(array $params): bool
+    {
+        $clubId = !empty($params['club_id']) ? (int) $params['club_id'] : 0;
+        if ($clubId <= 0) {
+            return false;
+        }
+
+        $miniTournamentId = !empty($params['mini_tournament_id']) ? (int) $params['mini_tournament_id'] : null;
+        $tournamentId = !empty($params['tournament_id']) ? (int) $params['tournament_id'] : null;
+
+        if ($miniTournamentId === null && $tournamentId === null) {
+            return false;
+        }
+
+        if ($miniTournamentId !== null) {
+            $organizerClubId = MiniTournament::where('id', $miniTournamentId)->value('club_id');
+            if (!$organizerClubId || (int) $organizerClubId !== $clubId) {
+                return false;
+            }
+        }
+
+        if ($tournamentId !== null) {
+            $organizerClubId = Tournament::where('id', $tournamentId)->value('club_id');
+            if (!$organizerClubId || (int) $organizerClubId !== $clubId) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
