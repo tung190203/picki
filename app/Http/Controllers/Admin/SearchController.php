@@ -23,9 +23,12 @@ class SearchController extends Controller
         $page = $validated['page'] ?? 1;
         $limit = $validated['limit'] ?? 10;
 
-        $users = User::where('full_name', 'like', "%{$keyword}%")
-            ->orWhere('email', 'like', "%{$keyword}%")
-            ->orWhere('phone', 'like', "%{$keyword}%")
+        $users = User::where('is_guest', false)
+            ->where(function ($q) use ($keyword) {
+                $q->where('full_name', 'like', "%{$keyword}%")
+                    ->orWhere('email', 'like', "%{$keyword}%")
+                    ->orWhere('phone', 'like', "%{$keyword}%");
+            })
             ->limit($limit)
             ->get(['id', 'full_name', 'avatar_url', 'role']);
 
