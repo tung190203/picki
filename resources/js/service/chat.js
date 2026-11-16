@@ -57,4 +57,19 @@ export const chatService = {
 
     reportChat: (payload) =>
         axiosInstance.post("/chat/reports", payload).then((res) => res.data),
+
+    searchUsers: (q = "", limit = 20) =>
+        axiosInstance.get("/chat/users/search", { params: { q, limit } }).then((res) => res.data),
+
+    getRecentSearches: (limit = 20) =>
+        axiosInstance.get("/chat/recent-searches", { params: { limit } }).then((res) => res.data),
+
+    recordRecentSearch: (targetUserId) =>
+        axiosInstance.post("/chat/recent-searches", { target_user_id: targetUserId }).then((res) => res.data),
+
+    removeRecentSearch: (targetUserId) =>
+        axiosInstance.delete(`/chat/recent-searches/${targetUserId}`).then((res) => res.data),
+
+    clearRecentSearches: () =>
+        axiosInstance.delete("/chat/recent-searches").then((res) => res.data),
 };

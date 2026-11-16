@@ -19,13 +19,14 @@
         </div>
 
         <div class="flex items-center gap-2">
-          <!-- Search Bar -->
-          <div class="relative flex-1 sm:w-64">
+          <!-- Search Bar + Messenger-style Recent Searches / User Search Dropdown -->
+          <div ref="searchContainerRef" class="relative flex-1 sm:w-72">
             <input
               v-model="searchQuery"
+              @focus="onSearchFocus"
               @input="onSearchInput"
               type="text"
-              placeholder="Tìm kiếm tin nhắn, thông báo..."
+              placeholder="Tìm kiếm tin nhắn, người dùng..."
               class="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl px-3.5 py-2 pl-9 pr-8 text-xs focus:ring-2 focus:ring-[#D72D36] outline-none shadow-sm transition"
             />
             <MagnifyingGlassIcon class="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
@@ -37,6 +38,78 @@
             >
               <XMarkIcon class="w-4 h-4" />
             </button>
+
+            <!-- Dropdown: Tìm kiếm gần đây (khi chưa nhập) hoặc Người dùng gợi ý (khi đang tìm) -->
+            <div
+              v-if="isSearchDropdownOpen"
+              class="absolute right-0 sm:left-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-xl z-50 overflow-hidden"
+            >
+              <div class="px-3.5 py-2.5 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
+                <span class="text-xs font-bold text-gray-700 dark:text-slate-200">
+                  {{ searchQuery.trim() ? 'Người dùng để nhắn tin' : 'Tìm kiếm gần đây' }}
+                </span>
+                <button
+                  v-if="!searchQuery.trim() && recentSearches.length > 0"
+                  @click.stop="clearAllRecentSearches"
+                  class="text-[11px] font-semibold text-[#D72D36] hover:underline"
+                >
+                  Xóa tất cả
+                </button>
+              </div>
+
+              <div class="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-slate-800">
+                <div
+                  v-if="loadingSearchDropdown"
+                  class="px-4 py-6 text-center text-xs text-gray-400 dark:text-slate-500"
+                >
+                  Đang tải...
+                </div>
+
+                <template v-else-if="dropdownUsers.length > 0">
+                  <div
+                    v-for="u in dropdownUsers"
+                    :key="u.id"
+                    @click="selectUserFromSearch(u)"
+                    class="px-3.5 py-2.5 flex items-center justify-between gap-2.5 hover:bg-gray-50 dark:hover:bg-slate-800/70 cursor-pointer transition"
+                  >
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <img
+                        :src="u.avatar_url || '/images/default-avatar.png'"
+                        class="w-9 h-9 rounded-full object-cover flex-shrink-0 border border-gray-200 dark:border-slate-700"
+                        @error="$event.target.src = 'https://ui-avatars.com/api/?background=64748b&color=fff&name=' + encodeURIComponent(u.full_name || 'U')"
+                      />
+                      <div class="min-w-0">
+                        <div class="text-xs font-semibold text-gray-900 dark:text-white truncate">
+                          {{ u.full_name }}
+                        </div>
+                        <div
+                          v-if="u.context_tag"
+                          class="text-[11px] text-gray-500 dark:text-slate-400 truncate"
+                        >
+                          {{ u.context_tag }}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      v-if="!searchQuery.trim()"
+                      @click.stop="removeRecentSearchItem(u.id)"
+                      class="p-1 rounded-full text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-200/60 dark:hover:bg-slate-700 transition flex-shrink-0"
+                      title="Xóa khỏi tìm kiếm gần đây"
+                    >
+                      <XMarkIcon class="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </template>
+
+                <div
+                  v-else
+                  class="px-4 py-6 text-center text-xs text-gray-400 dark:text-slate-500"
+                >
+                  {{ searchQuery.trim() ? 'Không tìm thấy người dùng phù hợp' : 'Chưa có tìm kiếm gần đây' }}
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Mark all as read button -->
@@ -497,7 +570,7 @@ import {
   TrashIcon,
 } from "@heroicons/vue/24/outline";
 import { toast } from "vue3-toastify";
-import { inboxService } from "@/service/chat.js";
+import { inboxService, chatService } from "@/service/chat.js";
 import * as NotificationService from "@/service/notifications.js";
 import { useChatStore } from "@/store/chat.js";
 import { useUserStore } from "@/store/auth.js";
@@ -537,12 +610,21 @@ const handleUserUnblocked = (unblockedUserId) => {
 };
 
 // Search state
+const searchContainerRef = ref(null);
 const searchQuery = ref("");
+const isSearchDropdownOpen = ref(false);
+const loadingSearchDropdown = ref(false);
+const recentSearches = ref([]);
+const searchedUsers = ref([]);
 const searching = ref(false);
 const searchResults = ref({
   conversations: [],
   alerts: [],
 });
+
+const dropdownUsers = computed(() =>
+  searchQuery.value.trim() ? searchedUsers.value : recentSearches.value
+);
 
 const unreadCounts = computed(() => chatStore.unreadCounts);
 const strangersSummary = computed(() => feedData.value.strangers_summary);
@@ -1097,16 +1179,106 @@ const handleUnifiedItemClick = (item) => {
 };
 
 let searchDebounce = null;
+const fetchRecentSearches = async () => {
+  try {
+    loadingSearchDropdown.value = true;
+    const res = await chatService.getRecentSearches(20);
+    recentSearches.value = res?.data || [];
+  } catch (err) {
+    console.error("fetchRecentSearches error:", err);
+  } finally {
+    loadingSearchDropdown.value = false;
+  }
+};
+
+const fetchSearchedUsers = async (keyword) => {
+  try {
+    loadingSearchDropdown.value = true;
+    const res = await chatService.searchUsers(keyword, 20);
+    searchedUsers.value = res?.data || [];
+  } catch (err) {
+    console.error("fetchSearchedUsers error:", err);
+  } finally {
+    loadingSearchDropdown.value = false;
+  }
+};
+
+const onSearchFocus = () => {
+  isSearchDropdownOpen.value = true;
+  if (!searchQuery.value.trim()) {
+    fetchRecentSearches();
+  }
+};
+
+const selectUserFromSearch = async (user) => {
+  if (!user?.id) return;
+  isSearchDropdownOpen.value = false;
+  try {
+    await chatService.recordRecentSearch(user.id);
+    if (!searchQuery.value.trim()) {
+      fetchRecentSearches();
+    }
+  } catch (err) {
+    console.error("recordRecentSearch error:", err);
+  }
+
+  try {
+    if (user.conversation_id) {
+      await openConversation(user.conversation_id);
+    } else {
+      await chatStore.startDm(user.id);
+    }
+  } catch (err) {
+    toast.error(err?.response?.data?.message || "Không thể mở cuộc trò chuyện");
+  }
+};
+
+const removeRecentSearchItem = async (targetUserId) => {
+  try {
+    await chatService.removeRecentSearch(targetUserId);
+    recentSearches.value = recentSearches.value.filter((u) => Number(u.id) !== Number(targetUserId));
+  } catch (err) {
+    console.error("removeRecentSearchItem error:", err);
+  }
+};
+
+const clearAllRecentSearches = async () => {
+  try {
+    await chatService.clearRecentSearches();
+    recentSearches.value = [];
+  } catch (err) {
+    console.error("clearAllRecentSearches error:", err);
+  }
+};
+
+const handleClickOutsideSearch = (e) => {
+  if (searchContainerRef.value && !searchContainerRef.value.contains(e.target)) {
+    isSearchDropdownOpen.value = false;
+  }
+};
+
 const onSearchInput = () => {
+  isSearchDropdownOpen.value = true;
   clearTimeout(searchDebounce);
+  const keyword = searchQuery.value.trim();
   searchDebounce = setTimeout(() => {
     loadFeed(true);
+    if (keyword) {
+      fetchSearchedUsers(keyword);
+    } else {
+      searchedUsers.value = [];
+      fetchRecentSearches();
+    }
   }, 300);
 };
 
 const clearSearch = () => {
   searchQuery.value = "";
+  searchedUsers.value = [];
   loadFeed(true);
+  if (isSearchDropdownOpen.value) {
+    fetchRecentSearches();
+  }
 };
 
 const formatRelativeTime = (timeStr) => {
@@ -1196,6 +1368,7 @@ onMounted(() => {
   loadFeed(true);
 
   // Listen to custom window events from chatStore
+  document.addEventListener("click", handleClickOutsideSearch);
   window.addEventListener("chat:replied-stranger", handleRepliedStranger);
   window.addEventListener("chat:conversation-updated", handleRealtimeConversationUpdated);
   window.addEventListener("chat:conversation-read", handleConversationReadEvent);
@@ -1209,6 +1382,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  document.removeEventListener("click", handleClickOutsideSearch);
   window.removeEventListener("chat:replied-stranger", handleRepliedStranger);
   window.removeEventListener("chat:conversation-updated", handleRealtimeConversationUpdated);
   window.removeEventListener("chat:conversation-read", handleConversationReadEvent);
