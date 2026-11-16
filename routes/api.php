@@ -56,6 +56,7 @@ use App\Http\Controllers\MapController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\Chat\ConversationController;
 use App\Http\Controllers\Chat\UserBlockController;
+use App\Http\Controllers\Chat\ChatRecentSearchController;
 use App\Http\Controllers\Chat\ChatReportController;
 use App\Http\Controllers\Chat\ChatShortcutController;
 use App\Http\Controllers\Chat\InboxController;
@@ -1039,9 +1040,17 @@ Route::get('/members/candidates', [ClubMemberController::class, 'getCandidates']
         });
 
         Route::prefix('users')->group(function () {
+            Route::get('/search', [ChatRecentSearchController::class, 'searchUsers']);
             Route::get('/blocks', [UserBlockController::class, 'index']);
             Route::post('/{id}/block', [UserBlockController::class, 'block']);
             Route::delete('/{id}/unblock', [UserBlockController::class, 'unblock']);
+        });
+
+        Route::prefix('recent-searches')->group(function () {
+            Route::get('/', [ChatRecentSearchController::class, 'index']);
+            Route::post('/', [ChatRecentSearchController::class, 'store']);
+            Route::delete('/', [ChatRecentSearchController::class, 'clear']);
+            Route::delete('/{targetUserId}', [ChatRecentSearchController::class, 'destroy'])->whereNumber('targetUserId');
         });
 
         Route::prefix('shortcuts')->group(function () {
