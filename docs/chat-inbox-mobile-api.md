@@ -502,7 +502,62 @@ Mobile App hiển thị popup chọn thẻ đính kèm (gồm 4 tabs) thông qua
 
 ---
 
-## 7. Các Quy Tắc Nghiệp Vụ (Business Logic) Quan Trọng
+## 7. API Tìm Kiếm Người Dùng & Tìm Kiếm Gần Đây (Nhắn Tin)
+
+> Hoạt động tương tự màn hình tìm kiếm của Messenger: hiển thị danh sách **Tìm kiếm gần đây** khi chưa nhập từ khóa, lưu lại user khi người dùng chọn từ kết quả tìm kiếm để nhắn tin (tự động đẩy lên đầu nếu đã tồn tại, giới hạn tối đa **20** user gần nhất), và cho phép xóa từng mục hoặc xóa tất cả. Tự động ẩn user bị chặn (2 chiều), user bị khóa (`is_banned`), tài khoản ảo (`is_guest`) và user đặt quyền riêng tư `private`.
+
+### 7.1. Tìm kiếm người dùng để nhắn tin
+`GET /api/chat/users/search?q=...&limit=20`
+
+* Nếu truyền `q` (hoặc `search` / `keyword`): tìm theo `full_name` (hỗ trợ tiếng Việt không dấu).
+* Nếu không truyền `q` (hoặc rỗng): tự động trả về danh sách **Tìm kiếm gần đây**.
+
+### 7.2. Lấy danh sách Tìm kiếm gần đây
+`GET /api/chat/recent-searches?limit=20`
+
+**Response mẫu:**
+```json
+{
+  "status": true,
+  "message": "Lấy danh sách tìm kiếm gần đây thành công",
+  "data": [
+    {
+      "id": 88,
+      "full_name": "Nguyễn Văn A",
+      "avatar_url": "/storage/avatars/u88.jpg",
+      "rating": 3.5,
+      "is_acquaintance": true,
+      "context_tag": "Cùng CLB Pickleball Hà Nội",
+      "conversation_id": 15,
+      "searched_at": "2026-11-13 17:15:00"
+    }
+  ],
+  "meta": null
+}
+```
+
+### 7.3. Lưu một người dùng vào Tìm kiếm gần đây
+`POST /api/chat/recent-searches`
+
+Gọi API này khi người dùng bấm chọn một user từ kết quả tìm kiếm để mở cuộc trò chuyện.
+
+**Request Body:**
+```json
+{
+  "target_user_id": 88
+}
+```
+*(Chấp nhận `target_user_id` hoặc `user_id`)*
+
+### 7.4. Xóa 1 người dùng khỏi Tìm kiếm gần đây
+`DELETE /api/chat/recent-searches/{targetUserId}`
+
+### 7.5. Xóa toàn bộ Tìm kiếm gần đây
+`DELETE /api/chat/recent-searches`
+
+---
+
+## 8. Các Quy Tắc Nghiệp Vụ (Business Logic) Quan Trọng
 
 1. **Cơ chế chuyển đổi "Người lạ" -> "Hộp thư chính":**
    * Nếu User A nhắn tin cho User B (2 người chưa có liên hệ chung): Cuộc trò chuyện nằm ở `is_stranger = true` của User B.
