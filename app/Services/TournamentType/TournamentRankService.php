@@ -153,16 +153,20 @@ class TournamentRankService
      */
     private function buildRankingsNoGroups(TournamentType $type): array
     {
-        $allTeams = $type->tournament->teams()->with('members')->get();
-        $rankings = $allTeams->map(function ($team) use ($type) {
+        $tournament = $type->tournament;
+        $allTeams = $tournament->teams()->with(['members', 'guestMembers'])->get();
+        $rankings = $allTeams->map(function ($team) use ($type, $tournament) {
             $stats = $this->getTeamStats($team->id, $type->id);
+            if ($this->shouldExcludeIncompleteUnplayedTeam($team, $tournament, $stats)) {
+                return null;
+            }
             return array_merge([
                 'team_id' => $team->id,
                 'team_name' => $team->name ?? 'Unknown',
                 'team_avatar' => $team->avatar ?? '',
                 '_format' => (int) $type->format,
             ], $stats);
-        });
+        })->filter()->values();
 
         $isKnockoutFormat = in_array((int) $type->format, [
             TournamentType::FORMAT_ELIMINATION,
@@ -443,11 +447,15 @@ class TournamentRankService
             ->where('status', 'completed')
             ->exists();
 
-        $overallRankings = $type->tournament->teams()
-            ->with('members')
+        $tournament = $type->tournament;
+        $overallRankings = $tournament->teams()
+            ->with(['members', 'guestMembers'])
             ->get()
-            ->map(function ($team) use ($type, $groupRankings) {
+            ->map(function ($team) use ($type, $tournament, $groupRankings) {
                 $stats = $this->getTeamStats($team->id, $type->id);
+                if ($this->shouldExcludeIncompleteUnplayedTeam($team, $tournament, $stats)) {
+                    return null;
+                }
                 $groupRank = null;
                 foreach ($groupRankings as $group) {
                     foreach ($group['rankings'] as $ranking) {
@@ -464,7 +472,9 @@ class TournamentRankService
                     '_format' => (int) $type->format,
                     '_group_rank' => $groupRank,
                 ], $stats);
-            });
+            })
+            ->filter()
+            ->values();
 
         $isKnockoutFormat = in_array((int) $type->format, [
             TournamentType::FORMAT_ELIMINATION,
@@ -496,9 +506,9 @@ class TournamentRankService
                 if ($inA) return -1;
                 if ($inB) return 1;
 
-                $grA = $a['_group_rank'] ?? 999;
-                $grB = $b['_group_rank'] ?? 999;
-                if ($grA !== $grB) return $grA <=> $grB;
+                $playedA = ($a['played'] ?? 0) > 0 ? 1 : 0;
+                $playedB = ($b['played'] ?? 0) > 0 ? 1 : 0;
+                if ($playedA !== $playedB) return $playedB <=> $playedA;
                 if (($a['points'] ?? 0) !== ($b['points'] ?? 0)) {
                     return ($b['points'] ?? 0) <=> ($a['points'] ?? 0);
                 }
@@ -525,8 +535,9 @@ class TournamentRankService
                     $nonBracketTeams[] = [
                         'team_id' => (int) $item['team_id'],
                         'group_rank' => $item['_group_rank'] ?? null,
-                        'points' => $item['points'] ?? 0,
-                        'point_diff' => $item['point_diff'] ?? 0,
+                        'played' => (int) ($item['played'] ?? 0),
+                        'points' => (int) ($item['points'] ?? 0),
+                        'point_diff' => (int) ($item['point_diff'] ?? 0),
                         '_item' => $item,
                     ];
                 }
@@ -853,33 +864,57 @@ class TournamentRankService
 
     private function assignRanksForNonBracketTeams(array $nonBracketTeams, int $startRank): array
     {
-        $byGroupRank = [];
-        foreach ($nonBracketTeams as $item) {
-            $gr = (int) ($item['group_rank'] ?? 999);
-            $byGroupRank[$gr][] = $item;
+        if (empty($nonBracketTeams)) {
+            return [];
         }
 
-        ksort($byGroupRank);
+        usort($nonBracketTeams, function ($a, $b) {
+            $playedA = ($a['played'] ?? 0) > 0 ? 1 : 0;
+            $playedB = ($b['played'] ?? 0) > 0 ? 1 : 0;
+            if ($playedA !== $playedB) return $playedB <=> $playedA;
+
+            $pa = (int) ($a['points'] ?? 0);
+            $pb = (int) ($b['points'] ?? 0);
+            if ($pa !== $pb) return $pb <=> $pa;
+
+            $da = (int) ($a['point_diff'] ?? 0);
+            $db = (int) ($b['point_diff'] ?? 0);
+            if ($da !== $db) return $db <=> $da;
+
+            return ($a['team_id'] ?? 0) <=> ($b['team_id'] ?? 0);
+        });
+
         $rank = $startRank;
         $result = [];
-        foreach ($byGroupRank as $gr => $items) {
-            usort($items, function ($a, $b) {
-                $pa = (int) ($a['points'] ?? 0);
-                $pb = (int) ($b['points'] ?? 0);
-                if ($pa !== $pb) return $pb <=> $pa;
-                $da = (int) ($a['point_diff'] ?? 0);
-                $db = (int) ($b['point_diff'] ?? 0);
-                if ($da !== $db) return $db <=> $da;
-                return ($a['team_id'] ?? 0) <=> ($b['team_id'] ?? 0);
-            });
+        $prevKey = null;
 
-            foreach ($items as $item) {
-                $result[(int) $item['team_id']] = $rank;
+        foreach ($nonBracketTeams as $index => $item) {
+            $currentKey = [
+                ($item['played'] ?? 0) > 0 ? 1 : 0,
+                (int) ($item['points'] ?? 0),
+                (int) ($item['point_diff'] ?? 0),
+            ];
+
+            if ($index > 0 && $currentKey !== $prevKey) {
+                $rank++;
             }
-            // Dense ranking: mỗi tầng group_rank chỉ tăng 1
-            $rank++;
+
+            $result[(int) $item['team_id']] = $rank;
+            $prevKey = $currentKey;
         }
+
         return $result;
+    }
+
+    /**
+     * Loại bỏ đội không đủ số lượng VĐV theo quy định giải và chưa đánh trận nào.
+     */
+    private function shouldExcludeIncompleteUnplayedTeam($team, $tournament, array $stats): bool
+    {
+        $requiredPlayers = max(1, (int) ($tournament?->player_per_team ?? 1));
+        $memberCount = $team->members->count() + $team->guestMembers->count();
+
+        return $memberCount < $requiredPlayers && (int) ($stats['played'] ?? 0) === 0;
     }
 
     private function getOverallRankLabel(
