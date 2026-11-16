@@ -1022,7 +1022,7 @@ class TournamentTypeController extends Controller
         // ✅ KIỂM TRA: Có groups với teams assigned không? (Đã kiểm tra ở trên)
         if ($hasAssignedTeams) {
             // ✅ TRƯỜNG HỢP 1: ĐÃ ASSIGN TEAMS VÀO BẢNG
-            $chunks = $groups->map(fn($g) => $g->teams)->filter(fn($chunk) => $chunk->count() > 0)->values();
+            $chunks = $groups->map(fn($g) => $g->teams)->filter(fn($chunk) => $chunk->count() > 0);
         } else {
             // ✅ TRƯỜNG HỢP 2: AUTO GENERATE - CHIA ĐỘI TỰ ĐỘNG (LOGIC CŨ)
             $teamCount = $teams->count();
@@ -1073,6 +1073,7 @@ class TournamentTypeController extends Controller
                 }
 
                 $byeMatch = $type->matches()->create([
+                    'group_id' => $group->id,
                     'tournament_type_id' => $type->id,
                     'home_team_id' => $chunk[0]->id,
                     'away_team_id' => null,
@@ -1320,7 +1321,7 @@ class TournamentTypeController extends Controller
         $hasAssignedTeams = $groups->isNotEmpty() && $groups->some(fn($g) => $g->teams->isNotEmpty());
 
         if ($hasAssignedTeams) {
-            $chunks = $groups->map(fn($g) => $g->teams)->filter(fn($chunk) => $chunk->count() > 0)->values();
+            $chunks = $groups->map(fn($g) => $g->teams)->filter(fn($chunk) => $chunk->count() > 0);
         } else {
             $teamCount = $teams->count();
             if ($teamCount < 2) return;
@@ -1367,6 +1368,7 @@ class TournamentTypeController extends Controller
                 }
 
                 $type->matches()->create([
+                    'group_id' => $group->id,
                     'tournament_type_id' => $type->id,
                     'home_team_id' => $chunk[0]->id,
                     'away_team_id' => null,
@@ -2286,10 +2288,19 @@ class TournamentTypeController extends Controller
             ->orderBy('leg')
             ->get();
 
-        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches) use ($tournamentId, $type) {
-            $firstMatch = $groupMatches->first();
-            $group = $firstMatch->group;
-            $actualGroupId = $firstMatch->group_id !== null ? (int) $firstMatch->group_id : null;
+        $hasFilter = (bool) $refereeId || ($court !== null && $court !== '');
+        $poolStage = $this->resolvePoolMatchGroups($type, $poolMatches, !$hasFilter)->map(function ($entry) use ($tournamentId, $type) {
+            $groupMatches = $entry['matches'];
+            $actualGroupId = $entry['group_id'];
+            $groupName = $entry['group_name'];
+
+            if ($groupMatches->isEmpty()) {
+                return [
+                    'group_id' => $actualGroupId,
+                    'group_name' => $groupName,
+                    'matches' => [],
+                ];
+            }
 
             $grouped = $groupMatches->groupBy(function ($match) {
                 if (!$match->home_team_id && !$match->away_team_id) {
@@ -2344,7 +2355,7 @@ class TournamentTypeController extends Controller
 
             return [
                 'group_id' => $actualGroupId,
-                'group_name' => $group?->name ?? 'Bye',
+                'group_name' => $groupName,
                 'matches' => $grouped->map(function ($matchGroup) use ($tournamentId) {
                     $first = $matchGroup->first();
                     $homeTeamId = $first->home_team_id;
@@ -2650,6 +2661,78 @@ class TournamentTypeController extends Controller
     }
 
     /**
+     * Gom nhóm pool matches theo group thực tế (giữ đủ các bảng A-H kể cả bảng chưa có trận hoặc match Bye chưa gán group_id).
+     */
+    private function resolvePoolMatchGroups(TournamentType $type, Collection $poolMatches, bool $includeEmptyGroups = true): Collection
+    {
+        $groups = $type->groups()->with('teams')->orderBy('id')->get();
+        $groupsById = $groups->keyBy('id');
+
+        $teamToGroupId = [];
+        foreach ($groups as $g) {
+            foreach ($g->teams as $t) {
+                $teamToGroupId[$t->id] = (int) $g->id;
+            }
+        }
+
+        $matchesByGroup = $poolMatches->groupBy(function ($match) use ($teamToGroupId) {
+            if ($match->group_id !== null) {
+                return (int) $match->group_id;
+            }
+            if ($match->home_team_id && isset($teamToGroupId[$match->home_team_id])) {
+                return $teamToGroupId[$match->home_team_id];
+            }
+            if ($match->away_team_id && isset($teamToGroupId[$match->away_team_id])) {
+                return $teamToGroupId[$match->away_team_id];
+            }
+            return '';
+        });
+
+        $entries = collect();
+
+        if ($includeEmptyGroups && $groups->isNotEmpty()) {
+            foreach ($groups as $group) {
+                $entries->push([
+                    'group' => $group,
+                    'group_id' => (int) $group->id,
+                    'group_name' => $group->name,
+                    'matches' => $matchesByGroup->get((int) $group->id, collect()),
+                ]);
+            }
+
+            foreach ($matchesByGroup as $key => $groupMatches) {
+                if ($key !== '' && $groupsById->has((int) $key)) {
+                    continue;
+                }
+                $firstMatch = $groupMatches->first();
+                $group = $firstMatch?->group;
+                $actualGroupId = $key !== '' ? (int) $key : null;
+                $entries->push([
+                    'group' => $group,
+                    'group_id' => $actualGroupId,
+                    'group_name' => $group?->name ?? 'Bye',
+                    'matches' => $groupMatches,
+                ]);
+            }
+
+            return $entries;
+        }
+
+        foreach ($matchesByGroup as $key => $groupMatches) {
+            $actualGroupId = $key !== '' ? (int) $key : null;
+            $group = $actualGroupId !== null ? ($groupsById->get($actualGroupId) ?? $groupMatches->first()?->group) : null;
+            $entries->push([
+                'group' => $group,
+                'group_id' => $actualGroupId,
+                'group_name' => $group?->name ?? 'Bye',
+                'matches' => $groupMatches,
+            ]);
+        }
+
+        return $entries;
+    }
+
+    /**
      * Lấy bracket Mixed format với cấu trúc mới
      */
     private function getMixedBracketNew(TournamentType $type)
@@ -2664,10 +2747,19 @@ class TournamentTypeController extends Controller
             ->orderBy('leg')
             ->get();
 
-        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches) use ($tournamentId, $type) {
-            $firstMatch = $groupMatches->first();
-            $group = $firstMatch->group;
-            $actualGroupId = $firstMatch->group_id !== null ? (int) $firstMatch->group_id : null;
+        $poolStage = $this->resolvePoolMatchGroups($type, $poolMatches, true)->map(function ($entry) use ($tournamentId, $type) {
+            $groupMatches = $entry['matches'];
+            $actualGroupId = $entry['group_id'];
+            $groupName = $entry['group_name'];
+
+            if ($groupMatches->isEmpty()) {
+                return [
+                    'group_id' => $actualGroupId,
+                    'group_name' => $groupName,
+                    'matches' => [],
+                    'standings' => [],
+                ];
+            }
 
             $grouped = $groupMatches->groupBy(function ($match) {
                 if (!$match->home_team_id && !$match->away_team_id) {
@@ -2753,7 +2845,7 @@ class TournamentTypeController extends Controller
 
             return [
                 'group_id' => $actualGroupId,
-                'group_name' => $group?->name ?? ($actualGroupId !== null ? 'Bảng ' . $actualGroupId : 'Bye'),
+                'group_name' => $groupName,
                 'matches' => $matchesData,
                 'standings' => $standingsFinalNew,
             ];
@@ -4111,6 +4203,7 @@ class TournamentTypeController extends Controller
             if ($count === 1) {
                 $matchNumber++;
                 $byeMatch = $type->matches()->create([
+                    'group_id' => $group->id,
                     'tournament_type_id' => $type->id,
                     'home_team_id' => $chunk[0]->id,
                     'away_team_id' => null,
