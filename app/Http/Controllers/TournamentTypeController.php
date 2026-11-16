@@ -2286,8 +2286,10 @@ class TournamentTypeController extends Controller
             ->orderBy('leg')
             ->get();
 
-        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches, $groupId) use ($tournamentId, $type) {
-            $group = $groupMatches->first()->group;
+        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches) use ($tournamentId, $type) {
+            $firstMatch = $groupMatches->first();
+            $group = $firstMatch->group;
+            $actualGroupId = $firstMatch->group_id !== null ? (int) $firstMatch->group_id : null;
 
             $grouped = $groupMatches->groupBy(function ($match) {
                 if (!$match->home_team_id && !$match->away_team_id) {
@@ -2324,12 +2326,14 @@ class TournamentTypeController extends Controller
                 ];
             })->filter(fn($r) => $r['team_id'] !== null)->values();
 
-            $standingsApplied = $this->manualTiebreakerService->applyManualToGroup(
-                $standingsNormalized,
-                (int) $type->id,
-                (int) $groupId,
-                $rankingRules
-            );
+            $standingsApplied = $actualGroupId !== null
+                ? $this->manualTiebreakerService->applyManualToGroup(
+                    $standingsNormalized,
+                    (int) $type->id,
+                    $actualGroupId,
+                    $rankingRules
+                )
+                : $standingsNormalized;
 
             // ✅ Re-gắn lại shape cũ và gán rank ổn định
             $standingsFinal = $standingsApplied->values()->map(function ($row, $idx) {
@@ -2339,7 +2343,7 @@ class TournamentTypeController extends Controller
             });
 
             return [
-                'group_id' => $groupId,
+                'group_id' => $actualGroupId,
                 'group_name' => $group?->name ?? 'Bye',
                 'matches' => $grouped->map(function ($matchGroup) use ($tournamentId) {
                     $first = $matchGroup->first();
@@ -2660,8 +2664,10 @@ class TournamentTypeController extends Controller
             ->orderBy('leg')
             ->get();
 
-        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches, $groupId) use ($tournamentId, $type) {
-            $group = $groupMatches->first()->group;
+        $poolStage = $poolMatches->groupBy('group_id')->map(function ($groupMatches) use ($tournamentId, $type) {
+            $firstMatch = $groupMatches->first();
+            $group = $firstMatch->group;
+            $actualGroupId = $firstMatch->group_id !== null ? (int) $firstMatch->group_id : null;
 
             $grouped = $groupMatches->groupBy(function ($match) {
                 if (!$match->home_team_id && !$match->away_team_id) {
@@ -2691,12 +2697,14 @@ class TournamentTypeController extends Controller
                 ];
             })->filter(fn($r) => $r['team_id'] !== null)->values();
 
-            $standingsApplied = $this->manualTiebreakerService->applyManualToGroup(
-                $standingsNormalized,
-                (int) $type->id,
-                (int) $groupId,
-                $rankingRules
-            );
+            $standingsApplied = $actualGroupId !== null
+                ? $this->manualTiebreakerService->applyManualToGroup(
+                    $standingsNormalized,
+                    (int) $type->id,
+                    $actualGroupId,
+                    $rankingRules
+                )
+                : $standingsNormalized;
 
             $standingsFinalNew = $standingsApplied->values()->map(function ($row, $idx) {
                 $raw = $row['_raw'];
@@ -2744,8 +2752,8 @@ class TournamentTypeController extends Controller
             })->values();
 
             return [
-                'group_id' => $groupId,
-                'group_name' => $group?->name ?? 'Bảng ' . $groupId,
+                'group_id' => $actualGroupId,
+                'group_name' => $group?->name ?? ($actualGroupId !== null ? 'Bảng ' . $actualGroupId : 'Bye'),
                 'matches' => $matchesData,
                 'standings' => $standingsFinalNew,
             ];
