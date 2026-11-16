@@ -134,9 +134,20 @@ class LeaderboardController extends Controller
         $participants = $participantQuery->get()->keyBy('user_id');
 
         $currentUserId = Auth::id();
+        $requiredPlayers = max(1, (int) ($tournament?->player_per_team ?? 1));
 
         $leaderboard = $rankings
             ->groupBy('team_id')
+            ->filter(function ($teamRankings, $teamId) use ($teamStats, $allRankData, $requiredPlayers) {
+                $team = $teamRankings->first()?->team;
+                if (!$team) {
+                    return false;
+                }
+                $memberCount = $team->members->count() + $team->guestMembers->count();
+                $totalMatches = (int) ($teamStats[$teamId]['total_matches'] ?? 0);
+
+                return !($memberCount < $requiredPlayers && $totalMatches === 0 && !isset($allRankData[(int) $teamId]));
+            })
             ->map(function ($teamRankings, $teamId) use ($teamStats, $participants, $currentUserId, $allRankData) {
                 $firstRanking = $teamRankings->first();
                 $team = $firstRanking->team;

@@ -323,6 +323,126 @@ class TournamentRankConsistencyTest extends TestCase
         );
     }
 
+    /**
+     * Regression test cho giải Mixed 10 đội set ban đầu nhưng chỉ có 8 đội đủ 2 VĐV:
+     * - Đội số 9 (0 VĐV, 0 trận) và Đội số 10 (1 VĐV, 0 trận) phải bị loại khỏi BXH chung cuộc.
+     * - 4 đội bị loại ở vòng bảng (hạng 3 & 4 của 2 bảng) phải được xếp theo điểm & hiệu số
+     *   thành đầy đủ Hạng 4, 5, 6, 7 (không gom chung theo group_rank).
+     */
+    public function test_mixed_excludes_incomplete_unplayed_teams_and_ranks_group_losers_by_points_and_diff(): void
+    {
+        if (!\App\Models\Sport::where('slug', 'pickleball')->exists()) {
+            \App\Models\Sport::create(['name' => 'Pickleball', 'slug' => 'pickleball']);
+        }
+
+        $tournament = Tournament::create([
+            'name' => 'Minigame Nhà Xe T4',
+            'sport_id' => \App\Models\Sport::where('slug', 'pickleball')->value('id'),
+            'start_date' => now()->subDays(2),
+            'duration' => 1440,
+            'participant' => 'team',
+            'max_team' => 10,
+            'player_per_team' => 2,
+            'status' => Tournament::CLOSED,
+        ]);
+
+        $type = TournamentType::create([
+            'tournament_id' => $tournament->id,
+            'format' => TournamentType::FORMAT_MIXED,
+            'match_rules' => [],
+        ]);
+
+        $teams = collect(range(1, 10))->map(fn($i) => Team::create([
+            'name' => "Đội số $i",
+            'tournament_id' => $tournament->id,
+        ]));
+
+        // Đội 1..8 đủ 2 VĐV; Đội 9 có 0 VĐV; Đội 10 có 1 VĐV (< player_per_team = 2)
+        for ($i = 0; $i < 8; $i++) {
+            $this->registerMember($tournament, $type, $teams[$i]);
+            $this->registerMember($tournament, $type, $teams[$i]);
+        }
+        $this->registerMember($tournament, $type, $teams[9]);
+
+        $groupA = \App\Models\Group::create(['tournament_type_id' => $type->id, 'name' => 'Bảng A']);
+        $groupB = \App\Models\Group::create(['tournament_type_id' => $type->id, 'name' => 'Bảng B']);
+
+        // Bảng A: T0 (Trung-Nga), T1 (Duy-Phượng), T2 (Xuân Phương-Tiny), T3 (Vinh-Thuỳ Trang)
+        // Bảng B: T4 (Thạch-Nga), T5 (Chito-Châu), T6 (Hải-Thảo), T7 (Blucati-Giang)
+        $groupA->teams()->attach([$teams[0]->id, $teams[1]->id, $teams[2]->id, $teams[3]->id]);
+        $groupB->teams()->attach([$teams[4]->id, $teams[5]->id, $teams[6]->id, $teams[7]->id]);
+
+        $playGroupMatch = function (Team $winner, Team $loser, int $wScore, int $lScore, int $groupId) use ($type): void {
+            $m = Matches::create([
+                'tournament_type_id' => $type->id,
+                'group_id' => $groupId,
+                'round' => 1,
+                'home_team_id' => $winner->id,
+                'away_team_id' => $loser->id,
+                'status' => Matches::STATUS_COMPLETED,
+                'winner_id' => $winner->id,
+            ]);
+            MatchResult::create(['match_id' => $m->id, 'team_id' => $winner->id, 'score' => $wScore, 'set_number' => 1]);
+            MatchResult::create(['match_id' => $m->id, 'team_id' => $loser->id, 'score' => $lScore, 'set_number' => 1]);
+        };
+
+        // Bảng A: T0=9(+13), T1=6(+8), T2=3(-13), T3=0(-8)
+        $playGroupMatch($teams[0], $teams[1], 11, 9, $groupA->id);  // T0 +2, T1 -2
+        $playGroupMatch($teams[0], $teams[2], 11, 2, $groupA->id);  // T0 +9, T2 -9
+        $playGroupMatch($teams[0], $teams[3], 11, 9, $groupA->id);  // T0 +2, T3 -2
+        $playGroupMatch($teams[1], $teams[2], 11, 4, $groupA->id);  // T1 +7, T2 -7
+        $playGroupMatch($teams[1], $teams[3], 11, 8, $groupA->id);  // T1 +3, T3 -3
+        $playGroupMatch($teams[2], $teams[3], 11, 8, $groupA->id);  // T2 +3, T3 -3
+
+        // Bảng B: T4=9(+16), T5=3(+2), T6=3(-4), T7=3(-14)
+        $playGroupMatch($teams[4], $teams[5], 11, 9, $groupB->id);  // T4 +2, T5 -2
+        $playGroupMatch($teams[4], $teams[6], 11, 5, $groupB->id);  // T4 +6, T6 -6
+        $playGroupMatch($teams[4], $teams[7], 11, 3, $groupB->id);  // T4 +8, T7 -8
+        $playGroupMatch($teams[5], $teams[6], 11, 5, $groupB->id);  // T5 +6, T6 -6
+        $playGroupMatch($teams[6], $teams[7], 11, 3, $groupB->id);  // T6 +8, T7 -8
+        $playGroupMatch($teams[7], $teams[5], 11, 9, $groupB->id);  // T7 +2, T5 -2
+
+        // Bán kết (round 2): T0 thắng T5, T1 thắng T4 (không có trận hạng 3)
+        $this->playMatch($type, $teams[0], $teams[5], 2);
+        $this->playMatch($type, $teams[1], $teams[4], 2);
+
+        // Chung kết (round 3): T0 thắng T1 -> T0 vô địch, T1 á quân, T4 & T5 đồng hạng 3
+        $this->playMatch($type, $teams[0], $teams[1], 3);
+
+        (new MatchesController())->recalculateRankings($type->id);
+
+        $computed = app(TournamentRankService::class)->compute($type->id);
+        $overall = collect($computed['overall_rankings'])->keyBy('team_id');
+
+        $this->assertCount(8, $overall, 'Chỉ giữ lại 8 đội hợp lệ trong overall_rankings.');
+        $this->assertFalse($overall->has($teams[8]->id), 'Đội 9 (0 VĐV, 0 trận) phải bị loại.');
+        $this->assertFalse($overall->has($teams[9]->id), 'Đội 10 (1 VĐV, 0 trận) phải bị loại.');
+
+        $this->assertSame(1, $overall[$teams[0]->id]['overall_rank']);
+        $this->assertSame(2, $overall[$teams[1]->id]['overall_rank']);
+        $this->assertSame(3, $overall[$teams[4]->id]['overall_rank']);
+        $this->assertSame(3, $overall[$teams[5]->id]['overall_rank']);
+
+        // 4 đội vòng bảng: T6 (3đ, -4) -> 4, T2 (3đ, -13) -> 5, T7 (3đ, -14) -> 6, T3 (0đ, -8) -> 7
+        $this->assertSame(4, $overall[$teams[6]->id]['overall_rank']);
+        $this->assertSame(5, $overall[$teams[2]->id]['overall_rank']);
+        $this->assertSame(6, $overall[$teams[7]->id]['overall_rank']);
+        $this->assertSame(7, $overall[$teams[3]->id]['overall_rank']);
+
+        // Kiểm tra API leaderboard cũng trả về đúng 8 đội với rank 1, 2, 3, 3, 4, 5, 6, 7
+        $controller = new LeaderboardController(app(TournamentRankService::class));
+        $request = Request::create("/api/tournaments/{$tournament->id}/leaderboard", 'GET');
+        $request->setUserResolver(fn() => null);
+        $response = $controller->index($request, $tournament->id);
+        $rows = collect(json_decode($response->getContent(), true)['data']['leaderboard'] ?? [])->keyBy('id');
+
+        $this->assertCount(8, $rows, 'Leaderboard phải loại bỏ đội thiếu VĐV chưa đá trận nào.');
+        $this->assertSame(4, $rows[$teams[6]->id]['rank']);
+        $this->assertSame(5, $rows[$teams[2]->id]['rank']);
+        $this->assertSame(6, $rows[$teams[7]->id]['rank']);
+        $this->assertSame(7, $rows[$teams[3]->id]['rank']);
+    }
+
     // =========== Helpers ===========
 
     /**
