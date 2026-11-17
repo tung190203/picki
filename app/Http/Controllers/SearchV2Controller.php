@@ -141,7 +141,7 @@ class SearchV2Controller extends Controller
 
             SearchFilterConfig::TAB_CLUB => $this->buildClubQuery($userId, $filters, $subTab),
 
-            SearchFilterConfig::TAB_COURT => CompetitionLocation::withFullRelations()
+            SearchFilterConfig::TAB_COURT => CompetitionLocation::withSearchRelations()
                 ->active()
                 ->filter($filters),
 

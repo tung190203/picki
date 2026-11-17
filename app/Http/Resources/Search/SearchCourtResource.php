@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources\Search;
 
-use App\Http\Resources\UserResource;
 use App\Models\MiniTournament;
 use App\Models\Tournament;
 use Carbon\Carbon;
@@ -62,7 +61,7 @@ class SearchCourtResource extends JsonResource
             'phone'           => $this->phone,
             'opening_time'    => $this->opening_time,
             'closing_time'    => $this->closing_time,
-            'number_of_yards' => $this->whenLoaded('competitionLocationYards', fn() => $this->competitionLocationYards->count()),
+            'number_of_yards' => $this->competition_location_yards_count ?? $this->whenLoaded('competitionLocationYards', fn() => $this->competitionLocationYards->count()),
             'sports'          => $this->whenLoaded('sports', fn() => $this->sports->map(fn($s) => [
                 'id'   => $s->id,
                 'name' => $s->name,
@@ -87,15 +86,28 @@ class SearchCourtResource extends JsonResource
                 'start_date' => $t->start_date
                     ? Carbon::parse($t->start_date)->format('Y-m-d')
                     : null,
-                'created_by' => $t->creator ? new UserResource($t->creator) : null,
+                'created_by' => $this->formatCreator($t->creator),
             ])->values(),
             'active_mini_tournaments' => $activeMiniTournaments->map(fn($t) => [
                 'id' => $t->id,
                 'name' => $t->name,
                 'status' => $t->status,
                 'start_date' => $t->start_time?->format('Y-m-d'),
-                'created_by' => $t->creator ? new UserResource($t->creator) : null,
+                'created_by' => $this->formatCreator($t->creator),
             ])->values(),
+        ];
+    }
+
+    private function formatCreator($creator): ?array
+    {
+        if (!$creator) {
+            return null;
+        }
+
+        return [
+            'id' => $creator->id,
+            'full_name' => $creator->full_name,
+            'avatar_url' => $creator->avatar_url,
         ];
     }
 }

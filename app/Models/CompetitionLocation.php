@@ -196,6 +196,26 @@ class CompetitionLocation extends Model
         ]);
     }
 
+    /**
+     * Lightweight eager-load dành riêng cho API search sân đấu (SearchV2Controller),
+     * tránh load thừa `location`, `follows`, `competitionLocationYards` và tránh N+1 ở `creator`.
+     */
+    public static function scopeWithSearchRelations($query)
+    {
+        return $query
+            ->withCount('competitionLocationYards')
+            ->with([
+                'sports',
+                'facilities',
+                'tournaments' => fn($q) => self::activeTournamentsConstraint($q)
+                    ->select(['id', 'competition_location_id', 'name', 'status', 'start_date', 'end_date', 'created_by']),
+                'tournaments.creator:id,full_name,avatar_url',
+                'miniTournaments' => fn($q) => self::activeMiniTournamentsConstraint($q)
+                    ->select(['id', 'competition_location_id', 'name', 'status', 'start_time', 'end_time', 'session_status', 'created_by']),
+                'miniTournaments.creator:id,full_name,avatar_url',
+            ]);
+    }
+
     public function scopeInBounds($query, $minLat, $maxLat, $minLng, $maxLng)
     {
         return $query->whereBetween('latitude', [$minLat, $maxLat])
