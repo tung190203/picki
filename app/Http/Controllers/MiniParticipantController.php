@@ -24,6 +24,7 @@ use App\Notifications\MiniTournamentInvitationNotification;
 use App\Notifications\MiniTournamentInviteDeclinedNotification;
 use App\Notifications\MiniTournamentMemberJoinedNotification;
 use App\Services\MiniTournamentService;
+use App\Services\Permission\MiniTournamentPermission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -144,6 +145,8 @@ class MiniParticipantController extends Controller
                 $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $currentUser->id);
             }
 
+            $this->tournamentService->syncClubStaffRoleForParticipant($miniTournament, $currentUser->id);
+
             return $participant;
         });
 
@@ -191,7 +194,7 @@ class MiniParticipantController extends Controller
     {
         $miniTournament = MiniTournament::with('staff', 'participants')->findOrFail($tournamentId);
 
-        if (!$miniTournament->hasOrganizer(Auth::id())) {
+        if (!MiniTournamentPermission::canManageParticipants($miniTournament, Auth::id())) {
             return ResponseHelper::error('Bạn không có quyền mời người tham gia.', 403);
         }
 
@@ -298,6 +301,7 @@ class MiniParticipantController extends Controller
                 $participant = $miniTournament->participants()->create($participantData);
 
                 $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $userId);
+                $this->tournamentService->syncClubStaffRoleForParticipant($miniTournament, (int) $userId);
 
                 $user = User::find($userId);
 
@@ -353,7 +357,7 @@ class MiniParticipantController extends Controller
     {
         $participant = MiniParticipant::with('miniTournament')->findOrFail($participantId);
 
-        if (!$participant->miniTournament->hasOrganizer(Auth::id())) {
+        if (!MiniTournamentPermission::canManageParticipants($participant->miniTournament, Auth::id())) {
             return ResponseHelper::error('Không có quyền duyệt', 403);
         }
 
@@ -381,6 +385,7 @@ class MiniParticipantController extends Controller
 
         // Gắn user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
         $this->tournamentService->attachUserToMiniTournamentClubFund($participant->miniTournament, $participant->user_id);
+        $this->tournamentService->syncClubStaffRoleForParticipant($participant->miniTournament, (int) $participant->user_id);
 
         $participant->user->notify(
             new MiniTournamentJoinConfirmedNotification($participant, Auth::id())
@@ -439,7 +444,7 @@ class MiniParticipantController extends Controller
 
         $miniTournament = $participants->first()->miniTournament;
 
-        if (!$miniTournament->hasOrganizer(Auth::id())) {
+        if (!MiniTournamentPermission::canManageParticipants($miniTournament, Auth::id())) {
             return ResponseHelper::error('Không có quyền duyệt', 403);
         }
 
@@ -467,6 +472,7 @@ class MiniParticipantController extends Controller
                 ]);
 
                 $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $participant->user_id);
+                $this->tournamentService->syncClubStaffRoleForParticipant($miniTournament, (int) $participant->user_id);
 
                 if ($miniTournament->has_fee && !$miniTournament->auto_split_fee && !$miniTournament->use_club_fund) {
                     MiniParticipantPayment::firstOrCreate(
@@ -537,23 +543,15 @@ class MiniParticipantController extends Controller
                 [ClubMemberRole::Admin, ClubMemberRole::Manager, ClubMemberRole::Secretary],
                 true
             );
-            $isTournamentOrganizer = $miniTournament->staff->contains(
-                fn ($staff) => (int) $staff->pivot->user_id === $userId
-                && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ORGANIZER
-            );
+            $canManageTournament = MiniTournamentPermission::canManageParticipants($miniTournament, $userId);
 
-            if (!$isClubStaff && !$isTournamentOrganizer) {
+            if (!$isClubStaff && !$canManageTournament) {
                 return ResponseHelper::error('Bạn không có quyền xác nhận VĐV cho kèo này', 403);
             }
         } else {
-            // === Kèo thường: chỉ organizer ===
-            $isOrganizer = $miniTournament->staff->contains(
-                fn ($staff) => (int) $staff->pivot->user_id === $userId
-                && (int) $staff->pivot->role === MiniTournamentStaff::ROLE_ORGANIZER
-            );
-
-            if (!$isOrganizer) {
-                return ResponseHelper::error('Chỉ organizer kèo đấu mới có quyền xác nhận VĐV', 403);
+            // === Kèo thường: organizer hoặc BTC ===
+            if (!MiniTournamentPermission::canManageParticipants($miniTournament, $userId)) {
+                return ResponseHelper::error('Chỉ organizer hoặc BTC kèo đấu mới có quyền xác nhận VĐV', 403);
             }
         }
 
@@ -635,6 +633,7 @@ class MiniParticipantController extends Controller
 
         // Gắn user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
         $this->tournamentService->attachUserToMiniTournamentClubFund($participant->miniTournament, Auth::id());
+        $this->tournamentService->syncClubStaffRoleForParticipant($participant->miniTournament, (int) Auth::id());
 
         foreach ($participant->miniTournament->staff as $organizer) {
             $organizer->notify(new MiniTournamentMemberJoinedNotification($participant));
@@ -697,7 +696,7 @@ class MiniParticipantController extends Controller
     {
         $participant = MiniParticipant::with('miniTournament')->findOrFail($participantId);
 
-        if (!$participant->miniTournament->hasOrganizer(Auth::id())) {
+        if (!MiniTournamentPermission::canManageParticipants($participant->miniTournament, Auth::id())) {
             return ResponseHelper::error('Không có quyền', 403);
         }
 
@@ -786,7 +785,7 @@ class MiniParticipantController extends Controller
         $first = $participants->first();
         $miniTournament = MiniTournament::with('staff')->findOrFail($first->mini_tournament_id);
 
-        if (!$miniTournament->hasOrganizer(Auth::id())) {
+        if (!MiniTournamentPermission::canManageParticipants($miniTournament, Auth::id())) {
             return ResponseHelper::error('Không có quyền', 403);
         }
 
@@ -1072,6 +1071,7 @@ class MiniParticipantController extends Controller
 
                 // Gắn user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
                 $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $userId);
+                $this->tournamentService->syncClubStaffRoleForParticipant($miniTournament, (int) $userId);
 
                 // Send notification
                 $user = User::find($userId);

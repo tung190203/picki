@@ -240,6 +240,7 @@ class ClubMiniTournamentController extends Controller
 
                 // Gắn invited user vào ClubFundCollection nếu kèo tính vào quỹ chung CLB
                 $this->tournamentService->attachUserToMiniTournamentClubFund($miniTournament, $invitedUserId);
+                $this->tournamentService->syncClubStaffRoleForParticipant($miniTournament, (int) $invitedUserId);
 
                 $user = User::find($invitedUserId);
                 if ($user) {

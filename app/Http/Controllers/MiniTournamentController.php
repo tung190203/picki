@@ -146,6 +146,7 @@ class MiniTournamentController extends Controller
                     'is_invited' => true,
                     'payment_status' => $paymentStatus,
                 ]);
+                $this->tournamentService->syncClubStaffRoleForParticipant($miniTournament, (int) $userId);
                 $user = User::find($userId);
                 if ($user) {
                     $user->notify(new MiniTournamentInvitationNotification($miniTournament, Auth::id()));
