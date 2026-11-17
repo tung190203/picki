@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Enums\ClubMemberRole;
 use App\Enums\ClubNotificationType;
+use App\Models\Club\Club;
 use App\Models\MiniTournament;
 use App\Models\MiniMatch;
 use App\Models\MiniParticipant;
@@ -727,6 +729,45 @@ class MiniTournamentService
         $collection->assignedMembers()->syncWithoutDetaching([
             $userId => ['amount_due' => $feeAmount],
         ]);
+    }
+
+    /**
+     * Nếu kèo thuộc CLB và user là Admin / Manager / Secretary đang active trong CLB đó,
+     * tự động thêm user vào mini_tournament_staff với vai trò BTC (ROLE_STAFF) nếu chưa có role.
+     */
+    public function syncClubStaffRoleForParticipant(MiniTournament $tournament, int $userId): void
+    {
+        if (!$tournament->club_id || $userId <= 0) {
+            return;
+        }
+
+        $club = Club::find($tournament->club_id);
+        if (!$club) {
+            return;
+        }
+
+        $isClubManager = $club->activeMembers()
+            ->where('user_id', $userId)
+            ->whereIn('role', [
+                ClubMemberRole::Admin,
+                ClubMemberRole::Manager,
+                ClubMemberRole::Secretary,
+            ])
+            ->exists();
+
+        if (!$isClubManager) {
+            return;
+        }
+
+        MiniTournamentStaff::firstOrCreate(
+            [
+                'mini_tournament_id' => $tournament->id,
+                'user_id' => $userId,
+            ],
+            [
+                'role' => MiniTournamentStaff::ROLE_STAFF,
+            ]
+        );
     }
 
     /**
