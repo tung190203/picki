@@ -202,8 +202,16 @@ class CompetitionLocation extends Model
      */
     public static function scopeWithSearchRelations($query)
     {
+        $userId = auth()->id();
+
         return $query
             ->withCount('competitionLocationYards')
+            ->when(
+                $userId,
+                fn($q) => $q->withExists([
+                    'follows as is_saved' => fn($fq) => $fq->where('user_id', $userId),
+                ])
+            )
             ->with([
                 'sports',
                 'facilities',
@@ -277,6 +285,88 @@ class CompetitionLocation extends Model
     public function scopeActive($query)
     {
         return $query->where('is_banned', false);
+    }
+
+    /**
+     * Lọc sân đấu theo sub_tab của SearchV2 (all | nearby | has_matches_today | ongoing).
+     */
+    public function scopeApplyCourtSubTab($query, ?string $subTab)
+    {
+        $now = now();
+        $dayStart = $now->copy()->startOfDay();
+        $dayEnd = $now->copy()->endOfDay();
+
+        return match ($subTab) {
+            'nearby' => $query->whereNotNull('latitude')->whereNotNull('longitude'),
+
+            'has_event_today' => $query->where(function ($q) use ($dayStart, $dayEnd) {
+                $q->whereHas('miniTournaments', fn($mq) => self::dateOverlapMiniConstraint($mq, $dayStart, $dayEnd))
+                    ->orWhereHas('tournaments', fn($tq) => self::dateOverlapTournamentConstraint($tq, $dayStart, $dayEnd));
+            }),
+
+            'ongoing' => $query->where(function ($q) use ($now) {
+                $q->whereHas('miniTournaments', function ($mq) use ($now) {
+                    $mq->where('status', MiniTournament::STATUS_OPEN)
+                        ->where('session_status', '!=', MiniTournament::SESSION_STATUS_FINISHED)
+                        ->where(function ($sub) use ($now) {
+                            $sub->where('session_status', MiniTournament::SESSION_STATUS_LIVE)
+                                ->orWhere(function ($timeQ) use ($now) {
+                                    $timeQ->whereNotNull('start_time')
+                                        ->where('start_time', '<=', $now)
+                                        ->where(fn($e) => $e->whereNull('end_time')->orWhere('end_time', '>=', $now));
+                                });
+                        });
+                })->orWhereHas('tournaments', function ($tq) use ($now) {
+                    $tq->where('status', Tournament::OPEN)
+                        ->whereNotNull('start_date')
+                        ->where('start_date', '<=', $now)
+                        ->where(fn($e) => $e->whereNull('end_date')->orWhere('end_date', '>=', $now));
+                });
+            }),
+
+            'saved' => auth()->check()
+                ? $query->whereHas('follows', fn($fq) => $fq->where('user_id', auth()->id()))
+                : $query->whereRaw('1 = 0'),
+
+            default => $query,
+        };
+    }
+
+    /**
+     * Constraint kèo đấu đang mở diễn ra trong khoảng [dayStart, dayEnd].
+     */
+    public static function dateOverlapMiniConstraint($query, \Carbon\CarbonInterface $dayStart, \Carbon\CarbonInterface $dayEnd)
+    {
+        return $query->where('status', MiniTournament::STATUS_OPEN)
+            ->where('session_status', '!=', MiniTournament::SESSION_STATUS_FINISHED)
+            ->where(function ($sub) use ($dayStart, $dayEnd) {
+                $sub->where(function ($q1) use ($dayStart, $dayEnd) {
+                    $q1->whereNotNull('start_time')
+                        ->where('start_time', '<=', $dayEnd)
+                        ->where(function ($q2) use ($dayStart) {
+                            $q2->where('end_time', '>=', $dayStart)
+                                ->orWhere(fn($q3) => $q3->whereNull('end_time')->where('start_time', '>=', $dayStart));
+                        });
+                });
+            })
+            ->orderBy('start_time', 'asc');
+    }
+
+    /**
+     * Constraint giải đấu đang mở diễn ra trong khoảng [dayStart, dayEnd].
+     */
+    public static function dateOverlapTournamentConstraint($query, \Carbon\CarbonInterface $dayStart, \Carbon\CarbonInterface $dayEnd)
+    {
+        return $query->where('status', Tournament::OPEN)
+            ->where(function ($sub) use ($dayStart, $dayEnd) {
+                $sub->whereNotNull('start_date')
+                    ->where('start_date', '<=', $dayEnd)
+                    ->where(function ($q2) use ($dayStart) {
+                        $q2->where('end_date', '>=', $dayStart)
+                            ->orWhere(fn($q3) => $q3->whereNull('end_date')->where('start_date', '>=', $dayStart));
+                    });
+            })
+            ->orderBy('start_date', 'asc');
     }
 
     public function scopeNearBy($query, float $lat, float $lng, float $radiusKm)
