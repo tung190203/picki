@@ -261,6 +261,10 @@ class MatchCacheObserver
         }
 
         if ($miniTournament->status === MiniTournament::STATUS_CLOSED) {
+            // Kèo đã đóng trước (theo end_time hoặc đóng tay) nhưng trận cuối vừa xong
+            // → giờ đã đủ điều kiện ghi star.
+            $this->recordMiniAchievementIfComplete($miniTournament, $match->id);
+
             return;
         }
 
@@ -269,13 +273,7 @@ class MatchCacheObserver
         // match must not close a tournament whose end_time is still in the
         // future. session_status is flipped separately in
         // MiniMatchController::checkRoundActivation.
-        $allMatches = $miniTournament->matches()->get();
-        if ($allMatches->isEmpty()) {
-            return;
-        }
-
-        $allHasResult = $allMatches->every(fn($m) => $m->winner_id !== null || $m->team_win_id !== null || $m->participant_win_id !== null);
-        if (!$allHasResult) {
+        if (! $miniTournament->hasAllMatchesCompleted()) {
             return;
         }
 
@@ -289,6 +287,34 @@ class MatchCacheObserver
             'match_id' => $match->id,
         ]);
         $miniTournament->update(['status' => MiniTournament::STATUS_CLOSED]);
+    }
+
+    /**
+     * Ghi star khi kèo đã CLOSED và mọi trận thật đã đá xong.
+     */
+    protected function recordMiniAchievementIfComplete(MiniTournament $miniTournament, int $matchId): void
+    {
+        if (! $miniTournament->hasAllMatchesCompleted()) {
+            return;
+        }
+
+        try {
+            $written = app(\App\Services\Club\UserAchievementRecorder::class)
+                ->recordForMiniTournament($miniTournament);
+
+            if ($written > 0) {
+                Log::info('[MatchCacheObserver] Recorded star for closed mini tournament', [
+                    'mini_tournament_id' => $miniTournament->id,
+                    'match_id' => $matchId,
+                    'rows' => $written,
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('MatchCacheObserver: Failed to record mini achievement', [
+                'mini_tournament_id' => $miniTournament->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     protected function revertTournamentCompletion($match): void
