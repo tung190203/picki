@@ -339,4 +339,49 @@ class MiniTournamentAchievementTest extends TestCase
             'Giải chưa đánh trận nào thì không được ghi cup.'
         );
     }
+
+    /**
+     * Kèo đã CLOSED trước (do auto-close theo end_time), sau đó trận cuối
+     * mới nhập kết quả → MatchCacheObserver phải ghi star cho user.
+     */
+    public function test_closed_mini_records_star_when_last_match_completes_after_close(): void
+    {
+        $u1 = User::factory()->create();
+        $u2 = User::factory()->create();
+        $mini = $this->makeMini();
+        $p1 = $this->addParticipant($mini, $u1);
+        $p2 = $this->addParticipant($mini, $u2);
+
+        $match = $this->addMatch($mini, [
+            'participant1_id' => $p1->id,
+            'participant2_id' => $p2->id,
+            'participant_win_id' => null,
+            'status' => MiniMatch::STATUS_PENDING,
+        ]);
+
+        // Đóng kèo trước khi trận cuối có kết quả
+        $mini->update(['status' => MiniTournament::STATUS_CLOSED]);
+
+        $this->assertSame(
+            0,
+            UserAchievement::where('event_type', UserAchievement::TYPE_MINI_TOURNAMENT)
+                ->where('event_id', $mini->id)
+                ->count(),
+            'Kèo đóng nhưng chưa có kết quả trận → chưa ghi star.'
+        );
+
+        // Nhập kết quả trận cuối sau khi kèo đã đóng
+        $match->update([
+            'participant_win_id' => $p1->id,
+            'status' => MiniMatch::STATUS_COMPLETED,
+        ]);
+
+        $this->assertGreaterThan(
+            0,
+            UserAchievement::where('event_type', UserAchievement::TYPE_MINI_TOURNAMENT)
+                ->where('event_id', $mini->id)
+                ->count(),
+            'Sau khi trận cuối hoàn tất trên kèo đã CLOSED, star phải được ghi.'
+        );
+    }
 }
