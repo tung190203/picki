@@ -143,7 +143,8 @@ class SearchV2Controller extends Controller
 
             SearchFilterConfig::TAB_COURT => CompetitionLocation::withSearchRelations()
                 ->active()
-                ->filter($filters),
+                ->filter($filters)
+                ->applyCourtSubTab($subTab),
 
             default => throw new \InvalidArgumentException("Unknown tab: {$tab}"),
         };

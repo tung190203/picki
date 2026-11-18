@@ -43,7 +43,13 @@ class SearchFilterConfig
             SubTabFilter::SUGGEST,
             SubTabFilter::PLAYED_TOGETHER,
         ],
-        self::TAB_COURT       => [SubTabFilter::ALL],
+        self::TAB_COURT => [
+            SubTabFilter::ALL,
+            SubTabFilter::NEARBY,
+            SubTabFilter::HAS_EVENT_TODAY,
+            SubTabFilter::ONGOING,
+            SubTabFilter::SAVED,
+        ],
     ];
 
     /**

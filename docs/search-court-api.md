@@ -14,6 +14,7 @@ Tìm kiếm sân đấu (Competition Locations) kèm danh sách giải đấu & 
 | Param | Type | Description |
 |-------|------|-------------|
 | `tab` | string | `court` |
+| `sub_tab` | string | `all` (Tất cả) \| `nearby` (Gần tôi) \| `has_event_today` (Có kèo hôm nay) \| `ongoing` (Đang diễn ra) \| `saved` (Đã lưu) |
 | `keyword` | string | Tìm theo tên sân, địa chỉ hoặc tên địa phương |
 | `lat`, `lng` | float | Toạ độ neo để tính `distance` (km) và sort gần nhất |
 | `radius` | float | Bán kính tìm kiếm (km) |
@@ -48,6 +49,7 @@ Tìm kiếm sân đấu (Competition Locations) kèm danh sách giải đấu & 
     { "id": 1, "name": "Bãi đỗ xe", "description": "..." }
   ],
   "distance": 1.4,
+  "is_saved": false,
   "marker_type": "court",
   "active_matches_count": 2,
   "active_tournaments_count": 1,
@@ -84,3 +86,128 @@ Tìm kiếm sân đấu (Competition Locations) kèm danh sách giải đấu & 
 ### Lưu ý thay đổi payload `created_by` (2026-11-17)
 - `active_tournaments[].created_by` và `active_mini_tournaments[].created_by` trả object rút gọn `{ id, full_name, avatar_url }` (hoặc `null`) thay cho full `UserResource` (giống `SearchMatchResource` và `SearchTournamentResource`) để tránh N+1 query khi load danh sách sân.
 - Query `TAB_COURT` dùng `CompetitionLocation::withSearchRelations()` để `withCount('competitionLocationYards')`, chỉ `select` các cột cần thiết của `tournaments` / `miniTournaments` và eager-load `creator:id,full_name,avatar_url`.
+
+---
+
+## APIs màn Chi tiết 1 sân đấu (`CompetitionLocationController`)
+
+### 1. Lấy danh sách kèo đấu & giải đấu của sân
+
+```
+GET /api/competition-locations/{id}/events
+```
+
+| Query Param | Type | Required | Description |
+|---|---|---|---|
+| `date` | string (`YYYY-MM-DD`) | ❌ | Lọc kèo/giải diễn ra trong ngày đó. Bỏ trống = lấy tất cả kèo/giải **sắp diễn ra & đang diễn ra** |
+| `type` | string | ❌ | `all` (mặc định) \| `mini_tournament` \| `tournament` |
+
+**Response:**
+
+```json
+{
+  "status": true,
+  "message": "Lấy danh sách kèo đấu và giải đấu tại sân thành công",
+  "data": {
+    "competition_location_id": 12,
+    "date": "2026-11-17",
+    "mini_tournaments_count": 1,
+    "tournaments_count": 1,
+    "mini_tournaments": [
+      {
+        "id": 201,
+        "name": "Kèo tối thứ 3",
+        "type": "mini_tournament",
+        "status": 1,
+        "session_status": 0,
+        "start_time": "2026-11-17T12:00:00.000000Z",
+        "end_time": "2026-11-17T14:00:00.000000Z",
+        "start_date": "2026-11-17",
+        "max_players": 16,
+        "participants_count": 10,
+        "has_fee": true,
+        "fee_amount": 80000,
+        "created_by": {
+          "id": 8,
+          "full_name": "Trần Văn B",
+          "avatar_url": "https://..."
+        }
+      }
+    ],
+    "tournaments": [
+      {
+        "id": 101,
+        "name": "Giải Mở Rộng",
+        "type": "tournament",
+        "status": "open",
+        "start_date": "2026-11-17",
+        "end_date": "2026-11-18",
+        "poster_url": "https://...",
+        "max_players": 32,
+        "participants_count": 20,
+        "created_by": {
+          "id": 5,
+          "full_name": "Nguyễn Văn A",
+          "avatar_url": "https://..."
+        }
+      }
+    ]
+  }
+}
+```
+
+### 2. Lấy danh sách CLB đang chọn sân này làm sân nhà (trả all, không phân trang)
+
+```
+GET /api/competition-locations/{id}/home-clubs
+```
+
+**Response:**
+
+```json
+{
+  "status": true,
+  "message": "Lấy danh sách CLB sân nhà thành công",
+  "data": {
+    "competition_location_id": 12,
+    "clubs_count": 1,
+    "clubs": [
+      {
+        "id": 3,
+        "name": "CLB Pickleball Hà Nội",
+        "logo_url": "https://...",
+        "cover_image_url": "https://...",
+        "address": "Hà Nội",
+        "is_verified": true,
+        "members_count": 48,
+        "created_by": {
+          "id": 5,
+          "full_name": "Nguyễn Văn A",
+          "avatar_url": "https://..."
+        }
+      }
+    ]
+  }
+}
+```
+
+### 3. Lưu / bỏ lưu sân đấu (nút tim)
+
+```
+POST /api/competition-locations/{id}/toggle-save
+```
+
+> Yêu cầu đăng nhập (`auth:api`). Dùng chung bảng `follows` (`followable_type = CompetitionLocation::class`), đồng bộ trực tiếp với `sub_tab=saved` và `is_saved`.
+
+**Response:**
+
+```json
+{
+  "status": true,
+  "message": "Đã lưu sân đấu",
+  "data": {
+    "competition_location_id": 12,
+    "is_saved": true
+  }
+}
+```
