@@ -87,6 +87,14 @@ class SearchCourtResource extends JsonResource
                 'start_date' => $t->start_date
                     ? Carbon::parse($t->start_date)->format('Y-m-d')
                     : null,
+                'max_team' => $t->max_team,
+                'participated_team' => $t->relationLoaded('teams')
+                    ? $t->teams->filter(fn($team) => (($team->members_count ?? 0) + ($team->guest_members_count ?? 0)) >= 2)->count()
+                    : 0,
+                'club' => $t->relationLoaded('club') && $t->club ? [
+                    'id' => $t->club->id,
+                    'name' => $t->club->name,
+                ] : null,
                 'created_by' => $this->formatCreator($t->creator),
             ])->values(),
             'active_mini_tournaments' => $activeMiniTournaments->map(fn($t) => [
@@ -94,6 +102,12 @@ class SearchCourtResource extends JsonResource
                 'name' => $t->name,
                 'status' => $t->status,
                 'start_date' => $t->start_time?->format('Y-m-d'),
+                'max_players' => $t->max_players,
+                'participants_count' => (int) ($t->participants_count ?? 0),
+                'club' => $t->relationLoaded('club') && $t->club ? [
+                    'id' => $t->club->id,
+                    'name' => $t->club->name,
+                ] : null,
                 'created_by' => $this->formatCreator($t->creator),
             ])->values(),
         ];
