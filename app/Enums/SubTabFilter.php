@@ -16,6 +16,10 @@ enum SubTabFilter: string
     case SUIT_LEVEL = 'suit_level';
     case SUGGEST = 'suggest';
     case PLAYED_TOGETHER = 'played_together';
+    case NEARBY = 'nearby';
+    case HAS_EVENT_TODAY = 'has_event_today';
+    case ONGOING = 'ongoing';
+    case SAVED = 'saved';
 
     public function label(): string
     {
@@ -32,6 +36,10 @@ enum SubTabFilter: string
             self::SUIT_LEVEL => 'Phù hợp trình độ',
             self::SUGGEST => 'Gợi ý',
             self::PLAYED_TOGETHER => 'Đã chơi cùng',
+            self::NEARBY => 'Gần tôi',
+            self::HAS_EVENT_TODAY => 'Có kèo hôm nay',
+            self::ONGOING => 'Đang diễn ra',
+            self::SAVED => 'Đã lưu',
         };
     }
 

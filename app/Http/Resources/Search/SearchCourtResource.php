@@ -73,6 +73,7 @@ class SearchCourtResource extends JsonResource
                 'description' => $f->description,
             ])),
             'distance'        => $this->when(isset($this->distance), round($this->distance, 1)),
+            'is_saved'        => (bool) ($this->is_saved ?? false),
             'marker_type'     => 'court',
 
             // Thống kê kèo đấu & giải đấu sắp và đang diễn ra

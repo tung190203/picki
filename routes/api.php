@@ -1073,6 +1073,9 @@ Route::get('/members/candidates', [ClubMemberController::class, 'getCandidates']
 
     Route::prefix('competition-locations')->group(function () {
         Route::match(['get', 'post'], '/index', [CompetitionLocationController::class, 'index']);
+        Route::get('/{id}/events', [CompetitionLocationController::class, 'events']);
+        Route::get('/{id}/home-clubs', [CompetitionLocationController::class, 'homeClubs']);
+        Route::post('/{id}/toggle-save', [CompetitionLocationController::class, 'toggleSave']);
     });
 
     Route::prefix('follows')->group(function () {
