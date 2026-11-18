@@ -384,8 +384,11 @@ class CompetitionLocation extends Model
     }
     public function scopeOrderByDistance($query, $lat, $lng)
     {
+        if (empty($query->getQuery()->columns)) {
+            $query->select('competition_locations.*');
+        }
+
         return $query
-            ->addSelect('*')
             ->addSelect(DB::raw("
                 (
                     6371 * acos(
