@@ -219,6 +219,17 @@ class SearchV2Controller extends Controller
             $query->nearBy($lat, $lng, $radius);
         }
 
+        // sub_tab=nearby trên tab=court: giới hạn bán kính mặc định 50km quanh lat/lng user
+        // khi client không truyền radius hoặc filters[distance]
+        if ($tab === SearchFilterConfig::TAB_COURT
+            && ($params['sub_tab'] ?? 'all') === 'nearby'
+            && $lat !== null && $lng !== null
+            && $radius === null
+            && empty($filters['distance'])
+        ) {
+            $query->having('distance', '<=', 50);
+        }
+
         // Handle distance filter: [min_km, max_km] range for TAB_COURT
         // Must be applied after orderByDistance() which selects the distance column
         if ($tab === SearchFilterConfig::TAB_COURT
