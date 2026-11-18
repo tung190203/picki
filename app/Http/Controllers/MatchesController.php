@@ -1979,14 +1979,16 @@ class MatchesController extends Controller
             $finalWinnerId = $awayTeamId;
         }
         if (!$finalWinnerId) {
-            $legIds = $allLegs->pluck('id');
-            Matches::whereIn('id', $legIds)->update(['winner_id' => null]);
+            foreach ($allLegs as $leg) {
+                $leg->update(['winner_id' => null]);
+            }
             return;
         }
 
-        // Cập nhật winner cho tất cả legs — batched
-        $legIds = $allLegs->pluck('id');
-        Matches::whereIn('id', $legIds)->update(['winner_id' => $finalWinnerId]);
+        // Cập nhật winner cho tất cả legs qua Eloquent để trigger MatchCacheObserver
+        foreach ($allLegs as $leg) {
+            $leg->update(['winner_id' => $finalWinnerId]);
+        }
 
         // ===== BƯỚC 6: Tiến vào vòng sau =====
         // ✅ XỬ LÝ ĐẶC BIỆT CHO ROUND 1 CỦA MIXED FORMAT (POOL STAGE)
