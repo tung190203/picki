@@ -308,23 +308,33 @@ class CompetitionLocation extends Model
                     ->orWhereHas('tournaments', fn($tq) => self::dateOverlapTournamentConstraint($tq, $dayStart, $dayEnd));
             }),
 
-            'ongoing' => $query->where(function ($q) use ($now) {
+            'ongoing' => $query->where(function ($q) use ($now, $dayStart) {
                 $q->whereHas('miniTournaments', function ($mq) use ($now) {
                     $mq->where('status', MiniTournament::STATUS_OPEN)
-                        ->where('session_status', '!=', MiniTournament::SESSION_STATUS_FINISHED)
-                        ->where(function ($sub) use ($now) {
-                            $sub->where('session_status', MiniTournament::SESSION_STATUS_LIVE)
-                                ->orWhere(function ($timeQ) use ($now) {
-                                    $timeQ->whereNotNull('start_time')
-                                        ->where('start_time', '<=', $now)
-                                        ->where(fn($e) => $e->whereNull('end_time')->orWhere('end_time', '>=', $now));
-                                });
+                        ->where(fn($s) => $s->whereNull('session_status')->orWhere('session_status', '!=', MiniTournament::SESSION_STATUS_FINISHED))
+                        ->whereNotNull('start_time')
+                        ->where('start_time', '<=', $now)
+                        ->where(fn($e) => $e->whereNull('end_time')->orWhere('end_time', '>=', $now))
+                        ->where(function ($c) {
+                            $c->whereDoesntHave('matches', fn($m) => $m->where('is_bye', false))
+                                ->orWhereHas('matches', fn($m) => $m->where('is_bye', false)
+                                    ->whereNull('team_win_id')
+                                    ->whereNull('participant_win_id'));
                         });
-                })->orWhereHas('tournaments', function ($tq) use ($now) {
+                })->orWhereHas('tournaments', function ($tq) use ($now, $dayStart) {
                     $tq->where('status', Tournament::OPEN)
                         ->whereNotNull('start_date')
                         ->where('start_date', '<=', $now)
-                        ->where(fn($e) => $e->whereNull('end_date')->orWhere('end_date', '>=', $now));
+                        ->where(function ($e) use ($now, $dayStart) {
+                            $e->whereNull('end_date')
+                                ->orWhere('end_date', '>=', $now)
+                                ->orWhere(fn($d) => $d->whereTime('end_date', '00:00:00')->where('end_date', '>=', $dayStart));
+                        })
+                        ->where(function ($c) {
+                            $c->whereDoesntHave('tournamentTypes.matches', fn($m) => $m->where('is_bye', false))
+                                ->orWhereHas('tournamentTypes.matches', fn($m) => $m->where('is_bye', false)
+                                    ->whereNull('winner_id'));
+                        });
                 });
             }),
 
