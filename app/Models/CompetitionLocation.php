@@ -216,11 +216,15 @@ class CompetitionLocation extends Model
                 'sports',
                 'facilities',
                 'tournaments' => fn($q) => self::activeTournamentsConstraint($q)
-                    ->select(['id', 'competition_location_id', 'name', 'status', 'start_date', 'end_date', 'created_by']),
+                    ->select(['id', 'competition_location_id', 'club_id', 'name', 'status', 'start_date', 'end_date', 'max_team', 'created_by']),
                 'tournaments.creator:id,full_name,avatar_url',
+                'tournaments.club:id,name',
+                'tournaments.teams' => fn($q) => $q->select(['id', 'tournament_id'])->withCount(['members', 'guestMembers']),
                 'miniTournaments' => fn($q) => self::activeMiniTournamentsConstraint($q)
-                    ->select(['id', 'competition_location_id', 'name', 'status', 'start_time', 'end_time', 'session_status', 'created_by']),
+                    ->select(['id', 'competition_location_id', 'club_id', 'name', 'status', 'start_time', 'end_time', 'session_status', 'max_players', 'created_by'])
+                    ->withCount(['participants as participants_count' => fn($pq) => $pq->where('is_confirmed', true)]),
                 'miniTournaments.creator:id,full_name,avatar_url',
+                'miniTournaments.club:id,name',
             ]);
     }
 
