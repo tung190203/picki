@@ -152,7 +152,7 @@ class CompetitionLocationController extends Controller
         if ($type === 'all' || $type === 'mini_tournament') {
             $miniQuery = MiniTournament::query()
                 ->where('competition_location_id', $location->id)
-                ->with(['creator:id,full_name,avatar_url'])
+                ->with(['creator:id,full_name,avatar_url', 'club:id,name'])
                 ->withCount(['participants as participants_count' => fn($q) => $q->where('is_confirmed', true)]);
 
             if ($dayStart && $dayEnd) {
@@ -164,6 +164,7 @@ class CompetitionLocationController extends Controller
             $miniTournaments = $miniQuery->get([
                 'id',
                 'competition_location_id',
+                'club_id',
                 'name',
                 'status',
                 'session_status',
@@ -186,6 +187,10 @@ class CompetitionLocationController extends Controller
                 'participants_count' => (int) ($t->participants_count ?? 0),
                 'has_fee' => (bool) $t->has_fee,
                 'fee_amount' => $t->fee_amount,
+                'club' => $t->club ? [
+                    'id' => $t->club->id,
+                    'name' => $t->club->name,
+                ] : null,
                 'created_by' => $this->formatCreator($t->creator),
             ])->values();
         }
@@ -193,7 +198,11 @@ class CompetitionLocationController extends Controller
         if ($type === 'all' || $type === 'tournament') {
             $tourQuery = Tournament::query()
                 ->where('competition_location_id', $location->id)
-                ->with(['creator:id,full_name,avatar_url'])
+                ->with([
+                    'creator:id,full_name,avatar_url',
+                    'club:id,name',
+                    'teams' => fn($q) => $q->select(['id', 'tournament_id'])->withCount(['members', 'guestMembers']),
+                ])
                 ->withCount(['participants as participants_count' => fn($q) => $q->where('is_confirmed', true)]);
 
             if ($dayStart && $dayEnd) {
@@ -205,6 +214,7 @@ class CompetitionLocationController extends Controller
             $tournaments = $tourQuery->get([
                 'id',
                 'competition_location_id',
+                'club_id',
                 'name',
                 'status',
                 'start_date',
@@ -223,6 +233,14 @@ class CompetitionLocationController extends Controller
                 'poster_url' => $t->poster_url,
                 'max_players' => ($t->max_team && $t->player_per_team) ? (int) ($t->max_team * $t->player_per_team) : null,
                 'participants_count' => (int) ($t->participants_count ?? 0),
+                'max_team' => $t->max_team,
+                'participated_team' => $t->teams
+                    ->filter(fn($team) => (($team->members_count ?? 0) + ($team->guest_members_count ?? 0)) >= 2)
+                    ->count(),
+                'club' => $t->club ? [
+                    'id' => $t->club->id,
+                    'name' => $t->club->name,
+                ] : null,
                 'created_by' => $this->formatCreator($t->creator),
             ])->values();
         }
