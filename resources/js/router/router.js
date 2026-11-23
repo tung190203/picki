@@ -50,6 +50,10 @@ import GroupDrawWheelPage from '@/components/pages/tools/GroupDrawWheelPage.vue'
 import ToolsPage from '@/components/pages/tools/ToolsPage.vue'
 import LivescorePickerPage from '@/components/pages/tools/LivescorePickerPage.vue'
 import PublicLiveScorePage from '@/components/pages/live-score/PublicLiveScorePage.vue'
+import TournamentCourtBoardPage from '@/components/pages/tournament/TournamentCourtBoardPage.vue'
+import RefereeSelectTournamentsPage from '@/components/pages/tools/RefereeSelectTournamentsPage.vue'
+import RefereeMatchesPage from '@/components/pages/tools/RefereeMatchesPage.vue'
+import FreeMatchPage from '@/components/pages/tools/FreeMatchPage.vue'
 import { ROLE } from '@/constants/index.js'
 
 export const route = [
@@ -499,6 +503,26 @@ export const route = [
     path: '/tools/livescore',
     name: 'livescore-picker',
     component: LivescorePickerPage
+  },
+  {
+    path: '/tools/referee',
+    name: 'referee-select-tournaments',
+    component: RefereeSelectTournamentsPage
+  },
+  {
+    path: '/tools/referee/matches',
+    name: 'referee-matches',
+    component: RefereeMatchesPage
+  },
+  {
+    path: '/tools/free-matches/create',
+    name: 'free-match-create',
+    component: FreeMatchPage
+  },
+  {
+    path: '/tournament-detail/:id/courts',
+    name: 'tournament-court-board',
+    component: TournamentCourtBoardPage
   },
   {
     path: '/pairing-wheel',

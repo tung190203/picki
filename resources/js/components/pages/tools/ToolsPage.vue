@@ -37,7 +37,7 @@
             <span class="flex-1 min-w-0">
               <span class="flex items-center gap-2">
                 <span class="text-[15px] font-semibold ls-text-primary">{{ tool.label }}</span>
-                <span v-if="tool.badge" class="px-1.5 py-px bg-[#1D6FE0] text-white text-[10px] font-bold rounded">{{ tool.badge }}</span>
+                <span v-if="tool.badge" class="px-1.5 py-px text-[10px] font-bold rounded" :class="tool.badgeClass || 'bg-[#1D6FE0] text-white'">{{ tool.badge }}</span>
               </span>
               <span class="block text-[13px] ls-text-secondary truncate">{{ tool.desc }}</span>
             </span>
@@ -52,21 +52,35 @@
 </template>
 
 <script setup>
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { getRefereeTournaments } from '@/service/tournamentCourt.js';
 
 const router = useRouter();
+const refereeTournamentCount = ref(0);
 
+const ICON_REFEREE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4" /><path stroke-linecap="round" d="M5.5 21a6.5 6.5 0 0113 0" /></svg>';
 const ICON_LIVESCORE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2" /><path stroke-linecap="round" d="M8 21h8M12 17v4" /></svg>';
 const ICON_SCORECARD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h3m4 0h1M9 8h1m4 0h1M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" /></svg>';
 const ICON_PAIRING = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /><path stroke-linecap="round" d="M12 3v18M3.6 9h16.8M3.6 15h16.8" /></svg>';
 const ICON_DRAW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>';
 
-const tools = [
+const tools = computed(() => [
+    {
+        route: '/tools/referee',
+        label: 'Trọng tài',
+        desc: 'Bắt trận giải đấu & tạo trận ngoài giải',
+        badge: refereeTournamentCount.value > 0 ? `${refereeTournamentCount.value} giải` : null,
+        badgeClass: 'bg-[#0B7A4B] text-white',
+        icon: ICON_REFEREE,
+        iconWrap: 'bg-[#E7F6EE] dark:bg-emerald-500/15 text-[#0B7A4B] dark:text-emerald-400',
+    },
     {
         route: '/tools/livescore',
         label: 'Livescore',
         desc: 'Chiếu tỉ số trực tiếp lên màn hình lớn tại sân',
         badge: 'MỚI',
+        badgeClass: 'bg-[#1D6FE0] text-white',
         icon: ICON_LIVESCORE,
         iconWrap: 'bg-[#E7F0FE] dark:bg-blue-500/15 text-[#1D6FE0] dark:text-blue-400',
     },
@@ -91,7 +105,16 @@ const tools = [
         icon: ICON_DRAW,
         iconWrap: 'bg-[#F1F3F6] dark:bg-slate-700/50 text-[#5A6069] dark:text-slate-300',
     },
-];
+]);
+
+onMounted(async () => {
+  try {
+    const list = await getRefereeTournaments();
+    refereeTournamentCount.value = Array.isArray(list) ? list.length : 0;
+  } catch {
+    refereeTournamentCount.value = 0;
+  }
+});
 
 const goBack = () => {
   if (window.history.length > 1) router.back();

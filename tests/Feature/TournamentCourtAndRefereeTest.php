@@ -168,7 +168,8 @@ class TournamentCourtAndRefereeTest extends TestCase
             ]);
 
         $res->assertOk()
-            ->assertJsonPath('data.unassigned_count', 0);
+            ->assertJsonPath('data.0.type', 'group')
+            ->assertJsonPath('data.0.matches.0.label', 'T1 vs T2');
 
         $this->assertEquals($c1->id, $m1->fresh()->court_id);
         $this->assertEquals($this->ref1->id, $m1->fresh()->referee_id);
@@ -180,7 +181,13 @@ class TournamentCourtAndRefereeTest extends TestCase
         $this->actingAs($this->admin, 'api')
             ->postJson("/api/tournaments/{$tournament->id}/court-board/auto")
             ->assertOk()
-            ->assertJsonPath('data.unassigned_count', 0);
+            ->assertJsonPath('data.0.type', 'group');
+
+        // Get matches list for board
+        $this->actingAs($this->admin, 'api')
+            ->getJson("/api/tournaments/{$tournament->id}/matches")
+            ->assertOk()
+            ->assertJsonPath('data.0.type', 'group');
     }
 
     public function test_referee_merged_matches_claim_busy_and_reassign_lock(): void
