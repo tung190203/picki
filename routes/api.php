@@ -681,6 +681,30 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         });
     });
 
+    // Sân & trọng tài trong giải đấu + Trận ngoài giải
+    Route::middleware(['auth:api'])->group(function () {
+        Route::get('/tournaments/{id}/courts', [\App\Http\Controllers\TournamentCourtController::class, 'index']);
+        Route::post('/tournaments/{id}/courts', [\App\Http\Controllers\TournamentCourtController::class, 'store']);
+        Route::post('/tournaments/{id}/courts/copy', [\App\Http\Controllers\TournamentCourtController::class, 'copy']);
+        Route::get('/tournaments/{id}/court-board', [\App\Http\Controllers\TournamentCourtController::class, 'board']);
+        Route::put('/tournaments/{id}/court-board/units', [\App\Http\Controllers\TournamentCourtController::class, 'saveUnit']);
+        Route::post('/tournaments/{id}/court-board/auto', [\App\Http\Controllers\TournamentCourtController::class, 'auto']);
+
+        Route::patch('/courts/{id}', [\App\Http\Controllers\TournamentCourtController::class, 'update']);
+        Route::delete('/courts/{id}', [\App\Http\Controllers\TournamentCourtController::class, 'destroy']);
+
+        Route::get('/referee/tournaments', [\App\Http\Controllers\RefereeController::class, 'tournaments']);
+        Route::get('/referee/matches', [\App\Http\Controllers\RefereeController::class, 'matches']);
+
+        Route::post('/matches/{id}/claim', [\App\Http\Controllers\RefereeController::class, 'claim']);
+        Route::post('/matches/{id}/move', [\App\Http\Controllers\RefereeController::class, 'move']);
+        Route::post('/matches/{id}/reassign', [\App\Http\Controllers\RefereeController::class, 'reassign']);
+
+        Route::get('/free-matches', [\App\Http\Controllers\FreeMatchController::class, 'index']);
+        Route::post('/free-matches', [\App\Http\Controllers\FreeMatchController::class, 'store']);
+        Route::patch('/free-matches/{id}', [\App\Http\Controllers\FreeMatchController::class, 'update']);
+    });
+
     Route::prefix('participants')->group(function () {
         Route::match(['get', 'post'], '/index/{tournamentId}', [ParticipantController::class, 'index']);
         Route::post('/join/{tournamentId}', [ParticipantController::class, 'join']);

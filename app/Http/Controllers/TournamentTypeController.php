@@ -654,6 +654,8 @@ class TournamentTypeController extends Controller
                 $this->generateMixed($type, $teams, $config, $numLegs, $onlyPoolStage);
                 break;
         }
+
+        app(\App\Services\Tournament\CourtBoardService::class)->applyAssignmentsToNewKnockoutMatches($type);
     }
 
     private function generateRoundRobin(TournamentType $type, $teams, $numLegs)
@@ -4170,6 +4172,8 @@ class TournamentTypeController extends Controller
                 $this->generateMixedWithAssignedTeams($type, $config, $numLegs);
                 break;
         }
+
+        app(\App\Services\Tournament\CourtBoardService::class)->applyAssignmentsToNewKnockoutMatches($type);
     }
 
     private function generateMixedWithAssignedTeams(TournamentType $type, $config, $numLegs)
