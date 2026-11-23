@@ -77,46 +77,41 @@
 - **Body**: `{ "from_tournament_id": 10 }`
 - **Lưu ý**: Chỉ giữ `referee_user_id` nếu người đó cũng có vai trò Trọng tài ở giải đích. Trả `409 COURT_HAS_LIVE_MATCH` nếu giải đích đang có trận live.
 
-### 3.6 Lấy dữ liệu Bảng sân
-- **Method & URL**: `GET /api/tournaments/{id}/court-board`
+### 3.6 Lấy danh sách bảng & trận để kéo thả vào sân
+- **Method & URL**: `GET /api/tournaments/{id}/matches`
+- **Ghi chú**: Trả thẳng mảng các bảng đấu & slot loại trực tiếp (`courts` và `referees` lấy từ `GET /api/tournaments/{id}/courts`).
 - **Response `200`**:
 ```json
 {
   "status": true,
-  "data": {
-    "courts": [
-      {
-        "id": 12,
-        "tournament_id": 1,
-        "name": "Sân 1",
-        "order": 1,
-        "referee": { "user_id": 88, "name": "Bảo Quốc", "avatar_url": "...", "initials": "BQ" },
-        "pending_count": 9
-      }
-    ],
-    "referees": [
-      { "user_id": 88, "name": "Bảo Quốc", "is_me": false, "court_ids": [12] }
-    ],
-    "units": [
-      {
-        "type": "group",
-        "group_id": 5,
-        "label": "Bảng A",
-        "match_count": 6,
-        "courts": [{ "court_id": 12, "count": 3 }, { "court_id": 15, "count": 3 }]
-      },
-      {
-        "type": "slot",
-        "round": "QF",
-        "no": 3,
-        "label": "TK3",
-        "title": "Nhất B – Nhì A",
-        "match_id": 301,
-        "court_id": null
-      }
-    ],
-    "unassigned_count": 15
-  }
+  "data": [
+    {
+      "type": "group",
+      "group_id": 5,
+      "label": "Bảng A",
+      "match_count": 6,
+      "courts": [{ "court_id": 12, "count": 3 }, { "court_id": 15, "count": 3 }],
+      "matches": [
+        {
+          "id": 101,
+          "label": "Đội A1 vs Đội A2",
+          "team_a": "Đội A1",
+          "team_b": "Đội A2",
+          "court_id": 12,
+          "scheduled_at": "09:00",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "type": "slot",
+      "round": "QF",
+      "no": 3,
+      "label": "Tứ kết 3",
+      "match_id": 301,
+      "court_id": null
+    }
+  ]
 }
 ```
 

@@ -626,6 +626,29 @@
                   </div>
                   <ChevronRightIcon class="w-5 h-5 text-gray-400" />
                 </div>
+                <div v-if="isCreator"
+                  class="border border-[#BBBFCC] rounded my-4 px-4 py-3 flex justify-between items-center cursor-pointer hover:shadow-md transition"
+                  @click="openCourtBoardPage">
+                  <div class="flex items-center gap-3">
+                    <ScheduleIcon class="w-5 h-5 text-[#0B7A4B]" />
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <p class="font-medium">Sân &amp; trọng tài</p>
+                        <span class="px-1.5 py-px bg-[#1D6FE0] text-white text-[10px] font-bold rounded">MỚI</span>
+                      </div>
+                      <p v-if="courtBoardSummary" class="text-xs text-gray-500 mt-0.5">
+                        <template v-if="courtBoardSummary.courtsCount === 0">Chưa khai báo sân</template>
+                        <template v-else>
+                          {{ courtBoardSummary.courtsCount }} sân · {{ courtBoardSummary.assignedRefCount }} có TT
+                          <span v-if="courtBoardSummary.unassignedCount > 0" class="text-[#C77800] font-medium">
+                            · {{ courtBoardSummary.unassignedCount }} trận chưa xếp
+                          </span>
+                        </template>
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRightIcon class="w-5 h-5 text-gray-400" />
+                </div>
                 <template v-for="type in tournament?.tournament_types" :key="type.id">
                   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 border-b pb-4"
                     :class="publicBracket == true ? 'mt-0' : 'mt-4'">
@@ -939,6 +962,7 @@ import MemberActionModal from '@/components/molecules/MemberActionModal.vue'
 import ManualPairingModal from '@/components/molecules/ManualPairingModal.vue'
 import TableChartIcon from '@/assets/images/table_chart.svg';
 import ScheduleIcon from '@/assets/images/branch.svg';
+import { getTournamentCourts, getCourtBoard } from '@/service/tournamentCourt.js';
 
 const inviteType = ref('participant')
 const selectedStaffRole = ref(1) // RBAC v2: mặc định mời Admin (organizer)
@@ -1773,6 +1797,37 @@ const openBracketPage = () => {
   router.push({ name: 'tournament-bracket', param: { id: id }, query: { tab: activeTab.value } });
 };
 
+const courtBoardSummary = ref(null);
+const loadCourtBoardSummary = async () => {
+  try {
+    const [courtsData, matchesList] = await Promise.all([
+      getTournamentCourts(id),
+      getCourtBoard(id),
+    ]);
+    const courts = courtsData?.courts || [];
+    let unassignedCount = 0;
+    for (const u of (Array.isArray(matchesList) ? matchesList : [])) {
+      if (u.type === 'group') {
+        const assigned = (u.courts || []).reduce((acc, c) => acc + (c.count || 0), 0);
+        if (assigned === 0) unassignedCount += (u.match_count || 0);
+      } else if (u.type === 'slot' && !u.court_id) {
+        unassignedCount += 1;
+      }
+    }
+    courtBoardSummary.value = {
+      courtsCount: courts.length,
+      assignedRefCount: courts.filter((c) => !!c.referee).length,
+      unassignedCount,
+    };
+  } catch {
+    // Non-admin/BTC or not yet configured
+  }
+};
+
+const openCourtBoardPage = () => {
+  router.push({ name: 'tournament-court-board', params: { id: id } });
+};
+
 const openGroupsSortPage = () => {
   router.push({ name: 'tournament-groups-sort', params: { id: id }, query: { tab: activeTab.value } });
 }
@@ -2441,6 +2496,9 @@ onMounted(async () => {
     await getInviteGroupData();
     // ✅ Load pairing config sau khi tournament data đã load
     loadPairingConfig();
+    if (isCreator.value) {
+      loadCourtBoardSummary();
+    }
   }
 })
 </script>
