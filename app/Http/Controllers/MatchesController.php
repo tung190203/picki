@@ -1225,6 +1225,10 @@ class MatchesController extends Controller
             return ResponseHelper::error('Kết quả trận đấu đã được xác nhận trước đó', 400);
         }
 
+        if ($match->isClaimedByAnotherReferee(Auth::id())) {
+            return ResponseHelper::error('Trận đã giao cho trọng tài khác', 403, ['error_code' => 'NOT_MATCH_REFEREE']);
+        }
+
         $rulesConfig = $match->tournamentType?->getMatchRuleConfig() ?? [];
         if (empty($rulesConfig)) {
             return ResponseHelper::error('Thể thức này chưa có luật thi đấu (match_rules).', 400);
@@ -1751,6 +1755,7 @@ class MatchesController extends Controller
         // trận đã xong mà không cần chờ FE gọi lại API (payload realtime không có
         // `status`/`is_finished`).
         $match->live_status = Matches::LIVE_STATUS_FINISHED;
+        $match->finished_at = now();
         $match->save();
         // `match_version` tăng ở confirmResult (nơi save lần cuối) để tránh
         // tăng 2 lần do processMatchCompletionBig save trước đó.
@@ -2545,6 +2550,10 @@ class MatchesController extends Controller
 
         if (!$match->hasScoringPermission($user->id)) {
             return ResponseHelper::error('Không có quyền', 403);
+        }
+
+        if ($match->isClaimedByAnotherReferee($user->id)) {
+            return ResponseHelper::error('Trận đã giao cho trọng tài khác', 403, ['error_code' => 'NOT_MATCH_REFEREE']);
         }
 
         $validated = $request->validate([

@@ -178,6 +178,18 @@ class Tournament extends Model
             ->withTimestamps();
     }
 
+    public function courts()
+    {
+        return $this->hasMany(TournamentCourt::class, 'tournament_id')
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
+    public function courtAssignments()
+    {
+        return $this->hasMany(CourtAssignment::class, 'tournament_id');
+    }
+
     public function competitionLocation()
     {
         return $this->belongsTo(CompetitionLocation::class);
