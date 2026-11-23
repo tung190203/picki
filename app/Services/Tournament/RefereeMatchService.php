@@ -182,6 +182,9 @@ class RefereeMatchService
             $canMove = $status === 'waiting' && $tournament->hasOrganizerOrStaff($user->id);
             $canClaim = $status === 'waiting' && $isCourtReferee && $busy === null;
 
+            $teamA = $this->formatTeamDisplay($m->homeTeam, 'Đội A');
+            $teamB = $this->formatTeamDisplay($m->awayTeam, 'Đội B');
+
             return [
                 'id' => $m->id,
                 'tournament_id' => $tournament->id,
@@ -191,8 +194,9 @@ class RefereeMatchService
                 'scheduled_at_iso' => $m->scheduled_at?->toISOString(),
                 'priority_at' => $m->priority_at?->toISOString(),
                 'round' => $this->formatRoundLabel($m),
-                'team_a' => $this->formatTeamDisplay($m->homeTeam, 'Đội A'),
-                'team_b' => $this->formatTeamDisplay($m->awayTeam, 'Đội B'),
+                'title' => "{$teamA} vs {$teamB}",
+                'team_a' => $teamA,
+                'team_b' => $teamB,
                 'status' => $status,
                 'score' => $this->extractCurrentScore($m),
                 'referee' => $m->referee ? [

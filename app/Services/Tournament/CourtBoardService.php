@@ -21,27 +21,17 @@ class CourtBoardService
 
     public function getBoard(Tournament $tournament): array
     {
-        $courts = $tournament->courts()
-            ->with('referee:id,full_name,avatar_url')
-            ->get();
-
         $typeIds = $tournament->tournamentTypes()->pluck('id');
 
         $allMatches = Matches::whereIn('tournament_type_id', $typeIds)
             ->where('is_bye', false)
+            ->with([
+                'homeTeam:id,name',
+                'awayTeam:id,name',
+            ])
             ->orderBy('round')
             ->orderBy('id')
             ->get();
-
-        $pendingByCourt = $allMatches
-            ->where('status', Matches::STATUS_PENDING)
-            ->groupBy('court_id');
-
-        $formattedCourts = $courts->map(function (TournamentCourt $c) use ($pendingByCourt) {
-            $base = $this->courtService->formatCourt($c);
-            $base['pending_count'] = $pendingByCourt->get($c->id, collect())->count();
-            return $base;
-        })->values();
 
         $assignments = CourtAssignment::where('tournament_id', $tournament->id)
             ->orderBy('sort_order')
@@ -80,6 +70,19 @@ class CourtBoardService
                     : "Bảng {$group->name}",
                 'match_count' => $groupMatches->count(),
                 'courts' => $courtCounts,
+                'matches' => $groupMatches->map(function (Matches $m) {
+                    $teamA = $m->homeTeam?->name ?: 'Đội A';
+                    $teamB = $m->awayTeam?->name ?: 'Đội B';
+                    return [
+                        'id' => $m->id,
+                        'label' => "{$teamA} vs {$teamB}",
+                        'team_a' => $teamA,
+                        'team_b' => $teamB,
+                        'court_id' => $m->court_id,
+                        'scheduled_at' => $m->scheduled_at?->format('H:i'),
+                        'status' => $m->status,
+                    ];
+                })->values()->all(),
             ];
         }
 
@@ -98,24 +101,13 @@ class CourtBoardService
                     'round' => $slot['round'],
                     'no' => $slot['no'],
                     'label' => $slot['label'],
-                    'title' => $slot['title'],
                     'match_id' => $slot['match_id'],
                     'court_id' => $slot['court_id'] ?? $assign?->court_id,
                 ];
             }
         }
 
-        $unassignedCount = $allMatches
-            ->where('status', Matches::STATUS_PENDING)
-            ->whereNull('court_id')
-            ->count();
-
-        return [
-            'courts' => $formattedCourts,
-            'referees' => $this->courtService->getTournamentReferees($tournament),
-            'units' => $units,
-            'unassigned_count' => $unassignedCount,
-        ];
+        return $units;
     }
 
     public function saveUnit(Tournament $tournament, array $payload, int $actorId): array
@@ -385,17 +377,11 @@ class CourtBoardService
             foreach ($slotGroups as $index => $legs) {
                 $no = $index + 1;
                 $first = $legs->first();
-                $homeName = $first->homeTeam?->name;
-                $awayName = $first->awayTeam?->name;
-                $title = ($homeName && $awayName)
-                    ? "{$homeName} – {$awayName}"
-                    : ($first->name_of_match ?? $this->slotLabel($code, $no));
 
                 $slots[] = [
                     'round' => $code,
                     'no' => $no,
                     'label' => $this->slotLabel($code, $no),
-                    'title' => $title,
                     'match_id' => $first->id,
                     'court_id' => $first->court_id,
                     'matches' => $legs,
@@ -447,12 +433,32 @@ class CourtBoardService
     private function slotLabel(string $code, int $no): string
     {
         return match ($code) {
-            'F' => 'CK',
-            'P3' => 'H3',
-            'SF' => "BK{$no}",
-            'QF' => "TK{$no}",
-            default => "{$code}-{$no}",
+            'F' => 'Chung kết',
+            'P3' => 'Tranh hạng 3',
+            'SF' => "Bán kết {$no}",
+            'QF' => "Tứ kết {$no}",
+            'R16' => "Vòng 1/8 - {$no}",
+            'R32' => "Vòng 32 - {$no}",
+            default => "{$code} - {$no}",
         };
+    }
+
+    private function formatTeamDisplay($team, string $fallback): string
+    {
+        if (!$team) {
+            return $fallback;
+        }
+
+        $names = collect();
+        foreach ($team->members as $member) {
+            $names->push($member->full_name);
+        }
+        foreach ($team->guestMembers as $guest) {
+            $names->push($guest->name ?? $guest->participant?->full_name);
+        }
+
+        $filtered = $names->filter()->values();
+        return $filtered->isNotEmpty() ? $filtered->implode(' - ') : ($team->name ?: $fallback);
     }
 
     private function pickLeastLoadedCourt(array $load): int
