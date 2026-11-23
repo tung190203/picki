@@ -29,7 +29,9 @@ class Matches extends Model
         'is_third_place',
         'bracket_type',
         'scheduled_at',
+        'priority_at',
         'court',
+        'court_id',
         'winner_id',
         'name_of_match',
         'best_loser_source_round',
@@ -37,6 +39,7 @@ class Matches extends Model
         'match_version',
         'live_status',
         'started_at',
+        'finished_at',
         'current_set',
         'serving_team_id',
         'team1_timeout_used',
@@ -49,8 +52,11 @@ class Matches extends Model
     ];
 
     protected $casts = [
+        'court_id' => 'integer',
         'started_at' => 'datetime',
+        'finished_at' => 'datetime',
         'scheduled_at' => 'datetime',
+        'priority_at' => 'datetime',
         'qualified_for_ranking' => 'boolean',
     ];
 
@@ -117,6 +123,11 @@ class Matches extends Model
         return $this->belongsTo(User::class, 'leg_referee_id');
     }
 
+    public function tournamentCourt()
+    {
+        return $this->belongsTo(TournamentCourt::class, 'court_id')->withTrashed();
+    }
+
     public function tournament()
     {
         return $this->tournamentType?->tournament();
@@ -132,6 +143,22 @@ class Matches extends Model
         }
 
         return false;
+    }
+
+    /**
+     * Trận đang đấu đã có trọng tài khác đang bắt (khóa gửi điểm cho người khác).
+     */
+    public function isClaimedByAnotherReferee(int $userId): bool
+    {
+        if (!in_array($this->live_status, [
+            self::LIVE_STATUS_PLAYING,
+            self::LIVE_STATUS_TIMEOUT,
+            self::LIVE_STATUS_BETWEEN_SETS,
+        ], true)) {
+            return false;
+        }
+
+        return $this->referee_id !== null && (int) $this->referee_id !== $userId;
     }
 
     protected static function boot()

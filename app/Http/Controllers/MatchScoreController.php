@@ -30,6 +30,10 @@ class MatchScoreController extends Controller
             return ResponseHelper::error(self::ERR_FORBIDDEN, 403);
         }
 
+        if ($match->isClaimedByAnotherReferee($user->id)) {
+            return ResponseHelper::error('Trận đã giao cho trọng tài khác', 403, ['error_code' => 'NOT_MATCH_REFEREE']);
+        }
+
         $validated = $request->validate([
             'user_id' => 'nullable|integer|exists:users,id',
             'serving_team_id' => 'required|integer',
@@ -60,6 +64,10 @@ class MatchScoreController extends Controller
 
         if (!$match->hasScoringPermission($user->id)) {
             return ResponseHelper::error(self::ERR_FORBIDDEN, 403);
+        }
+
+        if ($match->isClaimedByAnotherReferee($user->id)) {
+            return ResponseHelper::error('Trận đã giao cho trọng tài khác', 403, ['error_code' => 'NOT_MATCH_REFEREE']);
         }
 
         $validated = $request->validate([
