@@ -294,4 +294,70 @@ class TournamentCourtAndRefereeTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', FreeMatch::STATUS_DONE);
     }
+
+    public function test_save_whole_court_board_and_auto_assign_preview(): void
+    {
+        [$tournament, $type] = $this->makeTournament();
+        $c1 = TournamentCourt::create(['tournament_id' => $tournament->id, 'name' => 'Sân 1', 'sort_order' => 1]);
+
+        $groupA = Group::create(['tournament_type_id' => $type->id, 'name' => 'A']);
+        $t1 = $this->makeTeam($tournament, $this->player1, 'T1');
+        $t2 = $this->makeTeam($tournament, $this->player2, 'T2');
+        $m1 = $this->makeMatch($type, $groupA, $t1, $t2);
+        $m2 = $this->makeMatch($type, $groupA, $t1, $t2);
+
+        // 1. Auto assign preview with courts list
+        $autoRes = $this->actingAs($this->admin, 'api')
+            ->postJson("/api/tournaments/{$tournament->id}/court-board/auto", [
+                'courts' => [
+                    ['court_id' => $c1->id, 'number' => 1, 'name' => 'Sân 1'],
+                    ['court_id' => null, 'number' => 2, 'name' => 'Sân 2'],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonCount(2, 'data.courts');
+
+        $this->assertNotNull($autoRes->json('data.courts.0.referee_user_id'));
+        $this->assertNotNull($autoRes->json('data.courts.1.referee_user_id'));
+
+        // Preview should not persist Sân 2 yet
+        $this->assertEquals(1, $tournament->courts()->count());
+
+        // 2. Save whole board via PUT /court-board
+        $saveRes = $this->actingAs($this->admin, 'api')
+            ->putJson("/api/tournaments/{$tournament->id}/court-board", [
+                'courts' => [
+                    [
+                        'court_id' => $c1->id,
+                        'number' => 1,
+                        'name' => 'Sân 1',
+                        'referee_user_id' => $this->ref1->id,
+                        'match_ids' => [$m1->id],
+                        'slots' => [['round' => 'QF', 'no' => 1]],
+                    ],
+                    [
+                        'court_id' => null,
+                        'number' => 2,
+                        'name' => 'Sân 2',
+                        'referee_user_id' => $this->ref2->id,
+                        'match_ids' => [$m2->id],
+                        'slots' => [],
+                    ],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonCount(2, 'data.courts');
+
+        $this->assertEquals(2, $tournament->courts()->count());
+        $this->assertEquals($c1->id, $m1->fresh()->court_id);
+        $this->assertEquals($this->ref1->id, $m1->fresh()->referee_id);
+        $this->assertEquals($this->ref2->id, $m2->fresh()->referee_id);
+        $this->assertDatabaseHas('court_assignments', [
+            'tournament_id' => $tournament->id,
+            'unit_type' => CourtAssignment::UNIT_SLOT,
+            'slot_round' => 'QF',
+            'slot_no' => 1,
+            'court_id' => $c1->id,
+        ]);
+    }
 }

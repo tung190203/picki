@@ -156,6 +156,40 @@ class TournamentCourtController extends Controller
         return ResponseHelper::success($board, 'Cập nhật phân sân thành công');
     }
 
+    public function saveBoard(Request $request, int $id): JsonResponse
+    {
+        $tournament = Tournament::with(['staff', 'tournamentTypes'])->findOrFail($id);
+        if (!$tournament->hasOrganizerOrStaff($request->user()->id)) {
+            return ResponseHelper::error('Bạn không có quyền lưu bảng sân của giải đấu này.', 403);
+        }
+
+        $validated = $request->validate([
+            'courts' => 'present|array',
+            'courts.*.court_id' => 'nullable|integer',
+            'courts.*.number' => 'nullable|integer|min:1',
+            'courts.*.name' => 'required|string|max:40',
+            'courts.*.referee_user_id' => 'nullable|integer|exists:users,id',
+            'courts.*.match_ids' => 'sometimes|array',
+            'courts.*.match_ids.*' => 'integer',
+            'courts.*.slots' => 'sometimes|array',
+            'courts.*.slots.*.round' => 'required|string|max:10',
+            'courts.*.slots.*.no' => 'required|integer|min:1',
+        ]);
+
+        try {
+            $result = $this->boardService->saveBoard($tournament, $validated['courts'], $request->user()->id);
+        } catch (\RuntimeException $e) {
+            if ($e->getCode() === 409) {
+                return ResponseHelper::error('Không thể xoá sân đang có trận Đang đấu.', 409, [
+                    'error_code' => 'COURT_HAS_LIVE_MATCH',
+                ]);
+            }
+            throw $e;
+        }
+
+        return ResponseHelper::success($result, 'Lưu bảng sân thành công');
+    }
+
     public function auto(Request $request, int $id): JsonResponse
     {
         $tournament = Tournament::with(['staff', 'tournamentTypes'])->findOrFail($id);
@@ -163,7 +197,18 @@ class TournamentCourtController extends Controller
             return ResponseHelper::error('Bạn không có quyền chia sân tự động cho giải đấu này.', 403);
         }
 
-        $board = $this->boardService->autoAssign($tournament, $request->user()->id);
+        $validated = $request->validate([
+            'courts' => 'nullable|array',
+            'courts.*.court_id' => 'nullable|integer',
+            'courts.*.number' => 'nullable|integer|min:1',
+            'courts.*.name' => 'nullable|string|max:40',
+        ]);
+
+        $board = $this->boardService->autoAssign(
+            $tournament,
+            $request->user()->id,
+            $request->has('courts') ? ($validated['courts'] ?? []) : null
+        );
 
         return ResponseHelper::success($board, 'Chia sân tự động thành công');
     }

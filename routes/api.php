@@ -687,6 +687,7 @@ Route::middleware(['auth:api', 'update.last_login', 'throttle:api'])->group(func
         Route::post('/tournaments/{id}/courts', [\App\Http\Controllers\TournamentCourtController::class, 'store']);
         Route::post('/tournaments/{id}/courts/copy', [\App\Http\Controllers\TournamentCourtController::class, 'copy']);
         Route::get('/tournaments/{id}/matches', [\App\Http\Controllers\TournamentCourtController::class, 'board']);
+        Route::put('/tournaments/{id}/court-board', [\App\Http\Controllers\TournamentCourtController::class, 'saveBoard']);
         Route::put('/tournaments/{id}/court-board/units', [\App\Http\Controllers\TournamentCourtController::class, 'saveUnit']);
         Route::post('/tournaments/{id}/court-board/auto', [\App\Http\Controllers\TournamentCourtController::class, 'auto']);
 

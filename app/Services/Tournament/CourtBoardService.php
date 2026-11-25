@@ -7,6 +7,7 @@ use App\Models\Group;
 use App\Models\Matches;
 use App\Models\Tournament;
 use App\Models\TournamentCourt;
+use App\Models\TournamentStaff;
 use App\Models\TournamentType;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -239,8 +240,267 @@ class CourtBoardService
         return $this->getBoard($tournament);
     }
 
-    public function autoAssign(Tournament $tournament, int $actorId): array
+    /**
+     * Lưu toàn bộ bảng sân (nút "Xác nhận"): tạo/cập nhật/xoá sân, gán trọng tài,
+     * gán match_ids và slots cho từng sân trong 1 transaction.
+     *
+     * @throws \RuntimeException with code 409 when deleting a court that has live matches
+     */
+    public function saveBoard(Tournament $tournament, array $courtsPayload, int $actorId): array
     {
+        // Validate unique court names in payload
+        $names = array_map(fn ($c) => trim((string) ($c['name'] ?? '')), $courtsPayload);
+        if (count($names) !== count(array_unique($names))) {
+            throw ValidationException::withMessages([
+                'courts' => ['Tên sân không được trùng nhau trong cùng giải đấu.'],
+            ]);
+        }
+
+        // Validate referee_user_id belongs to tournament's ROLE_REFEREE
+        $validRefIds = TournamentStaff::where('tournament_id', $tournament->id)
+            ->where('role', TournamentStaff::ROLE_REFEREE)
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->flip()
+            ->all();
+
+        foreach ($courtsPayload as $idx => $c) {
+            if (!empty($c['referee_user_id']) && !isset($validRefIds[(int) $c['referee_user_id']])) {
+                throw ValidationException::withMessages([
+                    "courts.{$idx}.referee_user_id" => ['Trọng tài phải thuộc BTC với vai trò Trọng tài của giải.'],
+                ]);
+            }
+        }
+
+        $existingCourts = $tournament->courts()->get()->keyBy('id');
+        $keptCourtIds = collect($courtsPayload)
+            ->pluck('court_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $deletedCourts = $existingCourts->whereNotIn('id', $keptCourtIds);
+        if ($deletedCourts->isNotEmpty()) {
+            $hasLiveMatch = Matches::whereIn('court_id', $deletedCourts->pluck('id'))
+                ->where('status', '!=', Matches::STATUS_COMPLETED)
+                ->whereIn('live_status', [
+                    Matches::LIVE_STATUS_PLAYING,
+                    Matches::LIVE_STATUS_TIMEOUT,
+                    Matches::LIVE_STATUS_BETWEEN_SETS,
+                ])
+                ->exists();
+
+            if ($hasLiveMatch) {
+                throw new \RuntimeException('COURT_HAS_LIVE_MATCH', 409);
+            }
+        }
+
+        $typeIds = $tournament->tournamentTypes()->pluck('id');
+        $notifications = [];
+
+        DB::transaction(function () use (
+            $tournament,
+            $courtsPayload,
+            $existingCourts,
+            $deletedCourts,
+            $typeIds,
+            &$notifications
+        ) {
+            // 1. Soft-delete removed courts
+            if ($deletedCourts->isNotEmpty()) {
+                $delIds = $deletedCourts->pluck('id');
+                CourtAssignment::whereIn('court_id', $delIds)->delete();
+                Matches::whereIn('court_id', $delIds)
+                    ->where('status', '!=', Matches::STATUS_COMPLETED)
+                    ->update(['court_id' => null, 'priority_at' => null]);
+
+                foreach ($deletedCourts as $dc) {
+                    if ($dc->referee_user_id) {
+                        $notifications[] = ['unassigned', $dc, (int) $dc->referee_user_id];
+                    }
+                    $dc->delete();
+                }
+            }
+
+            // 2. Reset court assignments & waiting matches for this tournament
+            CourtAssignment::where('tournament_id', $tournament->id)->delete();
+            Matches::whereIn('tournament_type_id', $typeIds)
+                ->where('is_bye', false)
+                ->where('status', Matches::STATUS_PENDING)
+                ->where(fn ($q) => $q->whereNull('live_status')->orWhere('live_status', Matches::LIVE_STATUS_WAITING))
+                ->update([
+                    'court_id' => null,
+                    'referee_id' => null,
+                ]);
+
+            // 3. Upsert courts & assign matches + slots
+            foreach ($courtsPayload as $idx => $item) {
+                $courtId = !empty($item['court_id']) ? (int) $item['court_id'] : null;
+                $name = trim((string) $item['name']);
+                $sortOrder = isset($item['number']) ? (int) $item['number'] : ($idx + 1);
+                $newRefId = isset($item['referee_user_id']) && $item['referee_user_id'] !== null
+                    ? (int) $item['referee_user_id']
+                    : null;
+
+                if ($courtId && $existingCourts->has($courtId)) {
+                    /** @var TournamentCourt $court */
+                    $court = $existingCourts->get($courtId);
+                    $oldRefId = $court->referee_user_id ? (int) $court->referee_user_id : null;
+                    $court->update([
+                        'name' => $name,
+                        'sort_order' => $sortOrder,
+                        'referee_user_id' => $newRefId,
+                    ]);
+
+                    if ($oldRefId !== $newRefId) {
+                        if ($oldRefId) {
+                            $notifications[] = ['unassigned', $court, $oldRefId];
+                        }
+                        if ($newRefId) {
+                            $notifications[] = ['assigned', $court, $newRefId];
+                        }
+                    }
+                } else {
+                    $court = TournamentCourt::create([
+                        'tournament_id' => $tournament->id,
+                        'name' => $name,
+                        'sort_order' => $sortOrder,
+                        'referee_user_id' => $newRefId,
+                    ]);
+                    if ($newRefId) {
+                        $notifications[] = ['assigned', $court, $newRefId];
+                    }
+                }
+
+                $matchIds = array_values(array_unique(array_map('intval', $item['match_ids'] ?? [])));
+                if (!empty($matchIds)) {
+                    Matches::whereIn('id', $matchIds)
+                        ->whereIn('tournament_type_id', $typeIds)
+                        ->where('is_bye', false)
+                        ->where('status', Matches::STATUS_PENDING)
+                        ->where(fn ($q) => $q->whereNull('live_status')->orWhere('live_status', Matches::LIVE_STATUS_WAITING))
+                        ->update([
+                            'court_id' => $court->id,
+                            'referee_id' => $court->referee_user_id,
+                        ]);
+                }
+
+                $slots = $item['slots'] ?? [];
+                foreach ($slots as $slotItem) {
+                    $slotRound = (string) $slotItem['round'];
+                    $slotNo = (int) $slotItem['no'];
+
+                    CourtAssignment::create([
+                        'tournament_id' => $tournament->id,
+                        'unit_type' => CourtAssignment::UNIT_SLOT,
+                        'slot_round' => $slotRound,
+                        'slot_no' => $slotNo,
+                        'court_id' => $court->id,
+                        'sort_order' => 0,
+                    ]);
+
+                    $slotMatches = $this->findMatchesForSlot($tournament, $slotRound, $slotNo);
+                    foreach ($slotMatches as $sm) {
+                        if ($sm->status === Matches::STATUS_PENDING
+                            && (!$sm->live_status || $sm->live_status === Matches::LIVE_STATUS_WAITING)
+                        ) {
+                            $sm->update([
+                                'court_id' => $court->id,
+                                'referee_id' => $court->referee_user_id,
+                            ]);
+                        }
+                    }
+                }
+            }
+        });
+
+        foreach ($notifications as [$action, $court, $refId]) {
+            if ($action === 'assigned') {
+                $this->notifier->notifyCourtAssigned($court, $tournament, $refId, $actorId);
+            } else {
+                $this->notifier->notifyCourtUnassigned($court, $tournament, $refId, $actorId);
+            }
+        }
+
+        return [
+            'courts' => $this->courtService->listCourts($tournament->fresh())['courts'],
+            'matches' => $this->getBoard($tournament->fresh()),
+        ];
+    }
+
+    public function autoAssign(Tournament $tournament, int $actorId, ?array $courtsPayload = null): array
+    {
+        // Preview mode: app sends list of courts, backend auto-assigns referees + matches/slots and returns for UI
+        if ($courtsPayload !== null) {
+            if (empty($courtsPayload)) {
+                throw ValidationException::withMessages([
+                    'courts' => ['Vui lòng truyền ít nhất 1 sân để chia tự động.'],
+                ]);
+            }
+
+            $referees = collect($this->courtService->getTournamentReferees($tournament))->values();
+            $refCount = $referees->count();
+
+            $resultCourts = [];
+            foreach (array_values($courtsPayload) as $idx => $c) {
+                $ref = $refCount > 0 ? $referees[$idx % $refCount] : null;
+                $number = isset($c['number']) ? (int) $c['number'] : ($idx + 1);
+                $resultCourts[] = [
+                    'court_id' => !empty($c['court_id']) ? (int) $c['court_id'] : null,
+                    'number' => $number,
+                    'name' => trim((string) ($c['name'] ?? "Sân {$number}")),
+                    'referee_user_id' => $ref ? $ref['user_id'] : null,
+                    'referee' => $ref ? [
+                        'user_id' => $ref['user_id'],
+                        'name' => $ref['name'],
+                        'initials' => $ref['initials'],
+                    ] : null,
+                    'match_ids' => [],
+                    'slots' => [],
+                ];
+            }
+
+            $typeIds = $tournament->tournamentTypes()->pluck('id');
+            $waitingMatches = Matches::whereIn('tournament_type_id', $typeIds)
+                ->where('is_bye', false)
+                ->where('status', Matches::STATUS_PENDING)
+                ->where(fn ($q) => $q->whereNull('live_status')->orWhere('live_status', Matches::LIVE_STATUS_WAITING))
+                ->orderBy('round')
+                ->orderByRaw('scheduled_at IS NULL, scheduled_at ASC')
+                ->orderBy('id')
+                ->get();
+
+            $courtCount = count($resultCourts);
+            $load = array_fill(0, $courtCount, 0);
+
+            foreach ($waitingMatches as $m) {
+                $minIdx = array_keys($load, min($load))[0];
+                $resultCourts[$minIdx]['match_ids'][] = $m->id;
+                $load[$minIdx]++;
+            }
+
+            $allTypeMatches = Matches::whereIn('tournament_type_id', $typeIds)
+                ->where('is_bye', false)
+                ->get();
+
+            foreach ($tournament->tournamentTypes as $type) {
+                $slots = $this->resolveKnockoutSlots($type, $allTypeMatches->where('tournament_type_id', $type->id));
+                foreach ($slots as $slot) {
+                    $minIdx = array_keys($load, min($load))[0];
+                    $resultCourts[$minIdx]['slots'][] = [
+                        'round' => $slot['round'],
+                        'no' => $slot['no'],
+                        'label' => $slot['label'],
+                    ];
+                    if (!$slot['match_id']) {
+                        $load[$minIdx]++;
+                    }
+                }
+            }
+
+            return ['courts' => $resultCourts];
+        }
+
         $courts = $tournament->courts()->get();
         if ($courts->isEmpty()) {
             throw ValidationException::withMessages([
