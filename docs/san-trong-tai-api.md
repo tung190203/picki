@@ -98,6 +98,7 @@
           "team_a": "Đội A1",
           "team_b": "Đội A2",
           "court_id": 12,
+          "referee_user_id": 88,
           "scheduled_at": "09:00",
           "status": "pending"
         }
@@ -109,7 +110,8 @@
       "no": 3,
       "label": "Tứ kết 3",
       "match_id": 301,
-      "court_id": null
+      "court_id": null,
+      "referee_user_id": null
     }
   ]
 }

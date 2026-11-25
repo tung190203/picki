@@ -80,6 +80,7 @@ class CourtBoardService
                         'team_a' => $teamA,
                         'team_b' => $teamB,
                         'court_id' => $m->court_id,
+                        'referee_user_id' => $m->referee_id ? (int) $m->referee_id : null,
                         'scheduled_at' => $m->scheduled_at?->format('H:i'),
                         'status' => $m->status,
                     ];
@@ -104,6 +105,7 @@ class CourtBoardService
                     'label' => $slot['label'],
                     'match_id' => $slot['match_id'],
                     'court_id' => $slot['court_id'] ?? $assign?->court_id,
+                    'referee_user_id' => $slot['referee_user_id'],
                 ];
             }
         }
@@ -644,6 +646,7 @@ class CourtBoardService
                     'label' => $this->slotLabel($code, $no),
                     'match_id' => $first->id,
                     'court_id' => $first->court_id,
+                    'referee_user_id' => $first->referee_id ? (int) $first->referee_id : null,
                     'matches' => $legs,
                 ];
             }
