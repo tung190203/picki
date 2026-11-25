@@ -123,9 +123,46 @@
   - `court_ids: []` = bỏ xếp sân (đưa trận chờ về chưa xếp sân).
 - **Hành vi**: Chia lần lượt các trận chưa đấu của bảng theo `scheduled_at ASC, id ASC` vào các sân trong `court_ids`. Khi trận loại trực tiếp mới được sinh sau vòng bảng, hệ thống tự áp dụng `court_assignments` theo `slot_round` + `slot_no`.
 
-### 3.8 Chia sân tự động
+### 3.8 Lưu toàn bộ bảng sân (nút "Xác nhận")
+- **Method & URL**: `PUT /api/tournaments/{id}/court-board`
+- **Quyền**: Admin / BTC của giải.
+- **Body**:
+```json
+{
+  "courts": [
+    {
+      "court_id": 12,
+      "number": 1,
+      "name": "Sân 1",
+      "referee_user_id": 88,
+      "match_ids": [101, 102, 301],
+      "slots": [{ "round": "QF", "no": 1 }]
+    },
+    {
+      "court_id": null,
+      "number": 2,
+      "name": "Sân 2",
+      "referee_user_id": null,
+      "match_ids": [],
+      "slots": []
+    }
+  ]
+}
+```
+- **Hành vi**: Tạo/cập nhật/xoá sân (soft-delete sân không còn trong danh sách, chặn `409 COURT_HAS_LIVE_MATCH` nếu sân bị xoá đang có trận live), gán trọng tài và phân trận chờ (`match_ids`) + `slots` loại trực tiếp trong 1 transaction. Trả về `{ courts, matches }`.
+
+### 3.9 Chia sân tự động
 - **Method & URL**: `POST /api/tournaments/{id}/court-board/auto`
-- **Hành vi**: Lần lượt gán từng bảng (theo tên) và từng slot loại trực tiếp vào sân đang có ít trận nhất, trả về dữ liệu `court-board` mới.
+- **Body (tuỳ chọn)**:
+```json
+{
+  "courts": [
+    { "court_id": 12, "number": 1, "name": "Sân 1" },
+    { "court_id": null, "number": 2, "name": "Sân 2" }
+  ]
+}
+```
+- **Hành vi**: Khi truyền `courts`, server tự động phân trọng tài (xoay vòng trong danh sách trọng tài của giải) và các trận chờ/slot vào từng sân rồi trả về `data.courts` (gồm `court_id`, `number`, `name`, `referee_user_id`, `referee`, `match_ids`, `slots`) để app hiển thị lên UI trước khi bấm **Xác nhận** (`PUT /court-board`). Nếu không truyền `body`, tự động chia và lưu luôn các sân hiện có.
 
 ---
 
