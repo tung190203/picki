@@ -38,7 +38,7 @@ class VerificationController extends Controller
         if ($user->email_verified_at) {
             return ResponseHelper::error('Email đã được xác minh.', 400);
         }
-        $user->notify(new VerifyEmailNotification());
+        $user->notify(new VerifyEmailNotification('email', $user->email));
 
         return ResponseHelper::success([], 'Gửi lại email xác minh thành công.');
     }

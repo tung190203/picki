@@ -14,16 +14,19 @@ class VerifyEmailNotification extends Notification
 
     protected string $type;
     protected string $identifier;
+    protected ?string $otp = null;
 
     public function __construct(string $type, string $identifier)
     {
         $this->type = $type;
-        $this->identifier = $identifier;
+        $this->identifier = $type === 'email'
+            ? mb_strtolower(trim($identifier))
+            : trim($identifier);
     }
 
     public function via($notifiable)
     {
-        $this->generateOtpCode();
+        $this->generateOtpCode($notifiable->id ?? null);
 
         if ($this->type === 'email') {
             return ['mail'];
@@ -37,23 +40,28 @@ class VerifyEmailNotification extends Notification
         return ['database'];
     }
 
-    protected function generateOtpCode(): string
+    protected function generateOtpCode(?int $userId = null): string
     {
-        $otp = (string) rand(100000, 999999);
+        if ($this->otp !== null) {
+            return $this->otp;
+        }
+
+        $this->otp = (string) random_int(100000, 999999);
 
         DB::table('verification_codes')->updateOrInsert(
             ['type' => $this->type, 'identifier' => $this->identifier],
             [
-                'otp' => $otp,
+                'otp' => $this->otp,
+                'user_id' => $userId,
                 'expires_at' => now()->addMinutes(10),
                 'updated_at' => now(),
                 'created_at' => now(),
             ]
         );
 
-        \Illuminate\Support\Facades\Log::info("Generated OTP {$otp} for {$this->type}: {$this->identifier}");
+        \Illuminate\Support\Facades\Log::info("Generated OTP {$this->otp} for {$this->type}: {$this->identifier}");
 
-        return $otp;
+        return $this->otp;
     }
 
     /**
@@ -61,12 +69,7 @@ class VerifyEmailNotification extends Notification
      */
     public function toMail($notifiable)
     {
-        $record = DB::table('verification_codes')
-            ->where('type', $this->type)
-            ->where('identifier', $this->identifier)
-            ->first();
-
-        $otp = $record ? $record->otp : rand(100000, 999999);
+        $otp = $this->otp ?? $this->generateOtpCode($notifiable->id ?? null);
 
         // Dữ liệu truyền qua view
         $data = [
