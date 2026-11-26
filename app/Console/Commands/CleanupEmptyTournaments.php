@@ -11,6 +11,7 @@ use App\Models\MiniTournament;
 use App\Models\MiniTournamentStaff;
 use App\Models\Tournament;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -22,6 +23,8 @@ class CleanupEmptyTournaments extends Command
     protected $description = 'Xóa các giải đấu và mini-tournament không có người tham gia hợp lệ khi đã quá thời gian bắt đầu';
 
     private const CLEANUP_REASON = 'Không có người tham gia hợp lệ khi đã quá thời gian bắt đầu.';
+    private const MAX_EMPTY_RECURRING_OCCURRENCES = 10;
+    private const SERIES_CANCEL_REASON = 'Chuỗi kèo lặp bị huỷ do có quá 10 kèo không có người tham gia.';
 
     /**
      * Chunk size khi duyệt DB - giảm từ 100 xuống 50 để giải phóng memory sớm.
@@ -134,6 +137,7 @@ class CleanupEmptyTournaments extends Command
     protected function cleanupMiniTournaments(int $remaining): int
     {
         $count = 0;
+        $touchedSeries = [];
 
         MiniTournament::query()
             ->whereIn('status', [
@@ -155,19 +159,125 @@ class CleanupEmptyTournaments extends Command
                     ->whereNull('mini_participants.declined_at');
             })
             // Chỉ lấy các field cần thiết, bỏ ->with('creator')
-            ->select(['id', 'name', 'created_by', 'club_id'])
-            ->chunkById(self::CHUNK_SIZE, function ($miniTournaments) use (&$count, &$remaining) {
+            ->select(['id', 'name', 'created_by', 'club_id', 'recurrence_series_id'])
+            ->chunkById(self::CHUNK_SIZE, function ($miniTournaments) use (&$count, &$remaining, &$touchedSeries) {
                 foreach ($miniTournaments as $miniTournament) {
                     if ($remaining <= 0) {
                         return false;
                     }
-                    $this->processMiniTournament($miniTournament) && $count++;
+                    if ($this->processMiniTournament($miniTournament)) {
+                        $count++;
+                        if ($miniTournament->recurrence_series_id) {
+                            $touchedSeries[$miniTournament->recurrence_series_id] = $miniTournament;
+                        }
+                    }
                     $remaining--;
                 }
                 return null;
             });
 
+        // Kiểm tra thêm các chuỗi đang hoạt động đã tích luỹ > 10 kèo rỗng từ trước
+        $activeSeriesIds = MiniTournament::query()
+            ->whereNotNull('recurrence_series_id')
+            ->whereNull('recurrence_series_cancelled_at')
+            ->distinct()
+            ->pluck('recurrence_series_id');
+
+        foreach ($activeSeriesIds as $seriesId) {
+            $seed = $touchedSeries[$seriesId]
+                ?? MiniTournament::withTrashed()
+                    ->where('recurrence_series_id', $seriesId)
+                    ->select(['id', 'name', 'created_by', 'club_id', 'recurrence_series_id'])
+                    ->first();
+
+            if ($seed) {
+                $this->cancelSeriesIfThresholdExceeded($seed);
+            }
+        }
+
         return $count;
+    }
+
+    /**
+     * Huỷ cả chuỗi kèo lặp nếu tổng số kèo không có người tham gia vượt quá 10.
+     */
+    protected function cancelSeriesIfThresholdExceeded(MiniTournament $seed): void
+    {
+        $seriesId = $seed->recurrence_series_id;
+        if (!$seriesId) {
+            return;
+        }
+
+        $emptyCount = MiniTournament::withTrashed()
+            ->where('recurrence_series_id', $seriesId)
+            ->whereNotNull('deleted_at')
+            ->whereNotExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('mini_participants')
+                    ->whereColumn('mini_participants.mini_tournament_id', 'mini_tournaments.id')
+                    ->whereColumn('mini_participants.user_id', '!=', 'mini_tournaments.created_by')
+                    ->whereNull('mini_participants.declined_at');
+            })
+            ->count();
+
+        if ($emptyCount <= self::MAX_EMPTY_RECURRING_OCCURRENCES) {
+            return;
+        }
+
+        $now = now();
+        $deletedFutureCount = 0;
+
+        DB::transaction(function () use ($seriesId, $now, &$deletedFutureCount) {
+            $futureCandidates = MiniTournament::where('recurrence_series_id', $seriesId)
+                ->where('status', '!=', MiniTournament::STATUS_CLOSED)
+                ->where('start_time', '>', $now)
+                ->get();
+
+            foreach ($futureCandidates as $future) {
+                $hasCompletedMatch = MiniMatch::where('mini_tournament_id', $future->id)
+                    ->where('status', MiniMatch::STATUS_COMPLETED)
+                    ->exists();
+
+                if ($hasCompletedMatch) {
+                    continue;
+                }
+
+                MiniMatch::where('mini_tournament_id', $future->id)->delete();
+                MiniParticipant::where('mini_tournament_id', $future->id)->delete();
+                MiniParticipantPayment::where('mini_tournament_id', $future->id)->delete();
+                MiniTournamentStaff::where('mini_tournament_id', $future->id)->delete();
+                $future->delete();
+                $deletedFutureCount++;
+            }
+
+            MiniTournament::withTrashed()
+                ->where('recurrence_series_id', $seriesId)
+                ->update(['recurrence_series_cancelled_at' => $now]);
+        });
+
+        if ($seed->club_id) {
+            Cache::increment('club_content_version:' . $seed->club_id);
+        }
+
+        Log::info('Recurring mini-tournament series cancelled due to >10 empty occurrences', [
+            'recurrence_series_id' => $seriesId,
+            'empty_count' => $emptyCount,
+            'deleted_future_count' => $deletedFutureCount,
+            'creator_id' => $seed->created_by,
+        ]);
+
+        if ($seed->created_by) {
+            SendTournamentCleanupNotificationJob::dispatch(
+                $seed->created_by,
+                TournamentCleanupType::MiniTournament,
+                $seed->name,
+                $seed->club_id,
+                $seed->id,
+                self::SERIES_CANCEL_REASON,
+            );
+        }
+
+        $this->line("Cancelled recurring series {$seriesId} ({$emptyCount} empty occurrences, removed {$deletedFutureCount} future).");
     }
 
     protected function processMiniTournament(MiniTournament $miniTournament): bool
