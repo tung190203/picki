@@ -43,9 +43,9 @@ class AuthController extends Controller
             'platform' => 'sometimes|in:ios,android'
         ]);
 
-        $loginField = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
-        $credentials = [$loginField => $request->login, 'password' => $request->password];
-        $exits = User::where($loginField, $request->login)->first();
+        [$loginField, $identifier] = $this->normalizeLogin($request->login);
+        $credentials = [$loginField => $identifier, 'password' => $request->password];
+        $exits = User::where($loginField, $identifier)->first();
         if (!$exits) {
             return ResponseHelper::error('Người dùng không tồn tại', 404, [
                 'status_code' => 'USER_NOT_FOUND'
@@ -64,14 +64,14 @@ class AuthController extends Controller
             ]);
         }
         if (!$exits->email_verified_at) {
-            $exits->notify(new VerifyEmailNotification($loginField, $request->login));
+            $this->sendOtpNotification($exits, $loginField, $identifier);
             return ResponseHelper::error('Vui lòng xác minh email trước khi đăng nhập', 403, [
                 'status_code' => 'OTP_PENDING'
             ]);
         }
 
         if (!$exits->password) {
-            $exits->notify(new VerifyEmailNotification($loginField, $request->login));
+            $this->sendOtpNotification($exits, $loginField, $identifier);
             return ResponseHelper::error('Bạn chưa hoàn tất đăng ký mật khẩu', 403, [
                 'status_code' => 'PASSWORD_PENDING'
             ]);
@@ -108,18 +108,18 @@ class AuthController extends Controller
     {
         $request->validate(['login' => 'required|string']);
 
-        $loginField = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
-        $existingUser = User::where($loginField, $request->login)->first();
+        [$loginField, $identifier] = $this->normalizeLogin($request->login);
+        $existingUser = User::where($loginField, $identifier)->first();
 
         if ($existingUser) {
             if (!$existingUser->email_verified_at) {
-                $existingUser->notify(new VerifyEmailNotification($loginField, $request->login));
+                $this->sendOtpNotification($existingUser, $loginField, $identifier);
                 return ResponseHelper::error('Vui lòng xác minh email trước khi đăng nhập', 403, [
                     'status_code' => 'OTP_PENDING'
                 ]);
             }
             if (!$existingUser->password) {
-                $existingUser->notify(new VerifyEmailNotification($loginField, $request->login));
+                $this->sendOtpNotification($existingUser, $loginField, $identifier);
                 return ResponseHelper::error('Bạn chưa hoàn tất đăng ký mật khẩu', 403, [
                     'status_code' => 'PASSWORD_PENDING'
                 ]);
@@ -128,15 +128,19 @@ class AuthController extends Controller
         }
 
         $user = User::create([
-            $loginField => $request->login,
+            $loginField => $identifier,
             'avatar_url' => null,
             'full_name' => 'PickiUser' . Str::random(5),
         ]);
 
-        // Notify super admins about new user registration
-        UserRegistered::dispatch($user);
+        // Notify super admins about new user registration (must not block OTP)
+        try {
+            UserRegistered::dispatch($user);
+        } catch (\Throwable $e) {
+            \Log::warning("UserRegistered broadcast failed for user {$user->id}: " . $e->getMessage());
+        }
 
-        $user->notify(new VerifyEmailNotification($loginField, $request->login));
+        $this->sendOtpNotification($user, $loginField, $identifier);
 
         return ResponseHelper::success(['status_code' => 'OTP_PENDING'], 'Đăng ký thành công. Vui lòng xác minh tài khoản.');
     }
@@ -145,8 +149,8 @@ class AuthController extends Controller
     {
         $request->validate(['login' => 'required|string', 'otp' => 'required|digits:6']);
 
-        $type = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
-        $record = DB::table('verification_codes')->where('type', $type)->where('identifier', $request->login)->first();
+        [$type, $identifier] = $this->normalizeLogin($request->login);
+        $record = DB::table('verification_codes')->where('type', $type)->where('identifier', $identifier)->first();
 
         if (!$record) {
             return ResponseHelper::error('Không tìm thấy mã xác minh.', 404, ['status_code' => 'OTP_NOT_FOUND']);
@@ -158,12 +162,12 @@ class AuthController extends Controller
             return ResponseHelper::error('Mã OTP đã hết hạn.', 400, ['status_code' => 'OTP_EXPIRED']);
         }
 
-        $user = User::where($type, $request->login)->first();
+        $user = User::where($type, $identifier)->first();
         if (!$user) return ResponseHelper::error('Người dùng không tồn tại.', 404, ['status_code' => 'USER_NOT_FOUND']);
 
         $user->email_verified_at = now();
         $user->save();
-        DB::table('verification_codes')->where('type', $type)->where('identifier', $request->login)->delete();
+        DB::table('verification_codes')->where('type', $type)->where('identifier', $identifier)->delete();
 
         $status = $user->password ? 'VERIFIED' : 'PASSWORD_PENDING';
         return ResponseHelper::success(['status_code' => $status], 'Xác minh thành công');
@@ -172,12 +176,12 @@ class AuthController extends Controller
     public function resendOtp(Request $request)
     {
         $request->validate(['login' => 'required|string']);
-        $type = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
-        $user = User::where($type, $request->login)->first();
+        [$type, $identifier] = $this->normalizeLogin($request->login);
+        $user = User::where($type, $identifier)->first();
 
         if (!$user) return ResponseHelper::error('Không tìm thấy người dùng.', 404, ['status_code' => 'USER_NOT_FOUND']);
 
-        $user->notify(new VerifyEmailNotification($type, $request->login));
+        $this->sendOtpNotification($user, $type, $identifier);
         return ResponseHelper::success(['status_code' => 'OTP_PENDING'], 'Mã OTP mới đã được gửi.');
     }
 
@@ -190,8 +194,8 @@ class AuthController extends Controller
         ], [
             'full_name.not_regex' => 'Vui lòng nhập họ và tên thực tế của bạn (không sử dụng tên mặc định dạng PickiUser).',
         ]);
-        $type = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
-        $user = User::where($type, $request->login)->first();
+        [$type, $identifier] = $this->normalizeLogin($request->login);
+        $user = User::where($type, $identifier)->first();
 
         if (!$user) return ResponseHelper::error('Không tìm thấy người dùng.', 404, ['status_code' => 'USER_NOT_FOUND']);
         if ($user->password) return ResponseHelper::error('Người dùng đã có mật khẩu.', 400, ['status_code' => 'PASSWORD_EXISTS']);
@@ -232,35 +236,66 @@ class AuthController extends Controller
     public function forgotPassword(Request $request)
     {
         $request->validate(['email' => 'required|email']);
-        $user = User::where('email', $request->email)->first();
+        $email = mb_strtolower(trim($request->email));
+        $user = User::where('email', $email)->first();
 
         if (!$user) return ResponseHelper::error('Email không tồn tại', 404, ['status_code' => 'USER_NOT_FOUND']);
 
-        Mail::to($user->email)->send(new ResetPasswordMail($request->email));
+        try {
+            Mail::to($user->email)->send(new ResetPasswordMail($email));
+        } catch (\Throwable $e) {
+            \Log::error("forgotPassword - Failed to send reset OTP to {$email}: " . $e->getMessage());
+            return ResponseHelper::error('Không thể gửi email đặt lại mật khẩu.', 500, ['status_code' => 'EMAIL_SEND_FAILED']);
+        }
         return ResponseHelper::success(['status_code' => 'OTP_PENDING'], 'Đã gửi email đặt lại mật khẩu.');
     }
 
     public function verifyOtpPassword(Request $request)
     {
         $request->validate(['email' => 'required|email', 'otp' => 'required|digits:6']);
-        $record = DB::table('verification_codes')->where('type', 'email')->where('identifier', $request->email)->first();
+        $email = mb_strtolower(trim($request->email));
+        $record = DB::table('verification_codes')->where('type', 'email')->where('identifier', $email)->first();
 
         if (!$record) return ResponseHelper::error('Không tìm thấy mã xác minh.', 404, ['status_code' => 'OTP_NOT_FOUND']);
         if ($record->otp !== $request->otp) return ResponseHelper::error('Mã OTP không đúng.', 400, ['status_code' => 'OTP_INVALID']);
         if (now()->greaterThan($record->expires_at)) return ResponseHelper::error('Mã OTP đã hết hạn.', 400, ['status_code' => 'OTP_EXPIRED']);
 
-        DB::table('verification_codes')->where('type', 'email')->where('identifier', $request->email)->delete();
+        DB::table('verification_codes')->where('type', 'email')->where('identifier', $email)->delete();
         return ResponseHelper::success(['status_code' => 'VERIFIED'], 'Xác minh OTP thành công. Bạn có thể đặt lại mật khẩu.');
     }
 
     public function resendOtpPassword(Request $request)
     {
         $request->validate(['email' => 'required|email|exists:users,email']);
-        $user = User::where('email', $request->email)->first();
+        $email = mb_strtolower(trim($request->email));
+        $user = User::where('email', $email)->first();
         if (!$user) return ResponseHelper::error('Không tìm thấy người dùng.', 404, ['status_code' => 'USER_NOT_FOUND']);
 
-        Mail::to($user->email)->send(new ResetPasswordMail($request->email));
+        try {
+            Mail::to($user->email)->send(new ResetPasswordMail($email));
+        } catch (\Throwable $e) {
+            \Log::error("resendOtpPassword - Failed to send reset OTP to {$email}: " . $e->getMessage());
+            return ResponseHelper::error('Không thể gửi email đặt lại mật khẩu.', 500, ['status_code' => 'EMAIL_SEND_FAILED']);
+        }
         return ResponseHelper::success(['status_code' => 'OTP_PENDING'], 'Mã OTP mới đã được gửi đến email của bạn.');
+    }
+
+    private function normalizeLogin(string $login): array
+    {
+        $trimmed = trim($login);
+        $type = filter_var($trimmed, FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
+        $identifier = $type === 'email' ? mb_strtolower($trimmed) : $trimmed;
+
+        return [$type, $identifier];
+    }
+
+    private function sendOtpNotification(User $user, string $type, string $identifier): void
+    {
+        try {
+            $user->notify(new VerifyEmailNotification($type, $identifier));
+        } catch (\Throwable $e) {
+            \Log::error("sendOtpNotification failed for {$type}:{$identifier} (user {$user->id}): " . $e->getMessage());
+        }
     }
 
     public function resetPassword(Request $request)
