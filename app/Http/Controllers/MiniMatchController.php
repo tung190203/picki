@@ -877,7 +877,7 @@ class MiniMatchController extends Controller
         $tournament = $match->miniTournament;
         $sportId = $tournament->sport_id;
         $currentUserId = Auth::id();
-        $isOrganizer = $tournament->hasOrganizer($currentUserId);
+        $isOrganizer = $tournament->hasOrganizerOrStaff($currentUserId);
         $isReferee = $tournament->hasReferee($currentUserId);
 
         // Kiểm tra quyền xác nhận
