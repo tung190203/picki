@@ -61,28 +61,39 @@ class EventEditGuardService
     }
 
     /**
-     * Đã nhập trận đấu (có ít nhất 1 trận được tạo, chưa cần có điểm).
+     * Đã nhập kết quả/bắt đầu trận đấu (có ít nhất 1 trận thật đã có tỉ số/kết quả/đang live).
+     * Chỉ sinh lịch/sơ đồ trống chưa có kết quả thì vẫn cho xoá.
      */
     public function hasEnteredMatches(MiniTournament|Tournament $event): bool
     {
         return $this->remember($event, 'matches', function () use ($event) {
-            // match_count được set bởi scopeWithFullRelations (selectSub).
-            $count = $event->getAttribute('match_count');
-            if ($count !== null) {
-                return (int) $count > 0;
-            }
-
             if ($event instanceof MiniTournament) {
-                // `matches` đã eager-load trong scopeWithFullRelations.
-                if ($event->relationLoaded('matches')) {
-                    return $event->matches->isNotEmpty();
-                }
-
-                return $event->matches()->exists();
+                return $event->matches()
+                    ->where('is_bye', false)
+                    ->where(function ($q) {
+                        $q->where('status', \App\Models\MiniMatch::STATUS_COMPLETED)
+                            ->orWhereNotNull('team_win_id')
+                            ->orWhereNotNull('participant_win_id')
+                            ->orWhereHas('results');
+                    })
+                    ->exists();
             }
 
             return $event->tournamentTypes()
-                ->whereHas('matches')
+                ->whereHas('matches', function ($q) {
+                    $q->where('is_bye', false)
+                        ->where(function ($mq) {
+                            $mq->where('status', \App\Models\Matches::STATUS_COMPLETED)
+                                ->orWhereNotNull('winner_id')
+                                ->orWhereIn('live_status', [
+                                    \App\Models\Matches::LIVE_STATUS_PLAYING,
+                                    \App\Models\Matches::LIVE_STATUS_TIMEOUT,
+                                    \App\Models\Matches::LIVE_STATUS_BETWEEN_SETS,
+                                    \App\Models\Matches::LIVE_STATUS_FINISHED,
+                                ])
+                                ->orWhereHas('results');
+                        });
+                })
                 ->exists();
         });
     }
@@ -118,16 +129,18 @@ class EventEditGuardService
     public function deletionBlockReason(MiniTournament|Tournament $event): ?string
     {
         return $this->remember($event, 'reason', function () use ($event) {
+            $label = $event instanceof MiniTournament ? 'Kèo' : 'Giải';
+
             if ($this->isUpdateLocked($event)) {
-                return 'Kèo/giải đã hoàn thành nên không thể xoá.';
+                return "{$label} đã hoàn thành nên không thể xoá.";
             }
 
             if ($this->hasCollectedMoney($event)) {
-                return 'Kèo/giải đã có thu tiền nên không thể xoá. Chỉ có thể sửa thông tin chung.';
+                return "{$label} đã có thu tiền nên không thể xoá. Chỉ có thể sửa thông tin chung.";
             }
 
             if ($this->hasEnteredMatches($event)) {
-                return 'Kèo/giải đã nhập trận đấu nên không thể xoá. Chỉ có thể sửa thông tin chung.';
+                return "{$label} đã có kết quả trận đấu nên không thể xoá. Chỉ có thể sửa thông tin chung.";
             }
 
             return null;
