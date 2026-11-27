@@ -49,7 +49,9 @@ class MatchDetailResource extends JsonResource
                             'id' => $this->id,
                             'leg' => 1,
                             'status' => $this->status,
-                            'court' => $this->court,
+                            'court' => $this->court ?? $this->tournamentCourt?->sort_order,
+                            'court_id' => $this->court_id,
+                            'court_name' => $this->tournamentCourt?->name,
                             'scheduled_at' => $this->scheduled_at,
                             'referee' => $this->referee ? ['id' => $this->referee->id, 'name' => $this->referee->full_name] : null,
                             'sets' => $sets,
@@ -65,7 +67,7 @@ class MatchDetailResource extends JsonResource
                 default:
                     if ($this->home_team_id && $this->away_team_id) {
 
-                        $legs = Matches::with(['results', 'referee', 'legReferee'])
+                        $legs = Matches::with(['results', 'referee', 'legReferee', 'tournamentCourt'])
                             ->where('tournament_type_id', $this->tournament_type_id)
                             ->where('round', $this->round) // ✅ QUAN TRỌNG
                             ->where(function ($q) {
@@ -98,7 +100,9 @@ class MatchDetailResource extends JsonResource
                                     'id' => $match->id,                 // ✅ CẦN CHO UPDATE
                                     'leg' => $match->leg,
                                     'status' => $match->status,
-                                    'court' => $match->court,
+                                    'court' => $match->court ?? $match->tournamentCourt?->sort_order,
+                                    'court_id' => $match->court_id,
+                                    'court_name' => $match->tournamentCourt?->name,
                                     'scheduled_at' => $match->scheduled_at,
                                     'referee' => $match->leg == 1
                                         ? ($match->referee ? ['id' => $match->referee->id, 'name' => $match->referee->full_name] : null)

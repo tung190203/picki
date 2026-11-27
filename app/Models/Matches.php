@@ -190,6 +190,7 @@ class Matches extends Model
         return $query->with([
             'group',
             'referee',
+            'tournamentCourt',
             'homeTeam.members.sports.scores',
             'homeTeam.members.sports.sport',
             'homeTeam.guestMembers.participant',

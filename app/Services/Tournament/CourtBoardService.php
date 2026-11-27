@@ -174,6 +174,7 @@ class CourtBoardService
                     $dest = $courtCount > 0 ? $orderedCourts[$i % $courtCount] : null;
                     $match->update([
                         'court_id' => $dest?->id,
+                        'court' => $dest?->sort_order,
                         'referee_id' => $dest?->referee_user_id,
                     ]);
                 }
@@ -225,6 +226,7 @@ class CourtBoardService
                     }
                     $match->update([
                         'court_id' => $dest?->id,
+                        'court' => $dest?->sort_order,
                         'referee_id' => $dest?->referee_user_id,
                     ]);
                 }
@@ -314,7 +316,7 @@ class CourtBoardService
                 CourtAssignment::whereIn('court_id', $delIds)->delete();
                 Matches::whereIn('court_id', $delIds)
                     ->where('status', '!=', Matches::STATUS_COMPLETED)
-                    ->update(['court_id' => null, 'priority_at' => null]);
+                    ->update(['court_id' => null, 'court' => null, 'priority_at' => null]);
 
                 foreach ($deletedCourts as $dc) {
                     if ($dc->referee_user_id) {
@@ -332,6 +334,7 @@ class CourtBoardService
                 ->where(fn ($q) => $q->whereNull('live_status')->orWhere('live_status', Matches::LIVE_STATUS_WAITING))
                 ->update([
                     'court_id' => null,
+                    'court' => null,
                     'referee_id' => null,
                 ]);
 
@@ -383,6 +386,7 @@ class CourtBoardService
                         ->where(fn ($q) => $q->whereNull('live_status')->orWhere('live_status', Matches::LIVE_STATUS_WAITING))
                         ->update([
                             'court_id' => $court->id,
+                            'court' => $court->sort_order,
                             'referee_id' => $court->referee_user_id,
                         ]);
                 }
@@ -408,6 +412,7 @@ class CourtBoardService
                         ) {
                             $sm->update([
                                 'court_id' => $court->id,
+                                'court' => $court->sort_order,
                                 'referee_id' => $court->referee_user_id,
                             ]);
                         }
@@ -463,7 +468,8 @@ class CourtBoardService
             }
 
             $typeIds = $tournament->tournamentTypes()->pluck('id');
-            $waitingMatches = Matches::whereIn('tournament_type_id', $typeIds)
+            $waitingGroupMatches = Matches::whereIn('tournament_type_id', $typeIds)
+                ->whereNotNull('group_id')
                 ->where('is_bye', false)
                 ->where('status', Matches::STATUS_PENDING)
                 ->where(fn ($q) => $q->whereNull('live_status')->orWhere('live_status', Matches::LIVE_STATUS_WAITING))
@@ -475,7 +481,7 @@ class CourtBoardService
             $courtCount = count($resultCourts);
             $load = array_fill(0, $courtCount, 0);
 
-            foreach ($waitingMatches as $m) {
+            foreach ($waitingGroupMatches as $m) {
                 $minIdx = array_keys($load, min($load))[0];
                 $resultCourts[$minIdx]['match_ids'][] = $m->id;
                 $load[$minIdx]++;
@@ -494,9 +500,16 @@ class CourtBoardService
                         'no' => $slot['no'],
                         'label' => $slot['label'],
                     ];
-                    if (!$slot['match_id']) {
-                        $load[$minIdx]++;
+
+                    foreach ($slot['matches'] as $slotMatch) {
+                        if ($slotMatch->status === Matches::STATUS_PENDING
+                            && (!$slotMatch->live_status || $slotMatch->live_status === Matches::LIVE_STATUS_WAITING)
+                        ) {
+                            $resultCourts[$minIdx]['match_ids'][] = $slotMatch->id;
+                        }
                     }
+
+                    $load[$minIdx]++;
                 }
             }
 
@@ -592,6 +605,7 @@ class CourtBoardService
                 if ($m->court_id === null && $m->status === Matches::STATUS_PENDING) {
                     $m->update([
                         'court_id' => $assign->court->id,
+                        'court' => $assign->court->sort_order,
                         'referee_id' => $assign->court->referee_user_id,
                     ]);
                 }

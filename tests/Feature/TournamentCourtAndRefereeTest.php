@@ -306,6 +306,12 @@ class TournamentCourtAndRefereeTest extends TestCase
         $m1 = $this->makeMatch($type, $groupA, $t1, $t2);
         $m2 = $this->makeMatch($type, $groupA, $t1, $t2);
 
+        // Add 4 knockout matches (2 SF -> F, 1 F, 1 P3)
+        $f = $this->makeMatch($type, null, $t1, $t2, ['round' => 3]);
+        $sf1 = $this->makeMatch($type, null, $t1, $t2, ['round' => 2, 'next_match_id' => $f->id, 'next_position' => 1]);
+        $sf2 = $this->makeMatch($type, null, $t1, $t2, ['round' => 2, 'next_match_id' => $f->id, 'next_position' => 2]);
+        $p3 = $this->makeMatch($type, null, $t1, $t2, ['round' => 4, 'is_third_place' => true]);
+
         // 1. Auto assign preview with courts list
         $autoRes = $this->actingAs($this->admin, 'api')
             ->postJson("/api/tournaments/{$tournament->id}/court-board/auto", [
@@ -319,6 +325,10 @@ class TournamentCourtAndRefereeTest extends TestCase
 
         $this->assertNotNull($autoRes->json('data.courts.0.referee_user_id'));
         $this->assertNotNull($autoRes->json('data.courts.1.referee_user_id'));
+        $this->assertCount(2, $autoRes->json('data.courts.0.slots'));
+        $this->assertCount(2, $autoRes->json('data.courts.1.slots'));
+        $this->assertCount(3, $autoRes->json('data.courts.0.match_ids'));
+        $this->assertCount(3, $autoRes->json('data.courts.1.match_ids'));
 
         // Preview should not persist Sân 2 yet
         $this->assertEquals(1, $tournament->courts()->count());
@@ -359,5 +369,35 @@ class TournamentCourtAndRefereeTest extends TestCase
             'slot_no' => 1,
             'court_id' => $c1->id,
         ]);
+
+        // Match detail returns court, court_id, court_name
+        $this->actingAs($this->admin, 'api')
+            ->getJson("/api/matches/detail/{$m1->id}")
+            ->assertOk()
+            ->assertJsonPath('data.legs.0.court', 1)
+            ->assertJsonPath('data.legs.0.court_id', $c1->id)
+            ->assertJsonPath('data.legs.0.court_name', 'Sân 1');
+    }
+
+    public function test_event_edit_guard_allows_deleting_tournament_with_unplayed_matches_and_separates_message(): void
+    {
+        [$tournament, $type] = $this->makeTournament();
+        $groupA = Group::create(['tournament_type_id' => $type->id, 'name' => 'A']);
+        $t1 = $this->makeTeam($tournament, $this->player1, 'T1');
+        $t2 = $this->makeTeam($tournament, $this->player2, 'T2');
+        $m1 = $this->makeMatch($type, $groupA, $t1, $t2);
+
+        $guard = app(\App\Services\EventEditGuardService::class);
+
+        // Generated matches without results -> deletion is allowed
+        $this->assertNull($guard->deletionBlockReason($tournament));
+
+        // Once a match has a winner/result -> blocked with "Giải ..." message (not "Kèo/giải ...")
+        $m1->update(['status' => Matches::STATUS_COMPLETED, 'winner_id' => $t1->id]);
+        $freshGuard = new \App\Services\EventEditGuardService();
+        $reason = $freshGuard->deletionBlockReason($tournament->fresh());
+        $this->assertNotNull($reason);
+        $this->assertStringStartsWith('Giải ', $reason);
+        $this->assertStringNotContainsString('Kèo/giải', $reason);
     }
 }
