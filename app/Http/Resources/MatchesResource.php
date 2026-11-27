@@ -58,7 +58,9 @@ class MatchesResource extends JsonResource
             'is_loser_bracket' => $this->is_loser_bracket,
             'is_third_place' => $this->is_third_place,
             'bracket_type' => $this->bracket_type ?? 'main',
-            'court' => $this->court,
+            'court' => $this->court ?? $this->tournamentCourt?->sort_order,
+            'court_id' => $this->court_id,
+            'court_name' => $this->tournamentCourt?->name,
             'winner_id' => $this->winner_id,
 
             'referee' => $this->whenLoaded('referee', function () {

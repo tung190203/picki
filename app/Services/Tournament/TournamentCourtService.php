@@ -58,8 +58,13 @@ class TournamentCourtService
             $court->name = $name;
         }
 
+        $sortOrderChanged = false;
         if (array_key_exists('sort_order', $data) && $data['sort_order'] !== null) {
-            $court->sort_order = (int) $data['sort_order'];
+            $newOrder = (int) $data['sort_order'];
+            if ($newOrder !== (int) $court->sort_order) {
+                $sortOrderChanged = true;
+                $court->sort_order = $newOrder;
+            }
         }
 
         $refereeChanged = false;
@@ -85,8 +90,12 @@ class TournamentCourtService
             }
         }
 
-        DB::transaction(function () use ($court, $refereeChanged) {
+        DB::transaction(function () use ($court, $refereeChanged, $sortOrderChanged) {
             $court->save();
+
+            if ($sortOrderChanged) {
+                Matches::where('court_id', $court->id)->update(['court' => $court->sort_order]);
+            }
 
             // Đổi trọng tài của sân: các trận chờ chuyển sang người mới;
             // trận đang đấu giữ nguyên người đang bắt cho tới khi xong.
@@ -141,6 +150,7 @@ class TournamentCourtService
                 ->where('status', '!=', Matches::STATUS_COMPLETED)
                 ->update([
                     'court_id' => null,
+                    'court' => null,
                     'priority_at' => null,
                 ]);
 

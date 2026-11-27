@@ -296,6 +296,7 @@ class RefereeMatchService
 
         $match->update([
             'court_id' => $destCourt?->id,
+            'court' => $destCourt?->sort_order,
             'referee_id' => $destCourt?->referee_user_id,
             'priority_at' => $toTop
                 ? now()
