@@ -24,7 +24,7 @@ class RefereeMatchService
         $today = now()->toDateString();
 
         $tournaments = Tournament::query()
-            ->where('status', Tournament::OPEN)
+            ->whereIn('status', [Tournament::DRAFT, Tournament::OPEN])
             ->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', $today))
             ->whereHas('staff', fn ($q) => $q->where('user_id', $user->id))
             ->with([

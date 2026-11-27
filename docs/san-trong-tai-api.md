@@ -172,7 +172,7 @@
 
 ### 4.1 Danh sách giải đang & sắp diễn ra của tôi (Bước 1)
 - **Method & URL**: `GET /api/referee/tournaments`
-- **Quyền**: User đã đăng nhập. Trả về các giải đang mở (`status = OPEN`, chưa qua `end_date`) — bao gồm cả giải đang diễn ra và giải sắp diễn ra — mà user có mặt trong `tournament_staff`. App kiểm tra `start_date` để phân biệt giải sắp diễn ra.
+- **Quyền**: User đã đăng nhập. Trả về các giải chưa đóng/huỷ (`status` ∈ `[DRAFT, OPEN]`, chưa qua `end_date`) — bao gồm cả giải đang diễn ra và giải sắp diễn ra — mà user có mặt trong `tournament_staff`. App kiểm tra `start_date` để phân biệt giải sắp diễn ra.
 - **Response `200`**:
 ```json
 {
