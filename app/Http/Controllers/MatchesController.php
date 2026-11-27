@@ -1204,7 +1204,7 @@ class MatchesController extends Controller
         ])->findOrFail($matchId);
 
         $tournament = $match->tournamentType->tournament->load('staff');
-        $isOrganizer = $tournament->hasOrganizer(Auth::id());
+        $isOrganizer = $tournament->hasOrganizerOrStaff(Auth::id());
         $isReferee = $tournament->staff()
             ->wherePivot('user_id', Auth::id())
             ->wherePivot('role', TournamentStaff::ROLE_REFEREE)
