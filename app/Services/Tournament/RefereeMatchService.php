@@ -25,7 +25,6 @@ class RefereeMatchService
 
         $tournaments = Tournament::query()
             ->where('status', Tournament::OPEN)
-            ->where(fn ($q) => $q->whereNull('start_date')->orWhereDate('start_date', '<=', $today))
             ->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', $today))
             ->whereHas('staff', fn ($q) => $q->where('user_id', $user->id))
             ->with([
@@ -137,9 +136,9 @@ class RefereeMatchService
                 'tournamentCourt.referee:id,full_name',
                 'referee:id,full_name',
                 'homeTeam.members:id,full_name',
-                'homeTeam.guestMembers.participant:id,full_name',
+                'homeTeam.guestMembers.participant:id,guest_name',
                 'awayTeam.members:id,full_name',
-                'awayTeam.guestMembers.participant:id,full_name',
+                'awayTeam.guestMembers.participant:id,guest_name',
                 'results',
             ])
             ->get();
@@ -241,9 +240,9 @@ class RefereeMatchService
 
             $match->load([
                 'homeTeam.members:id,full_name',
-                'homeTeam.guestMembers.participant:id,full_name',
+                'homeTeam.guestMembers.participant:id,guest_name',
                 'awayTeam.members:id,full_name',
-                'awayTeam.guestMembers.participant:id,full_name',
+                'awayTeam.guestMembers.participant:id,guest_name',
             ]);
 
             $busyLookup = $this->buildGlobalBusyLookup();
@@ -411,9 +410,9 @@ class RefereeMatchService
             ->with([
                 'tournamentCourt:id,name',
                 'homeTeam.members:id,full_name',
-                'homeTeam.guestMembers.participant:id,full_name',
+                'homeTeam.guestMembers.participant:id,guest_name',
                 'awayTeam.members:id,full_name',
-                'awayTeam.guestMembers.participant:id,full_name',
+                'awayTeam.guestMembers.participant:id,guest_name',
             ])
             ->get();
 
@@ -466,7 +465,7 @@ class RefereeMatchService
             }
             foreach ($team->guestMembers as $guest) {
                 $key = $guest->participant_id ? "p:{$guest->participant_id}" : "g:{$guest->id}";
-                $identities[$key] = $guest->name ?? $guest->participant?->full_name ?? '';
+                $identities[$key] = $guest->name ?? $guest->participant?->guest_name ?? '';
             }
         }
 
@@ -549,7 +548,7 @@ class RefereeMatchService
             $names->push($member->full_name);
         }
         foreach ($team->guestMembers as $guest) {
-            $names->push($guest->name ?? $guest->participant?->full_name);
+            $names->push($guest->name ?? $guest->participant?->guest_name);
         }
 
         $filtered = $names->filter()->values();

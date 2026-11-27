@@ -731,7 +731,7 @@ class CourtBoardService
             $names->push($member->full_name);
         }
         foreach ($team->guestMembers as $guest) {
-            $names->push($guest->name ?? $guest->participant?->full_name);
+            $names->push($guest->name ?? $guest->participant?->guest_name);
         }
 
         $filtered = $names->filter()->values();

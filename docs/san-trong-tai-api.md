@@ -170,9 +170,9 @@
 
 ## 4. Phần B – Trọng tài & Điều phối trận
 
-### 4.1 Danh sách giải đang diễn ra của tôi (Bước 1)
+### 4.1 Danh sách giải đang & sắp diễn ra của tôi (Bước 1)
 - **Method & URL**: `GET /api/referee/tournaments`
-- **Quyền**: User đã đăng nhập. Trả về các giải đang mở (`status = OPEN`) có ngày hiện tại nằm trong `[start_date, end_date]` mà user có mặt trong `tournament_staff`.
+- **Quyền**: User đã đăng nhập. Trả về các giải đang mở (`status = OPEN`, chưa qua `end_date`) — bao gồm cả giải đang diễn ra và giải sắp diễn ra — mà user có mặt trong `tournament_staff`. App kiểm tra `start_date` để phân biệt giải sắp diễn ra.
 - **Response `200`**:
 ```json
 {
