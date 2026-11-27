@@ -206,11 +206,15 @@ class TournamentCourtAndRefereeTest extends TestCase
         $m1 = $this->makeMatch($type1, null, $t1, $t2, ['court_id' => $c1_t1->id, 'referee_id' => $this->ref1->id]);
         $m2 = $this->makeMatch($type2, null, $t3, $t4, ['court_id' => $c1_t2->id, 'referee_id' => $this->ref2->id]);
 
+        // Upcoming tournament should also be included in /referee/tournaments
+        [$upcomingTour] = $this->makeTournament('Upcoming Cup');
+        $upcomingTour->update(['start_date' => now()->addDays(2), 'end_date' => now()->addDays(4)]);
+
         // List referee tournaments
         $this->actingAs($this->ref1, 'api')
             ->getJson('/api/referee/tournaments')
             ->assertOk()
-            ->assertJsonCount(2, 'data');
+            ->assertJsonCount(3, 'data');
 
         // Merged matches merges "Sân 1" into 1 court chip
         $merged = $this->actingAs($this->ref1, 'api')
